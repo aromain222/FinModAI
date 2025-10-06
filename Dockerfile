@@ -16,6 +16,9 @@ COPY . .
 # Create directories
 RUN mkdir -p generated_models uploads
 
+# Make startup script executable
+RUN chmod +x docker-entrypoint.sh
+
 # Simple startup
-CMD ["gunicorn", "--bind", "0.0.0.0:$PORT", "--workers", "1", "--timeout", "120", "minimal_app:app"]
+CMD ["./docker-entrypoint.sh"]
 
