@@ -1,10 +1,8 @@
 services:
   - type: web
     name: finmodai
-    env: python
+    env: docker
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python3 start.py
     envVars:
       - key: FLASK_ENV
         value: production
