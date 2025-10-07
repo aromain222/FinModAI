@@ -166,6 +166,61 @@ DEMO_DATA = {
             "g": 0.025
         },
         "flags": ["demo_data_used"]
+    },
+    "GOOS": {
+        "ticker": "GOOS",
+        "company_name": "Canada Goose Holdings Inc.",
+        "currency": "CAD",
+        "provenance": {
+            "revenue": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+            "op_margin": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+            "capex": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+            "nwc": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+            "price": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+            "beta": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+            "rf": {"source": "Demo_Data_UST10Y", "as_of": datetime.now().strftime("%Y-%m-%d")}
+        },
+        "historicals": {
+            "years": [2024, 2023, 2022, 2021, 2020],
+            "revenue": [1098000000, 1031000000, 905000000, 791000000, 958000000],
+            "operating_income": [180000000, 160000000, 120000000, 95000000, 150000000],
+            "op_margin": [0.164, 0.155, 0.133, 0.120, 0.157],
+            "da": [45000000, 42000000, 38000000, 35000000, 32000000],
+            "capex": [55000000, 48000000, 42000000, 38000000, 35000000],
+            "delta_nwc": [25000000, 15000000, 20000000, 10000000, 5000000],
+            # Additional fields for enhanced analysis
+            "tax_expense": [45000000, 40000000, 30000000, 24000000, 38000000],
+            "pretax_income": [180000000, 160000000, 120000000, 95000000, 150000000],
+            "interest_expense": [8000000, 7000000, 6000000, 5000000, 4000000],
+            "total_debt": [200000000, 180000000, 160000000, 140000000, 120000000],
+            "shares_outstanding": [100000000, 102000000, 104000000, 106000000, 108000000]
+        },
+        "assumptions": {
+            "forecast_years": 10,
+            "revenue_growth": [0.065, 0.060, 0.055, 0.050, 0.045, 0.040, 0.035, 0.030, 0.028, 0.025],
+            "operating_margin": [0.160, 0.162, 0.164, 0.166, 0.168, 0.168, 0.168, 0.168, 0.168, 0.168],
+            "da_pct_rev": 0.041,
+            "capex_pct_rev": 0.050,
+            "nwc_pct_rev": 0.020,
+            "tax_rate": 0.25
+        },
+        "wacc": {
+            "rf": 0.045,
+            "erp": 0.055,
+            "beta": 1.15,
+            "ke": 0.108,
+            "kd_pre": 0.055,
+            "tax": 0.25,
+            "wd": 0.15,
+            "we": 0.85,
+            "kd_after": 0.041,
+            "wacc": 0.098
+        },
+        "terminal": {
+            "method": "perpetuity",
+            "g": 0.025
+        },
+        "flags": ["demo_data_used"]
     }
 }
 
