@@ -336,6 +336,33 @@ def generate_100_plus_companies():
     for ticker, name, revenue, growth, margin, beta, wacc in growth_companies:
         companies[ticker] = generate_company_data(ticker, name, "Growth", revenue, growth, margin, beta, wacc)
     
+    # ADDITIONAL COMPANIES (20)
+    additional_companies = [
+        ("GOOS", "Canada Goose Holdings Inc.", 1000000000, 0.08, 0.25, 1.2, 0.105),
+        ("LULU", "Lululemon Athletica Inc.", 8000000000, 0.15, 0.20, 1.5, 0.120),
+        ("PTON", "Peloton Interactive, Inc.", 4000000000, 0.05, 0.10, 1.8, 0.150),
+        ("BYND", "Beyond Meat, Inc.", 500000000, 0.10, 0.05, 2.0, 0.160),
+        ("ZM", "Zoom Video Communications, Inc.", 4000000000, 0.05, 0.25, 1.4, 0.120),
+        ("DOCU", "DocuSign, Inc.", 2000000000, 0.08, 0.20, 1.5, 0.125),
+        ("OKTA", "Okta, Inc.", 2000000000, 0.20, 0.15, 1.7, 0.140),
+        ("DDOG", "Datadog, Inc.", 2000000000, 0.30, 0.25, 1.9, 0.155),
+        ("NET", "Cloudflare, Inc.", 1000000000, 0.25, 0.10, 1.8, 0.150),
+        ("U", "Unity Software Inc.", 1500000000, 0.15, 0.10, 1.6, 0.130),
+        ("SHOP", "Shopify Inc.", 6000000000, 0.20, 0.15, 1.7, 0.140),
+        ("TWLO", "Twilio Inc.", 4000000000, 0.15, 0.05, 1.5, 0.125),
+        ("PINS", "Pinterest, Inc.", 3000000000, 0.10, 0.15, 1.4, 0.120),
+        ("SNAP", "Snap Inc.", 5000000000, 0.12, 0.05, 1.6, 0.130),
+        ("SPOT", "Spotify Technology S.A.", 12000000000, 0.15, 0.05, 1.3, 0.110),
+        ("UBER", "Uber Technologies, Inc.", 30000000000, 0.20, 0.05, 1.4, 0.120),
+        ("LYFT", "Lyft, Inc.", 4000000000, 0.10, 0.05, 1.5, 0.125),
+        ("ABNB", "Airbnb, Inc.", 8000000000, 0.15, 0.20, 1.6, 0.130),
+        ("COIN", "Coinbase Global, Inc.", 3000000000, 0.30, 0.15, 2.0, 0.160),
+        ("HOOD", "Robinhood Markets, Inc.", 2000000000, 0.25, 0.10, 1.8, 0.150)
+    ]
+    
+    for ticker, name, revenue, growth, margin, beta, wacc in additional_companies:
+        companies[ticker] = generate_company_data(ticker, name, "Additional", revenue, growth, margin, beta, wacc)
+    
     return companies
 
 if __name__ == "__main__":
