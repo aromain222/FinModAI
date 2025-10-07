@@ -23,21 +23,21 @@ class YahooProvider(BaseProvider):
             print("yfinance not available")
             return None
         
-        # Retry logic for rate limits
-        max_retries = 5  # Increased from 3
-        base_delay = 3   # Increased from 2
+        # Retry logic for rate limits (optimized for speed)
+        max_retries = 2  # Reduced from 5
+        base_delay = 1   # Reduced from 3
         
         for attempt in range(max_retries):
             try:
-                # Add delay between retries (longer delays)
+                # Add delay between retries (shorter delays)
                 if attempt > 0:
-                    wait_time = base_delay * (2 ** attempt)  # Longer exponential backoff
+                    wait_time = base_delay * (2 ** attempt)  # Shorter exponential backoff
                     print(f"Retry {attempt + 1}/{max_retries} after {wait_time}s...")
                     time.sleep(wait_time)
                 
                 # Add random jitter to avoid synchronized requests
                 import random
-                jitter = random.uniform(0.5, 2.0)
+                jitter = random.uniform(0.1, 0.5)  # Reduced jitter
                 time.sleep(jitter)
                 
                 stock = yf.Ticker(ticker)
@@ -65,7 +65,7 @@ class YahooProvider(BaseProvider):
                     cash_flow=cash_flow
                 )
                 
-            except Exception as e:
+        except Exception as e:
                 if attempt < max_retries - 1:
                     print(f"Yahoo attempt {attempt + 1} failed: {e}")
                     continue
