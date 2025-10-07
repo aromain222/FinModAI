@@ -178,7 +178,13 @@ class FinancialDataEngine:
             op_margin=op_margins,
             da=provider_data.da if provider_data.da else [None] * n,
             capex=provider_data.capex if provider_data.capex else [None] * n,
-            delta_nwc=provider_data.delta_nwc if provider_data.delta_nwc else [None] * n
+            delta_nwc=provider_data.delta_nwc if provider_data.delta_nwc else [None] * n,
+            # Additional fields for enhanced analysis
+            tax_expense=provider_data.tax_expense if provider_data.tax_expense else [None] * n,
+            pretax_income=provider_data.pretax_income if provider_data.pretax_income else [None] * n,
+            interest_expense=provider_data.interest_expense if provider_data.interest_expense else [None] * n,
+            total_debt=provider_data.total_debt if provider_data.total_debt else [None] * n,
+            shares_outstanding=provider_data.shares_outstanding if provider_data.shares_outstanding else [None] * n
         )
         
         # Validate historicals

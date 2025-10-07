@@ -31,8 +31,9 @@ class AssumptionsCalculator:
         """
         revenue = historicals.revenue[:5]  # Last 5 years
         
-        # Calculate historical CAGR
+        # Calculate historical CAGR with trend analysis
         if len(revenue) >= 3:
+            # Method 1: Traditional CAGR
             start = revenue[-1]  # Oldest
             end = revenue[0]     # Most recent
             years_back = min(3, len(revenue) - 1)
@@ -41,6 +42,22 @@ class AssumptionsCalculator:
                 cagr = (end / start) ** (1 / years_back) - 1
             else:
                 return None  # Can't calculate growth without valid revenue
+            
+            # Method 2: Trend-weighted CAGR (recent years matter more)
+            valid_revenue = [r for r in revenue[:3] if r and r > 0]
+            if len(valid_revenue) >= 3:
+                # Calculate year-over-year growth rates
+                yoy_growth = []
+                for i in range(len(valid_revenue) - 1):
+                    if valid_revenue[i+1] and valid_revenue[i+1] > 0:
+                        growth = (valid_revenue[i] / valid_revenue[i+1]) - 1
+                        yoy_growth.append(growth)
+                
+                if yoy_growth:
+                    # Use trend-weighted average of YoY growth
+                    trend_cagr = self.calculate_trend_weighted_average(yoy_growth)
+                    # Blend traditional CAGR with trend-weighted CAGR
+                    cagr = (cagr * 0.6) + (trend_cagr * 0.4)
         else:
             return None
         
@@ -101,12 +118,26 @@ class AssumptionsCalculator:
         if not margins or len(margins) < 3:
             return None
         
-        # Calculate 3-year average
+        # Calculate 3-year average with trend analysis
         valid_margins = [m for m in margins if m is not None]
         if len(valid_margins) < 3:
             return None
         
+        # Method 1: Simple average
         avg_margin = sum(valid_margins) / len(valid_margins)
+        
+        # Method 2: Trend-weighted average (recent years matter more)
+        trend_margin = self.calculate_trend_weighted_average(valid_margins)
+        
+        # Method 3: Trend slope analysis
+        trend_slope = self.calculate_trend_slope(valid_margins)
+        
+        # Blend methods: 50% average, 30% trend-weighted, 20% trend slope adjustment
+        base_margin = (avg_margin * 0.5) + (trend_margin * 0.3)
+        
+        # Apply trend slope adjustment (conservative)
+        slope_adjustment = min(0.02, max(-0.02, trend_slope * 0.1))  # Max ±200bps
+        adjusted_margin = base_margin + slope_adjustment
         
         # Check trend (is margin improving?)
         if len(valid_margins) >= 3:
@@ -117,21 +148,21 @@ class AssumptionsCalculator:
         
         # Target margin (slight improvement if trend positive)
         if analyst_margin_y1 is not None:
-            target_margin = analyst_margin_y1
+            final_margin = analyst_margin_y1
         else:
-            target_margin = avg_margin + (margin_improvement * 0.5)  # Conservative
+            final_margin = adjusted_margin + (margin_improvement * 0.3)  # Conservative
         
         # Bound margin
-        target_margin = max(Config.MARGIN_MIN, min(Config.MARGIN_MAX, target_margin))
+        final_margin = max(Config.MARGIN_MIN, min(Config.MARGIN_MAX, final_margin))
         
         # Build path (gradual improvement over first 3 years, then flat)
         margin_path = []
         for i in range(forecast_years):
             if i < 3:
                 progress = i / 3
-                margin = avg_margin * (1 - progress) + target_margin * progress
+                margin = avg_margin * (1 - progress) + final_margin * progress
             else:
-                margin = target_margin
+                margin = final_margin
             
             margin = max(Config.MARGIN_MIN, min(Config.MARGIN_MAX, margin))
             margin_path.append(margin)
@@ -173,25 +204,44 @@ class AssumptionsCalculator:
         if not percentages:
             return None
         
-        # Return average
-        return sum(percentages) / len(percentages)
+        # Use trend-weighted average (recent years matter more)
+        trend_weighted_pct = self.calculate_trend_weighted_average(percentages)
+        
+        # Also calculate simple average for comparison
+        simple_avg = sum(percentages) / len(percentages)
+        
+        # Blend: 70% trend-weighted, 30% simple average
+        final_pct = (trend_weighted_pct * 0.7) + (simple_avg * 0.3)
+        
+        return final_pct
     
     @staticmethod
     def calculate_tax_rate(historicals: Historicals) -> Optional[float]:
         """
-        Calculate effective tax rate (3-year average).
-        Cash taxes / pretax income, bounded 10-30%.
+        Calculate effective tax rate from historical data.
+        Uses 3-year average of tax_expense / pretax_income.
+        Bounded 10-30%.
         """
-        # Need to extract tax expense and pretax income from historicals
-        # For now, use a proxy calculation
+        if not historicals.tax_expense or not historicals.pretax_income:
+            return None
         
-        # This would need tax_expense and pretax_income from provider data
-        # For MVP, return None to signal we need this data
-        # In production, we'd calculate: avg(tax_expense / pretax_income) over 3 years
+        # Calculate tax rates for each year
+        tax_rates = []
+        for i in range(min(3, len(historicals.tax_expense))):
+            if (historicals.tax_expense[i] is not None and 
+                historicals.pretax_income[i] is not None and 
+                historicals.pretax_income[i] > 0):
+                
+                rate = historicals.tax_expense[i] / historicals.pretax_income[i]
+                # Clamp to reasonable bounds
+                rate = max(Config.TAX_MIN, min(Config.TAX_MAX, rate))
+                tax_rates.append(rate)
         
-        # Placeholder: Return 21% (US federal corporate rate)
-        # In real implementation, calculate from actual data
-        return 0.21
+        if not tax_rates:
+            return None
+        
+        # Return average tax rate
+        return sum(tax_rates) / len(tax_rates)
     
     @staticmethod
     def calculate_wacc(
@@ -284,4 +334,79 @@ class AssumptionsCalculator:
             method="perpetuity",
             g=terminal_g
         )
+
+    @staticmethod
+    def calculate_trend_weighted_average(values: List[float], weights: List[float] = None) -> float:
+        """
+        Calculate weighted average with more weight on recent years.
+        Default weights: [0.5, 0.3, 0.2] for most recent 3 years.
+        """
+        if not values or len(values) == 0:
+            return 0.0
+        
+        # Use only the most recent values (up to 3)
+        recent_values = values[:min(3, len(values))]
+        
+        if not weights:
+            # Default weights: recent years matter more
+            weights = [0.5, 0.3, 0.2][:len(recent_values)]
+        
+        # Normalize weights to sum to 1
+        weight_sum = sum(weights)
+        if weight_sum > 0:
+            weights = [w / weight_sum for w in weights]
+        else:
+            weights = [1.0 / len(recent_values)] * len(recent_values)
+        
+        # Calculate weighted average
+        weighted_sum = sum(v * w for v, w in zip(recent_values, weights))
+        return weighted_sum
+    
+    @staticmethod
+    def calculate_trend_slope(values: List[float]) -> float:
+        """
+        Calculate trend slope using linear regression.
+        Returns slope (positive = improving trend, negative = declining).
+        """
+        if not values or len(values) < 2:
+            return 0.0
+        
+        # Use numpy for linear regression
+        try:
+            x = np.arange(len(values))
+            y = np.array(values)
+            
+            # Simple linear regression: y = mx + b
+            n = len(values)
+            sum_x = np.sum(x)
+            sum_y = np.sum(y)
+            sum_xy = np.sum(x * y)
+            sum_x2 = np.sum(x * x)
+            
+            # Calculate slope
+            slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x)
+            return slope
+            
+        except Exception:
+            return 0.0
+    
+    @staticmethod
+    def calculate_volatility(values: List[float]) -> float:
+        """
+        Calculate coefficient of variation (std/mean) as volatility measure.
+        Higher values indicate more volatile metrics.
+        """
+        if not values or len(values) < 2:
+            return 0.0
+        
+        try:
+            mean_val = np.mean(values)
+            if mean_val == 0:
+                return 0.0
+            
+            std_val = np.std(values)
+            return std_val / abs(mean_val)
+            
+        except Exception:
+            return 0.0
 
