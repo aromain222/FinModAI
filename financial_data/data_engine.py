@@ -18,6 +18,7 @@ from .providers.alpha_vantage_provider import AlphaVantageProvider
 from .providers.yahoo_provider import YahooProvider
 from .providers.fred_provider import FREDProvider
 from .providers.polygon_provider import PolygonProvider
+from .providers.universal_provider import UniversalProvider
 from .assumptions_calculator import AssumptionsCalculator
 from .sanity_checker import SanityChecker
 from .demo_data import get_demo_data
@@ -46,19 +47,22 @@ class FinancialDataEngine:
         """Initialize providers in priority order."""
         providers = []
         
-        # Priority 1: Polygon.io (most reliable, used by hedge funds)
+        # Priority 1: Universal Provider (tries all sources)
+        providers.append(UniversalProvider())
+        
+        # Priority 2: Polygon.io (most reliable, used by hedge funds)
         if self.polygon_key:
             providers.append(PolygonProvider(self.polygon_key))
         
-        # Priority 2: FMP
+        # Priority 3: FMP
         if self.fmp_key:
             providers.append(FMPProvider(self.fmp_key))
         
-        # Priority 3: Alpha Vantage
+        # Priority 4: Alpha Vantage
         if self.alpha_vantage_key:
             providers.append(AlphaVantageProvider(self.alpha_vantage_key))
         
-        # Priority 4: Yahoo Finance (no key needed, but unreliable)
+        # Priority 5: Yahoo Finance (no key needed, but unreliable)
         providers.append(YahooProvider())
         
         return providers
