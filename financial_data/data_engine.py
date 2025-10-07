@@ -17,6 +17,7 @@ from .providers.fmp_provider import FMPProvider
 from .providers.alpha_vantage_provider import AlphaVantageProvider
 from .providers.yahoo_provider import YahooProvider
 from .providers.fred_provider import FREDProvider
+from .providers.iex_provider import IEXProvider
 from .assumptions_calculator import AssumptionsCalculator
 from .sanity_checker import SanityChecker
 from .demo_data import get_demo_data
@@ -33,6 +34,7 @@ class FinancialDataEngine:
         self.fmp_key = os.getenv("FMP_API_KEY")
         self.alpha_vantage_key = os.getenv("ALPHAVANTAGE_API_KEY")
         self.fred_key = os.getenv("FRED_API_KEY")
+        self.iex_key = os.getenv("IEX_API_KEY")
         
         self.providers = self._init_providers()
         self.fred_provider = FREDProvider(self.fred_key) if self.fred_key else None
@@ -44,15 +46,19 @@ class FinancialDataEngine:
         """Initialize providers in priority order."""
         providers = []
         
-        # Priority 1: FMP
+        # Priority 1: IEX Cloud (most reliable)
+        if self.iex_key:
+            providers.append(IEXProvider(self.iex_key))
+        
+        # Priority 2: FMP
         if self.fmp_key:
             providers.append(FMPProvider(self.fmp_key))
         
-        # Priority 2: Alpha Vantage
+        # Priority 3: Alpha Vantage
         if self.alpha_vantage_key:
             providers.append(AlphaVantageProvider(self.alpha_vantage_key))
         
-        # Priority 3: Yahoo Finance (no key needed)
+        # Priority 4: Yahoo Finance (no key needed, but unreliable)
         providers.append(YahooProvider())
         
         return providers

@@ -168,6 +168,12 @@ class InsufficientDataError:
 class Config:
     """Financial modeling configuration."""
     
+    # API Keys (set via environment variables)
+    FMP_API_KEY=REDACTED
+    ALPHA_VANTAGE_API_KEY = os.getenv("ALPHAVANTAGE_API_KEY")
+    FRED_API_KEY = os.getenv("FRED_API_KEY")
+    IEX_API_KEY = os.getenv("IEX_API_KEY")
+    
     # Equity Risk Premium
     ERP = 0.055  # 5.5%
     
