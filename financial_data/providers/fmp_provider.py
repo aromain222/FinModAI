@@ -1,447 +1,270 @@
 """
-Financial Modeling Prep (FMP) data provider implementation.
+Financial Modeling Prep (FMP) Provider - Priority 1
+Provides: Income Statement, Balance Sheet, Cash Flow, Ratios, Estimates
 """
 
 import requests
-import pandas as pd
-import numpy as np
-from typing import Dict, List, Any, Optional, Union, cast
-from datetime import datetime, timedelta
-import time
-import json
+from typing import Optional, List, Dict, Any
+from .base_provider import BaseProvider, ProviderData
 
-from .base import (
-    FinancialDataProvider,
-    DataNotAvailableError,
-    IncompleteDataError,
-    ProviderTimeoutError,
-    ProviderRateLimitError,
-    retry_with_backoff,
-    Fundamentals,
-    MarketData,
-    Estimates,
-    PricePoint,
-    IncomeStatement,
-    BalanceSheet,
-    CashFlow,
-)
-from ..config import FMP_API_KEY, PROVIDER_TIMEOUT, PROVIDER_MAX_RETRIES, PROVIDER_RETRY_DELAY
 
-class FMPProvider(FinancialDataProvider):
-    """Financial Modeling Prep data provider implementation."""
+class FMPProvider(BaseProvider):
+    """Financial Modeling Prep API provider."""
     
-    def __init__(self, api_key=None, cache_ttl=86400):
-        """Initialize the FMP provider."""
-        super().__init__(cache_ttl=cache_ttl)
-        self.api_key = api_key or FMP_API_KEY
-        self.base_url = "https://financialmodelingprep.com/api/v3"
-        self.name = "fmp"
-        
-        if not self.api_key:
-            print("Warning: Financial Modeling Prep API key not provided. API calls will fail.")
+    BASE_URL = "https://financialmodelingprep.com/api/v3"
     
-    @retry_with_backoff(max_retries=PROVIDER_MAX_RETRIES, initial_delay=PROVIDER_RETRY_DELAY)
-    def _make_api_call(self, endpoint: str, **params) -> Any:
-        """Make an API call to FMP."""
-        # Check if API key is available
-        if not self.api_key:
-            raise DataNotAvailableError("Financial Modeling Prep API key not provided")
-        
-        # Build query parameters
-        query_params = {
-            "apikey": self.api_key,
-            **params
-        }
-        
-        # Check cache
-        cache_key = f"fmp_{endpoint}_{json.dumps(query_params)}"
-        cached_result = self.cache.get(cache_key)
-        if cached_result:
-            return cached_result
-        
-        # Make API call
+    def __init__(self, api_key: str):
+        super().__init__(api_key)
+        if not api_key:
+            raise ValueError("FMP_API_KEY is required")
+    
+    def fetch_data(self, ticker: str) -> Optional[ProviderData]:
+        """Fetch comprehensive financial data from FMP."""
         try:
-            url = f"{self.base_url}/{endpoint}"
-            response = requests.get(url, params=query_params, timeout=PROVIDER_TIMEOUT)
+            # Fetch all required data in parallel would be better,
+            # but for now sequential is fine
             
-            # Check for error
-            if response.status_code != 200:
-                raise DataNotAvailableError(f"FMP API returned status code {response.status_code}")
+            profile = self._fetch_profile(ticker)
+            if not profile:
+                return None
             
-            # Parse response
+            income_stmt = self._fetch_income_statement(ticker)
+            balance_sheet = self._fetch_balance_sheet(ticker)
+            cash_flow = self._fetch_cash_flow(ticker)
+            ratios = self._fetch_ratios(ticker)
+            estimates = self._fetch_estimates(ticker)
+            quote = self._fetch_quote(ticker)
+            
+            # Parse and structure data
+            return self._build_provider_data(
+                ticker=ticker,
+                profile=profile,
+                income_stmt=income_stmt,
+                balance_sheet=balance_sheet,
+                cash_flow=cash_flow,
+                ratios=ratios,
+                estimates=estimates,
+                quote=quote
+            )
+            
+        except Exception as e:
+            print(f"FMP fetch error for {ticker}: {e}")
+            return None
+    
+    def _fetch_profile(self, ticker: str) -> Optional[Dict]:
+        """Get company profile."""
+        url = f"{self.BASE_URL}/profile/{ticker}"
+        params = {"apikey": self.api_key}
+        
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
             data = response.json()
-            
-            # Check for empty response
-            if not data:
-                raise DataNotAvailableError(f"FMP API returned empty response for {endpoint}")
-            
-            # Cache result
-            self.cache.set(cache_key, data)
-            
-            return data
-        except requests.exceptions.Timeout:
-            raise ProviderTimeoutError("FMP API timed out")
-        except requests.exceptions.RequestException as e:
-            raise DataNotAvailableError(f"FMP API request failed: {e}")
-    
-    def get_fundamentals(self, ticker: str) -> Fundamentals:
-        """Get fundamental financial data."""
-        try:
-            # Get income statement, balance sheet, and cash flow
-            income_stmt = self._get_income_statement(ticker)
-            balance_sheet = self._get_balance_sheet(ticker)
-            cash_flow = self._get_cash_flow(ticker)
-            
-            # Validate data
-            if not income_stmt:
-                raise IncompleteDataError(f"No income statement data available for {ticker}")
-            if not balance_sheet:
-                raise IncompleteDataError(f"No balance sheet data available for {ticker}")
-            if not cash_flow:
-                raise IncompleteDataError(f"No cash flow data available for {ticker}")
-            
-            # Create Fundamentals object
-            fundamentals: Fundamentals = {
-                "income": income_stmt,
-                "balance": balance_sheet,
-                "cashflow": cash_flow
-            }
-            
-            return fundamentals
+            return data[0] if data else None
         except Exception as e:
-            if isinstance(e, (IncompleteDataError, DataNotAvailableError, ProviderTimeoutError, ProviderRateLimitError)):
-                raise
-            raise DataNotAvailableError(f"Could not retrieve fundamentals for {ticker}: {e}")
+            print(f"FMP profile error: {e}")
+            return None
     
-    def _get_income_statement(self, ticker: str, limit: int = 5) -> List[IncomeStatement]:
-        """Get income statement data."""
+    def _fetch_income_statement(self, ticker: str, limit: int = 10) -> List[Dict]:
+        """Get annual income statements."""
+        url = f"{self.BASE_URL}/income-statement/{ticker}"
+        params = {"apikey": self.api_key, "limit": limit}
+        
         try:
-            # Call FMP API
-            data = self._make_api_call(f"income-statement/{ticker}", limit=limit)
-            
-            # Convert to list of IncomeStatement objects
-            result = []
-            
-            for report in data:
-                # Get fiscal year
-                fiscal_date = report.get("date", "")
-                if not fiscal_date:
-                    continue
-                
-                year = int(fiscal_date.split("-")[0])
-                
-                # Get values
-                revenue = float(report.get("revenue", 0)) if report.get("revenue") is not None else None
-                ebit = float(report.get("operatingIncome", 0)) if report.get("operatingIncome") is not None else None
-                
-                # If revenue or EBIT is missing, skip this year
-                if revenue is None or ebit is None:
-                    continue
-                
-                # Get optional values
-                net_income = float(report.get("netIncome", 0)) if report.get("netIncome") is not None else None
-                tax_expense = float(report.get("incomeTaxExpense", 0)) if report.get("incomeTaxExpense") is not None else None
-                interest_expense = float(report.get("interestExpense", 0)) if report.get("interestExpense") is not None else None
-                depreciation_amortization = float(report.get("depreciationAndAmortization", 0)) if report.get("depreciationAndAmortization") is not None else None
-                
-                # Create IncomeStatement object
-                income_statement: IncomeStatement = {
-                    "year": year,
-                    "revenue": revenue,
-                    "ebit": ebit,
-                    "da": depreciation_amortization,
-                    "net_income": net_income,
-                    "tax_expense": tax_expense,
-                    "interest_expense": interest_expense
-                }
-                
-                result.append(income_statement)
-            
-            # Sort by year (most recent first)
-            result.sort(key=lambda x: x["year"], reverse=True)
-            
-            return result
-        except Exception as e:
-            if isinstance(e, (DataNotAvailableError, ProviderTimeoutError, ProviderRateLimitError)):
-                raise
-            raise DataNotAvailableError(f"Could not retrieve income statement for {ticker}: {e}")
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except Exception:
+            return []
     
-    def _get_balance_sheet(self, ticker: str, limit: int = 5) -> List[BalanceSheet]:
-        """Get balance sheet data."""
+    def _fetch_balance_sheet(self, ticker: str, limit: int = 10) -> List[Dict]:
+        """Get annual balance sheets."""
+        url = f"{self.BASE_URL}/balance-sheet-statement/{ticker}"
+        params = {"apikey": self.api_key, "limit": limit}
+        
         try:
-            # Call FMP API
-            data = self._make_api_call(f"balance-sheet-statement/{ticker}", limit=limit)
-            
-            # Convert to list of BalanceSheet objects
-            result = []
-            
-            for report in data:
-                # Get fiscal year
-                fiscal_date = report.get("date", "")
-                if not fiscal_date:
-                    continue
-                
-                year = int(fiscal_date.split("-")[0])
-                
-                # Get values
-                cash = float(report.get("cashAndCashEquivalents", 0)) if report.get("cashAndCashEquivalents") is not None else None
-                
-                # Calculate total debt
-                short_term_debt = float(report.get("shortTermDebt", 0)) if report.get("shortTermDebt") is not None else 0
-                long_term_debt = float(report.get("longTermDebt", 0)) if report.get("longTermDebt") is not None else 0
-                total_debt = short_term_debt + long_term_debt
-                
-                # If cash is missing, skip this year
-                if cash is None:
-                    continue
-                
-                # Get optional values
-                total_assets = float(report.get("totalAssets", 0)) if report.get("totalAssets") is not None else None
-                total_equity = float(report.get("totalStockholdersEquity", 0)) if report.get("totalStockholdersEquity") is not None else None
-                current_assets = float(report.get("totalCurrentAssets", 0)) if report.get("totalCurrentAssets") is not None else None
-                current_liabilities = float(report.get("totalCurrentLiabilities", 0)) if report.get("totalCurrentLiabilities") is not None else None
-                
-                # Create BalanceSheet object
-                balance_sheet_obj: BalanceSheet = {
-                    "year": year,
-                    "cash": cash,
-                    "total_debt": total_debt,
-                    "shares": None,  # Will be populated from market data
-                    "total_assets": total_assets,
-                    "total_equity": total_equity,
-                    "current_assets": current_assets,
-                    "current_liabilities": current_liabilities
-                }
-                
-                result.append(balance_sheet_obj)
-            
-            # Sort by year (most recent first)
-            result.sort(key=lambda x: x["year"], reverse=True)
-            
-            return result
-        except Exception as e:
-            if isinstance(e, (DataNotAvailableError, ProviderTimeoutError, ProviderRateLimitError)):
-                raise
-            raise DataNotAvailableError(f"Could not retrieve balance sheet for {ticker}: {e}")
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except Exception:
+            return []
     
-    def _get_cash_flow(self, ticker: str, limit: int = 5) -> List[CashFlow]:
-        """Get cash flow data."""
+    def _fetch_cash_flow(self, ticker: str, limit: int = 10) -> List[Dict]:
+        """Get annual cash flow statements."""
+        url = f"{self.BASE_URL}/cash-flow-statement/{ticker}"
+        params = {"apikey": self.api_key, "limit": limit}
+        
         try:
-            # Call FMP API
-            data = self._make_api_call(f"cash-flow-statement/{ticker}", limit=limit)
-            
-            # Convert to list of CashFlow objects
-            result = []
-            
-            for report in data:
-                # Get fiscal year
-                fiscal_date = report.get("date", "")
-                if not fiscal_date:
-                    continue
-                
-                year = int(fiscal_date.split("-")[0])
-                
-                # Get values
-                capex = float(report.get("capitalExpenditure", 0)) if report.get("capitalExpenditure") is not None else None
-                
-                # If capex is missing, skip this year
-                if capex is None:
-                    continue
-                
-                # Make capex positive for consistency
-                capex = abs(capex)
-                
-                # Get optional values
-                delta_nwc = float(report.get("changeInWorkingCapital", 0)) if report.get("changeInWorkingCapital") is not None else None
-                depreciation_amortization = float(report.get("depreciationAndAmortization", 0)) if report.get("depreciationAndAmortization") is not None else None
-                operating_cash_flow = float(report.get("netCashProvidedByOperatingActivities", 0)) if report.get("netCashProvidedByOperatingActivities") is not None else None
-                
-                # Create CashFlow object
-                cash_flow_obj: CashFlow = {
-                    "year": year,
-                    "capex": capex,
-                    "delta_nwc": delta_nwc,
-                    "depreciation_amortization": depreciation_amortization,
-                    "operating_cash_flow": operating_cash_flow
-                }
-                
-                result.append(cash_flow_obj)
-            
-            # Sort by year (most recent first)
-            result.sort(key=lambda x: x["year"], reverse=True)
-            
-            return result
-        except Exception as e:
-            if isinstance(e, (DataNotAvailableError, ProviderTimeoutError, ProviderRateLimitError)):
-                raise
-            raise DataNotAvailableError(f"Could not retrieve cash flow for {ticker}: {e}")
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except Exception:
+            return []
     
-    def get_market_data(self, ticker: str) -> MarketData:
-        """Get current market data."""
+    def _fetch_ratios(self, ticker: str) -> List[Dict]:
+        """Get financial ratios."""
+        url = f"{self.BASE_URL}/ratios/{ticker}"
+        params = {"apikey": self.api_key, "limit": 5}
+        
         try:
-            # Get quote
-            quote_data = self._make_api_call(f"quote/{ticker}")
-            if not quote_data or len(quote_data) == 0:
-                raise DataNotAvailableError(f"No quote data available for {ticker}")
-            
-            quote = quote_data[0]
-            
-            # Get company profile
-            profile_data = self._make_api_call(f"profile/{ticker}")
-            if not profile_data or len(profile_data) == 0:
-                raise DataNotAvailableError(f"No profile data available for {ticker}")
-            
-            profile = profile_data[0]
-            
-            # Get price
-            price = float(quote.get("price", 0)) if quote.get("price") is not None else None
-            if price is None or price == 0:
-                raise DataNotAvailableError(f"No price data available for {ticker}")
-            
-            # Get market cap
-            market_cap = float(profile.get("mktCap", 0)) if profile.get("mktCap") is not None else None
-            
-            # Get shares outstanding
-            shares_outstanding = float(profile.get("sharesOutstanding", 0)) if profile.get("sharesOutstanding") is not None else None
-            
-            # Calculate market cap if not available
-            if market_cap is None and shares_outstanding is not None and price is not None:
-                market_cap = shares_outstanding * price
-            
-            # Get beta
-            beta = float(profile.get("beta", 0)) if profile.get("beta") is not None else None
-            
-            # Create MarketData object
-            market_data: MarketData = {
-                "price": price,
-                "market_cap": market_cap,
-                "beta": beta,
-                "shares_outstanding": shares_outstanding,
-                "pe_ratio": float(quote.get("pe", 0)) if quote.get("pe") is not None else None,
-                "industry": profile.get("industry", None),
-                "sector": profile.get("sector", None),
-                "company_name": profile.get("companyName", ticker)
-            }
-            
-            return market_data
-        except Exception as e:
-            if isinstance(e, (DataNotAvailableError, ProviderTimeoutError, ProviderRateLimitError)):
-                raise
-            raise DataNotAvailableError(f"Could not retrieve market data for {ticker}: {e}")
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except Exception:
+            return []
     
-    def get_estimates(self, ticker: str) -> Optional[Estimates]:
+    def _fetch_estimates(self, ticker: str) -> Dict:
         """Get analyst estimates."""
+        url = f"{self.BASE_URL}/analyst-estimates/{ticker}"
+        params = {"apikey": self.api_key, "limit": 3}
+        
         try:
-            # Get analyst estimates
-            estimates_data = self._make_api_call(f"analyst-estimates/{ticker}")
-            if not estimates_data or len(estimates_data) == 0:
-                return None
-            
-            # Get revenue growth estimates
-            revenue_estimates = [e for e in estimates_data if e.get("estimatedType") == "Revenue"]
-            if not revenue_estimates:
-                return None
-            
-            # Sort by year (ascending)
-            revenue_estimates.sort(key=lambda x: x.get("date", ""))
-            
-            # Get Y1 and Y2 growth
-            rev_growth_y1 = None
-            rev_growth_y2 = None
-            
-            if len(revenue_estimates) >= 2:
-                # Calculate Y1 growth
-                current_year_rev = float(revenue_estimates[0].get("estimatedValue", 0)) if revenue_estimates[0].get("estimatedValue") is not None else None
-                next_year_rev = float(revenue_estimates[1].get("estimatedValue", 0)) if revenue_estimates[1].get("estimatedValue") is not None else None
-                
-                if current_year_rev is not None and next_year_rev is not None and current_year_rev > 0:
-                    rev_growth_y1 = (next_year_rev / current_year_rev) - 1
-            
-            if len(revenue_estimates) >= 3:
-                # Calculate Y2 growth
-                next_year_rev = float(revenue_estimates[1].get("estimatedValue", 0)) if revenue_estimates[1].get("estimatedValue") is not None else None
-                year_2_rev = float(revenue_estimates[2].get("estimatedValue", 0)) if revenue_estimates[2].get("estimatedValue") is not None else None
-                
-                if next_year_rev is not None and year_2_rev is not None and next_year_rev > 0:
-                    rev_growth_y2 = (year_2_rev / next_year_rev) - 1
-            
-            # Get margin estimates
-            ebit_estimates = [e for e in estimates_data if e.get("estimatedType") == "EBIT"]
-            margin_y1 = None
-            
-            if ebit_estimates and len(revenue_estimates) >= 1:
-                # Sort by year (ascending)
-                ebit_estimates.sort(key=lambda x: x.get("date", ""))
-                
-                # Calculate Y1 margin
-                next_year_ebit = float(ebit_estimates[0].get("estimatedValue", 0)) if ebit_estimates[0].get("estimatedValue") is not None else None
-                next_year_rev = float(revenue_estimates[0].get("estimatedValue", 0)) if revenue_estimates[0].get("estimatedValue") is not None else None
-                
-                if next_year_ebit is not None and next_year_rev is not None and next_year_rev > 0:
-                    margin_y1 = next_year_ebit / next_year_rev
-            
-            # Create Estimates object
-            estimates: Estimates = {
-                "rev_growth_y1": rev_growth_y1,
-                "rev_growth_y2": rev_growth_y2,
-                "margin_y1": margin_y1
-            }
-            
-            return estimates
-        except Exception as e:
-            # Don't raise an exception for estimates, just return None
-            print(f"Could not retrieve estimates for {ticker}: {e}")
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            return data[0] if data else {}
+        except Exception:
+            return {}
+    
+    def _fetch_quote(self, ticker: str) -> Optional[Dict]:
+        """Get current quote/price."""
+        url = f"{self.BASE_URL}/quote/{ticker}"
+        params = {"apikey": self.api_key}
+        
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            return data[0] if data else None
+        except Exception:
             return None
     
-    def get_prices(self, ticker: str, period: str = "2y", freq: str = "weekly") -> Optional[List[PricePoint]]:
-        """Get historical price data."""
-        try:
-            # Convert period to days
-            days = 730 if period == "2y" else 1825  # 2 years = 730 days, 5 years = 1825 days
+    def _build_provider_data(
+        self,
+        ticker: str,
+        profile: Dict,
+        income_stmt: List[Dict],
+        balance_sheet: List[Dict],
+        cash_flow: List[Dict],
+        ratios: List[Dict],
+        estimates: Dict,
+        quote: Optional[Dict]
+    ) -> Optional[ProviderData]:
+        """Build ProviderData from FMP responses."""
+        
+        if not income_stmt or len(income_stmt) < 3:
+            print(f"FMP: Insufficient income statement data for {ticker}")
+            return None
+        
+        # Extract years (sorted descending - most recent first)
+        years = []
+        for stmt in income_stmt:
+            year = stmt.get("calendarYear")
+            if year:
+                years.append(int(year))
+        
+        if len(years) < 3:
+            return None
+        
+        # Align all data to these years
+        n = len(years)
+        
+        # Income statement items
+        revenue = []
+        operating_income = []
+        ebitda = []
+        da = []
+        net_income = []
+        pretax_income = []
+        tax_expense = []
+        
+        for stmt in income_stmt[:n]:
+            revenue.append(self._parse_float(stmt.get("revenue")))
+            operating_income.append(self._parse_float(stmt.get("operatingIncome")))
+            ebitda.append(self._parse_float(stmt.get("ebitda")))
             
-            # Call FMP API
-            if freq == "weekly":
-                data = self._make_api_call(f"historical-price-full/{ticker}", serietype="line", timeseries=days // 7)
+            # D&A = EBITDA - EBIT
+            ebit = self._parse_float(stmt.get("operatingIncome"))
+            ebitda_val = self._parse_float(stmt.get("ebitda"))
+            if ebit and ebitda_val:
+                da.append(ebitda_val - ebit)
             else:
-                data = self._make_api_call(f"historical-price-full/{ticker}", timeseries=days)
+                da.append(self._parse_float(stmt.get("depreciationAndAmortization")))
             
-            # Extract historical prices
-            historical_data = data.get("historical", [])
-            if not historical_data:
-                return None
+            net_income.append(self._parse_float(stmt.get("netIncome")))
+            pretax_income.append(self._parse_float(stmt.get("incomeBeforeTax")))
+            tax_expense.append(self._parse_float(stmt.get("incomeTaxExpense")))
+        
+        # Balance sheet items
+        cash = []
+        total_debt = []
+        shares_outstanding = []
+        
+        for bs in balance_sheet[:n]:
+            cash.append(self._parse_float(bs.get("cashAndCashEquivalents")))
             
-            # Convert to list of PricePoint objects
-            result = []
+            # Total debt = short-term + long-term
+            st_debt = self._parse_float(bs.get("shortTermDebt")) or 0
+            lt_debt = self._parse_float(bs.get("longTermDebt")) or 0
+            total_debt.append(st_debt + lt_debt if (st_debt or lt_debt) else None)
             
-            for item in historical_data:
-                price_point: PricePoint = {
-                    "t": item.get("date", ""),
-                    "p": float(item.get("close", 0))
-                }
-                
-                result.append(price_point)
+            shares_outstanding.append(self._parse_float(bs.get("commonStock")) or 
+                                     self._parse_float(bs.get("weightedAverageShsOut")))
+        
+        # Cash flow items
+        capex = []
+        delta_nwc = []
+        
+        for cf in cash_flow[:n]:
+            capex.append(abs(self._parse_float(cf.get("capitalExpenditure")) or 0))
+            delta_nwc.append(self._parse_float(cf.get("changeInWorkingCapital")))
+        
+        # Market data
+        current_price = None
+        market_cap = None
+        beta = None
+        
+        if quote:
+            current_price = self._parse_float(quote.get("price"))
+            market_cap = self._parse_float(quote.get("marketCap"))
+            beta = self._parse_float(quote.get("beta"))
+        
+        # Estimates
+        analyst_growth_y1 = None
+        analyst_growth_y2 = None
+        analyst_margin_y1 = None
+        
+        if estimates:
+            est_rev = self._parse_float(estimates.get("estimatedRevenueAvg"))
+            if est_rev and revenue and revenue[0]:
+                analyst_growth_y1 = (est_rev / revenue[0]) - 1
             
-            # Sort by date (most recent first)
-            result.sort(key=lambda x: x["t"], reverse=True)
-            
-            return result
-        except Exception as e:
-            # Don't raise an exception for prices, just return None
-            print(f"Could not retrieve prices for {ticker}: {e}")
-            return None
-    
-    def get_risk_free_rate(self) -> Optional[float]:
-        """Get the current risk-free rate from US Treasury yield."""
-        try:
-            # Call FMP API for Treasury yield
-            data = self._make_api_call("treasury")
-            
-            # Find 10-year Treasury yield
-            for item in data:
-                if item.get("maturity") == "10 Years":
-                    return float(item.get("rate", 0)) / 100  # Convert from percentage to decimal
-            
-            return None
-        except Exception as e:
-            print(f"Could not retrieve risk-free rate: {e}")
-            return None
+            est_ebitda = self._parse_float(estimates.get("estimatedEbitdaAvg"))
+            if est_ebitda and est_rev and est_rev > 0:
+                analyst_margin_y1 = est_ebitda / est_rev
+        
+        return ProviderData(
+            ticker=ticker,
+            company_name=profile.get("companyName") if profile else ticker,
+            currency=profile.get("currency") if profile else "USD",
+            as_of=self._get_timestamp(),
+            years=years,
+            revenue=revenue,
+            operating_income=operating_income,
+            ebitda=ebitda,
+            da=da,
+            net_income=net_income,
+            cash=cash,
+            total_debt=total_debt,
+            shares_outstanding=shares_outstanding,
+            capex=capex,
+            delta_nwc=delta_nwc,
+            tax_expense=tax_expense,
+            pretax_income=pretax_income,
+            current_price=current_price,
+            market_cap=market_cap,
+            beta=beta,
+            analyst_growth_y1=analyst_growth_y1,
+            analyst_growth_y2=analyst_growth_y2,
+            analyst_margin_y1=analyst_margin_y1
+        )

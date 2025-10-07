@@ -1,7 +1,9 @@
 """
-Financial data package for fetching and processing company data from multiple providers.
+Financial Data Layer - Company-specific assumptions with fail-fast validation.
+No generic defaults.
 """
 
-from .engine import build_company_assumptions
+from .data_engine import FinancialDataEngine
+from .contracts import FinancialData, InsufficientDataError, Config
 
-__all__ = ["build_company_assumptions"]
+__all__ = ['FinancialDataEngine', 'FinancialData', 'InsufficientDataError', 'Config']
