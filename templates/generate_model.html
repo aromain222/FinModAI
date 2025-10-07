@@ -49,6 +49,17 @@
                                 </select>
                             </div>
                         </div>
+                        
+                        <!-- Fetch Company Data Button -->
+                        <div class="pt-2">
+                            <button type="button" id="fetch-company-data" 
+                                    class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors">
+                                📊 Fetch Company-Specific Data
+                            </button>
+                        </div>
+                        
+                        <!-- Company Data Status -->
+                        <div id="company-data-status" class="hidden"></div>
                     </div>
                     
                     <!-- DCF Assumptions -->
@@ -245,7 +256,122 @@
 </div>
 
 <script>
+    let companyData = null;
+    
     document.addEventListener('DOMContentLoaded', function() {
+        // Fetch Company Data Button
+        const fetchBtn = document.getElementById('fetch-company-data');
+        const tickerInput = document.getElementById('ticker');
+        const dataStatus = document.getElementById('company-data-status');
+        
+        fetchBtn.addEventListener('click', async function() {
+            const ticker = tickerInput.value.trim().toUpperCase();
+            
+            if (!ticker) {
+                alert('Please enter a ticker symbol');
+                return;
+            }
+            
+            // Show loading
+            fetchBtn.disabled = true;
+            fetchBtn.innerHTML = '<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white inline-block mr-2"></div> Fetching data...';
+            dataStatus.classList.remove('hidden');
+            dataStatus.innerHTML = '<div class="text-center py-4"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-navy mx-auto"></div><p class="text-sm text-gray-600 mt-2">Fetching company data from multiple sources...</p></div>';
+            
+            try {
+                // Call the financial data API
+                const response = await fetch(`/assumptions?ticker=${ticker}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    // Show error state
+                    dataStatus.innerHTML = `
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                            <div class="flex items-start">
+                                <svg class="w-5 h-5 text-red-600 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <div class="flex-1">
+                                    <h4 class="font-semibold text-red-900 text-sm">Insufficient Data</h4>
+                                    <p class="text-sm text-red-700 mt-1">${data.message}</p>
+                                    <p class="text-xs text-red-600 mt-2">Missing: ${data.missing ? data.missing.join(', ') : 'unknown'}</p>
+                                    <p class="text-xs text-red-600">Providers tried: ${data.provider_attempts ? data.provider_attempts.join(', ') : 'none'}</p>
+                                    <p class="text-xs text-gray-600 mt-3">💡 <em>This system fails fast - no generic 8%/25%/10% defaults used!</em></p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    companyData = null;
+                } else {
+                    // Success - show company data
+                    companyData = data;
+                    
+                    // Auto-populate form fields
+                    if (data.assumptions) {
+                        document.getElementById('revenue_growth').value = (data.assumptions.revenue_growth[0] * 100).toFixed(1);
+                        document.getElementById('operating_margin').value = (data.assumptions.operating_margin[0] * 100).toFixed(1);
+                        document.getElementById('tax_rate').value = (data.assumptions.tax_rate * 100).toFixed(1);
+                        document.getElementById('capex_percent').value = (data.assumptions.capex_pct_rev * 100).toFixed(1);
+                    }
+                    
+                    if (data.wacc) {
+                        document.getElementById('wacc').value = (data.wacc.wacc * 100).toFixed(1);
+                    }
+                    
+                    if (data.terminal) {
+                        document.getElementById('terminal_growth').value = (data.terminal.g * 100).toFixed(1);
+                    }
+                    
+                    // Display success with provenance
+                    let provenanceHTML = '';
+                    if (data.provenance) {
+                        provenanceHTML = '<div class="mt-3 text-xs text-gray-600"><strong>Data Sources:</strong><ul class="mt-1 space-y-0.5">';
+                        for (const [metric, prov] of Object.entries(data.provenance)) {
+                            provenanceHTML += `<li>• ${metric}: <span class="font-mono">${prov.source}</span> (${prov.as_of})</li>`;
+                        }
+                        provenanceHTML += '</ul></div>';
+                    }
+                    
+                    let flagsHTML = '';
+                    if (data.flags && data.flags.length > 0) {
+                        flagsHTML = '<div class="mt-3 text-xs"><strong class="text-amber-700">⚠️ Flags:</strong><ul class="mt-1 space-y-0.5 text-amber-600">';
+                        data.flags.forEach(flag => {
+                            flagsHTML += `<li>• ${flag.replace(/_/g, ' ')}</li>`;
+                        });
+                        flagsHTML += '</ul></div>';
+                    }
+                    
+                    dataStatus.innerHTML = `
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <div class="flex items-start">
+                                <svg class="w-5 h-5 text-green-600 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <div class="flex-1">
+                                    <h4 class="font-semibold text-green-900 text-sm">✓ Company Data Loaded</h4>
+                                    <p class="text-sm text-green-700 mt-1">${data.company_name} (${data.ticker})</p>
+                                    <p class="text-xs text-gray-600 mt-1">Currency: ${data.currency} | Forecast: ${data.assumptions.forecast_years} years</p>
+                                    ${provenanceHTML}
+                                    ${flagsHTML}
+                                    <p class="text-xs text-gray-600 mt-3">✨ <em>Form auto-populated with company-specific assumptions!</em></p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                dataStatus.innerHTML = `
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <div class="text-sm text-red-700">Error fetching data: ${error.message}</div>
+                    </div>
+                `;
+                companyData = null;
+            } finally {
+                fetchBtn.disabled = false;
+                fetchBtn.innerHTML = '📊 Fetch Company-Specific Data';
+            }
+        });
+        
         // Form validation
         const form = document.getElementById('model-form');
         const inputs = form.querySelectorAll('input[type="text"], input[type="number"], select');
@@ -284,7 +410,7 @@
                 modelStatus.innerHTML = `
                     <div class="flex flex-col items-center justify-center">
                         <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-navy mb-3"></div>
-                        <p class="text-gray-700">Generating model...</p>
+                        <p class="text-gray-700">Generating model with ${companyData ? 'company-specific' : 'custom'} assumptions...</p>
                     </div>
                 `;
             }
