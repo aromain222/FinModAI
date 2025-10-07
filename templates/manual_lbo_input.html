@@ -1,0 +1,158 @@
+"""
+Manual Input Interface for Advanced LBO Model
+Allows users to input market assumptions manually.
+"""
+
+from flask import Flask, render_template, request, jsonify
+from datetime import datetime
+
+def create_manual_input_interface():
+    """Create manual input interface for LBO assumptions."""
+    
+    html_template = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Advanced LBO Model - Manual Input</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+            .input-group { margin: 10px 0; }
+            label { display: inline-block; width: 200px; }
+            input { width: 150px; padding: 5px; }
+            button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+            .result { margin-top: 20px; padding: 15px; background: #f8f9fa; }
+        </style>
+    </head>
+    <body>
+        <h1>🏦 Advanced LBO Model - Manual Input</h1>
+        
+        <div class="section">
+            <h3>📊 Market Data</h3>
+            <div class="input-group">
+                <label>Current Stock Price:</label>
+                <input type="number" id="current_price" value="100" step="0.01">
+            </div>
+            <div class="input-group">
+                <label>Market Cap:</label>
+                <input type="number" id="market_cap" value="1000000000" step="1000000">
+            </div>
+            <div class="input-group">
+                <label>Beta:</label>
+                <input type="number" id="beta" value="1.0" step="0.1">
+            </div>
+            <div class="input-group">
+                <label>Risk-Free Rate:</label>
+                <input type="number" id="risk_free_rate" value="0.045" step="0.001">
+            </div>
+        </div>
+        
+        <div class="section">
+            <h3>💰 Debt Structure</h3>
+            <div class="input-group">
+                <label>Senior Debt Rate:</label>
+                <input type="number" id="senior_rate" value="0.06" step="0.001">
+            </div>
+            <div class="input-group">
+                <label>Mezzanine Debt Rate:</label>
+                <input type="number" id="mezz_rate" value="0.12" step="0.001">
+            </div>
+            <div class="input-group">
+                <label>Total Leverage Multiple:</label>
+                <input type="number" id="leverage" value="5.5" step="0.1">
+            </div>
+            <div class="input-group">
+                <label>Senior Debt Multiple:</label>
+                <input type="number" id="senior_multiple" value="4.0" step="0.1">
+            </div>
+        </div>
+        
+        <div class="section">
+            <h3>🚪 Exit Assumptions</h3>
+            <div class="input-group">
+                <label>Exit Multiple:</label>
+                <input type="number" id="exit_multiple" value="10.0" step="0.1">
+            </div>
+            <div class="input-group">
+                <label>Holding Period (Years):</label>
+                <input type="number" id="holding_period" value="5" step="1">
+            </div>
+            <div class="input-group">
+                <label>Terminal Growth:</label>
+                <input type="number" id="terminal_growth" value="0.025" step="0.001">
+            </div>
+        </div>
+        
+        <div class="section">
+            <h3>📋 Covenant Assumptions</h3>
+            <div class="input-group">
+                <label>Max Leverage Ratio:</label>
+                <input type="number" id="max_leverage" value="6.0" step="0.1">
+            </div>
+            <div class="input-group">
+                <label>Min Interest Coverage:</label>
+                <input type="number" id="min_interest_coverage" value="2.0" step="0.1">
+            </div>
+            <div class="input-group">
+                <label>Min Fixed Charge Coverage:</label>
+                <input type="number" id="min_fixed_coverage" value="1.25" step="0.01">
+            </div>
+        </div>
+        
+        <button onclick="generateLBO()">🚀 Generate Advanced LBO Model</button>
+        
+        <div id="result" class="result" style="display: none;">
+            <h3>📈 LBO Model Results</h3>
+            <div id="results_content"></div>
+        </div>
+        
+        <script>
+            function generateLBO() {
+                const data = {
+                    market: {
+                        current_price: parseFloat(document.getElementById('current_price').value),
+                        market_cap: parseFloat(document.getElementById('market_cap').value),
+                        beta: parseFloat(document.getElementById('beta').value),
+                        risk_free_rate: parseFloat(document.getElementById('risk_free_rate').value)
+                    },
+                    debt: {
+                        senior_rate: parseFloat(document.getElementById('senior_rate').value),
+                        mezz_rate: parseFloat(document.getElementById('mezz_rate').value),
+                        leverage: parseFloat(document.getElementById('leverage').value),
+                        senior_multiple: parseFloat(document.getElementById('senior_multiple').value)
+                    },
+                    exit: {
+                        exit_multiple: parseFloat(document.getElementById('exit_multiple').value),
+                        holding_period: parseInt(document.getElementById('holding_period').value),
+                        terminal_growth: parseFloat(document.getElementById('terminal_growth').value)
+                    },
+                    covenants: {
+                        max_leverage: parseFloat(document.getElementById('max_leverage').value),
+                        min_interest_coverage: parseFloat(document.getElementById('min_interest_coverage').value),
+                        min_fixed_coverage: parseFloat(document.getElementById('min_fixed_coverage').value)
+                    }
+                };
+                
+                // Send to backend
+                fetch('/lbo-manual-input', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                })
+                .then(response => response.json())
+                .then(result => {
+                    document.getElementById('results_content').innerHTML = 
+                        '<pre>' + JSON.stringify(result, null, 2) + '</pre>';
+                    document.getElementById('result').style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error generating LBO model');
+                });
+            }
+        </script>
+    </body>
+    </html>
+    """
+    
+    return html_template
