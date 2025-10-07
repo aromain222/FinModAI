@@ -111,13 +111,16 @@ class YahooProvider(BaseProvider):
             if "Net Income" in financials.index:
                 net_income = [self._parse_float(v) for v in financials.loc["Net Income"].values]
             
-            # Tax
+            # Tax & Interest
             tax_expense = []
             pretax_income = []
+            interest_expense = []
             if "Tax Provision" in financials.index:
                 tax_expense = [self._parse_float(v) for v in financials.loc["Tax Provision"].values]
             if "Income Before Tax" in financials.index:
                 pretax_income = [self._parse_float(v) for v in financials.loc["Income Before Tax"].values]
+            if "Interest Expense" in financials.index:
+                interest_expense = [abs(self._parse_float(v)) for v in financials.loc["Interest Expense"].values]
             
             # D&A
             da = []
@@ -174,6 +177,7 @@ class YahooProvider(BaseProvider):
                 delta_nwc=delta_nwc,
                 tax_expense=tax_expense,
                 pretax_income=pretax_income,
+                interest_expense=interest_expense,
                 current_price=current_price,
                 market_cap=market_cap,
                 beta=beta,

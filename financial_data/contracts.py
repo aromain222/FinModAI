@@ -28,25 +28,48 @@ class Historicals:
     da: List[float]  # Depreciation & Amortization
     capex: List[float]
     delta_nwc: List[float]  # Change in Net Working Capital
+    # Additional fields for better historical analysis
+    tax_expense: List[Optional[float]]  # Tax provision/expense
+    pretax_income: List[Optional[float]]  # Income before taxes
+    interest_expense: List[Optional[float]]  # Interest expense
+    total_debt: List[Optional[float]]  # Total debt
+    shares_outstanding: List[Optional[float]]  # Shares outstanding
     
     def validate(self) -> tuple[bool, Optional[str]]:
         """Ensure we have ≥3 years of complete data."""
         if len(self.years) < 3:
             return False, f"Need ≥3 years, got {len(self.years)}"
         
-        lengths = [
-            len(self.revenue),
-            len(self.operating_income),
-            len(self.op_margin),
-            len(self.da),
-            len(self.capex),
-            len(self.delta_nwc)
+        # Required fields (must match years length)
+        required_fields = [
+            self.revenue,
+            self.operating_income,
+            self.op_margin,
+            self.da,
+            self.capex,
+            self.delta_nwc
         ]
         
-        if not all(l == len(self.years) for l in lengths):
-            return False, "Mismatched data lengths across metrics"
+        # Optional fields (can be None or match years length)
+        optional_fields = [
+            self.tax_expense,
+            self.pretax_income,
+            self.interest_expense,
+            self.total_debt,
+            self.shares_outstanding
+        ]
         
-        # Check for critical nulls
+        # Check required fields have correct length
+        for field in required_fields:
+            if len(field) != len(self.years):
+                return False, f"Mismatched data length for required field"
+        
+        # Check optional fields (if not None, must match length)
+        for field in optional_fields:
+            if field is not None and len(field) != len(self.years):
+                return False, f"Mismatched data length for optional field"
+        
+        # Check for critical nulls in required fields
         if any(r is None or r == 0 for r in self.revenue[:3]):
             return False, "Missing revenue in first 3 years"
         

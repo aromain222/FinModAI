@@ -34,9 +34,10 @@ class ProviderData:
     capex: List[Optional[float]]
     delta_nwc: List[Optional[float]]
     
-    # Tax
+    # Tax & Interest
     tax_expense: List[Optional[float]]
     pretax_income: List[Optional[float]]
+    interest_expense: List[Optional[float]]
     
     # Market data
     current_price: Optional[float]
@@ -72,6 +73,8 @@ class ProviderData:
         # Tax data
         if self.tax_expense and self.pretax_income:
             score += 15
+        if self.interest_expense and len([i for i in self.interest_expense if i]) >= 3:
+            score += 10
         
         # Market data
         if self.current_price:
