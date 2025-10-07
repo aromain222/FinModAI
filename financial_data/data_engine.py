@@ -17,7 +17,7 @@ from .providers.fmp_provider import FMPProvider
 from .providers.alpha_vantage_provider import AlphaVantageProvider
 from .providers.yahoo_provider import YahooProvider
 from .providers.fred_provider import FREDProvider
-from .providers.iex_provider import IEXProvider
+from .providers.polygon_provider import PolygonProvider
 from .assumptions_calculator import AssumptionsCalculator
 from .sanity_checker import SanityChecker
 from .demo_data import get_demo_data
@@ -34,7 +34,7 @@ class FinancialDataEngine:
         self.fmp_key = os.getenv("FMP_API_KEY")
         self.alpha_vantage_key = os.getenv("ALPHAVANTAGE_API_KEY")
         self.fred_key = os.getenv("FRED_API_KEY")
-        self.iex_key = os.getenv("IEX_API_KEY")
+        self.polygon_key = os.getenv("POLYGON_API_KEY")
         
         self.providers = self._init_providers()
         self.fred_provider = FREDProvider(self.fred_key) if self.fred_key else None
@@ -46,9 +46,9 @@ class FinancialDataEngine:
         """Initialize providers in priority order."""
         providers = []
         
-        # Priority 1: IEX Cloud (most reliable)
-        if self.iex_key:
-            providers.append(IEXProvider(self.iex_key))
+        # Priority 1: Polygon.io (most reliable, used by hedge funds)
+        if self.polygon_key:
+            providers.append(PolygonProvider(self.polygon_key))
         
         # Priority 2: FMP
         if self.fmp_key:
