@@ -1,33 +1,102 @@
 import json
 import uuid
 from datetime import datetime, timedelta
-import yfinance as yf
-import pandas as pd
-import numpy as np
-import openpyxl
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from openpyxl.utils.dataframe import dataframe_to_rows
 import io
 import os
 import re
 import threading
 import time
-import requests
-from bs4 import BeautifulSoup
-from urllib.parse import quote
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from enum import Enum
-import openai
-import anthropic
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
 
-# Import yfinance directly for historical data
-import yfinance as yf
+# Try to import optional dependencies
+try:
+    import yfinance as yf
+    YFINANCE_AVAILABLE = True
+except ImportError:
+    YFINANCE_AVAILABLE = False
+    print("Warning: yfinance not available")
+
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
+    print("Warning: pandas not available")
+
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    print("Warning: numpy not available")
+
+try:
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils.dataframe import dataframe_to_rows
+    OPENPYXL_AVAILABLE = True
+except ImportError:
+    OPENPYXL_AVAILABLE = False
+    print("Warning: openpyxl not available")
+
+try:
+    import requests
+    from bs4 import BeautifulSoup
+    from urllib.parse import quote
+    REQUESTS_AVAILABLE = True
+except ImportError:
+    REQUESTS_AVAILABLE = False
+    print("Warning: requests/beautifulsoup not available")
+
+try:
+    import openai
+    import anthropic
+    AI_AVAILABLE = True
+except ImportError:
+    AI_AVAILABLE = False
+    print("Warning: AI libraries not available")
+
+# Preflight import check - fail fast if critical dependencies are missing
+def preflight_check():
+    """Check critical dependencies and exit with code 1 if missing."""
+    critical_deps = [
+        ('openpyxl', 'openpyxl'),
+        ('pandas', 'pandas'),
+        ('numpy', 'numpy'),
+        ('yfinance', 'yfinance'),
+        ('requests', 'requests'),
+    ]
+    
+    missing_deps = []
+    for dep_name, import_name in critical_deps:
+        try:
+            __import__(import_name)
+            print(f"✓ {dep_name} imported successfully")
+        except ImportError as e:
+            print(f"✗ Failed to import {dep_name}: {e}")
+            missing_deps.append(dep_name)
+    
+    if missing_deps:
+        print(f"ERROR: Missing critical dependencies: {', '.join(missing_deps)}")
+        print("Application cannot start without required dependencies.")
+        print("Please ensure all dependencies are installed:")
+        print("  pip install -r requirements.txt")
+        print("Exiting with code 1 due to missing dependencies.")
+        import sys
+        sys.exit(1)
+    
+    print("All critical dependencies validated successfully")
 
 # Create Flask app
 app = Flask(__name__)
 app.secret_key = 'finmodai_secret_key_2024'
+
+# Run preflight check only when running directly, not when imported by gunicorn
+if __name__ == '__main__':
+    preflight_check()
 
 # Simple storage for models
 MODEL_STORAGE = {}
@@ -91,6 +160,12 @@ session_manager = SessionManager()
 # Function to get historical assumptions from yfinance
 def get_historical_assumptions(ticker):
     """Get historical financial assumptions from yfinance"""
+    if not YFINANCE_AVAILABLE:
+        return {
+            'error': 'yfinance_not_available',
+            'message': 'yfinance library is not installed'
+        }
+    
     try:
         stock = yf.Ticker(ticker)
         
@@ -283,6 +358,15 @@ def generate_dcf_model(ticker, climate):
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/healthz', methods=['GET'])
+def healthz():
+    """Health check endpoint for Render."""
+    return jsonify({
+        "status": "ok",
+        "timestamp": datetime.now().isoformat(),
+        "version": "1.0.0"
+    }), 200
 
 @app.route('/generate-model', methods=['GET', 'POST'])
 def generate_model():
@@ -573,6 +657,10 @@ def model_results(model_id):
 
 @app.route('/download-excel')
 def download_excel():
+    if not OPENPYXL_AVAILABLE:
+        flash('Excel download not available - openpyxl library is not installed', 'error')
+        return redirect(url_for('index'))
+    
     # Get the last model generated (simplified approach)
     last_model_id = list(MODEL_STORAGE.keys())[-1] if MODEL_STORAGE else None
     model = MODEL_STORAGE.get(last_model_id, {})
@@ -768,7 +856,23 @@ def download_excel():
     )
 
 if __name__ == '__main__':
-    # Use a different port to avoid conflict
-    port = 10001
+    import socket
+    
+    def find_free_port():
+        """Find a free port starting from 10000"""
+        for port in range(10000, 10100):
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.bind(('', port))
+                    return port
+            except OSError:
+                continue
+        return None
+    
+    port = find_free_port()
+    if port is None:
+        print("No free ports available in range 10000-10099")
+        exit(1)
+    
     print(f"Starting app on port {port}")
     app.run(host='0.0.0.0', port=port)
