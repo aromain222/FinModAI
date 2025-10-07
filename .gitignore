@@ -56,6 +56,11 @@ uploads/*
 # Temporary files
 *.tmp
 *.temp
+*.new
+*.new[0-9]
+*.bak
+*.backup
+*.backup[0-9]
 
 # Embedded repositories
 Bitcoin-Scraper/
