@@ -458,7 +458,7 @@ def generate_model():
         
         if not ticker:
             flash('Please enter a ticker symbol', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('generate_model'))
         
         try:
             # Generate model
@@ -491,7 +491,7 @@ def generate_model():
             flash(f'Error generating model: {str(e)}', 'error')
             return redirect(url_for('index'))
     
-    return render_template('generate_model.html')
+    return render_template('dynamic_model_generator.html')
 
 @app.route('/model-results/<model_id>')
 def model_results(model_id):

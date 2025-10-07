@@ -1,0 +1,586 @@
+{% extends "base.html" %}
+
+{% block title %}FinModAI - Dynamic Model Generator{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <h1 class="text-2xl font-bold text-gray-900 mb-6">Generate Financial Model</h1>
+    
+    <!-- Model Selection Tabs -->
+    <div class="mb-8">
+        <div class="flex flex-wrap border-b border-gray-200">
+            <button id="dcf-tab" class="px-6 py-3 bg-navy text-white font-medium rounded-t-lg model-tab active" data-model="dcf">DCF Model</button>
+            <button id="lbo-tab" class="px-6 py-3 text-gray-600 font-medium hover:text-navy model-tab" data-model="lbo">LBO Model</button>
+            <button id="comps-tab" class="px-6 py-3 text-gray-600 font-medium hover:text-navy model-tab" data-model="comps">Comps Analysis</button>
+            <button id="three-statement-tab" class="px-6 py-3 text-gray-600 font-medium hover:text-navy model-tab" data-model="three-statement">Three-Statement</button>
+        </div>
+    </div>
+    
+    <!-- DCF Model Interface -->
+    <div id="dcf-interface" class="model-interface">
+        <div class="grid grid-cols-12 gap-6">
+            <!-- Left Panel - DCF Inputs -->
+            <div class="col-span-12 lg:col-span-8">
+                <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-6">DCF Model Inputs</h2>
+                    
+                    <form method="POST" id="dcf-form" class="space-y-6">
+                        <!-- Company Information -->
+                        <div class="space-y-4">
+                            <h3 class="text-base font-medium text-gray-900">Company Information</h3>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label for="dcf-ticker" class="block text-sm font-medium text-gray-700 mb-1">Ticker Symbol</label>
+                                    <div class="relative">
+                                        <input type="text" name="ticker" id="dcf-ticker" required
+                                            class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                            placeholder="e.g., MSFT">
+                                        <button type="button" id="fetch-dcf-data" class="absolute right-2 top-2 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600">
+                                            Fetch Data
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label for="dcf-scenario" class="block text-sm font-medium text-gray-700 mb-1">Scenario</label>
+                                    <select name="scenario" id="dcf-scenario" required
+                                            class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus">
+                                        <option value="base">Base Case</option>
+                                        <option value="bull">Bull Case</option>
+                                        <option value="bear">Bear Case</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- DCF Specific Assumptions -->
+                        <div class="space-y-4">
+                            <h3 class="text-base font-medium text-gray-900">DCF Assumptions</h3>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label for="dcf-wacc" class="block text-sm font-medium text-gray-700 mb-1">WACC (%)</label>
+                                    <input type="number" name="wacc" id="dcf-wacc" step="0.1" min="0" max="50"
+                                        class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                        placeholder="10.0">
+                                </div>
+                                
+                                <div>
+                                    <label for="dcf-terminal-growth" class="block text-sm font-medium text-gray-700 mb-1">Terminal Growth (%)</label>
+                                    <input type="number" name="terminal_growth" id="dcf-terminal-growth" step="0.1" min="0" max="10"
+                                        class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                        placeholder="2.5">
+                                </div>
+                                
+                                <div>
+                                    <label for="dcf-forecast-years" class="block text-sm font-medium text-gray-700 mb-1">Forecast Years</label>
+                                    <input type="number" name="forecast_years" id="dcf-forecast-years" min="5" max="20"
+                                        class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                        placeholder="10" value="10">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Revenue Growth Assumptions -->
+                        <div class="space-y-4">
+                            <h3 class="text-base font-medium text-gray-900">Revenue Growth (Years 1-5)</h3>
+                            
+                            <div class="grid grid-cols-5 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Year 1 (%)</label>
+                                    <input type="number" name="revenue_growth_1" step="0.1" min="-50" max="100"
+                                        class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                        placeholder="8.0">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Year 2 (%)</label>
+                                    <input type="number" name="revenue_growth_2" step="0.1" min="-50" max="100"
+                                        class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                        placeholder="7.0">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Year 3 (%)</label>
+                                    <input type="number" name="revenue_growth_3" step="0.1" min="-50" max="100"
+                                        class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                        placeholder="6.0">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Year 4 (%)</label>
+                                    <input type="number" name="revenue_growth_4" step="0.1" min="-50" max="100"
+                                        class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                        placeholder="5.0">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Year 5 (%)</label>
+                                    <input type="number" name="revenue_growth_5" step="0.1" min="-50" max="100"
+                                        class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                        placeholder="4.0">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex justify-end">
+                            <button type="submit" class="px-6 py-3 bg-navy text-white font-medium rounded-lg hover:bg-navy-dark">
+                                Generate DCF Model
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Right Panel - DCF Info -->
+            <div class="col-span-12 lg:col-span-4">
+                <div class="bg-blue-50 rounded-xl p-6">
+                    <h3 class="text-lg font-semibold text-blue-900 mb-4">DCF Model Guide</h3>
+                    <div class="space-y-3 text-sm text-blue-800">
+                        <p><strong>WACC:</strong> Weighted Average Cost of Capital (typically 8-12%)</p>
+                        <p><strong>Terminal Growth:</strong> Long-term growth rate (typically 2-3%)</p>
+                        <p><strong>Forecast Period:</strong> 5-10 years of detailed projections</p>
+                        <p><strong>Revenue Growth:</strong> Company-specific growth assumptions</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- LBO Model Interface -->
+    <div id="lbo-interface" class="model-interface hidden">
+        <div class="grid grid-cols-12 gap-6">
+            <!-- Left Panel - LBO Inputs -->
+            <div class="col-span-12 lg:col-span-8">
+                <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-6">LBO Model Inputs</h2>
+                    
+                    <form method="POST" id="lbo-form" class="space-y-6">
+                        <!-- Company Information -->
+                        <div class="space-y-4">
+                            <h3 class="text-base font-medium text-gray-900">Target Company</h3>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label for="lbo-ticker" class="block text-sm font-medium text-gray-700 mb-1">Ticker Symbol</label>
+                                    <div class="relative">
+                                        <input type="text" name="ticker" id="lbo-ticker" required
+                                            class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                            placeholder="e.g., MSFT">
+                                        <button type="button" id="fetch-lbo-data" class="absolute right-2 top-2 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600">
+                                            Fetch Data
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label for="lbo-scenario" class="block text-sm font-medium text-gray-700 mb-1">Scenario</label>
+                                    <select name="scenario" id="lbo-scenario" required
+                                            class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus">
+                                        <option value="base">Base Case</option>
+                                        <option value="bull">Bull Case</option>
+                                        <option value="bear">Bear Case</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- LBO Specific Assumptions -->
+                        <div class="space-y-4">
+                            <h3 class="text-base font-medium text-gray-900">LBO Structure</h3>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label for="lbo-entry-multiple" class="block text-sm font-medium text-gray-700 mb-1">Entry Multiple (x EBITDA)</label>
+                                    <input type="number" name="entry_multiple" id="lbo-entry-multiple" step="0.1" min="1" max="20"
+                                        class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                        placeholder="8.0">
+                                </div>
+                                
+                                <div>
+                                    <label for="lbo-exit-multiple" class="block text-sm font-medium text-gray-700 mb-1">Exit Multiple (x EBITDA)</label>
+                                    <input type="number" name="exit_multiple" id="lbo-exit-multiple" step="0.1" min="1" max="20"
+                                        class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                        placeholder="10.0">
+                                </div>
+                                
+                                <div>
+                                    <label for="lbo-leverage" class="block text-sm font-medium text-gray-700 mb-1">Total Leverage (x EBITDA)</label>
+                                    <input type="number" name="leverage" id="lbo-leverage" step="0.1" min="1" max="10"
+                                        class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                        placeholder="5.5">
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label for="lbo-holding-period" class="block text-sm font-medium text-gray-700 mb-1">Holding Period (Years)</label>
+                                    <input type="number" name="holding_period" id="lbo-holding-period" min="3" max="10"
+                                        class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                        placeholder="5" value="5">
+                                </div>
+                                
+                                <div>
+                                    <label for="lbo-senior-rate" class="block text-sm font-medium text-gray-700 mb-1">Senior Debt Rate (%)</label>
+                                    <input type="number" name="senior_rate" id="lbo-senior-rate" step="0.1" min="0" max="20"
+                                        class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                        placeholder="6.0">
+                                </div>
+                                
+                                <div>
+                                    <label for="lbo-mezz-rate" class="block text-sm font-medium text-gray-700 mb-1">Mezzanine Rate (%)</label>
+                                    <input type="number" name="mezz_rate" id="lbo-mezz-rate" step="0.1" min="0" max="30"
+                                        class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                        placeholder="12.0">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex justify-end">
+                            <button type="submit" class="px-6 py-3 bg-navy text-white font-medium rounded-lg hover:bg-navy-dark">
+                                Generate LBO Model
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Right Panel - LBO Info -->
+            <div class="col-span-12 lg:col-span-4">
+                <div class="bg-green-50 rounded-xl p-6">
+                    <h3 class="text-lg font-semibold text-green-900 mb-4">LBO Model Guide</h3>
+                    <div class="space-y-3 text-sm text-green-800">
+                        <p><strong>Entry Multiple:</strong> Purchase price as multiple of EBITDA</p>
+                        <p><strong>Exit Multiple:</strong> Sale price as multiple of EBITDA</p>
+                        <p><strong>Leverage:</strong> Total debt as multiple of EBITDA</p>
+                        <p><strong>Holding Period:</strong> Typical 3-7 years</p>
+                        <p><strong>Debt Structure:</strong> Senior + Mezzanine financing</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Comps Analysis Interface -->
+    <div id="comps-interface" class="model-interface hidden">
+        <div class="grid grid-cols-12 gap-6">
+            <!-- Left Panel - Comps Inputs -->
+            <div class="col-span-12 lg:col-span-8">
+                <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-6">Comps Analysis Inputs</h2>
+                    
+                    <form method="POST" id="comps-form" class="space-y-6">
+                        <!-- Target Company -->
+                        <div class="space-y-4">
+                            <h3 class="text-base font-medium text-gray-900">Target Company</h3>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label for="comps-ticker" class="block text-sm font-medium text-gray-700 mb-1">Ticker Symbol</label>
+                                    <div class="relative">
+                                        <input type="text" name="ticker" id="comps-ticker" required
+                                            class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                            placeholder="e.g., MSFT">
+                                        <button type="button" id="fetch-comps-data" class="absolute right-2 top-2 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600">
+                                            Fetch Data
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label for="comps-industry" class="block text-sm font-medium text-gray-700 mb-1">Industry</label>
+                                    <select name="industry" id="comps-industry" required
+                                            class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus">
+                                        <option value="technology">Technology</option>
+                                        <option value="healthcare">Healthcare</option>
+                                        <option value="financial">Financial Services</option>
+                                        <option value="consumer">Consumer</option>
+                                        <option value="industrial">Industrial</option>
+                                        <option value="energy">Energy</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Comparable Companies -->
+                        <div class="space-y-4">
+                            <h3 class="text-base font-medium text-gray-900">Comparable Companies</h3>
+                            
+                            <div class="space-y-3">
+                                <div class="flex items-center space-x-4">
+                                    <input type="text" name="comp1" placeholder="e.g., AAPL" 
+                                        class="flex-1 px-4 py-2 border border-input-border rounded-lg focus:border-input-focus">
+                                    <input type="text" name="comp2" placeholder="e.g., GOOGL" 
+                                        class="flex-1 px-4 py-2 border border-input-border rounded-lg focus:border-input-focus">
+                                    <input type="text" name="comp3" placeholder="e.g., AMZN" 
+                                        class="flex-1 px-4 py-2 border border-input-border rounded-lg focus:border-input-focus">
+                                </div>
+                                <div class="flex items-center space-x-4">
+                                    <input type="text" name="comp4" placeholder="e.g., META" 
+                                        class="flex-1 px-4 py-2 border border-input-border rounded-lg focus:border-input-focus">
+                                    <input type="text" name="comp5" placeholder="e.g., NFLX" 
+                                        class="flex-1 px-4 py-2 border border-input-border rounded-lg focus:border-input-focus">
+                                    <input type="text" name="comp6" placeholder="e.g., NVDA" 
+                                        class="flex-1 px-4 py-2 border border-input-border rounded-lg focus:border-input-focus">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Valuation Metrics -->
+                        <div class="space-y-4">
+                            <h3 class="text-base font-medium text-gray-900">Valuation Metrics</h3>
+                            
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <label class="flex items-center">
+                                    <input type="checkbox" name="metrics" value="ev_ebitda" checked class="mr-2">
+                                    <span class="text-sm">EV/EBITDA</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" name="metrics" value="pe_ratio" checked class="mr-2">
+                                    <span class="text-sm">P/E Ratio</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" name="metrics" value="pb_ratio" checked class="mr-2">
+                                    <span class="text-sm">P/B Ratio</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" name="metrics" value="ps_ratio" checked class="mr-2">
+                                    <span class="text-sm">P/S Ratio</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="flex justify-end">
+                            <button type="submit" class="px-6 py-3 bg-navy text-white font-medium rounded-lg hover:bg-navy-dark">
+                                Generate Comps Analysis
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Right Panel - Comps Info -->
+            <div class="col-span-12 lg:col-span-4">
+                <div class="bg-purple-50 rounded-xl p-6">
+                    <h3 class="text-lg font-semibold text-purple-900 mb-4">Comps Analysis Guide</h3>
+                    <div class="space-y-3 text-sm text-purple-800">
+                        <p><strong>EV/EBITDA:</strong> Enterprise value to EBITDA multiple</p>
+                        <p><strong>P/E Ratio:</strong> Price to earnings multiple</p>
+                        <p><strong>P/B Ratio:</strong> Price to book value multiple</p>
+                        <p><strong>P/S Ratio:</strong> Price to sales multiple</p>
+                        <p><strong>Selection:</strong> Choose 4-6 similar companies</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Three-Statement Model Interface -->
+    <div id="three-statement-interface" class="model-interface hidden">
+        <div class="grid grid-cols-12 gap-6">
+            <!-- Left Panel - Three-Statement Inputs -->
+            <div class="col-span-12 lg:col-span-8">
+                <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-6">Three-Statement Model Inputs</h2>
+                    
+                    <form method="POST" id="three-statement-form" class="space-y-6">
+                        <!-- Company Information -->
+                        <div class="space-y-4">
+                            <h3 class="text-base font-medium text-gray-900">Company Information</h3>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label for="three-statement-ticker" class="block text-sm font-medium text-gray-700 mb-1">Ticker Symbol</label>
+                                    <div class="relative">
+                                        <input type="text" name="ticker" id="three-statement-ticker" required
+                                            class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                            placeholder="e.g., MSFT">
+                                        <button type="button" id="fetch-three-statement-data" class="absolute right-2 top-2 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600">
+                                            Fetch Data
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label for="three-statement-scenario" class="block text-sm font-medium text-gray-700 mb-1">Scenario</label>
+                                    <select name="scenario" id="three-statement-scenario" required
+                                            class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus">
+                                        <option value="base">Base Case</option>
+                                        <option value="bull">Bull Case</option>
+                                        <option value="bear">Bear Case</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Three-Statement Specific Assumptions -->
+                        <div class="space-y-4">
+                            <h3 class="text-base font-medium text-gray-900">Financial Assumptions</h3>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label for="three-statement-forecast-years" class="block text-sm font-medium text-gray-700 mb-1">Forecast Years</label>
+                                    <input type="number" name="forecast_years" id="three-statement-forecast-years" min="3" max="20"
+                                        class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                        placeholder="5" value="5">
+                                </div>
+                                
+                                <div>
+                                    <label for="three-statement-tax-rate" class="block text-sm font-medium text-gray-700 mb-1">Tax Rate (%)</label>
+                                    <input type="number" name="tax_rate" id="three-statement-tax-rate" step="0.1" min="0" max="50"
+                                        class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                        placeholder="25.0">
+                                </div>
+                                
+                                <div>
+                                    <label for="three-statement-depreciation" class="block text-sm font-medium text-gray-700 mb-1">Depreciation Rate (%)</label>
+                                    <input type="number" name="depreciation_rate" id="three-statement-depreciation" step="0.1" min="0" max="20"
+                                        class="w-full px-4 py-2 border border-input-border rounded-lg focus:border-input-focus"
+                                        placeholder="3.0">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex justify-end">
+                            <button type="submit" class="px-6 py-3 bg-navy text-white font-medium rounded-lg hover:bg-navy-dark">
+                                Generate Three-Statement Model
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Right Panel - Three-Statement Info -->
+            <div class="col-span-12 lg:col-span-4">
+                <div class="bg-orange-50 rounded-xl p-6">
+                    <h3 class="text-lg font-semibold text-orange-900 mb-4">Three-Statement Model Guide</h3>
+                    <div class="space-y-3 text-sm text-orange-800">
+                        <p><strong>Income Statement:</strong> Revenue, expenses, and profitability</p>
+                        <p><strong>Balance Sheet:</strong> Assets, liabilities, and equity</p>
+                        <p><strong>Cash Flow:</strong> Operating, investing, and financing cash flows</p>
+                        <p><strong>Integration:</strong> All three statements are fully linked</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Get all tab buttons and interfaces
+    const tabs = document.querySelectorAll('.model-tab');
+    const interfaces = document.querySelectorAll('.model-interface');
+    
+    // Add click event listeners to tabs
+    tabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            const modelType = this.getAttribute('data-model');
+            
+            // Remove active class from all tabs
+            tabs.forEach(t => t.classList.remove('active', 'bg-navy', 'text-white'));
+            tabs.forEach(t => t.classList.add('text-gray-600', 'hover:text-navy'));
+            
+            // Add active class to clicked tab
+            this.classList.add('active', 'bg-navy', 'text-white');
+            this.classList.remove('text-gray-600', 'hover:text-navy');
+            
+            // Hide all interfaces
+            interfaces.forEach(interface => interface.classList.add('hidden'));
+            
+            // Show selected interface
+            const targetInterface = document.getElementById(modelType + '-interface');
+            if (targetInterface) {
+                targetInterface.classList.remove('hidden');
+            }
+        });
+    });
+    
+    // Add fetch data functionality
+    document.querySelectorAll('[id^="fetch-"]').forEach(button => {
+        button.addEventListener('click', function() {
+            const formId = this.id.replace('fetch-', '').replace('-data', '');
+            const tickerInput = document.getElementById(formId + '-ticker');
+            const ticker = tickerInput.value.trim().toUpperCase();
+            
+            if (!ticker) {
+                alert('Please enter a ticker symbol first');
+                return;
+            }
+            
+            // Show loading state
+            this.textContent = 'Loading...';
+            this.disabled = true;
+            
+            // Fetch data from API
+            fetch(`/assumptions?ticker=${ticker}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert(`Error: ${data.message}`);
+                    } else {
+                        // Auto-populate form fields based on model type
+                        populateForm(formId, data);
+                        alert('Data fetched successfully!');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error fetching data');
+                })
+                .finally(() => {
+                    this.textContent = 'Fetch Data';
+                    this.disabled = false;
+                });
+        });
+    });
+    
+    function populateForm(formId, data) {
+        // Auto-populate common fields
+        if (data.assumptions) {
+            const assumptions = data.assumptions;
+            
+            // WACC
+            if (assumptions.wacc) {
+                const waccInput = document.getElementById(formId + '-wacc');
+                if (waccInput) waccInput.value = (assumptions.wacc * 100).toFixed(1);
+            }
+            
+            // Terminal growth
+            if (assumptions.terminal_growth) {
+                const terminalInput = document.getElementById(formId + '-terminal-growth');
+                if (terminalInput) terminalInput.value = (assumptions.terminal_growth * 100).toFixed(1);
+            }
+            
+            // Revenue growth
+            if (assumptions.revenue_growth) {
+                for (let i = 1; i <= 5; i++) {
+                    const growthInput = document.getElementById(formId + '-revenue_growth_' + i);
+                    if (growthInput && assumptions.revenue_growth[i-1]) {
+                        growthInput.value = (assumptions.revenue_growth[i-1] * 100).toFixed(1);
+                    }
+                }
+            }
+            
+            // Tax rate
+            if (assumptions.tax_rate) {
+                const taxInput = document.getElementById(formId + '-tax-rate');
+                if (taxInput) taxInput.value = (assumptions.tax_rate * 100).toFixed(1);
+            }
+        }
+    }
+});
+</script>
+
+<style>
+.model-tab.active {
+    background-color: #1e3a8a;
+    color: white;
+}
+
+.model-interface {
+    display: block;
+}
+
+.model-interface.hidden {
+    display: none;
+}
+</style>
+{% endblock %}
