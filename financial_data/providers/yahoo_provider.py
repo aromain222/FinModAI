@@ -4,6 +4,7 @@ Uses yfinance library for data fetching.
 """
 
 from typing import Optional, List
+import time
 from .base_provider import BaseProvider, ProviderData
 
 try:
@@ -17,34 +18,55 @@ class YahooProvider(BaseProvider):
     """Yahoo Finance provider using yfinance."""
     
     def fetch_data(self, ticker: str) -> Optional[ProviderData]:
-        """Fetch data from Yahoo Finance."""
+        """Fetch data from Yahoo Finance with retry logic."""
         if not YFINANCE_AVAILABLE:
             print("yfinance not available")
             return None
         
-        try:
-            stock = yf.Ticker(ticker)
-            info = stock.info
+        # Retry logic for rate limits
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Add small delay between retries
+                if attempt > 0:
+                    wait_time = 2 ** attempt  # Exponential backoff
+                    print(f"Retry {attempt + 1}/{max_retries} after {wait_time}s...")
+                    time.sleep(wait_time)
+                
+                stock = yf.Ticker(ticker)
+                info = stock.info
+                
+                if not info or "symbol" not in info:
+                    if attempt < max_retries - 1:
+                        continue
+                    return None
             
-            if not info or "symbol" not in info:
-                return None
-            
-            # Get financials
-            financials = stock.financials
-            balance_sheet = stock.balance_sheet
-            cash_flow = stock.cashflow
-            
-            return self._build_provider_data(
-                ticker=ticker,
-                info=info,
-                financials=financials,
-                balance_sheet=balance_sheet,
-                cash_flow=cash_flow
-            )
-            
-        except Exception as e:
-            print(f"Yahoo fetch error for {ticker}: {e}")
-            return None
+                # Get financials
+                financials = stock.financials
+                balance_sheet = stock.balance_sheet
+                cash_flow = stock.cashflow
+                
+                # Check if we got data
+                if financials.empty and attempt < max_retries - 1:
+                    continue
+                
+                return self._build_provider_data(
+                    ticker=ticker,
+                    info=info,
+                    financials=financials,
+                    balance_sheet=balance_sheet,
+                    cash_flow=cash_flow
+                )
+                
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    print(f"Yahoo attempt {attempt + 1} failed: {e}")
+                    continue
+                else:
+                    print(f"Yahoo fetch error for {ticker} after {max_retries} attempts: {e}")
+                    return None
+        
+        return None
     
     def _build_provider_data(
         self,
