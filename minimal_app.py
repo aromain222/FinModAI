@@ -368,6 +368,71 @@ def healthz():
         "version": "1.0.0"
     }), 200
 
+# Initialize financial data engine (lazy load to avoid import issues)
+_financial_engine = None
+
+def get_financial_engine():
+    """Lazy load financial data engine."""
+    global _financial_engine
+    if _financial_engine is None:
+        try:
+            from financial_data import FinancialDataEngine
+            _financial_engine = FinancialDataEngine()
+        except ImportError as e:
+            print(f"Financial data engine not available: {e}")
+            _financial_engine = False
+    return _financial_engine if _financial_engine is not False else None
+
+@app.route('/assumptions', methods=['GET'])
+def get_assumptions():
+    """
+    Get company-specific financial assumptions.
+    
+    Query params:
+        ticker: Stock ticker (required)
+        use_cache: Use cached data if available (default: true)
+    
+    Returns:
+        JSON with FinancialData or InsufficientDataError
+    """
+    ticker = request.args.get('ticker', '').strip().upper()
+    use_cache = request.args.get('use_cache', 'true').lower() == 'true'
+    
+    if not ticker:
+        return jsonify({
+            "error": "missing_ticker",
+            "message": "Query parameter 'ticker' is required"
+        }), 400
+    
+    # Get financial engine
+    engine = get_financial_engine()
+    if not engine:
+        return jsonify({
+            "error": "service_unavailable",
+            "message": "Financial data service is not available. Check API keys."
+        }), 503
+    
+    try:
+        # Get assumptions
+        result = engine.get_assumptions(ticker, use_cache=use_cache)
+        
+        # Check if it's an error response
+        if "error" in result:
+            return jsonify(result), 422  # Unprocessable Entity
+        
+        # Success - return financial data
+        return jsonify(result), 200
+        
+    except Exception as e:
+        print(f"Error getting assumptions for {ticker}: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        return jsonify({
+            "error": "internal_error",
+            "message": f"An error occurred processing {ticker}: {str(e)}"
+        }), 500
+
 @app.route('/generate-model', methods=['GET', 'POST'])
 def generate_model():
     if request.method == 'POST':

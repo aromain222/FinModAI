@@ -1,404 +1,165 @@
 """
-Yahoo Finance data provider implementation.
+Yahoo Finance Provider - Priority 3 (Backup)
+Uses yfinance library for data fetching.
 """
 
-import yfinance as yf
-import pandas as pd
-import numpy as np
-from typing import Dict, List, Any, Optional, Union, cast
-from datetime import datetime, timedelta
-import time
-import signal
-from contextlib import contextmanager
+from typing import Optional, List
+from .base_provider import BaseProvider, ProviderData
 
-from .base import (
-    FinancialDataProvider,
-    DataNotAvailableError,
-    IncompleteDataError,
-    ProviderTimeoutError,
-    retry_with_backoff,
-    Fundamentals,
-    MarketData,
-    Estimates,
-    PricePoint,
-    IncomeStatement,
-    BalanceSheet,
-    CashFlow,
-)
-from ..config import PROVIDER_TIMEOUT, PROVIDER_MAX_RETRIES, PROVIDER_RETRY_DELAY
+try:
+    import yfinance as yf
+    YFINANCE_AVAILABLE = True
+except ImportError:
+    YFINANCE_AVAILABLE = False
 
-class TimeoutException(Exception):
-    """Exception raised when a function times out."""
-    pass
 
-@contextmanager
-def time_limit(seconds):
-    """Context manager for limiting function execution time."""
-    def signal_handler(signum, frame):
-        raise TimeoutException("Timed out")
+class YahooProvider(BaseProvider):
+    """Yahoo Finance provider using yfinance."""
     
-    signal.signal(signal.SIGALRM, signal_handler)
-    signal.alarm(seconds)
-    try:
-        yield
-    finally:
-        signal.alarm(0)
-
-class YahooFinanceProvider(FinancialDataProvider):
-    """Yahoo Finance data provider implementation."""
-    
-    def __init__(self, cache_ttl=86400):
-        """Initialize the Yahoo Finance provider."""
-        super().__init__(cache_ttl=cache_ttl)
-        self.name = "yahoo"
-    
-    @retry_with_backoff(max_retries=PROVIDER_MAX_RETRIES, initial_delay=PROVIDER_RETRY_DELAY)
-    def _get_ticker_info(self, ticker: str) -> Any:
-        """Get yfinance Ticker object with caching."""
-        cache_key = f"yf_ticker_{ticker}"
-        ticker_info = self.cache.get(cache_key)
+    def fetch_data(self, ticker: str) -> Optional[ProviderData]:
+        """Fetch data from Yahoo Finance."""
+        if not YFINANCE_AVAILABLE:
+            print("yfinance not available")
+            return None
         
-        if ticker_info is None:
-            try:
-                with time_limit(PROVIDER_TIMEOUT):
-                    ticker_info = yf.Ticker(ticker)
-                self.cache.set(cache_key, ticker_info)
-            except TimeoutException:
-                raise ProviderTimeoutError(f"Yahoo Finance API timed out for {ticker}")
-        
-        return ticker_info
-    
-    def get_fundamentals(self, ticker: str) -> Fundamentals:
-        """Get fundamental financial data."""
         try:
-            # Get income statement, balance sheet, and cash flow
-            income_stmt = self._get_income_statement(ticker)
-            balance_sheet = self._get_balance_sheet(ticker)
-            cash_flow = self._get_cash_flow(ticker)
+            stock = yf.Ticker(ticker)
+            info = stock.info
             
-            # Validate data
-            if not income_stmt:
-                raise IncompleteDataError(f"No income statement data available for {ticker}")
-            if not balance_sheet:
-                raise IncompleteDataError(f"No balance sheet data available for {ticker}")
-            if not cash_flow:
-                raise IncompleteDataError(f"No cash flow data available for {ticker}")
-            
-            # Create Fundamentals object
-            fundamentals: Fundamentals = {
-                "income": income_stmt,
-                "balance": balance_sheet,
-                "cashflow": cash_flow
-            }
-            
-            return fundamentals
-        except Exception as e:
-            if isinstance(e, (IncompleteDataError, DataNotAvailableError, ProviderTimeoutError)):
-                raise
-            raise DataNotAvailableError(f"Could not retrieve fundamentals for {ticker}: {e}")
-    
-    def _get_income_statement(self, ticker: str, years: int = 5) -> List[IncomeStatement]:
-        """Get income statement data."""
-        try:
-            ticker_obj = self._get_ticker_info(ticker)
-            
-            # Get annual income statement
-            income_stmt = ticker_obj.income_stmt
-            
-            # If empty, try quarterly and aggregate
-            if income_stmt.empty:
-                income_stmt = ticker_obj.quarterly_income_stmt
-                if income_stmt.empty:
-                    raise DataNotAvailableError(f"No income statement data available for {ticker}")
-            
-            # Convert to list of IncomeStatement objects
-            result = []
-            
-            for i, col in enumerate(income_stmt.columns[:years]):
-                year = int(col.year)
-                
-                # Get values
-                revenue = float(income_stmt.loc["Total Revenue"].iloc[i]) if "Total Revenue" in income_stmt.index else None
-                ebit = float(income_stmt.loc["Operating Income"].iloc[i]) if "Operating Income" in income_stmt.index else None
-                
-                # If EBIT is not available, try alternative fields
-                if ebit is None and "EBIT" in income_stmt.index:
-                    ebit = float(income_stmt.loc["EBIT"].iloc[i])
-                
-                # If revenue or EBIT is missing, skip this year
-                if revenue is None or ebit is None:
-                    continue
-                
-                # Get optional values
-                net_income = float(income_stmt.loc["Net Income"].iloc[i]) if "Net Income" in income_stmt.index else None
-                tax_expense = float(income_stmt.loc["Tax Provision"].iloc[i]) if "Tax Provision" in income_stmt.index else None
-                interest_expense = float(income_stmt.loc["Interest Expense"].iloc[i]) if "Interest Expense" in income_stmt.index else None
-                
-                # Create IncomeStatement object
-                income_statement: IncomeStatement = {
-                    "year": year,
-                    "revenue": revenue,
-                    "ebit": ebit,
-                    "da": None,  # Will be populated from cash flow
-                    "net_income": net_income,
-                    "tax_expense": tax_expense,
-                    "interest_expense": interest_expense
-                }
-                
-                result.append(income_statement)
-            
-            # Sort by year (most recent first)
-            result.sort(key=lambda x: x["year"], reverse=True)
-            
-            return result
-        except Exception as e:
-            if isinstance(e, (DataNotAvailableError, ProviderTimeoutError)):
-                raise
-            raise DataNotAvailableError(f"Could not retrieve income statement for {ticker}: {e}")
-    
-    def _get_balance_sheet(self, ticker: str, years: int = 5) -> List[BalanceSheet]:
-        """Get balance sheet data."""
-        try:
-            ticker_obj = self._get_ticker_info(ticker)
-            
-            # Get annual balance sheet
-            balance_sheet = ticker_obj.balance_sheet
-            
-            # If empty, try quarterly and aggregate
-            if balance_sheet.empty:
-                balance_sheet = ticker_obj.quarterly_balance_sheet
-                if balance_sheet.empty:
-                    raise DataNotAvailableError(f"No balance sheet data available for {ticker}")
-            
-            # Convert to list of BalanceSheet objects
-            result = []
-            
-            for i, col in enumerate(balance_sheet.columns[:years]):
-                year = int(col.year)
-                
-                # Get values
-                cash = float(balance_sheet.loc["Cash And Cash Equivalents"].iloc[i]) if "Cash And Cash Equivalents" in balance_sheet.index else None
-                
-                # Calculate total debt
-                short_term_debt = float(balance_sheet.loc["Short Term Debt"].iloc[i]) if "Short Term Debt" in balance_sheet.index else 0
-                long_term_debt = float(balance_sheet.loc["Long Term Debt"].iloc[i]) if "Long Term Debt" in balance_sheet.index else 0
-                total_debt = short_term_debt + long_term_debt
-                
-                # If cash or total_debt is missing, skip this year
-                if cash is None:
-                    continue
-                
-                # Get optional values
-                total_assets = float(balance_sheet.loc["Total Assets"].iloc[i]) if "Total Assets" in balance_sheet.index else None
-                total_equity = float(balance_sheet.loc["Total Stockholder Equity"].iloc[i]) if "Total Stockholder Equity" in balance_sheet.index else None
-                current_assets = float(balance_sheet.loc["Current Assets"].iloc[i]) if "Current Assets" in balance_sheet.index else None
-                current_liabilities = float(balance_sheet.loc["Current Liabilities"].iloc[i]) if "Current Liabilities" in balance_sheet.index else None
-                
-                # Create BalanceSheet object
-                balance_sheet_obj: BalanceSheet = {
-                    "year": year,
-                    "cash": cash,
-                    "total_debt": total_debt,
-                    "shares": None,  # Will be populated from market data
-                    "total_assets": total_assets,
-                    "total_equity": total_equity,
-                    "current_assets": current_assets,
-                    "current_liabilities": current_liabilities
-                }
-                
-                result.append(balance_sheet_obj)
-            
-            # Sort by year (most recent first)
-            result.sort(key=lambda x: x["year"], reverse=True)
-            
-            return result
-        except Exception as e:
-            if isinstance(e, (DataNotAvailableError, ProviderTimeoutError)):
-                raise
-            raise DataNotAvailableError(f"Could not retrieve balance sheet for {ticker}: {e}")
-    
-    def _get_cash_flow(self, ticker: str, years: int = 5) -> List[CashFlow]:
-        """Get cash flow data."""
-        try:
-            ticker_obj = self._get_ticker_info(ticker)
-            
-            # Get annual cash flow statement
-            cash_flow = ticker_obj.cashflow
-            
-            # If empty, try quarterly and aggregate
-            if cash_flow.empty:
-                cash_flow = ticker_obj.quarterly_cashflow
-                if cash_flow.empty:
-                    raise DataNotAvailableError(f"No cash flow data available for {ticker}")
-            
-            # Convert to list of CashFlow objects
-            result = []
-            
-            for i, col in enumerate(cash_flow.columns[:years]):
-                year = int(col.year)
-                
-                # Get values (capex is negative in yfinance)
-                capex = float(cash_flow.loc["Capital Expenditure"].iloc[i]) if "Capital Expenditure" in cash_flow.index else None
-                
-                # If capex is missing, skip this year
-                if capex is None:
-                    continue
-                
-                # Make capex positive for consistency
-                capex = abs(capex)
-                
-                # Get optional values
-                delta_nwc = float(cash_flow.loc["Change In Working Capital"].iloc[i]) if "Change In Working Capital" in cash_flow.index else None
-                depreciation_amortization = float(cash_flow.loc["Depreciation And Amortization"].iloc[i]) if "Depreciation And Amortization" in cash_flow.index else None
-                operating_cash_flow = float(cash_flow.loc["Operating Cash Flow"].iloc[i]) if "Operating Cash Flow" in cash_flow.index else None
-                
-                # Create CashFlow object
-                cash_flow_obj: CashFlow = {
-                    "year": year,
-                    "capex": capex,
-                    "delta_nwc": delta_nwc,
-                    "depreciation_amortization": depreciation_amortization,
-                    "operating_cash_flow": operating_cash_flow
-                }
-                
-                result.append(cash_flow_obj)
-            
-            # Sort by year (most recent first)
-            result.sort(key=lambda x: x["year"], reverse=True)
-            
-            return result
-        except Exception as e:
-            if isinstance(e, (DataNotAvailableError, ProviderTimeoutError)):
-                raise
-            raise DataNotAvailableError(f"Could not retrieve cash flow for {ticker}: {e}")
-    
-    def get_market_data(self, ticker: str) -> MarketData:
-        """Get current market data."""
-        try:
-            ticker_obj = self._get_ticker_info(ticker)
-            info = ticker_obj.info
-            
-            # Get price
-            price = info.get("currentPrice", info.get("previousClose", None))
-            if price is None:
-                raise DataNotAvailableError(f"No price data available for {ticker}")
-            
-            # Get shares outstanding
-            shares_outstanding = info.get("sharesOutstanding", info.get("impliedSharesOutstanding", None))
-            
-            # Calculate market cap if not available
-            market_cap = info.get("marketCap", None)
-            if market_cap is None and shares_outstanding is not None and price is not None:
-                market_cap = shares_outstanding * price
-            
-            # Get beta
-            beta = info.get("beta", None)
-            
-            # Create MarketData object
-            market_data: MarketData = {
-                "price": float(price),
-                "market_cap": float(market_cap) if market_cap is not None else None,
-                "beta": float(beta) if beta is not None else None,
-                "shares_outstanding": float(shares_outstanding) if shares_outstanding is not None else None,
-                "pe_ratio": float(info.get("trailingPE", info.get("forwardPE", None))) if info.get("trailingPE", info.get("forwardPE", None)) is not None else None,
-                "industry": info.get("industry", None),
-                "sector": info.get("sector", None),
-                "company_name": info.get("longName", info.get("shortName", ticker))
-            }
-            
-            return market_data
-        except Exception as e:
-            if isinstance(e, (DataNotAvailableError, ProviderTimeoutError)):
-                raise
-            raise DataNotAvailableError(f"Could not retrieve market data for {ticker}: {e}")
-    
-    def get_estimates(self, ticker: str) -> Optional[Estimates]:
-        """Get analyst estimates."""
-        try:
-            ticker_obj = self._get_ticker_info(ticker)
-            info = ticker_obj.info
-            
-            # Extract growth estimates
-            growth_estimates = {}
-            
-            # Revenue growth
-            if "revenueGrowth" in info:
-                growth_estimates["rev_growth_y1"] = info["revenueGrowth"]
-            
-            # Try to get earnings trend data
-            try:
-                earnings_forecast = ticker_obj.earnings_trend
-                if earnings_forecast is not None and not earnings_forecast.empty:
-                    # Extract growth estimates from earnings trend
-                    try:
-                        growth_estimates["rev_growth_y2"] = earnings_forecast.iloc[-1]["Growth Estimate Next Year"]
-                    except:
-                        pass
-            except:
-                pass
-            
-            # If we don't have any estimates, return None
-            if not growth_estimates:
+            if not info or "symbol" not in info:
                 return None
             
-            # Create Estimates object
-            estimates: Estimates = {
-                "rev_growth_y1": float(growth_estimates.get("rev_growth_y1")) if growth_estimates.get("rev_growth_y1") is not None else None,
-                "rev_growth_y2": float(growth_estimates.get("rev_growth_y2")) if growth_estimates.get("rev_growth_y2") is not None else None,
-                "margin_y1": None  # Not available from Yahoo Finance
-            }
+            # Get financials
+            financials = stock.financials
+            balance_sheet = stock.balance_sheet
+            cash_flow = stock.cashflow
             
-            return estimates
+            return self._build_provider_data(
+                ticker=ticker,
+                info=info,
+                financials=financials,
+                balance_sheet=balance_sheet,
+                cash_flow=cash_flow
+            )
+            
         except Exception as e:
-            # Don't raise an exception for estimates, just return None
-            print(f"Could not retrieve estimates for {ticker}: {e}")
+            print(f"Yahoo fetch error for {ticker}: {e}")
             return None
     
-    def get_prices(self, ticker: str, period: str = "2y", freq: str = "weekly") -> Optional[List[PricePoint]]:
-        """Get historical price data."""
+    def _build_provider_data(
+        self,
+        ticker: str,
+        info: dict,
+        financials,
+        balance_sheet,
+        cash_flow
+    ) -> Optional[ProviderData]:
+        """Build ProviderData from Yahoo Finance data."""
+        
         try:
-            ticker_obj = self._get_ticker_info(ticker)
-            
-            # Convert frequency to yfinance interval
-            interval = "1d" if freq == "daily" else "1wk"
-            
-            # Get historical prices
-            hist = ticker_obj.history(period=period, interval=interval)
-            
-            if hist.empty:
+            # Extract years from financials
+            if financials.empty:
                 return None
             
-            # Convert to list of PricePoint objects
-            result = []
+            years = [col.year for col in financials.columns]
+            n = len(years)
             
-            for date, row in hist.iterrows():
-                price_point: PricePoint = {
-                    "t": date.strftime("%Y-%m-%d"),
-                    "p": float(row["Close"])
-                }
+            if n < 3:
+                return None
+            
+            # Revenue
+            revenue = []
+            if "Total Revenue" in financials.index:
+                revenue = [self._parse_float(v) for v in financials.loc["Total Revenue"].values]
+            
+            # Operating Income
+            operating_income = []
+            if "Operating Income" in financials.index:
+                operating_income = [self._parse_float(v) for v in financials.loc["Operating Income"].values]
+            elif "EBIT" in financials.index:
+                operating_income = [self._parse_float(v) for v in financials.loc["EBIT"].values]
+            
+            # EBITDA
+            ebitda = []
+            if "EBITDA" in financials.index:
+                ebitda = [self._parse_float(v) for v in financials.loc["EBITDA"].values]
+            
+            # Net Income
+            net_income = []
+            if "Net Income" in financials.index:
+                net_income = [self._parse_float(v) for v in financials.loc["Net Income"].values]
+            
+            # Tax
+            tax_expense = []
+            pretax_income = []
+            if "Tax Provision" in financials.index:
+                tax_expense = [self._parse_float(v) for v in financials.loc["Tax Provision"].values]
+            if "Income Before Tax" in financials.index:
+                pretax_income = [self._parse_float(v) for v in financials.loc["Income Before Tax"].values]
+            
+            # D&A
+            da = []
+            if not cash_flow.empty and "Depreciation And Amortization" in cash_flow.index:
+                da = [abs(self._parse_float(v)) for v in cash_flow.loc["Depreciation And Amortization"].values[:n]]
+            
+            # CapEx
+            capex = []
+            if not cash_flow.empty and "Capital Expenditure" in cash_flow.index:
+                capex = [abs(self._parse_float(v)) for v in cash_flow.loc["Capital Expenditure"].values[:n]]
+            
+            # Change in NWC
+            delta_nwc = []
+            if not cash_flow.empty and "Change In Working Capital" in cash_flow.index:
+                delta_nwc = [self._parse_float(v) for v in cash_flow.loc["Change In Working Capital"].values[:n]]
+            
+            # Balance sheet
+            cash = []
+            total_debt = []
+            shares_outstanding = []
+            
+            if not balance_sheet.empty:
+                if "Cash And Cash Equivalents" in balance_sheet.index:
+                    cash = [self._parse_float(v) for v in balance_sheet.loc["Cash And Cash Equivalents"].values[:n]]
                 
-                result.append(price_point)
+                if "Total Debt" in balance_sheet.index:
+                    total_debt = [self._parse_float(v) for v in balance_sheet.loc["Total Debt"].values[:n]]
+                elif "Long Term Debt" in balance_sheet.index:
+                    total_debt = [self._parse_float(v) for v in balance_sheet.loc["Long Term Debt"].values[:n]]
+                
+                if "Ordinary Shares Number" in balance_sheet.index:
+                    shares_outstanding = [self._parse_float(v) for v in balance_sheet.loc["Ordinary Shares Number"].values[:n]]
             
-            # Sort by date (most recent first)
-            result.sort(key=lambda x: x["t"], reverse=True)
+            # Market data
+            current_price = info.get("currentPrice") or info.get("regularMarketPrice")
+            market_cap = info.get("marketCap")
+            beta = info.get("beta")
             
-            return result
+            return ProviderData(
+                ticker=ticker,
+                company_name=info.get("longName") or info.get("shortName"),
+                currency=info.get("currency") or info.get("financialCurrency") or "USD",
+                as_of=self._get_timestamp(),
+                years=years,
+                revenue=revenue,
+                operating_income=operating_income,
+                ebitda=ebitda,
+                da=da,
+                net_income=net_income,
+                cash=cash,
+                total_debt=total_debt,
+                shares_outstanding=shares_outstanding,
+                capex=capex,
+                delta_nwc=delta_nwc,
+                tax_expense=tax_expense,
+                pretax_income=pretax_income,
+                current_price=current_price,
+                market_cap=market_cap,
+                beta=beta,
+                analyst_growth_y1=None,
+                analyst_growth_y2=None,
+                analyst_margin_y1=None
+            )
+            
         except Exception as e:
-            # Don't raise an exception for prices, just return None
-            print(f"Could not retrieve prices for {ticker}: {e}")
-            return None
-    
-    def get_risk_free_rate(self) -> Optional[float]:
-        """Get the current risk-free rate from 10-Year Treasury."""
-        try:
-            treasury = yf.Ticker("^TNX")
-            info = treasury.info
-            
-            rate = info.get("previousClose", None)
-            if rate is not None:
-                return float(rate) / 100  # Convert from percentage to decimal
-            
-            return None
-        except Exception as e:
-            print(f"Could not retrieve risk-free rate: {e}")
+            print(f"Yahoo build error: {e}")
             return None
