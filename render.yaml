@@ -6,4 +6,10 @@ services:
     envVars:
       - key: FLASK_ENV
         value: production
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+      - key: PYTHONPATH
+        value: .
+      - key: PORT
+        value: 8000
 
