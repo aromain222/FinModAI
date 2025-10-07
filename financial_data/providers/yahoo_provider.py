@@ -65,7 +65,7 @@ class YahooProvider(BaseProvider):
                     cash_flow=cash_flow
                 )
                 
-        except Exception as e:
+            except Exception as e:
                 if attempt < max_retries - 1:
                     print(f"Yahoo attempt {attempt + 1} failed: {e}")
                     continue
