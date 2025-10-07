@@ -24,14 +24,21 @@ class YahooProvider(BaseProvider):
             return None
         
         # Retry logic for rate limits
-        max_retries = 3
+        max_retries = 5  # Increased from 3
+        base_delay = 3   # Increased from 2
+        
         for attempt in range(max_retries):
             try:
-                # Add small delay between retries
+                # Add delay between retries (longer delays)
                 if attempt > 0:
-                    wait_time = 2 ** attempt  # Exponential backoff
+                    wait_time = base_delay * (2 ** attempt)  # Longer exponential backoff
                     print(f"Retry {attempt + 1}/{max_retries} after {wait_time}s...")
                     time.sleep(wait_time)
+                
+                # Add random jitter to avoid synchronized requests
+                import random
+                jitter = random.uniform(0.5, 2.0)
+                time.sleep(jitter)
                 
                 stock = yf.Ticker(ticker)
                 info = stock.info

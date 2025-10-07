@@ -74,6 +74,7 @@ class AlphaVantageProvider(BaseProvider):
             delta_nwc=[],
             tax_expense=[],
             pretax_income=[],
+            interest_expense=[],
             current_price=current_price,
             market_cap=market_cap,
             beta=beta,
