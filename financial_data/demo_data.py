@@ -4,6 +4,10 @@ Uses realistic values based on historical data.
 """
 
 from datetime import datetime
+from .comprehensive_demo_data import get_comprehensive_demo_data
+
+# Get comprehensive demo data
+COMPREHENSIVE_DATA = get_comprehensive_demo_data()
 
 DEMO_DATA = {
     "MSFT": {
@@ -497,7 +501,14 @@ DEMO_DATA = {
 def get_demo_data(ticker: str) -> dict:
     """Get demo data for a ticker if available."""
     ticker = ticker.upper()
+    
+    # First try comprehensive data
+    if ticker in COMPREHENSIVE_DATA:
+        return COMPREHENSIVE_DATA[ticker]
+    
+    # Fallback to original demo data
     if ticker in DEMO_DATA:
         return DEMO_DATA[ticker]
+    
     return None
 
