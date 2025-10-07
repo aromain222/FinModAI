@@ -1,5 +1,6 @@
 """Gunicorn configuration with dependency preloading."""
 import sys
+import os
 
 # Preload dependencies before forking workers
 def on_starting(server):
@@ -54,7 +55,7 @@ def worker_abort(worker):
     print(f"Worker {worker.pid} aborted")
 
 # Gunicorn config
-bind = "0.0.0.0:8000"
+bind = f"0.0.0.0:{os.environ.get('PORT', '8000')}"
 workers = 2
 worker_class = "sync"
 timeout = 120
