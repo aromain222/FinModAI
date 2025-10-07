@@ -59,6 +59,22 @@ except ImportError:
     AI_AVAILABLE = False
     print("Warning: AI libraries not available")
 
+# Try to import financial data engine
+try:
+    from financial_data import FinancialDataEngine
+    FINANCIAL_DATA_AVAILABLE = True
+except ImportError:
+    FINANCIAL_DATA_AVAILABLE = False
+    print("Warning: financial_data not available")
+
+# Try to import LBO model
+try:
+    from lbo_model import LBOEngine
+    LBO_MODEL_AVAILABLE = True
+except ImportError:
+    LBO_MODEL_AVAILABLE = False
+    print("Warning: lbo_model not available")
+
 # Preflight import check - fail fast if critical dependencies are missing
 def preflight_check():
     """Check critical dependencies and exit with code 1 if missing."""
@@ -941,3 +957,119 @@ if __name__ == '__main__':
     
     print(f"Starting app on port {port}")
     app.run(host='0.0.0.0', port=port)
+
+# LBO Model Endpoints
+_lbo_engine = None
+
+def get_lbo_engine():
+    global _lbo_engine
+    if _lbo_engine is None and LBO_MODEL_AVAILABLE:
+        try:
+            _lbo_engine = LBOEngine()
+        except Exception as e:
+            print(f"LBO engine initialization failed: {e}")
+            _lbo_engine = False
+    return _lbo_engine if _lbo_engine is not False else None
+
+@app.route('/lbo-model', methods=['GET', 'POST'])
+def lbo_model():
+    """LBO Model page."""
+    if request.method == 'POST':
+        try:
+            # Get LBO assumptions from form
+            assumptions = {
+                "entry_year": int(request.form.get('entry_year', 2024)),
+                "entry_ebitda": float(request.form.get('entry_ebitda', 50000000)),
+                "entry_multiple": float(request.form.get('entry_multiple', 8.0)),
+                "existing_debt": float(request.form.get('existing_debt', 20000000)),
+                "existing_cash": float(request.form.get('existing_cash', 5000000)),
+                "holding_period": int(request.form.get('holding_period', 5)),
+                "exit_multiple": float(request.form.get('exit_multiple', 10.0)),
+                "senior_debt_multiple": float(request.form.get('senior_debt_multiple', 4.0)),
+                "mezzanine_debt_multiple": float(request.form.get('mezzanine_debt_multiple', 1.5)),
+                "sponsor_equity_multiple": float(request.form.get('sponsor_equity_multiple', 2.5)),
+                "senior_debt_rate": float(request.form.get('senior_debt_rate', 0.06)),
+                "mezzanine_debt_rate": float(request.form.get('mezzanine_debt_rate', 0.12)),
+                "revolver_rate": float(request.form.get('revolver_rate', 0.05)),
+                "advisory_fees": float(request.form.get('advisory_fees', 2000000)),
+                "financing_fees": float(request.form.get('financing_fees', 1500000)),
+                "other_fees": float(request.form.get('other_fees', 500000)),
+                "revenue_growth": [float(x) for x in request.form.get('revenue_growth', '0.08,0.07,0.06,0.05,0.04').split(',')],
+                "ebitda_margin": [float(x) for x in request.form.get('ebitda_margin', '0.25,0.26,0.27,0.28,0.29').split(',')],
+                "capex_pct_revenue": float(request.form.get('capex_pct_revenue', 0.04)),
+                "nwc_pct_revenue": float(request.form.get('nwc_pct_revenue', 0.12)),
+                "tax_rate": float(request.form.get('tax_rate', 0.25)),
+                "depreciation_rate": float(request.form.get('depreciation_rate', 0.03)),
+                "management_rollover_pct": float(request.form.get('management_rollover_pct', 0.10)),
+                "management_incentive_pct": float(request.form.get('management_incentive_pct', 0.20))
+            }
+            
+            # Build LBO model
+            engine = get_lbo_engine()
+            if not engine:
+                flash('LBO model service is not available', 'error')
+                return redirect(url_for('lbo_model'))
+            
+            model_result = engine.build_lbo_model(assumptions)
+            
+            if "error" in model_result:
+                flash(f'Error building LBO model: {model_result["message"]}', 'error')
+                return redirect(url_for('lbo_model'))
+            
+            # Store model result
+            model_id = str(uuid.uuid4())
+            MODEL_STORAGE[model_id] = {
+                'ticker': 'LBO',
+                'model_type': 'lbo',
+                'climate': 'base',
+                'status': 'completed',
+                'result': model_result,
+                'created_at': datetime.now().isoformat()
+            }
+            
+            return redirect(url_for('lbo_results', model_id=model_id))
+            
+        except Exception as e:
+            flash(f'Error processing LBO model: {str(e)}', 'error')
+            return redirect(url_for('lbo_model'))
+    
+    return render_template('lbo_model.html')
+
+@app.route('/lbo-results/<model_id>')
+def lbo_results(model_id):
+    """LBO Model results page."""
+    model = MODEL_STORAGE.get(model_id)
+    if not model:
+        flash('Model not found', 'error')
+        return redirect(url_for('lbo_model'))
+    
+    if model.get('model_type') != 'lbo':
+        flash('Invalid model type', 'error')
+        return redirect(url_for('lbo_model'))
+    
+    return render_template('lbo_results.html', model=model)
+
+@app.route('/lbo-api', methods=['POST'])
+def lbo_api():
+    """LBO Model API endpoint."""
+    try:
+        assumptions = request.get_json()
+        if not assumptions:
+            return jsonify({"error": "missing_assumptions", "message": "LBO assumptions are required"}), 400
+        
+        engine = get_lbo_engine()
+        if not engine:
+            return jsonify({"error": "service_unavailable", "message": "LBO model service is not available"}), 503
+        
+        model_result = engine.build_lbo_model(assumptions)
+        
+        if "error" in model_result:
+            return jsonify(model_result), 422
+        
+        return jsonify(model_result), 200
+        
+    except Exception as e:
+        print(f"Error in LBO API: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "internal_error", "message": f"An error occurred: {str(e)}"}), 500

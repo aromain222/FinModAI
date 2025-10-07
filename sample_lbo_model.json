@@ -1,0 +1,511 @@
+{
+  "assumptions": {
+    "entry_year": 2024,
+    "entry_ebitda": 50000000.0,
+    "entry_multiple": 8.0,
+    "existing_debt": 20000000.0,
+    "existing_cash": 5000000.0,
+    "exit_year": 2029,
+    "exit_multiple": 10.0,
+    "holding_period": 5,
+    "senior_debt_multiple": 4.0,
+    "mezzanine_debt_multiple": 1.5,
+    "sponsor_equity_multiple": 2.5,
+    "senior_debt_rate": 0.06,
+    "mezzanine_debt_rate": 0.12,
+    "revolver_rate": 0.05,
+    "advisory_fees": 2000000.0,
+    "financing_fees": 1500000.0,
+    "other_fees": 500000.0,
+    "revenue_growth": [
+      0.08,
+      0.07,
+      0.06,
+      0.05,
+      0.04
+    ],
+    "ebitda_margin": [
+      0.25,
+      0.26,
+      0.27,
+      0.28,
+      0.29
+    ],
+    "capex_pct_revenue": 0.04,
+    "nwc_pct_revenue": 0.12,
+    "tax_rate": 0.25,
+    "depreciation_rate": 0.03,
+    "management_rollover_pct": 0.1,
+    "management_incentive_pct": 0.2
+  },
+  "sources_uses": {
+    "senior_debt": 200000000.0,
+    "mezzanine_debt": 75000000.0,
+    "revolver": 25000000.0,
+    "sponsor_equity": 125000000.0,
+    "management_rollover": 38500000.0,
+    "equity_purchase_price": 385000000.0,
+    "debt_repayment": 20000000.0,
+    "transaction_fees": 4000000.0,
+    "cash_to_balance_sheet": 5000000.0,
+    "sources_total": 463500000.0,
+    "uses_total": 414000000.0,
+    "balance_check": 49500000.0
+  },
+  "purchase_price_allocation": {
+    "enterprise_value": 400000000.0,
+    "equity_purchase_price": 385000000.0,
+    "net_debt_adjustment": 15000000.0,
+    "goodwill": 308000000.0,
+    "intangible_assets": 77000000.0,
+    "deferred_tax_liability": 19250000.0,
+    "adjusted_cash": 5000000.0,
+    "adjusted_debt": 275000000.0,
+    "adjusted_equity": 163500000.0
+  },
+  "proforma_financials": {
+    "years": [
+      2024,
+      2025,
+      2026,
+      2027,
+      2028,
+      2029
+    ],
+    "revenue": [
+      200000000.0,
+      216000000.0,
+      231120000.0,
+      244987200.0,
+      257236560.0,
+      267526022.4
+    ],
+    "ebitda": [
+      50000000.0,
+      56160000.0,
+      62402400.00000001,
+      68596416.0,
+      74598602.39999999,
+      77582546.49599999
+    ],
+    "ebit": [
+      44000000.0,
+      49680000.0,
+      55468800.00000001,
+      61246800.0,
+      66881505.599999994,
+      69556765.82399999
+    ],
+    "interest_expense": [
+      22250000.0,
+      19850000.0,
+      17450000.0,
+      15050000.0,
+      12231772.64,
+      1250000.0
+    ],
+    "pretax_income": [
+      21750000.0,
+      29830000.0,
+      38018800.00000001,
+      46196800.0,
+      54649732.95999999,
+      68306765.82399999
+    ],
+    "tax_expense": [
+      5437500.0,
+      7457500.0,
+      9504700.000000002,
+      11549200.0,
+      13662433.239999998,
+      17076691.455999997
+    ],
+    "net_income": [
+      16312500.0,
+      22372500.0,
+      28514100.000000007,
+      34647600.0,
+      40987299.72,
+      51230074.367999986
+    ],
+    "cash": [
+      5000000.0,
+      40100000.0,
+      79390400.0,
+      122875628.0,
+      170464391.6,
+      219956705.744
+    ],
+    "working_capital": [
+      24000000.0,
+      25920000.0,
+      27734400.0,
+      29398464.0,
+      30868387.2,
+      32103122.688
+    ],
+    "ppe": [
+      60000000.0,
+      64800000.0,
+      69336000.0,
+      73496160.0,
+      77170968.0,
+      80257806.72
+    ],
+    "goodwill": [
+      308000000.0,
+      308000000.0,
+      308000000.0,
+      308000000.0,
+      308000000.0,
+      308000000.0
+    ],
+    "total_assets": [
+      397000000.0,
+      398720000.0,
+      405070400.0,
+      410894624.0,
+      416039355.2,
+      420360929.408
+    ],
+    "total_debt": [
+      300000000.0,
+      260000000.0,
+      220000000.0,
+      180000000.0,
+      136514772.0,
+      25000000.0
+    ],
+    "equity": [
+      163500000.0,
+      200760000.0,
+      242361600.0,
+      288296700.0,
+      338457829.2,
+      390625403.56799996
+    ],
+    "total_liabilities_equity": [
+      438500000.0,
+      200760000.0,
+      242361600.0,
+      288296700.0,
+      338457829.2,
+      390625403.56799996
+    ],
+    "operating_cash_flow": [
+      39000000.0,
+      43740000.0,
+      48535200.00000001,
+      53284716.0,
+      57878225.99999999,
+      60193355.039999984
+    ],
+    "capex": [
+      8000000.0,
+      8640000.0,
+      9244800.0,
+      9799488.0,
+      10289462.4,
+      10701040.896
+    ],
+    "free_cash_flow": [
+      31000000.0,
+      35100000.0,
+      39290400.00000001,
+      43485228.0,
+      47588763.599999994,
+      49492314.14399999
+    ],
+    "debt_repayments": [
+      40000000.0,
+      40000000.0,
+      40000000.0,
+      43485228.0,
+      115000000.0,
+      25000000.0
+    ],
+    "net_change_in_cash": [
+      31000000.0,
+      35100000.0,
+      39290400.00000001,
+      43485228.0,
+      47588763.599999994,
+      49492314.14399999
+    ]
+  },
+  "debt_schedule": [
+    {
+      "name": "Senior Term Loan A",
+      "tranche_type": "DebtTrancheType.TERM_LOAN_A",
+      "initial_amount": 200000000.0,
+      "interest_rate": 0.06,
+      "amortization_schedule": [
+        40000000.0,
+        40000000.0,
+        40000000.0,
+        40000000.0,
+        40000000.0
+      ],
+      "interest_only_periods": 0,
+      "bullet_payment_year": null,
+      "is_pik": false,
+      "covenants": {
+        "max_leverage": 4.0,
+        "min_interest_coverage": 2.5
+      },
+      "outstanding_balance": [
+        200000000.0,
+        160000000.0,
+        120000000.0,
+        80000000.0,
+        40000000.0,
+        0
+      ],
+      "interest_expense": [
+        12000000.0,
+        9600000.0,
+        7200000.0,
+        4800000.0,
+        2400000.0,
+        0
+      ],
+      "principal_payments": [
+        40000000.0,
+        40000000.0,
+        40000000.0,
+        40000000.0,
+        40000000.0,
+        0
+      ],
+      "cash_sweep_payments": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Mezzanine Debt",
+      "tranche_type": "DebtTrancheType.MEZZANINE",
+      "initial_amount": 75000000.0,
+      "interest_rate": 0.12,
+      "amortization_schedule": [
+        0,
+        0,
+        0,
+        0,
+        75000000.0
+      ],
+      "interest_only_periods": 4,
+      "bullet_payment_year": null,
+      "is_pik": false,
+      "covenants": {
+        "max_leverage": 5.0,
+        "min_interest_coverage": 2.0
+      },
+      "outstanding_balance": [
+        75000000.0,
+        75000000.0,
+        75000000.0,
+        75000000.0,
+        71514772.0,
+        0
+      ],
+      "interest_expense": [
+        9000000.0,
+        9000000.0,
+        9000000.0,
+        9000000.0,
+        8581772.64,
+        0
+      ],
+      "principal_payments": [
+        0,
+        0,
+        0,
+        0,
+        75000000.0,
+        0
+      ],
+      "cash_sweep_payments": [
+        0,
+        0,
+        0,
+        3485228.0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Revolver",
+      "tranche_type": "DebtTrancheType.REVOLVER",
+      "initial_amount": 25000000.0,
+      "interest_rate": 0.05,
+      "amortization_schedule": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "interest_only_periods": 5,
+      "bullet_payment_year": null,
+      "is_pik": false,
+      "covenants": {
+        "max_leverage": 4.5,
+        "min_interest_coverage": 2.5
+      },
+      "outstanding_balance": [
+        25000000.0,
+        25000000.0,
+        25000000.0,
+        25000000.0,
+        25000000.0,
+        25000000.0
+      ],
+      "interest_expense": [
+        1250000.0,
+        1250000.0,
+        1250000.0,
+        1250000.0,
+        1250000.0,
+        1250000.0
+      ],
+      "principal_payments": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "cash_sweep_payments": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        25000000.0
+      ]
+    }
+  ],
+  "returns_analysis": {
+    "exit_ebitda": 77582546.49599999,
+    "exit_multiple": 10.0,
+    "exit_enterprise_value": 775825464.9599999,
+    "exit_net_debt": -194956705.744,
+    "exit_equity_value": 970782170.7039999,
+    "sponsor_equity_invested": 125000000.0,
+    "sponsor_equity_exit_value": 882529246.0945454,
+    "sponsor_moic": 7.060233968756363,
+    "sponsor_irr": 0.4783042268743367,
+    "debt_irr_by_tranche": {
+      "Senior Term Loan A": -0.29033317923744495,
+      "Mezzanine Debt": -0.09880408623455927,
+      "Revolver": 0.05387395206178347
+    },
+    "weighted_average_debt_irr": -0.21376697837845451,
+    "management_equity_value": 88252924.60945454,
+    "management_moic": 7.060233968756363,
+    "management_irr": 0.4783042268743367
+  },
+  "covenant_metrics": {
+    "years": [
+      2024,
+      2025,
+      2026,
+      2027,
+      2028,
+      2029
+    ],
+    "debt_to_ebitda": [
+      6.0,
+      4.62962962962963,
+      3.5255054292783607,
+      2.6240437984398484,
+      1.8299910133437034,
+      0.3222374248992839
+    ],
+    "senior_debt_to_ebitda": [
+      4.5,
+      3.294159544159544,
+      2.3236285783880106,
+      1.5306922157565783,
+      0.8713299969276638,
+      0.3222374248992839
+    ],
+    "interest_coverage": [
+      2.247191011235955,
+      2.829219143576826,
+      3.57606876790831,
+      4.557901395348837,
+      6.098756459554336,
+      62.066037196799996
+    ],
+    "ebitda_coverage": [
+      2.247191011235955,
+      2.829219143576826,
+      3.57606876790831,
+      4.557901395348837,
+      6.098756459554336,
+      62.066037196799996
+    ],
+    "fixed_charge_coverage": [
+      0.8032128514056225,
+      0.9383458646616541,
+      1.0862036553524805,
+      1.1718826140046812,
+      0.5863205459777361,
+      2.9555255808
+    ],
+    "max_leverage_covenant": 4.0,
+    "min_interest_coverage_covenant": 2.5,
+    "leverage_breach": [
+      true,
+      true,
+      false,
+      false,
+      false,
+      false
+    ],
+    "coverage_breach": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "equity_waterfall": {
+    "sponsor_ownership_pct": 0.9090909090909091,
+    "management_ownership_pct": 0.09090909090909091,
+    "rollover_ownership_pct": 0,
+    "total_exit_proceeds": 970782170.7039999,
+    "sponsor_proceeds": 882529246.0945454,
+    "management_proceeds": 88252924.60945454,
+    "rollover_proceeds": 0.0,
+    "management_carry_pct": 0.2,
+    "management_carry_value": 17650584.92189091
+  },
+  "sensitivity_matrices": [],
+  "scenario_analyses": [],
+  "validation_checks": {
+    "sources_equals_uses": false,
+    "balance_sheet_balances": false,
+    "cash_never_negative": true,
+    "returns_tie_to_exit": false,
+    "irr_reasonable": true
+  },
+  "validation_messages": [
+    "Sources (463500000.00) \u2260 Uses (414000000.00)",
+    "Balance sheet doesn't balance in 2024",
+    "Cash \u2265 0 \u2713",
+    "\u274c Returns don't tie to exit value",
+    "IRR Cross-Check \u2713 (47.8%)"
+  ],
+  "created_at": "2025-10-07 10:27:54",
+  "model_version": "1.0.0"
+}
