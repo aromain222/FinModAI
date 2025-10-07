@@ -9,6 +9,14 @@ import json
 
 from .contracts import *
 from .assumptions import LBOAssumptionsModule
+
+# Import financial data engine for historical assumptions
+try:
+    from financial_data import FinancialDataEngine
+    FINANCIAL_DATA_AVAILABLE = True
+except ImportError:
+    FINANCIAL_DATA_AVAILABLE = False
+    print("Warning: Financial data engine not available")
 from .sources_uses import SourcesUsesModule
 from .purchase_price_allocation import PurchasePriceAllocationModule
 from .proforma_financials import ProFormaFinancialsModule
@@ -30,6 +38,15 @@ class LBOEngine:
         self.model_version = "1.0.0"
         self.created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
+        # Initialize financial data engine if available
+        self.financial_engine = None
+        if FINANCIAL_DATA_AVAILABLE:
+            try:
+                self.financial_engine = FinancialDataEngine()
+                print("✅ Financial data engine initialized for LBO model")
+            except Exception as e:
+                print(f"⚠️ Financial data engine failed to initialize: {e}")
+        
         # Initialize modules
         self.assumptions_module = LBOAssumptionsModule()
         self.sources_uses_module = SourcesUsesModule()
@@ -45,6 +62,90 @@ class LBOEngine:
         # Set circular reference
         self.sensitivity_module.set_lbo_engine(self)
     
+    def fetch_historical_assumptions(self, ticker: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch historical assumptions from financial data engine.
+        
+        Args:
+            ticker: Company ticker symbol
+            
+        Returns:
+            Historical assumptions dictionary or None if unavailable
+        """
+        if not self.financial_engine:
+            print("⚠️ Financial data engine not available")
+            return None
+        
+        try:
+            print(f"🔍 Fetching historical assumptions for {ticker}...")
+            result = self.financial_engine.get_assumptions(ticker, use_cache=False, allow_demo=True)
+            
+            if 'error' in result:
+                print(f"❌ Failed to fetch data for {ticker}: {result['message']}")
+                return None
+            
+            print(f"✅ Successfully fetched historical data for {ticker}")
+            return result
+            
+        except Exception as e:
+            print(f"❌ Error fetching historical assumptions for {ticker}: {e}")
+            return None
+    
+    def _merge_historical_assumptions(self, assumptions_input: Dict[str, Any], historical_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Merge historical assumptions into LBO assumptions input.
+        
+        Args:
+            assumptions_input: Original LBO assumptions
+            historical_data: Historical data from financial engine
+            
+        Returns:
+            Merged assumptions with historical data
+        """
+        merged = assumptions_input.copy()
+        
+        # Extract historical assumptions
+        hist_assumptions = historical_data.get('assumptions', {})
+        hist_wacc = historical_data.get('wacc', {})
+        hist_historicals = historical_data.get('historicals', {})
+        
+        print("🔄 Merging historical assumptions into LBO model...")
+        
+        # Revenue growth (use historical if not provided)
+        if 'revenue_growth' not in merged and 'revenue_growth' in hist_assumptions:
+            merged['revenue_growth'] = hist_assumptions['revenue_growth'][:5]  # First 5 years
+            print(f"📈 Using historical revenue growth: {[f'{x:.1%}' for x in merged['revenue_growth'][:3]]}...")
+        
+        # Operating margin (use historical if not provided)
+        if 'operating_margin' not in merged and 'operating_margin' in hist_assumptions:
+            merged['operating_margin'] = hist_assumptions['operating_margin'][:5]  # First 5 years
+            print(f"📊 Using historical operating margin: {[f'{x:.1%}' for x in merged['operating_margin'][:3]]}...")
+        
+        # Tax rate (use historical if not provided)
+        if 'tax_rate' not in merged and 'tax_rate' in hist_assumptions:
+            merged['tax_rate'] = hist_assumptions['tax_rate']
+            print(f"💰 Using historical tax rate: {merged['tax_rate']:.1%}")
+        
+        # WACC (use historical if not provided)
+        if 'wacc' not in merged and 'wacc' in hist_wacc:
+            merged['wacc'] = hist_wacc['wacc']
+            print(f"📊 Using historical WACC: {merged['wacc']:.1%}")
+        
+        # Entry EBITDA (use historical if not provided)
+        if 'entry_ebitda' not in merged and 'operating_income' in hist_historicals:
+            latest_ebitda = hist_historicals['operating_income'][0]  # Most recent year
+            if latest_ebitda:
+                merged['entry_ebitda'] = latest_ebitda
+                print(f"💰 Using historical EBITDA: ${merged['entry_ebitda']:,.0f}")
+        
+        # Company name
+        if 'company_name' not in merged and 'company_name' in historical_data:
+            merged['company_name'] = historical_data['company_name']
+            print(f"🏢 Company: {merged['company_name']}")
+        
+        print("✅ Historical assumptions merged successfully")
+        return merged
+    
     def build_lbo_model(self, assumptions_input: Dict[str, Any]) -> Dict[str, Any]:
         """
         Build complete LBO model from assumptions.
@@ -57,6 +158,15 @@ class LBOEngine:
         """
         try:
             print("🏗️  Building institutional-grade LBO model...")
+            
+            # Step 0: Fetch historical assumptions if ticker provided
+            ticker = assumptions_input.get('ticker')
+            historical_data = None
+            if ticker:
+                historical_data = self.fetch_historical_assumptions(ticker)
+                if historical_data:
+                    # Merge historical assumptions into input
+                    assumptions_input = self._merge_historical_assumptions(assumptions_input, historical_data)
             
             # Step 1: Process assumptions
             print("📊 Processing assumptions...")
