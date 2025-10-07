@@ -19,6 +19,7 @@ from .providers.yahoo_provider import YahooProvider
 from .providers.fred_provider import FREDProvider
 from .assumptions_calculator import AssumptionsCalculator
 from .sanity_checker import SanityChecker
+from .demo_data import get_demo_data
 
 
 class FinancialDataEngine:
@@ -56,10 +57,12 @@ class FinancialDataEngine:
         
         return providers
     
-    def get_assumptions(self, ticker: str, use_cache: bool = True) -> Dict[str, Any]:
+    def get_assumptions(self, ticker: str, use_cache: bool = True, allow_demo: bool = True) -> Dict[str, Any]:
         """
         Main entry point: Get company-specific assumptions.
         Returns either FinancialData or InsufficientDataError.
+        
+        If allow_demo=True and APIs fail, returns demo data for common tickers (MSFT, AAPL, GOOGL).
         """
         ticker = ticker.upper().strip()
         
@@ -98,6 +101,13 @@ class FinancialDataEngine:
         
         # Check if we have sufficient data
         if not best_data or best_score < 200:  # Need at least revenue + EBIT
+            # Try demo data if allowed
+            if allow_demo:
+                demo_data = get_demo_data(ticker)
+                if demo_data:
+                    print(f"Using demo data for {ticker} (APIs unavailable)")
+                    return demo_data
+            
             missing = []
             if not best_data or not best_data.revenue or len(best_data.revenue) < 3:
                 missing.append("revenue")
@@ -108,7 +118,7 @@ class FinancialDataEngine:
                 error="insufficient_historicals",
                 missing=missing,
                 provider_attempts=provider_attempts,
-                message=f"Need ≥3 years of revenue and EBIT to build assumptions for {ticker}."
+                message=f"Need ≥3 years of revenue and EBIT to build assumptions for {ticker}. APIs currently unavailable - try MSFT, AAPL, or GOOGL for demo data."
             )
             return error.to_dict()
         
