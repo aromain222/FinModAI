@@ -329,6 +329,168 @@ DEMO_DATA = {
                "g": 0.03
            },
            "flags": ["demo_data_used"]
+       },
+       "META": {
+           "ticker": "META",
+           "company_name": "Meta Platforms, Inc.",
+           "currency": "USD",
+           "provenance": {
+               "revenue": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "op_margin": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "capex": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "nwc": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "price": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "beta": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "rf": {"source": "Demo_Data_UST10Y", "as_of": datetime.now().strftime("%Y-%m-%d")}
+           },
+           "historicals": {
+               "years": [2024, 2023, 2022, 2021, 2020],
+               "revenue": [134902000000, 116609000000, 116609000000, 85965000000, 85965000000],
+               "operating_income": [46000000000, 32000000000, 32000000000, 20000000000, 20000000000],
+               "op_margin": [0.341, 0.274, 0.274, 0.233, 0.233],
+               "da": [12000000000, 10000000000, 10000000000, 8000000000, 8000000000],
+               "capex": [25000000000, 20000000000, 20000000000, 15000000000, 15000000000],
+               "delta_nwc": [3000000000, 2000000000, 2000000000, 1000000000, 1000000000],
+               "tax_expense": [10000000000, 7000000000, 7000000000, 4000000000, 4000000000],
+               "pretax_income": [46000000000, 32000000000, 32000000000, 20000000000, 20000000000],
+               "interest_expense": [1000000000, 800000000, 800000000, 500000000, 500000000],
+               "total_debt": [20000000000, 15000000000, 15000000000, 10000000000, 10000000000],
+               "shares_outstanding": [2500000000, 2600000000, 2700000000, 2800000000, 2900000000]
+           },
+           "assumptions": {
+               "forecast_years": 10,
+               "revenue_growth": [0.12, 0.10, 0.08, 0.06, 0.05, 0.04, 0.03, 0.03, 0.03, 0.03],
+               "operating_margin": [0.345, 0.350, 0.355, 0.360, 0.365, 0.365, 0.365, 0.365, 0.365, 0.365],
+               "da_pct_rev": 0.089,
+               "capex_pct_rev": 0.185,
+               "nwc_pct_rev": 0.022,
+               "tax_rate": 0.22
+           },
+           "wacc": {
+               "rf": 0.045,
+               "erp": 0.055,
+               "beta": 1.4,
+               "ke": 0.122,
+               "kd_pre": 0.060,
+               "tax": 0.22,
+               "wd": 0.10,
+               "we": 0.90,
+               "kd_after": 0.047,
+               "wacc": 0.115
+           },
+           "terminal": {
+               "method": "perpetuity",
+               "g": 0.03
+           },
+           "flags": ["demo_data_used"]
+       },
+       "NFLX": {
+           "ticker": "NFLX",
+           "company_name": "Netflix, Inc.",
+           "currency": "USD",
+           "provenance": {
+               "revenue": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "op_margin": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "capex": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "nwc": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "price": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "beta": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "rf": {"source": "Demo_Data_UST10Y", "as_of": datetime.now().strftime("%Y-%m-%d")}
+           },
+           "historicals": {
+               "years": [2024, 2023, 2022, 2021, 2020],
+               "revenue": [33723000000, 31697000000, 31697000000, 24961000000, 24961000000],
+               "operating_income": [7000000000, 5000000000, 5000000000, 3000000000, 3000000000],
+               "op_margin": [0.208, 0.158, 0.158, 0.120, 0.120],
+               "da": [2000000000, 1500000000, 1500000000, 1000000000, 1000000000],
+               "capex": [1000000000, 800000000, 800000000, 500000000, 500000000],
+               "delta_nwc": [500000000, 300000000, 300000000, 200000000, 200000000],
+               "tax_expense": [1500000000, 1000000000, 1000000000, 600000000, 600000000],
+               "pretax_income": [7000000000, 5000000000, 5000000000, 3000000000, 3000000000],
+               "interest_expense": [800000000, 600000000, 600000000, 400000000, 400000000],
+               "total_debt": [15000000000, 12000000000, 12000000000, 8000000000, 8000000000],
+               "shares_outstanding": [450000000, 460000000, 470000000, 480000000, 490000000]
+           },
+           "assumptions": {
+               "forecast_years": 10,
+               "revenue_growth": [0.08, 0.06, 0.05, 0.04, 0.03, 0.03, 0.03, 0.03, 0.03, 0.03],
+               "operating_margin": [0.210, 0.215, 0.220, 0.225, 0.230, 0.230, 0.230, 0.230, 0.230, 0.230],
+               "da_pct_rev": 0.059,
+               "capex_pct_rev": 0.030,
+               "nwc_pct_rev": 0.015,
+               "tax_rate": 0.21
+           },
+           "wacc": {
+               "rf": 0.045,
+               "erp": 0.055,
+               "beta": 1.2,
+               "ke": 0.111,
+               "kd_pre": 0.060,
+               "tax": 0.21,
+               "wd": 0.15,
+               "we": 0.85,
+               "kd_after": 0.047,
+               "wacc": 0.102
+           },
+           "terminal": {
+               "method": "perpetuity",
+               "g": 0.03
+           },
+           "flags": ["demo_data_used"]
+       },
+       "NVDA": {
+           "ticker": "NVDA",
+           "company_name": "NVIDIA Corporation",
+           "currency": "USD",
+           "provenance": {
+               "revenue": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "op_margin": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "capex": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "nwc": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "price": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "beta": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "rf": {"source": "Demo_Data_UST10Y", "as_of": datetime.now().strftime("%Y-%m-%d")}
+           },
+           "historicals": {
+               "years": [2024, 2023, 2022, 2021, 2020],
+               "revenue": [60922000000, 26914000000, 26914000000, 16675000000, 16675000000],
+               "operating_income": [35000000000, 10000000000, 10000000000, 5000000000, 5000000000],
+               "op_margin": [0.575, 0.372, 0.372, 0.300, 0.300],
+               "da": [2000000000, 1000000000, 1000000000, 500000000, 500000000],
+               "capex": [3000000000, 2000000000, 2000000000, 1000000000, 1000000000],
+               "delta_nwc": [2000000000, 1000000000, 1000000000, 500000000, 500000000],
+               "tax_expense": [8000000000, 2000000000, 2000000000, 1000000000, 1000000000],
+               "pretax_income": [35000000000, 10000000000, 10000000000, 5000000000, 5000000000],
+               "interest_expense": [200000000, 100000000, 100000000, 50000000, 50000000],
+               "total_debt": [5000000000, 3000000000, 3000000000, 2000000000, 2000000000],
+               "shares_outstanding": [2500000000, 2600000000, 2700000000, 2800000000, 2900000000]
+           },
+           "assumptions": {
+               "forecast_years": 10,
+               "revenue_growth": [0.25, 0.20, 0.15, 0.10, 0.08, 0.06, 0.05, 0.04, 0.03, 0.03],
+               "operating_margin": [0.580, 0.585, 0.590, 0.595, 0.600, 0.600, 0.600, 0.600, 0.600, 0.600],
+               "da_pct_rev": 0.033,
+               "capex_pct_rev": 0.049,
+               "nwc_pct_rev": 0.033,
+               "tax_rate": 0.23
+           },
+           "wacc": {
+               "rf": 0.045,
+               "erp": 0.055,
+               "beta": 1.8,
+               "ke": 0.144,
+               "kd_pre": 0.065,
+               "tax": 0.23,
+               "wd": 0.05,
+               "we": 0.95,
+               "kd_after": 0.050,
+               "wacc": 0.139
+           },
+           "terminal": {
+               "method": "perpetuity",
+               "g": 0.03
+           },
+           "flags": ["demo_data_used"]
        }
    }
 
