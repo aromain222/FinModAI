@@ -220,9 +220,117 @@ DEMO_DATA = {
             "method": "perpetuity",
             "g": 0.025
         },
-        "flags": ["demo_data_used"]
-    }
-}
+           "flags": ["demo_data_used"]
+       },
+       "TSLA": {
+           "ticker": "TSLA",
+           "company_name": "Tesla, Inc.",
+           "currency": "USD",
+           "provenance": {
+               "revenue": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "op_margin": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "capex": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "nwc": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "price": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "beta": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "rf": {"source": "Demo_Data_UST10Y", "as_of": datetime.now().strftime("%Y-%m-%d")}
+           },
+           "historicals": {
+               "years": [2024, 2023, 2022, 2021, 2020],
+               "revenue": [96773000000, 81562000000, 53735000000, 31536000000, 31536000000],
+               "operating_income": [8000000000, 9000000000, 6000000000, 4000000000, 2000000000],
+               "op_margin": [0.083, 0.110, 0.112, 0.127, 0.063],
+               "da": [3000000000, 2500000000, 2000000000, 1500000000, 1000000000],
+               "capex": [8000000000, 7000000000, 6000000000, 5000000000, 4000000000],
+               "delta_nwc": [2000000000, 1500000000, 1000000000, 500000000, 300000000],
+               "tax_expense": [2000000000, 1500000000, 1000000000, 500000000, 300000000],
+               "pretax_income": [8000000000, 9000000000, 6000000000, 4000000000, 2000000000],
+               "interest_expense": [500000000, 400000000, 300000000, 200000000, 100000000],
+               "total_debt": [30000000000, 25000000000, 20000000000, 15000000000, 10000000000],
+               "shares_outstanding": [3000000000, 3100000000, 3200000000, 3300000000, 3400000000]
+           },
+           "assumptions": {
+               "forecast_years": 10,
+               "revenue_growth": [0.15, 0.12, 0.10, 0.08, 0.06, 0.05, 0.04, 0.03, 0.03, 0.03],
+               "operating_margin": [0.085, 0.090, 0.095, 0.100, 0.105, 0.105, 0.105, 0.105, 0.105, 0.105],
+               "da_pct_rev": 0.031,
+               "capex_pct_rev": 0.083,
+               "nwc_pct_rev": 0.021,
+               "tax_rate": 0.25
+           },
+           "wacc": {
+               "rf": 0.045,
+               "erp": 0.055,
+               "beta": 2.0,
+               "ke": 0.155,
+               "kd_pre": 0.065,
+               "tax": 0.25,
+               "wd": 0.20,
+               "we": 0.80,
+               "kd_after": 0.049,
+               "wacc": 0.133
+           },
+           "terminal": {
+               "method": "perpetuity",
+               "g": 0.03
+           },
+           "flags": ["demo_data_used"]
+       },
+       "AMZN": {
+           "ticker": "AMZN",
+           "company_name": "Amazon.com, Inc.",
+           "currency": "USD",
+           "provenance": {
+               "revenue": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "op_margin": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "capex": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "nwc": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "price": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "beta": {"source": "Demo_Data", "as_of": datetime.now().strftime("%Y-%m-%d")},
+               "rf": {"source": "Demo_Data_UST10Y", "as_of": datetime.now().strftime("%Y-%m-%d")}
+           },
+           "historicals": {
+               "years": [2024, 2023, 2022, 2021, 2020],
+               "revenue": [574785000000, 514004000000, 469822000000, 386064000000, 386064000000],
+               "operating_income": [30000000000, 25000000000, 20000000000, 15000000000, 10000000000],
+               "op_margin": [0.052, 0.049, 0.043, 0.039, 0.026],
+               "da": [20000000000, 18000000000, 16000000000, 14000000000, 12000000000],
+               "capex": [40000000000, 35000000000, 30000000000, 25000000000, 20000000000],
+               "delta_nwc": [5000000000, 4000000000, 3000000000, 2000000000, 1000000000],
+               "tax_expense": [8000000000, 6000000000, 4000000000, 3000000000, 2000000000],
+               "pretax_income": [30000000000, 25000000000, 20000000000, 15000000000, 10000000000],
+               "interest_expense": [2000000000, 1500000000, 1000000000, 800000000, 500000000],
+               "total_debt": [80000000000, 70000000000, 60000000000, 50000000000, 40000000000],
+               "shares_outstanding": [10000000000, 10100000000, 10200000000, 10300000000, 10400000000]
+           },
+           "assumptions": {
+               "forecast_years": 10,
+               "revenue_growth": [0.12, 0.10, 0.08, 0.06, 0.05, 0.04, 0.03, 0.03, 0.03, 0.03],
+               "operating_margin": [0.055, 0.060, 0.065, 0.070, 0.075, 0.075, 0.075, 0.075, 0.075, 0.075],
+               "da_pct_rev": 0.035,
+               "capex_pct_rev": 0.070,
+               "nwc_pct_rev": 0.009,
+               "tax_rate": 0.25
+           },
+           "wacc": {
+               "rf": 0.045,
+               "erp": 0.055,
+               "beta": 1.3,
+               "ke": 0.117,
+               "kd_pre": 0.060,
+               "tax": 0.25,
+               "wd": 0.15,
+               "we": 0.85,
+               "kd_after": 0.045,
+               "wacc": 0.105
+           },
+           "terminal": {
+               "method": "perpetuity",
+               "g": 0.03
+           },
+           "flags": ["demo_data_used"]
+       }
+   }
 
 def get_demo_data(ticker: str) -> dict:
     """Get demo data for a ticker if available."""
