@@ -50,15 +50,19 @@
             const fetchAssumptions = useCallback(async (tickerValue, modelType) => {
                 if (!tickerValue || !modelType) return;
                 
+                console.log(`🔍 Fetching assumptions for ${tickerValue} (${modelType})`);
                 setLoading(true);
                 setError(null);
+                setPreview(null); // Clear previous preview
                 
                 try {
                     const response = await axios.get(`${API_BASE}/assumptions`, {
                         params: { ticker: tickerValue, model: modelType }
                     });
+                    console.log(`✅ Assumptions fetched for ${tickerValue} (${modelType}):`, response.data);
                     setAssumptions(response.data);
                 } catch (err) {
+                    console.error(`❌ Error fetching assumptions for ${tickerValue} (${modelType}):`, err);
                     setError(err.response?.data?.message || 'Failed to fetch assumptions');
                 } finally {
                     setLoading(false);
@@ -73,12 +77,14 @@
                 setError(null);
                 
                 try {
+                    console.log(`🚀 Generating ${selectedModel} model for ${ticker}`);
                     const response = await axios.post(`${API_BASE}/models/generate`, {
                         ticker: ticker.toUpperCase(),
                         model: selectedModel,
                         overrides: Object.keys(overrides).length > 0 ? overrides : null
                     });
                     
+                    console.log(`✅ ${selectedModel} model generated:`, response.data);
                     setPreview(response.data.preview);
                     
                     // Enable download
@@ -101,6 +107,16 @@
                     fetchAssumptions(ticker, selectedModel);
                 }
             }, [ticker, selectedModel, fetchAssumptions]);
+
+            // Clear everything when switching models
+            useEffect(() => {
+                if (selectedModel) {
+                    console.log(`🔄 Model switched to: ${selectedModel}`);
+                    setPreview(null);
+                    setAssumptions(null);
+                    setError(null);
+                }
+            }, [selectedModel]);
 
             return (
                 <div className="min-h-screen bg-white">
