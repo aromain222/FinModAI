@@ -292,7 +292,7 @@
                     <div className="mb-4" data-testid="assumptions-growth">
                         <h4 className="text-sm font-medium text-gray-700 mb-2">Revenue Growth Path</h4>
                         <div className="space-y-1">
-                            {assumptions.revenue_growth?.map((growth, index) => (
+                            {assumptions.assumptions?.revenue_growth?.map((growth, index) => (
                                 <div key={index} className="flex justify-between items-center">
                                     <span className="text-xs text-gray-600">Year {index + 1}</span>
                                     <span className="text-sm font-medium">
@@ -311,7 +311,7 @@
                     <div className="mb-4" data-testid="assumptions-margin">
                         <h4 className="text-sm font-medium text-gray-700 mb-2">Operating Margin Path</h4>
                         <div className="space-y-1">
-                            {assumptions.operating_margin?.map((margin, index) => (
+                            {assumptions.assumptions?.operating_margin?.map((margin, index) => (
                                 <div key={index} className="flex justify-between items-center">
                                     <span className="text-xs text-gray-600">Year {index + 1}</span>
                                     <span className="text-sm font-medium">
@@ -333,7 +333,7 @@
                             <div className="flex justify-between items-center">
                                 <span className="text-xs text-gray-600">D&A</span>
                                 <span className="text-sm font-medium">
-                                    {formatPercent(assumptions.da_pct_rev)}
+                                    {formatPercent(assumptions.assumptions?.da_pct_rev)}
                                     {overrides?.da_pct_rev !== undefined && (
                                         <span className="ml-1 text-xs bg-blue-100 text-blue-800 px-1 rounded">override</span>
                                     )}
@@ -342,7 +342,7 @@
                             <div className="flex justify-between items-center">
                                 <span className="text-xs text-gray-600">CapEx</span>
                                 <span className="text-sm font-medium">
-                                    {formatPercent(assumptions.capex_pct_rev)}
+                                    {formatPercent(assumptions.assumptions?.capex_pct_rev)}
                                     {overrides?.capex_pct_rev !== undefined && (
                                         <span className="ml-1 text-xs bg-blue-100 text-blue-800 px-1 rounded">override</span>
                                     )}
@@ -351,7 +351,7 @@
                             <div className="flex justify-between items-center">
                                 <span className="text-xs text-gray-600">ΔNWC</span>
                                 <span className="text-sm font-medium">
-                                    {formatPercent(assumptions.nwc_pct_rev)}
+                                    {formatPercent(assumptions.assumptions?.nwc_pct_rev)}
                                     {overrides?.nwc_pct_rev !== undefined && (
                                         <span className="ml-1 text-xs bg-blue-100 text-blue-800 px-1 rounded">override</span>
                                     )}
@@ -360,7 +360,7 @@
                             <div className="flex justify-between items-center">
                                 <span className="text-xs text-gray-600">Tax Rate</span>
                                 <span className="text-sm font-medium">
-                                    {formatPercent(assumptions.tax_rate)}
+                                    {formatPercent(assumptions.assumptions?.tax_rate)}
                                     {overrides?.tax_rate !== undefined && (
                                         <span className="ml-1 text-xs bg-blue-100 text-blue-800 px-1 rounded">override</span>
                                     )}
