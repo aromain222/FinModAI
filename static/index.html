@@ -138,6 +138,20 @@
 
         // Model Selection Component
         function ModelSelection({ onSelectModel }) {
+            const modelIcons = {
+                'dcf': '📊',
+                'lbo': '🏦', 
+                'comps': '📈',
+                'merger': '🤝'
+            };
+
+            const modelColors = {
+                'dcf': 'blue',
+                'lbo': 'green',
+                'comps': 'purple', 
+                'merger': 'orange'
+            };
+
             return (
                 <div className="space-y-6">
                     <div className="text-center">
@@ -146,21 +160,30 @@
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {MODEL_TYPES.map((model) => (
-                            <div
-                                key={model.id}
-                                onClick={() => onSelectModel(model.id)}
-                                className="bg-white border-2 border-gray-200 rounded-lg p-6 cursor-pointer hover:border-navy hover:shadow-lg transition-all duration-200"
-                            >
-                                <div className="text-center">
-                                    <div className="w-16 h-16 navy-bg rounded-full mx-auto mb-4 flex items-center justify-center">
-                                        <span className="text-white font-bold text-xl">{model.name.charAt(0)}</span>
+                        {MODEL_TYPES.map((model) => {
+                            const color = modelColors[model.id];
+                            const icon = modelIcons[model.id];
+                            
+                            return (
+                                <div
+                                    key={model.id}
+                                    onClick={() => onSelectModel(model.id)}
+                                    className={`bg-white border-2 border-gray-200 rounded-lg p-6 cursor-pointer hover:border-${color}-500 hover:shadow-lg transition-all duration-200 transform hover:scale-105`}
+                                >
+                                    <div className="text-center">
+                                        <div className="text-4xl mb-4">{icon}</div>
+                                        <h3 className="text-xl font-semibold navy mb-2">{model.name}</h3>
+                                        <p className="text-gray-600 text-sm">{model.description}</p>
+                                        <div className="mt-3 text-xs text-gray-500">
+                                            {model.id === 'dcf' && '• Enterprise Value • Terminal Value • WACC'}
+                                            {model.id === 'lbo' && '• Debt Structure • IRR/MOIC • Covenants'}
+                                            {model.id === 'comps' && '• Peer Analysis • Multiples • Valuation Range'}
+                                            {model.id === 'merger' && '• Synergies • Accretion/Dilution • PF Leverage'}
+                                        </div>
                                     </div>
-                                    <h3 className="text-xl font-semibold navy mb-2">{model.name}</h3>
-                                    <p className="text-gray-600 text-sm">{model.description}</p>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             );
@@ -181,12 +204,40 @@
             onOverridesChange
         }) {
             const modelInfo = MODEL_TYPES.find(m => m.id === selectedModel);
+            const modelIcons = {
+                'dcf': '📊',
+                'lbo': '🏦', 
+                'comps': '📈',
+                'merger': '🤝'
+            };
+            const modelColors = {
+                'dcf': 'blue',
+                'lbo': 'green',
+                'comps': 'purple', 
+                'merger': 'orange'
+            };
             
             return (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                    {/* Left Panel - Inputs & Assumptions */}
-                    <div className="lg:col-span-4 space-y-6">
-                        <div className="bg-white border border-gray-200 rounded-lg p-6 sticky top-4">
+                <div className="space-y-6">
+                    {/* Model Header */}
+                    <div className={`bg-${modelColors[selectedModel]}-50 border-l-4 border-${modelColors[selectedModel]}-500 p-4 rounded-r-lg`}>
+                        <div className="flex items-center">
+                            <span className="text-2xl mr-3">{modelIcons[selectedModel]}</span>
+                            <div>
+                                <h2 className="text-xl font-semibold text-gray-900">
+                                    {modelInfo.name} Model Builder
+                                </h2>
+                                <p className="text-sm text-gray-600">
+                                    {modelInfo.description} • {selectedModel.toUpperCase()} Analysis
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        {/* Left Panel - Inputs & Assumptions */}
+                        <div className="lg:col-span-4 space-y-6">
+                            <div className="bg-white border border-gray-200 rounded-lg p-6 sticky top-4">
                             {/* Header */}
                             <div className="flex items-center justify-between mb-6">
                                 <h2 className="text-xl font-semibold navy">{modelInfo.name} Model</h2>
@@ -393,10 +444,43 @@
 
         // Model Preview Component
         function ModelPreview({ modelType, preview, ticker }) {
+            const modelIcons = {
+                'dcf': '📊',
+                'lbo': '🏦', 
+                'comps': '📈',
+                'merger': '🤝'
+            };
+            const modelColors = {
+                'dcf': 'blue',
+                'lbo': 'green',
+                'comps': 'purple', 
+                'merger': 'orange'
+            };
+
+            // Add a header to clearly show which model is being displayed
+            const ModelHeader = () => (
+                <div className={`bg-${modelColors[modelType]}-50 border-l-4 border-${modelColors[modelType]}-500 p-4 rounded-r-lg mb-6`}>
+                    <div className="flex items-center">
+                        <span className="text-2xl mr-3">{modelIcons[modelType]}</span>
+                        <div>
+                            <h4 className="text-lg font-semibold text-gray-900">
+                                {modelType.toUpperCase()} Model Results - {ticker}
+                            </h4>
+                            <p className="text-sm text-gray-600">
+                                {modelType === 'dcf' && 'Discounted Cash Flow Analysis'}
+                                {modelType === 'lbo' && 'Leveraged Buyout Analysis'}
+                                {modelType === 'comps' && 'Trading Comparables Analysis'}
+                                {modelType === 'merger' && 'Merger & Acquisition Analysis'}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+
             if (modelType === 'lbo' && preview.lbo) {
                 return (
                     <div className="space-y-6">
-                        <h4 className="font-medium text-gray-900">LBO Model Results - {ticker}</h4>
+                        <ModelHeader />
                         
                         {/* Key Metrics */}
                         <div className="grid grid-cols-2 gap-4">
@@ -538,7 +622,7 @@
             if (modelType === 'dcf' && preview.dcf) {
                 return (
                     <div className="space-y-6">
-                        <h4 className="font-medium text-gray-900">DCF Model Results - {ticker}</h4>
+                        <ModelHeader />
                         
                         <div className="grid grid-cols-2 gap-4">
                             <div className="bg-gray-50 p-4 rounded-lg">
@@ -617,8 +701,12 @@
             }
 
             return (
-                <div className="text-center py-8 text-gray-500">
-                    Preview not available for {modelType} model
+                <div className="space-y-6">
+                    <ModelHeader />
+                    <div className="text-center py-8 text-gray-500">
+                        <div className="text-lg font-medium mb-2">No Preview Available</div>
+                        <p>Generate a {modelType.toUpperCase()} model to see results</p>
+                    </div>
                 </div>
             );
         }
