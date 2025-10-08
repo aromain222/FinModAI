@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinModAI Professional</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .navy { color: #1F4E79; }
+        .navy-bg { background-color: #1F4E79; }
+        .gray-panel { background-color: #F3F4F6; }
+        .green-output { color: #2E7D32; }
+        .green-bg { background-color: #2E7D32; }
+    </style>
+</head>
+<body class="bg-white">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback } = React;
+
+        // API Configuration
+        const API_BASE = window.location.origin;
+
+        // Model Types
+        const MODEL_TYPES = [
+            { id: 'dcf', name: 'DCF', description: 'Discounted Cash Flow' },
+            { id: 'lbo', name: 'LBO', description: 'Leveraged Buyout' },
+            { id: 'comps', name: 'Trading Comps', description: 'Trading Comparables' },
+            { id: 'merger', name: 'Merger', description: 'Merger Model' }
+        ];
+
+        // Main App Component
+        function App() {
+            const [selectedModel, setSelectedModel] = useState(null);
+            const [ticker, setTicker] = useState('');
+            const [assumptions, setAssumptions] = useState(null);
+            const [preview, setPreview] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState(null);
+            const [overrides, setOverrides] = useState({});
+
+            // Fetch assumptions when ticker changes
+            const fetchAssumptions = useCallback(async (tickerValue, modelType) => {
+                if (!tickerValue || !modelType) return;
+                
+                console.log(`🔍 Fetching assumptions for ${tickerValue} (${modelType})`);
+                setLoading(true);
+                setError(null);
+                setPreview(null); // Clear previous preview
+                
+                try {
+                    const response = await axios.get(`${API_BASE}/assumptions`, {
+                        params: { ticker: tickerValue, model: modelType }
+                    });
+                    console.log(`✅ Assumptions fetched for ${tickerValue} (${modelType}):`, response.data);
+                    setAssumptions(response.data);
+                } catch (err) {
+                    console.error(`❌ Error fetching assumptions for ${tickerValue} (${modelType}):`, err);
+                    setError(err.response?.data?.message || 'Failed to fetch assumptions');
+                } finally {
+                    setLoading(false);
+                }
+            }, []);
+
+            // Generate model
+            const generateModel = async () => {
+                if (!ticker || !selectedModel) return;
+                
+                setLoading(true);
+                setError(null);
+                
+                try {
+                    console.log(`🚀 Generating ${selectedModel} model for ${ticker}`);
+                    const response = await axios.post(`${API_BASE}/models/generate`, {
+                        ticker: ticker.toUpperCase(),
+                        model: selectedModel,
+                        overrides: Object.keys(overrides).length > 0 ? overrides : null
+                    });
+                    
+                    console.log(`✅ ${selectedModel} model generated:`, response.data);
+                    setPreview(response.data.preview);
+                    
+                    // Enable download
+                    const downloadBtn = document.getElementById('download-btn');
+                    if (downloadBtn) {
+                        downloadBtn.href = `${API_BASE}${response.data.file.download_url}`;
+                        downloadBtn.download = response.data.file.filename;
+                        downloadBtn.disabled = false;
+                    }
+                } catch (err) {
+                    setError(err.response?.data?.message || 'Failed to generate model');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            // Handle ticker change
+            useEffect(() => {
+                if (ticker && selectedModel) {
+                    fetchAssumptions(ticker, selectedModel);
+                }
+            }, [ticker, selectedModel, fetchAssumptions]);
+
+            // Clear everything when switching models
+            useEffect(() => {
+                if (selectedModel) {
+                    console.log(`🔄 Model switched to: ${selectedModel}`);
+                    setPreview(null);
+                    setAssumptions(null);
+                    setError(null);
+                }
+            }, [selectedModel]);
+
+            return (
+                <div className="min-h-screen bg-white">
+                    {/* Header */}
+                    <header className="navy-bg text-white py-6">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <h1 className="text-3xl font-bold">FinModAI Professional</h1>
+                            <p className="mt-2 text-lg opacity-90">Banker-grade financial modeling platform</p>
+                        </div>
+                    </header>
+
+                    {/* Main Content */}
+                    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        {!selectedModel ? (
+                            <ModelSelection onSelectModel={setSelectedModel} />
+                        ) : (
+                            <ModelBuilder
+                                selectedModel={selectedModel}
+                                ticker={ticker}
+                                onTickerChange={setTicker}
+                                assumptions={assumptions}
+                                preview={preview}
+                                loading={loading}
+                                error={error}
+                                onGenerate={generateModel}
+                                onBack={() => setSelectedModel(null)}
+                                overrides={overrides}
+                                onOverridesChange={setOverrides}
+                            />
+                        )}
+                    </main>
+                </div>
+            );
+        }
+
+        // Model Selection Component
+        function ModelSelection({ onSelectModel }) {
+            const modelIcons = {
+                'dcf': '📊',
+                'lbo': '🏦', 
+                'comps': '📈',
+                'merger': '🤝'
+            };
+
+            const modelColors = {
+                'dcf': 'blue',
+                'lbo': 'green',
+                'comps': 'purple', 
+                'merger': 'orange'
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="text-center">
+                        <h2 className="text-2xl font-bold navy mb-4">Select Financial Model</h2>
+                        <p className="text-gray-600">Choose the type of financial model you want to build</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {MODEL_TYPES.map((model) => {
+                            const color = modelColors[model.id];
+                            const icon = modelIcons[model.id];
+                            
+                            return (
+                                <div
+                                    key={model.id}
+                                    onClick={() => onSelectModel(model.id)}
+                                    className={`bg-white border-2 border-gray-200 rounded-lg p-6 cursor-pointer hover:border-${color}-500 hover:shadow-lg transition-all duration-200 transform hover:scale-105`}
+                                >
+                                    <div className="text-center">
+                                        <div className="text-4xl mb-4">{icon}</div>
+                                        <h3 className="text-xl font-semibold navy mb-2">{model.name}</h3>
+                                        <p className="text-gray-600 text-sm">{model.description}</p>
+                                        <div className="mt-3 text-xs text-gray-500">
+                                            {model.id === 'dcf' && '• Enterprise Value • Terminal Value • WACC'}
+                                            {model.id === 'lbo' && '• Debt Structure • IRR/MOIC • Covenants'}
+                                            {model.id === 'comps' && '• Peer Analysis • Multiples • Valuation Range'}
+                                            {model.id === 'merger' && '• Synergies • Accretion/Dilution • PF Leverage'}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+
+        // Model Builder Component
+        function ModelBuilder({
+            selectedModel,
+            ticker,
+            onTickerChange,
+            assumptions,
+            preview,
+            loading,
+            error,
+            onGenerate,
+            onBack,
+            overrides,
+            onOverridesChange
+        }) {
+            const modelInfo = MODEL_TYPES.find(m => m.id === selectedModel);
+            const modelIcons = {
+                'dcf': '📊',
+                'lbo': '🏦', 
+                'comps': '📈',
+                'merger': '🤝'
+            };
+            const modelColors = {
+                'dcf': 'blue',
+                'lbo': 'green',
+                'comps': 'purple', 
+                'merger': 'orange'
+            };
+            
+            return (
+                <div className="space-y-6">
+                    {/* Model Header */}
+                    <div className={`bg-${modelColors[selectedModel]}-50 border-l-4 border-${modelColors[selectedModel]}-500 p-4 rounded-r-lg`}>
+                        <div className="flex items-center">
+                            <span className="text-2xl mr-3">{modelIcons[selectedModel]}</span>
+                            <div>
+                                <h2 className="text-xl font-semibold text-gray-900">
+                                    {modelInfo.name} Model Builder
+                                </h2>
+                                <p className="text-sm text-gray-600">
+                                    {modelInfo.description} • {selectedModel.toUpperCase()} Analysis
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        {/* Left Panel - Inputs & Assumptions */}
+                        <div className="lg:col-span-4 space-y-6">
+                            <div className="bg-white border border-gray-200 rounded-lg p-6 sticky top-4">
+                            {/* Header */}
+                            <div className="flex items-center justify-between mb-6">
+                                <h2 className="text-xl font-semibold navy">{modelInfo.name} Model</h2>
+                                <button
+                                    onClick={onBack}
+                                    className="text-gray-500 hover:text-gray-700"
+                                >
+                                    ← Back
+                                </button>
+                            </div>
+
+                            {/* Ticker Input */}
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Company Ticker
+                                </label>
+                                <input
+                                    type="text"
+                                    value={ticker}
+                                    onChange={(e) => onTickerChange(e.target.value.toUpperCase())}
+                                    placeholder="e.g., MSFT, AAPL, GOOGL"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent"
+                                />
+                            </div>
+
+                            {/* Assumptions Panel */}
+                            {assumptions && (
+                                <AssumptionsPanel
+                                    assumptions={assumptions}
+                                    overrides={overrides}
+                                    onOverridesChange={onOverridesChange}
+                                />
+                            )}
+
+                            {/* Generate Button */}
+                            <button
+                                onClick={onGenerate}
+                                disabled={!ticker || loading}
+                                className="w-full navy-bg text-white py-3 px-4 rounded-md font-medium hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                {loading ? 'Generating...' : 'Create Model'}
+                            </button>
+
+                            {/* Download Button */}
+                            <button
+                                id="download-btn"
+                                disabled
+                                className="w-full mt-3 green-bg text-white py-3 px-4 rounded-md font-medium hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                Download Excel
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Right Panel - Preview */}
+                    <div className="lg:col-span-8">
+                        <div className="bg-white border border-gray-200 rounded-lg p-6">
+                            <h3 className="text-lg font-semibold navy mb-4">Model Preview</h3>
+                            
+                            {error && (
+                                <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-4">
+                                    <div className="text-red-800">{error}</div>
+                                </div>
+                            )}
+
+                            {loading && (
+                                <div className="text-center py-8">
+                                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 navy"></div>
+                                    <p className="mt-2 text-gray-600">Building model...</p>
+                                </div>
+                            )}
+
+                            {preview && (
+                                <ModelPreview
+                                    modelType={selectedModel}
+                                    preview={preview}
+                                    ticker={ticker}
+                                />
+                            )}
+
+                            {!preview && !loading && !error && ticker && (
+                                <div className="text-center py-8 text-gray-500">
+                                    Enter a ticker and click "Create Model" to see the preview
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Assumptions Panel Component
+        function AssumptionsPanel({ assumptions, overrides, onOverridesChange }) {
+            const [showOverrides, setShowOverrides] = useState(false);
+
+            const handleOverrideChange = (key, value) => {
+                onOverridesChange({
+                    ...overrides,
+                    [key]: value
+                });
+            };
+
+            return (
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <h3 className="font-medium text-gray-900">Assumptions</h3>
+                        <button
+                            onClick={() => setShowOverrides(!showOverrides)}
+                            className="text-sm text-navy hover:underline"
+                        >
+                            {showOverrides ? 'Hide' : 'Show'} Overrides
+                        </button>
+                    </div>
+
+                    {/* Revenue Growth */}
+                    <div>
+                        <label className="block text-sm text-gray-600 mb-1">Revenue Growth</label>
+                        <div className="flex items-center space-x-2">
+                            <span className="text-sm font-medium">
+                                {assumptions.assumptions.revenue_growth.map((g, i) => 
+                                    `${(g * 100).toFixed(1)}%`
+                                ).join(', ')}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                                ({assumptions.provenance.revenue.source})
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Operating Margin */}
+                    <div>
+                        <label className="block text-sm text-gray-600 mb-1">Operating Margin</label>
+                        <div className="flex items-center space-x-2">
+                            <span className="text-sm font-medium">
+                                {assumptions.assumptions.operating_margin.map((m, i) => 
+                                    `${(m * 100).toFixed(1)}%`
+                                ).join(', ')}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                                ({assumptions.provenance.op_margin.source})
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* WACC */}
+                    <div>
+                        <label className="block text-sm text-gray-600 mb-1">WACC</label>
+                        <div className="flex items-center space-x-2">
+                            <span className="text-sm font-medium">
+                                {(assumptions.wacc.wacc * 100).toFixed(1)}%
+                            </span>
+                            <span className="text-xs text-gray-500">
+                                (Rf: {(assumptions.wacc.rf * 100).toFixed(1)}%, β: {assumptions.wacc.beta})
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Overrides */}
+                    {showOverrides && (
+                        <div className="space-y-3 pt-3 border-t border-gray-200">
+                            <h4 className="text-sm font-medium text-gray-900">Override Assumptions</h4>
+                            
+                            <div>
+                                <label className="block text-xs text-gray-600 mb-1">Revenue Growth (%)</label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    min="0"
+                                    max="30"
+                                    value={overrides.revenue_growth || ''}
+                                    onChange={(e) => handleOverrideChange('revenue_growth', parseFloat(e.target.value) / 100)}
+                                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+                                    placeholder="Enter growth rate"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs text-gray-600 mb-1">Operating Margin (%)</label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    min="-5"
+                                    max="50"
+                                    value={overrides.operating_margin || ''}
+                                    onChange={(e) => handleOverrideChange('operating_margin', parseFloat(e.target.value) / 100)}
+                                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+                                    placeholder="Enter margin"
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Flags */}
+                    {assumptions.flags.length > 0 && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                            <div className="text-yellow-800 text-sm">
+                                <strong>Warnings:</strong> {assumptions.flags.join(', ')}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Model Preview Component
+        function ModelPreview({ modelType, preview, ticker }) {
+            const modelIcons = {
+                'dcf': '📊',
+                'lbo': '🏦', 
+                'comps': '📈',
+                'merger': '🤝'
+            };
+            const modelColors = {
+                'dcf': 'blue',
+                'lbo': 'green',
+                'comps': 'purple', 
+                'merger': 'orange'
+            };
+
+            // Add a header to clearly show which model is being displayed
+            const ModelHeader = () => (
+                <div className={`bg-${modelColors[modelType]}-50 border-l-4 border-${modelColors[modelType]}-500 p-4 rounded-r-lg mb-6`}>
+                    <div className="flex items-center">
+                        <span className="text-2xl mr-3">{modelIcons[modelType]}</span>
+                        <div>
+                            <h4 className="text-lg font-semibold text-gray-900">
+                                {modelType.toUpperCase()} Model Results - {ticker}
+                            </h4>
+                            <p className="text-sm text-gray-600">
+                                {modelType === 'dcf' && 'Discounted Cash Flow Analysis'}
+                                {modelType === 'lbo' && 'Leveraged Buyout Analysis'}
+                                {modelType === 'comps' && 'Trading Comparables Analysis'}
+                                {modelType === 'merger' && 'Merger & Acquisition Analysis'}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            if (modelType === 'lbo' && preview.lbo) {
+                return (
+                    <div className="space-y-6">
+                        <ModelHeader />
+                        
+                        {/* Key Metrics */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-gray-50 p-4 rounded-lg">
+                                <div className="text-sm text-gray-600">Equity IRR</div>
+                                <div className="text-lg font-semibold green-output">
+                                    {((preview.lbo.irr || 0) * 100).toFixed(1)}%
+                                </div>
+                            </div>
+                            <div className="bg-gray-50 p-4 rounded-lg">
+                                <div className="text-sm text-gray-600">MOIC</div>
+                                <div className="text-lg font-semibold green-output">
+                                    {(preview.lbo.moic || 0).toFixed(1)}x
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Sources & Uses */}
+                        {preview.lbo.sources_uses && (
+                            <div>
+                                <h5 className="font-medium text-gray-900 mb-3">Sources & Uses</h5>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-blue-50 p-4 rounded-lg">
+                                        <h6 className="font-medium text-blue-900 mb-2">Sources</h6>
+                                        {preview.lbo.sources_uses.sources && Object.entries(preview.lbo.sources_uses.sources).map(([key, value]) => (
+                                            <div key={key} className="flex justify-between text-sm">
+                                                <span className="text-blue-700">{key.replace('_', ' ').toUpperCase()}</span>
+                                                <span className="font-medium">${(value / 1000000).toFixed(0)}M</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="bg-green-50 p-4 rounded-lg">
+                                        <h6 className="font-medium text-green-900 mb-2">Uses</h6>
+                                        {preview.lbo.sources_uses.uses && Object.entries(preview.lbo.sources_uses.uses).map(([key, value]) => (
+                                            <div key={key} className="flex justify-between text-sm">
+                                                <span className="text-green-700">{key.replace('_', ' ').toUpperCase()}</span>
+                                                <span className="font-medium">${(value / 1000000).toFixed(0)}M</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Debt Structure */}
+                        {preview.lbo.debt_stack && preview.lbo.debt_stack.length > 0 && (
+                            <div>
+                                <h5 className="font-medium text-gray-900 mb-3">Company-Specific Debt Structure</h5>
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tranche</th>
+                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Rate</th>
+                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                            {preview.lbo.debt_stack.map((tranche, index) => (
+                                                <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                                    <td className="px-4 py-2 text-sm font-medium text-gray-900">{tranche.name}</td>
+                                                    <td className="px-4 py-2 text-sm text-gray-900">
+                                                        ${((tranche.amount || tranche.initial_amount || 0) / 1000000).toFixed(0)}M
+                                                    </td>
+                                                    <td className="px-4 py-2 text-sm text-gray-900">
+                                                        {((tranche.rate || tranche.interest_rate || 0) * 100).toFixed(1)}%
+                                                    </td>
+                                                    <td className="px-4 py-2 text-sm text-gray-500">
+                                                        {tranche.tranche_type || 'N/A'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Free Cash Flow Projection */}
+                        {preview.lbo.fcf && preview.lbo.fcf.length > 0 && (
+                            <div>
+                                <h5 className="font-medium text-gray-900 mb-3">Free Cash Flow Projection</h5>
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Year</th>
+                                                {preview.lbo.fcf.slice(0, 5).map((_, index) => (
+                                                    <th key={index} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                                        {2024 + index}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                            <tr>
+                                                <td className="px-4 py-2 text-sm font-medium text-gray-900">FCF</td>
+                                                {preview.lbo.fcf.slice(0, 5).map((fcf, index) => (
+                                                    <td key={index} className="px-4 py-2 text-sm text-gray-900">
+                                                        ${(fcf / 1000000).toFixed(0)}M
+                                                    </td>
+                                                ))}
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Covenants */}
+                        {preview.lbo.covenants && (
+                            <div>
+                                <h5 className="font-medium text-gray-900 mb-3">Covenant Analysis</h5>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-yellow-50 p-4 rounded-lg">
+                                        <div className="text-sm text-yellow-800">
+                                            <strong>Max Leverage:</strong> {preview.lbo.covenants.max_leverage_covenant || 'N/A'}x
+                                        </div>
+                                        <div className="text-sm text-yellow-800 mt-1">
+                                            <strong>Min Interest Coverage:</strong> {preview.lbo.covenants.min_interest_coverage_covenant || 'N/A'}x
+                                        </div>
+                                    </div>
+                                    <div className="bg-green-50 p-4 rounded-lg">
+                                        <div className="text-sm text-green-800">
+                                            <strong>Leverage Breach:</strong> {preview.lbo.covenants.leverage_breach ? 'No' : 'Yes'}
+                                        </div>
+                                        <div className="text-sm text-green-800 mt-1">
+                                            <strong>Coverage Breach:</strong> {preview.lbo.covenants.coverage_breach ? 'No' : 'Yes'}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            if (modelType === 'dcf' && preview.dcf) {
+                return (
+                    <div className="space-y-6">
+                        <ModelHeader />
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-gray-50 p-4 rounded-lg">
+                                <div className="text-sm text-gray-600">Enterprise Value</div>
+                                <div className="text-lg font-semibold green-output">
+                                    ${(preview.dcf.ev / 1000000000).toFixed(1)}B
+                                </div>
+                            </div>
+                            <div className="bg-gray-50 p-4 rounded-lg">
+                                <div className="text-sm text-gray-600">Equity Value</div>
+                                <div className="text-lg font-semibold green-output">
+                                    ${(preview.dcf.equity / 1000000000).toFixed(1)}B
+                                </div>
+                            </div>
+                            <div className="bg-gray-50 p-4 rounded-lg">
+                                <div className="text-sm text-gray-600">Implied Price</div>
+                                <div className="text-lg font-semibold green-output">
+                                    ${(preview.dcf.implied_price || 0).toFixed(2)}
+                                </div>
+                            </div>
+                            <div className="bg-gray-50 p-4 rounded-lg">
+                                <div className="text-sm text-gray-600">Upside</div>
+                                <div className="text-lg font-semibold green-output">
+                                    {(preview.dcf.upside_pct || 0).toFixed(1)}%
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Free Cash Flow Projection */}
+                        {preview.dcf.ufcf && preview.dcf.ufcf.length > 0 && (
+                            <div>
+                                <h5 className="font-medium text-gray-900 mb-3">Unlevered Free Cash Flow Projection</h5>
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Year</th>
+                                                {preview.dcf.ufcf.slice(0, 5).map((_, index) => (
+                                                    <th key={index} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                                        {2024 + index}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                            <tr>
+                                                <td className="px-4 py-2 text-sm font-medium text-gray-900">UFCF</td>
+                                                {preview.dcf.ufcf.slice(0, 5).map((ufcf, index) => (
+                                                    <td key={index} className="px-4 py-2 text-sm text-gray-900">
+                                                        ${(ufcf / 1000000).toFixed(0)}M
+                                                    </td>
+                                                ))}
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Terminal Value */}
+                        {preview.dcf.tv && (
+                            <div>
+                                <h5 className="font-medium text-gray-900 mb-3">Terminal Value</h5>
+                                <div className="bg-blue-50 p-4 rounded-lg">
+                                    <div className="text-sm text-blue-800">
+                                        <strong>Terminal Value:</strong> ${(preview.dcf.tv / 1000000000).toFixed(1)}B
+                                    </div>
+                                    <div className="text-sm text-blue-800 mt-1">
+                                        <strong>TV Share of EV:</strong> {((preview.dcf.tv / preview.dcf.ev) * 100).toFixed(1)}%
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            return (
+                <div className="space-y-6">
+                    <ModelHeader />
+                    <div className="text-center py-8 text-gray-500">
+                        <div className="text-lg font-medium mb-2">No Preview Available</div>
+                        <p>Generate a {modelType.toUpperCase()} model to see results</p>
+                    </div>
+                </div>
+            );
+        }
+
+        // Render App
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
