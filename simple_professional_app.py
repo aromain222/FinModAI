@@ -120,7 +120,7 @@ generated_files = {}
 async def root():
     """Serve the main HTML page"""
     try:
-        with open("static/index.html", "r") as f:
+        with open("static/professional_ui.html", "r") as f:
             content = f.read()
         return HTMLResponse(content=content)
     except FileNotFoundError:
