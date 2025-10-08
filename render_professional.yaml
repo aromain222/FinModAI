@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: finmodai-professional
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile_professional
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+      - key: PORT
+        value: 8000

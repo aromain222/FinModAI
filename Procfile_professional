@@ -1,0 +1,1 @@
+web: gunicorn --config gunicorn_professional.py wsgi_professional:application

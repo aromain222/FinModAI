@@ -1,0 +1,38 @@
+# Professional IB Modeling App Dockerfile
+FROM python:3.9-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
+COPY requirements_professional.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements_professional.txt && \
+    pip check
+
+# Copy application code
+COPY . .
+
+# Create static directory
+RUN mkdir -p static
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV FLASK_ENV=production
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:$PORT/healthz || exit 1
+
+# Expose port
+EXPOSE $PORT
+
+# Start command
+CMD gunicorn --config gunicorn_professional.py wsgi_professional:application
