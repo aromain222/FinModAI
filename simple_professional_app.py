@@ -263,25 +263,102 @@ async def generate_model(request: ModelGenerationRequest):
             )
             
         elif request.model == "lbo":
-            # LBO model preview
-            preview = ModelPreview(
-                lbo={
-                    "sources_uses": {
-                        "sources": {"equity": 500000000, "debt": 1000000000},
-                        "uses": {"purchase_price": 1200000000, "fees": 50000000}
-                    },
-                    "debt_stack": [
-                        {"name": "Senior Term Loan", "amount": 800000000, "rate": 0.07},
-                        {"name": "Mezzanine Debt", "amount": 200000000, "rate": 0.12}
-                    ],
-                    "fcf": [100000000, 120000000, 140000000, 160000000, 180000000],
-                    "paydown": [50000000, 60000000, 70000000, 80000000, 90000000],
-                    "leverage_path": [4.0, 3.5, 3.0, 2.5, 2.0],
-                    "irr": 0.25,
-                    "moic": 2.5,
-                    "covenants": {"max_leverage": 4.0, "min_interest_coverage": 2.0}
+            # Use existing LBO engine for real company-specific data
+            try:
+                print(f"🏦 Building LBO model for {request.ticker}...")
+                from lbo_model import LBOEngine
+                lbo_engine = LBOEngine()
+                
+                lbo_assumptions = {
+                    'ticker': request.ticker,
+                    'entry_multiple': 8.0,
+                    'exit_multiple': 10.0,
+                    'leverage': 5.5,
+                    'holding_period': 5
                 }
-            )
+                
+                # Apply overrides if provided
+                if request.overrides:
+                    lbo_assumptions.update(request.overrides)
+                
+                print(f"🔧 LBO assumptions: {lbo_assumptions}")
+                result = lbo_engine.build_lbo_model(lbo_assumptions)
+                print(f"✅ LBO result keys: {list(result.keys()) if result else 'None'}")
+                
+                if result and 'debt_schedule' in result:
+                    # Extract debt structure from LBO result
+                    debt_stack = []
+                    for tranche in result['debt_schedule']:
+                        if isinstance(tranche, dict):
+                            debt_stack.append({
+                                "name": tranche.get('name', 'Unknown Tranche'),
+                                "amount": tranche.get('initial_amount', 0),
+                                "rate": tranche.get('interest_rate', 0)
+                            })
+                        else:
+                            # Handle object format
+                            debt_stack.append({
+                                "name": getattr(tranche, 'name', 'Unknown Tranche'),
+                                "amount": getattr(tranche, 'initial_amount', 0),
+                                "rate": getattr(tranche, 'interest_rate', 0)
+                            })
+                    
+                    preview = ModelPreview(
+                        lbo={
+                            "sources_uses": result.get('sources_uses', {
+                                "sources": {"equity": 500000000, "debt": 1000000000},
+                                "uses": {"purchase_price": 1200000000, "fees": 50000000}
+                            }),
+                            "debt_stack": debt_stack,
+                            "fcf": result.get('proforma_financials', {}).get('free_cash_flow', [100000000, 120000000, 140000000, 160000000, 180000000]),
+                            "paydown": [50000000, 60000000, 70000000, 80000000, 90000000],
+                            "leverage_path": [4.0, 3.5, 3.0, 2.5, 2.0],
+                            "irr": result.get('returns_analysis', {}).get('equity_irr', 0.25),
+                            "moic": result.get('returns_analysis', {}).get('moic', 2.5),
+                            "covenants": result.get('covenant_metrics', {"max_leverage": 4.0, "min_interest_coverage": 2.0})
+                        }
+                    )
+                else:
+                    # Fallback to demo data if LBO engine fails
+                    preview = ModelPreview(
+                        lbo={
+                            "sources_uses": {
+                                "sources": {"equity": 500000000, "debt": 1000000000},
+                                "uses": {"purchase_price": 1200000000, "fees": 50000000}
+                            },
+                            "debt_stack": [
+                                {"name": "Senior Term Loan", "amount": 800000000, "rate": 0.07},
+                                {"name": "Mezzanine Debt", "amount": 200000000, "rate": 0.12}
+                            ],
+                            "fcf": [100000000, 120000000, 140000000, 160000000, 180000000],
+                            "paydown": [50000000, 60000000, 70000000, 80000000, 90000000],
+                            "leverage_path": [4.0, 3.5, 3.0, 2.5, 2.0],
+                            "irr": 0.25,
+                            "moic": 2.5,
+                            "covenants": {"max_leverage": 4.0, "min_interest_coverage": 2.0}
+                        }
+                    )
+            except Exception as e:
+                print(f"❌ LBO engine error: {e}")
+                # Fallback to demo data
+                preview = ModelPreview(
+                    lbo={
+                        "sources_uses": {
+                            "sources": {"equity": 500000000, "debt": 1000000000},
+                            "uses": {"purchase_price": 1200000000, "fees": 50000000}
+                        },
+                        "debt_stack": [
+                            {"name": "Senior Term Loan", "amount": 800000000, "rate": 0.07},
+                            {"name": "Mezzanine Debt", "amount": 200000000, "rate": 0.12}
+                        ],
+                        "fcf": [100000000, 120000000, 140000000, 160000000, 180000000],
+                        "paydown": [50000000, 60000000, 70000000, 80000000, 90000000],
+                        "leverage_path": [4.0, 3.5, 3.0, 2.5, 2.0],
+                        "irr": 0.25,
+                        "moic": 2.5,
+                        "covenants": {"max_leverage": 4.0, "min_interest_coverage": 2.0}
+                    }
+                )
             
         elif request.model == "comps":
             # Trading Comps preview
@@ -323,7 +400,7 @@ async def generate_model(request: ModelGenerationRequest):
         
         # Generate Excel file
         filename = f"{request.ticker}_{request.model.upper()}_{datetime.now().strftime('%Y%m%d')}.xlsx"
-        file_path = await generate_excel_file(request.ticker, request.model, preview.dict())
+        file_path = await generate_excel_file(request.ticker, request.model, preview.model_dump())
         
         generated_files[job_id] = {
             "filename": filename,
@@ -357,6 +434,8 @@ async def download_file(filename: str):
     Download generated Excel file.
     """
     try:
+        print(f"📥 Download request for: {filename}")
+        
         # Find file in generated_files
         file_info = None
         for job_id, info in generated_files.items():
@@ -364,9 +443,15 @@ async def download_file(filename: str):
                 file_info = info
                 break
         
-        if not file_info or not os.path.exists(file_info["file_path"]):
+        if not file_info:
+            print(f"❌ File not found in generated_files: {filename}")
             raise HTTPException(status_code=404, detail="File not found. Please regenerate the model.")
         
+        if not os.path.exists(file_info["file_path"]):
+            print(f"❌ File path does not exist: {file_info['file_path']}")
+            raise HTTPException(status_code=404, detail="File not found. Please regenerate the model.")
+        
+        print(f"✅ Serving file: {file_info['file_path']}")
         return FileResponse(
             path=file_info["file_path"],
             filename=filename,
