@@ -396,7 +396,7 @@
             if (modelType === 'lbo' && preview.lbo) {
                 return (
                     <div className="space-y-6">
-                        <h4 className="font-medium text-gray-900">LBO Model Results</h4>
+                        <h4 className="font-medium text-gray-900">LBO Model Results - {ticker}</h4>
                         
                         {/* Key Metrics */}
                         <div className="grid grid-cols-2 gap-4">
@@ -414,10 +414,37 @@
                             </div>
                         </div>
 
+                        {/* Sources & Uses */}
+                        {preview.lbo.sources_uses && (
+                            <div>
+                                <h5 className="font-medium text-gray-900 mb-3">Sources & Uses</h5>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-blue-50 p-4 rounded-lg">
+                                        <h6 className="font-medium text-blue-900 mb-2">Sources</h6>
+                                        {preview.lbo.sources_uses.sources && Object.entries(preview.lbo.sources_uses.sources).map(([key, value]) => (
+                                            <div key={key} className="flex justify-between text-sm">
+                                                <span className="text-blue-700">{key.replace('_', ' ').toUpperCase()}</span>
+                                                <span className="font-medium">${(value / 1000000).toFixed(0)}M</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="bg-green-50 p-4 rounded-lg">
+                                        <h6 className="font-medium text-green-900 mb-2">Uses</h6>
+                                        {preview.lbo.sources_uses.uses && Object.entries(preview.lbo.sources_uses.uses).map(([key, value]) => (
+                                            <div key={key} className="flex justify-between text-sm">
+                                                <span className="text-green-700">{key.replace('_', ' ').toUpperCase()}</span>
+                                                <span className="font-medium">${(value / 1000000).toFixed(0)}M</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Debt Structure */}
                         {preview.lbo.debt_stack && preview.lbo.debt_stack.length > 0 && (
                             <div>
-                                <h5 className="font-medium text-gray-900 mb-3">Debt Structure</h5>
+                                <h5 className="font-medium text-gray-900 mb-3">Company-Specific Debt Structure</h5>
                                 <div className="overflow-x-auto">
                                     <table className="min-w-full divide-y divide-gray-200">
                                         <thead className="bg-gray-50">
@@ -425,22 +452,82 @@
                                                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tranche</th>
                                                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
                                                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Rate</th>
+                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                                             </tr>
                                         </thead>
                                         <tbody className="bg-white divide-y divide-gray-200">
                                             {preview.lbo.debt_stack.map((tranche, index) => (
-                                                <tr key={index}>
-                                                    <td className="px-4 py-2 text-sm text-gray-900">{tranche.name}</td>
+                                                <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                                    <td className="px-4 py-2 text-sm font-medium text-gray-900">{tranche.name}</td>
                                                     <td className="px-4 py-2 text-sm text-gray-900">
-                                                        ${(tranche.initial_amount / 1000000).toFixed(0)}M
+                                                        ${((tranche.amount || tranche.initial_amount || 0) / 1000000).toFixed(0)}M
                                                     </td>
                                                     <td className="px-4 py-2 text-sm text-gray-900">
-                                                        {(tranche.interest_rate * 100).toFixed(1)}%
+                                                        {((tranche.rate || tranche.interest_rate || 0) * 100).toFixed(1)}%
+                                                    </td>
+                                                    <td className="px-4 py-2 text-sm text-gray-500">
+                                                        {tranche.tranche_type || 'N/A'}
                                                     </td>
                                                 </tr>
                                             ))}
                                         </tbody>
                                     </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Free Cash Flow Projection */}
+                        {preview.lbo.fcf && preview.lbo.fcf.length > 0 && (
+                            <div>
+                                <h5 className="font-medium text-gray-900 mb-3">Free Cash Flow Projection</h5>
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Year</th>
+                                                {preview.lbo.fcf.slice(0, 5).map((_, index) => (
+                                                    <th key={index} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                                        {2024 + index}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                            <tr>
+                                                <td className="px-4 py-2 text-sm font-medium text-gray-900">FCF</td>
+                                                {preview.lbo.fcf.slice(0, 5).map((fcf, index) => (
+                                                    <td key={index} className="px-4 py-2 text-sm text-gray-900">
+                                                        ${(fcf / 1000000).toFixed(0)}M
+                                                    </td>
+                                                ))}
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Covenants */}
+                        {preview.lbo.covenants && (
+                            <div>
+                                <h5 className="font-medium text-gray-900 mb-3">Covenant Analysis</h5>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-yellow-50 p-4 rounded-lg">
+                                        <div className="text-sm text-yellow-800">
+                                            <strong>Max Leverage:</strong> {preview.lbo.covenants.max_leverage_covenant || 'N/A'}x
+                                        </div>
+                                        <div className="text-sm text-yellow-800 mt-1">
+                                            <strong>Min Interest Coverage:</strong> {preview.lbo.covenants.min_interest_coverage_covenant || 'N/A'}x
+                                        </div>
+                                    </div>
+                                    <div className="bg-green-50 p-4 rounded-lg">
+                                        <div className="text-sm text-green-800">
+                                            <strong>Leverage Breach:</strong> {preview.lbo.covenants.leverage_breach ? 'No' : 'Yes'}
+                                        </div>
+                                        <div className="text-sm text-green-800 mt-1">
+                                            <strong>Coverage Breach:</strong> {preview.lbo.covenants.coverage_breach ? 'No' : 'Yes'}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -451,7 +538,7 @@
             if (modelType === 'dcf' && preview.dcf) {
                 return (
                     <div className="space-y-6">
-                        <h4 className="font-medium text-gray-900">DCF Model Results</h4>
+                        <h4 className="font-medium text-gray-900">DCF Model Results - {ticker}</h4>
                         
                         <div className="grid grid-cols-2 gap-4">
                             <div className="bg-gray-50 p-4 rounded-lg">
@@ -466,7 +553,65 @@
                                     ${(preview.dcf.equity / 1000000000).toFixed(1)}B
                                 </div>
                             </div>
+                            <div className="bg-gray-50 p-4 rounded-lg">
+                                <div className="text-sm text-gray-600">Implied Price</div>
+                                <div className="text-lg font-semibold green-output">
+                                    ${(preview.dcf.implied_price || 0).toFixed(2)}
+                                </div>
+                            </div>
+                            <div className="bg-gray-50 p-4 rounded-lg">
+                                <div className="text-sm text-gray-600">Upside</div>
+                                <div className="text-lg font-semibold green-output">
+                                    {(preview.dcf.upside_pct || 0).toFixed(1)}%
+                                </div>
+                            </div>
                         </div>
+
+                        {/* Free Cash Flow Projection */}
+                        {preview.dcf.ufcf && preview.dcf.ufcf.length > 0 && (
+                            <div>
+                                <h5 className="font-medium text-gray-900 mb-3">Unlevered Free Cash Flow Projection</h5>
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Year</th>
+                                                {preview.dcf.ufcf.slice(0, 5).map((_, index) => (
+                                                    <th key={index} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                                        {2024 + index}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                            <tr>
+                                                <td className="px-4 py-2 text-sm font-medium text-gray-900">UFCF</td>
+                                                {preview.dcf.ufcf.slice(0, 5).map((ufcf, index) => (
+                                                    <td key={index} className="px-4 py-2 text-sm text-gray-900">
+                                                        ${(ufcf / 1000000).toFixed(0)}M
+                                                    </td>
+                                                ))}
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Terminal Value */}
+                        {preview.dcf.tv && (
+                            <div>
+                                <h5 className="font-medium text-gray-900 mb-3">Terminal Value</h5>
+                                <div className="bg-blue-50 p-4 rounded-lg">
+                                    <div className="text-sm text-blue-800">
+                                        <strong>Terminal Value:</strong> ${(preview.dcf.tv / 1000000000).toFixed(1)}B
+                                    </div>
+                                    <div className="text-sm text-blue-800 mt-1">
+                                        <strong>TV Share of EV:</strong> {((preview.dcf.tv / preview.dcf.ev) * 100).toFixed(1)}%
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 );
             }
