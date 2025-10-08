@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: ib-modeling-api
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile_api
+    envVars:
+      - key: FMP_API_KEY
+        value: ${FMP_API_KEY}
+      - key: ALPHAVANTAGE_API_KEY
+        value: ${ALPHAVANTAGE_API_KEY}
+      - key: FRED_API_KEY
+        value: ${FRED_API_KEY}
+      - key: ERP_DEFAULT
+        value: 0.055
+      - key: APP_ORIGIN
+        value: https://your-frontend-domain.com
+      - key: REDIS_URL
+        value: ${REDIS_URL}
+      - key: PYTHONHASHSEED
+        value: 0

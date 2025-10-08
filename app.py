@@ -1,211 +1,393 @@
 #!/usr/bin/env python3
 """
-Production Flask application with robust startup and health checks.
+Production IB Modeling API - Main Application
+FastAPI backend for DCF, LBO, Trading Comps, and Merger models
 """
+
 import os
-import sys
+import uuid
 import logging
 import traceback
-from datetime import datetime
-from pathlib import Path
-from flask import Flask, jsonify, request
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any, Union
+from contextlib import asynccontextmanager
+
+import uvicorn
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field, validator
+import structlog
 
 # Configure structured logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+structlog.configure(
+    processors=[
+        structlog.stdlib.filter_by_level,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.UnicodeDecoder(),
+        structlog.processors.JSONRenderer()
+    ],
+    context_class=dict,
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    wrapper_class=structlog.stdlib.BoundLogger,
+    cache_logger_on_first_use=True,
 )
-logger = logging.getLogger(__name__)
 
-def validate_environment():
-    """Validate required environment variables and exit with code 1 if missing."""
-    required_env_vars = [
-        'FLASK_ENV',  # Should be 'production' on Render
-    ]
+logger = structlog.get_logger()
+
+# Import our modules
+from api.providers import ProviderManager
+from api.assumptions import AssumptionEngine
+from api.models import ModelCalculator
+from api.excel import ExcelGenerator
+from api.cache import CacheManager
+from api.validation import TickerValidator
+
+# Global instances
+provider_manager: Optional[ProviderManager] = None
+assumption_engine: Optional[AssumptionEngine] = None
+model_calculator: Optional[ModelCalculator] = None
+excel_generator: Optional[ExcelGenerator] = None
+cache_manager: Optional[CacheManager] = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan management"""
+    global provider_manager, assumption_engine, model_calculator, excel_generator, cache_manager
     
-    optional_env_vars = [
-        'OPENAI_API_KEY',
-        'ANTHROPIC_API_KEY', 
-        'DATABASE_URL',
-    ]
+    logger.info("Starting IB Modeling API", version="1.0.0")
     
-    missing_vars = []
-    for var in required_env_vars:
-        if not os.getenv(var):
-            missing_vars.append(var)
-    
-    if missing_vars:
-        logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
-        logger.error("Application cannot start without required configuration.")
-        logger.info("Available environment variables:")
-        for var in os.environ:
-            if var.startswith(('FLASK_', 'PORT', 'RENDER_')):
-                logger.info(f"  {var}={os.getenv(var)}")
+    # Initialize components
+    try:
+        cache_manager = CacheManager()
+        provider_manager = ProviderManager()
+        assumption_engine = AssumptionEngine()
+        model_calculator = ModelCalculator()
+        excel_generator = ExcelGenerator()
         
-        logger.error("Exiting with code 1 due to missing configuration.")
-        sys.exit(1)
+        # Verify providers are available
+        active_providers = provider_manager.get_active_providers()
+        if not active_providers:
+            logger.error("No data providers available", providers=active_providers)
+            raise RuntimeError("No data providers available")
+        
+        logger.info("API initialized successfully", 
+                   active_providers=active_providers,
+                   cache_enabled=cache_manager.is_enabled())
+        
+    except Exception as e:
+        logger.error("Failed to initialize API", error=str(e), traceback=traceback.format_exc())
+        raise
     
-    logger.info("Environment validation passed")
-    logger.info(f"Required env vars present: {', '.join(required_env_vars)}")
-    logger.info(f"Optional env vars present: {', '.join([var for var in optional_env_vars if os.getenv(var)])}")
+    yield
+    
+    logger.info("Shutting down IB Modeling API")
 
-def validate_dependencies():
-    """Validate critical dependencies and exit with code 1 if missing."""
-    critical_deps = [
-        ('openpyxl', 'openpyxl'),
-        ('pandas', 'pandas'),
-        ('numpy', 'numpy'),
-        ('yfinance', 'yfinance'),
-        ('requests', 'requests'),
-    ]
-    
-    missing_deps = []
-    for dep_name, import_name in critical_deps:
-        try:
-            __import__(import_name)
-            logger.info(f"✓ {dep_name} imported successfully")
-        except ImportError as e:
-            logger.error(f"✗ Failed to import {dep_name}: {e}")
-            missing_deps.append(dep_name)
-    
-    if missing_deps:
-        logger.error(f"Missing critical dependencies: {', '.join(missing_deps)}")
-        logger.error("Application cannot start without required dependencies.")
-        logger.error("Please ensure all dependencies are installed:")
-        logger.error("  pip install -r requirements_production.txt")
-        logger.error("Exiting with code 1 due to missing dependencies.")
-        sys.exit(1)
-    
-    logger.info("All critical dependencies validated successfully")
+# Create FastAPI app
+app = FastAPI(
+    title="IB Modeling API",
+    description="Production-ready API for Investment Banking financial models",
+    version="1.0.0",
+    lifespan=lifespan
+)
 
-def create_app():
-    """Create and configure Flask application."""
-    app = Flask(__name__)
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[os.getenv("APP_ORIGIN", "http://localhost:3000")],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Static files for generated Excel files
+os.makedirs("generated_models", exist_ok=True)
+app.mount("/generated_models", StaticFiles(directory="generated_models"), name="generated_models")
+
+# Request models
+class ModelGenerateRequest(BaseModel):
+    ticker: str = Field(..., min_length=1, max_length=15)
+    model: str = Field(..., regex="^(dcf|lbo|comps|merger)$")
+    overrides: Optional[Dict[str, Any]] = Field(default_factory=dict)
     
-    # Basic configuration
-    app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'dev-key-change-in-production')
-    app.config['FLASK_ENV'] = os.getenv('FLASK_ENV', 'development')
+    @validator('ticker')
+    def validate_ticker(cls, v):
+        if not TickerValidator.is_valid(v):
+            raise ValueError("Invalid ticker format")
+        return v.upper()
+
+# Response models
+class ProvenanceInfo(BaseModel):
+    source: str
+    as_of: str
+
+class HistoricalData(BaseModel):
+    years: List[int]
+    revenue: List[float]
+    operating_income: List[float]
+    op_margin: List[float]
+    da: List[float]
+    capex: List[float]
+    delta_nwc: List[float]
+
+class AssumptionsData(BaseModel):
+    forecast_years: int
+    revenue_growth: List[float]
+    operating_margin: List[float]
+    da_pct_rev: float
+    capex_pct_rev: float
+    nwc_pct_rev: float
+    tax_rate: float
+
+class WACCData(BaseModel):
+    rf: float
+    erp: float
+    beta: float
+    ke: float
+    kd_pre: float
+    tax: float
+    wd: float
+    we: float
+    kd_after: float
+    wacc: float
+
+class TerminalData(BaseModel):
+    method: str
+    g: float
+
+class AssumptionsResponse(BaseModel):
+    ticker: str
+    company_name: str
+    currency: str
+    provenance: Dict[str, ProvenanceInfo]
+    historicals: HistoricalData
+    assumptions: AssumptionsData
+    wacc: WACCData
+    terminal: TerminalData
+    flags: List[str]
+
+class ErrorResponse(BaseModel):
+    error: str
+    message: str
+    missing: Optional[List[str]] = None
+    provider_attempts: Optional[List[str]] = None
+    trace_id: Optional[str] = None
+
+class ModelPreview(BaseModel):
+    dcf: Optional[Dict[str, Any]] = None
+    lbo: Optional[Dict[str, Any]] = None
+    comps: Optional[Dict[str, Any]] = None
+    merger: Optional[Dict[str, Any]] = None
+
+class ModelGenerateResponse(BaseModel):
+    job_id: str
+    assumptions: Dict[str, Any]
+    preview: ModelPreview
+    file: Dict[str, str]
+    warnings: List[str]
+
+# Middleware for request logging
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    trace_id = str(uuid.uuid4())
+    start_time = datetime.now()
+    
+    logger.info("Request started", 
+               trace_id=trace_id,
+               method=request.method,
+               url=str(request.url),
+               client_ip=request.client.host)
+    
+    response = await call_next(request)
+    
+    process_time = (datetime.now() - start_time).total_seconds()
+    logger.info("Request completed",
+               trace_id=trace_id,
+               status_code=response.status_code,
+               process_time=process_time)
+    
+    return response
     
     # Health check endpoint
-    @app.route('/healthz')
-    def health_check():
-        """Health check endpoint for load balancers."""
-        return jsonify({
-            'status': 'ok',
-            'timestamp': datetime.utcnow().isoformat(),
-            'version': '1.0.0'
-        }), 200
-    
-    # Root endpoint - safe fallback
-    @app.route('/')
-    def index():
-        """Safe root endpoint that won't crash."""
-        return jsonify({
-            'message': 'FinModAI Financial Modeling Service',
-            'status': 'running',
-            'health_check': '/healthz',
-            'version': '1.0.0'
-        }), 200
-    
-    # Basic financial model endpoint
-    @app.route('/generate-model', methods=['POST'])
-    def generate_model():
-        """Generate financial model endpoint."""
-        try:
-            # Basic validation
-            data = request.get_json() or {}
-            ticker = data.get('ticker', '').strip().upper()
-            
-            if not ticker:
-                return jsonify({'error': 'Ticker symbol required'}), 400
-            
-            # Return mock model for now
-            model_result = {
-                'ticker': ticker,
-                'company_name': f"{ticker} Corporation",
-                'enterprise_value': 2500000000,
-                'equity_value': 2000000000,
-                'implied_price': 25.00,
-                'current_price': 20.00,
-                'upside_downside': 25.0,
-                'model_type': 'dcf',
-                'generated_at': datetime.utcnow().isoformat()
-            }
-            
-            return jsonify(model_result), 200
-            
-        except Exception as e:
-            logger.error(f"Error generating model: {str(e)}")
-            return jsonify({'error': 'Internal server error'}), 500
-    
-    # Global error handler
-    @app.errorhandler(Exception)
-    def handle_exception(e):
-        """Global exception handler with proper logging."""
-        logger.error(f"Unhandled exception: {str(e)}")
-        logger.error(traceback.format_exc())
-        return jsonify({'error': 'Internal server error'}), 500
-    
-    return app
+@app.get("/healthz")
+async def health_check():
+    """Health check endpoint for Render"""
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
-def main():
-    """Main application entry point with proper startup sequence."""
+# Assumptions endpoint
+@app.get("/assumptions", response_model=Union[AssumptionsResponse, ErrorResponse])
+async def get_assumptions(ticker: str, model: str):
+    """Get company-specific assumptions and historicals"""
+    trace_id = str(uuid.uuid4())
+    
     try:
-        # Log startup information
-        logger.info("=" * 60)
-        logger.info("FinModAI Financial Modeling Service - Starting Up")
-        logger.info("=" * 60)
-        logger.info(f"Python version: {sys.version}")
-        logger.info(f"Working directory: {os.getcwd()}")
-        logger.info(f"Script location: {Path(__file__).parent.absolute()}")
+        # Validate inputs
+        if not TickerValidator.is_valid(ticker):
+            raise HTTPException(status_code=400, detail={
+                "error": "invalid_ticker",
+                "message": "Invalid ticker format",
+                "trace_id": trace_id
+            })
         
-        # Get and validate port configuration
-        port_str = os.getenv('PORT', '8000')
-        try:
-            port = int(port_str)
-            if port <= 0 or port > 65535:
-                raise ValueError(f"Port {port} out of valid range (1-65535)")
-            logger.info(f"Using port: {port} (from PORT env var: {port_str})")
-        except (ValueError, TypeError) as e:
-            logger.error(f"Invalid PORT environment variable: {port_str}")
-            logger.error(f"Error: {e}")
-            logger.error("PORT must be a valid integer between 1-65535")
-            sys.exit(1)
+        if model not in ["dcf", "lbo", "comps", "merger"]:
+            raise HTTPException(status_code=400, detail={
+                "error": "invalid_model",
+                "message": "Model must be dcf, lbo, comps, or merger",
+                "trace_id": trace_id
+            })
         
-        # Validate environment
-        validate_environment()
+        ticker = ticker.upper()
         
-        # Validate dependencies
-        validate_dependencies()
+        logger.info("Fetching assumptions", trace_id=trace_id, ticker=ticker, model=model)
         
-        # Create application
-        app = create_app()
+        # Check cache first
+        cache_key = f"assumptions:{ticker}:{model}"
+        cached_result = cache_manager.get(cache_key) if cache_manager else None
         
-        # Server configuration
-        host = '0.0.0.0'
+        if cached_result:
+            logger.info("Returning cached assumptions", trace_id=trace_id, ticker=ticker)
+            return cached_result
         
-        logger.info(f"Server will bind to: {host}:{port}")
-        logger.info(f"Health check URL: http://{host}:{port}/healthz")
-        logger.info(f"Flask environment: {app.config['FLASK_ENV']}")
-        logger.info("Starting production server...")
+        # Fetch data from providers
+        financial_data = await provider_manager.get_financial_data(ticker)
         
-        # Start server
-        app.run(
-            host=host,
-            port=port,
-            debug=False,
-            threaded=True,
-            use_reloader=False  # Disable reloader in production
+        if not financial_data or len(financial_data.historicals.years) < 3:
+            missing_fields = []
+            if not financial_data or not financial_data.historicals.revenue:
+                missing_fields.append("revenue")
+            if not financial_data or not financial_data.historicals.operating_income:
+                missing_fields.append("operating_income")
+            
+            raise HTTPException(status_code=422, detail={
+                "error": "insufficient_historicals",
+                "message": "Need ≥ 3 years of revenue & EBIT to build assumptions",
+                "missing": missing_fields,
+                "provider_attempts": provider_manager.get_attempted_providers(),
+                "trace_id": trace_id
+            })
+        
+        # Generate assumptions
+        assumptions_result = assumption_engine.generate_assumptions(financial_data, model)
+        
+        # Cache the result
+        if cache_manager:
+            cache_manager.set(cache_key, assumptions_result, ttl=3600)  # 1 hour
+        
+        logger.info("Assumptions generated successfully", 
+                   trace_id=trace_id, 
+                   ticker=ticker,
+                   flags=assumptions_result.flags)
+        
+        return assumptions_result
+        
+    except HTTPException:
+        raise
+        except Exception as e:
+        logger.error("Error fetching assumptions", 
+                   trace_id=trace_id, 
+                   ticker=ticker, 
+                   error=str(e),
+                   traceback=traceback.format_exc())
+        
+        raise HTTPException(status_code=500, detail={
+            "error": "internal_error",
+            "message": "Internal server error",
+            "trace_id": trace_id
+        })
+
+# Model generation endpoint
+@app.post("/models/generate", response_model=Union[ModelGenerateResponse, ErrorResponse])
+async def generate_model(request: ModelGenerateRequest):
+    """Generate a financial model with preview and Excel file"""
+    trace_id = str(uuid.uuid4())
+    job_id = str(uuid.uuid4())
+    
+    try:
+        logger.info("Generating model", 
+                   trace_id=trace_id, 
+                   job_id=job_id,
+                   ticker=request.ticker, 
+                   model=request.model)
+        
+        # Get assumptions (with caching)
+        assumptions_response = await get_assumptions(request.ticker, request.model)
+        
+        if isinstance(assumptions_response, ErrorResponse):
+            return assumptions_response
+        
+        # Apply overrides
+        final_assumptions = assumption_engine.apply_overrides(assumptions_response, request.overrides)
+        
+        # Calculate model preview
+        preview = model_calculator.calculate_model(request.model, final_assumptions)
+        
+        # Generate Excel file
+        filename = f"{request.ticker}_{request.model.upper()}_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+        file_path = excel_generator.generate_workbook(request.model, final_assumptions, preview, filename)
+        
+        logger.info("Model generated successfully",
+                   trace_id=trace_id,
+                   job_id=job_id,
+                   ticker=request.ticker,
+                   model=request.model,
+                   file_size=os.path.getsize(file_path))
+        
+        return ModelGenerateResponse(
+            job_id=job_id,
+            assumptions=final_assumptions.dict(),
+            preview=preview,
+            file={
+                "filename": filename,
+                "download_url": f"/download/{filename}"
+            },
+            warnings=[]
         )
         
-    except KeyboardInterrupt:
-        logger.info("Received interrupt signal, shutting down gracefully...")
-        sys.exit(0)
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Fatal startup error: {str(e)}")
-        logger.error(traceback.format_exc())
-        sys.exit(1)
+        logger.error("Error generating model",
+                   trace_id=trace_id,
+                   job_id=job_id,
+                   ticker=request.ticker,
+                   error=str(e),
+                   traceback=traceback.format_exc())
+        
+        raise HTTPException(status_code=500, detail={
+            "error": "internal_error",
+            "message": "Internal server error",
+            "trace_id": trace_id
+        })
 
-if __name__ == '__main__':
-    main()
+# Download endpoint
+@app.get("/download/{filename}")
+async def download_file(filename: str):
+    """Download generated Excel file"""
+    file_path = f"generated_models/{filename}"
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail={
+            "error": "not_found",
+            "message": "File not found"
+        })
+    
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "app:app",
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 8000)),
+        reload=False,
+        log_level="info"
+    )
