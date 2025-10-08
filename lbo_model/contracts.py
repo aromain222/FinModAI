@@ -88,6 +88,12 @@ class LBOAssumptions:
     management_rollover_pct: float
     management_incentive_pct: float
     
+    # Additional fields for UI compatibility
+    company_name: str = "Unknown Company"
+    ticker: str = "UNKNOWN"
+    wacc: float = 0.10
+    revenue: List[float] = field(default_factory=lambda: [0])
+    
     def to_dict(self) -> Dict[str, Any]:
         return {
             "entry_year": self.entry_year,
@@ -114,7 +120,11 @@ class LBOAssumptions:
             "tax_rate": self.tax_rate,
             "depreciation_rate": self.depreciation_rate,
             "management_rollover_pct": self.management_rollover_pct,
-            "management_incentive_pct": self.management_incentive_pct
+            "management_incentive_pct": self.management_incentive_pct,
+            "company_name": self.company_name,
+            "ticker": self.ticker,
+            "wacc": self.wacc,
+            "revenue": self.revenue
         }
 
 

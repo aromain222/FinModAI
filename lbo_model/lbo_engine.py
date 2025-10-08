@@ -172,6 +172,16 @@ class LBOEngine:
             print("📊 Processing assumptions...")
             assumptions = self.assumptions_module.process_assumptions(assumptions_input)
             
+            # Add additional fields for UI compatibility
+            if historical_data:
+                assumptions.company_name = historical_data.get('company_name', 'Unknown Company')
+                assumptions.ticker = assumptions_input.get('ticker', 'UNKNOWN')
+                assumptions.wacc = historical_data.get('wacc', {}).get('wacc', 0.10)
+                assumptions.revenue = historical_data.get('historicals', {}).get('revenue', [0])
+                assumptions.ebitda_margin = historical_data.get('historicals', {}).get('op_margin', [0.25])
+                assumptions.revenue_growth = historical_data.get('assumptions', {}).get('revenue_growth', [0.05, 0.05, 0.05, 0.05, 0.05])
+                assumptions.tax_rate = historical_data.get('assumptions', {}).get('tax_rate', 0.25)
+            
             # Step 2: Sources & Uses
             print("💰 Calculating Sources & Uses...")
             sources_uses = self.sources_uses_module.calculate_sources_uses(assumptions)
