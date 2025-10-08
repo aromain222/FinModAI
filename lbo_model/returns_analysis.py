@@ -63,13 +63,20 @@ class ReturnsAnalysisModule:
         total_debt_invested = 0
         
         for tranche in debt_schedule:
-            debt_invested = tranche.initial_amount
-            debt_exit_value = tranche.outstanding_balance[-1] if tranche.outstanding_balance else 0
+            # Handle both old object format and new dictionary format
+            if hasattr(tranche, 'initial_amount'):
+                debt_invested = tranche.initial_amount
+                debt_exit_value = tranche.outstanding_balance[-1] if tranche.outstanding_balance else 0
+                tranche_name = tranche.name
+            else:
+                debt_invested = tranche.get('initial_amount', 0)
+                debt_exit_value = tranche.get('outstanding_balance', [0])[-1] if tranche.get('outstanding_balance') else 0
+                tranche_name = tranche.get('name', 'Unknown Tranche')
             
             # Calculate debt IRR (simplified - assumes bullet payment)
             if debt_invested > 0:
                 debt_irr = self._calculate_debt_irr(tranche, holding_period)
-                debt_irr_by_tranche[tranche.name] = debt_irr
+                debt_irr_by_tranche[tranche_name] = debt_irr
                 
                 weighted_average_debt_irr += debt_irr * debt_invested
                 total_debt_invested += debt_invested
@@ -101,14 +108,24 @@ class ReturnsAnalysisModule:
         
         return (exit_value / initial_investment) ** (1 / years) - 1
     
-    def _calculate_debt_irr(self, tranche: DebtTranche, years: int) -> float:
+    def _calculate_debt_irr(self, tranche, years: int) -> float:
         """Calculate debt IRR considering interest payments and principal."""
-        if not tranche.outstanding_balance or len(tranche.outstanding_balance) == 0:
+        # Handle both old object format and new dictionary format
+        if hasattr(tranche, 'outstanding_balance'):
+            outstanding_balance = tranche.outstanding_balance
+            interest_expense = tranche.interest_expense
+            initial_amount = tranche.initial_amount
+        else:
+            outstanding_balance = tranche.get('outstanding_balance', [])
+            interest_expense = tranche.get('interest_expense', [])
+            initial_amount = tranche.get('initial_amount', 0)
+        
+        if not outstanding_balance or len(outstanding_balance) == 0:
             return 0.0
         
         # Simplified calculation - assumes interest payments and final principal
-        total_interest = sum(tranche.interest_expense)
-        final_principal = tranche.outstanding_balance[-1] if tranche.outstanding_balance else 0
+        total_interest = sum(interest_expense)
+        final_principal = outstanding_balance[-1] if outstanding_balance else 0
         total_return = total_interest + final_principal
         
-        return self._calculate_irr(tranche.initial_amount, total_return, years)
+        return self._calculate_irr(initial_amount, total_return, years)

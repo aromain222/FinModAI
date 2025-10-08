@@ -17,6 +17,11 @@ try:
 except ImportError:
     FINANCIAL_DATA_AVAILABLE = False
     print("Warning: Financial data engine not available")
+
+# Import company-specific analysis modules
+from .company_analyzer import CompanyAnalyzer
+from .debt_structure_engine import DebtStructureEngine
+
 from .sources_uses import SourcesUsesModule
 from .purchase_price_allocation import PurchasePriceAllocationModule
 from .proforma_financials import ProFormaFinancialsModule
@@ -46,6 +51,10 @@ class LBOEngine:
                 print("✅ Financial data engine initialized for LBO model")
             except Exception as e:
                 print(f"⚠️ Financial data engine failed to initialize: {e}")
+        
+        # Initialize company-specific analysis modules
+        self.company_analyzer = CompanyAnalyzer()
+        self.debt_structure_engine = DebtStructureEngine()
         
         # Initialize modules
         self.assumptions_module = LBOAssumptionsModule()
@@ -90,6 +99,41 @@ class LBOEngine:
         except Exception as e:
             print(f"❌ Error fetching historical assumptions for {ticker}: {e}")
             return None
+    
+    def _convert_debt_tranches_to_schedule(self, debt_tranches: List, assumptions) -> List[Dict[str, Any]]:
+        """
+        Convert debt tranches to the expected debt schedule format.
+        
+        Args:
+            debt_tranches: List of DebtTranche objects
+            assumptions: LBO assumptions object
+            
+        Returns:
+            List of debt schedule dictionaries
+        """
+        debt_schedule = []
+        
+        for tranche in debt_tranches:
+            # Convert DebtTranche to dictionary format expected by other modules
+            tranche_dict = {
+                'name': tranche.name,
+                'tranche_type': tranche.tranche_type.value,
+                'initial_amount': tranche.initial_amount,
+                'interest_rate': tranche.interest_rate,
+                'interest_only_periods': tranche.interest_only_periods,
+                'amortization_years': tranche.amortization_years,
+                'outstanding_balance': tranche.outstanding_balance,
+                'interest_expense': tranche.interest_expense,
+                'principal_payments': tranche.principal_payments,
+                'covenants': tranche.covenants,
+                # Add attributes for compatibility with existing modules
+                'amount': tranche.initial_amount,
+                'rate': tranche.interest_rate,
+                'io_periods': tranche.interest_only_periods
+            }
+            debt_schedule.append(tranche_dict)
+        
+        return debt_schedule
     
     def _merge_historical_assumptions(self, assumptions_input: Dict[str, Any], historical_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -194,9 +238,20 @@ class LBOEngine:
             print("📈 Building Pro Forma Financials...")
             proforma = self.proforma_module.build_proforma(assumptions, ppa)
             
-            # Step 5: Debt Schedule
-            print("🏦 Constructing Debt Schedule...")
-            debt_schedule = self.debt_module.build_debt_schedule(assumptions, proforma)
+            # Step 5: Company-Specific Debt Schedule
+            print("🏦 Constructing Company-Specific Debt Schedule...")
+            if historical_data and ticker:
+                # Analyze company profile for tailored debt structure
+                company_profile = self.company_analyzer.analyze_company(ticker, historical_data)
+                
+                # Generate company-specific debt structure
+                debt_tranches = self.debt_structure_engine.generate_debt_structure(company_profile)
+                
+                # Convert to debt schedule format
+                debt_schedule = self._convert_debt_tranches_to_schedule(debt_tranches, assumptions)
+            else:
+                # Fallback to standard debt schedule
+                debt_schedule = self.debt_module.build_debt_schedule(assumptions, proforma)
             
             # Step 6: Returns Analysis
             print("📊 Returns Analysis...")
