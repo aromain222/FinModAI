@@ -1,98 +1,911 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinModAI Professional</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .navy { color: #1F4E79; }
+        .navy-bg { background-color: #1F4E79; }
+        .gray-panel { background-color: #F3F4F6; }
+        .green-output { color: #2E7D32; }
+        .green-bg { background-color: #2E7D32; }
+        .sticky-panel { position: sticky; top: 16px; }
+        .focus-ring:focus { outline: 2px solid #1F4E79; outline-offset: 2px; }
+    </style>
+</head>
+<body class="bg-white">
+    <div id="root"></div>
 
-{% block title %}FinModAI - Home{% endblock %}
+    <script type="text/babel">
+        const { useState, useEffect, useCallback } = React;
 
-{% block content %}
-<div class="max-w-4xl mx-auto">
-    <div class="bg-white rounded-xl shadow-sm p-8 text-center">
-        <h1 class="text-3xl font-bold text-gray-900 mb-6">Investment Banking Financial Models</h1>
-        
-        <p class="text-lg text-gray-600 mb-8">
-            Generate professional financial models with AI-powered insights.
-        </p>
-        
-        <!-- Model Type Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
-            <!-- DCF Card -->
-            <div class="bg-panel-bg rounded-xl p-6 text-left">
-                <h2 class="text-lg font-semibold text-gray-900 mb-2">DCF Valuation</h2>
-                <p class="text-sm text-gray-600 mb-4">
-                    Discounted Cash Flow analysis with customizable growth rates, margins, and WACC.
-                </p>
-                <a href="/generate-model" class="text-navy font-medium text-sm hover:underline">Generate DCF →</a>
-            </div>
-            
-            <!-- LBO Card -->
-            <div class="bg-panel-bg rounded-xl p-6 text-left">
-                <h2 class="text-lg font-semibold text-gray-900 mb-2">LBO Analysis</h2>
-                <p class="text-sm text-gray-600 mb-4">
-                    Leveraged Buyout models with debt structures, operational improvements, and exit strategies.
-                </p>
-                <a href="/generate-model" class="text-navy font-medium text-sm hover:underline">Generate LBO →</a>
-            </div>
-            
-            <!-- M&A Card -->
-            <div class="bg-panel-bg rounded-xl p-6 text-left">
-                <h2 class="text-lg font-semibold text-gray-900 mb-2">M&A Analysis</h2>
-                <p class="text-sm text-gray-600 mb-4">
-                    Merger & Acquisition models with accretion/dilution analysis and synergy valuation.
-                </p>
-                <a href="/generate-model" class="text-navy font-medium text-sm hover:underline">Generate M&A →</a>
-            </div>
-        </div>
-        
-        <div class="space-y-4">
-            <a href="/generate-model">
-                <button class="bg-navy text-white px-6 py-3 rounded-lg font-medium hover:bg-opacity-90 transition-colors">
-                    Generate New Model
-                </button>
-            </a>
-            
-            <div>
-                <a href="/models" class="text-navy hover:underline">
-                    View All Models
-                </a>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Features -->
-    <div class="mt-10 grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="bg-white rounded-xl shadow-sm p-6">
-            <div class="flex items-center justify-center w-12 h-12 rounded-full bg-navy/10 mb-4">
-                <svg class="w-6 h-6 text-navy" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
-                </svg>
-            </div>
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">Professional Models</h3>
-            <p class="text-sm text-gray-600">
-                Investment banking quality financial models with customizable assumptions.
-            </p>
-        </div>
-        
-        <div class="bg-white rounded-xl shadow-sm p-6">
-            <div class="flex items-center justify-center w-12 h-12 rounded-full bg-navy/10 mb-4">
-                <svg class="w-6 h-6 text-navy" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                </svg>
-            </div>
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">AI-Powered Insights</h3>
-            <p class="text-sm text-gray-600">
-                Get expert analysis and recommendations based on your financial models.
-            </p>
-        </div>
-        
-        <div class="bg-white rounded-xl shadow-sm p-6">
-            <div class="flex items-center justify-center w-12 h-12 rounded-full bg-navy/10 mb-4">
-                <svg class="w-6 h-6 text-navy" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                </svg>
-            </div>
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">Excel Downloads</h3>
-            <p class="text-sm text-gray-600">
-                Download your models as Excel files for further customization and analysis.
-            </p>
-        </div>
-    </div>
-</div>
-{% endblock %}
+        // API Configuration
+        const API_BASE = window.location.origin;
+
+        // Model Types
+        const MODEL_TYPES = [
+            { id: 'dcf', name: 'DCF', description: 'Discounted Cash Flow', icon: '📊', color: 'blue' },
+            { id: 'lbo', name: 'LBO', description: 'Leveraged Buyout', icon: '🏦', color: 'green' },
+            { id: 'comps', name: 'Comps', description: 'Trading Comparables', icon: '📈', color: 'purple' },
+            { id: 'merger', name: 'Merger', description: 'Merger Analysis', icon: '🤝', color: 'orange' }
+        ];
+
+        // State Machine
+        const STATE = {
+            IDLE: 'idle',
+            LOADING: 'loading',
+            READY: 'ready',
+            ERROR: 'error'
+        };
+
+        // Main App Component
+        function App() {
+            const [currentPage, setCurrentPage] = useState('hub'); // 'hub' or 'builder'
+            const [selectedModel, setSelectedModel] = useState(null);
+            const [ticker, setTicker] = useState('');
+            const [assumptions, setAssumptions] = useState(null);
+            const [preview, setPreview] = useState(null);
+            const [overrides, setOverrides] = useState({});
+            const [state, setState] = useState(STATE.IDLE);
+            const [error, setError] = useState(null);
+            const [loadingStatus, setLoadingStatus] = useState('');
+
+            // Navigate to model builder
+            const navigateToBuilder = (modelId) => {
+                setSelectedModel(modelId);
+                setCurrentPage('builder');
+                setState(STATE.IDLE);
+                setTicker('');
+                setAssumptions(null);
+                setPreview(null);
+                setOverrides({});
+                setError(null);
+            };
+
+            // Navigate back to hub
+            const navigateToHub = () => {
+                setCurrentPage('hub');
+                setSelectedModel(null);
+                setState(STATE.IDLE);
+                setTicker('');
+                setAssumptions(null);
+                setPreview(null);
+                setOverrides({});
+                setError(null);
+            };
+
+            // Validate ticker
+            const validateTicker = (tickerValue) => {
+                const regex = /^[A-Z][A-Z0-9.\-]{0,14}$/;
+                return regex.test(tickerValue);
+            };
+
+            // Fetch assumptions
+            const fetchAssumptions = useCallback(async (tickerValue, modelType) => {
+                if (!tickerValue || !modelType) return;
+                
+                setLoadingStatus('Pulling historicals…');
+                setState(STATE.LOADING);
+                setError(null);
+                
+                try {
+                    const response = await axios.get(`${API_BASE}/assumptions`, {
+                        params: { ticker: tickerValue, model: modelType }
+                    });
+                    
+                    setLoadingStatus('Deriving assumptions…');
+                    setAssumptions(response.data);
+                    
+                } catch (err) {
+                    const errorData = err.response?.data;
+                    setError({
+                        type: 'assumptions',
+                        message: errorData?.message || 'Failed to fetch assumptions',
+                        missing: errorData?.missing,
+                        provider_attempts: errorData?.provider_attempts
+                    });
+                    setState(STATE.ERROR);
+                }
+            }, []);
+
+            // Generate model
+            const generateModel = async () => {
+                if (!ticker || !selectedModel || !validateTicker(ticker)) return;
+                
+                setLoadingStatus('Building workbook…');
+                setState(STATE.LOADING);
+                setError(null);
+                
+                try {
+                    const response = await axios.post(`${API_BASE}/models/generate`, {
+                        ticker: ticker.toUpperCase(),
+                        model: selectedModel,
+                        overrides: Object.keys(overrides).length > 0 ? overrides : null
+                    });
+                    
+                    setPreview(response.data.preview);
+                    setState(STATE.READY);
+                    setLoadingStatus('');
+                    
+                } catch (err) {
+                    const errorData = err.response?.data;
+                    setError({
+                        type: 'generation',
+                        message: errorData?.message || 'Failed to generate model',
+                        details: errorData?.details
+                    });
+                    setState(STATE.ERROR);
+                }
+            };
+
+            // Regenerate with overrides
+            const regenerateModel = () => {
+                generateModel();
+            };
+
+            // Reset to idle
+            const resetModel = () => {
+                setState(STATE.IDLE);
+                setPreview(null);
+                setOverrides({});
+                setError(null);
+            };
+
+            // Handle ticker change
+            useEffect(() => {
+                if (ticker && selectedModel && validateTicker(ticker)) {
+                    fetchAssumptions(ticker, selectedModel);
+                }
+            }, [ticker, selectedModel, fetchAssumptions]);
+
+            return (
+                <div className="min-h-screen bg-white">
+                    {/* Header */}
+                    <header className="navy-bg text-white py-6">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h1 className="text-3xl font-bold">FinModAI Professional</h1>
+                                    <p className="mt-2 text-lg opacity-90">Banker-grade financial modeling platform</p>
+                                </div>
+                                {currentPage === 'builder' && (
+                                    <button
+                                        onClick={navigateToHub}
+                                        className="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg transition-all focus-ring"
+                                    >
+                                        ← Back to Models
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Main Content */}
+                    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        {currentPage === 'hub' ? (
+                            <ModelHub onSelectModel={navigateToBuilder} />
+                        ) : (
+                            <ModelBuilder
+                                selectedModel={selectedModel}
+                                ticker={ticker}
+                                onTickerChange={setTicker}
+                                assumptions={assumptions}
+                                preview={preview}
+                                overrides={overrides}
+                                onOverridesChange={setOverrides}
+                                state={state}
+                                error={error}
+                                loadingStatus={loadingStatus}
+                                onGenerate={generateModel}
+                                onRegenerate={regenerateModel}
+                                onReset={resetModel}
+                                validateTicker={validateTicker}
+                            />
+                        )}
+                    </main>
+                </div>
+            );
+        }
+
+        // Model Hub Component
+        function ModelHub({ onSelectModel }) {
+            return (
+                <div className="space-y-6">
+                    <div className="text-center">
+                        <h2 className="text-2xl font-bold navy mb-4">Select Financial Model</h2>
+                        <p className="text-gray-600">Choose the type of financial model you want to build</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {MODEL_TYPES.map((model) => {
+                            const colorClasses = {
+                                blue: 'hover:border-blue-500',
+                                green: 'hover:border-green-500',
+                                purple: 'hover:border-purple-500',
+                                orange: 'hover:border-orange-500'
+                            };
+                            
+                            return (
+                                <div
+                                    key={model.id}
+                                    onClick={() => onSelectModel(model.id)}
+                                    className={`bg-white border-2 border-gray-200 rounded-xl p-6 cursor-pointer hover:shadow-lg transition-all duration-200 transform hover:scale-105 ${colorClasses[model.color]}`}
+                                    data-testid="model-tabs"
+                                >
+                                    <div className="text-center">
+                                        <div className="text-4xl mb-4">{model.icon}</div>
+                                        <h3 className="text-xl font-semibold navy mb-2">{model.name}</h3>
+                                        <p className="text-gray-600 text-sm mb-3">{model.description}</p>
+                                        <div className="text-xs text-gray-500">
+                                            {model.id === 'dcf' && '• Enterprise Value • Terminal Value • WACC'}
+                                            {model.id === 'lbo' && '• Debt Structure • IRR/MOIC • Covenants'}
+                                            {model.id === 'comps' && '• Peer Analysis • Multiples • Valuation Range'}
+                                            {model.id === 'merger' && '• Synergies • Accretion/Dilution • PF Leverage'}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+
+        // Model Builder Component
+        function ModelBuilder({
+            selectedModel,
+            ticker,
+            onTickerChange,
+            assumptions,
+            preview,
+            overrides,
+            onOverridesChange,
+            state,
+            error,
+            loadingStatus,
+            onGenerate,
+            onRegenerate,
+            onReset,
+            validateTicker
+        }) {
+            const modelInfo = MODEL_TYPES.find(m => m.id === selectedModel);
+            const modelColors = {
+                'dcf': 'blue',
+                'lbo': 'green',
+                'comps': 'purple',
+                'merger': 'orange'
+            };
+
+            return (
+                <div className="space-y-6">
+                    {/* Model Header */}
+                    <div className={`bg-${modelColors[selectedModel]}-50 border-l-4 border-${modelColors[selectedModel]}-500 p-4 rounded-r-lg`}>
+                        <div className="flex items-center">
+                            <span className="text-2xl mr-3">{modelInfo.icon}</span>
+                            <div>
+                                <h2 className="text-xl font-semibold text-gray-900">
+                                    {modelInfo.name} Model Builder
+                                </h2>
+                                <p className="text-sm text-gray-600">
+                                    {modelInfo.description} • {selectedModel.toUpperCase()} Analysis
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Status Banner */}
+                    <StatusBanner state={state} loadingStatus={loadingStatus} error={error} />
+
+                    {/* Main Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        {/* Left Column - Inputs & Assumptions */}
+                        <div className="lg:col-span-4 space-y-6">
+                            <div className="bg-white border border-gray-200 rounded-xl p-6 sticky-panel">
+                                {/* Ticker Input */}
+                                <div className="mb-6">
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                        Company Ticker
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={ticker}
+                                        onChange={(e) => onTickerChange(e.target.value.toUpperCase())}
+                                        placeholder="e.g., MSFT, AAPL, GOOGL"
+                                        className={`w-full px-3 py-2 border rounded-lg focus-ring ${
+                                            ticker && !validateTicker(ticker) 
+                                                ? 'border-red-500' 
+                                                : 'border-gray-300 focus:border-navy'
+                                        }`}
+                                        data-testid="ticker-input"
+                                    />
+                                    {ticker && !validateTicker(ticker) && (
+                                        <p className="text-red-500 text-xs mt-1">Invalid ticker format</p>
+                                    )}
+                                </div>
+
+                                {/* Overrides */}
+                                <OverridesPanel
+                                    assumptions={assumptions}
+                                    overrides={overrides}
+                                    onOverridesChange={onOverridesChange}
+                                    modelType={selectedModel}
+                                />
+
+                                {/* Assumptions Mini-Panel */}
+                                <AssumptionsPanel
+                                    assumptions={assumptions}
+                                    overrides={overrides}
+                                    state={state}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Right Column - Preview */}
+                        <div className="lg:col-span-8">
+                            <div className="bg-white border border-gray-200 rounded-xl p-6">
+                                <div className="flex items-center justify-between mb-6">
+                                    <h3 className="text-lg font-semibold navy">Model Preview</h3>
+                                    <div className="flex space-x-3">
+                                        <button
+                                            onClick={onGenerate}
+                                            disabled={!ticker || !validateTicker(ticker) || state === STATE.LOADING}
+                                            className="px-4 py-2 navy-bg text-white rounded-lg hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed focus-ring"
+                                            data-testid="create-model-btn"
+                                        >
+                                            {state === STATE.IDLE ? 'Create Model' : 'Generate Model'}
+                                        </button>
+                                        {state === STATE.READY && Object.keys(overrides).length > 0 && (
+                                            <button
+                                                onClick={onRegenerate}
+                                                className="px-4 py-2 border border-navy text-navy rounded-lg hover:bg-navy hover:text-white focus-ring"
+                                                data-testid="regenerate-btn"
+                                            >
+                                                Regenerate
+                                            </button>
+                                        )}
+                                        {state === STATE.READY && (
+                                            <button
+                                                onClick={onReset}
+                                                className="px-4 py-2 text-gray-600 hover:text-gray-800 focus-ring"
+                                            >
+                                                Reset
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <PreviewPanel
+                                    modelType={selectedModel}
+                                    preview={preview}
+                                    ticker={ticker}
+                                    state={state}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Status Banner Component
+        function StatusBanner({ state, loadingStatus, error }) {
+            if (state === STATE.LOADING) {
+                return (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4" data-testid="status-banner">
+                        <div className="flex items-center">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
+                            <span className="text-blue-800">{loadingStatus}</span>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (state === STATE.ERROR && error) {
+                return (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4" data-testid="error-banner">
+                        <div className="flex items-start">
+                            <div className="text-red-600 mr-3">⚠️</div>
+                            <div className="flex-1">
+                                <h4 className="text-red-800 font-semibold">Error</h4>
+                                <p className="text-red-700 text-sm mt-1">{error.message}</p>
+                                {error.missing && (
+                                    <p className="text-red-600 text-xs mt-2">
+                                        Missing: {error.missing.join(', ')}
+                                    </p>
+                                )}
+                                {error.provider_attempts && (
+                                    <p className="text-red-600 text-xs mt-1">
+                                        Providers tried: {error.provider_attempts.join(', ')}
+                                    </p>
+                                )}
+                            </div>
+                            <button
+                                onClick={() => window.location.reload()}
+                                className="ml-4 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 focus-ring"
+                            >
+                                Retry
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (state === STATE.READY) {
+                return (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4" data-testid="status-banner">
+                        <div className="flex items-center">
+                            <div className="text-green-600 mr-3">✅</div>
+                            <span className="text-green-800">Model ready. Review assumptions or download the Excel.</span>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4" data-testid="status-banner">
+                    <span className="text-gray-700">Ready to build a model.</span>
+                </div>
+            );
+        }
+
+        // Overrides Panel Component
+        function OverridesPanel({ assumptions, overrides, onOverridesChange, modelType }) {
+            if (!assumptions || state === STATE.LOADING) return null;
+
+            const handleOverrideChange = (field, value) => {
+                const newOverrides = { ...overrides };
+                if (value === '' || value === null) {
+                    delete newOverrides[field];
+                } else {
+                    newOverrides[field] = value;
+                }
+                onOverridesChange(newOverrides);
+            };
+
+            return (
+                <div className="mb-6">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Assumption Overrides</h4>
+                    <div className="space-y-3">
+                        {/* Revenue Growth */}
+                        <div>
+                            <label className="block text-xs text-gray-600 mb-1">Revenue Growth (%)</label>
+                            <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                                value={overrides.revenue_growth || ''}
+                                onChange={(e) => handleOverrideChange('revenue_growth', parseFloat(e.target.value))}
+                                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus-ring"
+                                placeholder={`${assumptions.assumptions?.revenue_growth?.[0]?.toFixed(1) || 'N/A'}%`}
+                            />
+                        </div>
+
+                        {/* Operating Margin */}
+                        <div>
+                            <label className="block text-xs text-gray-600 mb-1">Operating Margin (%)</label>
+                            <input
+                                type="number"
+                                min="-100"
+                                max="100"
+                                step="0.1"
+                                value={overrides.operating_margin || ''}
+                                onChange={(e) => handleOverrideChange('operating_margin', parseFloat(e.target.value))}
+                                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus-ring"
+                                placeholder={`${assumptions.assumptions?.operating_margin?.[0]?.toFixed(1) || 'N/A'}%`}
+                            />
+                        </div>
+
+                        {/* WACC */}
+                        <div>
+                            <label className="block text-xs text-gray-600 mb-1">WACC (%)</label>
+                            <input
+                                type="number"
+                                min="0"
+                                max="50"
+                                step="0.1"
+                                value={overrides.wacc || ''}
+                                onChange={(e) => handleOverrideChange('wacc', parseFloat(e.target.value))}
+                                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus-ring"
+                                placeholder={`${(assumptions.wacc?.wacc * 100)?.toFixed(1) || 'N/A'}%`}
+                            />
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Assumptions Panel Component
+        function AssumptionsPanel({ assumptions, overrides, state }) {
+            if (state === STATE.LOADING) {
+                return (
+                    <div data-testid="assumptions-panel">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3">Assumptions</h4>
+                        <div className="space-y-3">
+                            {[1, 2, 3, 4].map(i => (
+                                <div key={i} className="animate-pulse">
+                                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                                    <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            }
+
+            if (!assumptions) {
+                return (
+                    <div data-testid="assumptions-panel">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3">Assumptions</h4>
+                        <p className="text-gray-500 text-sm">Enter a ticker to load assumptions</p>
+                    </div>
+                );
+            }
+
+            const getValueWithOverride = (field, defaultValue) => {
+                if (overrides[field] !== undefined) {
+                    return (
+                        <span className="inline-flex items-center">
+                            {overrides[field]}
+                            <span className="ml-1 text-xs bg-yellow-100 text-yellow-800 px-1 rounded">override</span>
+                        </span>
+                    );
+                }
+                return defaultValue || 'Unavailable';
+            };
+
+            return (
+                <div data-testid="assumptions-panel">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Assumptions</h4>
+                    
+                    {/* Growth Path */}
+                    <div className="mb-4" data-testid="assumptions-growth">
+                        <h5 className="text-xs font-medium text-gray-600 mb-2">Growth Path</h5>
+                        <div className="text-sm">
+                            {assumptions.assumptions?.revenue_growth?.map((growth, i) => (
+                                <span key={i} className="inline-block bg-gray-100 px-2 py-1 rounded text-xs mr-1 mb-1">
+                                    Y{i+1}: {getValueWithOverride('revenue_growth', (growth * 100).toFixed(1))}%
+                                </span>
+                            ))}
+                        </div>
+                        {assumptions.provenance?.revenue && (
+                            <p className="text-xs text-gray-500 mt-1">
+                                {assumptions.provenance.revenue.source} • {assumptions.provenance.revenue.as_of}
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Margin Path */}
+                    <div className="mb-4" data-testid="assumptions-margin">
+                        <h5 className="text-xs font-medium text-gray-600 mb-2">Operating Margin</h5>
+                        <div className="text-sm">
+                            {assumptions.assumptions?.operating_margin?.map((margin, i) => (
+                                <span key={i} className="inline-block bg-gray-100 px-2 py-1 rounded text-xs mr-1 mb-1">
+                                    Y{i+1}: {getValueWithOverride('operating_margin', (margin * 100).toFixed(1))}%
+                                </span>
+                            ))}
+                        </div>
+                        {assumptions.provenance?.op_margin && (
+                            <p className="text-xs text-gray-500 mt-1">
+                                {assumptions.provenance.op_margin.source} • {assumptions.provenance.op_margin.as_of}
+                            </p>
+                        )}
+                    </div>
+
+                    {/* WACC */}
+                    <div className="mb-4" data-testid="assumptions-wacc">
+                        <h5 className="text-xs font-medium text-gray-600 mb-2">WACC</h5>
+                        <div className="text-sm space-y-1">
+                            <div>WACC: {getValueWithOverride('wacc', (assumptions.wacc?.wacc * 100)?.toFixed(1))}%</div>
+                            <div>Rf: {(assumptions.wacc?.rf * 100)?.toFixed(1)}%</div>
+                            <div>Beta: {assumptions.wacc?.beta?.toFixed(2)}</div>
+                            <div>ERP: {(assumptions.wacc?.erp * 100)?.toFixed(1)}%</div>
+                        </div>
+                        {assumptions.provenance?.rf && (
+                            <p className="text-xs text-gray-500 mt-1">
+                                {assumptions.provenance.rf.source} • {assumptions.provenance.rf.as_of}
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Terminal */}
+                    <div data-testid="assumptions-terminal">
+                        <h5 className="text-xs font-medium text-gray-600 mb-2">Terminal</h5>
+                        <div className="text-sm">
+                            {assumptions.terminal?.method === 'perpetuity' && (
+                                <div>Perpetuity Growth: {(assumptions.terminal?.g * 100)?.toFixed(1)}%</div>
+                            )}
+                            {assumptions.terminal?.method === 'exit_multiple' && (
+                                <div>Exit Multiple: {assumptions.terminal?.ev_ebitda?.toFixed(1)}x</div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Flags */}
+                    {assumptions.flags && assumptions.flags.length > 0 && (
+                        <div className="mt-4">
+                            {assumptions.flags.map((flag, i) => (
+                                <span key={i} className="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded mr-1 mb-1">
+                                    ⚠️ {flag}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Preview Panel Component
+        function PreviewPanel({ modelType, preview, ticker, state }) {
+            if (state === STATE.LOADING) {
+                return (
+                    <div data-testid="preview-panel">
+                        <div className="space-y-4">
+                            {[1, 2, 3].map(i => (
+                                <div key={i} className="animate-pulse">
+                                    <div className="h-6 bg-gray-200 rounded w-1/3 mb-2"></div>
+                                    <div className="h-4 bg-gray-200 rounded w-full mb-1"></div>
+                                    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            }
+
+            if (!preview) {
+                return (
+                    <div data-testid="preview-panel" className="text-center py-8 text-gray-500">
+                        <p>Generate a model to see preview</p>
+                    </div>
+                );
+            }
+
+            const modelPreview = preview[modelType];
+            if (!modelPreview) {
+                return (
+                    <div data-testid="preview-panel" className="text-center py-8 text-gray-500">
+                        <p>No preview available for {modelType} model</p>
+                    </div>
+                );
+            }
+
+            return (
+                <div data-testid="preview-panel" className="max-h-96 overflow-y-auto">
+                    {modelType === 'dcf' && <DCFPreview preview={modelPreview} ticker={ticker} />}
+                    {modelType === 'lbo' && <LBOPreview preview={modelPreview} ticker={ticker} />}
+                    {modelType === 'comps' && <CompsPreview preview={modelPreview} ticker={ticker} />}
+                    {modelType === 'merger' && <MergerPreview preview={modelPreview} ticker={ticker} />}
+                </div>
+            );
+        }
+
+        // DCF Preview Component
+        function DCFPreview({ preview, ticker }) {
+            return (
+                <div className="space-y-6">
+                    <h4 className="font-medium text-gray-900">DCF Model Results - {ticker}</h4>
+                    
+                    {/* Key Metrics */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                            <div className="text-sm text-gray-600">Enterprise Value</div>
+                            <div className="text-lg font-semibold green-output">
+                                ${(preview.ev / 1000000000).toFixed(1)}B
+                            </div>
+                        </div>
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                            <div className="text-sm text-gray-600">Equity Value</div>
+                            <div className="text-lg font-semibold green-output">
+                                ${(preview.equity / 1000000000).toFixed(1)}B
+                            </div>
+                        </div>
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                            <div className="text-sm text-gray-600">Implied Price</div>
+                            <div className="text-lg font-semibold green-output">
+                                ${preview.implied_price?.toFixed(2) || 'N/A'}
+                            </div>
+                        </div>
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                            <div className="text-sm text-gray-600">Upside</div>
+                            <div className="text-lg font-semibold green-output">
+                                {preview.upside_pct?.toFixed(1) || 'N/A'}%
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Cash Flow Table */}
+                    {preview.ufcf && preview.ufcf.length > 0 && (
+                        <div>
+                            <h5 className="font-medium text-gray-900 mb-3">Unlevered Free Cash Flow</h5>
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Year</th>
+                                            {preview.ufcf.slice(0, 5).map((_, index) => (
+                                                <th key={index} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                                    {2024 + index}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        <tr>
+                                            <td className="px-4 py-2 text-sm font-medium text-gray-900">UFCF</td>
+                                            {preview.ufcf.slice(0, 5).map((ufcf, index) => (
+                                                <td key={index} className="px-4 py-2 text-sm text-gray-900">
+                                                    ${(ufcf / 1000000).toFixed(0)}M
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // LBO Preview Component
+        function LBOPreview({ preview, ticker }) {
+            return (
+                <div className="space-y-6">
+                    <h4 className="font-medium text-gray-900">LBO Model Results - {ticker}</h4>
+                    
+                    {/* Key Metrics */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                            <div className="text-sm text-gray-600">Equity IRR</div>
+                            <div className="text-lg font-semibold green-output">
+                                {((preview.irr || 0) * 100).toFixed(1)}%
+                            </div>
+                        </div>
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                            <div className="text-sm text-gray-600">MOIC</div>
+                            <div className="text-lg font-semibold green-output">
+                                {(preview.moic || 0).toFixed(1)}x
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Debt Structure */}
+                    {preview.debt_stack && preview.debt_stack.length > 0 && (
+                        <div>
+                            <h5 className="font-medium text-gray-900 mb-3">Debt Structure</h5>
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tranche</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Rate</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {preview.debt_stack.map((tranche, index) => (
+                                            <tr key={index}>
+                                                <td className="px-4 py-2 text-sm text-gray-900">{tranche.name}</td>
+                                                <td className="px-4 py-2 text-sm text-gray-900">
+                                                    ${((tranche.amount || tranche.initial_amount || 0) / 1000000).toFixed(0)}M
+                                                </td>
+                                                <td className="px-4 py-2 text-sm text-gray-900">
+                                                    {((tranche.rate || tranche.interest_rate || 0) * 100).toFixed(1)}%
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Comps Preview Component
+        function CompsPreview({ preview, ticker }) {
+            return (
+                <div className="space-y-6">
+                    <h4 className="font-medium text-gray-900">Trading Comps Results - {ticker}</h4>
+                    
+                    {/* Peer Table */}
+                    {preview.peers && preview.peers.length > 0 && (
+                        <div>
+                            <h5 className="font-medium text-gray-900 mb-3">Peer Analysis</h5>
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">EV/Revenue</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">EV/EBITDA</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">P/E</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {preview.peers.map((peer, index) => (
+                                            <tr key={index}>
+                                                <td className="px-4 py-2 text-sm font-medium text-gray-900">{peer.ticker}</td>
+                                                <td className="px-4 py-2 text-sm text-gray-900">{peer.ev_revenue?.toFixed(1)}x</td>
+                                                <td className="px-4 py-2 text-sm text-gray-900">{peer.ev_ebitda?.toFixed(1)}x</td>
+                                                <td className="px-4 py-2 text-sm text-gray-900">{peer.pe?.toFixed(1)}x</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Implied Range */}
+                    {preview.implied_range && (
+                        <div>
+                            <h5 className="font-medium text-gray-900 mb-3">Implied Valuation Range</h5>
+                            <div className="bg-blue-50 p-4 rounded-lg">
+                                <div className="text-sm text-blue-800">
+                                    <strong>Range:</strong> ${preview.implied_range.low / 1000000000:.1f}B - ${preview.implied_range.high / 1000000000:.1f}B
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Merger Preview Component
+        function MergerPreview({ preview, ticker }) {
+            return (
+                <div className="space-y-6">
+                    <h4 className="font-medium text-gray-900">Merger Analysis Results - {ticker}</h4>
+                    
+                    {/* Synergies */}
+                    {preview.synergies && (
+                        <div>
+                            <h5 className="font-medium text-gray-900 mb-3">Synergies</h5>
+                            <div className="grid grid-cols-2 gap-4">
+                                {Object.entries(preview.synergies).map(([key, value]) => (
+                                    <div key={key} className="bg-gray-50 p-4 rounded-lg">
+                                        <div className="text-sm text-gray-600">{key.replace('_', ' ').toUpperCase()}</div>
+                                        <div className="text-lg font-semibold green-output">
+                                            ${(value / 1000000).toFixed(0)}M
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* EPS Accretion */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                            <div className="text-sm text-gray-600">EPS Accretion</div>
+                            <div className="text-lg font-semibold green-output">
+                                {(preview.eps_accretion * 100)?.toFixed(1)}%
+                            </div>
+                        </div>
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                            <div className="text-sm text-gray-600">PF Leverage</div>
+                            <div className="text-lg font-semibold green-output">
+                                {preview.pf_leverage?.toFixed(1)}x
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Render App
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
