@@ -373,7 +373,7 @@ def generate_dcf_model(ticker, climate):
 # Routes
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('simple_index.html')
 
 @app.route('/healthz', methods=['GET'])
 def healthz():
