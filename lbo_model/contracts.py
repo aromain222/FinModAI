@@ -431,7 +431,7 @@ class LBOModel:
             "sources_uses": self.sources_uses.to_dict(),
             "purchase_price_allocation": self.purchase_price_allocation.to_dict(),
             "proforma_financials": self.proforma_financials.to_dict(),
-            "debt_schedule": [tranche.__dict__ for tranche in self.debt_schedule],
+            "debt_schedule": [tranche.__dict__ if hasattr(tranche, '__dict__') else tranche for tranche in self.debt_schedule],
             "returns_analysis": self.returns_analysis.to_dict(),
             "covenant_metrics": self.covenant_metrics.to_dict(),
             "equity_waterfall": self.equity_waterfall.to_dict(),
