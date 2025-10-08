@@ -3,7 +3,7 @@ services:
     name: finmodai-professional
     env: docker
     plan: free
-    dockerfilePath: ./Dockerfile_professional
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: FLASK_ENV
         value: production
