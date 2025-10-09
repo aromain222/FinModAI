@@ -13,6 +13,8 @@ from .contracts import (
     Provenance, Config
 )
 from .providers.base_provider import ProviderData
+from .providers.simfin_provider import SimFinProvider
+from .providers.finnhub_provider import FinnhubProvider
 from .providers.fmp_provider import FMPProvider
 from .providers.alpha_vantage_provider import AlphaVantageProvider
 from .providers.yahoo_provider import YahooProvider
@@ -32,6 +34,8 @@ class FinancialDataEngine:
     
     def __init__(self):
         # Initialize providers with API keys from environment
+        self.simfin_key = os.getenv("SIMFIN_API_KEY")
+        self.finnhub_key = os.getenv("FINNHUB_API_KEY")
         self.fmp_key = os.getenv("FMP_API_KEY")
         self.alpha_vantage_key = os.getenv("ALPHAVANTAGE_API_KEY")
         self.fred_key = os.getenv("FRED_API_KEY")
@@ -47,23 +51,31 @@ class FinancialDataEngine:
         """Initialize providers in priority order."""
         providers = []
         
-        # Priority 1: Universal Provider (tries all sources)
-        providers.append(UniversalProvider())
+        # Priority 1: SimFin (best for historical fundamentals, 10+ years)
+        if self.simfin_key:
+            providers.append(SimFinProvider(self.simfin_key))
         
-        # Priority 2: Polygon.io (most reliable, used by hedge funds)
+        # Priority 2: Finnhub (real-time data + recent financials)
+        if self.finnhub_key:
+            providers.append(FinnhubProvider(self.finnhub_key))
+        
+        # Priority 3: Polygon.io (most reliable for market data)
         if self.polygon_key:
             providers.append(PolygonProvider(self.polygon_key))
         
-        # Priority 3: FMP
+        # Priority 4: FMP (good coverage but legacy endpoints deprecated)
         if self.fmp_key:
             providers.append(FMPProvider(self.fmp_key))
         
-        # Priority 4: Alpha Vantage
+        # Priority 5: Alpha Vantage (backup)
         if self.alpha_vantage_key:
             providers.append(AlphaVantageProvider(self.alpha_vantage_key))
         
-        # Priority 5: Yahoo Finance (no key needed, but unreliable)
+        # Priority 6: Yahoo Finance (no key needed, but rate limited)
         providers.append(YahooProvider())
+        
+        # Priority 7: Universal Provider (tries all sources as last resort)
+        providers.append(UniversalProvider())
         
         return providers
     

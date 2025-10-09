@@ -21,3 +21,7 @@ services:
         value: aromain27@amherst.edu
       - key: GOOGLE_FINANCE_TOKEN
         value: 3bafe26dc9d0e1f9
+      - key: FINNHUB_API_KEY
+        value: d3jkenpr01qkv9k03lf0d3jkenpr01qkv9k03lfg
+      - key: SIMFIN_API_KEY
+        value: c2b86058-a089-45df-a646-f3782594235e
