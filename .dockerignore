@@ -1,0 +1,127 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# GitHub
+.github
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info
+dist
+build
+*.egg
+.pytest_cache
+.mypy_cache
+.coverage
+htmlcov
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Logs
+*.log
+logs/
+scraper.log
+vc_scraper.log
+server.log
+
+# Test files
+test_*.py
+*_test.py
+tests/
+pytest.ini
+.pytest_cache
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+*.backup[0-9]
+*.new
+*.new[0-9]
+
+# Generated files
+*.xlsx
+*.xls
+*.csv
+generated_models/
+uploads/
+financial_data/
+
+# Credentials (should be in .gitignore too)
+credentials/
+*.pem
+*.key
+*.env
+.env.*
+!.env.example
+
+# Node modules (if any)
+node_modules/
+
+# Render/deployment configs (already in repo, don't need in image)
+render.yaml
+railway.json
+Procfile
+Procfile_professional
+
+# Development scripts
+examine_*.py
+debug_*.py
+test_*.py
+fix_*.py
+improve_*.py
+demo_*.py
+check_*.py
+quick_*.py
+simple_*.py
+start_*.py
+verify_*.py
+monitor_*.py
+
+# Deployment docs
+DEPLOY*.md
+DEPLOYMENT*.md
+RENDER*.md
+*_SUMMARY.md
+*_STATUS.md
+*_README.md
+!README.md
+
+# Misc
+*.zip
+*.tgz
+ngrok*
+grants.csv
+results.json
+vc_results.json
+share_*.html
+tmp.html
+*.png
+*.jpg
+*.jpeg
+
