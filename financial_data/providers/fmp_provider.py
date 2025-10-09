@@ -11,7 +11,7 @@ from .base_provider import BaseProvider, ProviderData
 class FMPProvider(BaseProvider):
     """Financial Modeling Prep API provider."""
     
-    BASE_URL = "https://financialmodelingprep.com/api/v3"
+    BASE_URL = "https://financialmodelingprep.com/stable"
     
     def __init__(self, api_key: str):
         super().__init__(api_key)
