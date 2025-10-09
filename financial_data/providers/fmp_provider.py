@@ -154,7 +154,7 @@ class FMPProvider(BaseProvider):
         
         if not income_stmt or len(income_stmt) < 3:
             print(f"FMP: Insufficient income statement data for {ticker}")
-                return None
+            return None
             
         # Extract years (sorted descending - most recent first)
         years = []
