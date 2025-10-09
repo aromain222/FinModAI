@@ -137,8 +137,8 @@ class FMPProvider(BaseProvider):
             data = response.json()
             return data[0] if data else None
         except Exception:
-            return None
-    
+                return None
+            
     def _build_provider_data(
         self,
         ticker: str,
@@ -154,8 +154,8 @@ class FMPProvider(BaseProvider):
         
         if not income_stmt or len(income_stmt) < 3:
             print(f"FMP: Insufficient income statement data for {ticker}")
-            return None
-        
+                return None
+            
         # Extract years (sorted descending - most recent first)
         years = []
         for stmt in income_stmt:
@@ -165,7 +165,7 @@ class FMPProvider(BaseProvider):
         
         if len(years) < 3:
             return None
-        
+    
         # Align all data to these years
         n = len(years)
         
