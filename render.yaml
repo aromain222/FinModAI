@@ -13,5 +13,7 @@ services:
         value: 8000
       - key: ALPHAVANTAGE_API_KEY
         value: PFP7ETK9CEHSFEH
+      - key: FMP_API_KEY
+        value: 6FxULbNNuO1VAt6pkbr7MgzCaMlAIZjK
       - key: FRED_API_KEY
         value: demo
