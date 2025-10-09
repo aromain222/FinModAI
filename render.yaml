@@ -11,3 +11,7 @@ services:
         generateValue: true
       - key: PORT
         value: 8000
+      - key: ALPHAVANTAGE_API_KEY
+        value: PFP7ETK9CEHSFEH
+      - key: FRED_API_KEY
+        value: demo
