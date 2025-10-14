@@ -24,6 +24,16 @@
     <div id="root"></div>
 
     <script type="text/babel">
+        // Debug: Check if libraries loaded
+        console.log('React:', typeof React);
+        console.log('ReactDOM:', typeof ReactDOM);
+        console.log('ReactRouterDOM:', typeof window.ReactRouterDOM);
+        
+        if (!React || !ReactDOM || !window.ReactRouterDOM) {
+            document.getElementById('root').innerHTML = '<div style="color: white; padding: 20px; text-align: center;"><h1>Loading error...</h1><p>React: ' + (typeof React) + '</p><p>ReactDOM: ' + (typeof ReactDOM) + '</p><p>ReactRouterDOM: ' + (typeof window.ReactRouterDOM) + '</p></div>';
+            throw new Error('Required libraries not loaded');
+        }
+        
         const { useState, useEffect, useCallback } = React;
         const { HashRouter, Routes, Route, useNavigate, useLocation, NavLink } = window.ReactRouterDOM;
 
@@ -1546,8 +1556,17 @@
         }
 
         // Render with React 18 API
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        try {
+            const rootElement = document.getElementById('root');
+            console.log('Root element:', rootElement);
+            const root = ReactDOM.createRoot(rootElement);
+            console.log('React root created:', root);
+            root.render(<App />);
+            console.log('App rendered successfully');
+        } catch (error) {
+            console.error('Render error:', error);
+            document.getElementById('root').innerHTML = '<div style="color: white; padding: 20px; text-align: center;"><h1>Render Error</h1><p>' + error.message + '</p><pre>' + error.stack + '</pre></div>';
+        }
     </script>
 </body>
 </html>
