@@ -328,7 +328,7 @@ docker build -t finmodai-market-api -f backend/Dockerfile .
 docker run -p 8000:8000 finmodai-market-api
 ```
 
-### Fly.io / Render / Railway
+### Fly.io / Render
 
 See `backend/README.md` for deployment configs.
 

@@ -2407,7 +2407,7 @@ def main():
     port = args.port
     
     # Check if running in production (cloud environment)
-    is_production = os.environ.get('FLASK_ENV') == 'production' or os.environ.get('RAILWAY_ENVIRONMENT') is not None or os.environ.get('RENDER') is not None
+    is_production = os.environ.get('FLASK_ENV') == 'production' or os.environ.get('RENDER') is not None or os.environ.get('FLY_APP_NAME') is not None
     
     print("🚀 Starting FinModAI Professional Web Interface...")
     
@@ -3596,7 +3596,7 @@ def main():
     port = args.port
     
     # Check if running in production (cloud environment)
-    is_production = os.environ.get('FLASK_ENV') == 'production' or os.environ.get('RAILWAY_ENVIRONMENT') is not None or os.environ.get('RENDER') is not None
+    is_production = os.environ.get('FLASK_ENV') == 'production' or os.environ.get('RENDER') is not None or os.environ.get('FLY_APP_NAME') is not None
     
     print("🚀 Starting FinModAI Professional Web Interface...")
     

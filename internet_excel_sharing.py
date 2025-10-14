@@ -96,14 +96,6 @@ def create_heroku_app():
     print("3. Create app: heroku create your-excel-sharing-app")
     print("4. Deploy: git push heroku main")
 
-def create_railway_app():
-    """Create a Railway app for sharing."""
-    print("🚂 Railway Option:")
-    print("1. Go to https://railway.app")
-    print("2. Sign up with GitHub")
-    print("3. Create new project")
-    print("4. Deploy your Python app")
-
 def create_vercel_app():
     """Create a Vercel app for sharing."""
     print("▲ Vercel Option:")
@@ -381,12 +373,8 @@ def show_cloud_options():
     print("   - Always online")
     print("   - Command: python internet_excel_sharing.py heroku file.xlsx dcf")
     
-    print("\n4. 🚂 Railway (Free tier available)")
-    print("   - Modern platform")
-    print("   - Easy deployment")
-    print("   - Command: python internet_excel_sharing.py railway file.xlsx dcf")
     
-    print("\n5. ▲ Vercel (Free tier available)")
+    print("\n4. ▲ Vercel (Free tier available)")
     print("   - Fast global CDN")
     print("   - Easy deployment")
     print("   - Command: python internet_excel_sharing.py vercel file.xlsx dcf")
@@ -402,7 +390,6 @@ def main():
         print("  ngrok      - Use ngrok tunnel (easiest)")
         print("  cloudflare - Use Cloudflare tunnel")
         print("  heroku     - Deploy to Heroku")
-        print("  railway    - Deploy to Railway")
         print("  vercel     - Deploy to Vercel")
         print("  local      - Local server only")
         print("  options    - Show all options")
@@ -435,9 +422,6 @@ def main():
         result = create_simple_web_server(file_path, model_type, port, use_ngrok=False)
     elif method == "heroku":
         create_heroku_app()
-        result = None
-    elif method == "railway":
-        create_railway_app()
         result = None
     elif method == "vercel":
         create_vercel_app()
