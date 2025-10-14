@@ -7,6 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/history@5/umd/history.production.min.js"></script>
+    <script src="https://unpkg.com/react-router@6.20.0/dist/umd/react-router.production.min.js"></script>
     <script src="https://unpkg.com/react-router-dom@6.20.0/dist/umd/react-router-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
@@ -27,7 +29,9 @@
         // Debug: Check if libraries loaded
         console.log('React:', typeof React);
         console.log('ReactDOM:', typeof ReactDOM);
+        console.log('ReactRouter:', typeof window.ReactRouter);
         console.log('ReactRouterDOM:', typeof window.ReactRouterDOM);
+        console.log('ReactRouterDOM keys:', window.ReactRouterDOM ? Object.keys(window.ReactRouterDOM) : 'undefined');
         
         if (!React || !ReactDOM || !window.ReactRouterDOM) {
             document.getElementById('root').innerHTML = '<div style="color: white; padding: 20px; text-align: center;"><h1>Loading error...</h1><p>React: ' + (typeof React) + '</p><p>ReactDOM: ' + (typeof ReactDOM) + '</p><p>ReactRouterDOM: ' + (typeof window.ReactRouterDOM) + '</p></div>';
@@ -35,7 +39,14 @@
         }
         
         const { useState, useEffect, useCallback } = React;
-        const { HashRouter, Routes, Route, useNavigate, useLocation, NavLink } = window.ReactRouterDOM;
+        // React Router 6 UMD exports differently - access from window.ReactRouterDOM directly
+        const BrowserRouter = window.ReactRouterDOM.BrowserRouter;
+        const HashRouter = window.ReactRouterDOM.HashRouter;
+        const Routes = window.ReactRouterDOM.Routes;
+        const Route = window.ReactRouterDOM.Route;
+        const useNavigate = window.ReactRouterDOM.useNavigate;
+        const useLocation = window.ReactRouterDOM.useLocation;
+        const NavLink = window.ReactRouterDOM.NavLink;
 
         // Feature flags
         const FEATURE_SHOW_ASSUMPTIONS = false;
