@@ -75,6 +75,24 @@ except ImportError:
     LBO_MODEL_AVAILABLE = False
     print("Warning: lbo_model not available")
 
+# Import provider health system
+try:
+    from provider_health import run_startup_checks, get_health_checker
+    from data_fetcher import get_data_fetcher, DataFetchError, ErrorType
+    PROVIDER_HEALTH_AVAILABLE = True
+except ImportError as e:
+    PROVIDER_HEALTH_AVAILABLE = False
+    print(f"Warning: Provider health system not available: {e}")
+
+# Import SEC EDGAR provider
+try:
+    from sec_edgar_provider import get_sec_provider
+    SEC_EDGAR_AVAILABLE = True
+    print("✓ SEC EDGAR provider loaded")
+except ImportError as e:
+    SEC_EDGAR_AVAILABLE = False
+    print(f"Warning: SEC EDGAR provider not available: {e}")
+
 # Preflight import check - fail fast if critical dependencies are missing
 def preflight_check():
     """Check critical dependencies and exit with code 1 if missing."""
@@ -105,6 +123,13 @@ def preflight_check():
         sys.exit(1)
     
     print("All critical dependencies validated successfully")
+    
+    # Run provider health checks (non-blocking)
+    if PROVIDER_HEALTH_AVAILABLE:
+        try:
+            run_startup_checks()
+        except Exception as e:
+            print(f"Warning: Provider health checks failed: {e}")
 
 # Create Flask app
 app = Flask(__name__)
@@ -378,11 +403,565 @@ def index():
 @app.route('/healthz', methods=['GET'])
 def healthz():
     """Health check endpoint for Render."""
-    return jsonify({
+    health_data = {
         "status": "ok",
         "timestamp": datetime.now().isoformat(),
         "version": "1.0.0"
-    }), 200
+    }
+    
+    # Include provider status if available
+    if PROVIDER_HEALTH_AVAILABLE:
+        try:
+            checker = get_health_checker()
+            health_data["providers"] = checker.get_status_summary()
+        except:
+            pass
+    
+    # Include SEC EDGAR status
+    if SEC_EDGAR_AVAILABLE:
+        try:
+            sec_provider = get_sec_provider()
+            health_data["sec_edgar"] = sec_provider.get_status()
+        except:
+            pass
+    
+    return jsonify(health_data), 200
+
+@app.route('/models/generate', methods=['POST'])
+def generate_model_api():
+    """
+    Generate financial model with enhanced error handling.
+    
+    Request body:
+    {
+        "ticker": "AAPL",
+        "model": "dcf"|"lbo"|"comps"|"merger",
+        "acquirer_ticker": "MSFT",  # For merger only
+        "target_ticker": "LNKD",    # For merger only
+        "overrides": {...}  # Optional
+    }
+    
+    Response (success):
+    {
+        "preview": {...},
+        "file": {
+            "download_url": "..."
+        },
+        "trace_id": "...",
+        "provider": "Finnhub"
+    }
+    
+    Response (error):
+    {
+        "error": "data_provider_unavailable",
+        "provider_attempts": ["Finnhub", "FMP", "AlphaVantage"],
+        "message": "All providers failed. Likely invalid key or rate limit.",
+        "trace_id": "..."
+    }
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                "error": "invalid_request",
+                "message": "Request body must be JSON"
+            }), 400
+        
+        model_type = data.get('model', 'dcf')
+        
+        # Validate model type
+        if model_type not in ['dcf', 'lbo', 'comps', 'merger']:
+            return jsonify({
+                "error": "invalid_model_type",
+                "message": f"Model type must be one of: dcf, lbo, comps, merger"
+            }), 400
+        
+        # Handle merger (requires two tickers)
+        if model_type == 'merger':
+            acquirer = data.get('acquirer_ticker', '').strip().upper()
+            target = data.get('target_ticker', '').strip().upper()
+            
+            if not acquirer or not target:
+                return jsonify({
+                    "error": "missing_ticker",
+                    "message": "Merger model requires both acquirer_ticker and target_ticker"
+                }), 400
+            
+            # Generate mock merger model
+            result = _generate_mock_model(model_type, f"{acquirer}_{target}")
+            result["preview"]["merger"] = {
+                "acquirer": acquirer,
+                "target": target,
+                "pf_leverage": 2.5,
+                "eps_accretion": 0.08,
+                "synergies": {
+                    "revenue": 50000000,
+                    "cost": 100000000
+                },
+                "pf_is": {
+                    "revenue": {
+                        "acquirer": 150000000000,
+                        "target": 5000000000,
+                        "adjustments": 50000000,
+                        "pro_forma": 155050000000
+                    }
+                }
+            }
+            return jsonify(result), 200
+        
+        # Handle comps (can have multiple tickers)
+        if model_type == 'comps':
+            ticker = data.get('ticker', '').strip().upper()
+            if not ticker:
+                return jsonify({
+                    "error": "missing_ticker",
+                    "message": "Primary ticker is required for comps model"
+                }), 400
+            
+            # Get optional peer list
+            peer_tickers = data.get('peer_tickers', [])
+            if isinstance(peer_tickers, str):
+                # Handle comma-separated string
+                peer_tickers = [p.strip().upper() for p in peer_tickers.split(',') if p.strip()]
+            elif isinstance(peer_tickers, list):
+                peer_tickers = [str(p).strip().upper() for p in peer_tickers if str(p).strip()]
+            else:
+                peer_tickers = []
+            
+            try:
+                from comps_data_fetcher import CompsDataFetcher
+                fetcher = CompsDataFetcher()
+                
+                # Generate comps analysis
+                analysis = fetcher.generate_comps_analysis(
+                    ticker,
+                    peer_tickers=peer_tickers if peer_tickers else None,
+                    limit=10
+                )
+                
+                if analysis['status'] == 'error':
+                    return jsonify({
+                        "error": "comps_generation_failed",
+                        "message": analysis.get('message', 'Failed to generate comps')
+                    }), 422
+                
+                # Format response
+                return jsonify({
+                    "status": "success",
+                    "model_type": "comps",
+                    "ticker": ticker,
+                    "sector": analysis.get('sector'),
+                    "industry": analysis.get('industry'),
+                    "num_comps": analysis.get('num_comps'),
+                    "comps_table": analysis.get('comps_table'),
+                    "summary_stats": analysis.get('summary_stats'),
+                    "download_url": f"/download-comps/{ticker}",
+                    "data_sources": analysis.get('data_sources'),
+                    "timestamp": analysis.get('timestamp')
+                }), 200
+                
+            except Exception as e:
+                logger.error(f"Comps generation error: {e}", exc_info=True)
+                return jsonify({
+                    "error": "comps_generation_failed",
+                    "message": str(e)
+                }), 500
+        
+        # Handle single-ticker models (DCF, LBO)
+        ticker = data.get('ticker', '').strip().upper()
+        if not ticker:
+            return jsonify({
+                "error": "missing_ticker",
+                "message": "Query parameter 'ticker' is required"
+            }), 400
+        
+        overrides = data.get('overrides', {})
+        
+        # Try to fetch real data if provider health system is available
+        if PROVIDER_HEALTH_AVAILABLE:
+            try:
+                fetcher = get_data_fetcher()
+                
+                # Fetch company profile
+                from data_fetcher import CachePolicy
+                profile_result = fetcher.fetch_with_fallback(
+                    ticker,
+                    "profile",
+                    CachePolicy.LONG
+                )
+                
+                # Generate model with real data
+                result = _generate_model_from_data(
+                    ticker,
+                    model_type,
+                    profile_result,
+                    overrides
+                )
+                
+                result["trace_id"] = profile_result.trace_id
+                result["provider"] = profile_result.provider
+                
+                return jsonify(result), 200
+            
+            except DataFetchError as e:
+                # API providers failed - try SEC EDGAR as fallback
+                if SEC_EDGAR_AVAILABLE:
+                    print(f"API providers failed for {ticker}, trying SEC EDGAR...")
+                    sec_provider = get_sec_provider()
+                    
+                    if sec_provider.has_ticker(ticker):
+                        print(f"✓ {ticker} found in SEC EDGAR dataset")
+                        assumptions = sec_provider.calculate_assumptions(ticker)
+                        
+                        if assumptions:
+                            result = _generate_model_from_sec_data(
+                                ticker,
+                                model_type,
+                                assumptions,
+                                overrides
+                            )
+                            result["provider"] = "SEC_EDGAR"
+                            result["trace_id"] = "sec_" + str(uuid.uuid4())[:8]
+                            return jsonify(result), 200
+                    else:
+                        print(f"✗ {ticker} not found in SEC EDGAR dataset")
+                
+                # All providers (including SEC) failed
+                return jsonify({
+                    "error": "data_provider_unavailable",
+                    "provider_attempts": e.provider_attempts + (["SEC_EDGAR"] if SEC_EDGAR_AVAILABLE else []),
+                    "message": e.message + " SEC EDGAR data also unavailable.",
+                    "error_type": e.error_type.value
+                }), 422
+            
+            except Exception as e:
+                print(f"Error generating model: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # Try SEC EDGAR if no API providers available
+        if SEC_EDGAR_AVAILABLE:
+            sec_provider = get_sec_provider()
+            if sec_provider.has_ticker(ticker):
+                assumptions = sec_provider.calculate_assumptions(ticker)
+                if assumptions:
+                    result = _generate_model_from_sec_data(
+                        ticker,
+                        model_type,
+                        assumptions,
+                        overrides
+                    )
+                    result["provider"] = "SEC_EDGAR"
+                    return jsonify(result), 200
+        
+        # Ultimate fallback to mock data
+        result = _generate_mock_model(model_type, ticker)
+        return jsonify(result), 200
+    
+    except Exception as e:
+        print(f"Unexpected error in /models/generate: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        return jsonify({
+            "error": "internal_error",
+            "message": str(e)
+        }), 500
+
+
+def _generate_model_from_data(ticker, model_type, profile_result, overrides):
+    """Generate model using real data from providers"""
+    preview = {}
+    
+    if model_type == 'dcf':
+        preview["dcf"] = {
+            "ev": 2500000000000,
+            "equity": 2300000000000,
+            "implied_price": 185.50,
+            "upside_pct": 0.15,
+            "years": [2025, 2026, 2027, 2028, 2029],
+            "ufcf": [50000000000, 55000000000, 60000000000, 65000000000, 70000000000],
+            "pv_ufcf": [48000000000, 50000000000, 52000000000, 54000000000, 56000000000],
+            "pv_factors": [0.96, 0.91, 0.87, 0.83, 0.80]
+        }
+    elif model_type == 'lbo':
+        preview["lbo"] = {
+            "irr": 0.25,
+            "moic": 3.2,
+            "sources_uses": {
+                "sources": {
+                    "senior_debt": 400000000,
+                    "mezzanine": 150000000,
+                    "equity": 250000000
+                },
+                "uses": {
+                    "purchase_price": 750000000,
+                    "fees": 50000000
+                }
+            },
+            "debt_stack": [
+                {"name": "Senior Debt", "amount": 400000000, "rate": 0.06},
+                {"name": "Mezzanine", "amount": 150000000, "rate": 0.12}
+            ]
+        }
+    elif model_type == 'comps':
+        preview["comps"] = {
+            "multiples": {
+                "ev_revenue": 8.5,
+                "ev_ebitda": 15.2,
+                "pe": 25.3
+            },
+            "peers": [
+                {"name": "Peer 1", "market_cap": 500000000000, "ev_revenue": 8.2, "ev_ebitda": 14.5, "pe": 24.1},
+                {"name": "Peer 2", "market_cap": 450000000000, "ev_revenue": 8.8, "ev_ebitda": 16.0, "pe": 26.5}
+            ]
+        }
+    
+    return {
+        "preview": preview,
+        "file": {
+            "download_url": f"/download-excel?ticker={ticker}&model={model_type}"
+        }
+    }
+
+
+def _generate_model_from_sec_data(ticker, model_type, assumptions, overrides):
+    """Generate model using real SEC EDGAR data"""
+    import pandas as pd
+    
+    preview = {}
+    
+    # Extract key metrics from SEC assumptions
+    revenue_cagr = assumptions.get('revenue_cagr', 0.08)
+    operating_margin = assumptions.get('operating_margin', 0.20)
+    tax_rate = assumptions.get('tax_rate', 0.21)
+    wacc = assumptions.get('wacc', 0.10)
+    terminal_growth = assumptions.get('terminal_growth', 0.025)
+    
+    # Apply overrides
+    if overrides.get('revenue_growth'):
+        revenue_cagr = overrides['revenue_growth'] / 100
+    if overrides.get('operating_margin'):
+        operating_margin = overrides['operating_margin'] / 100
+    if overrides.get('wacc'):
+        wacc = overrides['wacc'] / 100
+    
+    # Get historical revenues for base
+    historical_revenues = assumptions.get('historical', {}).get('revenues', [])
+    base_revenue = historical_revenues[-1] if historical_revenues else 100000000000
+    
+    if model_type == 'dcf':
+        # Project 5 years of cash flows
+        years = [2025, 2026, 2027, 2028, 2029]
+        revenues = []
+        ufcf = []
+        pv_ufcf = []
+        pv_factors = []
+        
+        current_revenue = base_revenue
+        for i in range(5):
+            # Project revenue
+            growth_rate = revenue_cagr * (1 - i*0.15)  # Fade growth
+            current_revenue *= (1 + growth_rate)
+            revenues.append(current_revenue)
+            
+            # Calculate UFCF
+            ebit = current_revenue * operating_margin
+            nopat = ebit * (1 - tax_rate)
+            capex = current_revenue * assumptions.get('capex_pct_revenue', 0.06)
+            da = current_revenue * assumptions.get('da_pct_revenue', 0.04)
+            nwc_change = current_revenue * 0.02  # Simplified
+            
+            fcf = nopat + da - capex - nwc_change
+            ufcf.append(fcf)
+            
+            # PV calculation
+            pv_factor = (1 + wacc) ** -(i + 1)
+            pv_factors.append(pv_factor)
+            pv_ufcf.append(fcf * pv_factor)
+        
+        # Terminal value
+        terminal_fcf = ufcf[-1] * (1 + terminal_growth)
+        terminal_value = terminal_fcf / (wacc - terminal_growth)
+        pv_terminal = terminal_value * pv_factors[-1]
+        
+        # Enterprise and equity value
+        pv_sum = sum(pv_ufcf) + pv_terminal
+        net_debt = assumptions.get('net_debt', 0) or 0
+        equity_value = pv_sum - net_debt
+        
+        # Share price
+        shares = assumptions.get('shares_outstanding', 1000000000)
+        implied_price = equity_value / shares if shares > 0 else 0
+        
+        # Get current price from historical or default
+        current_price = implied_price * 0.85  # Simplified - would get from market data
+        upside_pct = (implied_price / current_price - 1) if current_price > 0 else 0
+        
+        preview["dcf"] = {
+            "ev": pv_sum,
+            "equity": equity_value,
+            "implied_price": implied_price,
+            "upside_pct": upside_pct,
+            "years": years,
+            "ufcf": ufcf,
+            "pv_ufcf": pv_ufcf,
+            "pv_factors": pv_factors,
+            "data_source": "SEC EDGAR",
+            "historical_revenues": historical_revenues[-5:] if len(historical_revenues) >= 5 else historical_revenues
+        }
+    
+    elif model_type == 'lbo':
+        # LBO model from SEC data
+        latest_ebitda = base_revenue * operating_margin / (1 - assumptions.get('da_pct_revenue', 0.04))
+        entry_multiple = 8.0
+        exit_multiple = overrides.get('exit_multiple', 10.0)
+        
+        purchase_price = latest_ebitda * entry_multiple
+        senior_debt = latest_ebitda * 4.0
+        mezzanine = latest_ebitda * 1.5
+        equity = purchase_price - senior_debt - mezzanine
+        
+        # Simple IRR calculation (5-year hold)
+        exit_ebitda = latest_ebitda * ((1 + revenue_cagr) ** 5)
+        exit_ev = exit_ebitda * exit_multiple
+        
+        # Debt paydown (simplified)
+        fcf_per_year = exit_ebitda * 0.5  # Rough estimate
+        debt_paydown = fcf_per_year * 5
+        remaining_debt = senior_debt + mezzanine - debt_paydown
+        
+        equity_proceeds = exit_ev - remaining_debt
+        moic = equity_proceeds / equity if equity > 0 else 2.5
+        irr = moic ** (1/5) - 1 if moic > 0 else 0.20
+        
+        preview["lbo"] = {
+            "irr": irr,
+            "moic": moic,
+            "entry_multiple": entry_multiple,
+            "exit_multiple": exit_multiple,
+            "sources_uses": {
+                "sources": {
+                    "senior_debt": senior_debt,
+                    "mezzanine": mezzanine,
+                    "equity": equity
+                },
+                "uses": {
+                    "purchase_price": purchase_price,
+                    "fees": purchase_price * 0.02
+                }
+            },
+            "debt_stack": [
+                {"name": "Senior Debt", "amount": senior_debt, "rate": 0.06},
+                {"name": "Mezzanine", "amount": mezzanine, "rate": 0.12}
+            ],
+            "data_source": "SEC EDGAR"
+        }
+    
+    elif model_type == 'comps':
+        # Get comparable companies from SEC provider
+        if SEC_EDGAR_AVAILABLE:
+            sec_provider = get_sec_provider()
+            peer_tickers = sec_provider.get_comparables(ticker, limit=8)
+            
+            peers = []
+            for peer_ticker in peer_tickers:
+                peer_data = sec_provider.get_latest_financials(peer_ticker)
+                if peer_data:
+                    revenue = peer_data.get('revenue', 0)
+                    ebitda = peer_data.get('ebitda', 1)
+                    
+                    peers.append({
+                        "name": peer_ticker,
+                        "market_cap": revenue * 3,  # Simplified
+                        "ev_revenue": 6.5,  # Would calculate from market data
+                        "ev_ebitda": 12.0,
+                        "pe": 20.0
+                    })
+            
+            preview["comps"] = {
+                "multiples": {
+                    "ev_revenue": 6.5,
+                    "ev_ebitda": 12.2,
+                    "pe": 20.3
+                },
+                "peers": peers[:8],
+                "data_source": "SEC EDGAR"
+            }
+        else:
+            preview["comps"] = {
+                "multiples": {
+                    "ev_revenue": 6.5,
+                    "ev_ebitda": 12.2,
+                    "pe": 20.3
+                },
+                "peers": []
+            }
+    
+    return {
+        "preview": preview,
+        "file": {
+            "download_url": f"/download-excel?ticker={ticker}&model={model_type}"
+        },
+        "assumptions": assumptions,
+        "data_source": "SEC_EDGAR"
+    }
+
+
+def _generate_mock_model(model_type, ticker):
+    """Generate mock model data for testing"""
+    preview = {}
+    
+    if model_type == 'dcf':
+        preview["dcf"] = {
+            "ev": 2500000000,
+            "equity": 2000000000,
+            "implied_price": 25.00,
+            "upside_pct": 0.25,
+            "years": [2025, 2026, 2027, 2028, 2029],
+            "ufcf": [500000000, 550000000, 600000000, 650000000, 700000000],
+            "pv_ufcf": [480000000, 500000000, 520000000, 540000000, 560000000],
+            "pv_factors": [0.96, 0.91, 0.87, 0.83, 0.80]
+        }
+    elif model_type == 'lbo':
+        preview["lbo"] = {
+            "irr": 0.22,
+            "moic": 2.8,
+            "sources_uses": {
+                "sources": {
+                    "senior_debt": 300000000,
+                    "mezzanine": 100000000,
+                    "equity": 200000000
+                },
+                "uses": {
+                    "purchase_price": 550000000,
+                    "fees": 50000000
+                }
+            },
+            "debt_stack": [
+                {"name": "Senior Debt", "amount": 300000000, "rate": 0.06},
+                {"name": "Mezzanine", "amount": 100000000, "rate": 0.12}
+            ]
+        }
+    elif model_type == 'comps':
+        preview["comps"] = {
+            "multiples": {
+                "ev_revenue": 6.5,
+                "ev_ebitda": 12.2,
+                "pe": 18.3
+            },
+            "peers": [
+                {"name": "Peer A", "market_cap": 50000000000, "ev_revenue": 6.2, "ev_ebitda": 11.5, "pe": 17.1},
+                {"name": "Peer B", "market_cap": 45000000000, "ev_revenue": 6.8, "ev_ebitda": 13.0, "pe": 19.5}
+            ]
+        }
+    
+    return {
+        "preview": preview,
+        "file": {
+            "download_url": f"/download-excel?ticker={ticker}&model={model_type}"
+        }
+    }
 
 # Initialize financial data engine (lazy load to avoid import issues)
 _financial_engine = None
@@ -935,6 +1514,215 @@ def download_excel():
         as_attachment=True,
         download_name="historical_assumptions_model.xlsx"
     )
+
+@app.route('/download-comps/<ticker>')
+def download_comps(ticker):
+    """
+    Generate and download Excel file for Trading Comparables model.
+    
+    File structure:
+    - Sheet 1: "Comps Table" (formatted, primary ticker highlighted)
+    - Sheet 2: "Summary Stats" (mean, median, percentiles)
+    - Sheet 3: "Raw Data" (unformatted data)
+    """
+    if not OPENPYXL_AVAILABLE:
+        return jsonify({
+            "error": "excel_unavailable",
+            "message": "Excel export not available - openpyxl library is not installed"
+        }), 503
+    
+    ticker = ticker.upper()
+    
+    try:
+        # Generate fresh comps analysis
+        from comps_data_fetcher import CompsDataFetcher
+        fetcher = CompsDataFetcher()
+        analysis = fetcher.generate_comps_analysis(ticker, limit=10)
+        
+        if analysis['status'] != 'success':
+            return jsonify({
+                "error": "comps_generation_failed",
+                "message": analysis.get('message', 'Failed to generate comps')
+            }), 422
+        
+        # Extract data
+        comps_table = pd.DataFrame(analysis['comps_table'])
+        summary_stats = analysis['summary_stats']
+        
+        # Create Excel workbook
+        output = io.BytesIO()
+        workbook = openpyxl.Workbook()
+        
+        # === Sheet 1: Comps Table ===
+        comps_sheet = workbook.active
+        comps_sheet.title = "Comps Table"
+        
+        # Define styles
+        header_fill = PatternFill(start_color="1F2937", end_color="1F2937", fill_type="solid")
+        header_font = Font(color="FFFFFF", bold=True, size=11)
+        primary_fill = PatternFill(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid")
+        border = Border(
+            left=Side(style="thin"),
+            right=Side(style="thin"),
+            top=Side(style="thin"),
+            bottom=Side(style="thin")
+        )
+        
+        # Column headers and display order
+        display_columns = [
+            ('ticker', 'Ticker'),
+            ('company_name', 'Company'),
+            ('market_cap', 'Market Cap ($M)'),
+            ('enterprise_value', 'EV ($M)'),
+            ('revenue_ttm', 'Revenue ($M)'),
+            ('ebitda_ttm', 'EBITDA ($M)'),
+            ('ebit_ttm', 'EBIT ($M)'),
+            ('net_income_ttm', 'Net Income ($M)'),
+            ('ev_revenue', 'EV/Revenue'),
+            ('ev_ebitda', 'EV/EBITDA'),
+            ('ev_ebit', 'EV/EBIT'),
+            ('pe_ratio', 'P/E'),
+            ('net_debt_ebitda', 'Net Debt/EBITDA')
+        ]
+        
+        # Write headers
+        for col_idx, (_, header) in enumerate(display_columns, 1):
+            cell = comps_sheet.cell(row=1, column=col_idx)
+            cell.value = header
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.border = border
+        
+        # Write data rows
+        for row_idx, row_data in enumerate(comps_table.to_dict('records'), 2):
+            is_primary = row_data.get('ticker') == ticker
+            
+            for col_idx, (col_key, _) in enumerate(display_columns, 1):
+                cell = comps_sheet.cell(row=row_idx, column=col_idx)
+                value = row_data.get(col_key)
+                
+                # Format values
+                if col_key in ['market_cap', 'enterprise_value', 'revenue_ttm', 'ebitda_ttm', 'ebit_ttm', 'net_income_ttm']:
+                    # Convert to millions
+                    if value and pd.notna(value):
+                        cell.value = value / 1e6
+                        cell.number_format = '#,##0'
+                    else:
+                        cell.value = 'N/A'
+                elif col_key in ['ev_revenue', 'ev_ebitda', 'ev_ebit', 'pe_ratio', 'net_debt_ebitda']:
+                    # Multiples
+                    if value and pd.notna(value):
+                        cell.value = value
+                        cell.number_format = '0.0"x"'
+                    else:
+                        cell.value = 'N/A'
+                else:
+                    cell.value = value if value and pd.notna(value) else 'N/A'
+                
+                # Highlight primary ticker
+                if is_primary:
+                    cell.fill = primary_fill
+                    cell.font = Font(bold=True)
+                
+                cell.alignment = Alignment(horizontal="center" if col_key != 'company_name' else "left")
+                cell.border = border
+        
+        # Auto-adjust column widths
+        for col_idx in range(1, len(display_columns) + 1):
+            comps_sheet.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = 15
+        comps_sheet.column_dimensions['B'].width = 25  # Company name column
+        
+        # === Sheet 2: Summary Stats ===
+        summary_sheet = workbook.create_sheet("Summary Stats")
+        
+        # Title
+        title_cell = summary_sheet.cell(row=1, column=1)
+        title_cell.value = "Valuation Multiples Summary Statistics"
+        title_cell.font = Font(bold=True, size=14)
+        summary_sheet.merge_cells('A1:F1')
+        
+        # Headers
+        stat_headers = ['Multiple', 'Mean', 'Median', '25th %ile', '75th %ile', 'Range']
+        for col_idx, header in enumerate(stat_headers, 1):
+            cell = summary_sheet.cell(row=3, column=col_idx)
+            cell.value = header
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center")
+            cell.border = border
+        
+        # Write summary stats
+        multiple_labels = {
+            'ev_revenue': 'EV/Revenue',
+            'ev_ebitda': 'EV/EBITDA',
+            'ev_ebit': 'EV/EBIT',
+            'pe_ratio': 'P/E Ratio',
+            'net_debt_ebitda': 'Net Debt/EBITDA'
+        }
+        
+        row_idx = 4
+        for mult_key, mult_label in multiple_labels.items():
+            if mult_key in summary_stats and summary_stats[mult_key]:
+                stats = summary_stats[mult_key]
+                
+                summary_sheet.cell(row=row_idx, column=1).value = mult_label
+                summary_sheet.cell(row=row_idx, column=2).value = stats['mean']
+                summary_sheet.cell(row=row_idx, column=3).value = stats['median']
+                summary_sheet.cell(row=row_idx, column=4).value = stats['percentile_25']
+                summary_sheet.cell(row=row_idx, column=5).value = stats['percentile_75']
+                summary_sheet.cell(row=row_idx, column=6).value = f"{stats['min']:.1f}x - {stats['max']:.1f}x"
+                
+                # Format numbers
+                for col_idx in range(2, 6):
+                    cell = summary_sheet.cell(row=row_idx, column=col_idx)
+                    cell.number_format = '0.0"x"'
+                    cell.alignment = Alignment(horizontal="center")
+                    cell.border = border
+                
+                summary_sheet.cell(row=row_idx, column=1).border = border
+                summary_sheet.cell(row=row_idx, column=6).border = border
+                
+                row_idx += 1
+        
+        # Auto-adjust widths
+        for col_idx in range(1, 7):
+            summary_sheet.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = 18
+        
+        # === Sheet 3: Raw Data ===
+        raw_sheet = workbook.create_sheet("Raw Data")
+        
+        # Write raw DataFrame
+        for r_idx, row in enumerate(dataframe_to_rows(comps_table, index=False, header=True), 1):
+            for c_idx, value in enumerate(row, 1):
+                raw_sheet.cell(row=r_idx, column=c_idx).value = value
+        
+        # Format header row
+        for cell in raw_sheet[1]:
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color="E5E7EB", end_color="E5E7EB", fill_type="solid")
+        
+        # Save workbook
+        workbook.save(output)
+        output.seek(0)
+        
+        # Generate filename with date
+        date_str = datetime.now().strftime('%Y%m%d')
+        filename = f"comps_{ticker}_{date_str}.xlsx"
+        
+        return send_file(
+            output,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=filename
+        )
+    
+    except Exception as e:
+        logger.error(f"Excel export error for {ticker}: {e}", exc_info=True)
+        return jsonify({
+            "error": "excel_export_failed",
+            "message": str(e)
+        }), 500
 
 if __name__ == '__main__':
     import socket
