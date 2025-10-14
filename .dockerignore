@@ -1,127 +1,148 @@
-# Git
-.git
-.gitignore
-.gitattributes
-
-# GitHub
-.github
-
 # Python
-__pycache__
+__pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-*.egg-info
-dist
-build
-*.egg
-.pytest_cache
-.mypy_cache
-.coverage
-htmlcov
-
-# Virtual environments
 venv/
 env/
 ENV/
-.venv
 
-# IDE
+# IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-.DS_Store
 
-# Documentation
-*.md
-!README.md
-docs/
+# Git
+.git/
+.gitignore
+
+# Excel files (NOT needed in Docker - hundreds of MB!)
+*.xlsx
+*.xls
+*.xlsm
+
+# Large data files (keep only dataset/ CSV in production)
+*.csv
+!dataset/*.csv
+
+# JSON data files (not needed)
+results.json
+sample_lbo_model.json
+grants.csv
 
 # Logs
 *.log
-logs/
 scraper.log
-vc_scraper.log
 server.log
 
-# Test files
-test_*.py
-*_test.py
-tests/
-pytest.ini
-.pytest_cache
-
-# Temporary files
-tmp/
-temp/
-*.tmp
-*.bak
-*.backup
-*.backup[0-9]
-*.new
-*.new[0-9]
-
-# Generated files
-*.xlsx
-*.xls
-*.csv
-generated_models/
-uploads/
-financial_data/
-
-# Credentials (should be in .gitignore too)
-credentials/
-*.pem
-*.key
-*.env
-.env.*
-!.env.example
-
-# Node modules (if any)
-node_modules/
-
-# Render/deployment configs (already in repo, don't need in image)
-render.yaml
-railway.json
-Procfile
-Procfile_professional
-
-# Development scripts
-examine_*.py
-debug_*.py
-test_*.py
-fix_*.py
-improve_*.py
-demo_*.py
-check_*.py
-quick_*.py
-simple_*.py
-start_*.py
-verify_*.py
-monitor_*.py
-
-# Deployment docs
-DEPLOY*.md
-DEPLOYMENT*.md
-RENDER*.md
-*_SUMMARY.md
-*_STATUS.md
-*_README.md
-!README.md
-
-# Misc
-*.zip
-*.tgz
-ngrok*
-grants.csv
-results.json
-vc_results.json
-share_*.html
-tmp.html
+# Images
 *.png
 *.jpg
 *.jpeg
+*.gif
 
+# Archives
+*.zip
+*.tgz
+*.tar.gz
+ngrok
+ngrok.zip
+
+# Temporary/backup files
+*.tmp
+*.bak
+*.backup
+*.backup2
+*.py.backup*
+*.py.bak
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation (not needed in production)
+*.md
+!README.md
+
+# Test files (100+ files not needed!)
+test_*.py
+*_test.py
+tests/
+
+# Demo files (not needed)
+demo_*.py
+examine_*.py
+debug_*.py
+fix_*.py
+check_*.py
+quick_*.py
+simple_*.py
+comprehensive_*.py
+connectivity_*.py
+final_*.py
+honest_*.py
+
+# Other platform configs
+render*.yaml
+Procfile*
+railway.json
+docker-entrypoint.sh
+set_env.sh
+runtime.txt
+
+# Generated models (huge!)
+generated_models/
+uploads/
+*.xlsx
+
+# Credentials
+credentials/
+
+# Other projects
+Bitcoin-Scraper/
+Financial\ Modeling/
+financial-models-app/
+
+# Unnecessary Python files
+setup*.py
+monitor_*.py
+bulk_*.py
+improve_*.py
+integrate_*.py
+verify_*.py
+start_*.py
+!start.sh
+lbo_model_generator.py
+company_dcf_generator.py
+*_demo.py
+*_examples.py
+excel_*.py
+google_*.py
+internet_*.py
+local_*.py
+model_*.py
+direct_*.py
+data_quality_*.py
+cell_*.py
+
+# Old/alternate apps
+app.py
+professional_app.py
+minimal_app_simple.py
+routes.py
+wsgi*.py
+finmodai_platform.py
+
+# Keep only what's needed:
+# - minimal_app.py (main app)
+# - gunicorn_config.py
+# - requirements.txt
+# - templates/
+# - static/
+# - provider_health.py
+# - data_fetcher.py
+# - sec_edgar_provider.py
+# - dataset/*.csv

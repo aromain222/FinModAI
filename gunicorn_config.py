@@ -41,6 +41,16 @@ def on_starting(server):
     print("="*60)
     print("All critical dependencies loaded successfully!")
     print("="*60)
+    
+    # Run provider health checks
+    try:
+        from provider_health import run_startup_checks
+        print("\n")
+        run_startup_checks()
+        print("\n")
+    except Exception as e:
+        print(f"⚠️  Warning: Provider health checks failed: {e}")
+        print("Application will start but data providers may not be available")
 
 def on_reload(server):
     """Run when workers are reloaded."""

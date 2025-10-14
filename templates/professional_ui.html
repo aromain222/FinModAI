@@ -5,75 +5,70 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FinModAI Professional</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/react-router-dom@6.20.0/dist/umd/react-router-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
-        .navy { color: #1F4E79; }
-        .navy-bg { background-color: #1F4E79; }
-        .gray-panel { background-color: #F3F4F6; }
-        .green-output { color: #2E7D32; }
-        .green-bg { background-color: #2E7D32; }
-        .sticky-panel { position: sticky; top: 16px; }
-        .focus-ring:focus { outline: 2px solid #1F4E79; outline-offset: 2px; }
         .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: loading 1.5s infinite; }
         @keyframes loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        .sticky-column { position: sticky; top: 24px; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
-<body class="bg-white">
+<body>
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useCallback } = React;
+        const { HashRouter, Routes, Route, useNavigate, useLocation, NavLink } = window.ReactRouterDOM;
+
+        // Feature flags
+        const FEATURE_SHOW_ASSUMPTIONS = false;
 
         // API Configuration
         const API_BASE = window.location.origin;
 
-        // Model Types
-        const MODEL_TYPES = [
-            { id: 'dcf', name: 'DCF', description: 'Discounted Cash Flow', icon: '📊', color: 'blue' },
-            { id: 'lbo', name: 'LBO', description: 'Leveraged Buyout', icon: '🏦', color: 'green' },
-            { id: 'comps', name: 'Comps', description: 'Trading Comparables', icon: '📈', color: 'purple' },
-            { id: 'merger', name: 'Merger', description: 'Merger Analysis', icon: '🤝', color: 'orange' }
-        ];
-
         // State Machine
-        const STATE = {
-            IDLE: 'idle',
-            LOADING: 'loading',
-            READY: 'ready',
-            ERROR: 'error'
-        };
-
-        // Loading Status Sequence
-        const LOADING_STEPS = [
-            'Pulling historicals…',
-            'Deriving assumptions…',
-            'Building workbook…'
-        ];
+        const STATE = { IDLE: 'idle', LOADING: 'loading', READY: 'ready', ERROR: 'error' };
 
         // Utility Functions
         const formatCurrency = (value) => {
-            if (value === null || value === undefined) return 'Unavailable';
-            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
+            if (value === null || value === undefined) return 'N/A';
+            if (value >= 1e9) return `$${(value / 1e9).toFixed(1)}B`;
+            if (value >= 1e6) return `$${(value / 1e6).toFixed(1)}M`;
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(value);
         };
 
         const formatPercent = (value) => {
-            if (value === null || value === undefined) return 'Unavailable';
+            if (value === null || value === undefined) return 'N/A';
             return `${(value * 100).toFixed(1)}%`;
         };
 
         const formatMultiple = (value) => {
-            if (value === null || value === undefined) return 'Unavailable';
+            if (value === null || value === undefined) return 'N/A';
             return `${value.toFixed(1)}x`;
         };
 
-        const validateTicker = (ticker) => {
-            const regex = /^[A-Z][A-Z0-9.\-]{0,14}$/;
-            return regex.test(ticker);
+        const validateTicker = (ticker) => /^[A-Z][A-Z0-9.\-]{0,14}$/.test(ticker);
+        const clampPercent = (value) => Math.max(0, Math.min(100, value));
+
+        // LocalStorage helpers
+        const getStoredState = (model) => {
+            try {
+                const stored = localStorage.getItem(`finmodai:${model}:state`);
+                return stored ? JSON.parse(stored) : null;
+            } catch { return null; }
+        };
+
+        const setStoredState = (model, state) => {
+            try {
+                localStorage.setItem(`finmodai:${model}:state`, JSON.stringify(state));
+            } catch {}
         };
 
         // Skeleton Components
@@ -81,966 +76,1476 @@
             <div className={`skeleton rounded ${className}`}></div>
         );
 
-        const SkeletonTable = ({ rows = 5, cols = 4 }) => (
+        const SkeletonCard = () => (
+            <div className="bg-white rounded-lg p-4 space-y-3">
+                <SkeletonBox className="h-4 w-24" />
+                <SkeletonBox className="h-8 w-full" />
+            </div>
+        );
+
+        const SkeletonTable = ({ rows = 5 }) => (
             <div className="space-y-2">
                 {Array.from({ length: rows }).map((_, i) => (
                     <div key={i} className="flex space-x-2">
-                        {Array.from({ length: cols }).map((_, j) => (
-                            <SkeletonBox key={j} className="h-4 flex-1" />
-                        ))}
+                        <SkeletonBox className="h-4 w-1/4" />
+                        <SkeletonBox className="h-4 w-1/4" />
+                        <SkeletonBox className="h-4 w-1/4" />
+                        <SkeletonBox className="h-4 w-1/4" />
                     </div>
                 ))}
             </div>
         );
 
-        // Model Hub Component
-        const ModelHub = ({ onSelectModel }) => (
-            <div className="min-h-screen bg-gray-50">
-                <header className="bg-white shadow-sm border-b">
+        // Top Navigation Component
+        const TopNav = () => (
+            <nav className="bg-white border-b border-gray-200 sticky top-0 z-50" data-testid="model-nav">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="flex justify-between items-center py-4">
-                            <div className="flex items-center">
-                                <h1 className="text-2xl font-bold navy">FinModAI Professional</h1>
+                    <div className="flex items-center justify-between h-16">
+                        <div className="flex items-center space-x-8">
+                            <h1 className="text-xl font-bold text-gray-900">FinModAI</h1>
+                            <div className="flex space-x-1">
+                                <NavLink to="/dcf" className={({ isActive }) => `px-4 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`} data-testid="active-model-tab" aria-current="page">
+                                    DCF
+                                </NavLink>
+                                <NavLink to="/lbo" className={({ isActive }) => `px-4 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? 'bg-teal-100 text-teal-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}>
+                                    LBO
+                                </NavLink>
+                                <NavLink to="/comps" className={({ isActive }) => `px-4 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}>
+                                    Comps
+                                </NavLink>
+                                <NavLink to="/merger" className={({ isActive }) => `px-4 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? 'bg-orange-100 text-orange-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`}>
+                                    Merger
+                                </NavLink>
                             </div>
-                            <div className="flex items-center space-x-4">
-                                <span className="text-sm text-gray-500">Investment Banking Models</span>
                             </div>
+                        <div className="text-sm text-gray-500">Professional Models</div>
                         </div>
                     </div>
-                </header>
-
-                <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                    <div className="text-center mb-8">
-                        <h2 className="text-3xl font-bold text-gray-900 mb-4">Select Financial Model</h2>
-                        <p className="text-lg text-gray-600">Choose the type of financial model you want to build</p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-                        {MODEL_TYPES.map((model) => (
-                            <div
-                                key={model.id}
-                                data-testid="model-tabs"
-                                className="bg-white border-2 border-gray-200 rounded-xl p-6 cursor-pointer hover:shadow-lg transition-all duration-200 transform hover:scale-105 hover:border-blue-500"
-                                onClick={() => onSelectModel(model.id)}
-                            >
-                                <div className="text-center">
-                                    <div className="text-4xl mb-4">{model.icon}</div>
-                                    <h3 className="text-xl font-semibold navy mb-2">{model.name}</h3>
-                                    <p className="text-gray-600 text-sm mb-3">{model.description}</p>
-                                    <div className="text-xs text-gray-500">
-                                        {model.id === 'dcf' && '• Enterprise Value • Terminal Value • WACC'}
-                                        {model.id === 'lbo' && '• Debt Schedule • IRR/MOIC • Covenants'}
-                                        {model.id === 'comps' && '• Peer Analysis • Multiples • Valuation Range'}
-                                        {model.id === 'merger' && '• Pro Forma IS • Synergies • Accretion Analysis'}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="text-center">
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                            <p className="text-green-800 font-medium">✅ Professional IB Modeling Platform Ready</p>
-                            <p className="text-green-600 text-sm mt-1">Select a model above to begin analysis</p>
-                        </div>
-                    </div>
-                </main>
-            </div>
-        );
-
-        // Segmented Control Component
-        const SegmentedControl = ({ selectedModel, onModelChange }) => (
-            <div className="bg-gray-100 rounded-lg p-1 flex" data-testid="model-tabs">
-                {MODEL_TYPES.map((model) => (
-                    <button
-                        key={model.id}
-                        className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                            selectedModel === model.id
-                                ? 'navy-bg text-white shadow-sm'
-                                : 'text-gray-600 hover:text-gray-900'
-                        }`}
-                        onClick={() => onModelChange(model.id)}
-                    >
-                        {model.name}
-                    </button>
-                ))}
-            </div>
+            </nav>
         );
 
         // Status Banner Component
-        const StatusBanner = ({ state, loadingStatus, error }) => {
-            if (state === STATE.ERROR) {
+        const StatusBanner = ({ state, message, error }) => {
+            if (state === STATE.ERROR && error) {
                 return (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6" data-testid="error-banner" aria-live="polite">
-                        <div className="flex items-center">
-                            <div className="text-red-400 mr-3">⚠️</div>
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6" data-testid="error-banner" role="alert" aria-live="polite">
+                        <div className="flex items-start">
+                            <span className="text-red-500 text-xl mr-3">⚠️</span>
                             <div>
-                                <h3 className="text-red-800 font-medium">Error</h3>
-                                <p className="text-red-700 text-sm mt-1">{error?.message || 'An error occurred'}</p>
-                                {error?.provider_attempts && (
-                                    <p className="text-red-600 text-xs mt-1">
-                                        Providers attempted: {error.provider_attempts.join(', ')}
-                                    </p>
-                                )}
-                            </div>
+                                <h3 className="text-red-900 font-semibold">Error</h3>
+                                <p className="text-red-700 text-sm mt-1">{error}</p>
+                    </div>
                         </div>
                     </div>
                 );
             }
 
-            if (state === STATE.LOADING) {
+            if (state === STATE.LOADING && message) {
                 return (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6" data-testid="status-banner" aria-live="polite">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6" data-testid="status-banner" role="status" aria-live="polite">
                         <div className="flex items-center">
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
-                            <div>
-                                <h3 className="text-blue-800 font-medium">Building Model</h3>
-                                <p className="text-blue-700 text-sm mt-1">{loadingStatus}</p>
-                            </div>
-                        </div>
-                    </div>
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3"></div>
+                            <p className="text-blue-900 font-medium">{message}</p>
+                                    </div>
+                                </div>
                 );
             }
 
-            if (state === STATE.READY) {
-                return (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6" data-testid="status-banner" aria-live="polite">
-                        <div className="flex items-center">
-                            <div className="text-green-400 mr-3">✅</div>
-                            <div>
-                                <h3 className="text-green-800 font-medium">Model Ready</h3>
-                                <p className="text-green-700 text-sm mt-1">Review assumptions or download the Excel.</p>
-                            </div>
-                        </div>
-                    </div>
-                );
-            }
-
-            return (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6" data-testid="status-banner" aria-live="polite">
-                    <div className="flex items-center">
-                        <div className="text-gray-400 mr-3">📊</div>
-                        <div>
-                            <h3 className="text-gray-800 font-medium">Ready to Build</h3>
-                            <p className="text-gray-600 text-sm mt-1">Enter a ticker and click Create Model to begin.</p>
-                        </div>
-                    </div>
-                </div>
-            );
+            return null;
         };
 
-        // Provenance Badge Component
-        const ProvenanceBadge = ({ source, asOf }) => (
-            <div className="text-xs text-gray-500 mt-1">
-                <span className="font-medium">{source}</span>
-                <span className="mx-1">•</span>
-                <span>{asOf}</span>
-            </div>
-        );
+        // DCF Page
+        const DCFPage = () => {
+            const navigate = useNavigate();
+            const location = useLocation();
+            const searchParams = new URLSearchParams(location.search);
+            const urlTicker = searchParams.get('ticker');
 
-        // Assumptions Mini-Panel Component
-        const AssumptionsPanel = ({ assumptions, provenance, overrides, flags, state }) => {
-            if (state === STATE.LOADING) {
-                return (
-                    <div className="bg-white rounded-xl border border-gray-200 p-6 sticky-panel" data-testid="assumptions-panel">
-                        <h3 className="text-lg font-semibold navy mb-4">Assumptions</h3>
-                        <div className="space-y-4">
-                            <div>
-                                <SkeletonBox className="h-4 w-24 mb-2" />
-                                <SkeletonBox className="h-8 w-full" />
-                            </div>
-                            <div>
-                                <SkeletonBox className="h-4 w-20 mb-2" />
-                                <SkeletonBox className="h-8 w-full" />
-                            </div>
-                            <div>
-                                <SkeletonBox className="h-4 w-16 mb-2" />
-                                <SkeletonBox className="h-6 w-full" />
-                            </div>
-                        </div>
-                    </div>
-                );
-            }
+            const [ticker, setTicker] = useState(urlTicker || '');
+            const [overrides, setOverrides] = useState({});
+            const [state, setState] = useState(STATE.IDLE);
+            const [error, setError] = useState(null);
+            const [preview, setPreview] = useState(null);
+            const [downloadUrl, setDownloadUrl] = useState(null);
 
-            if (!assumptions) {
-                return (
-                    <div className="bg-white rounded-xl border border-gray-200 p-6 sticky-panel" data-testid="assumptions-panel">
-                        <h3 className="text-lg font-semibold navy mb-4">Assumptions</h3>
-                        <p className="text-gray-500 text-sm">Enter a ticker to load assumptions</p>
-                    </div>
-                );
-            }
-
-            return (
-                <div className="bg-white rounded-xl border border-gray-200 p-6 sticky-panel" data-testid="assumptions-panel">
-                    <h3 className="text-lg font-semibold navy mb-4">Assumptions</h3>
-                    
-                    {/* Flags */}
-                    {flags && flags.length > 0 && (
-                        <div className="mb-4" data-testid="flags-section">
-                            <div className="flex flex-wrap gap-2">
-                                {flags.map((flag, index) => (
-                                    <span key={index} className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full">
-                                        ⚠️ {flag}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Revenue Growth Path */}
-                    <div className="mb-4" data-testid="assumptions-growth">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Revenue Growth Path</h4>
-                        <div className="space-y-1">
-                            {assumptions.assumptions?.revenue_growth?.map((growth, index) => (
-                                <div key={index} className="flex justify-between items-center">
-                                    <span className="text-xs text-gray-600">Year {index + 1}</span>
-                                    <span className="text-sm font-medium">
-                                        {formatPercent(growth)}
-                                        {overrides?.revenue_growth?.[index] !== undefined && (
-                                            <span className="ml-1 text-xs bg-blue-100 text-blue-800 px-1 rounded">override</span>
-                                        )}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                        {provenance?.revenue && <ProvenanceBadge source={provenance.revenue.source} asOf={provenance.revenue.as_of} />}
-                    </div>
-
-                    {/* Operating Margin Path */}
-                    <div className="mb-4" data-testid="assumptions-margin">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Operating Margin Path</h4>
-                        <div className="space-y-1">
-                            {assumptions.assumptions?.operating_margin?.map((margin, index) => (
-                                <div key={index} className="flex justify-between items-center">
-                                    <span className="text-xs text-gray-600">Year {index + 1}</span>
-                                    <span className="text-sm font-medium">
-                                        {formatPercent(margin)}
-                                        {overrides?.operating_margin?.[index] !== undefined && (
-                                            <span className="ml-1 text-xs bg-blue-100 text-blue-800 px-1 rounded">override</span>
-                                        )}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                        {provenance?.op_margin && <ProvenanceBadge source={provenance.op_margin.source} asOf={provenance.op_margin.as_of} />}
-                    </div>
-
-                    {/* D&A, CapEx, NWC, Tax */}
-                    <div className="mb-4">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Key Metrics (% of Revenue)</h4>
-                        <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs text-gray-600">D&A</span>
-                                <span className="text-sm font-medium">
-                                    {formatPercent(assumptions.assumptions?.da_pct_rev)}
-                                    {overrides?.da_pct_rev !== undefined && (
-                                        <span className="ml-1 text-xs bg-blue-100 text-blue-800 px-1 rounded">override</span>
-                                    )}
-                                </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs text-gray-600">CapEx</span>
-                                <span className="text-sm font-medium">
-                                    {formatPercent(assumptions.assumptions?.capex_pct_rev)}
-                                    {overrides?.capex_pct_rev !== undefined && (
-                                        <span className="ml-1 text-xs bg-blue-100 text-blue-800 px-1 rounded">override</span>
-                                    )}
-                                </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs text-gray-600">ΔNWC</span>
-                                <span className="text-sm font-medium">
-                                    {formatPercent(assumptions.assumptions?.nwc_pct_rev)}
-                                    {overrides?.nwc_pct_rev !== undefined && (
-                                        <span className="ml-1 text-xs bg-blue-100 text-blue-800 px-1 rounded">override</span>
-                                    )}
-                                </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs text-gray-600">Tax Rate</span>
-                                <span className="text-sm font-medium">
-                                    {formatPercent(assumptions.assumptions?.tax_rate)}
-                                    {overrides?.tax_rate !== undefined && (
-                                        <span className="ml-1 text-xs bg-blue-100 text-blue-800 px-1 rounded">override</span>
-                                    )}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* WACC */}
-                    <div className="mb-4" data-testid="assumptions-wacc">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">WACC</h4>
-                        <div className="space-y-1">
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs text-gray-600">Risk-Free Rate</span>
-                                <span className="text-sm font-medium">{formatPercent(assumptions.wacc?.rf)}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs text-gray-600">Beta</span>
-                                <span className="text-sm font-medium">{assumptions.wacc?.beta?.toFixed(2) || 'Unavailable'}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs text-gray-600">ERP</span>
-                                <span className="text-sm font-medium">{formatPercent(assumptions.wacc?.erp)}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs text-gray-600">Cost of Equity</span>
-                                <span className="text-sm font-medium">{formatPercent(assumptions.wacc?.ke)}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs text-gray-600">Cost of Debt (After Tax)</span>
-                                <span className="text-sm font-medium">{formatPercent(assumptions.wacc?.kd_after)}</span>
-                            </div>
-                            <div className="flex justify-between items-center border-t pt-1">
-                                <span className="text-sm font-medium text-gray-700">WACC</span>
-                                <span className="text-sm font-bold navy">{formatPercent(assumptions.wacc?.wacc)}</span>
-                            </div>
-                        </div>
-                        {provenance?.rf && <ProvenanceBadge source={provenance.rf.source} asOf={provenance.rf.as_of} />}
-                    </div>
-
-                    {/* Terminal */}
-                    <div data-testid="assumptions-terminal">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Terminal</h4>
-                        <div className="space-y-1">
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs text-gray-600">Method</span>
-                                <span className="text-sm font-medium">{assumptions.terminal?.method || 'Unavailable'}</span>
-                            </div>
-                            {assumptions.terminal?.method === 'perpetuity' && (
-                                <div className="flex justify-between items-center">
-                                    <span className="text-xs text-gray-600">Growth Rate</span>
-                                    <span className="text-sm font-medium">
-                                        {formatPercent(assumptions.terminal?.g)}
-                                        {overrides?.terminal_g !== undefined && (
-                                            <span className="ml-1 text-xs bg-blue-100 text-blue-800 px-1 rounded">override</span>
-                                        )}
-                                    </span>
-                                </div>
-                            )}
-                            {assumptions.terminal?.method === 'exit_multiple' && (
-                                <div className="flex justify-between items-center">
-                                    <span className="text-xs text-gray-600">EV/EBITDA</span>
-                                    <span className="text-sm font-medium">
-                                        {formatMultiple(assumptions.terminal?.ev_ebitda)}
-                                        {overrides?.exit_multiple !== undefined && (
-                                            <span className="ml-1 text-xs bg-blue-100 text-blue-800 px-1 rounded">override</span>
-                                        )}
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        // Preview Panel Component
-        const PreviewPanel = ({ preview, modelType, state }) => {
-            if (state === STATE.LOADING) {
-                return (
-                    <div className="bg-white rounded-xl border border-gray-200 p-6" data-testid="preview-panel">
-                        <h3 className="text-lg font-semibold navy mb-4">Preview</h3>
-                        <SkeletonTable rows={8} cols={4} />
-                    </div>
-                );
-            }
-
-            if (!preview) {
-                return (
-                    <div className="bg-white rounded-xl border border-gray-200 p-6" data-testid="preview-panel">
-                        <h3 className="text-lg font-semibold navy mb-4">Preview</h3>
-                        <p className="text-gray-500 text-sm">Generate a model to see preview results</p>
-                    </div>
-                );
-            }
-
-            const renderDCFPreview = () => {
-                const dcf = preview.dcf;
-                if (!dcf) return <p className="text-gray-500">DCF data unavailable</p>;
-
-                return (
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-gray-50 rounded-lg p-3">
-                                <div className="text-xs text-gray-600">Enterprise Value</div>
-                                <div className="text-lg font-semibold green-output">{formatCurrency(dcf.ev)}</div>
-                            </div>
-                            <div className="bg-gray-50 rounded-lg p-3">
-                                <div className="text-xs text-gray-600">Equity Value</div>
-                                <div className="text-lg font-semibold green-output">{formatCurrency(dcf.equity)}</div>
-                            </div>
-                            <div className="bg-gray-50 rounded-lg p-3">
-                                <div className="text-xs text-gray-600">Implied Price</div>
-                                <div className="text-lg font-semibold green-output">{formatCurrency(dcf.implied_price)}</div>
-                            </div>
-                            <div className="bg-gray-50 rounded-lg p-3">
-                                <div className="text-xs text-gray-600">Upside</div>
-                                <div className={`text-lg font-semibold ${dcf.upside_pct >= 0 ? 'green-output' : 'text-red-600'}`}>
-                                    {formatPercent(dcf.upside_pct)}
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b">
-                                        <th className="text-left py-2">Year</th>
-                                        <th className="text-right py-2">UFCF</th>
-                                        <th className="text-right py-2">PV UFCF</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {dcf.years?.map((year, index) => (
-                                        <tr key={year} className="border-b">
-                                            <td className="py-2">{year}</td>
-                                            <td className="text-right py-2">{formatCurrency(dcf.ufcf?.[index])}</td>
-                                            <td className="text-right py-2">{formatCurrency(dcf.pv_ufcf?.[index])}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                );
-            };
-
-            const renderLBOPreview = () => {
-                const lbo = preview.lbo;
-                if (!lbo) return <p className="text-gray-500">LBO data unavailable</p>;
-
-                return (
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-gray-50 rounded-lg p-3">
-                                <div className="text-xs text-gray-600">IRR</div>
-                                <div className="text-lg font-semibold green-output">{formatPercent(lbo.irr)}</div>
-                            </div>
-                            <div className="bg-gray-50 rounded-lg p-3">
-                                <div className="text-xs text-gray-600">MOIC</div>
-                                <div className="text-lg font-semibold green-output">{lbo.moic?.toFixed(1)}x</div>
-                            </div>
-                        </div>
-
-                        {lbo.debt_stack && (
-                            <div>
-                                <h4 className="text-sm font-medium text-gray-700 mb-2">Debt Stack</h4>
-                                <div className="space-y-2">
-                                    {lbo.debt_stack.map((tranche, index) => (
-                                        <div key={index} className="flex justify-between items-center bg-gray-50 rounded p-2">
-                                            <span className="text-sm">{tranche.name}</span>
-                                            <div className="text-right">
-                                                <div className="text-sm font-medium">{formatCurrency(tranche.amount)}</div>
-                                                <div className="text-xs text-gray-600">{formatPercent(tranche.rate)}</div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {lbo.fcf && (
-                            <div>
-                                <h4 className="text-sm font-medium text-gray-700 mb-2">FCF Projection</h4>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-sm">
-                                        <thead>
-                                            <tr className="border-b">
-                                                <th className="text-left py-2">Year</th>
-                                                <th className="text-right py-2">FCF</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {lbo.fcf.map((fcf, index) => (
-                                                <tr key={index} className="border-b">
-                                                    <td className="py-2">Year {index + 1}</td>
-                                                    <td className="text-right py-2">{formatCurrency(fcf)}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                );
-            };
-
-            const renderCompsPreview = () => {
-                const comps = preview.comps;
-                if (!comps) return <p className="text-gray-500">Comps data unavailable</p>;
-
-                return (
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-gray-50 rounded-lg p-3">
-                                <div className="text-xs text-gray-600">EV/Revenue</div>
-                                <div className="text-lg font-semibold green-output">{formatMultiple(comps.multiples?.ev_revenue)}</div>
-                            </div>
-                            <div className="bg-gray-50 rounded-lg p-3">
-                                <div className="text-xs text-gray-600">EV/EBITDA</div>
-                                <div className="text-lg font-semibold green-output">{formatMultiple(comps.multiples?.ev_ebitda)}</div>
-                            </div>
-                        </div>
-
-                        {comps.peers && (
-                            <div>
-                                <h4 className="text-sm font-medium text-gray-700 mb-2">Peer Analysis</h4>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-sm">
-                                        <thead>
-                                            <tr className="border-b">
-                                                <th className="text-left py-2">Company</th>
-                                                <th className="text-right py-2">EV/EBITDA</th>
-                                                <th className="text-right py-2">P/E</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {comps.peers.map((peer, index) => (
-                                                <tr key={index} className="border-b">
-                                                    <td className="py-2">{peer.name}</td>
-                                                    <td className="text-right py-2">{formatMultiple(peer.ev_ebitda)}</td>
-                                                    <td className="text-right py-2">{formatMultiple(peer.pe)}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                );
-            };
-
-            const renderMergerPreview = () => {
-                const merger = preview.merger;
-                if (!merger) return <p className="text-gray-500">Merger data unavailable</p>;
-
-                return (
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-gray-50 rounded-lg p-3">
-                                <div className="text-xs text-gray-600">PF Leverage</div>
-                                <div className="text-lg font-semibold green-output">{merger.pf_leverage?.toFixed(1)}x</div>
-                            </div>
-                            <div className="bg-gray-50 rounded-lg p-3">
-                                <div className="text-xs text-gray-600">EPS Accretion</div>
-                                <div className={`text-lg font-semibold ${merger.eps_accretion >= 0 ? 'green-output' : 'text-red-600'}`}>
-                                    {formatPercent(merger.eps_accretion)}
-                                </div>
-                            </div>
-                        </div>
-
-                        {merger.synergies && (
-                            <div>
-                                <h4 className="text-sm font-medium text-gray-700 mb-2">Synergies</h4>
-                                <div className="space-y-2">
-                                    {Object.entries(merger.synergies).map(([key, value]) => (
-                                        <div key={key} className="flex justify-between items-center bg-gray-50 rounded p-2">
-                                            <span className="text-sm capitalize">{key.replace('_', ' ')}</span>
-                                            <span className="text-sm font-medium">{formatCurrency(value)}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                );
-            };
-
-            return (
-                <div className="bg-white rounded-xl border border-gray-200 p-6" data-testid="preview-panel">
-                    <h3 className="text-lg font-semibold navy mb-4">
-                        {modelType?.toUpperCase()} Model Results
-                    </h3>
-                    
-                    {modelType === 'dcf' && renderDCFPreview()}
-                    {modelType === 'lbo' && renderLBOPreview()}
-                    {modelType === 'comps' && renderCompsPreview()}
-                    {modelType === 'merger' && renderMergerPreview()}
-                </div>
-            );
-        };
-
-        // Override Input Component
-        const OverrideInput = ({ label, value, onChange, suffix = '', type = 'number', min, max }) => (
-            <div className="space-y-1">
-                <label className="text-xs text-gray-600">{label}</label>
-                <div className="relative">
-                    <input
-                        type={type}
-                        value={value || ''}
-                        onChange={(e) => onChange(e.target.value)}
-                        min={min}
-                        max={max}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus-ring"
-                        placeholder="Override"
-                    />
-                    {suffix && (
-                        <div className="absolute right-3 top-2 text-xs text-gray-500">{suffix}</div>
-                    )}
-                </div>
-            </div>
-        );
-
-        // Model Builder Component
-        const ModelBuilder = ({ 
-            selectedModel, 
-            onModelChange, 
-            ticker, 
-            setTicker, 
-            assumptions, 
-            provenance, 
-            preview, 
-            overrides, 
-            setOverrides, 
-            state, 
-            loadingStatus, 
-            error, 
-            onCreateModel, 
-            onRegenerate, 
-            onReset, 
-            downloadUrl 
-        }) => {
-            const [tickerError, setTickerError] = useState('');
-
-            const handleTickerChange = (value) => {
-                setTicker(value);
-                if (value && !validateTicker(value)) {
-                    setTickerError('Invalid ticker format');
-                } else {
-                    setTickerError('');
+            useEffect(() => {
+                const stored = getStoredState('dcf');
+                if (stored && !urlTicker) {
+                    setTicker(stored.ticker || '');
+                    setOverrides(stored.overrides || {});
                 }
-            };
+            }, []);
 
-            const handleOverrideChange = (field, value) => {
-                const numValue = value === '' ? undefined : parseFloat(value);
-                setOverrides(prev => ({ ...prev, [field]: numValue }));
+            useEffect(() => {
+                if (ticker || Object.keys(overrides).length) {
+                    setStoredState('dcf', { ticker, overrides });
+                }
+            }, [ticker, overrides]);
+
+            const generateModel = async () => {
+                if (!ticker || !validateTicker(ticker)) return;
+                
+                try {
+                    setState(STATE.LOADING);
+                    setError(null);
+                    const response = await axios.post(`${API_BASE}/models/generate`, {
+                        ticker,
+                        model: 'dcf',
+                        overrides: Object.keys(overrides).length ? overrides : undefined
+                    });
+                    setPreview(response.data.preview);
+                    setDownloadUrl(response.data.file?.download_url);
+                    setState(STATE.READY);
+                } catch (err) {
+                    setError(err.response?.data?.message || 'Failed to generate DCF model');
+                    setState(STATE.ERROR);
+                }
             };
 
             const hasOverrides = Object.values(overrides).some(v => v !== undefined);
 
             return (
-                <div className="min-h-screen bg-gray-50">
-                    <header className="bg-white shadow-sm border-b">
-                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                            <div className="flex justify-between items-center py-4">
-                                <div className="flex items-center">
-                                    <h1 className="text-2xl font-bold navy">FinModAI Professional</h1>
-                                </div>
-                                <div className="flex items-center space-x-4">
-                                    <button
-                                        onClick={() => window.location.reload()}
-                                        className="text-sm text-gray-600 hover:text-gray-900"
-                                    >
-                                        ← Back to Model Hub
-                                    </button>
-                                </div>
+                <div className="bg-white min-h-screen">
+                    <TopNav />
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        <StatusBanner 
+                            state={state} 
+                            message="Building discounted cash flow…" 
+                            error={error} 
+                        />
+
+                        <div className="grid grid-cols-12 gap-6">
+                            {/* Left Column - Inputs */}
+                            <div className="col-span-4 space-y-6">
+                                <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                                    <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                                        <span className="text-2xl mr-2">📊</span>
+                                        DCF Analysis
+                                    </h2>
+                        <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Company Ticker</label>
+                                        <input
+                                            data-testid="ticker-input"
+                                            type="text"
+                                            value={ticker}
+                                            onChange={(e) => setTicker(e.target.value.toUpperCase())}
+                                            placeholder="AAPL"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            disabled={state === STATE.LOADING}
+                                        />
                             </div>
-                        </div>
-                    </header>
+                    </div>
 
-                    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                        {/* Segmented Control */}
-                        <div className="mb-6">
-                            <SegmentedControl selectedModel={selectedModel} onModelChange={onModelChange} />
-                        </div>
-
-                        {/* Status Banner */}
-                        <StatusBanner state={state} loadingStatus={loadingStatus} error={error} />
-
-                        {/* Main Content Grid */}
-                        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-                            {/* Left Column - Inputs & Assumptions */}
-                            <div className="xl:col-span-4 space-y-6">
-                                {/* Ticker Input */}
-                                <div className="bg-white rounded-xl border border-gray-200 p-6">
-                                    <h3 className="text-lg font-semibold navy mb-4">Company Information</h3>
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                Ticker Symbol
-                                            </label>
-                                            <input
-                                                data-testid="ticker-input"
-                                                type="text"
-                                                value={ticker}
-                                                onChange={(e) => handleTickerChange(e.target.value.toUpperCase())}
-                                                placeholder="e.g., MSFT, AAPL"
-                                                className={`w-full px-3 py-2 border rounded-md text-sm focus-ring ${
-                                                    tickerError ? 'border-red-300' : 'border-gray-300'
-                                                }`}
-                                                disabled={state === STATE.LOADING}
+                                {/* Optional Overrides */}
+                                <details className="bg-gray-50 border border-gray-200 rounded-lg">
+                                    <summary className="px-6 py-4 cursor-pointer font-medium text-gray-900">Optional Overrides</summary>
+                                    <div className="px-6 pb-4 space-y-3">
+                            <div>
+                                            <label className="block text-xs text-gray-600 mb-1">Revenue Growth (%)</label>
+                                            <input type="number" min="0" max="100" 
+                                                value={overrides.revenue_growth || ''} 
+                                                onChange={(e) => setOverrides({...overrides, revenue_growth: e.target.value ? clampPercent(parseFloat(e.target.value)) : undefined})}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" 
+                                                placeholder="8.0" 
                                             />
-                                            {tickerError && (
-                                                <p className="text-red-600 text-xs mt-1">{tickerError}</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
+                        </div>
+                            <div>
+                                            <label className="block text-xs text-gray-600 mb-1">Operating Margin (%)</label>
+                                            <input type="number" min="0" max="100" 
+                                                value={overrides.operating_margin || ''} 
+                                                onChange={(e) => setOverrides({...overrides, operating_margin: e.target.value ? clampPercent(parseFloat(e.target.value)) : undefined})}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" 
+                                                placeholder="25.0" 
+                                            />
+                    </div>
+                            <div>
+                                            <label className="block text-xs text-gray-600 mb-1">WACC (%)</label>
+                                            <input type="number" min="0" max="100" 
+                                                value={overrides.wacc || ''} 
+                                                onChange={(e) => setOverrides({...overrides, wacc: e.target.value ? clampPercent(parseFloat(e.target.value)) : undefined})}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" 
+                                                placeholder="10.0" 
+                                            />
+            </div>
+                            </div>
+                                </details>
 
-                                {/* Override Inputs */}
-                                <div className="bg-white rounded-xl border border-gray-200 p-6">
-                                    <h3 className="text-lg font-semibold navy mb-4">Assumption Overrides</h3>
-                                    <div className="space-y-4">
-                                        <OverrideInput
-                                            label="Revenue Growth (%)"
-                                            value={overrides.revenue_growth}
-                                            onChange={(value) => handleOverrideChange('revenue_growth', value)}
-                                            suffix="%"
-                                            min="0"
-                                            max="100"
-                                        />
-                                        <OverrideInput
-                                            label="Operating Margin (%)"
-                                            value={overrides.operating_margin}
-                                            onChange={(value) => handleOverrideChange('operating_margin', value)}
-                                            suffix="%"
-                                            min="0"
-                                            max="100"
-                                        />
-                                        <OverrideInput
-                                            label="WACC (%)"
-                                            value={overrides.wacc}
-                                            onChange={(value) => handleOverrideChange('wacc', value)}
-                                            suffix="%"
-                                            min="0"
-                                            max="100"
-                                        />
-                                        <OverrideInput
-                                            label="Terminal Growth (%)"
-                                            value={overrides.terminal_g}
-                                            onChange={(value) => handleOverrideChange('terminal_g', value)}
-                                            suffix="%"
-                                            min="0"
-                                            max="10"
-                                        />
-                                    </div>
-                                </div>
+                    <button
+                                    data-testid="create-model-btn"
+                                    onClick={generateModel}
+                                    disabled={!ticker || !validateTicker(ticker) || state === STATE.LOADING}
+                                    className="w-full bg-blue-900 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    {state === STATE.LOADING ? 'Building...' : 'Create DCF Model'}
+                    </button>
 
-                                {/* Assumptions Panel */}
-                                <AssumptionsPanel 
-                                    assumptions={assumptions} 
-                                    provenance={provenance} 
-                                    overrides={overrides} 
-                                    flags={assumptions?.flags} 
-                                    state={state} 
-                                />
+                                {hasOverrides && state === STATE.READY && (
+                                    <button
+                                        data-testid="regenerate-btn"
+                                        onClick={generateModel}
+                                        className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                                    >
+                                        Regenerate
+                                    </button>
+                                )}
                             </div>
 
                             {/* Right Column - Preview */}
-                            <div className="xl:col-span-8">
-                                <PreviewPanel preview={preview} modelType={selectedModel} state={state} />
+                            <div className="col-span-8">
+                                {state === STATE.IDLE && !preview && (
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-12 text-center">
+                                        <span className="text-6xl mb-4 block">📊</span>
+                                        <h3 className="text-xl font-semibold text-blue-900 mb-2">DCF Model</h3>
+                                        <p className="text-blue-700">Enter a ticker to build a discounted cash flow model.</p>
+                        </div>
+                            )}
+
+                                {state === STATE.LOADING && (
+                                    <div className="space-y-4" data-testid="preview-dcf">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            {[1,2,3,4].map(i => <SkeletonCard key={i} />)}
+                            </div>
+                                        <div className="bg-white rounded-lg p-6">
+                                            <SkeletonTable />
+                        </div>
+                    </div>
+                                )}
+
+                                {state === STATE.READY && preview?.dcf && (
+                                    <div className="space-y-6" data-testid="preview-dcf">
+                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-6">
+                                                <div className="text-sm text-blue-700 mb-1">Enterprise Value</div>
+                                                <div className="text-3xl font-bold text-blue-900">{formatCurrency(preview.dcf.ev)}</div>
+                            </div>
+                                            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-6">
+                                                <div className="text-sm text-blue-700 mb-1">Equity Value</div>
+                                                <div className="text-3xl font-bold text-blue-900">{formatCurrency(preview.dcf.equity)}</div>
+                        </div>
+                                            <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg p-6">
+                                                <div className="text-sm text-green-700 mb-1">Implied Price</div>
+                                                <div className="text-3xl font-bold text-green-900">{formatCurrency(preview.dcf.implied_price)}</div>
+                    </div>
+                                            <div className={`bg-gradient-to-br ${preview.dcf.upside_pct >= 0 ? 'from-green-50 to-green-100 border-green-200' : 'from-red-50 to-red-100 border-red-200'} border rounded-lg p-6`}>
+                                                <div className={`text-sm ${preview.dcf.upside_pct >= 0 ? 'text-green-700' : 'text-red-700'} mb-1`}>Upside/Downside</div>
+                                                <div className={`text-3xl font-bold ${preview.dcf.upside_pct >= 0 ? 'text-green-900' : 'text-red-900'}`}>{formatPercent(preview.dcf.upside_pct)}</div>
+                        </div>
+                    </div>
+                        
+                                        <div className="bg-white border border-gray-200 rounded-lg p-6">
+                                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Free Cash Flow Projection</h3>
+                            <table className="w-full text-sm">
+                                                <thead className="border-b-2 border-gray-300">
+                                                    <tr>
+                                        <th className="text-left py-2">Year</th>
+                                        <th className="text-right py-2">UFCF</th>
+                                                        <th className="text-right py-2">PV Factor</th>
+                                        <th className="text-right py-2">PV UFCF</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                                    {preview.dcf.years?.map((year, idx) => (
+                                                        <tr key={year} className="border-b border-gray-200">
+                                                            <td className="py-2 font-medium">{year}</td>
+                                                            <td className="text-right py-2">{formatCurrency(preview.dcf.ufcf?.[idx])}</td>
+                                                            <td className="text-right py-2 text-gray-600">{preview.dcf.pv_factors?.[idx]?.toFixed(3)}</td>
+                                                            <td className="text-right py-2 font-medium">{formatCurrency(preview.dcf.pv_ufcf?.[idx])}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+            </div>
+
+                                        {downloadUrl && (
+                                            <button
+                                                data-testid="download-btn"
+                                                onClick={() => window.open(downloadUrl, '_blank')}
+                                                className="w-full bg-green-600 text-white px-6 py-4 rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center justify-center"
+                                            >
+                                                <span className="mr-2">📥</span>
+                                                Download Excel Model
+                                            </button>
+                                        )}
+                            </div>
+                            )}
+                            </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+        // LBO Page
+        const LBOPage = () => {
+            const location = useLocation();
+            const searchParams = new URLSearchParams(location.search);
+            const urlTicker = searchParams.get('ticker');
+
+            const [ticker, setTicker] = useState(urlTicker || '');
+            const [overrides, setOverrides] = useState({});
+            const [state, setState] = useState(STATE.IDLE);
+            const [error, setError] = useState(null);
+            const [preview, setPreview] = useState(null);
+            const [downloadUrl, setDownloadUrl] = useState(null);
+
+            useEffect(() => {
+                const stored = getStoredState('lbo');
+                if (stored && !urlTicker) {
+                    setTicker(stored.ticker || '');
+                    setOverrides(stored.overrides || {});
+                }
+            }, []);
+
+            useEffect(() => {
+                if (ticker || Object.keys(overrides).length) {
+                    setStoredState('lbo', { ticker, overrides });
+                }
+            }, [ticker, overrides]);
+
+            const generateModel = async () => {
+                if (!ticker || !validateTicker(ticker)) return;
+                
+                try {
+                    setState(STATE.LOADING);
+                    setError(null);
+                    const response = await axios.post(`${API_BASE}/models/generate`, {
+                        ticker,
+                        model: 'lbo',
+                        overrides: Object.keys(overrides).length ? overrides : undefined
+                    });
+                    setPreview(response.data.preview);
+                    setDownloadUrl(response.data.file?.download_url);
+                    setState(STATE.READY);
+                } catch (err) {
+                    setError(err.response?.data?.message || 'Failed to generate LBO model');
+                    setState(STATE.ERROR);
+                }
+            };
+
+            const hasOverrides = Object.values(overrides).some(v => v !== undefined);
+
+            return (
+                <div className="bg-gray-900 min-h-screen">
+                    <TopNav />
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        <div className="bg-teal-600 rounded-lg p-4 mb-6">
+                            <h1 className="text-2xl font-bold text-white flex items-center">
+                                <span className="text-3xl mr-3">🏦</span>
+                                Leveraged Buyout Analysis
+                            </h1>
+                            </div>
+
+                        <StatusBanner 
+                            state={state} 
+                            message="Structuring leverage & cash sweep…" 
+                            error={error} 
+                        />
+
+                        <div className="grid grid-cols-12 gap-6">
+                            {/* Left Column */}
+                            <div className="col-span-4 space-y-4">
+                                <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">Target Company</label>
+                                    <input
+                                        data-testid="ticker-input"
+                                        type="text"
+                                        value={ticker}
+                                        onChange={(e) => setTicker(e.target.value.toUpperCase())}
+                                        placeholder="MSFT"
+                                        className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-md focus:ring-2 focus:ring-teal-500"
+                                        disabled={state === STATE.LOADING}
+                                    />
+                            </div>
+
+                                <details className="bg-gray-800 border border-gray-700 rounded-lg">
+                                    <summary className="px-6 py-4 cursor-pointer font-medium text-white">Entry/Exit Assumptions</summary>
+                                    <div className="px-6 pb-4 space-y-3">
+                            <div>
+                                            <label className="block text-xs text-gray-400 mb-1">Entry Multiple (x)</label>
+                                            <input type="number" min="0" 
+                                                value={overrides.entry_multiple || ''} 
+                                                onChange={(e) => setOverrides({...overrides, entry_multiple: e.target.value ? parseFloat(e.target.value) : undefined})}
+                                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-md text-sm" 
+                                                placeholder="8.0" 
+                                            />
+                                </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-400 mb-1">Exit Multiple (x)</label>
+                                            <input type="number" min="0" 
+                                                value={overrides.exit_multiple || ''} 
+                                                onChange={(e) => setOverrides({...overrides, exit_multiple: e.target.value ? parseFloat(e.target.value) : undefined})}
+                                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-md text-sm" 
+                                                placeholder="10.0" 
+                                            />
+                        </div>
+                    </div>
+                                </details>
+
+                                <button
+                                    data-testid="create-model-btn"
+                                    onClick={generateModel}
+                                    disabled={!ticker || !validateTicker(ticker) || state === STATE.LOADING}
+                                    className="w-full bg-teal-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    {state === STATE.LOADING ? 'Structuring...' : 'Structure LBO'}
+                                </button>
+
+                                {hasOverrides && state === STATE.READY && (
+                                    <button
+                                        data-testid="regenerate-btn"
+                                        onClick={generateModel}
+                                        className="w-full bg-teal-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-teal-600 transition-colors"
+                                    >
+                                        Regenerate
+                                    </button>
+                                )}
+                    </div>
+
+                            {/* Right Column */}
+                            <div className="col-span-8">
+                                {state === STATE.IDLE && !preview && (
+                                    <div className="bg-gray-800 border border-gray-700 rounded-lg p-12 text-center">
+                                        <span className="text-6xl mb-4 block">🏦</span>
+                                        <h3 className="text-xl font-semibold text-teal-400 mb-2">LBO Model</h3>
+                                        <p className="text-gray-400">Enter a ticker to structure an LBO.</p>
+                            </div>
+                        )}
+
+                                {state === STATE.LOADING && (
+                                    <div className="space-y-4" data-testid="preview-lbo">
+                                        <div className="grid grid-cols-3 gap-4">
+                                            {[1,2,3].map(i => <SkeletonCard key={i} />)}
+                            </div>
+                                        <div className="bg-gray-800 rounded-lg p-6">
+                                            <SkeletonTable />
+                            </div>
+                    </div>
+                                )}
+
+                                {state === STATE.READY && preview?.lbo && (
+                                    <div className="space-y-6" data-testid="preview-lbo">
+                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="bg-gradient-to-br from-teal-700 to-teal-800 border border-teal-600 rounded-lg p-6">
+                                                <div className="text-sm text-teal-300 mb-1">IRR</div>
+                                                <div className="text-3xl font-bold text-white">{formatPercent(preview.lbo.irr)}</div>
+                            </div>
+                                            <div className="bg-gradient-to-br from-teal-700 to-teal-800 border border-teal-600 rounded-lg p-6">
+                                                <div className="text-sm text-teal-300 mb-1">MOIC</div>
+                                                <div className="text-3xl font-bold text-white">{formatMultiple(preview.lbo.moic)}</div>
+                        </div>
+                    </div>
+
+                                        {preview.lbo.sources_uses && (
+                                            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+                                                <h3 className="text-lg font-semibold text-white mb-4">Sources & Uses</h3>
+                                                <div className="grid grid-cols-2 gap-6">
+                            <div>
+                                                        <h4 className="text-sm font-medium text-teal-400 mb-2">Sources</h4>
+                                                        {Object.entries(preview.lbo.sources_uses.sources || {}).map(([key, val]) => (
+                                                            <div key={key} className="flex justify-between py-1 text-sm">
+                                                                <span className="text-gray-400 capitalize">{key.replace('_', ' ')}</span>
+                                                                <span className="text-white font-medium">{formatCurrency(val)}</span>
+                            </div>
+                                                        ))}
+                            </div>
+                                                    <div>
+                                                        <h4 className="text-sm font-medium text-teal-400 mb-2">Uses</h4>
+                                                        {Object.entries(preview.lbo.sources_uses.uses || {}).map(([key, val]) => (
+                                                            <div key={key} className="flex justify-between py-1 text-sm">
+                                                                <span className="text-gray-400 capitalize">{key.replace('_', ' ')}</span>
+                                                                <span className="text-white font-medium">{formatCurrency(val)}</span>
+                            </div>
+                                    ))}
+                            </div>
+                            </div>
+                            </div>
+                        )}
+
+                                        {preview.lbo.debt_stack && (
+                                            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+                                                <h3 className="text-lg font-semibold text-white mb-4">Debt Stack</h3>
+                                                {preview.lbo.debt_stack.map((tranche, idx) => (
+                                                    <div key={idx} className="flex justify-between items-center py-3 border-b border-gray-700 last:border-0">
+                            <div>
+                                                            <div className="text-white font-medium">{tranche.name}</div>
+                                                            <div className="text-xs text-gray-400">Rate: {formatPercent(tranche.rate)}</div>
+                        </div>
+                                                        <div className="text-teal-400 font-bold">{formatCurrency(tranche.amount)}</div>
+                    </div>
+                                    ))}
+                            </div>
+                        )}
+
+                                        {downloadUrl && (
+                                            <button
+                                                data-testid="download-btn"
+                                                onClick={() => window.open(downloadUrl, '_blank')}
+                                                className="w-full bg-green-600 text-white px-6 py-4 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                                            >
+                                                📥 Download Excel Model
+                                            </button>
+                                        )}
+                                </div>
+                            )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Comps Page
+        const CompsPage = () => {
+            const location = useLocation();
+            const searchParams = new URLSearchParams(location.search);
+            const urlTicker = searchParams.get('ticker');
+
+            const [ticker, setTicker] = useState(urlTicker || '');
+            const [peerInput, setPeerInput] = useState('');
+            const [state, setState] = useState(STATE.IDLE);
+            const [error, setError] = useState(null);
+            const [compsData, setCompsData] = useState(null);
+            const [downloadUrl, setDownloadUrl] = useState(null);
+
+            useEffect(() => {
+                const stored = getStoredState('comps');
+                if (stored && !urlTicker) {
+                    setTicker(stored.ticker || '');
+                    setPeerInput(stored.peerInput || '');
+                }
+            }, []);
+
+            useEffect(() => {
+                if (ticker) {
+                    setStoredState('comps', { ticker, peerInput });
+                }
+            }, [ticker, peerInput]);
+
+            const generateModel = async () => {
+                if (!ticker || !validateTicker(ticker)) return;
+                
+                try {
+                    setState(STATE.LOADING);
+                    setError(null);
+                    
+                    // Parse peer tickers from input
+                    const peerTickers = peerInput 
+                        ? peerInput.split(',').map(t => t.trim()).filter(t => t)
+                        : [];
+                    
+                    const response = await axios.post(`${API_BASE}/models/generate`, {
+            ticker, 
+                        model: 'comps',
+                        peer_tickers: peerTickers.length > 0 ? peerTickers : undefined
+                    });
+                    
+                    setCompsData(response.data);
+                    setDownloadUrl(response.data.download_url);
+                    setState(STATE.READY);
+                } catch (err) {
+                    setError(err.response?.data?.message || 'Failed to generate Comps model');
+                    setState(STATE.ERROR);
+                }
+            };
+
+                return (
+                <div className="bg-gray-50 min-h-screen">
+                    <TopNav />
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        <StatusBanner 
+                            state={state} 
+                            message="Aggregating peer set & multiples…" 
+                            error={error} 
+                        />
+
+                        <div className="grid grid-cols-12 gap-6">
+                            {/* Slim Left Rail */}
+                            <div className="col-span-3 space-y-4">
+                                <div className="bg-white border border-gray-300 rounded-lg p-5 shadow-sm">
+                                    <h2 className="text-base font-semibold text-gray-900 mb-3 flex items-center">
+                                        <span className="text-2xl mr-2">📈</span>
+                                        Trading Comps
+                                    </h2>
+                                    <label className="block text-xs font-medium text-gray-700 mb-2">Primary Ticker</label>
+                                    <input
+                                        data-testid="ticker-input"
+                                        type="text"
+                                        value={ticker}
+                                        onChange={(e) => setTicker(e.target.value.toUpperCase())}
+                                        placeholder="AAPL"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 mb-4"
+                                        disabled={state === STATE.LOADING}
+                                    />
+                                    
+                                    <label className="block text-xs font-medium text-gray-700 mb-2">
+                                        Peer Tickers <span className="text-gray-500">(optional)</span>
+                                    </label>
+                                    <textarea
+                                        value={peerInput}
+                                        onChange={(e) => setPeerInput(e.target.value.toUpperCase())}
+                                        placeholder="MSFT, GOOGL, META&#10;(comma-separated)"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 resize-none"
+                                        rows="3"
+                                        disabled={state === STATE.LOADING}
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Leave empty to auto-discover peers</p>
+                            </div>
+
+                                    <button
+                                    data-testid="create-model-btn"
+                                    onClick={generateModel}
+                                    disabled={!ticker || !validateTicker(ticker) || state === STATE.LOADING}
+                                    className="w-full bg-indigo-600 text-white px-5 py-3 rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                                >
+                                    {state === STATE.LOADING ? 'Loading...' : 'Generate Comps'}
+                                    </button>
+                            </div>
+
+                            {/* Wide Preview Table */}
+                            <div className="col-span-9">
+                                {state === STATE.IDLE && !compsData && (
+                                    <div className="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-12 text-center">
+                                        <span className="text-6xl mb-4 block">📈</span>
+                                        <h3 className="text-xl font-semibold text-indigo-900 mb-2">Trading Comparables</h3>
+                                        <p className="text-indigo-700">Enter a ticker to load peers and trading multiples.</p>
+                            </div>
+                                )}
+
+                                {state === STATE.LOADING && (
+                                    <div className="bg-white rounded-lg p-6 shadow" data-testid="preview-comps">
+                                        <SkeletonTable rows={8} />
+                                </div>
+                                )}
+
+                                {state === STATE.READY && compsData && (
+                                    <div className="space-y-4" data-testid="preview-comps">
+                                        {/* Header Info */}
+                                        <div className="bg-white border border-indigo-200 rounded-lg p-4 shadow-sm">
+                                            <div className="flex justify-between items-center">
+                                        <div>
+                                                    <h3 className="text-lg font-bold text-indigo-900">{ticker}</h3>
+                                                    <p className="text-sm text-gray-600">{compsData.sector} • {compsData.industry}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-xs text-gray-600">Comparables</div>
+                                                    <div className="text-2xl font-bold text-indigo-900">{compsData.num_comps}</div>
+                                        </div>
+                            </div>
+                        </div>
+                        
+                                        {/* Summary Stats */}
+                                        {compsData.summary_stats && (
+                                            <div className="grid grid-cols-5 gap-3">
+                                                {compsData.summary_stats.ev_revenue && (
+                                                    <div className="bg-white border border-indigo-200 rounded-lg p-3 shadow-sm">
+                                                        <div className="text-xs text-gray-600 mb-1">EV/Revenue</div>
+                                                        <div className="text-xl font-bold text-indigo-900">{compsData.summary_stats.ev_revenue.median.toFixed(1)}x</div>
+                                                        <div className="text-xs text-gray-500">median</div>
+                                    </div>
+                                                )}
+                                                {compsData.summary_stats.ev_ebitda && (
+                                                    <div className="bg-white border border-indigo-200 rounded-lg p-3 shadow-sm">
+                                                        <div className="text-xs text-gray-600 mb-1">EV/EBITDA</div>
+                                                        <div className="text-xl font-bold text-indigo-900">{compsData.summary_stats.ev_ebitda.median.toFixed(1)}x</div>
+                                                        <div className="text-xs text-gray-500">median</div>
+                                </div>
+                                                )}
+                                                {compsData.summary_stats.ev_ebit && (
+                                                    <div className="bg-white border border-indigo-200 rounded-lg p-3 shadow-sm">
+                                                        <div className="text-xs text-gray-600 mb-1">EV/EBIT</div>
+                                                        <div className="text-xl font-bold text-indigo-900">{compsData.summary_stats.ev_ebit.median.toFixed(1)}x</div>
+                                                        <div className="text-xs text-gray-500">median</div>
+                            </div>
+                                                )}
+                                                {compsData.summary_stats.pe_ratio && (
+                                                    <div className="bg-white border border-indigo-200 rounded-lg p-3 shadow-sm">
+                                                        <div className="text-xs text-gray-600 mb-1">P/E Ratio</div>
+                                                        <div className="text-xl font-bold text-indigo-900">{compsData.summary_stats.pe_ratio.median.toFixed(1)}x</div>
+                                                        <div className="text-xs text-gray-500">median</div>
+                            </div>
+                                                )}
+                                                {compsData.summary_stats.net_debt_ebitda && (
+                                                    <div className="bg-white border border-indigo-200 rounded-lg p-3 shadow-sm">
+                                                        <div className="text-xs text-gray-600 mb-1">Debt/EBITDA</div>
+                                                        <div className="text-xl font-bold text-indigo-900">{compsData.summary_stats.net_debt_ebitda.median.toFixed(1)}x</div>
+                                                        <div className="text-xs text-gray-500">median</div>
+                        </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Comps Table */}
+                                        {compsData.comps_table && (
+                                            <div className="bg-white rounded-lg shadow overflow-x-auto">
+                            <table className="w-full text-sm">
+                                                    <thead className="bg-gray-800 text-white">
+                                                        <tr>
+                                                            <th className="text-left py-3 px-4 font-semibold">Ticker</th>
+                                                            <th className="text-left py-3 px-4 font-semibold">Company</th>
+                                                            <th className="text-right py-3 px-4 font-semibold">Market Cap</th>
+                                                            <th className="text-right py-3 px-4 font-semibold">EV</th>
+                                                            <th className="text-right py-3 px-4 font-semibold">Revenue</th>
+                                                            <th className="text-right py-3 px-4 font-semibold">EBITDA</th>
+                                                            <th className="text-right py-3 px-4 font-semibold">EV/Rev</th>
+                                                            <th className="text-right py-3 px-4 font-semibold">EV/EBITDA</th>
+                                                            <th className="text-right py-3 px-4 font-semibold">P/E</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                                        {compsData.comps_table.map((row, idx) => {
+                                                            const isPrimary = row.ticker === ticker;
+                                                            return (
+                                                                <tr 
+                                                                    key={idx} 
+                                                                    className={`border-b border-gray-200 hover:bg-indigo-50 ${isPrimary ? 'bg-blue-50' : ''}`}
+                                                                >
+                                                                    <td className={`py-3 px-4 font-semibold ${isPrimary ? 'text-indigo-900' : ''}`}>{row.ticker}</td>
+                                                                    <td className="py-3 px-4">{row.company_name}</td>
+                                                                    <td className="text-right py-3 px-4">{formatCurrency(row.market_cap)}</td>
+                                                                    <td className="text-right py-3 px-4">{formatCurrency(row.enterprise_value)}</td>
+                                                                    <td className="text-right py-3 px-4">{formatCurrency(row.revenue_ttm)}</td>
+                                                                    <td className="text-right py-3 px-4">{formatCurrency(row.ebitda_ttm)}</td>
+                                                                    <td className="text-right py-3 px-4">{row.ev_revenue ? row.ev_revenue.toFixed(1) + 'x' : 'N/A'}</td>
+                                                                    <td className="text-right py-3 px-4">{row.ev_ebitda ? row.ev_ebitda.toFixed(1) + 'x' : 'N/A'}</td>
+                                                                    <td className="text-right py-3 px-4">{row.pe_ratio ? row.pe_ratio.toFixed(1) + 'x' : 'N/A'}</td>
+                                        </tr>
+                                                            );
+                                                        })}
+                                </tbody>
+                            </table>
+                                            </div>
+                                        )}
+
+                                        {/* Download Button */}
+                            {downloadUrl && (
+                                <button
+                                    data-testid="download-btn"
+                                    onClick={() => window.open(downloadUrl, '_blank')}
+                                                className="w-full bg-green-600 text-white px-6 py-4 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                                >
+                                                📥 Download Excel Model
+                                </button>
+                            )}
+                        </div>
+                                )}
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+                );
+            };
+
+        // Merger Page
+        const MergerPage = () => {
+            const location = useLocation();
+            const searchParams = new URLSearchParams(location.search);
+            const urlAcquirer = searchParams.get('acquirer');
+            const urlTarget = searchParams.get('target');
+
+            const [acquirerTicker, setAcquirerTicker] = useState(urlAcquirer || '');
+            const [targetTicker, setTargetTicker] = useState(urlTarget || '');
+            const [overrides, setOverrides] = useState({});
+            const [state, setState] = useState(STATE.IDLE);
+            const [error, setError] = useState(null);
+            const [preview, setPreview] = useState(null);
+            const [downloadUrl, setDownloadUrl] = useState(null);
+
+            useEffect(() => {
+                const stored = getStoredState('merger');
+                if (stored && !urlAcquirer && !urlTarget) {
+                    setAcquirerTicker(stored.acquirer || '');
+                    setTargetTicker(stored.target || '');
+                    setOverrides(stored.overrides || {});
+                }
+            }, []);
+
+            useEffect(() => {
+                if (acquirerTicker || targetTicker || Object.keys(overrides).length) {
+                    setStoredState('merger', { acquirer: acquirerTicker, target: targetTicker, overrides });
+                }
+            }, [acquirerTicker, targetTicker, overrides]);
+
+            const generateModel = async () => {
+                if (!acquirerTicker || !targetTicker || !validateTicker(acquirerTicker) || !validateTicker(targetTicker)) return;
+                
+                try {
+                    setState(STATE.LOADING);
+                    setError(null);
+                    const response = await axios.post(`${API_BASE}/models/generate`, {
+                        acquirer_ticker: acquirerTicker,
+                        target_ticker: targetTicker,
+                        model: 'merger',
+                        overrides: Object.keys(overrides).length ? overrides : undefined
+                    });
+                        setPreview(response.data.preview);
+                        setDownloadUrl(response.data.file?.download_url);
+                        setState(STATE.READY);
+                } catch (err) {
+                    setError(err.response?.data?.message || 'Failed to generate Merger model');
+                    setState(STATE.ERROR);
+                }
+            };
+
+            const hasOverrides = Object.values(overrides).some(v => v !== undefined);
+
+                return (
+                <div className="bg-white min-h-screen">
+                    <TopNav />
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        {/* Dual Company Header */}
+                        <div className="bg-gradient-to-r from-orange-100 to-amber-100 border-2 border-orange-300 rounded-lg p-6 mb-6">
+                            <div className="flex items-center justify-center mb-4">
+                                <span className="text-4xl">🤝</span>
+                                </div>
+                            <h1 className="text-2xl font-bold text-orange-900 text-center mb-4">Merger Analysis</h1>
+                        <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-orange-800 mb-2">Acquirer</label>
+                                    <input
+                                        data-testid="acquirer-input"
+                                        type="text"
+                                        value={acquirerTicker}
+                                        onChange={(e) => setAcquirerTicker(e.target.value.toUpperCase())}
+                                        placeholder="MSFT"
+                                        className="w-full px-4 py-2 border-2 border-orange-300 rounded-md focus:ring-2 focus:ring-orange-500"
+                                        disabled={state === STATE.LOADING}
+                                    />
+                            </div>
+                                        <div>
+                                    <label className="block text-sm font-medium text-orange-800 mb-2">Target</label>
+                                            <input
+                                        data-testid="target-input"
+                                                type="text"
+                                        value={targetTicker}
+                                        onChange={(e) => setTargetTicker(e.target.value.toUpperCase())}
+                                        placeholder="LNKD"
+                                        className="w-full px-4 py-2 border-2 border-orange-300 rounded-md focus:ring-2 focus:ring-orange-500"
+                                                disabled={state === STATE.LOADING}
+                                            />
+                                        </div>
                             </div>
                         </div>
 
-                        {/* Action Buttons */}
-                        <div className="mt-8 flex justify-center space-x-4">
+                        <StatusBanner 
+                            state={state} 
+                            message="Building pro forma & synergies…" 
+                            error={error} 
+                        />
+
+                        <div className="grid grid-cols-12 gap-6">
+                            {/* Inputs */}
+                            <div className="col-span-4 space-y-4">
+                                <details className="bg-orange-50 border border-orange-200 rounded-lg">
+                                    <summary className="px-6 py-4 cursor-pointer font-medium text-orange-900">Deal Assumptions</summary>
+                                    <div className="px-6 pb-4 space-y-3">
+                            <div>
+                                            <label className="block text-xs text-orange-700 mb-1">Purchase Price ($)</label>
+                                            <input type="number" min="0" 
+                                                value={overrides.purchase_price || ''} 
+                                                onChange={(e) => setOverrides({...overrides, purchase_price: e.target.value ? parseFloat(e.target.value) : undefined})}
+                                                className="w-full px-3 py-2 border border-orange-300 rounded-md text-sm" 
+                                        />
+                                            </div>
+                                        <div>
+                                            <label className="block text-xs text-orange-700 mb-1">Synergies ($)</label>
+                                            <input type="number" min="0" 
+                                                value={overrides.synergies || ''} 
+                                                onChange={(e) => setOverrides({...overrides, synergies: e.target.value ? parseFloat(e.target.value) : undefined})}
+                                                className="w-full px-3 py-2 border border-orange-300 rounded-md text-sm" 
+                                />
+                                        </div>
+                                </div>
+                                </details>
+
                             <button
                                 data-testid="create-model-btn"
-                                onClick={onCreateModel}
-                                disabled={!ticker || tickerError || state === STATE.LOADING}
-                                className="px-6 py-3 navy-bg text-white rounded-lg font-medium hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed focus-ring"
-                            >
-                                Create Model
+                                    onClick={generateModel}
+                                    disabled={!acquirerTicker || !targetTicker || state === STATE.LOADING}
+                                    className="w-full bg-orange-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {state === STATE.LOADING ? 'Analyzing...' : 'Build Pro Forma'}
                             </button>
                             
-                            {hasOverrides && (
+                                {hasOverrides && state === STATE.READY && (
                                 <button
                                     data-testid="regenerate-btn"
-                                    onClick={onRegenerate}
-                                    disabled={state === STATE.LOADING}
-                                    className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed focus-ring"
+                                        onClick={generateModel}
+                                        className="w-full bg-orange-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-600"
                                 >
                                     Regenerate
                                 </button>
                             )}
+                            </div>
 
-                            <button
-                                data-testid="reset-btn"
-                                onClick={onReset}
-                                disabled={state === STATE.LOADING}
-                                className="px-6 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed focus-ring"
-                            >
-                                Reset
-                            </button>
+                            {/* Main Preview */}
+                            <div className="col-span-8">
+                                {state === STATE.IDLE && !preview && (
+                                    <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-12 text-center">
+                                        <span className="text-6xl mb-4 block">🤝</span>
+                                        <h3 className="text-xl font-semibold text-orange-900 mb-2">M&A Analysis</h3>
+                                        <p className="text-orange-700">Enter acquirer and target to build a pro forma.</p>
+                            </div>
+                        )}
+
+                                {state === STATE.LOADING && (
+                                    <div className="space-y-4" data-testid="preview-merger">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            {[1,2].map(i => <SkeletonCard key={i} />)}
+                                        </div>
+                                        <div className="bg-white rounded-lg p-6">
+                                            <SkeletonTable />
+                                </div>
+                            </div>
+                        )}
+
+                                {state === STATE.READY && preview?.merger && (
+                                    <div className="space-y-6" data-testid="preview-merger">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="bg-gradient-to-br from-orange-100 to-orange-200 border-2 border-orange-300 rounded-lg p-6">
+                                                <div className="text-sm text-orange-700 mb-1">PF Leverage</div>
+                                                <div className="text-3xl font-bold text-orange-900">{formatMultiple(preview.merger.pf_leverage)}</div>
+                    </div>
+                                            <div className={`bg-gradient-to-br ${preview.merger.eps_accretion >= 0 ? 'from-green-100 to-green-200 border-green-300' : 'from-red-100 to-red-200 border-red-300'} border-2 rounded-lg p-6`}>
+                                                <div className={`text-sm ${preview.merger.eps_accretion >= 0 ? 'text-green-700' : 'text-red-700'} mb-1`}>EPS Accretion</div>
+                                                <div className={`text-3xl font-bold ${preview.merger.eps_accretion >= 0 ? 'text-green-900' : 'text-red-900'}`}>{formatPercent(preview.merger.eps_accretion)}</div>
+                                            </div>
+                                        </div>
+
+                                        {preview.merger.synergies && (
+                                            <div className="bg-white border border-orange-200 rounded-lg p-6">
+                                                <h3 className="text-lg font-semibold text-orange-900 mb-4">💰 Synergies Breakdown</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                                                    {Object.entries(preview.merger.synergies).map(([key, val]) => (
+                                                        <div key={key} className="bg-orange-50 rounded p-3">
+                                                            <div className="text-xs text-orange-700 capitalize">{key.replace('_', ' ')}</div>
+                                                            <div className="text-lg font-bold text-orange-900">{formatCurrency(val)}</div>
+                            </div>
+                                                    ))}
+                            </div>
+                        </div>
+                                        )}
+
+                                        {preview.merger.pf_is && (
+                                            <div className="bg-white border border-orange-200 rounded-lg p-6">
+                                                <h3 className="text-lg font-semibold text-orange-900 mb-4">Pro Forma Income Statement Bridge</h3>
+                                    <table className="w-full text-sm">
+                                                    <thead className="border-b-2 border-orange-300">
+                                                        <tr>
+                                                            <th className="text-left py-2">Line Item</th>
+                                                            <th className="text-right py-2">Acquirer</th>
+                                                            <th className="text-right py-2">Target</th>
+                                                            <th className="text-right py-2">Adjustments</th>
+                                                            <th className="text-right py-2">Pro Forma</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                                        {Object.entries(preview.merger.pf_is).map(([line, values]) => (
+                                                            <tr key={line} className="border-b border-orange-200">
+                                                                <td className="py-2 font-medium capitalize">{line.replace('_', ' ')}</td>
+                                                                <td className="text-right py-2">{formatCurrency(values.acquirer)}</td>
+                                                                <td className="text-right py-2">{formatCurrency(values.target)}</td>
+                                                                <td className="text-right py-2 text-orange-600">{formatCurrency(values.adjustments)}</td>
+                                                                <td className="text-right py-2 font-bold">{formatCurrency(values.pro_forma)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                        )}
 
                             {downloadUrl && (
                                 <button
                                     data-testid="download-btn"
                                     onClick={() => window.open(downloadUrl, '_blank')}
-                                    className="px-6 py-3 green-bg text-white rounded-lg font-medium hover:bg-opacity-90 focus-ring"
+                                                className="w-full bg-green-600 text-white px-6 py-4 rounded-lg font-semibold hover:bg-green-700"
                                 >
-                                    Download Excel
+                                                📥 Download Excel Model
                                 </button>
                             )}
+                            </div>
+                        )}
+                            </div>
                         </div>
-                    </main>
+                    </div>
+                    </div>
+                );
+            };
+
+        // ============================================================================
+        // DASHBOARD / LANDING PAGE COMPONENTS
+        // ============================================================================
+
+        // Additional utility functions for dashboard
+        const formatMoneyCompact = (value) => {
+            if (value === null || value === undefined) return 'N/A';
+            if (value >= 1e12) return `$${(value / 1e12).toFixed(1)}T`;
+            if (value >= 1e9) return `$${(value / 1e9).toFixed(1)}B`;
+            if (value >= 1e6) return `$${(value / 1e6).toFixed(1)}M`;
+            return `$${value.toLocaleString()}`;
+        };
+
+        const formatPct = (value, showSign = true) => {
+            if (value === null || value === undefined) return 'N/A';
+            const sign = showSign && value > 0 ? '+' : '';
+            return `${sign}${value.toFixed(2)}%`;
+        };
+
+        const formatMultipleCompact = (value) => {
+            if (value === null || value === undefined || value <= 0) return '—';
+            return `${value.toFixed(1)}x`;
+        };
+
+        // Mock Data Fixtures
+        const MOCK_MARKET_PULSE = {
+            totalMktCap: 45300000000000, // $45.3T
+            advDec: { advancers: 1842, decliners: 1156 },
+            topSector: { name: 'Technology', change1dPct: 1.85 },
+            volProxy: { label: 'VIX', value: 14.2 }
+        };
+
+        const GICS_SECTORS = [
+            'All', 'Technology', 'Healthcare', 'Financial Services', 'Consumer Discretionary',
+            'Communication Services', 'Industrials', 'Consumer Staples', 'Energy',
+            'Utilities', 'Real Estate', 'Materials'
+        ];
+
+        const MOCK_SECTOR_DATA = {
+            'Technology': {
+                sector: 'Technology',
+                totalMktCap: 14200000000000,
+                leaders: [
+                    { ticker: 'AAPL', name: 'Apple Inc.', price: 178.72, change1dPct: 1.23, pe: 29.5, evToEbitda: 22.1, sparkline: [0.3, 0.35, 0.4, 0.38, 0.42, 0.45, 0.5] },
+                    { ticker: 'MSFT', name: 'Microsoft Corp.', price: 378.91, change1dPct: 0.87, pe: 35.2, evToEbitda: 24.8, sparkline: [0.4, 0.42, 0.45, 0.43, 0.48, 0.52, 0.55] },
+                    { ticker: 'GOOGL', name: 'Alphabet Inc.', price: 141.80, change1dPct: -0.34, pe: 26.1, evToEbitda: 14.3, sparkline: [0.5, 0.48, 0.45, 0.47, 0.44, 0.42, 0.4] }
+                ]
+            },
+            'Healthcare': {
+                sector: 'Healthcare',
+                totalMktCap: 6800000000000,
+                leaders: [
+                    { ticker: 'UNH', name: 'UnitedHealth Group', price: 522.15, change1dPct: 0.92, pe: 24.8, evToEbitda: 13.9, sparkline: [0.35, 0.38, 0.4, 0.42, 0.45, 0.47, 0.5] },
+                    { ticker: 'JNJ', name: 'Johnson & Johnson', price: 159.84, change1dPct: -0.15, pe: 15.2, evToEbitda: 12.4, sparkline: [0.45, 0.43, 0.42, 0.4, 0.41, 0.39, 0.38] },
+                    { ticker: 'LLY', name: 'Eli Lilly and Co.', price: 587.20, change1dPct: 2.34, pe: 51.6, evToEbitda: 32.1, sparkline: [0.2, 0.3, 0.35, 0.4, 0.5, 0.6, 0.7] }
+                ]
+            },
+            'Financial Services': {
+                sector: 'Financial Services',
+                totalMktCap: 5200000000000,
+                leaders: [
+                    { ticker: 'JPM', name: 'JPMorgan Chase & Co.', price: 155.28, change1dPct: 1.15, pe: 11.2, evToEbitda: null, sparkline: [0.3, 0.32, 0.35, 0.38, 0.4, 0.43, 0.45] },
+                    { ticker: 'BAC', name: 'Bank of America Corp.', price: 32.47, change1dPct: 0.68, pe: 12.8, evToEbitda: null, sparkline: [0.35, 0.37, 0.38, 0.4, 0.42, 0.43, 0.44] },
+                    { ticker: 'WFC', name: 'Wells Fargo & Company', price: 48.92, change1dPct: -0.21, pe: 10.5, evToEbitda: null, sparkline: [0.42, 0.4, 0.39, 0.38, 0.37, 0.36, 0.35] }
+                ]
+            }
+        };
+
+        // Market Pulse Component (4 KPI tiles)
+        const MarketPulse = ({ totalMktCap, advDec, topSector, volProxy, isLoading }) => {
+            if (isLoading) {
+                return (
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" data-testid="market-pulse">
+                        {[1, 2, 3, 4].map(i => (
+                            <div key={i} className="bg-[#12161C] rounded-2xl p-6 shadow-[0_6px_24px_rgba(0,0,0,0.25)]">
+                                <div className="skeleton h-3 w-24 rounded mb-3 bg-[#1C2430]"></div>
+                                <div className="skeleton h-8 w-32 rounded bg-[#1C2430]"></div>
+                            </div>
+                        ))}
+                                </div>
+                );
+            }
+
+            return (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" data-testid="market-pulse">
+                    <div className="bg-[#12161C] rounded-2xl p-6 shadow-[0_6px_24px_rgba(0,0,0,0.25)] border border-[#1C2430]">
+                        <div className="text-[#9FB0C3] text-xs font-medium tracking-wider uppercase mb-2">Global Market Cap</div>
+                        <div className="text-[#E6EDF3] text-xl md:text-2xl font-semibold tracking-tight">{formatMoneyCompact(totalMktCap)}</div>
+                        </div>
+
+                    <div className="bg-[#12161C] rounded-2xl p-6 shadow-[0_6px_24px_rgba(0,0,0,0.25)] border border-[#1C2430]">
+                        <div className="text-[#9FB0C3] text-xs font-medium tracking-wider uppercase mb-2">Adv/Dec Ratio</div>
+                        <div className="text-[#E6EDF3] text-xl md:text-2xl font-semibold tracking-tight">
+                            {advDec ? `${advDec.advancers}/${advDec.decliners}` : 'N/A'}
+                                        </div>
+                                </div>
+
+                    <div className="bg-[#12161C] rounded-2xl p-6 shadow-[0_6px_24px_rgba(0,0,0,0.25)] border border-[#1C2430]">
+                        <div className="text-[#9FB0C3] text-xs font-medium tracking-wider uppercase mb-2">Top Sector Today</div>
+                        <div className="text-[#E6EDF3] text-lg md:text-xl font-semibold tracking-tight truncate">
+                            {topSector ? topSector.name : 'N/A'}
+                        </div>
+                        {topSector?.change1dPct && (
+                            <div className={`text-sm mt-1 ${topSector.change1dPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {formatPct(topSector.change1dPct)}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="bg-[#12161C] rounded-2xl p-6 shadow-[0_6px_24px_rgba(0,0,0,0.25)] border border-[#1C2430]">
+                        <div className="text-[#9FB0C3] text-xs font-medium tracking-wider uppercase mb-2">{volProxy?.label || 'Volatility'}</div>
+                        <div className="text-[#E6EDF3] text-xl md:text-2xl font-semibold tracking-tight">
+                            {volProxy?.value !== undefined ? volProxy.value.toFixed(1) : 'N/A'}
+                </div>
+                </div>
+            </div>
+        );
+        };
+
+        // Company Row Component with Popover
+        const CompanyRow = ({ company, onAction }) => {
+            const [menuOpen, setMenuOpen] = React.useState(false);
+            const menuRef = React.useRef(null);
+
+            React.useEffect(() => {
+                const handleClickOutside = (e) => {
+                    if (menuRef.current && !menuRef.current.contains(e.target)) {
+                        setMenuOpen(false);
+                    }
+                };
+                const handleEscape = (e) => {
+                    if (e.key === 'Escape') setMenuOpen(false);
+                };
+                if (menuOpen) {
+                    document.addEventListener('mousedown', handleClickOutside);
+                    document.addEventListener('keydown', handleEscape);
+                }
+                return () => {
+                    document.removeEventListener('mousedown', handleClickOutside);
+                    document.removeEventListener('keydown', handleEscape);
+                };
+            }, [menuOpen]);
+
+            const { ticker, name, price, change1dPct, pe, evToEbitda } = company;
+            const isPositive = change1dPct >= 0;
+
+            return (
+                <div className="relative" data-testid={`company-row-${ticker}`}>
+                                    <button
+                        onClick={() => setMenuOpen(!menuOpen)}
+                        aria-haspopup="menu"
+                        aria-expanded={menuOpen}
+                        className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-[#1C2430] transition-colors focus:outline-none focus:ring-2 focus:ring-sky-400/70"
+                    >
+                        <div className="flex items-center space-x-3 flex-1 min-w-0">
+                            <div className="w-8 h-8 rounded-full bg-[#1C2430] flex-shrink-0"></div>
+                            <div className="text-left min-w-0 flex-1">
+                                <div className="text-[#E6EDF3] font-medium truncate">{name}</div>
+                                <div className="text-[#9FB0C3] text-xs font-mono">{ticker}</div>
+                                </div>
+                            </div>
+
+                        <div className="flex items-center space-x-4">
+                            <div className="text-right">
+                                <div className="text-[#E6EDF3] font-semibold">{price ? `$${price.toFixed(2)}` : 'N/A'}</div>
+                                <div className={`text-sm ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                    {isPositive ? '▲' : '▼'} {formatPct(Math.abs(change1dPct), false)}
+                                </div>
+                        </div>
+
+                            <div className="flex space-x-2">
+                                {pe && (
+                                    <div className="px-2 py-1 bg-[#1C2430] rounded text-xs text-[#9FB0C3]">
+                                        P/E {pe.toFixed(1)}
+                                    </div>
+                                )}
+                                {evToEbitda && (
+                                    <div className="px-2 py-1 bg-[#1C2430] rounded text-xs text-[#9FB0C3]">
+                                        EV/EBITDA {evToEbitda.toFixed(1)}
+                                        </div>
+                                )}
+                                    </div>
+
+                            <svg className="w-16 h-8" viewBox="0 0 64 32" fill="none">
+                                <path d={`M0,16 L${company.sparkline?.map((v, i) => `${i * 10},${32 - v * 32}`).join(' L') || '0,16'}`}
+                                      stroke={isPositive ? '#34D399' : '#F87171'}
+                                      strokeWidth="2"
+                                      opacity="0.6"
+                                      fill="none" />
+                            </svg>
+                                </div>
+                    </button>
+
+                    {menuOpen && (
+                        <div
+                            ref={menuRef}
+                            className="absolute right-0 mt-2 w-64 bg-[#12161C] border border-[#1C2430] rounded-xl shadow-[0_6px_24px_rgba(0,0,0,0.35)] py-2 z-50"
+                            role="menu"
+                        >
+                            {['dcf', 'lbo', 'comps', 'merger'].map(action => (
+                                <button
+                                    key={action}
+                                    onClick={() => {
+                                        onAction(ticker, action);
+                                        setMenuOpen(false);
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-[#E6EDF3] hover:bg-[#1C2430] transition-colors"
+                                    role="menuitem"
+                                >
+                                    {action === 'dcf' && `📊 DCF Model`}
+                                    {action === 'lbo' && `💼 LBO Model`}
+                                    {action === 'comps' && `📈 Comps Analysis`}
+                                    {action === 'merger' && `🤝 Merger Model (Acquirer)`}
+                                </button>
+                            ))}
+                                    </div>
+                    )}
+                                </div>
+            );
+        };
+
+        // Sector Card Component
+        const SectorCard = ({ sector, totalMktCap, leaders, isLoading, onCompanyAction, onViewComps }) => {
+            if (isLoading) {
+                return (
+                    <div className="bg-[#12161C] rounded-2xl p-6 shadow-[0_6px_24px_rgba(0,0,0,0.25)] border border-[#1C2430]">
+                        <div className="skeleton h-6 w-32 rounded mb-4 bg-[#1C2430]"></div>
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="skeleton h-16 w-full rounded-lg mb-2 bg-[#1C2430]"></div>
+                        ))}
+                            </div>
+                );
+            }
+
+            if (!leaders || leaders.length === 0) {
+                return (
+                    <div className="bg-[#12161C] rounded-2xl p-6 shadow-[0_6px_24px_rgba(0,0,0,0.25)] border border-[#1C2430]">
+                        <h3 className="text-[#E6EDF3] font-semibold text-lg mb-4">{sector}</h3>
+                        <p className="text-[#9FB0C3] text-sm">No leaders available</p>
+                            </div>
+                );
+            }
+
+            return (
+                <div className="bg-[#12161C] rounded-2xl p-6 shadow-[0_6px_24px_rgba(0,0,0,0.25)] border border-[#1C2430]" data-testid={`sector-card-${sector}`}>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-[#E6EDF3] font-semibold text-lg">{sector}</h3>
+                        {totalMktCap && (
+                            <span className="text-xs text-[#9FB0C3] px-2 py-1 bg-[#1C2430] rounded">
+                                {formatMoneyCompact(totalMktCap)}
+                            </span>
+                        )}
+                        </div>
+
+                    <div className="space-y-2 mb-4">
+                        {leaders.map(company => (
+                            <CompanyRow
+                                key={company.ticker}
+                                company={company}
+                                onAction={onCompanyAction}
+                            />
+                        ))}
+                    </div>
+
+                            <button
+                        onClick={onViewComps}
+                        className="w-full text-sky-300 hover:text-sky-200 text-sm font-medium py-2 border-t border-[#1C2430] transition-colors"
+                    >
+                        View sector comps →
+                            </button>
                 </div>
             );
         };
 
-        // Main App Component
-        function App() {
-            const [currentPage, setCurrentPage] = useState('hub'); // 'hub' or 'builder'
-            const [selectedModel, setSelectedModel] = useState('dcf');
-            const [ticker, setTicker] = useState('');
-            const [assumptions, setAssumptions] = useState(null);
-            const [preview, setPreview] = useState(null);
-            const [overrides, setOverrides] = useState({});
-            const [state, setState] = useState(STATE.IDLE);
-            const [error, setError] = useState(null);
-            const [loadingStatus, setLoadingStatus] = useState('');
-            const [downloadUrl, setDownloadUrl] = useState(null);
+        // Quick Start Launcher Component
+        const QuickStart = () => {
+            const navigate = useNavigate();
+            const [ticker, setTicker] = React.useState('');
+            const [modelType, setModelType] = React.useState('dcf');
 
-            // Cache for successful responses
-            const [cache, setCache] = useState({});
-
-            const fetchAssumptions = useCallback(async (tickerSymbol, modelType) => {
-                try {
-                    setState(STATE.LOADING);
-                    setLoadingStatus(LOADING_STEPS[0]);
-                    setError(null);
-
-                    const cacheKey = `${tickerSymbol}-${modelType}`;
-                    if (cache[cacheKey]) {
-                        setAssumptions(cache[cacheKey].assumptions);
-                        setState(STATE.READY);
-                        return cache[cacheKey].assumptions;
-                    }
-
-                    const response = await axios.get(`${API_BASE}/assumptions`, {
-                        params: { ticker: tickerSymbol, model: modelType }
-                    });
-
-                    if (response.status === 200) {
-                        setAssumptions(response.data);
-                        setCache(prev => ({
-                            ...prev,
-                            [cacheKey]: { assumptions: response.data }
-                        }));
-                        setState(STATE.READY);
-                        return response.data;
-                    }
-                } catch (err) {
-                    const errorData = err.response?.data || { message: 'Failed to fetch assumptions' };
-                    setError(errorData);
-                    setState(STATE.ERROR);
-                    throw errorData;
-                }
-            }, [cache]);
-
-            const generateModel = useCallback(async (tickerSymbol, modelType, overrideData = {}) => {
-                try {
-                    setState(STATE.LOADING);
-                    setLoadingStatus(LOADING_STEPS[1]);
-                    setError(null);
-
-                    const response = await axios.post(`${API_BASE}/models/generate`, {
-                        ticker: tickerSymbol,
-                        model: modelType,
-                        overrides: Object.keys(overrideData).length > 0 ? overrideData : undefined
-                    });
-
-                    if (response.status === 200) {
-                        setLoadingStatus(LOADING_STEPS[2]);
-                        setPreview(response.data.preview);
-                        setDownloadUrl(response.data.file?.download_url);
-                        setState(STATE.READY);
-                        return response.data;
-                    }
-                } catch (err) {
-                    const errorData = err.response?.data || { message: 'Failed to generate model' };
-                    setError(errorData);
-                    setState(STATE.ERROR);
-                    throw errorData;
-                }
-            }, []);
-
-            const handleSelectModel = (modelId) => {
-                setSelectedModel(modelId);
-                setCurrentPage('builder');
-                setTicker('');
-                setAssumptions(null);
-                setPreview(null);
-                setOverrides({});
-                setState(STATE.IDLE);
-                setError(null);
-                setDownloadUrl(null);
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (!ticker.trim()) return;
+                const upperTicker = ticker.toUpperCase().trim();
+                navigate(`/${modelType}?ticker=${upperTicker}`);
             };
-
-            const handleModelChange = (modelId) => {
-                setSelectedModel(modelId);
-                // Clear data when switching models
-                setAssumptions(null);
-                setPreview(null);
-                setOverrides({});
-                setState(STATE.IDLE);
-                setError(null);
-                setDownloadUrl(null);
-            };
-
-            const handleCreateModel = async () => {
-                if (!ticker || !validateTicker(ticker)) return;
-
-                try {
-                    await fetchAssumptions(ticker, selectedModel);
-                    await generateModel(ticker, selectedModel, overrides);
-                } catch (err) {
-                    console.error('Model creation failed:', err);
-                }
-            };
-
-            const handleRegenerate = async () => {
-                if (!ticker || !assumptions) return;
-
-                try {
-                    await generateModel(ticker, selectedModel, overrides);
-                } catch (err) {
-                    console.error('Model regeneration failed:', err);
-                }
-            };
-
-            const handleReset = () => {
-                setTicker('');
-                setAssumptions(null);
-                setPreview(null);
-                setOverrides({});
-                setState(STATE.IDLE);
-                setError(null);
-                setDownloadUrl(null);
-            };
-
-            if (currentPage === 'hub') {
-                return <ModelHub onSelectModel={handleSelectModel} />;
-            }
 
             return (
-                <ModelBuilder
-                    selectedModel={selectedModel}
-                    onModelChange={handleModelChange}
-                    ticker={ticker}
-                    setTicker={setTicker}
-                    assumptions={assumptions}
-                    provenance={assumptions?.provenance}
-                    preview={preview}
-                    overrides={overrides}
-                    setOverrides={setOverrides}
-                    state={state}
-                    loadingStatus={loadingStatus}
-                    error={error}
-                    onCreateModel={handleCreateModel}
-                    onRegenerate={handleRegenerate}
-                    onReset={handleReset}
-                    downloadUrl={downloadUrl}
-                />
+                <div className="bg-[#12161C] rounded-2xl p-6 shadow-[0_6px_24px_rgba(0,0,0,0.25)] border border-[#1C2430]" data-testid="quick-start">
+                    <h3 className="text-[#E6EDF3] font-semibold text-lg mb-4">Quick Start</h3>
+
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div>
+                            <label className="block text-[#9FB0C3] text-sm mb-2">Ticker</label>
+                            <input
+                                type="text"
+                                value={ticker}
+                                onChange={(e) => setTicker(e.target.value)}
+                                placeholder="e.g., AAPL"
+                                className="w-full bg-[#1C2430] border border-[#2C3540] rounded-lg px-4 py-2 text-[#E6EDF3] placeholder-[#6B7280] focus:outline-none focus:ring-2 focus:ring-sky-400/70"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-[#9FB0C3] text-sm mb-2">Model Type</label>
+                            <select
+                                value={modelType}
+                                onChange={(e) => setModelType(e.target.value)}
+                                className="w-full bg-[#1C2430] border border-[#2C3540] rounded-lg px-4 py-2 text-[#E6EDF3] focus:outline-none focus:ring-2 focus:ring-sky-400/70"
+                            >
+                                <option value="dcf">DCF</option>
+                                <option value="lbo">LBO</option>
+                                <option value="comps">Comps</option>
+                                <option value="merger">Merger</option>
+                            </select>
+                        </div>
+
+                            <button
+                            type="submit"
+                            disabled={!ticker.trim()}
+                            className="w-full bg-sky-600 hover:bg-sky-700 disabled:bg-[#1C2430] disabled:text-[#6B7280] text-white font-semibold py-3 rounded-lg transition-colors"
+                        >
+                            Create Model
+                            </button>
+                    </form>
+
+                    <div className="mt-4 pt-4 border-t border-[#1C2430] space-y-2">
+                        <button className="w-full text-[#9FB0C3] hover:text-[#E6EDF3] text-sm py-2 transition-colors">
+                            📤 Upload Assumptions
+                                </button>
+                        <button className="w-full text-[#9FB0C3] hover:text-[#E6EDF3] text-sm py-2 transition-colors">
+                            📂 Open Last Model
+                        </button>
+                        </div>
+                </div>
+            );
+        };
+
+        // Main Dashboard Page
+        const DashboardPage = () => {
+            const navigate = useNavigate();
+            const [selectedSector, setSelectedSector] = React.useState('All');
+            const [isLoading, setIsLoading] = React.useState(false);
+
+            const handleCompanyAction = (ticker, action) => {
+                if (action === 'merger') {
+                    navigate(`/merger?acquirer=${ticker}`);
+                } else {
+                    navigate(`/${action}?ticker=${ticker}`);
+                }
+            };
+
+            const handleViewComps = (sector) => {
+                navigate(`/comps?sector=${sector}`);
+            };
+
+            const displayedSectors = selectedSector === 'All'
+                ? Object.values(MOCK_SECTOR_DATA)
+                : MOCK_SECTOR_DATA[selectedSector] ? [MOCK_SECTOR_DATA[selectedSector]] : [];
+
+            return (
+                <div className="min-h-screen bg-[#0B0E11]">
+                    {/* Top Navigation */}
+                    <nav className="bg-[#12161C] border-b border-[#1C2430] sticky top-0 z-50" data-testid="model-nav">
+                        <div className="max-w-[1400px] mx-auto px-4 md:px-6 lg:px-8 py-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-2">
+                                    {['DCF', 'LBO', 'Comps', 'Merger'].map(model => (
+                                        <NavLink
+                                            key={model}
+                                            to={`/${model.toLowerCase()}`}
+                                            className={({ isActive }) => `px-4 py-2 rounded-lg font-medium transition-all ${
+                                                isActive
+                                                    ? 'bg-[#1C2430] text-[#E6EDF3] ring-2 ring-sky-400/50'
+                                                    : 'text-[#9FB0C3] hover:text-[#E6EDF3] hover:bg-[#1C2430]'
+                                            }`}
+                                        >
+                                            {model}
+                                        </NavLink>
+                                    ))}
+                                </div>
+
+                                <div className="flex items-center space-x-4">
+                                    <input
+                                        type="text"
+                                        placeholder="Ticker or Name"
+                                        className="bg-[#1C2430] border border-[#2C3540] rounded-lg px-4 py-2 text-[#E6EDF3] placeholder-[#6B7280] focus:outline-none focus:ring-2 focus:ring-sky-400/70 w-64"
+                                    />
+                                    <button className="bg-sky-600 hover:bg-sky-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+                                        Build Model
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </nav>
+
+                    {/* Main Content */}
+                    <div className="max-w-[1400px] mx-auto px-4 md:px-6 lg:px-8 py-8 space-y-8">
+                        {/* Market Pulse */}
+                        <MarketPulse {...MOCK_MARKET_PULSE} isLoading={isLoading} />
+
+                        {/* Sector Filter */}
+                        <div className="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-hide" data-testid="sector-filter">
+                            {GICS_SECTORS.map(sector => (
+                                <button
+                                    key={sector}
+                                    onClick={() => setSelectedSector(sector)}
+                                    className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
+                                        selectedSector === sector
+                                            ? 'bg-sky-600 text-white'
+                                            : 'bg-[#12161C] text-[#9FB0C3] hover:text-[#E6EDF3] border border-[#1C2430]'
+                                    }`}
+                                >
+                                    {sector}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Grid Layout: Sector Leaderboard + Quick Start */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                            {/* Sector Leaderboard */}
+                            <div className="lg:col-span-9">
+                                <h2 className="text-[#E6EDF3] text-2xl font-bold mb-6">Sector Leaders</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                                    {displayedSectors.length > 0 ? (
+                                        displayedSectors.map(sectorData => (
+                                            <SectorCard
+                                                key={sectorData.sector}
+                                                {...sectorData}
+                                                isLoading={isLoading}
+                                                onCompanyAction={handleCompanyAction}
+                                                onViewComps={() => handleViewComps(sectorData.sector)}
+                                            />
+                                        ))
+                                    ) : (
+                                        <div className="col-span-full text-center py-12">
+                                            <p className="text-[#9FB0C3]">No data available for this sector</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Quick Start (Desktop) */}
+                            <div className="hidden lg:block lg:col-span-3">
+                                <div className="sticky top-24">
+                                    <QuickStart />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Quick Start (Mobile/Tablet) */}
+                        <div className="lg:hidden">
+                            <QuickStart />
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Main App with Router
+        function App() {
+            return (
+                <HashRouter>
+                    <Routes>
+                        <Route path="/" element={<DashboardPage />} />
+                        <Route path="/dcf" element={<DCFPage />} />
+                        <Route path="/lbo" element={<LBOPage />} />
+                        <Route path="/comps" element={<CompsPage />} />
+                        <Route path="/merger" element={<MergerPage />} />
+                    </Routes>
+                </HashRouter>
             );
         }
 
-        // Render App
+        // Render
         ReactDOM.render(<App />, document.getElementById('root'));
     </script>
 </body>
