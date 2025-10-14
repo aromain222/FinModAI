@@ -1430,7 +1430,61 @@
         const DashboardPage = () => {
             const navigate = useNavigate();
             const [selectedSector, setSelectedSector] = React.useState('All');
-            const [isLoading, setIsLoading] = React.useState(false);
+            const [isLoading, setIsLoading] = React.useState(true);
+            const [companiesData, setCompaniesData] = React.useState([]);
+            const [sectorData, setSectorData] = React.useState({});
+
+            // Fetch real company data on mount
+            useEffect(() => {
+                const fetchCompanies = async () => {
+                    try {
+                        setIsLoading(true);
+                        const response = await axios.get(`${API_BASE}/api/companies`);
+                        const companies = response.data.companies || [];
+                        
+                        // Group companies by sector (for now all go to "Technology" until we add sector mapping)
+                        const sectors = {};
+                        
+                        companies.forEach(company => {
+                            const sector = company.sector || 'Technology';
+                            if (!sectors[sector]) {
+                                sectors[sector] = {
+                                    sector: sector,
+                                    totalMktCap: 0,
+                                    leaders: []
+                                };
+                            }
+                            
+                            if (sectors[sector].leaders.length < 3) {
+                                sectors[sector].leaders.push({
+                                    ticker: company.ticker,
+                                    name: company.name || company.ticker,
+                                    price: company.price,
+                                    change1dPct: company.change_1d_pct,
+                                    pe: null, // Calculate from data if available
+                                    evEbitda: company.ebitda && company.market_cap 
+                                        ? ((company.market_cap || 0) / company.ebitda).toFixed(1) 
+                                        : null,
+                                    sparkline: [] // No sparkline data yet
+                                });
+                            }
+                            
+                            sectors[sector].totalMktCap += (company.market_cap || 0);
+                        });
+                        
+                        setCompaniesData(companies);
+                        setSectorData(sectors);
+                        setIsLoading(false);
+                    } catch (error) {
+                        console.error('Error fetching companies:', error);
+                        // Fall back to mock data on error
+                        setSectorData(MOCK_SECTOR_DATA);
+                        setIsLoading(false);
+                    }
+                };
+                
+                fetchCompanies();
+            }, []);
 
             const handleCompanyAction = (ticker, action) => {
                 if (action === 'merger') {
@@ -1445,8 +1499,8 @@
             };
 
             const displayedSectors = selectedSector === 'All'
-                ? Object.values(MOCK_SECTOR_DATA)
-                : MOCK_SECTOR_DATA[selectedSector] ? [MOCK_SECTOR_DATA[selectedSector]] : [];
+                ? Object.values(sectorData)
+                : sectorData[selectedSector] ? [sectorData[selectedSector]] : [];
 
             return (
                 <div className="min-h-screen bg-[#0B0E11]">
