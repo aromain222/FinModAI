@@ -66,7 +66,7 @@ def worker_abort(worker):
 
 # Gunicorn config
 bind = f"0.0.0.0:{os.environ.get('PORT', '8000')}"
-workers = 2
+workers = 1  # Reduced to 1 for Fly.io free tier (256MB RAM)
 worker_class = "sync"
 timeout = 120
 keepalive = 5
