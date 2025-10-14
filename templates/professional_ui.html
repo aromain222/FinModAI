@@ -1545,8 +1545,9 @@
             );
         }
 
-        // Render
-        ReactDOM.render(<App />, document.getElementById('root'));
+        // Render with React 18 API
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
