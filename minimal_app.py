@@ -427,6 +427,64 @@ def healthz():
     
     return jsonify(health_data), 200
 
+@app.route('/api/companies', methods=['GET'])
+def get_companies():
+    """Get list of available companies with latest market data."""
+    try:
+        if not SEC_EDGAR_AVAILABLE:
+            return jsonify({"error": "SEC EDGAR data not available"}), 503
+        
+        sec_provider = get_sec_provider()
+        companies = []
+        
+        # Get unique tickers from SEC EDGAR data
+        if hasattr(sec_provider, 'data') and sec_provider.data is not None:
+            tickers = sec_provider.data['ticker'].unique()
+            
+            for ticker in sorted(tickers)[:50]:  # Limit to 50 for performance
+                try:
+                    # Get latest data for this ticker
+                    ticker_data = sec_provider.data[sec_provider.data['ticker'] == ticker].iloc[-1]
+                    
+                    # Try to get current market data from yfinance
+                    market_cap = None
+                    price = None
+                    change_pct = None
+                    
+                    if YFINANCE_AVAILABLE:
+                        try:
+                            stock = yf.Ticker(ticker)
+                            info = stock.info
+                            market_cap = info.get('marketCap')
+                            price = info.get('currentPrice') or info.get('regularMarketPrice')
+                            change_pct = info.get('regularMarketChangePercent')
+                        except:
+                            pass
+                    
+                    companies.append({
+                        "ticker": ticker,
+                        "name": ticker,  # We don't have company names in SEC data
+                        "sector": "Unknown",  # Add sector mapping later
+                        "revenue": float(ticker_data.get('revenue', 0)) if pd.notna(ticker_data.get('revenue')) else None,
+                        "ebitda": float(ticker_data.get('ebitda', 0)) if pd.notna(ticker_data.get('ebitda')) else None,
+                        "market_cap": market_cap,
+                        "price": price,
+                        "change_1d_pct": change_pct,
+                        "fiscal_year": int(ticker_data.get('fiscal_year', 0)) if pd.notna(ticker_data.get('fiscal_year')) else None
+                    })
+                except Exception as e:
+                    print(f"Error processing {ticker}: {e}")
+                    continue
+        
+        return jsonify({
+            "companies": companies,
+            "total": len(companies),
+            "timestamp": datetime.now().isoformat()
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/models/generate', methods=['POST'])
 def generate_model_api():
     """
