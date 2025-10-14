@@ -146,3 +146,4 @@ finmodai_platform.py
 # - data_fetcher.py
 # - sec_edgar_provider.py
 # - dataset/*.csv
+# Force rebuild Tue Oct 14 00:41:46 EDT 2025
