@@ -141,6 +141,88 @@
             </nav>
         );
 
+        // Persistent Header Component with Home Navigation
+        const PersistentHeader = ({ currentPage, ticker }) => {
+            const navigate = useNavigate();
+            const location = useLocation();
+            
+            const handleHomeClick = () => {
+                navigate('/');
+            };
+            
+            const handleKeyDown = (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleHomeClick();
+                }
+            };
+            
+            // Generate breadcrumb based on current route
+            const getBreadcrumb = () => {
+                const path = location.pathname;
+                if (path === '/') return 'Home';
+                if (path === '/dcf') return ticker ? `Home > DCF Model > ${ticker}` : 'Home > DCF Model';
+                if (path === '/lbo') return ticker ? `Home > LBO Model > ${ticker}` : 'Home > LBO Model';
+                if (path === '/comps') return ticker ? `Home > Comps Model > ${ticker}` : 'Home > Comps Model';
+                if (path === '/merger') return ticker ? `Home > Merger Model > ${ticker}` : 'Home > Merger Model';
+                return 'Home';
+            };
+            
+            return (
+                <header className="bg-[#12161C] border-b border-[#1C2430] sticky top-0 z-50">
+                    <div className="max-w-[1400px] mx-auto px-4 md:px-6 lg:px-8 py-3">
+                        <div className="flex items-center justify-between">
+                            {/* Left side - Home navigation */}
+                            <div className="flex items-center space-x-3">
+                                <button
+                                    onClick={handleHomeClick}
+                                    onKeyDown={handleKeyDown}
+                                    tabIndex={0}
+                                    className="flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 hover:bg-[#1C2430] focus:outline-none focus:ring-2 focus:ring-sky-400/50 group"
+                                    aria-label="Back to Main Screen"
+                                >
+                                    {/* Home Icon */}
+                                    <svg 
+                                        className="w-5 h-5 text-[#9FB0C3] group-hover:text-[#E6EDF3] transition-colors" 
+                                        fill="none" 
+                                        stroke="currentColor" 
+                                        viewBox="0 0 24 24"
+                                        aria-hidden="true"
+                                    >
+                                        <path 
+                                            strokeLinecap="round" 
+                                            strokeLinejoin="round" 
+                                            strokeWidth={2} 
+                                            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" 
+                                        />
+                                    </svg>
+                                    {/* Text - hidden on mobile */}
+                                    <span className="hidden md:block text-[#9FB0C3] group-hover:text-[#E6EDF3] font-medium transition-colors">
+                                        Back to Main Screen
+                                    </span>
+                                </button>
+                                    </div>
+                            
+                            {/* Center - Breadcrumb */}
+                            <div className="hidden sm:block">
+                                <nav className="text-sm text-[#9FB0C3]" aria-label="Breadcrumb">
+                                    <span>{getBreadcrumb()}</span>
+                                </nav>
+                    </div>
+
+                            {/* Right side - FinModAI branding */}
+                            <div className="flex items-center space-x-2">
+                                <div className="w-8 h-8 bg-gradient-to-br from-sky-400 to-blue-600 rounded-lg flex items-center justify-center">
+                                    <span className="text-white font-bold text-sm">F</span>
+                        </div>
+                                <span className="text-[#E6EDF3] font-semibold hidden sm:block">FinModAI</span>
+                    </div>
+            </div>
+            </div>
+                </header>
+        );
+        };
+
         // Status Banner Component
         const StatusBanner = ({ state, message, error }) => {
             if (state === STATE.ERROR && error) {
@@ -151,7 +233,7 @@
                             <div>
                                 <h3 className="text-red-900 font-semibold">Error</h3>
                                 <p className="text-red-700 text-sm mt-1">{error}</p>
-                    </div>
+                            </div>
                         </div>
                     </div>
                 );
@@ -163,8 +245,8 @@
                         <div className="flex items-center">
                             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3"></div>
                             <p className="text-blue-900 font-medium">{message}</p>
-                                    </div>
-                                </div>
+                        </div>
+                    </div>
                 );
             }
 
@@ -221,9 +303,9 @@
 
             const hasOverrides = Object.values(overrides).some(v => v !== undefined);
 
-            return (
+                return (
                 <div className="bg-white min-h-screen">
-                    <TopNav />
+                    <PersistentHeader currentPage="dcf" ticker={ticker} />
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                         <StatusBanner 
                             state={state} 
@@ -239,7 +321,7 @@
                                         <span className="text-2xl mr-2">📊</span>
                                         DCF Analysis
                                     </h2>
-                        <div>
+                            <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Company Ticker</label>
                                         <input
                                             data-testid="ticker-input"
@@ -251,13 +333,13 @@
                                             disabled={state === STATE.LOADING}
                                         />
                             </div>
-                    </div>
+                        </div>
 
                                 {/* Optional Overrides */}
                                 <details className="bg-gray-50 border border-gray-200 rounded-lg">
                                     <summary className="px-6 py-4 cursor-pointer font-medium text-gray-900">Optional Overrides</summary>
                                     <div className="px-6 pb-4 space-y-3">
-                            <div>
+                        <div>
                                             <label className="block text-xs text-gray-600 mb-1">Revenue Growth (%)</label>
                                             <input type="number" min="0" max="100" 
                                                 value={overrides.revenue_growth || ''} 
@@ -283,7 +365,7 @@
                                                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" 
                                                 placeholder="10.0" 
                                             />
-            </div>
+                </div>
                             </div>
                                 </details>
 
@@ -305,7 +387,7 @@
                                         Regenerate
                                     </button>
                                 )}
-                            </div>
+            </div>
 
                             {/* Right Column - Preview */}
                             <div className="col-span-8">
@@ -314,7 +396,7 @@
                                         <span className="text-6xl mb-4 block">📊</span>
                                         <h3 className="text-xl font-semibold text-blue-900 mb-2">DCF Model</h3>
                                         <p className="text-blue-700">Enter a ticker to build a discounted cash flow model.</p>
-                        </div>
+                            </div>
                             )}
 
                                 {state === STATE.LOADING && (
@@ -324,8 +406,8 @@
                             </div>
                                         <div className="bg-white rounded-lg p-6">
                                             <SkeletonTable />
+                            </div>
                         </div>
-                    </div>
                                 )}
 
                                 {state === STATE.READY && preview?.dcf && (
@@ -334,7 +416,7 @@
                                             <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-6">
                                                 <div className="text-sm text-blue-700 mb-1">Enterprise Value</div>
                                                 <div className="text-3xl font-bold text-blue-900">{formatCurrency(preview.dcf.ev)}</div>
-                            </div>
+                    </div>
                                             <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-6">
                                                 <div className="text-sm text-blue-700 mb-1">Equity Value</div>
                                                 <div className="text-3xl font-bold text-blue-900">{formatCurrency(preview.dcf.equity)}</div>
@@ -443,7 +525,7 @@
 
             return (
                 <div className="bg-gray-900 min-h-screen">
-                    <TopNav />
+                    <PersistentHeader currentPage="lbo" ticker={ticker} />
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                         <div className="bg-teal-600 rounded-lg p-4 mb-6">
                             <h1 className="text-2xl font-bold text-white flex items-center">
@@ -667,7 +749,7 @@
 
                 return (
                 <div className="bg-gray-50 min-h-screen">
-                    <TopNav />
+                    <PersistentHeader currentPage="comps" ticker={ticker} />
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                         <StatusBanner 
                             state={state} 
@@ -907,7 +989,7 @@
 
                 return (
                 <div className="bg-white min-h-screen">
-                    <TopNav />
+                    <PersistentHeader currentPage="merger" ticker={acquirerTicker} />
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                         {/* Dual Company Header */}
                         <div className="bg-gradient-to-r from-orange-100 to-amber-100 border-2 border-orange-300 rounded-lg p-6 mb-6">
@@ -1504,39 +1586,7 @@
 
             return (
                 <div className="min-h-screen bg-[#0B0E11]">
-                    {/* Top Navigation */}
-                    <nav className="bg-[#12161C] border-b border-[#1C2430] sticky top-0 z-50" data-testid="model-nav">
-                        <div className="max-w-[1400px] mx-auto px-4 md:px-6 lg:px-8 py-4">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-2">
-                                    {['DCF', 'LBO', 'Comps', 'Merger'].map(model => (
-                                        <NavLink
-                                            key={model}
-                                            to={`/${model.toLowerCase()}`}
-                                            className={({ isActive }) => `px-4 py-2 rounded-lg font-medium transition-all ${
-                                                isActive
-                                                    ? 'bg-[#1C2430] text-[#E6EDF3] ring-2 ring-sky-400/50'
-                                                    : 'text-[#9FB0C3] hover:text-[#E6EDF3] hover:bg-[#1C2430]'
-                                            }`}
-                                        >
-                                            {model}
-                                        </NavLink>
-                                    ))}
-                                </div>
-
-                                <div className="flex items-center space-x-4">
-                                    <input
-                                        type="text"
-                                        placeholder="Ticker or Name"
-                                        className="bg-[#1C2430] border border-[#2C3540] rounded-lg px-4 py-2 text-[#E6EDF3] placeholder-[#6B7280] focus:outline-none focus:ring-2 focus:ring-sky-400/70 w-64"
-                                    />
-                                    <button className="bg-sky-600 hover:bg-sky-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
-                                        Build Model
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </nav>
+                    <PersistentHeader currentPage="dashboard" ticker={null} />
 
                     {/* Main Content */}
                     <div className="max-w-[1400px] mx-auto px-4 md:px-6 lg:px-8 py-8 space-y-8">
