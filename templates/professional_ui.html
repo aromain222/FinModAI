@@ -787,11 +787,40 @@
                     // Call enhanced model-inputs endpoint
                     const response = await axios.get(`${API_BASE}/api/v1/model-inputs/dcf?ticker=${ticker}`);
                     
-                    // Use useLiveData hook to validate
-                    const liveDataValidation = useLiveData(response.data);
+                    // Validate live data directly (cannot use hook in async function)
+                    const data = response.data;
+                    let validationError = null;
                     
-                    if (!liveDataValidation.isValid) {
-                        setError(liveDataValidation.errorMessage || 'Live data unavailable or stale. We don\'t use sample data. Please retry.');
+                    // Check if data is stale
+                    if (data.stale === true) {
+                        validationError = 'Data Stale — Market quotes older than 30 minutes. Please refresh.';
+                    }
+                    // Check for required timestamps
+                    else if (!data.as_of_quotes || !data.as_of_fundamentals) {
+                        validationError = 'Live data unavailable or stale. We don\'t use sample data. Please retry.';
+                    }
+                    // Check timestamp freshness
+                    else {
+                        try {
+                            const quotesTime = new Date(data.as_of_quotes);
+                            const now = new Date();
+                            const ageMinutes = (now - quotesTime) / (1000 * 60);
+                            
+                            if (ageMinutes > 30) {
+                                validationError = `Data Stale — Market quotes older than ${Math.round(ageMinutes)} minutes. Please refresh.`;
+                            }
+                        } catch (e) {
+                            validationError = 'Live data unavailable or stale. We don\'t use sample data. Please retry.';
+                        }
+                    }
+                    
+                    // Check for provenance
+                    if (!validationError && (!data.provenance || !data.source)) {
+                        validationError = 'Live data unavailable or stale. We don\'t use sample data. Please retry.';
+                    }
+                    
+                    if (validationError) {
+                        setError(validationError);
                         setState(STATE.ERROR);
                         return;
                     }
