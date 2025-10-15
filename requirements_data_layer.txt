@@ -1,0 +1,17 @@
+# Financial Data Layer Dependencies
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+httpx>=0.25.0
+pydantic>=2.5.0
+pandas>=2.1.0
+pyarrow>=14.0.0
+
+# Existing dependencies (keep these)
+flask>=2.3.0
+pandas>=2.1.0
+numpy>=1.24.0
+yfinance>=0.2.18
+requests>=2.31.0
+openpyxl>=3.1.2
+et-xmlfile>=1.1.0
+gunicorn>=21.2.0
