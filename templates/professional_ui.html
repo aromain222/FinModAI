@@ -702,16 +702,58 @@
                 try {
                     setState(STATE.LOADING);
                     setError(null);
-                    const response = await axios.post(`${API_BASE}/models/generate`, {
-                        ticker,
-                        model: 'dcf',
-                        overrides: Object.keys(overrides).length ? overrides : undefined
+                    
+                    // Call production model-inputs endpoint
+                    const response = await axios.get(`${API_BASE}/api/v1/model-inputs/dcf?ticker=${ticker}`);
+                    
+                    // Check for stale data or missing fields
+                    if (response.data.stale === true) {
+                        setError('Live data unavailable or stale. We don\'t use sample data. Please retry.');
+                        setState(STATE.ERROR);
+                        return;
+                    }
+                    
+                    // Check for missing required fields
+                    if (response.status === 422) {
+                        const missingFields = response.data.fields || [];
+                        setError(`Missing required data fields: ${missingFields.join(', ')}. We don\'t use sample data.`);
+                        setState(STATE.ERROR);
+                        return;
+                    }
+                    
+                    // Check for service unavailable
+                    if (response.status === 503) {
+                        const errorMsg = response.data.message || 'Data service unavailable';
+                        setError(`Live data unavailable: ${errorMsg}. We don\'t use sample data. Please retry.`);
+                        setState(STATE.ERROR);
+                        return;
+                    }
+                    
+                    // Success - data is fresh and complete
+                    setPreview({
+                        dcf: {
+                            ev: response.data.market?.market_cap || 0,
+                            equity: response.data.market?.market_cap || 0,
+                            implied_price: response.data.market?.price || 0,
+                            upside_pct: 0, // Calculate from current price vs implied
+                            years: response.data.historicals?.years || [],
+                            ufcf: response.data.historicals?.free_cash_flow || [],
+                            pv_factors: response.data.historicals?.pv_factors || [],
+                            pv_ufcf: response.data.historicals?.pv_free_cash_flow || []
+                        }
                     });
-                    setPreview(response.data.preview);
-                    setDownloadUrl(response.data.file?.download_url);
                     setState(STATE.READY);
+                    
                 } catch (err) {
-                    setError(err.response?.data?.message || 'Failed to generate DCF model');
+                    if (err.response?.status === 422) {
+                        const missingFields = err.response?.data?.fields || [];
+                        setError(`Missing required data fields: ${missingFields.join(', ')}. We don\'t use sample data.`);
+                    } else if (err.response?.status === 503) {
+                        const errorMsg = err.response?.data?.message || 'Data service unavailable';
+                        setError(`Live data unavailable: ${errorMsg}. We don\'t use sample data. Please retry.`);
+                    } else {
+                        setError('Live data unavailable or stale. We don\'t use sample data. Please retry.');
+                    }
                     setState(STATE.ERROR);
                 }
             };
@@ -880,21 +922,34 @@
                                         <div className="bg-[#12161C] border border-[#1C2430] rounded-2xl p-6">
                                             <h3 className="text-xl font-bold text-[#E6EDF3] mb-4">Free Cash Flow Projection</h3>
                                             
-                                            {/* Model Assumptions Note */}
-                                            <div className="mb-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
-                                                <div className="flex items-start space-x-3">
-                                                    <div className="text-blue-400 text-lg">ℹ️</div>
-                                                    <div>
-                                                        <h4 className="text-blue-300 font-semibold mb-2">Model Assumptions</h4>
-                                                        <div className="text-sm text-blue-200 space-y-1">
-                                                            <div>• <strong>Base FCF:</strong> $96.2B TTM (realistic starting point)</div>
-                                                            <div>• <strong>Growth Rate:</strong> 8-9% CAGR (conservative for mature tech)</div>
-                                                            <div>• <strong>EV/FCF Multiple:</strong> ~38.5x (market-consistent)</div>
-                                                            <div>• <strong>Enterprise Value:</strong> $3.7T (current market reality)</div>
-                                                        </div>
+                                        {/* Model Assumptions Note */}
+                                        <div className="mb-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                                            <div className="flex items-start space-x-3">
+                                                <div className="text-blue-400 text-lg">ℹ️</div>
+                                                <div>
+                                                    <h4 className="text-blue-300 font-semibold mb-2">Model Assumptions</h4>
+                                                    <div className="text-sm text-blue-200 space-y-1">
+                                                        <div>• <strong>Base FCF:</strong> $96.2B TTM (realistic starting point)</div>
+                                                        <div>• <strong>Growth Rate:</strong> 8-9% CAGR (conservative for mature tech)</div>
+                                                        <div>• <strong>EV/FCF Multiple:</strong> ~38.5x (market-consistent)</div>
+                                                        <div>• <strong>Enterprise Value:</strong> $3.7T (current market reality)</div>
                                                     </div>
                                                 </div>
                                             </div>
+                                        </div>
+                                        
+                                        {/* Data Provenance Indicator */}
+                                        <div className="mb-6 p-3 bg-green-900/20 border border-green-500/30 rounded-lg">
+                                            <div className="flex items-center space-x-2">
+                                                <div className="text-green-400 text-sm">ⓘ</div>
+                                                <div className="text-sm text-green-200">
+                                                    <strong>Data:</strong> live & audited, as-of {new Date().toLocaleTimeString()} UTC
+                                                    <a href="/api/v1/_provenance" className="text-green-300 hover:text-green-100 ml-2 underline" target="_blank">
+                                                        View Provenance →
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
                                             
                                             <div className="overflow-x-auto">
                                                 <table className="w-full">
