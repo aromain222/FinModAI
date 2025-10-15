@@ -719,59 +719,62 @@
             const hasOverrides = Object.values(overrides).some(v => v !== undefined);
 
             return (
-                <div className="bg-white min-h-screen">
+                <div className="min-h-screen bg-[#0B0E11]">
                     <PersistentHeader currentPage="dcf" ticker={ticker} />
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div className="max-w-[1400px] mx-auto px-4 md:px-6 lg:px-8 py-8">
                         <StatusBanner 
                             state={state} 
                             message="Building discounted cash flow…" 
                             error={error} 
                         />
 
-                        <div className="grid grid-cols-12 gap-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                             {/* Left Column - Inputs */}
-                            <div className="col-span-4 space-y-6">
-                                <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-                                    <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                                        <span className="text-2xl mr-2">📊</span>
+                            <div className="lg:col-span-4 space-y-6">
+                                <div className="bg-[#12161C] border border-[#1C2430] rounded-2xl p-6">
+                                    <h2 className="text-xl font-bold text-[#E6EDF3] mb-6 flex items-center">
+                                        <span className="text-2xl mr-3">📊</span>
                                         DCF Analysis
                                     </h2>
-                            <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Company Ticker</label>
-                                        <input
-                                            data-testid="ticker-input"
-                                            type="text"
-                                            value={ticker}
-                                            onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                                            placeholder="AAPL"
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                            disabled={state === STATE.LOADING}
-                                        />
-                            </div>
-                        </div>
+                                    
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-[#E6EDF3] mb-2">Company Ticker</label>
+                                            <input
+                                                data-testid="ticker-input"
+                                                type="text"
+                                                value={ticker}
+                                                onChange={(e) => setTicker(e.target.value.toUpperCase())}
+                                                placeholder="AAPL"
+                                                className="w-full px-4 py-3 bg-[#1C2430] border border-[#2C3540] rounded-lg text-[#E6EDF3] placeholder-[#6B7280] focus:outline-none focus:ring-2 focus:ring-sky-400/70"
+                                                disabled={state === STATE.LOADING}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
 
                                 {/* Optional Overrides */}
-                                <details className="bg-gray-50 border border-gray-200 rounded-lg">
-                                    <summary className="px-6 py-4 cursor-pointer font-medium text-gray-900">Optional Overrides</summary>
-                                    <div className="px-6 pb-4 space-y-3">
-                        <div>
-                                            <label className="block text-xs text-gray-600 mb-1">Revenue Growth (%)</label>
+                                <div className="bg-[#12161C] border border-[#1C2430] rounded-2xl p-6">
+                                    <h3 className="text-lg font-semibold text-[#E6EDF3] mb-4">Optional Overrides</h3>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-[#9FB0C3] mb-2">Revenue Growth (%)</label>
                                             <input type="number" min="0" max="100" 
                                                 value={overrides.revenue_growth || ''} 
                                                 onChange={(e) => setOverrides({...overrides, revenue_growth: e.target.value ? clampPercent(parseFloat(e.target.value)) : undefined})}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" 
+                                                className="w-full px-4 py-3 bg-[#1C2430] border border-[#2C3540] rounded-lg text-[#E6EDF3] placeholder-[#6B7280] focus:outline-none focus:ring-2 focus:ring-sky-400/70" 
                                                 placeholder="8.0" 
                                             />
-                        </div>
-                            <div>
-                                            <label className="block text-xs text-gray-600 mb-1">Operating Margin (%)</label>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-[#9FB0C3] mb-2">Operating Margin (%)</label>
                                             <input type="number" min="0" max="100" 
                                                 value={overrides.operating_margin || ''} 
                                                 onChange={(e) => setOverrides({...overrides, operating_margin: e.target.value ? clampPercent(parseFloat(e.target.value)) : undefined})}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" 
+                                                className="w-full px-4 py-3 bg-[#1C2430] border border-[#2C3540] rounded-lg text-[#E6EDF3] placeholder-[#6B7280] focus:outline-none focus:ring-2 focus:ring-sky-400/70" 
                                                 placeholder="25.0" 
                                             />
-                    </div>
+                                        </div>
                             <div>
                                             <label className="block text-xs text-gray-600 mb-1">WACC (%)</label>
                                             <input type="number" min="0" max="100" 
@@ -802,17 +805,40 @@
                                         Regenerate
                                     </button>
                                 )}
+                                
+                                {/* Demo Button */}
+                                <button
+                                    onClick={() => {
+                                        setTicker('AAPL');
+                                        setPreview({
+                                            dcf: {
+                                                ev: 2500000000000,
+                                                equity: 2300000000000,
+                                                implied_price: 185.50,
+                                                upside_pct: 15.0,
+                                                years: [2025, 2026, 2027, 2028, 2029],
+                                                ufcf: [50000000000, 55000000000, 60000000000, 65000000000, 70000000000],
+                                                pv_factors: [0.960, 0.910, 0.870, 0.830, 0.800],
+                                                pv_ufcf: [48000000000, 50000000000, 52200000000, 53950000000, 56000000000]
+                                            }
+                                        });
+                                        setState(STATE.READY);
+                                    }}
+                                    className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl"
+                                >
+                                    📊 View Sample DCF Analysis
+                                </button>
             </div>
 
-                            {/* Right Column - Preview */}
-                            <div className="col-span-8">
+                            {/* Right Column - Results */}
+                            <div className="lg:col-span-8">
                                 {state === STATE.IDLE && !preview && (
-                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-12 text-center">
+                                    <div className="bg-[#12161C] border border-[#1C2430] rounded-2xl p-12 text-center">
                                         <span className="text-6xl mb-4 block">📊</span>
-                                        <h3 className="text-xl font-semibold text-blue-900 mb-2">DCF Model</h3>
-                                        <p className="text-blue-700">Enter a ticker to build a discounted cash flow model.</p>
-                            </div>
-                            )}
+                                        <h3 className="text-2xl font-bold text-[#E6EDF3] mb-2">DCF Model</h3>
+                                        <p className="text-[#9FB0C3] text-lg">Enter a ticker to build a professional discounted cash flow model.</p>
+                                    </div>
+                                )}
 
                                 {state === STATE.LOADING && (
                                     <div className="space-y-4" data-testid="preview-dcf">
@@ -826,48 +852,55 @@
                                 )}
 
                                 {state === STATE.READY && preview?.dcf && (
-                                    <div className="space-y-6" data-testid="preview-dcf">
-                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-6">
-                                                <div className="text-sm text-blue-700 mb-1">Enterprise Value</div>
-                                                <div className="text-3xl font-bold text-blue-900">{formatCurrency(preview.dcf.ev)}</div>
-                                </div>
-                                            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-6">
-                                                <div className="text-sm text-blue-700 mb-1">Equity Value</div>
-                                                <div className="text-3xl font-bold text-blue-900">{formatCurrency(preview.dcf.equity)}</div>
-                        </div>
-                                            <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg p-6">
-                                                <div className="text-sm text-green-700 mb-1">Implied Price</div>
-                                                <div className="text-3xl font-bold text-green-900">{formatCurrency(preview.dcf.implied_price)}</div>
-                    </div>
-                                            <div className={`bg-gradient-to-br ${preview.dcf.upside_pct >= 0 ? 'from-green-50 to-green-100 border-green-200' : 'from-red-50 to-red-100 border-red-200'} border rounded-lg p-6`}>
-                                                <div className={`text-sm ${preview.dcf.upside_pct >= 0 ? 'text-green-700' : 'text-red-700'} mb-1`}>Upside/Downside</div>
-                                                <div className={`text-3xl font-bold ${preview.dcf.upside_pct >= 0 ? 'text-green-900' : 'text-red-900'}`}>{formatPercent(preview.dcf.upside_pct)}</div>
-                        </div>
-                    </div>
+                                    <div className="space-y-8" data-testid="preview-dcf">
+                                        {/* Key Valuation Metrics */}
+                                        <div className="bg-[#12161C] border border-[#1C2430] rounded-2xl p-8">
+                                            <h3 className="text-xl font-bold text-[#E6EDF3] mb-6">Valuation Summary</h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                                <div className="bg-gradient-to-br from-blue-900/30 to-blue-800/30 border border-blue-500/30 rounded-xl p-6">
+                                                    <div className="text-sm text-blue-300 mb-2">Enterprise Value</div>
+                                                    <div className="text-3xl font-bold text-blue-100">{formatCurrency(preview.dcf.ev)}</div>
+                                                </div>
+                                                <div className="bg-gradient-to-br from-green-900/30 to-green-800/30 border border-green-500/30 rounded-xl p-6">
+                                                    <div className="text-sm text-green-300 mb-2">Equity Value</div>
+                                                    <div className="text-3xl font-bold text-green-100">{formatCurrency(preview.dcf.equity)}</div>
+                                                </div>
+                                                <div className="bg-gradient-to-br from-purple-900/30 to-purple-800/30 border border-purple-500/30 rounded-xl p-6">
+                                                    <div className="text-sm text-purple-300 mb-2">Implied Price</div>
+                                                    <div className="text-3xl font-bold text-purple-100">{formatCurrency(preview.dcf.implied_price)}</div>
+                                                </div>
+                                                <div className={`bg-gradient-to-br ${preview.dcf.upside_pct >= 0 ? 'from-emerald-900/30 to-emerald-800/30 border-emerald-500/30' : 'from-red-900/30 to-red-800/30 border-red-500/30'} border rounded-xl p-6`}>
+                                                    <div className={`text-sm ${preview.dcf.upside_pct >= 0 ? 'text-emerald-300' : 'text-red-300'} mb-2`}>Upside/Downside</div>
+                                                    <div className={`text-3xl font-bold ${preview.dcf.upside_pct >= 0 ? 'text-emerald-100' : 'text-red-100'}`}>{formatPercent(preview.dcf.upside_pct)}</div>
+                                                </div>
+                                            </div>
+                                        </div>
 
-                                        <div className="bg-white border border-gray-200 rounded-lg p-6">
-                                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Free Cash Flow Projection</h3>
-                            <table className="w-full text-sm">
-                                                <thead className="border-b-2 border-gray-300">
-                                                    <tr>
-                                        <th className="text-left py-2">Year</th>
-                                        <th className="text-right py-2">UFCF</th>
-                                                        <th className="text-right py-2">PV Factor</th>
-                                        <th className="text-right py-2">PV UFCF</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                                    {preview.dcf.years?.map((year, idx) => (
-                                                        <tr key={year} className="border-b border-gray-200">
-                                                            <td className="py-2 font-medium">{year}</td>
-                                                            <td className="text-right py-2">{formatCurrency(preview.dcf.ufcf?.[idx])}</td>
-                                                            <td className="text-right py-2 text-gray-600">{preview.dcf.pv_factors?.[idx]?.toFixed(3)}</td>
-                                                            <td className="text-right py-2 font-medium">{formatCurrency(preview.dcf.pv_ufcf?.[idx])}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                        {/* Free Cash Flow Projection */}
+                                        <div className="bg-[#12161C] border border-[#1C2430] rounded-2xl p-6">
+                                            <h3 className="text-xl font-bold text-[#E6EDF3] mb-6">Free Cash Flow Projection</h3>
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full">
+                                                    <thead>
+                                                        <tr className="border-b border-[#2C3540]">
+                                                            <th className="text-left py-4 px-4 text-[#9FB0C3] font-semibold">Year</th>
+                                                            <th className="text-right py-4 px-4 text-[#9FB0C3] font-semibold">UFCF</th>
+                                                            <th className="text-right py-4 px-4 text-[#9FB0C3] font-semibold">PV Factor</th>
+                                                            <th className="text-right py-4 px-4 text-[#9FB0C3] font-semibold">PV UFCF</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {preview.dcf.years?.map((year, idx) => (
+                                                            <tr key={year} className="border-b border-[#1C2430] hover:bg-[#1C2430]/50 transition-colors">
+                                                                <td className="py-4 px-4 text-[#E6EDF3] font-medium">{year}</td>
+                                                                <td className="py-4 px-4 text-right text-[#E6EDF3]">{formatCurrency(preview.dcf.ufcf?.[idx])}</td>
+                                                                <td className="py-4 px-4 text-right text-[#9FB0C3]">{preview.dcf.pv_factors?.[idx]?.toFixed(3)}</td>
+                                                                <td className="py-4 px-4 text-right text-[#E6EDF3] font-semibold">{formatCurrency(preview.dcf.pv_ufcf?.[idx])}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
             </div>
 
                                         {downloadUrl && (
