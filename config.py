@@ -13,6 +13,12 @@ class DataConfig:
     # Environment (required global switches)
     data_mode: str = os.getenv("DATA_MODE", "production")  # production (default)
     staleness_max_minutes: int = int(os.getenv("DATA_STALENESS_MAX_MIN", "30"))
+    require_min_fund_years: int = int(os.getenv("REQUIRE_MIN_FUND_YEARS", "3"))
+    
+    # Production enforcement flags
+    enforce_real_data: bool = os.getenv("ENFORCE_REAL_DATA", "true").lower() == "true"
+    block_placeholder_data: bool = os.getenv("BLOCK_PLACEHOLDER_DATA", "true").lower() == "true"
+    require_provenance: bool = os.getenv("REQUIRE_PROVENANCE", "true").lower() == "true"
     
     # Provider API Keys (optional - if present, provider is enabled)
     finnhub_api_key: Optional[str] = os.getenv("FINNHUB_API_KEY")
@@ -53,18 +59,41 @@ class DataConfig:
         """Get list of enabled providers based on available API keys."""
         providers = ["edgar", "yahoo"]  # Always enabled (no keys required)
         
-        if self.finnhub_api_key:
-            providers.append("finnhub")
-        if self.alphavantage_api_key:
-            providers.append("alphavantage")
-        if self.fmp_api_key:
-            providers.append("fmp")
-        if self.fred_api_key:
-            providers.append("fred")
-        if self.polygon_api_key:
-            providers.append("polygon")
-            
+        optional_providers = {
+            "finnhub": self.finnhub_api_key,
+            "alphavantage": self.alphavantage_api_key,
+            "fmp": self.fmp_api_key,
+            "fred": self.fred_api_key,
+            "polygon": self.polygon_api_key
+        }
+        
+        for provider, api_key in optional_providers.items():
+            if api_key:
+                providers.append(provider)
+                
         return providers
+    
+    def log_provider_status(self) -> Dict[str, str]:
+        """Log provider status for auditing."""
+        status = {}
+        status["edgar"] = "enabled (no key required)"
+        status["yahoo"] = "enabled (no key required)"
+        
+        optional_providers = {
+            "finnhub": self.finnhub_api_key,
+            "alphavantage": self.alphavantage_api_key,
+            "fmp": self.fmp_api_key,
+            "fred": self.fred_api_key,
+            "polygon": self.polygon_api_key
+        }
+        
+        for provider, api_key in optional_providers.items():
+            if api_key:
+                status[provider] = "enabled (key present)"
+            else:
+                status[provider] = "disabled (no key)"
+                
+        return status
     
     def get_provider_config(self, provider: str) -> Dict:
         """Get configuration for a specific provider."""
