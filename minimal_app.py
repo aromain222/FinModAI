@@ -2377,24 +2377,37 @@ def get_company_data(ticker):
                     historical_rows = ticker_data.tail(3)
                     company_data['historicals'] = []
                     for _, row in historical_rows.iterrows():
+                        # Calculate free cash flow: Net Income + D&A - CapEx - Delta NWC
+                        net_income = row.get('net_income', 0) or 0
+                        d_and_a = row.get('d_and_a', 0) or 0
+                        capex = row.get('capex', 0) or 0
+                        delta_nwc = row.get('delta_nwc', 0) or 0
+                        free_cash_flow = net_income + d_and_a - capex - delta_nwc
+                        
                         company_data['historicals'].append({
-                            'year': row.get('year', 2023),
-                            'revenue': row.get('revenue', 0),
-                            'ebit': row.get('ebit', 0),
-                            'ebitda': row.get('ebitda', 0),
-                            'free_cash_flow': row.get('free_cash_flow', 0),
-                            'capex': row.get('capex', 0),
-                            'delta_nwc': row.get('delta_nwc', 0)
+                            'year': row.get('fiscal_year', 2023),
+                            'revenue': row.get('revenue', 0) or 0,
+                            'ebit': row.get('ebit', 0) or 0,
+                            'ebitda': row.get('ebitda', 0) or 0,
+                            'free_cash_flow': free_cash_flow,
+                            'capex': capex,
+                            'delta_nwc': delta_nwc
                         })
                     
                     # Get latest financial data
+                    latest_net_income = latest_row.get('net_income', 0) or 0
+                    latest_d_and_a = latest_row.get('d_and_a', 0) or 0
+                    latest_capex = latest_row.get('capex', 0) or 0
+                    latest_delta_nwc = latest_row.get('delta_nwc', 0) or 0
+                    latest_free_cash_flow = latest_net_income + latest_d_and_a - latest_capex - latest_delta_nwc
+                    
                     company_data['latest'] = {
-                        'revenue': latest_row.get('revenue', 0),
-                        'ebit': latest_row.get('ebit', 0),
-                        'ebitda': latest_row.get('ebitda', 0),
-                        'free_cash_flow': latest_row.get('free_cash_flow', 0),
-                        'capex': latest_row.get('capex', 0),
-                        'delta_nwc': latest_row.get('delta_nwc', 0)
+                        'revenue': latest_row.get('revenue', 0) or 0,
+                        'ebit': latest_row.get('ebit', 0) or 0,
+                        'ebitda': latest_row.get('ebitda', 0) or 0,
+                        'free_cash_flow': latest_free_cash_flow,
+                        'capex': latest_capex,
+                        'delta_nwc': latest_delta_nwc
                     }
         
         # Get Alpha Vantage time series data
