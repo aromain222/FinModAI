@@ -775,17 +775,17 @@
                                                 placeholder="25.0" 
                                             />
                                         </div>
-                            <div>
-                                            <label className="block text-xs text-gray-600 mb-1">WACC (%)</label>
+                                        <div>
+                                            <label className="block text-sm font-medium text-[#9FB0C3] mb-2">WACC (%)</label>
                                             <input type="number" min="0" max="100" 
                                                 value={overrides.wacc || ''} 
                                                 onChange={(e) => setOverrides({...overrides, wacc: e.target.value ? clampPercent(parseFloat(e.target.value)) : undefined})}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" 
-                                                placeholder="10.0" 
+                                                className="w-full px-4 py-3 bg-[#1C2430] border border-[#2C3540] rounded-lg text-[#E6EDF3] placeholder-[#6B7280] focus:outline-none focus:ring-2 focus:ring-sky-400/70" 
+                                                placeholder="8.5" 
                                             />
-                </div>
-                            </div>
-                                </details>
+                                        </div>
+                                    </div>
+                                </div>
 
                     <button
                                     data-testid="create-model-btn"
