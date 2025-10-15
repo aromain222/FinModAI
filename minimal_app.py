@@ -660,22 +660,20 @@ def get_market_leaders_full():
                 except Exception as e:
                     continue
         
-        # Group by sector and select leaders
+        # Group by sector and select leaders - only include sectors with data
         sectors_data = []
         for sector in gics_sectors:
             sector_companies = [c for c in companies_data if c["sector"] == sector]
+            
+            # Only include sectors that have actual companies
+            if len(sector_companies) == 0:
+                continue
             
             # Sort by market cap (descending)
             sector_companies.sort(key=lambda x: x["market_cap"] or 0, reverse=True)
             
             # Take top companies for this sector
             leaders = sector_companies[:per_sector]
-            
-            # Pad with placeholders if needed
-            while len(leaders) < per_sector:
-                leaders.append({
-                    "placeholder": True
-                })
             
             # Calculate total market cap for this sector
             total_mkt_cap = sum(c.get("market_cap", 0) or 0 for c in sector_companies)
@@ -684,14 +682,14 @@ def get_market_leaders_full():
                 "sector": sector,
                 "leaders": leaders,
                 "totalMktCap": total_mkt_cap,
-                "sector_status": "populated" if len(sector_companies) > 0 else "empty"
+                "sector_status": "populated"
             })
         
         return jsonify({
             "as_of": datetime.now().isoformat() + "Z",
             "sectors": sectors_data,
             "stale": False,
-            "total_sectors": len(gics_sectors),
+            "total_sectors": len(sectors_data),
             "companies_per_sector": per_sector
         }), 200
         

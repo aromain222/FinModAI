@@ -451,12 +451,6 @@
 
         // Enhanced Sector Leaders Card with Sparklines
         const SectorLeadersCard = ({ sector, totalMktCap, leaders, isLoading, onCompanyAction }) => {
-            // Pad leaders to exactly 3 entries
-            const paddedLeaders = [...leaders];
-            while (paddedLeaders.length < 3) {
-                paddedLeaders.push({ placeholder: true });
-            }
-            
             const sectorSlug = sector.toLowerCase().replace(/\s+/g, '-');
             
             if (isLoading) {
@@ -477,74 +471,62 @@
                     </div>
                 );
             }
-
-                return (
+            
+            // Only show sectors that have actual data
+            if (!leaders || leaders.length === 0) {
+                return null;
+            }
+            
+            return (
                 <div className="bg-[#12161C] rounded-2xl p-6 border border-[#1C2430]" data-testid={`sector-card-${sectorSlug}`}>
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-[#E6EDF3] font-semibold text-lg">{sector}</h3>
                         <span className="text-[#9FB0C3] text-sm">
                             {totalMktCap ? formatMoneyCompact(totalMktCap) : 'N/A'}
                         </span>
-                            </div>
+                    </div>
                     
                     <div className="space-y-3">
-                        {paddedLeaders.map((leader, index) => {
-                            if (leader.placeholder) {
-                                return (
-                                    <div 
-                                        key={`placeholder-${index}`} 
-                                        className="flex items-center space-x-3 opacity-50"
-                                        data-testid={`leader-row-placeholder-${index}`}
-                                    >
-                                        <div className="text-[#6B7280] text-sm font-medium w-16">—</div>
-                                        <div className="flex-1 text-[#6B7280] text-sm">—</div>
-                                        <div className="w-16 h-8 bg-[#1C2430] rounded"></div>
-                                        <div className="w-12 text-[#6B7280] text-sm">—</div>
-                    </div>
-                );
-            }
-
-                return (
-                                <div 
-                                    key={leader.ticker} 
-                                    className="flex items-center space-x-3 hover:bg-[#1C2430] rounded-lg p-2 -m-2 transition-colors"
-                                    data-testid={`leader-row-${leader.ticker}`}
-                                >
-                                    <div className="text-[#E6EDF3] text-sm font-medium w-16 truncate">
-                                        {leader.ticker}
+                        {leaders.map((leader, index) => (
+                            <div 
+                                key={leader.ticker || index} 
+                                className="flex items-center space-x-3 hover:bg-[#1C2430] rounded-lg p-2 -m-2 transition-colors"
+                                data-testid={`leader-row-${leader.ticker}`}
+                            >
+                                <div className="text-[#E6EDF3] text-sm font-medium w-16 truncate">
+                                    {leader.ticker}
+                                </div>
+                                <div className="flex-1 text-[#9FB0C3] text-sm truncate">
+                                    {leader.name}
+                                </div>
+                                
+                                {/* Mini Sparkline */}
+                                <div className="w-16 h-8 flex items-center justify-center">
+                                    {leader.sparkline && leader.sparkline.length > 0 ? (
+                                        <svg width="64" height="32" viewBox="0 0 64 32" className="opacity-70">
+                                            <polyline
+                                                fill="none"
+                                                stroke={leader.change1dPct >= 0 ? '#10B981' : '#EF4444'}
+                                                strokeWidth="1.5"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                points={leader.sparkline.map((value, i) => 
+                                                    `${i * (64 / (leader.sparkline.length - 1))},${32 - (value * 32)}`
+                                                ).join(' ')}
+                                            />
+                                        </svg>
+                                    ) : (
+                                        <div className="w-12 h-6 bg-[#1C2430] rounded"></div>
+                                    )}
+                                </div>
+                                
+                                <div className={`w-12 text-right text-sm font-medium ${
+                                    leader.change1dPct >= 0 ? 'text-green-400' : 'text-red-400'
+                                }`}>
+                                    {leader.change1dPct > 0 ? '+' : ''}{leader.change1dPct?.toFixed(1)}%
+                                </div>
                             </div>
-                                    <div className="flex-1 text-[#9FB0C3] text-sm truncate">
-                                        {leader.name}
-                        </div>
-                                    
-                                    {/* Mini Sparkline */}
-                                    <div className="w-16 h-8 flex items-center justify-center">
-                                        {leader.sparkline && leader.sparkline.length > 0 ? (
-                                            <svg width="64" height="32" viewBox="0 0 64 32" className="opacity-70">
-                                                <polyline
-                                                    fill="none"
-                                                    stroke={leader.change1dPct >= 0 ? '#10B981' : '#EF4444'}
-                                                    strokeWidth="1.5"
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    points={leader.sparkline.map((value, i) => 
-                                                        `${i * (64 / (leader.sparkline.length - 1))},${32 - (value * 32)}`
-                                                    ).join(' ')}
-                                                />
-                                            </svg>
-                                        ) : (
-                                            <div className="w-12 h-6 bg-[#1C2430] rounded"></div>
-                                        )}
-                    </div>
-                                    
-                                    <div className={`w-12 text-right text-sm font-medium ${
-                                        leader.change1dPct >= 0 ? 'text-green-400' : 'text-red-400'
-                                    }`}>
-                                        {leader.change1dPct > 0 ? '+' : ''}{leader.change1dPct?.toFixed(1)}%
-                    </div>
-                </div>
-            );
-                        })}
+                        ))}
                     </div>
                     
                     {onCompanyAction && leaders.length > 0 && (
@@ -557,8 +539,8 @@
                             </button>
                         </div>
                     )}
-            </div>
-        );
+                </div>
+            );
         };
 
         // Status Banner Component
@@ -1954,19 +1936,12 @@
                 navigate(`/comps?sector=${sector}`);
             };
 
-            // Ensure all 11 sectors are displayed in stable order
+            // Only show sectors that have actual data
             const displayedSectors = selectedSector === 'All'
-                ? GICS_SECTORS.map(sectorName => sectorData[sectorName] || {
-                    sector: sectorName,
-                    totalMktCap: 0,
-                    leaders: []
-                })
-                : sectorData[selectedSector] ? [sectorData[selectedSector]] : [];
-
-            // Check if any sectors have placeholder data
-            const hasPlaceholders = displayedSectors.some(sector => 
-                sector.leaders.length === 0 || sector.leaders.some(leader => leader.placeholder)
-            );
+                ? Object.values(sectorData).filter(sector => sector.leaders && sector.leaders.length > 0)
+                : sectorData[selectedSector] && sectorData[selectedSector].leaders && sectorData[selectedSector].leaders.length > 0 
+                    ? [sectorData[selectedSector]] 
+                    : [];
 
             return (
                 <div className="min-h-screen bg-[#0B0E11]">
@@ -2013,17 +1988,6 @@
                             ))}
                         </div>
 
-                        {/* Placeholder Banner */}
-                        {hasPlaceholders && (
-                            <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg p-4">
-                                <div className="flex items-center space-x-2">
-                                    <span className="text-amber-400">⚠️</span>
-                                    <p className="text-amber-200 text-sm">
-                                        Some sectors show placeholders due to limited data (refreshing…)
-                                    </p>
-                                </div>
-                            </div>
-                        )}
 
                         {/* Grid Layout: Sector Leaderboard + Charts + Quick Start */}
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -2031,12 +1995,9 @@
                             <div className="lg:col-span-6">
                                 <div className="flex items-center justify-between mb-6">
                                     <h2 className="text-[#E6EDF3] text-2xl font-bold">Sector Leaders</h2>
-                                    {displayedSectors.length === 11 && (
-                                        <div className="text-[#10B981] text-sm flex items-center space-x-1">
-                                            <span>✓</span>
-                                            <span>All sectors displayed</span>
-                                        </div>
-                                    )}
+                                    <div className="text-[#9FB0C3] text-sm">
+                                        {displayedSectors.length} sectors with data
+                                    </div>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {displayedSectors.map(sectorData => (
