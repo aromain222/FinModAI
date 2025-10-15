@@ -74,6 +74,27 @@
         const validateTicker = (ticker) => /^[A-Z][A-Z0-9.\-]{0,14}$/.test(ticker);
         const clampPercent = (value) => Math.max(0, Math.min(100, value));
 
+        // TypeScript Types for Market Overview Charts
+        const GICS_SECTORS = [
+            'Communication Services', 'Consumer Discretionary', 'Consumer Staples', 
+            'Energy', 'Financials', 'Health Care', 'Industrials', 
+            'Information Technology', 'Materials', 'Real Estate', 'Utilities'
+        ];
+
+        // Chart Data Types
+        const SectorPerfPoint = { sector: String, change1dPct: Number };
+        const SectorWeight = { sector: String, weight: Number };
+        const CompanyLite = {
+            ticker: String,
+            name: String,
+            price: Number,
+            change1dPct: Number,
+            market_cap: Number,
+            ev_to_ebitda: Number,
+            pe: Number,
+            sparkline: Array
+        };
+
         // LocalStorage helpers
         const getStoredState = (model) => {
             try {
@@ -221,6 +242,322 @@
             </div>
                 </header>
         );
+        };
+
+        // Sector Performance Bar Chart Component
+        const SectorPerformanceChart = ({ sectorPerf, range, isLoading }) => {
+            const maxValue = Math.max(...sectorPerf.map(p => Math.abs(p.change1dPct)));
+            const maxBarWidth = 200; // pixels
+            
+            if (isLoading) {
+                return (
+                    <div className="bg-[#12161C] rounded-2xl p-6 border border-[#1C2430]" data-testid="sector-bar-chart">
+                        <div className="animate-pulse">
+                            <div className="h-6 bg-[#1C2430] rounded mb-4"></div>
+                            <div className="space-y-3">
+                                {[...Array(11)].map((_, i) => (
+                                    <div key={i} className="flex items-center space-x-4">
+                                        <div className="w-32 h-4 bg-[#1C2430] rounded"></div>
+                                        <div className="flex-1 h-4 bg-[#1C2430] rounded"></div>
+                                        <div className="w-12 h-4 bg-[#1C2430] rounded"></div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+            
+            return (
+                <div className="bg-[#12161C] rounded-2xl p-6 border border-[#1C2430]" data-testid="sector-bar-chart">
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-[#E6EDF3] font-semibold text-lg">Sector Performance</h3>
+                        <span className="text-[#9FB0C3] text-sm">{range} Change</span>
+                    </div>
+                    
+                    <div className="space-y-3">
+                        {sectorPerf.map((point, index) => {
+                            const isPositive = point.change1dPct >= 0;
+                            const barWidth = maxValue > 0 ? (Math.abs(point.change1dPct) / maxValue) * maxBarWidth : 0;
+                            const color = isPositive ? '#10B981' : '#EF4444';
+                            
+                            return (
+                                <div key={point.sector} className="flex items-center space-x-4">
+                                    <div className="w-32 text-[#9FB0C3] text-sm truncate">
+                                        {point.sector}
+                                    </div>
+                                    <div className="flex-1 relative">
+                                        <div className="h-6 bg-[#1C2430] rounded-full overflow-hidden">
+                                            <div 
+                                                className={`h-full rounded-full transition-all duration-500 ${isPositive ? 'bg-green-500' : 'bg-red-500'}`}
+                                                style={{ 
+                                                    width: `${barWidth}px`,
+                                                    backgroundColor: color,
+                                                    transform: isPositive ? 'none' : 'scaleX(-1)'
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className={`w-16 text-right text-sm font-medium ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
+                                        {point.change1dPct > 0 ? '+' : ''}{point.change1dPct.toFixed(2)}%
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        };
+
+        // Market Cap Share Donut Chart Component
+        const MarketCapDonutChart = ({ sectorWeights, isLoading }) => {
+            if (isLoading) {
+                return (
+                    <div className="bg-[#12161C] rounded-2xl p-6 border border-[#1C2430]" data-testid="sector-donut">
+                        <div className="animate-pulse">
+                            <div className="h-6 bg-[#1C2430] rounded mb-4"></div>
+                            <div className="w-48 h-48 mx-auto bg-[#1C2430] rounded-full"></div>
+                            <div className="mt-4 space-y-2">
+                                {[...Array(5)].map((_, i) => (
+                                    <div key={i} className="flex items-center space-x-2">
+                                        <div className="w-3 h-3 bg-[#1C2430] rounded"></div>
+                                        <div className="flex-1 h-3 bg-[#1C2430] rounded"></div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+            
+            // Generate colors for sectors
+            const colors = [
+                '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+                '#06B6D4', '#84CC16', '#F97316', '#EC4899', '#6366F1', '#14B8A6'
+            ];
+            
+            let cumulativeAngle = 0;
+            const segments = sectorWeights.map((weight, index) => {
+                const angle = weight.weight * 360;
+                const startAngle = cumulativeAngle;
+                cumulativeAngle += angle;
+                
+                return {
+                    ...weight,
+                    startAngle,
+                    endAngle: cumulativeAngle,
+                    color: colors[index % colors.length]
+                };
+            });
+            
+            return (
+                <div className="bg-[#12161C] rounded-2xl p-6 border border-[#1C2430]" data-testid="sector-donut">
+                    <h3 className="text-[#E6EDF3] font-semibold text-lg mb-6">Market Cap Share</h3>
+                    
+                    <div className="flex flex-col items-center">
+                        <div className="relative w-48 h-48 mb-6">
+                            <svg width="192" height="192" viewBox="0 0 192 192" className="transform -rotate-90">
+                                <circle
+                                    cx="96" cy="96" r="80"
+                                    fill="none"
+                                    stroke="#1C2430"
+                                    strokeWidth="32"
+                                />
+                                {segments.map((segment, index) => {
+                                    if (segment.weight === 0) return null;
+                                    
+                                    const startAngle = segment.startAngle;
+                                    const endAngle = segment.endAngle;
+                                    const largeArcFlag = endAngle - startAngle > 180 ? 1 : 0;
+                                    
+                                    const x1 = 96 + 80 * Math.cos((startAngle * Math.PI) / 180);
+                                    const y1 = 96 + 80 * Math.sin((startAngle * Math.PI) / 180);
+                                    const x2 = 96 + 80 * Math.cos((endAngle * Math.PI) / 180);
+                                    const y2 = 96 + 80 * Math.sin((endAngle * Math.PI) / 180);
+                                    
+                                    const pathData = [
+                                        `M ${96} ${96}`,
+                                        `L ${x1} ${y1}`,
+                                        `A 80 80 0 ${largeArcFlag} 1 ${x2} ${y2}`,
+                                        'Z'
+                                    ].join(' ');
+                                    
+                                    return (
+                                        <path
+                                            key={segment.sector}
+                                            d={pathData}
+                                            fill={segment.color}
+                                            className="transition-all duration-500 hover:opacity-80"
+                                        />
+                                    );
+                                })}
+                            </svg>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="text-center">
+                                    <div className="text-[#E6EDF3] font-bold text-lg">
+                                        {sectorWeights.reduce((sum, w) => sum + w.weight, 0).toFixed(1)}%
+                                    </div>
+                                    <div className="text-[#9FB0C3] text-sm">Total</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="space-y-2 w-full max-h-48 overflow-y-auto">
+                            {segments.slice(0, 8).map((segment, index) => (
+                                <div key={segment.sector} className="flex items-center space-x-2 text-sm">
+                                    <div 
+                                        className="w-3 h-3 rounded-full flex-shrink-0"
+                                        style={{ backgroundColor: segment.color }}
+                                    />
+                                    <span className="text-[#9FB0C3] truncate flex-1">{segment.sector}</span>
+                                    <span className="text-[#E6EDF3] font-medium">{(segment.weight * 100).toFixed(1)}%</span>
+                                </div>
+                            ))}
+                            {segments.length > 8 && (
+                                <div className="text-[#6B7280] text-xs text-center">
+                                    +{segments.length - 8} more sectors
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Range Toggle Component
+        const RangeToggle = ({ range, onRangeChange, isLoading }) => {
+            const ranges = ['1D', '1W', '1M'];
+            
+            return (
+                <div className="flex items-center space-x-1 bg-[#1C2430] rounded-lg p-1">
+                    {ranges.map((r) => (
+                        <button
+                            key={r}
+                            onClick={() => onRangeChange(r)}
+                            disabled={isLoading}
+                            className={`px-3 py-1 rounded-md text-sm font-medium transition-all duration-200 ${
+                                range === r
+                                    ? 'bg-sky-600 text-white'
+                                    : 'text-[#9FB0C3] hover:text-[#E6EDF3] hover:bg-[#2C3540]'
+                            } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                            {r}
+                        </button>
+                    ))}
+                </div>
+            );
+        };
+
+        // Enhanced Sector Leaders Card with Sparklines
+        const SectorLeadersCard = ({ sector, totalMktCap, leaders, isLoading, onCompanyAction }) => {
+            // Pad leaders to exactly 3 entries
+            const paddedLeaders = [...leaders];
+            while (paddedLeaders.length < 3) {
+                paddedLeaders.push({ placeholder: true });
+            }
+            
+            const sectorSlug = sector.toLowerCase().replace(/\s+/g, '-');
+            
+            if (isLoading) {
+                return (
+                    <div className="bg-[#12161C] rounded-2xl p-6 border border-[#1C2430]" data-testid={`sector-card-${sectorSlug}`}>
+                        <div className="animate-pulse">
+                            <div className="h-6 bg-[#1C2430] rounded mb-4"></div>
+                            <div className="space-y-3">
+                                {[...Array(3)].map((_, i) => (
+                                    <div key={i} className="flex items-center space-x-3">
+                                        <div className="w-16 h-4 bg-[#1C2430] rounded"></div>
+                                        <div className="flex-1 h-4 bg-[#1C2430] rounded"></div>
+                                        <div className="w-12 h-4 bg-[#1C2430] rounded"></div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+            
+            return (
+                <div className="bg-[#12161C] rounded-2xl p-6 border border-[#1C2430]" data-testid={`sector-card-${sectorSlug}`}>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-[#E6EDF3] font-semibold text-lg">{sector}</h3>
+                        <span className="text-[#9FB0C3] text-sm">
+                            {totalMktCap ? formatMoneyCompact(totalMktCap) : 'N/A'}
+                        </span>
+                    </div>
+                    
+                    <div className="space-y-3">
+                        {paddedLeaders.map((leader, index) => {
+                            if (leader.placeholder) {
+                                return (
+                                    <div 
+                                        key={`placeholder-${index}`} 
+                                        className="flex items-center space-x-3 opacity-50"
+                                        data-testid={`leader-row-placeholder-${index}`}
+                                    >
+                                        <div className="text-[#6B7280] text-sm font-medium w-16">—</div>
+                                        <div className="flex-1 text-[#6B7280] text-sm">—</div>
+                                        <div className="w-16 h-8 bg-[#1C2430] rounded"></div>
+                                        <div className="w-12 text-[#6B7280] text-sm">—</div>
+                                    </div>
+                                );
+                            }
+                            
+                            return (
+                                <div 
+                                    key={leader.ticker} 
+                                    className="flex items-center space-x-3 hover:bg-[#1C2430] rounded-lg p-2 -m-2 transition-colors"
+                                    data-testid={`leader-row-${leader.ticker}`}
+                                >
+                                    <div className="text-[#E6EDF3] text-sm font-medium w-16 truncate">
+                                        {leader.ticker}
+                                    </div>
+                                    <div className="flex-1 text-[#9FB0C3] text-sm truncate">
+                                        {leader.name}
+                                    </div>
+                                    
+                                    {/* Mini Sparkline */}
+                                    <div className="w-16 h-8 flex items-center justify-center">
+                                        {leader.sparkline && leader.sparkline.length > 0 ? (
+                                            <svg width="64" height="32" viewBox="0 0 64 32" className="opacity-70">
+                                                <polyline
+                                                    fill="none"
+                                                    stroke={leader.change1dPct >= 0 ? '#10B981' : '#EF4444'}
+                                                    strokeWidth="1.5"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    points={leader.sparkline.map((value, i) => 
+                                                        `${i * (64 / (leader.sparkline.length - 1))},${32 - (value * 32)}`
+                                                    ).join(' ')}
+                                                />
+                                            </svg>
+                                        ) : (
+                                            <div className="w-12 h-6 bg-[#1C2430] rounded"></div>
+                                        )}
+                                    </div>
+                                    
+                                    <div className={`w-12 text-right text-sm font-medium ${
+                                        leader.change1dPct >= 0 ? 'text-green-400' : 'text-red-400'
+                                    }`}>
+                                        {leader.change1dPct > 0 ? '+' : ''}{leader.change1dPct?.toFixed(1)}%
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    
+                    {onCompanyAction && leaders.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-[#1C2430]">
+                            <button
+                                onClick={() => onCompanyAction(sector, 'comps')}
+                                className="text-sky-400 hover:text-sky-300 text-sm font-medium transition-colors"
+                            >
+                                View All Comps →
+                            </button>
+                        </div>
+                    )}
+                </div>
+            );
         };
 
         // Status Banner Component
@@ -1202,11 +1539,6 @@
             volProxy: { label: 'VIX', value: 14.2 }
         };
 
-        const GICS_SECTORS = [
-            'All', 'Technology', 'Healthcare', 'Financial Services', 'Consumer Discretionary',
-            'Communication Services', 'Industrials', 'Consumer Staples', 'Energy',
-            'Utilities', 'Real Estate', 'Materials'
-        ];
 
         const MOCK_SECTOR_DATA = {
             'Technology': {
@@ -1515,58 +1847,99 @@
             const [isLoading, setIsLoading] = React.useState(true);
             const [companiesData, setCompaniesData] = React.useState([]);
             const [sectorData, setSectorData] = React.useState({});
+            const [range, setRange] = React.useState('1D');
+            const [sectorPerf, setSectorPerf] = React.useState([]);
+            const [sectorWeights, setSectorWeights] = React.useState([]);
 
             // Fetch real company data on mount
             useEffect(() => {
-                const fetchCompanies = async () => {
+                const fetchMarketData = async () => {
                     try {
                         setIsLoading(true);
-                        const response = await axios.get(`${API_BASE}/api/companies`);
-                        const companies = response.data.companies || [];
                         
-                        // Group companies by sector (for now all go to "Technology" until we add sector mapping)
+                        // Fetch companies data
+                        const companiesResponse = await axios.get(`${API_BASE}/api/companies`);
+                        const companies = companiesResponse.data.companies || [];
+                        
+                        // Fetch sector performance data
+                        try {
+                            const perfResponse = await axios.get(`${API_BASE}/api/v1/market/sector-performance?range=${range}`);
+                            setSectorPerf(perfResponse.data.points || []);
+                        } catch (perfError) {
+                            console.warn('Sector performance data unavailable, using mock data');
+                            setSectorPerf(GICS_SECTORS.map(sector => ({
+                                sector,
+                                change1dPct: (Math.random() - 0.5) * 4 // -2% to +2%
+                            })));
+                        }
+                        
+                        // Fetch sector weights data
+                        try {
+                            const weightsResponse = await axios.get(`${API_BASE}/api/v1/market/sector-weights`);
+                            setSectorWeights(weightsResponse.data.weights || []);
+                        } catch (weightsError) {
+                            console.warn('Sector weights data unavailable, using mock data');
+                            setSectorWeights(GICS_SECTORS.map(sector => ({
+                                sector,
+                                weight: Math.random() * 0.2 + 0.05 // 5-25% each
+                            })));
+                        }
+                        
+                        // Group companies by sector and ensure all 11 sectors are present
                         const sectors = {};
                         
+                        // Initialize all GICS sectors
+                        GICS_SECTORS.forEach(sectorName => {
+                            sectors[sectorName] = {
+                                sector: sectorName,
+                                totalMktCap: 0,
+                                leaders: []
+                            };
+                        });
+                        
+                        // Add companies to their sectors
                         companies.forEach(company => {
-                            const sector = company.sector || 'Technology';
-                            if (!sectors[sector]) {
-                                sectors[sector] = {
-                                    sector: sector,
-                                    totalMktCap: 0,
-                                    leaders: []
-                                };
-                            }
-                            
-                            if (sectors[sector].leaders.length < 3) {
+                            const sector = company.sector || 'Information Technology';
+                            if (sectors[sector] && sectors[sector].leaders.length < 3) {
                                 sectors[sector].leaders.push({
                                     ticker: company.ticker,
                                     name: company.name || company.ticker,
                                     price: company.price,
                                     change1dPct: company.change_1d_pct,
-                                    pe: null, // Calculate from data if available
+                                    pe: null,
                                     evEbitda: company.ebitda && company.market_cap 
                                         ? ((company.market_cap || 0) / company.ebitda).toFixed(1) 
                                         : null,
-                                    sparkline: [] // No sparkline data yet
+                                    sparkline: company.sparkline || []
                                 });
                             }
                             
-                            sectors[sector].totalMktCap += (company.market_cap || 0);
+                            if (sectors[sector]) {
+                                sectors[sector].totalMktCap += (company.market_cap || 0);
+                            }
                         });
                         
                         setCompaniesData(companies);
                         setSectorData(sectors);
                         setIsLoading(false);
                     } catch (error) {
-                        console.error('Error fetching companies:', error);
+                        console.error('Error fetching market data:', error);
                         // Fall back to mock data on error
                         setSectorData(MOCK_SECTOR_DATA);
+                        setSectorPerf(GICS_SECTORS.map(sector => ({
+                            sector,
+                            change1dPct: (Math.random() - 0.5) * 4
+                        })));
+                        setSectorWeights(GICS_SECTORS.map(sector => ({
+                            sector,
+                            weight: Math.random() * 0.2 + 0.05
+                        })));
                         setIsLoading(false);
                     }
                 };
                 
-                fetchCompanies();
-            }, []);
+                fetchMarketData();
+            }, [range]);
 
             const handleCompanyAction = (ticker, action) => {
                 if (action === 'merger') {
@@ -1580,9 +1953,19 @@
                 navigate(`/comps?sector=${sector}`);
             };
 
+            // Ensure all 11 sectors are displayed in stable order
             const displayedSectors = selectedSector === 'All'
-                ? Object.values(sectorData)
+                ? GICS_SECTORS.map(sectorName => sectorData[sectorName] || {
+                    sector: sectorName,
+                    totalMktCap: 0,
+                    leaders: []
+                })
                 : sectorData[selectedSector] ? [sectorData[selectedSector]] : [];
+
+            // Check if any sectors have placeholder data
+            const hasPlaceholders = displayedSectors.some(sector => 
+                sector.leaders.length === 0 || sector.leaders.some(leader => leader.placeholder)
+            );
 
             return (
                 <div className="min-h-screen bg-[#0B0E11]">
@@ -1592,6 +1975,25 @@
                     <div className="max-w-[1400px] mx-auto px-4 md:px-6 lg:px-8 py-8 space-y-8">
                         {/* Market Pulse */}
                         <MarketPulse {...MOCK_MARKET_PULSE} isLoading={isLoading} />
+
+                        {/* Charts Section */}
+                        <div className="space-y-6">
+                            {/* Sector Performance Chart */}
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-[#E6EDF3] text-2xl font-bold">Market Overview</h2>
+                                <RangeToggle 
+                                    range={range} 
+                                    onRangeChange={setRange} 
+                                    isLoading={isLoading} 
+                                />
+                            </div>
+                            
+                            <SectorPerformanceChart 
+                                sectorPerf={sectorPerf} 
+                                range={range} 
+                                isLoading={isLoading} 
+                            />
+                        </div>
 
                         {/* Sector Filter */}
                         <div className="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-hide" data-testid="sector-filter">
@@ -1610,41 +2012,56 @@
                             ))}
                         </div>
 
-                        {/* Grid Layout: Sector Leaderboard + Quick Start */}
+                        {/* Placeholder Banner */}
+                        {hasPlaceholders && (
+                            <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg p-4">
+                                <div className="flex items-center space-x-2">
+                                    <span className="text-amber-400">⚠️</span>
+                                    <p className="text-amber-200 text-sm">
+                                        Some sectors show placeholders due to limited data (refreshing…)
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Grid Layout: Sector Leaderboard + Charts + Quick Start */}
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                             {/* Sector Leaderboard */}
-                            <div className="lg:col-span-9">
-                                <h2 className="text-[#E6EDF3] text-2xl font-bold mb-6">Sector Leaders</h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                                    {displayedSectors.length > 0 ? (
-                                        displayedSectors.map(sectorData => (
-                                            <SectorCard
-                                                key={sectorData.sector}
-                                                {...sectorData}
-                                                isLoading={isLoading}
-                                                onCompanyAction={handleCompanyAction}
-                                                onViewComps={() => handleViewComps(sectorData.sector)}
-                                            />
-                                        ))
-                                    ) : (
-                                        <div className="col-span-full text-center py-12">
-                                            <p className="text-[#9FB0C3]">No data available for this sector</p>
+                            <div className="lg:col-span-6">
+                                <div className="flex items-center justify-between mb-6">
+                                    <h2 className="text-[#E6EDF3] text-2xl font-bold">Sector Leaders</h2>
+                                    {displayedSectors.length === 11 && (
+                                        <div className="text-[#10B981] text-sm flex items-center space-x-1">
+                                            <span>✓</span>
+                                            <span>All sectors displayed</span>
                                         </div>
                                     )}
                                 </div>
-                            </div>
-
-                            {/* Quick Start (Desktop) */}
-                            <div className="hidden lg:block lg:col-span-3">
-                                <div className="sticky top-24">
-                                    <QuickStart />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {displayedSectors.map(sectorData => (
+                                        <SectorLeadersCard
+                                            key={sectorData.sector}
+                                            sector={sectorData.sector}
+                                            totalMktCap={sectorData.totalMktCap}
+                                            leaders={sectorData.leaders || []}
+                                            isLoading={isLoading}
+                                            onCompanyAction={handleCompanyAction}
+                                        />
+                                    ))}
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Quick Start (Mobile/Tablet) */}
-                        <div className="lg:hidden">
-                            <QuickStart />
+                            {/* Right Column: Charts + Quick Start */}
+                            <div className="lg:col-span-6 space-y-8">
+                                {/* Market Cap Donut Chart */}
+                                <MarketCapDonutChart 
+                                    sectorWeights={sectorWeights} 
+                                    isLoading={isLoading} 
+                                />
+                                
+                                {/* Quick Start */}
+                                <QuickStart />
+                            </div>
                         </div>
                     </div>
                 </div>
