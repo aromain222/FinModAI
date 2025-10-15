@@ -485,6 +485,261 @@ def get_companies():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# Market Overview API Endpoints
+
+@app.route('/api/v1/market/sector-performance', methods=['GET'])
+def get_sector_performance():
+    """Get sector performance data for charts."""
+    try:
+        range_param = request.args.get('range', '1D')
+        valid_ranges = ['1D', '1W', '1M']
+        
+        if range_param not in valid_ranges:
+            return jsonify({"error": "Invalid range. Must be 1D, 1W, or 1M"}), 400
+        
+        # GICS sectors in order
+        gics_sectors = [
+            'Communication Services', 'Consumer Discretionary', 'Consumer Staples',
+            'Energy', 'Financials', 'Health Care', 'Industrials',
+            'Information Technology', 'Materials', 'Real Estate', 'Utilities'
+        ]
+        
+        # For now, generate mock data - in production this would compute from Yahoo Finance
+        # Calculate days for the range
+        days_map = {'1D': 1, '1W': 7, '1M': 30}
+        days = days_map[range_param]
+        
+        sector_performance = []
+        for sector in gics_sectors:
+            # Generate realistic sector performance data
+            # In production, this would be computed from actual stock data
+            base_change = (hash(sector + range_param) % 200 - 100) / 100.0  # Deterministic but varied
+            change_pct = round(base_change * 2.5, 2)  # Scale to realistic range (-2.5% to +2.5%)
+            
+            sector_performance.append({
+                "sector": sector,
+                "change1dPct": change_pct
+            })
+        
+        return jsonify({
+            "as_of": datetime.now().isoformat() + "Z",
+            "range": range_param,
+            "points": sector_performance,
+            "stale": False
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/v1/market/sector-weights', methods=['GET'])
+def get_sector_weights():
+    """Get sector market cap weights for donut chart."""
+    try:
+        # GICS sectors in order
+        gics_sectors = [
+            'Communication Services', 'Consumer Discretionary', 'Consumer Staples',
+            'Energy', 'Financials', 'Health Care', 'Industrials',
+            'Information Technology', 'Materials', 'Real Estate', 'Utilities'
+        ]
+        
+        # Generate realistic sector weights that sum to ~1.0
+        # In production, this would be computed from actual market cap data
+        weights = []
+        total_weight = 0
+        
+        for sector in gics_sectors:
+            # Generate deterministic but varied weights
+            base_weight = (hash(sector) % 1000) / 10000.0  # 0.0 to 0.1 base
+            sector_weight = base_weight + 0.05  # Add minimum 5%
+            
+            # Adjust weights for realistic sector sizes
+            if sector == 'Information Technology':
+                sector_weight = 0.28  # Largest sector
+            elif sector == 'Health Care':
+                sector_weight = 0.15
+            elif sector == 'Financials':
+                sector_weight = 0.12
+            elif sector == 'Consumer Discretionary':
+                sector_weight = 0.11
+            elif sector == 'Communication Services':
+                sector_weight = 0.08
+            elif sector == 'Industrials':
+                sector_weight = 0.08
+            elif sector == 'Consumer Staples':
+                sector_weight = 0.06
+            elif sector == 'Materials':
+                sector_weight = 0.04
+            elif sector == 'Energy':
+                sector_weight = 0.04
+            elif sector == 'Real Estate':
+                sector_weight = 0.03
+            elif sector == 'Utilities':
+                sector_weight = 0.03
+            
+            weights.append({
+                "sector": sector,
+                "weight": sector_weight
+            })
+            total_weight += sector_weight
+        
+        # Normalize to sum to 1.0
+        for weight in weights:
+            weight["weight"] = weight["weight"] / total_weight
+        
+        return jsonify({
+            "as_of": datetime.now().isoformat() + "Z",
+            "weights": weights,
+            "total_weight": sum(w["weight"] for w in weights)
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/v1/market/leaders/full', methods=['GET'])
+def get_market_leaders_full():
+    """Get market leaders with full sector coverage (11 sectors, padded to 3 leaders each)."""
+    try:
+        per_sector = int(request.args.get('per_sector', 3))
+        
+        if per_sector < 1 or per_sector > 10:
+            return jsonify({"error": "per_sector must be between 1 and 10"}), 400
+        
+        # GICS sectors in order
+        gics_sectors = [
+            'Communication Services', 'Consumer Discretionary', 'Consumer Staples',
+            'Energy', 'Financials', 'Health Care', 'Industrials',
+            'Information Technology', 'Materials', 'Real Estate', 'Utilities'
+        ]
+        
+        # Get companies data
+        sec_provider = get_sec_provider()
+        companies_data = []
+        
+        if hasattr(sec_provider, 'data') and sec_provider.data is not None:
+            tickers = sec_provider.data['ticker'].unique()
+            
+            for ticker in sorted(tickers)[:100]:  # Top 100 by some metric
+                try:
+                    ticker_data = sec_provider.data[sec_provider.data['ticker'] == ticker].iloc[-1]
+                    
+                    # Get market data from yfinance
+                    market_cap = None
+                    price = None
+                    change_pct = None
+                    ev_to_ebitda = None
+                    pe = None
+                    sparkline = []
+                    
+                    if YFINANCE_AVAILABLE:
+                        try:
+                            stock = yf.Ticker(ticker)
+                            info = stock.info
+                            market_cap = info.get('marketCap')
+                            price = info.get('currentPrice') or info.get('regularMarketPrice')
+                            change_pct = info.get('regularMarketChangePercent')
+                            ev_to_ebitda = info.get('evToEbitda')
+                            pe = info.get('trailingPE')
+                            
+                            # Generate mock sparkline data (30 days)
+                            sparkline = [(hash(ticker + str(i)) % 100) / 100.0 for i in range(30)]
+                            
+                        except:
+                            pass
+                    
+                    companies_data.append({
+                        "ticker": ticker,
+                        "name": ticker,  # We don't have company names
+                        "sector": _map_sector(ticker),  # Map to GICS sector
+                        "price": price,
+                        "change1dPct": change_pct,
+                        "market_cap": market_cap,
+                        "ev_to_ebitda": ev_to_ebitda,
+                        "pe": pe,
+                        "sparkline": sparkline
+                    })
+                except Exception as e:
+                    continue
+        
+        # Group by sector and select leaders
+        sectors_data = []
+        for sector in gics_sectors:
+            sector_companies = [c for c in companies_data if c["sector"] == sector]
+            
+            # Sort by market cap (descending)
+            sector_companies.sort(key=lambda x: x["market_cap"] or 0, reverse=True)
+            
+            # Take top companies for this sector
+            leaders = sector_companies[:per_sector]
+            
+            # Pad with placeholders if needed
+            while len(leaders) < per_sector:
+                leaders.append({
+                    "placeholder": True
+                })
+            
+            # Calculate total market cap for this sector
+            total_mkt_cap = sum(c.get("market_cap", 0) or 0 for c in sector_companies)
+            
+            sectors_data.append({
+                "sector": sector,
+                "leaders": leaders,
+                "totalMktCap": total_mkt_cap,
+                "sector_status": "populated" if len(sector_companies) > 0 else "empty"
+            })
+        
+        return jsonify({
+            "as_of": datetime.now().isoformat() + "Z",
+            "sectors": sectors_data,
+            "stale": False,
+            "total_sectors": len(gics_sectors),
+            "companies_per_sector": per_sector
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+def _map_sector(ticker):
+    """Map ticker to GICS sector. In production, this would use actual sector data."""
+    # Simple mapping based on ticker patterns and known companies
+    sector_mapping = {
+        # Technology
+        'AAPL': 'Information Technology', 'MSFT': 'Information Technology', 'GOOGL': 'Information Technology',
+        'GOOG': 'Information Technology', 'AMZN': 'Consumer Discretionary', 'TSLA': 'Consumer Discretionary',
+        'META': 'Communication Services', 'NFLX': 'Communication Services', 'NVDA': 'Information Technology',
+        'ORCL': 'Information Technology', 'CRM': 'Information Technology', 'ADBE': 'Information Technology',
+        
+        # Financials
+        'JPM': 'Financials', 'BAC': 'Financials', 'WFC': 'Financials', 'GS': 'Financials',
+        'MS': 'Financials', 'C': 'Financials', 'AXP': 'Financials',
+        
+        # Health Care
+        'JNJ': 'Health Care', 'PFE': 'Health Care', 'UNH': 'Health Care', 'ABBV': 'Health Care',
+        'MRK': 'Health Care', 'TMO': 'Health Care', 'ABT': 'Health Care',
+        
+        # Consumer
+        'PG': 'Consumer Staples', 'KO': 'Consumer Staples', 'PEP': 'Consumer Staples',
+        'WMT': 'Consumer Staples', 'COST': 'Consumer Staples', 'HD': 'Consumer Discretionary',
+        'MCD': 'Consumer Discretionary', 'NKE': 'Consumer Discretionary', 'SBUX': 'Consumer Discretionary',
+        
+        # Industrial
+        'BA': 'Industrials', 'CAT': 'Industrials', 'GE': 'Industrials', 'MMM': 'Industrials',
+        'HON': 'Industrials', 'UPS': 'Industrials', 'FDX': 'Industrials',
+        
+        # Energy
+        'XOM': 'Energy', 'CVX': 'Energy', 'COP': 'Energy', 'EOG': 'Energy',
+        
+        # Utilities
+        'NEE': 'Utilities', 'DUK': 'Utilities', 'SO': 'Utilities', 'AEP': 'Utilities',
+        
+        # Materials
+        'LIN': 'Materials', 'APD': 'Materials', 'SHW': 'Materials', 'ECL': 'Materials',
+        
+        # Real Estate
+        'AMT': 'Real Estate', 'PLD': 'Real Estate', 'CCI': 'Real Estate', 'EQIX': 'Real Estate'
+    }
+    
+    return sector_mapping.get(ticker, 'Information Technology')  # Default to Technology
+
 @app.route('/models/generate', methods=['POST'])
 def generate_model_api():
     """
