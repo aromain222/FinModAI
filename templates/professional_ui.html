@@ -62,6 +62,82 @@
             return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(value);
         };
 
+        // Real Data Validation Hook
+        const useLiveData = (data, maxAgeMinutes = 30) => {
+            const [isValid, setIsValid] = React.useState(false);
+            const [errorMessage, setErrorMessage] = React.useState('');
+            const [provenance, setProvenance] = React.useState(null);
+
+            React.useEffect(() => {
+                if (!data) {
+                    setIsValid(false);
+                    setErrorMessage('');
+                    setProvenance(null);
+                    return;
+                }
+
+                // Check if data is stale
+                if (data.stale === true) {
+                    setIsValid(false);
+                    setErrorMessage('Data Stale — Market quotes older than 30 minutes. Please refresh.');
+                    setProvenance(null);
+                    return;
+                }
+
+                // Check for required timestamps
+                if (!data.as_of_quotes || !data.as_of_fundamentals) {
+                    setIsValid(false);
+                    setErrorMessage('Live data unavailable or stale. We don\'t use sample data. Please retry.');
+                    setProvenance(null);
+                    return;
+                }
+
+                // Check timestamp freshness
+                try {
+                    const quotesTime = new Date(data.as_of_quotes);
+                    const now = new Date();
+                    const ageMinutes = (now - quotesTime) / (1000 * 60);
+
+                    if (ageMinutes > maxAgeMinutes) {
+                        setIsValid(false);
+                        setErrorMessage(`Data Stale — Market quotes older than ${Math.round(ageMinutes)} minutes. Please refresh.`);
+                        setProvenance(null);
+                        return;
+                    }
+                } catch (e) {
+                    setIsValid(false);
+                    setErrorMessage('Live data unavailable or stale. We don\'t use sample data. Please retry.');
+                    setProvenance(null);
+                    return;
+                }
+
+                // Check for provenance
+                if (!data.provenance || !data.source) {
+                    setIsValid(false);
+                    setErrorMessage('Live data unavailable or stale. We don\'t use sample data. Please retry.');
+                    setProvenance(null);
+                    return;
+                }
+
+                // All checks passed
+                setIsValid(true);
+                setErrorMessage('');
+                setProvenance({
+                    sources: data.source,
+                    as_of_quotes: data.as_of_quotes,
+                    as_of_fundamentals: data.as_of_fundamentals
+                });
+            }, [data, maxAgeMinutes]);
+
+            return {
+                isValid,
+                errorMessage,
+                provenance,
+                isStale: data?.stale === true,
+                isMissing: !data?.as_of_quotes || !data?.as_of_fundamentals
+            };
+        };
+
         const formatPercent = (value) => {
             if (value === null || value === undefined) return 'N/A';
             return `${(value * 100).toFixed(1)}%`;
@@ -703,28 +779,14 @@
                     setState(STATE.LOADING);
                     setError(null);
                     
-                    // Call production model-inputs endpoint
+                    // Call enhanced model-inputs endpoint
                     const response = await axios.get(`${API_BASE}/api/v1/model-inputs/dcf?ticker=${ticker}`);
                     
-                    // Check for stale data or missing fields
-                    if (response.data.stale === true) {
-                        setError('Live data unavailable or stale. We don\'t use sample data. Please retry.');
-                        setState(STATE.ERROR);
-                        return;
-                    }
+                    // Use useLiveData hook to validate
+                    const liveDataValidation = useLiveData(response.data);
                     
-                    // Check for missing required fields
-                    if (response.status === 422) {
-                        const missingFields = response.data.fields || [];
-                        setError(`Missing required data fields: ${missingFields.join(', ')}. We don\'t use sample data.`);
-                        setState(STATE.ERROR);
-                        return;
-                    }
-                    
-                    // Check for service unavailable
-                    if (response.status === 503) {
-                        const errorMsg = response.data.message || 'Data service unavailable';
-                        setError(`Live data unavailable: ${errorMsg}. We don\'t use sample data. Please retry.`);
+                    if (!liveDataValidation.isValid) {
+                        setError(liveDataValidation.errorMessage || 'Live data unavailable or stale. We don\'t use sample data. Please retry.');
                         setState(STATE.ERROR);
                         return;
                     }
@@ -740,14 +802,16 @@
                             ufcf: response.data.historicals?.free_cash_flow || [],
                             pv_factors: response.data.historicals?.pv_factors || [],
                             pv_ufcf: response.data.historicals?.pv_free_cash_flow || []
-                        }
+                        },
+                        // Store full response for validation
+                        rawResponse: response.data
                     });
                     setState(STATE.READY);
                     
                 } catch (err) {
                     if (err.response?.status === 422) {
                         const missingFields = err.response?.data?.fields || [];
-                        setError(`Missing required data fields: ${missingFields.join(', ')}. We don\'t use sample data.`);
+                        setError(`Insufficient Inputs — Missing: ${missingFields.join(', ')}. We never substitute sample data.`);
                     } else if (err.response?.status === 503) {
                         const errorMsg = err.response?.data?.message || 'Data service unavailable';
                         setError(`Live data unavailable: ${errorMsg}. We don\'t use sample data. Please retry.`);
@@ -938,18 +1002,27 @@
                                             </div>
                                         </div>
                                         
-                                        {/* Data Provenance Indicator */}
-                                        <div className="mb-6 p-3 bg-green-900/20 border border-green-500/30 rounded-lg">
-                                            <div className="flex items-center space-x-2">
-                                                <div className="text-green-400 text-sm">ⓘ</div>
-                                                <div className="text-sm text-green-200">
-                                                    <strong>Data:</strong> live & audited, as-of {new Date().toLocaleTimeString()} UTC
-                                                    <a href="/api/v1/_provenance" className="text-green-300 hover:text-green-100 ml-2 underline" target="_blank">
-                                                        View Provenance →
+                                        {/* Verified Live Data Badge */}
+                                        {preview?.rawResponse && (
+                                            <div className="mb-6 p-3 bg-green-900/20 border border-green-500/30 rounded-lg">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center space-x-2">
+                                                        <div className="text-green-400 text-sm">✅</div>
+                                                        <div className="text-sm text-green-200">
+                                                            <strong>Verified Live Data</strong> — EDGAR + Market APIs
+                                                        </div>
+                                                    </div>
+                                                    <a href="/api/v1/_provenance" className="text-green-300 hover:text-green-100 text-sm underline" target="_blank">
+                                                        View Provenance
                                                     </a>
                                                 </div>
+                                                <div className="mt-2 text-xs text-green-300">
+                                                    Quotes: {new Date(preview.rawResponse.as_of_quotes).toLocaleString()} UTC
+                                                    <br />
+                                                    Fundamentals: {new Date(preview.rawResponse.as_of_fundamentals).toLocaleString()} UTC
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                             
                                             <div className="overflow-x-auto">
                                                 <table className="w-full">
