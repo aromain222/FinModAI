@@ -3,7 +3,7 @@ Configuration for the financial data layer.
 """
 import os
 from typing import Dict, List, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -43,11 +43,11 @@ class DataConfig:
     market_cap_tolerance: float = 0.15  # 15% tolerance for market cap consistency
     
     # Provider priority (fixed order)
-    fundamentals_priority: List[str] = ["edgar", "fmp", "finnhub", "alphavantage"]
-    quotes_priority: List[str] = ["yahoo", "finnhub", "alphavantage", "fmp"]
-    charts_priority: List[str] = ["yahoo", "finnhub", "fmp"]
-    meta_priority: List[str] = ["finnhub", "fmp", "alphavantage", "yahoo"]
-    risk_free_priority: List[str] = ["fred"]
+    fundamentals_priority: List[str] = field(default_factory=lambda: ["edgar", "fmp", "finnhub", "alphavantage"])
+    quotes_priority: List[str] = field(default_factory=lambda: ["yahoo", "finnhub", "alphavantage", "fmp"])
+    charts_priority: List[str] = field(default_factory=lambda: ["yahoo", "finnhub", "fmp"])
+    meta_priority: List[str] = field(default_factory=lambda: ["finnhub", "fmp", "alphavantage", "yahoo"])
+    risk_free_priority: List[str] = field(default_factory=lambda: ["fred"])
     
     @property
     def is_production(self) -> bool:
