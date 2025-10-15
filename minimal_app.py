@@ -2350,6 +2350,91 @@ def get_alphavantage_timeseries(ticker, function='TIME_SERIES_DAILY'):
         print(f"Error fetching Alpha Vantage data for {ticker}: {e}")
         return None
 
+
+def get_alphavantage_quote(ticker):
+    """Get real-time quote data from Alpha Vantage API."""
+    try:
+        api_key = os.getenv('ALPHAVANTAGE_API_KEY')
+        if not api_key:
+            return None
+            
+        url = 'https://www.alphavantage.co/query'
+        params = {
+            'function': 'GLOBAL_QUOTE',
+            'symbol': ticker,
+            'apikey': api_key
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Check for API limit
+            if 'Note' in data:
+                print(f"Alpha Vantage API limit reached for {ticker}")
+                return None
+                
+            if 'Global Quote' in data:
+                quote = data['Global Quote']
+                return {
+                    'price': float(quote.get('05. price', 0)),
+                    'open': float(quote.get('02. open', 0)),
+                    'high': float(quote.get('03. high', 0)),
+                    'low': float(quote.get('04. low', 0)),
+                    'volume': int(quote.get('06. volume', 0)),
+                    'change': float(quote.get('09. change', 0)),
+                    'change_percent': quote.get('10. change percent', '0%'),
+                    'previous_close': float(quote.get('08. previous close', 0)),
+                    'latest_trading_day': quote.get('07. latest trading day', ''),
+                    'source': 'alphavantage'
+                }
+                
+        return None
+        
+    except Exception as e:
+        print(f"Error fetching Alpha Vantage quote for {ticker}: {e}")
+        return None
+
+
+def get_finnhub_quote(ticker):
+    """Get real-time quote data from Finnhub API."""
+    try:
+        api_key = os.getenv('FINNHUB_API_KEY')
+        if not api_key:
+            return None
+            
+        url = 'https://finnhub.io/api/v1/quote'
+        params = {
+            'symbol': ticker,
+            'token': api_key
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Check if we got valid data
+            if 'c' in data and data['c'] > 0:
+                return {
+                    'price': data.get('c', 0),
+                    'open': data.get('o', 0),
+                    'high': data.get('h', 0),
+                    'low': data.get('l', 0),
+                    'change': data.get('d', 0),
+                    'change_percent': f"{data.get('dp', 0):.4f}%",
+                    'previous_close': data.get('pc', 0),
+                    'timestamp': data.get('t', 0),
+                    'source': 'finnhub'
+                }
+                
+        return None
+        
+    except Exception as e:
+        print(f"Error fetching Finnhub quote for {ticker}: {e}")
+        return None
+
 def get_company_data(ticker):
     """Get comprehensive company data from SEC EDGAR, yfinance, and Alpha Vantage."""
     try:
@@ -2410,36 +2495,17 @@ def get_company_data(ticker):
                         'delta_nwc': latest_delta_nwc
                     }
         
-        # Get Alpha Vantage time series data
+        # Get Alpha Vantage time series data for sparklines
         timeseries_data = get_alphavantage_timeseries(ticker)
         if timeseries_data:
             company_data['timeseries'] = timeseries_data
             
-            # Extract market data from Alpha Vantage
+            # Create sparkline data (last 30 days) from time series
             if 'Time Series (Daily)' in timeseries_data:
                 time_series = timeseries_data['Time Series (Daily)']
                 dates = sorted(time_series.keys(), reverse=True)
                 
                 if dates:
-                    latest_data = time_series[dates[0]]
-                    company_data['market'].update({
-                        'price': float(latest_data['4. close']),
-                        'volume': int(latest_data['5. volume']),
-                        'high': float(latest_data['2. high']),
-                        'low': float(latest_data['3. low']),
-                        'open': float(latest_data['1. open'])
-                    })
-                    
-                    # Calculate 1D change
-                    if len(dates) >= 2:
-                        prev_data = time_series[dates[1]]
-                        current_close = float(latest_data['4. close'])
-                        prev_close = float(prev_data['4. close'])
-                        change = current_close - prev_close
-                        change_pct = (change / prev_close) * 100
-                        company_data['market']['change_1d'] = change
-                        company_data['market']['change_1d_pct'] = change_pct
-                    
                     # Create sparkline data (last 30 days)
                     sparkline_data = []
                     for date in dates[:30]:  # Last 30 days
@@ -2454,6 +2520,69 @@ def get_company_data(ticker):
                             company_data['market']['sparkline'] = [(p - min_price) / (max_price - min_price) for p in sparkline_data]
                         else:
                             company_data['market']['sparkline'] = [0.5] * len(sparkline_data)
+        
+        # Get real-time market data from multiple providers (priority order)
+        quote_data = None
+        
+        # Try Alpha Vantage first
+        quote_data = get_alphavantage_quote(ticker)
+        if quote_data:
+            company_data['market'].update({
+                'price': quote_data['price'],
+                'open': quote_data['open'],
+                'high': quote_data['high'],
+                'low': quote_data['low'],
+                'volume': quote_data['volume'],
+                'change_1d': quote_data['change'],
+                'change_1d_pct': float(quote_data['change_percent'].replace('%', '')),
+                'previous_close': quote_data['previous_close'],
+                'quote_source': 'alphavantage'
+            })
+            print(f"✅ Got Alpha Vantage quote for {ticker}: ${quote_data['price']:.2f}")
+        
+        # Fallback to Finnhub if Alpha Vantage failed
+        if not quote_data:
+            quote_data = get_finnhub_quote(ticker)
+            if quote_data:
+                company_data['market'].update({
+                    'price': quote_data['price'],
+                    'open': quote_data['open'],
+                    'high': quote_data['high'],
+                    'low': quote_data['low'],
+                    'change_1d': quote_data['change'],
+                    'change_1d_pct': float(quote_data['change_percent'].replace('%', '')),
+                    'previous_close': quote_data['previous_close'],
+                    'quote_source': 'finnhub'
+                })
+                print(f"✅ Got Finnhub quote for {ticker}: ${quote_data['price']:.2f}")
+        
+        # If no real-time quotes available, try to get data from time series
+        if not quote_data and timeseries_data and 'Time Series (Daily)' in timeseries_data:
+            time_series = timeseries_data['Time Series (Daily)']
+            dates = sorted(time_series.keys(), reverse=True)
+            
+            if dates:
+                latest_data = time_series[dates[0]]
+                company_data['market'].update({
+                    'price': float(latest_data['4. close']),
+                    'volume': int(latest_data['5. volume']),
+                    'high': float(latest_data['2. high']),
+                    'low': float(latest_data['3. low']),
+                    'open': float(latest_data['1. open']),
+                    'quote_source': 'alphavantage_timeseries'
+                })
+                
+                # Calculate 1D change
+                if len(dates) >= 2:
+                    prev_data = time_series[dates[1]]
+                    current_close = float(latest_data['4. close'])
+                    prev_close = float(prev_data['4. close'])
+                    change = current_close - prev_close
+                    change_pct = (change / prev_close) * 100
+                    company_data['market']['change_1d'] = change
+                    company_data['market']['change_1d_pct'] = change_pct
+                
+                print(f"✅ Got Alpha Vantage time series data for {ticker}: ${float(latest_data['4. close']):.2f}")
         
         # Get market data from yfinance (as backup)
         if YFINANCE_AVAILABLE:
@@ -2495,6 +2624,14 @@ def get_company_data(ticker):
                     
             except Exception as e:
                 print(f"Error fetching yfinance data for {ticker}: {e}")
+        
+        # Calculate market cap if we have price but no market cap
+        if company_data['market'].get('price', 0) > 0 and not company_data['market'].get('market_cap', 0):
+            shares_out = company_data['market'].get('shares_out', 0)
+            if shares_out > 0:
+                market_cap = company_data['market']['price'] * shares_out
+                company_data['market']['market_cap'] = market_cap
+                print(f"✅ Calculated market cap for {ticker}: ${market_cap/1e9:.1f}B")
         
         # If no historical data, create some realistic defaults for AAPL
         if not company_data['historicals'] and ticker == 'AAPL':
