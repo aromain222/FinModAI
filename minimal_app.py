@@ -2622,6 +2622,9 @@ def get_company_data(ticker):
                         print(f"✅ Using realistic AAPL historical data as fallback")
         
         # LAST RESORT: Hardcoded AAPL data only if all else fails
+        print(f"🔍 DEBUG: Checking fallback condition for {ticker}")
+        print(f"🔍 DEBUG: market_cap = {company_data.get('market', {}).get('market_cap', 'NOT_FOUND')}")
+        
         if ticker == 'AAPL' and (not company_data.get('market', {}).get('market_cap') or company_data['market']['market_cap'] == 0):
             print(f"🚨 LAST RESORT: Using hardcoded AAPL data - all APIs failed")
             company_data.update({
