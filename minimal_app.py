@@ -19,6 +19,14 @@ except ImportError:
     YFINANCE_AVAILABLE = False
     print("Warning: yfinance not available")
 
+# Import gap filler agent
+try:
+    from gap_filler_agent import gap_filler
+    GAP_FILLER_AVAILABLE = True
+except ImportError:
+    GAP_FILLER_AVAILABLE = False
+    print("Warning: Gap filler agent not available")
+
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
@@ -2667,7 +2675,7 @@ def build_dcf_inputs(company_data):
         # Extract market data
         market_data = company_data.get('market', {})
         
-        # Build DCF inputs with real data
+        # Build initial DCF inputs with real data
         dcf_inputs = {
             'ticker': company_data.get('ticker', ''),
             'historicals': {
@@ -2711,11 +2719,117 @@ def build_dcf_inputs(company_data):
             }
         }
         
+        # Apply gap filling if available and needed
+        if GAP_FILLER_AVAILABLE:
+            dcf_inputs = apply_gap_filling(dcf_inputs, company_data)
+        
         return dcf_inputs
         
     except Exception as e:
         print(f"Error building DCF inputs: {e}")
         return {'error': str(e)}
+
+
+def apply_gap_filling(dcf_inputs, company_data):
+    """Apply gap filling to DCF inputs using the Gap-Filler Agent."""
+    try:
+        if not GAP_FILLER_AVAILABLE:
+            return dcf_inputs
+            
+        # Identify missing fields
+        missing_fields = []
+        
+        # Check for missing market data
+        market = dcf_inputs.get('market', {})
+        if not market.get('market_cap') or market.get('market_cap') == 0:
+            missing_fields.append('market_cap')
+        if not market.get('price') or market.get('price') == 0:
+            missing_fields.append('price')
+            
+        # Check for missing capital data
+        capital = dcf_inputs.get('capital', {})
+        if not capital.get('shares_out') or capital.get('shares_out') == 0:
+            missing_fields.append('shares_out')
+        if not capital.get('net_debt'):
+            missing_fields.append('net_debt')
+            
+        # Check for missing historical data
+        historicals = dcf_inputs.get('historicals', {})
+        if not any(historicals.get('revenue', [])):
+            missing_fields.append('revenue')
+        if not any(historicals.get('ebitda', [])):
+            missing_fields.append('ebitda')
+            
+        if not missing_fields:
+            return dcf_inputs
+            
+        print(f"Gap-Filler: Identified {len(missing_fields)} missing fields: {missing_fields}")
+        
+        # Prepare verified bundle for gap filler
+        verified_bundle = {
+            'market': market,
+            'capital': capital,
+            'historicals': historicals,
+            'provenance': dcf_inputs.get('provenance', {})
+        }
+        
+        # Call gap filler
+        gap_results = gap_filler.fill_gaps(
+            missing_fields=missing_fields,
+            verified_bundle=verified_bundle,
+            filings_text=None,  # Could be added later
+            historical_series=None,  # Could be added later
+            peer_medians=None  # Could be added later
+        )
+        
+        # Apply fills
+        for fill in gap_results.get('fills', []):
+            field = fill.get('field')
+            value = fill.get('value')
+            method = fill.get('method')
+            confidence = fill.get('confidence', 0)
+            requires_approval = fill.get('requires_manual_approval', False)
+            
+            print(f"Gap-Filler: Filled {field} = {value} via {method} (confidence: {confidence:.2f})")
+            
+            # Apply the fill to the appropriate section
+            if field in ['market_cap', 'price', 'beta']:
+                dcf_inputs['market'][field] = value
+            elif field in ['shares_out', 'net_debt', 'cash']:
+                dcf_inputs['capital'][field] = value
+            elif field in ['revenue', 'ebit', 'ebitda', 'free_cash_flow', 'capex', 'delta_nwc']:
+                # For historical fields, apply to the latest year
+                if field in dcf_inputs['historicals']:
+                    # Set the latest year to the filled value
+                    dcf_inputs['historicals'][field][-1] = value
+            
+            # Update provenance
+            if 'provenance' not in dcf_inputs:
+                dcf_inputs['provenance'] = {}
+            dcf_inputs['provenance'][field] = {
+                'source': 'gapfiller',
+                'method': method,
+                'confidence': confidence,
+                'requires_approval': requires_approval,
+                'as_of': datetime.now().isoformat() + 'Z'
+            }
+        
+        # Add gap fill results to response
+        dcf_inputs['gap_filling'] = {
+            'applied': len(gap_results.get('fills', [])),
+            'unresolved': len(gap_results.get('unresolved', [])),
+            'requires_manual_approval': gap_results.get('summary', {}).get('requires_manual_approval', False),
+            'methods_used': gap_results.get('summary', {}).get('methods_used', []),
+            'fills': gap_results.get('fills', []),
+            'unresolved': gap_results.get('unresolved', [])
+        }
+        
+        return dcf_inputs
+        
+    except Exception as e:
+        print(f"Error in gap filling: {e}")
+        # Return original inputs if gap filling fails
+        return dcf_inputs
 
 
 def build_lbo_inputs(company_data):
