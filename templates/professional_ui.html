@@ -24,6 +24,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
+        {% raw %}
         // Debug: Check if libraries loaded
         console.log('React:', typeof React);
         console.log('ReactDOM:', typeof ReactDOM);
@@ -237,9 +238,9 @@
                                     <span className="text-white font-bold text-sm">F</span>
                         </div>
                                 <span className="text-[#E6EDF3] font-semibold hidden sm:block">FinModAI</span>
+                            </div>
+                        </div>
                     </div>
-            </div>
-            </div>
                 </header>
         );
         };
@@ -260,7 +261,7 @@
                                         <div className="w-32 h-4 bg-[#1C2430] rounded"></div>
                                         <div className="flex-1 h-4 bg-[#1C2430] rounded"></div>
                                         <div className="w-12 h-4 bg-[#1C2430] rounded"></div>
-                                    </div>
+                    </div>
                                 ))}
                             </div>
                         </div>
@@ -290,14 +291,14 @@
                                         <div className="h-6 bg-[#1C2430] rounded-full overflow-hidden">
                                             <div 
                                                 className={`h-full rounded-full transition-all duration-500 ${isPositive ? 'bg-green-500' : 'bg-red-500'}`}
-                                                style={{ 
-                                                    width: `${barWidth}px`,
+                                                style={{
+                                                    width: barWidth + 'px',
                                                     backgroundColor: color,
                                                     transform: isPositive ? 'none' : 'scaleX(-1)'
                                                 }}
                                             />
-                                        </div>
                                     </div>
+                                </div>
                                     <div className={`w-16 text-right text-sm font-medium ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
                                         {point.change1dPct > 0 ? '+' : ''}{point.change1dPct.toFixed(2)}%
                                     </div>
@@ -322,9 +323,9 @@
                                     <div key={i} className="flex items-center space-x-2">
                                         <div className="w-3 h-3 bg-[#1C2430] rounded"></div>
                                         <div className="flex-1 h-3 bg-[#1C2430] rounded"></div>
-                                    </div>
-                                ))}
                             </div>
+                        ))}
+                    </div>
                         </div>
                     </div>
                 );
@@ -393,12 +394,12 @@
                                 })}
                             </svg>
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="text-center">
+                    <div className="text-center">
                                     <div className="text-[#E6EDF3] font-bold text-lg">
                                         {sectorWeights.reduce((sum, w) => sum + w.weight, 0).toFixed(1)}%
-                                    </div>
+                        </div>
                                     <div className="text-[#9FB0C3] text-sm">Total</div>
-                                </div>
+                    </div>
                             </div>
                         </div>
                         
@@ -420,8 +421,8 @@
                             )}
                         </div>
                     </div>
-                </div>
-            );
+            </div>
+        );
         };
 
         // Range Toggle Component
@@ -431,7 +432,7 @@
             return (
                 <div className="flex items-center space-x-1 bg-[#1C2430] rounded-lg p-1">
                     {ranges.map((r) => (
-                        <button
+                    <button
                             key={r}
                             onClick={() => onRangeChange(r)}
                             disabled={isLoading}
@@ -442,10 +443,10 @@
                             } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                             {r}
-                        </button>
-                    ))}
-                </div>
-            );
+                    </button>
+                ))}
+            </div>
+        );
         };
 
         // Enhanced Sector Leaders Card with Sparklines
@@ -476,15 +477,15 @@
                     </div>
                 );
             }
-            
-            return (
+
+                return (
                 <div className="bg-[#12161C] rounded-2xl p-6 border border-[#1C2430]" data-testid={`sector-card-${sectorSlug}`}>
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-[#E6EDF3] font-semibold text-lg">{sector}</h3>
                         <span className="text-[#9FB0C3] text-sm">
                             {totalMktCap ? formatMoneyCompact(totalMktCap) : 'N/A'}
                         </span>
-                    </div>
+                            </div>
                     
                     <div className="space-y-3">
                         {paddedLeaders.map((leader, index) => {
@@ -499,11 +500,11 @@
                                         <div className="flex-1 text-[#6B7280] text-sm">—</div>
                                         <div className="w-16 h-8 bg-[#1C2430] rounded"></div>
                                         <div className="w-12 text-[#6B7280] text-sm">—</div>
-                                    </div>
-                                );
-                            }
-                            
-                            return (
+                    </div>
+                );
+            }
+
+                return (
                                 <div 
                                     key={leader.ticker} 
                                     className="flex items-center space-x-3 hover:bg-[#1C2430] rounded-lg p-2 -m-2 transition-colors"
@@ -511,10 +512,10 @@
                                 >
                                     <div className="text-[#E6EDF3] text-sm font-medium w-16 truncate">
                                         {leader.ticker}
-                                    </div>
+                            </div>
                                     <div className="flex-1 text-[#9FB0C3] text-sm truncate">
                                         {leader.name}
-                                    </div>
+                        </div>
                                     
                                     {/* Mini Sparkline */}
                                     <div className="w-16 h-8 flex items-center justify-center">
@@ -534,15 +535,15 @@
                                         ) : (
                                             <div className="w-12 h-6 bg-[#1C2430] rounded"></div>
                                         )}
-                                    </div>
+                    </div>
                                     
                                     <div className={`w-12 text-right text-sm font-medium ${
                                         leader.change1dPct >= 0 ? 'text-green-400' : 'text-red-400'
                                     }`}>
                                         {leader.change1dPct > 0 ? '+' : ''}{leader.change1dPct?.toFixed(1)}%
-                                    </div>
-                                </div>
-                            );
+                    </div>
+                </div>
+            );
                         })}
                     </div>
                     
@@ -556,8 +557,8 @@
                             </button>
                         </div>
                     )}
-                </div>
-            );
+            </div>
+        );
         };
 
         // Status Banner Component
@@ -640,7 +641,7 @@
 
             const hasOverrides = Object.values(overrides).some(v => v !== undefined);
 
-                return (
+            return (
                 <div className="bg-white min-h-screen">
                     <PersistentHeader currentPage="dcf" ticker={ticker} />
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -740,11 +741,11 @@
                                     <div className="space-y-4" data-testid="preview-dcf">
                                         <div className="grid grid-cols-2 gap-4">
                                             {[1,2,3,4].map(i => <SkeletonCard key={i} />)}
-                            </div>
+                                </div>
                                         <div className="bg-white rounded-lg p-6">
                                             <SkeletonTable />
-                            </div>
                         </div>
+                    </div>
                                 )}
 
                                 {state === STATE.READY && preview?.dcf && (
@@ -753,7 +754,7 @@
                                             <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-6">
                                                 <div className="text-sm text-blue-700 mb-1">Enterprise Value</div>
                                                 <div className="text-3xl font-bold text-blue-900">{formatCurrency(preview.dcf.ev)}</div>
-                    </div>
+                                </div>
                                             <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-6">
                                                 <div className="text-sm text-blue-700 mb-1">Equity Value</div>
                                                 <div className="text-3xl font-bold text-blue-900">{formatCurrency(preview.dcf.equity)}</div>
@@ -767,7 +768,7 @@
                                                 <div className={`text-3xl font-bold ${preview.dcf.upside_pct >= 0 ? 'text-green-900' : 'text-red-900'}`}>{formatPercent(preview.dcf.upside_pct)}</div>
                         </div>
                     </div>
-                        
+
                                         <div className="bg-white border border-gray-200 rounded-lg p-6">
                                             <h3 className="text-lg font-semibold text-gray-900 mb-4">Free Cash Flow Projection</h3>
                             <table className="w-full text-sm">
@@ -935,7 +936,7 @@
                                         Regenerate
                                     </button>
                                 )}
-                    </div>
+                            </div>
 
                             {/* Right Column */}
                             <div className="col-span-8">
@@ -954,7 +955,7 @@
                             </div>
                                         <div className="bg-gray-800 rounded-lg p-6">
                                             <SkeletonTable />
-                            </div>
+                        </div>
                     </div>
                                 )}
 
@@ -968,8 +969,8 @@
                                             <div className="bg-gradient-to-br from-teal-700 to-teal-800 border border-teal-600 rounded-lg p-6">
                                                 <div className="text-sm text-teal-300 mb-1">MOIC</div>
                                                 <div className="text-3xl font-bold text-white">{formatMultiple(preview.lbo.moic)}</div>
-                        </div>
-                    </div>
+                            </div>
+                            </div>
 
                                         {preview.lbo.sources_uses && (
                                             <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
@@ -992,8 +993,8 @@
                                                                 <span className="text-white font-medium">{formatCurrency(val)}</span>
                             </div>
                                     ))}
-                            </div>
-                            </div>
+                        </div>
+                    </div>
                             </div>
                         )}
 
@@ -1009,8 +1010,8 @@
                                                         <div className="text-teal-400 font-bold">{formatCurrency(tranche.amount)}</div>
                     </div>
                                     ))}
-                            </div>
-                        )}
+                                </div>
+                            )}
 
                                         {downloadUrl && (
                                             <button
@@ -2095,6 +2096,7 @@
             console.error('Render error:', error);
             document.getElementById('root').innerHTML = '<div style="color: white; padding: 20px; text-align: center;"><h1>Render Error</h1><p>' + error.message + '</p><pre>' + error.stack + '</pre></div>';
         }
+        {% endraw %}
     </script>
 </body>
 </html>
