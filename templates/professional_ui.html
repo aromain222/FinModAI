@@ -812,21 +812,21 @@
                                         setTicker('AAPL');
                                         setPreview({
                                             dcf: {
-                                                ev: 2500000000000,
-                                                equity: 2300000000000,
-                                                implied_price: 185.50,
-                                                upside_pct: 15.0,
+                                                ev: 3700000000000,
+                                                equity: 3500000000000,
+                                                implied_price: 215.80,
+                                                upside_pct: -8.2,
                                                 years: [2025, 2026, 2027, 2028, 2029],
-                                                ufcf: [50000000000, 55000000000, 60000000000, 65000000000, 70000000000],
+                                                ufcf: [96180000000, 104000000000, 112300000000, 119800000000, 127500000000],
                                                 pv_factors: [0.960, 0.910, 0.870, 0.830, 0.800],
-                                                pv_ufcf: [48000000000, 50000000000, 52200000000, 53950000000, 56000000000]
+                                                pv_ufcf: [92332800000, 94640000000, 97701000000, 99434000000, 102000000000]
                                             }
                                         });
                                         setState(STATE.READY);
                                     }}
                                     className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl"
                                 >
-                                    📊 View Sample DCF Analysis
+                                    📊 View Realistic AAPL DCF Analysis
                                 </button>
             </div>
 
@@ -878,7 +878,24 @@
 
                                         {/* Free Cash Flow Projection */}
                                         <div className="bg-[#12161C] border border-[#1C2430] rounded-2xl p-6">
-                                            <h3 className="text-xl font-bold text-[#E6EDF3] mb-6">Free Cash Flow Projection</h3>
+                                            <h3 className="text-xl font-bold text-[#E6EDF3] mb-4">Free Cash Flow Projection</h3>
+                                            
+                                            {/* Model Assumptions Note */}
+                                            <div className="mb-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                                                <div className="flex items-start space-x-3">
+                                                    <div className="text-blue-400 text-lg">ℹ️</div>
+                                                    <div>
+                                                        <h4 className="text-blue-300 font-semibold mb-2">Model Assumptions</h4>
+                                                        <div className="text-sm text-blue-200 space-y-1">
+                                                            <div>• <strong>Base FCF:</strong> $96.2B TTM (realistic starting point)</div>
+                                                            <div>• <strong>Growth Rate:</strong> 8-9% CAGR (conservative for mature tech)</div>
+                                                            <div>• <strong>EV/FCF Multiple:</strong> ~38.5x (market-consistent)</div>
+                                                            <div>• <strong>Enterprise Value:</strong> $3.7T (current market reality)</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
                                             <div className="overflow-x-auto">
                                                 <table className="w-full">
                                                     <thead>
