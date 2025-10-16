@@ -2188,6 +2188,25 @@ def lbo_results(model_id):
     
     return render_template('lbo_results.html', model=model)
 
+@app.route('/debug/test', methods=['GET'])
+def debug_test():
+    """Debug endpoint to test data functions."""
+    try:
+        print("🔍 DEBUG: Testing get_company_data function")
+        company_data = get_company_data('AAPL')
+        print(f"🔍 DEBUG: company_data = {company_data}")
+        
+        return jsonify({
+            'success': True,
+            'company_data': company_data,
+            'market_cap': company_data.get('market', {}).get('market_cap', 0),
+            'shares_out': company_data.get('market', {}).get('shares_out', 0),
+            'revenue': company_data.get('historicals', [{}])[0].get('revenue', 0) if company_data.get('historicals') else 0
+        })
+    except Exception as e:
+        print(f"🔍 DEBUG ERROR: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/v1/model-inputs/dcf', methods=['GET'])
 def dcf_model_inputs():
     """DCF model inputs endpoint with real data."""
