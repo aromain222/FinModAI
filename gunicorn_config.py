@@ -15,7 +15,6 @@ def on_starting(server):
         'gunicorn', 
         'pandas',
         'numpy',
-        'yfinance',
         'requests',
         'bs4',
         'et_xmlfile',
