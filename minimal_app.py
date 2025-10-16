@@ -2202,6 +2202,9 @@ def dcf_model_inputs():
         if not company_data:
             return jsonify({'error': f'No data found for {ticker}'}), 404
         
+        print(f"🔍 DEBUG: company_data market = {company_data.get('market', {})}")
+        print(f"🔍 DEBUG: company_data historicals = {company_data.get('historicals', [])}")
+        
         # Build DCF model inputs with real data
         dcf_inputs = build_dcf_inputs(company_data)
         
