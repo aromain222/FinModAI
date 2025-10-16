@@ -1,0 +1,18 @@
+# AI Financial Analyst Requirements
+# Based on Polygon.io MCP Server + Claude 4 + Pydantic AI
+
+# Core AI Agent Framework
+pydantic-ai>=0.0.18
+
+# Anthropic Claude API
+anthropic>=0.40.0
+
+# Rich terminal formatting
+rich>=13.7.0
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# UV package manager (for MCP server)
+# Install separately: curl -LsSf https://astral.sh/uv/install.sh | sh
+
