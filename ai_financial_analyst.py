@@ -24,7 +24,12 @@ console = Console()
 
 def create_polygon_mcp_server():
     """Create and configure the Polygon.io MCP server."""
+    polygon_api_key = os.getenv("POLYGON_API_KEY")
+    if not polygon_api_key:
+        raise Exception("POLYGON_API_KEY is not set in the environment or .env file.")
+    
     env = os.environ.copy()
+    env["POLYGON_API_KEY"] = polygon_api_key
     
     return MCPServerStdio(
         command="uvx",
@@ -39,29 +44,76 @@ def create_polygon_mcp_server():
 
 async def create_agent():
     """Create the AI financial analyst agent."""
+    from datetime import date
+    from pydantic_ai import RunContext
+    
     server = create_polygon_mcp_server()
     
     agent = Agent(
         model="anthropic:claude-4-sonnet-20250514",
         mcp_servers=[server],
         system_prompt=(
-            "You are an expert financial analyst with access to real-time market data. "
-            "Your role is to provide accurate, insightful analysis based on the latest market information.\n\n"
-            "Guidelines:\n"
-            "- Prices from Polygon.io are already stock split adjusted\n"
-            "- Use the latest data available for all queries\n"
-            "- Always double-check your math and calculations\n"
-            "- For questions about the current date, use the 'get_today_date' tool\n"
-            "- For complex queries, break them into logical subtasks\n"
-            "- Provide clear, concise answers with supporting data\n"
-            "- Include relevant metrics (P/E ratios, market cap, revenue, etc.)\n"
-            "- When comparing companies, highlight key differences\n"
-            "- Always cite your data sources\n"
-            "- Be transparent about limitations and uncertainties"
+            "You are an expert financial analyst. "
+            "Note that when using Polygon tools, prices are already stock split adjusted. "
+            "Use the latest data available. Always double check your math. "
+            "For any questions about the current date, use the 'get_today_date' tool. "
+            "For long or complex queries, break the query into logical subtasks and "
+            "process each subtask in order."
         )
     )
     
+    # Add custom tool for today's date
+    @agent.tool
+    def get_today_date(ctx: RunContext) -> str:
+        """Returns today's date in YYYY-MM-DD format."""
+        return str(date.today())
+    
     return agent
+
+
+def print_agent_response(response):
+    """Print the agent's response in a formatted way."""
+    console.print("\n[bold green]✔ Query processed successfully![/bold green]")
+    console.print("[bold]Agent Response:[/bold]")
+    output = getattr(response, "output", None)
+    if output is not None:
+        # Try to render as Markdown if it looks like Markdown
+        if any(tag in output for tag in ["#", "*", "`", "-", ">"]):
+            console.print(Markdown(output))
+        else:
+            console.print(output.strip())
+    elif isinstance(response, str):
+        console.print(response.strip())
+    else:
+        console.print(str(response))
+    console.print("---------------------\n")
+
+
+def print_agent_error(error):
+    """Print errors in a formatted way."""
+    console.print("\n[bold red]!!! Error !!![/bold red]")
+    if isinstance(error, Exception):
+        console.print(str(error).strip())
+    elif isinstance(error, dict):
+        import json
+        console.print(json.dumps(error, indent=2))
+    else:
+        console.print(str(error).strip())
+    console.print("------------------\n")
+
+
+def print_tools_used(response):
+    """Print which tools were used in the query."""
+    tools = set()
+    for msg in response.all_messages():
+        if hasattr(msg, "parts"):
+            for part in msg.parts:
+                if hasattr(part, "tool_name"):
+                    tools.add(part.tool_name)
+    if tools:
+        console.print(f"[dim]Tools used in this run: {', '.join(tools)}[/dim]")
+    else:
+        console.print("[dim]No tools used in this run.[/dim]")
 
 
 async def chat_interface():
@@ -70,54 +122,65 @@ async def chat_interface():
         "[bold cyan]AI Financial Analyst[/bold cyan]\n\n"
         "Ask me anything about stocks, markets, or financial data!\n"
         "Powered by Polygon.io + Claude 4 + Pydantic AI\n\n"
-        "Type 'exit' or 'quit' to end the session.",
+        "Type 'exit' to quit.",
         border_style="cyan"
     ))
     
-    agent = await create_agent()
-    message_history: List[tuple] = []
-    
-    while True:
-        try:
-            # Get user input
-            user_input = console.input("\n[bold green]You:[/bold green] ").strip()
+    try:
+        agent = await create_agent()
+        
+        async with agent.run_mcp_servers():
+            message_history = []
             
-            if user_input.lower() in ['exit', 'quit', 'q']:
-                console.print("\n[cyan]Thank you for using AI Financial Analyst! Goodbye![/cyan]")
-                break
-            
-            if not user_input:
-                continue
-            
-            # Show thinking indicator
-            with Live("[yellow]Analyzing...[/yellow]", console=console, transient=True):
-                response = await agent.run(
-                    user_input,
-                    message_history=message_history
-                )
-            
-            # Display response
-            console.print("\n[bold blue]AI Analyst:[/bold blue]")
-            console.print(Markdown(response.data))
-            
-            # Update message history
-            message_history.append(('user', user_input))
-            message_history.append(('assistant', response.data))
-            
-        except KeyboardInterrupt:
-            console.print("\n\n[yellow]Interrupted. Exiting...[/yellow]")
-            break
-        except Exception as e:
-            console.print(f"\n[bold red]Error:[/bold red] {e}")
-            console.print("[yellow]Please try again or type 'exit' to quit.[/yellow]")
+            while True:
+                try:
+                    # Get user input
+                    user_input = console.input("\n> ").strip()
+                    
+                    if user_input.lower() == 'exit':
+                        console.print("\n[cyan]Goodbye![/cyan]")
+                        break
+                    
+                    if not user_input:
+                        continue
+                    
+                    # Run the agent with message history
+                    response = await agent.run(
+                        user_input,
+                        message_history=message_history
+                    )
+                    
+                    # Display response
+                    print_agent_response(response)
+                    print_tools_used(response)
+                    
+                    # Update message history with agent's message objects
+                    message_history = response.all_messages()
+                    
+                except KeyboardInterrupt:
+                    console.print("\n\n[cyan]Goodbye![/cyan]")
+                    break
+                except Exception as e:
+                    print_agent_error(e)
+                    
+    except Exception as setup_err:
+        console.print(f"[bold red]Failed to start CLI agent or MCP server: {setup_err}[/bold red]")
+        console.print("\n[yellow]Please check your API keys in the .env file.[/yellow]")
 
 
 async def single_query(query: str) -> str:
     """Execute a single query and return the response."""
     agent = await create_agent()
     
-    response = await agent.run(query)
-    return response.data
+    async with agent.run_mcp_servers():
+        response = await agent.run(query)
+        output = getattr(response, "output", None)
+        if output is not None:
+            return output
+        elif isinstance(response, str):
+            return response
+        else:
+            return str(response)
 
 
 def run_interactive():
