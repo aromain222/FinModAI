@@ -1,184 +1,144 @@
 """
-FinModAI Market Overview API
-FastAPI backend serving live market data merged with EDGAR fundamentals
+FinModAI Backend - FastAPI Application
+Main entry point for the API server
 """
-import asyncio
-import logging
-from contextlib import asynccontextmanager
-from datetime import datetime
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from contextlib import asynccontextmanager
+import logging
+from datetime import datetime
 
-from backend.config import config
-from backend.data.loader import fundamentals_loader
-from backend.market.refresh import refresh_service
-from backend.market.cache import market_cache
-from backend.api.v1.routes import router as v1_router
-from backend.api.v1.models import HealthResponse, RefreshResponse
+from config import settings, validate_settings
 
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 
-# Startup/Shutdown
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown"""
-    logger.info("Starting FinModAI Market API...")
+    # Startup
+    logger.info("🚀 Starting FinModAI Backend...")
+    logger.info(f"  Version: {settings.APP_VERSION}")
+    logger.info(f"  Data Mode: {settings.DATA_MODE}")
+    logger.info(f"  Database: {settings.DATABASE_URL}")
     
-    # Validate config
+    # Validate settings
     try:
-        config.validate()
-    except FileNotFoundError as e:
-        logger.error(f"Configuration validation failed: {e}")
+        validate_settings()
+        logger.info("✅ Configuration validated")
+    except ValueError as e:
+        logger.error(f"❌ Configuration error: {e}")
         raise
     
-    # Load EDGAR fundamentals
-    try:
-        fundamentals_loader.load()
-        logger.info(f"Loaded fundamentals for {len(fundamentals_loader.tickers)} tickers")
-    except Exception as e:
-        logger.error(f"Failed to load fundamentals: {e}")
-        raise
+    # Initialize database
+    # TODO: Add database initialization
     
-    # Start background refresh task
-    refresh_task = asyncio.create_task(refresh_service.run_periodic_refresh())
+    # Initialize providers
+    # TODO: Add provider initialization
     
-    logger.info("API startup complete")
+    logger.info("✅ FinModAI Backend started successfully")
     
     yield
     
     # Shutdown
-    logger.info("Shutting down...")
-    refresh_service.stop()
-    refresh_task.cancel()
-    try:
-        await refresh_task
-    except asyncio.CancelledError:
-        pass
-    logger.info("Shutdown complete")
+    logger.info("🛑 Shutting down FinModAI Backend...")
+    # TODO: Add cleanup logic
 
 
-# Create app
+# Create FastAPI app
 app = FastAPI(
-    title="FinModAI Market Overview API",
-    description="Live market data merged with SEC EDGAR fundamentals",
-    version="1.0.0",
-    lifespan=lifespan
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+    description="Professional Financial Modeling Platform",
+    lifespan=lifespan,
+    docs_url="/api/docs" if settings.DEBUG else None,
+    redoc_url="/api/redoc" if settings.DEBUG else None,
 )
 
-# CORS
+# CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=config.CORS_ORIGINS,
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(v1_router)
 
-
-# Health endpoint
-@app.get("/healthz", response_model=HealthResponse)
-async def healthz():
-    """Health check endpoint"""
-    return HealthResponse(
-        status="ok",
-        timestamp=datetime.utcnow(),
-        cache_stats=market_cache.get_stats(),
-        last_refresh=refresh_service.last_refresh
+# Exception Handlers
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle validation errors"""
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "error": "validation_error",
+            "code": "invalid_request",
+            "message": "Invalid request parameters",
+            "details": exc.errors(),
+            "request_id": request.headers.get("X-Request-ID", "unknown")
+        }
     )
 
 
-# Admin refresh endpoint
-@app.post("/api/v1/_refresh", response_model=RefreshResponse)
-async def trigger_refresh():
-    """
-    Admin endpoint to force refresh market data
-    
-    Note: In production, this should be protected with authentication
-    """
-    logger.info("Manual refresh triggered")
-    
-    try:
-        stats = await refresh_service.refresh_all_data()
-        
-        if stats.get('success'):
-            return RefreshResponse(
-                success=True,
-                message="Refresh completed successfully",
-                stats=stats
-            )
-        else:
-            return RefreshResponse(
-                success=False,
-                message=f"Refresh failed: {stats.get('error')}",
-                stats=stats
-            )
-    
-    except Exception as e:
-        logger.error(f"Manual refresh failed: {e}")
-        return RefreshResponse(
-            success=False,
-            message=f"Refresh failed: {str(e)}"
-        )
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """Handle general exceptions"""
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "error": "internal_error",
+            "code": "server_error",
+            "message": "An internal error occurred",
+            "request_id": request.headers.get("X-Request-ID", "unknown")
+        }
+    )
+
+
+# Health Check
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "version": settings.APP_VERSION,
+        "data_mode": settings.DATA_MODE
+    }
 
 
 # Root endpoint
 @app.get("/")
 async def root():
-    """Root endpoint with API info"""
+    """Root endpoint"""
     return {
-        "name": "FinModAI Market Overview API",
-        "version": "1.0.0",
-        "status": "operational",
-        "endpoints": {
-            "health": "/healthz",
-            "market_snapshot": "/api/v1/market/snapshot",
-            "sector_leaders": "/api/v1/market/leaders",
-            "company_detail": "/api/v1/company/{ticker}",
-            "refresh": "/api/v1/_refresh (POST)"
-        },
-        "docs": "/docs"
+        "message": f"Welcome to {settings.APP_NAME}",
+        "version": settings.APP_VERSION,
+        "docs": "/api/docs" if settings.DEBUG else "disabled in production"
     }
 
 
-# Error handlers
-@app.exception_handler(404)
-async def not_found_handler(request, exc):
-    """Custom 404 handler"""
-    return JSONResponse(
-        status_code=404,
-        content={"detail": "Endpoint not found"}
-    )
-
-
-@app.exception_handler(500)
-async def internal_error_handler(request, exc):
-    """Custom 500 handler"""
-    logger.error(f"Internal error: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Internal server error"}
-    )
+# Include routers (will be added in subsequent steps)
+# from api.v1 import auth, models
+# app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+# app.include_router(models.router, prefix="/api/v1/models", tags=["models"])
 
 
 if __name__ == "__main__":
     import uvicorn
-    
     uvicorn.run(
         "app:app",
         host="0.0.0.0",
         port=8000,
-        reload=True,
+        reload=settings.DEBUG,
         log_level="info"
     )
-
