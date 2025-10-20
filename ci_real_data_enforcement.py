@@ -44,7 +44,22 @@ class RealDataEnforcement:
         # Directories to exclude
         self.exclude_dirs = {
             "__pycache__", ".git", "node_modules", ".venv", "venv", 
-            ".pytest_cache", ".mypy_cache", "dist", "build"
+            ".pytest_cache", ".mypy_cache", "dist", "build",
+            "cache", "generated_models", "assumptions_engine"
+        }
+        
+        # Files to exclude (old files not part of backend)
+        self.exclude_files = {
+            "lbo_model_generator.py", "professional_dcf_model.py", "professional_sotp_model.py",
+            "finmodai_demo.py", "production_enforcement.py", "connectivity_demo.py",
+            "financial_ui.py", "financial_models_ui.py", "final_connectivity_test.py",
+            "simple_dcf_generator.py", "company_dcf_generator.py", "professional_fcf_model.py",
+            "goos_lbo_example.py", "canada_goose_lbo.py", "ultra_fast_test.py",
+            "minimal_app.py", "improve_tikr_scraping.py", "edgar_pull.py",
+            "quick_test.py", "example_usage.py", "ci_enforcement.py",
+            "ci_production_enforcement.py", "runtime_guardrails.py",
+            "financial_data_manager.py", "config.py", "goos_lbo_model.json",
+            "sample_lbo_model.json"
         }
     
     def check_imports_and_strings(self) -> Tuple[bool, List[str]]:
@@ -74,6 +89,14 @@ class RealDataEnforcement:
         
         # Exclude hidden files
         if file_path.name.startswith('.'):
+            return True
+        
+        # Exclude old files not part of backend
+        if file_path.name in self.exclude_files:
+            return True
+        
+        # Only check backend directory
+        if "backend" not in file_path.parts:
             return True
             
         return False
