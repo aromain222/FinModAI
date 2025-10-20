@@ -67,24 +67,25 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
-      - name: Check for dummy data
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
         run: |
-          echo "Checking for dummy data, mocks, and placeholders..."
-          
-          # Check Python files
-          if grep -r -E "(fixtures|mocks|sampleData|demoData|PLACEHOLDER|\"placeholder\":\s*true)" \
-            --include="*.py" --include="*.json" -n .; then
-            echo "❌ Dummy data detected in Python/JSON files"
-            exit 1
-          fi
-          
-          # Check for specific patterns
-          if grep -r "mock" --include="*.py" -n . | grep -v "test_" | grep -v "Mock"; then
-            echo "❌ Potential mock data detected"
-            exit 1
-          fi
-          
-          echo "✅ No dummy data detected"
+          cd backend
+          pip install -r requirements.txt
+      
+      - name: Set environment variables
+        run: |
+          echo "DATA_MODE=production" >> $GITHUB_ENV
+          echo "DATA_STALENESS_MAX_MIN=30" >> $GITHUB_ENV
+          echo "REQUIRE_MIN_FUND_YEARS=3" >> $GITHUB_ENV
+      
+      - name: Run real data enforcement
+        run: |
+          python ci_real_data_enforcement.py
 
   smoke-test:
     name: Smoke Test
