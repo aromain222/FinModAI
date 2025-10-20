@@ -4,19 +4,27 @@ SQLAlchemy models for database tables
 """
 
 from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, Text
-from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
+import os
 
 from persistence.database import Base
+
+# Use String for UUID in SQLite, UUID in PostgreSQL
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./finmodai.db")
+if "sqlite" in DATABASE_URL.lower():
+    UUID_TYPE = String(36)
+else:
+    from sqlalchemy.dialects.postgresql import UUID
+    UUID_TYPE = UUID(as_uuid=True)
 
 
 class User(Base):
     """User model"""
     __tablename__ = "users"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID_TYPE, primary_key=True, default=lambda: str(uuid.uuid4()))
     email = Column(String(255), unique=True, nullable=False, index=True)
     email_hash = Column(String(255), nullable=False)
     password_hash = Column(String(255), nullable=False)
@@ -35,8 +43,8 @@ class ModelRun(Base):
     """Model run model"""
     __tablename__ = "model_runs"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    id = Column(UUID_TYPE, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(UUID_TYPE, ForeignKey("users.id"), nullable=False, index=True)
     model_type = Column(String(50), nullable=False, index=True)
     ticker = Column(String(10), nullable=False, index=True)
     target = Column(String(10), nullable=True)  # for merger models
@@ -44,10 +52,10 @@ class ModelRun(Base):
     as_of_quotes = Column(DateTime, nullable=True)
     as_of_fundamentals = Column(DateTime, nullable=True)
     stale = Column(Boolean, default=False, nullable=False)
-    results_json = Column(JSONB, nullable=True)
-    inputs_json = Column(JSONB, nullable=True)
-    provenance_json = Column(JSONB, nullable=True)
-    custom_assumptions = Column(JSONB, nullable=True)
+    results_json = Column(Text, nullable=True)  # JSON stored as text in SQLite
+    inputs_json = Column(Text, nullable=True)  # JSON stored as text in SQLite
+    provenance_json = Column(Text, nullable=True)  # JSON stored as text in SQLite
+    custom_assumptions = Column(Text, nullable=True)  # JSON stored as text in SQLite
     deleted_at = Column(DateTime, nullable=True)  # soft delete
     
     # Relationships
@@ -62,8 +70,8 @@ class File(Base):
     """File model for generated exports"""
     __tablename__ = "files"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    model_id = Column(UUID(as_uuid=True), ForeignKey("model_runs.id"), nullable=False, index=True)
+    id = Column(UUID_TYPE, primary_key=True, default=lambda: str(uuid.uuid4()))
+    model_id = Column(UUID_TYPE, ForeignKey("model_runs.id"), nullable=False, index=True)
     kind = Column(String(10), nullable=False)  # 'xlsx' or 'pdf'
     path = Column(String(500), nullable=False)
     size = Column(Integer, nullable=True)
