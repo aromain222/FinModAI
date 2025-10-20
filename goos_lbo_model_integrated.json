@@ -1,0 +1,391 @@
+{
+  "metadata": {
+    "generated_at": "2025-10-19T21:50:35.223554",
+    "model_type": "LBO",
+    "ticker": "GOOS",
+    "company_name": "",
+    "sector": "Technology",
+    "data_sources": [
+      "SEC EDGAR",
+      "Alpha Vantage",
+      "Finnhub",
+      "Polygon.io"
+    ],
+    "version": "2.0 - Integrated"
+  },
+  "current_company_data": {
+    "ticker": "GOOS",
+    "company_name": "",
+    "sector": "Technology",
+    "market_data": {
+      "current_price": 0,
+      "market_cap": 0,
+      "shares_outstanding": 0,
+      "enterprise_value": 0,
+      "net_debt": 0
+    },
+    "financial_data": {
+      "revenue": 0,
+      "ebit": 0,
+      "ebitda": 0,
+      "free_cash_flow": 0
+    },
+    "balance_sheet": {
+      "cash": 0,
+      "gross_debt": 0,
+      "net_debt": 0
+    },
+    "valuation": {
+      "ev": 0,
+      "ev_revenue": 0,
+      "ev_ebitda": 0,
+      "pe_ratio": 0
+    },
+    "historical_financials": []
+  },
+  "lbo_structure": {
+    "transaction_summary": {
+      "target": "",
+      "transaction_date": "2025-10-19",
+      "transaction_type": "Leveraged Buyout",
+      "enterprise_value": 0,
+      "equity_value": 0,
+      "market_cap": 0,
+      "net_debt": 0
+    },
+    "uses_of_funds": {
+      "purchase_price": 0,
+      "transaction_fees": 0.0,
+      "legal_fees": 0.0,
+      "advisory_fees": 0.0,
+      "other_fees": 0.0,
+      "total_uses": 0.0
+    },
+    "sources_of_funds": {
+      "senior_debt": {
+        "term_loan_b": 0.0,
+        "interest_rate": 7.5,
+        "maturity": 7,
+        "amortization": "1% annually, balloon at maturity"
+      },
+      "revolving_credit": {
+        "amount": 0.0,
+        "interest_rate": 7.0,
+        "maturity": 5
+      },
+      "subordinated_debt": {
+        "mezzanine_debt": 0.0,
+        "interest_rate": 11.0,
+        "maturity": 7,
+        "pik_toggle": "2% annually"
+      },
+      "sponsor_equity": {
+        "amount": 0.0,
+        "ownership_percentage": 16.0
+      },
+      "management_rollover": {
+        "amount": 0.0,
+        "ownership_percentage": 4.0
+      },
+      "total_sources": 0.0
+    },
+    "capital_structure": {
+      "debt": {
+        "senior_debt": 0.0,
+        "subordinated_debt": 0.0,
+        "total_debt": 0.0,
+        "debt_percentage": 79.2
+      },
+      "equity": {
+        "sponsor_equity": 0.0,
+        "management_rollover": 0.0,
+        "total_equity": 0.0,
+        "equity_percentage": 20.8
+      },
+      "total_capital": 0.0,
+      "leverage_ratios": {
+        "debt_ebitda": 0,
+        "debt_equity": 0,
+        "interest_coverage": 0
+      }
+    }
+  },
+  "projections": {
+    "year_1": {
+      "revenue": 0.0,
+      "ebitda": 0.0,
+      "fcf": 0.0,
+      "ebitda_margin": 0
+    },
+    "year_2": {
+      "revenue": 0.0,
+      "ebitda": 0.0,
+      "fcf": 0.0,
+      "ebitda_margin": 0
+    },
+    "year_3": {
+      "revenue": 0.0,
+      "ebitda": 0.0,
+      "fcf": 0.0,
+      "ebitda_margin": 0
+    },
+    "year_4": {
+      "revenue": 0.0,
+      "ebitda": 0.0,
+      "fcf": 0.0,
+      "ebitda_margin": 0
+    },
+    "year_5": {
+      "revenue": 0.0,
+      "ebitda": 0.0,
+      "fcf": 0.0,
+      "ebitda_margin": 0
+    },
+    "revenue_cagr": 10.0,
+    "ebitda_cagr": 15.0,
+    "fcf_cagr": 18.0
+  },
+  "debt_schedule": {
+    "senior_debt": {
+      "term_loan_b": {
+        "principal": 0.0,
+        "interest_rate": 7.5,
+        "annual_interest": 0.0,
+        "annual_principal": 0.0
+      },
+      "revolving_credit": {
+        "principal": 0.0,
+        "interest_rate": 7.0,
+        "annual_interest": 0.0
+      }
+    },
+    "subordinated_debt": {
+      "mezzanine_debt": {
+        "principal": 0.0,
+        "interest_rate": 11.0,
+        "annual_interest": 0.0
+      }
+    },
+    "total_interest_expense": {
+      "year_1": 0.0
+    }
+  },
+  "cash_flow": {
+    "year_1": {
+      "starting_cash": 0,
+      "ebitda": 0,
+      "interest_expense": 0.0,
+      "capex": 0.0,
+      "working_capital": 0.0,
+      "operating_cash_flow": 0.0,
+      "debt_drawdown": 0.0,
+      "equity_contribution": 0.0,
+      "transaction_fees": -0.0,
+      "financing_cash_flow": 0.0,
+      "ending_cash": 0.0
+    }
+  },
+  "exit_analysis": {
+    "exit_year": 5,
+    "scenarios": {
+      "base_case": {
+        "ebitda": 0.0,
+        "exit_multiple": 10.0,
+        "enterprise_value": 0.0,
+        "net_debt": 0.0,
+        "equity_value": 0.0,
+        "sponsor_equity_value": 0.0,
+        "sponsor_investment": 0.0,
+        "irr": 13.9,
+        "moic": 1.9
+      },
+      "upside_case": {
+        "ebitda": 0.0,
+        "exit_multiple": 12.0,
+        "enterprise_value": 0.0,
+        "net_debt": 0.0,
+        "equity_value": 0.0,
+        "sponsor_equity_value": 0.0,
+        "sponsor_investment": 0.0,
+        "irr": 24.6,
+        "moic": 3.0
+      },
+      "downside_case": {
+        "ebitda": 0.0,
+        "exit_multiple": 8.0,
+        "enterprise_value": 0.0,
+        "net_debt": 0.0,
+        "equity_value": 0.0,
+        "sponsor_equity_value": 0.0,
+        "sponsor_investment": 0.0,
+        "irr": 1.7,
+        "moic": 1.1
+      }
+    }
+  },
+  "returns_analysis": {
+    "sponsor_returns": {
+      "initial_investment": 0.0,
+      "ownership_percentage": 16.0,
+      "base_case": {
+        "ebitda": 0.0,
+        "exit_multiple": 10.0,
+        "enterprise_value": 0.0,
+        "net_debt": 0.0,
+        "equity_value": 0.0,
+        "sponsor_equity_value": 0.0,
+        "sponsor_investment": 0.0,
+        "irr": 13.9,
+        "moic": 1.9
+      },
+      "upside_case": {
+        "ebitda": 0.0,
+        "exit_multiple": 12.0,
+        "enterprise_value": 0.0,
+        "net_debt": 0.0,
+        "equity_value": 0.0,
+        "sponsor_equity_value": 0.0,
+        "sponsor_investment": 0.0,
+        "irr": 24.6,
+        "moic": 3.0
+      },
+      "downside_case": {
+        "ebitda": 0.0,
+        "exit_multiple": 8.0,
+        "enterprise_value": 0.0,
+        "net_debt": 0.0,
+        "equity_value": 0.0,
+        "sponsor_equity_value": 0.0,
+        "sponsor_investment": 0.0,
+        "irr": 1.7,
+        "moic": 1.1
+      }
+    }
+  },
+  "sensitivity_analysis": {
+    "irr_sensitivity": {
+      "exit_multiple": {
+        "8.0x": {
+          "15%_growth": 1.7,
+          "20%_growth": 8.5,
+          "25%_growth": 14.2
+        },
+        "10.0x": {
+          "15%_growth": 13.9,
+          "20%_growth": 19.8,
+          "25%_growth": 25.1
+        },
+        "12.0x": {
+          "15%_growth": 24.6,
+          "20%_growth": 29.8,
+          "25%_growth": 34.5
+        },
+        "14.0x": {
+          "15%_growth": 34.2,
+          "20%_growth": 38.9,
+          "25%_growth": 43.1
+        }
+      }
+    },
+    "key_drivers": [
+      "EBITDA growth rate",
+      "Exit multiple",
+      "Interest rates",
+      "Tax rates",
+      "Capex requirements"
+    ]
+  },
+  "risks": {
+    "operational_risks": {
+      "market_competition": {
+        "risk_level": "High",
+        "description": "Intense competition in consumer discretionary sector",
+        "mitigation": "Differentiation, innovation, brand loyalty"
+      },
+      "economic_sensitivity": {
+        "risk_level": "High",
+        "description": "Consumer spending sensitive to economic cycles",
+        "mitigation": "Diversified revenue streams, cost control"
+      }
+    },
+    "financial_risks": {
+      "interest_rate_risk": {
+        "risk_level": "High",
+        "description": "High leverage increases interest rate sensitivity",
+        "mitigation": "Fixed-rate debt, cash flow management"
+      },
+      "refinancing_risk": {
+        "risk_level": "Medium",
+        "description": "Need to refinance debt in 7 years",
+        "mitigation": "Strong cash flow generation, multiple options"
+      }
+    }
+  },
+  "assumptions": {
+    "revenue_growth": {
+      "year_1_2": "8-12% (moderate growth)",
+      "year_3_5": "10-15% (accelerated growth)",
+      "drivers": [
+        "Market expansion",
+        "Product diversification",
+        "Digital growth",
+        "Operational improvements"
+      ]
+    },
+    "ebitda_margin": {
+      "year_1": "Current margin",
+      "year_5": "Current margin + 3-5%",
+      "improvement_drivers": [
+        "Operating leverage",
+        "Cost efficiencies",
+        "Premium pricing",
+        "Mix shift to higher margin products"
+      ]
+    },
+    "capex": {
+      "year_1_5": "60-80% of FCF",
+      "components": [
+        "Maintenance CapEx",
+        "Growth CapEx",
+        "Technology investments",
+        "Digital infrastructure"
+      ]
+    },
+    "exit_assumptions": {
+      "base_case": "10.0x EBITDA (historical sector average)",
+      "upside_case": "12.0x EBITDA (premium valuation)",
+      "downside_case": "8.0x EBITDA (distressed valuation)",
+      "exit_options": [
+        "IPO",
+        "Strategic sale",
+        "Secondary sale to another PE firm"
+      ]
+    }
+  },
+  "summary_dashboard": {
+    "transaction_size": 0.0,
+    "sponsor_equity": 0.0,
+    "total_debt": 0.0,
+    "debt_ebitda": 0,
+    "equity_percentage": 20.8,
+    "base_case_irr": 13.9,
+    "base_case_moic": 1.9,
+    "upside_case_irr": 24.6,
+    "upside_case_moic": 3.0,
+    "downside_case_irr": 1.7,
+    "downside_case_moic": 1.1,
+    "payback_period": 4.5,
+    "key_risks": [
+      "High leverage",
+      "Market competition",
+      "Economic sensitivity",
+      "Interest rate risk"
+    ],
+    "key_opportunities": [
+      "Market expansion",
+      "Product diversification",
+      "Digital growth",
+      "Operating leverage"
+    ]
+  }
+}
