@@ -11,37 +11,33 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def export_dcf_to_pdf(
-    model_data: Dict[str, Any],
-    ticker: str,
-    output_path: str
-) -> str:
+def export_dcf_to_pdf(model_data: Dict[str, Any], ticker: str, output_path: str) -> str:
     """
     Export DCF model to PDF
-    
+
     Args:
         model_data: DCF model results
         ticker: Company ticker
         output_path: Output file path
-    
+
     Returns:
         Path to generated PDF file
     """
     try:
         # Try WeasyPrint first
-        from weasyprint import HTML, CSS
-        
+        from weasyprint import HTML
+
         html_content = _generate_dcf_html(model_data, ticker)
         HTML(string=html_content).write_pdf(output_path)
-        
+
         logger.info(f"PDF generated successfully using WeasyPrint: {output_path}")
         return output_path
-    
+
     except ImportError:
         # Fallback to ReportLab
         logger.warning("WeasyPrint not available, using ReportLab fallback")
         return _export_dcf_to_pdf_reportlab(model_data, ticker, output_path)
-    
+
     except Exception as e:
         logger.error(f"Error generating PDF with WeasyPrint: {e}")
         logger.info("Falling back to ReportLab")
@@ -50,7 +46,7 @@ def export_dcf_to_pdf(
 
 def _generate_dcf_html(model_data: Dict[str, Any], ticker: str) -> str:
     """Generate HTML content for DCF model"""
-    
+
     html = f"""
     <!DOCTYPE html>
     <html>
@@ -174,9 +170,9 @@ def _generate_dcf_html(model_data: Dict[str, Any], ticker: str) -> str:
                 <th>PV FCF</th>
             </tr>
     """
-    
+
     # Add projections
-    projections = model_data.get('projections', [])
+    projections = model_data.get("projections", [])
     for proj in projections:
         html += f"""
             <tr>
@@ -190,7 +186,7 @@ def _generate_dcf_html(model_data: Dict[str, Any], ticker: str) -> str:
                 <td>${proj.get('pv_fcf', 0):,.0f}</td>
             </tr>
         """
-    
+
     # Add totals
     html += f"""
             <tr class="highlight">
@@ -213,117 +209,128 @@ def _generate_dcf_html(model_data: Dict[str, Any], ticker: str) -> str:
     </body>
     </html>
     """
-    
+
     return html
 
 
 def _export_dcf_to_pdf_reportlab(
-    model_data: Dict[str, Any],
-    ticker: str,
-    output_path: str
+    model_data: Dict[str, Any], ticker: str, output_path: str
 ) -> str:
     """Fallback PDF generation using ReportLab"""
-    
+
     from reportlab.lib.pagesizes import letter
     from reportlab.lib import colors
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-    
+    from reportlab.platypus import (
+        SimpleDocTemplate,
+        Table,
+        TableStyle,
+        Paragraph,
+        Spacer,
+    )
+
     # Create PDF document
     doc = SimpleDocTemplate(output_path, pagesize=letter)
     story = []
-    
+
     # Define styles
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
+        "CustomTitle",
+        parent=styles["Heading1"],
         fontSize=24,
-        textColor=colors.HexColor('#1e3a8a'),
-        spaceAfter=30
+        textColor=colors.HexColor("#1e3a8a"),
+        spaceAfter=30,
     )
-    
+
     # Title
-    story.append(Paragraph(f'{ticker} DCF Model', title_style))
-    story.append(Paragraph(f'Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}', styles['Normal']))
+    story.append(Paragraph(f"{ticker} DCF Model", title_style))
+    story.append(
+        Paragraph(
+            f'Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
+            styles["Normal"],
+        )
+    )
     story.append(Spacer(1, 20))
-    
+
     # Key Outputs
-    story.append(Paragraph('Key Outputs', styles['Heading2']))
+    story.append(Paragraph("Key Outputs", styles["Heading2"]))
     outputs_data = [
-        ['Metric', 'Value'],
-        ['Enterprise Value', f"${model_data.get('enterprise_value', 0):,.0f}"],
-        ['Equity Value', f"${model_data.get('equity_value', 0):,.0f}"],
-        ['Implied Price', f"${model_data.get('implied_price', 0):.2f}"],
-        ['Current Price', f"${model_data.get('current_price', 0):.2f}"],
-        ['Upside %', f"{model_data.get('upside_pct', 0):.1f}%"],
+        ["Metric", "Value"],
+        ["Enterprise Value", f"${model_data.get('enterprise_value', 0):,.0f}"],
+        ["Equity Value", f"${model_data.get('equity_value', 0):,.0f}"],
+        ["Implied Price", f"${model_data.get('implied_price', 0):.2f}"],
+        ["Current Price", f"${model_data.get('current_price', 0):.2f}"],
+        ["Upside %", f"{model_data.get('upside_pct', 0):.1f}%"],
     ]
-    
+
     outputs_table = Table(outputs_data)
-    outputs_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e3a8a')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    ]))
-    
+    outputs_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e3a8a")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 12),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
+                ("GRID", (0, 0), (-1, -1), 1, colors.black),
+            ]
+        )
+    )
+
     story.append(outputs_table)
     story.append(Spacer(1, 20))
-    
+
     # Key Assumptions
-    story.append(Paragraph('Key Assumptions', styles['Heading2']))
+    story.append(Paragraph("Key Assumptions", styles["Heading2"]))
     assumptions_data = [
-        ['Assumption', 'Value'],
-        ['WACC', f"{model_data.get('wacc', 0):.1%}"],
-        ['Terminal Growth', f"{model_data.get('terminal_growth', 0):.1%}"],
-        ['Revenue CAGR', f"{model_data.get('revenue_cagr', 0):.1%}"],
-        ['EBITDA CAGR', f"{model_data.get('ebitda_cagr', 0):.1%}"],
+        ["Assumption", "Value"],
+        ["WACC", f"{model_data.get('wacc', 0):.1%}"],
+        ["Terminal Growth", f"{model_data.get('terminal_growth', 0):.1%}"],
+        ["Revenue CAGR", f"{model_data.get('revenue_cagr', 0):.1%}"],
+        ["EBITDA CAGR", f"{model_data.get('ebitda_cagr', 0):.1%}"],
     ]
-    
+
     assumptions_table = Table(assumptions_data)
-    assumptions_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e3a8a')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    ]))
-    
+    assumptions_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e3a8a")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 12),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
+                ("GRID", (0, 0), (-1, -1), 1, colors.black),
+            ]
+        )
+    )
+
     story.append(assumptions_table)
     story.append(Spacer(1, 20))
-    
+
     # Footer
     story.append(Spacer(1, 50))
-    story.append(Paragraph(settings.EXPORT_FOOTER_NOTE, styles['Normal']))
-    
+    story.append(Paragraph(settings.EXPORT_FOOTER_NOTE, styles["Normal"]))
+
     # Build PDF
     doc.build(story)
-    
+
     logger.info(f"PDF generated successfully using ReportLab: {output_path}")
     return output_path
 
 
-def export_lbo_to_pdf(
-    model_data: Dict[str, Any],
-    ticker: str,
-    output_path: str
-) -> str:
+def export_lbo_to_pdf(model_data: Dict[str, Any], ticker: str, output_path: str) -> str:
     """Export LBO model to PDF"""
     # TODO: Implement LBO PDF export
     raise NotImplementedError("LBO PDF export not yet implemented")
 
 
 def export_comps_to_pdf(
-    model_data: Dict[str, Any],
-    ticker: str,
-    output_path: str
+    model_data: Dict[str, Any], ticker: str, output_path: str
 ) -> str:
     """Export Comps model to PDF"""
     # TODO: Implement Comps PDF export
@@ -331,11 +338,8 @@ def export_comps_to_pdf(
 
 
 def export_merger_to_pdf(
-    model_data: Dict[str, Any],
-    ticker: str,
-    output_path: str
+    model_data: Dict[str, Any], ticker: str, output_path: str
 ) -> str:
     """Export Merger model to PDF"""
     # TODO: Implement Merger PDF export
     raise NotImplementedError("Merger PDF export not yet implemented")
-

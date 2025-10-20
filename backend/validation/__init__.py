@@ -10,7 +10,7 @@ from .rules import (
     validate_merger_assumptions,
     validate_sanity_checks,
     ValidationError,
-    ValidationWarning
+    ValidationWarning,
 )
 
 __all__ = [
@@ -22,4 +22,3 @@ __all__ = [
     "ValidationError",
     "ValidationWarning",
 ]
-
