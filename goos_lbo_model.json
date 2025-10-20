@@ -1,0 +1,497 @@
+{
+  "metadata": {
+    "generated_at": "2025-10-19T21:41:54.106069",
+    "model_type": "LBO",
+    "ticker": "GOOS",
+    "company_name": "Canada Goose Holdings Inc.",
+    "version": "1.0"
+  },
+  "current_company_data": {
+    "ticker": "GOOS",
+    "company_name": "Canada Goose Holdings Inc.",
+    "sector": "Consumer Discretionary",
+    "industry": "Apparel & Accessories",
+    "market_data": {
+      "current_price": 12.5,
+      "market_cap": 1250000000,
+      "shares_outstanding": 100000000,
+      "52_week_high": 25.0,
+      "52_week_low": 10.0,
+      "beta": 1.2,
+      "dividend_yield": 0.0
+    },
+    "financial_data": {
+      "revenue": 1200000000,
+      "ebitda": 150000000,
+      "ebit": 120000000,
+      "net_income": 80000000,
+      "free_cash_flow": 100000000,
+      "capex": 50000000
+    },
+    "balance_sheet": {
+      "cash": 200000000,
+      "total_debt": 150000000,
+      "short_term_debt": 50000000,
+      "long_term_debt": 100000000,
+      "net_debt": -50000000,
+      "total_assets": 1500000000,
+      "total_equity": 800000000
+    },
+    "valuation": {
+      "ev": 1200000000,
+      "ev_revenue": 1.0,
+      "ev_ebitda": 8.0,
+      "pe_ratio": 15.6,
+      "price_book": 1.6
+    }
+  },
+  "lbo_structure": {
+    "transaction_summary": {
+      "target": "Canada Goose Holdings Inc. (GOOS)",
+      "transaction_date": "2024-01-15",
+      "transaction_type": "Leveraged Buyout",
+      "enterprise_value": 1200000000,
+      "equity_value": 1250000000,
+      "market_cap": 1250000000,
+      "net_debt": -50000000
+    },
+    "uses_of_funds": {
+      "purchase_price": 1250000000,
+      "transaction_fees": 15000000,
+      "legal_fees": 3000000,
+      "advisory_fees": 10000000,
+      "other_fees": 2000000,
+      "total_uses": 1265000000
+    },
+    "sources_of_funds": {
+      "senior_debt": {
+        "term_loan_b": 600000000,
+        "interest_rate": 7.5,
+        "maturity": 7,
+        "amortization": "1% annually, balloon at maturity"
+      },
+      "revolving_credit": {
+        "amount": 100000000,
+        "interest_rate": 7.0,
+        "maturity": 5
+      },
+      "subordinated_debt": {
+        "mezzanine_debt": 300000000,
+        "interest_rate": 11.0,
+        "maturity": 7,
+        "pik_toggle": "2% annually"
+      },
+      "sponsor_equity": {
+        "amount": 200000000,
+        "ownership_percentage": 16.0
+      },
+      "management_rollover": {
+        "amount": 50000000,
+        "ownership_percentage": 4.0
+      },
+      "co_investors": {
+        "amount": 15000000,
+        "ownership_percentage": 1.2
+      },
+      "total_sources": 1265000000
+    },
+    "capital_structure": {
+      "debt": {
+        "senior_debt": 700000000,
+        "subordinated_debt": 300000000,
+        "total_debt": 1000000000,
+        "debt_percentage": 79.1
+      },
+      "equity": {
+        "sponsor_equity": 200000000,
+        "management_rollover": 50000000,
+        "co_investors": 15000000,
+        "total_equity": 265000000,
+        "equity_percentage": 20.9
+      },
+      "total_capital": 1265000000,
+      "leverage_ratios": {
+        "debt_ebitda": 6.7,
+        "debt_equity": 3.8,
+        "interest_coverage": 1.6
+      }
+    }
+  },
+  "projections": {
+    "revenue": {
+      "year_1": 1300000000,
+      "year_2": 1450000000,
+      "year_3": 1600000000,
+      "year_4": 1750000000,
+      "year_5": 1900000000,
+      "cagr": 9.6
+    },
+    "ebitda": {
+      "year_1": 170000000,
+      "year_2": 200000000,
+      "year_3": 235000000,
+      "year_4": 275000000,
+      "year_5": 320000000,
+      "cagr": 16.4
+    },
+    "ebitda_margin": {
+      "year_1": 13.1,
+      "year_2": 13.8,
+      "year_3": 14.7,
+      "year_4": 15.7,
+      "year_5": 16.8
+    },
+    "free_cash_flow": {
+      "year_1": 110000000,
+      "year_2": 140000000,
+      "year_3": 175000000,
+      "year_4": 215000000,
+      "year_5": 260000000,
+      "cagr": 21.0
+    },
+    "capex": {
+      "year_1": 60000000,
+      "year_2": 65000000,
+      "year_3": 70000000,
+      "year_4": 75000000,
+      "year_5": 80000000
+    }
+  },
+  "debt_schedule": {
+    "senior_debt": {
+      "term_loan_b": {
+        "principal": 600000000,
+        "interest_rate": 7.5,
+        "annual_interest": 45000000,
+        "annual_principal": 6000000,
+        "total_payment_year_1": 51000000
+      },
+      "revolving_credit": {
+        "principal": 100000000,
+        "interest_rate": 7.0,
+        "annual_interest": 7000000,
+        "annual_principal": 0,
+        "total_payment_year_1": 7000000
+      }
+    },
+    "subordinated_debt": {
+      "mezzanine_debt": {
+        "principal": 300000000,
+        "interest_rate": 11.0,
+        "annual_interest": 33000000,
+        "annual_principal": 0,
+        "total_payment_year_1": 33000000
+      }
+    },
+    "total_interest_expense": {
+      "year_1": 85000000,
+      "year_2": 85000000,
+      "year_3": 85000000,
+      "year_4": 85000000,
+      "year_5": 85000000
+    }
+  },
+  "cash_flow": {
+    "year_1": {
+      "starting_cash": 200000000,
+      "ebitda": 170000000,
+      "interest_expense": -85000000,
+      "taxes": -10000000,
+      "capex": -60000000,
+      "working_capital": -20000000,
+      "operating_cash_flow": -5000000,
+      "debt_drawdown": 1000000000,
+      "equity_contribution": 265000000,
+      "transaction_fees": -15000000,
+      "financing_cash_flow": 1250000000,
+      "ending_cash": 1445000000
+    },
+    "year_2": {
+      "ebitda": 200000000,
+      "interest_expense": -85000000,
+      "taxes": -15000000,
+      "capex": -65000000,
+      "working_capital": -15000000,
+      "operating_cash_flow": 20000000
+    },
+    "year_3": {
+      "ebitda": 235000000,
+      "interest_expense": -85000000,
+      "taxes": -20000000,
+      "capex": -70000000,
+      "working_capital": -15000000,
+      "operating_cash_flow": 45000000
+    },
+    "year_4": {
+      "ebitda": 275000000,
+      "interest_expense": -85000000,
+      "taxes": -25000000,
+      "capex": -75000000,
+      "working_capital": -15000000,
+      "operating_cash_flow": 75000000
+    },
+    "year_5": {
+      "ebitda": 320000000,
+      "interest_expense": -85000000,
+      "taxes": -30000000,
+      "capex": -80000000,
+      "working_capital": -15000000,
+      "operating_cash_flow": 110000000
+    }
+  },
+  "exit_analysis": {
+    "exit_year": 5,
+    "scenarios": {
+      "base_case": {
+        "ebitda": 320000000,
+        "exit_multiple": 10.0,
+        "enterprise_value": 3200000000,
+        "net_debt": 800000000,
+        "equity_value": 2400000000,
+        "sponsor_equity_value": 384000000,
+        "sponsor_investment": 200000000,
+        "irr": 13.9,
+        "moic": 1.9,
+        "payback_period": 4.5
+      },
+      "upside_case": {
+        "ebitda": 380000000,
+        "exit_multiple": 12.0,
+        "enterprise_value": 4560000000,
+        "net_debt": 800000000,
+        "equity_value": 3760000000,
+        "sponsor_equity_value": 601600000,
+        "sponsor_investment": 200000000,
+        "irr": 24.6,
+        "moic": 3.0,
+        "payback_period": 3.5
+      },
+      "downside_case": {
+        "ebitda": 270000000,
+        "exit_multiple": 8.0,
+        "enterprise_value": 2160000000,
+        "net_debt": 800000000,
+        "equity_value": 1360000000,
+        "sponsor_equity_value": 217600000,
+        "sponsor_investment": 200000000,
+        "irr": 1.7,
+        "moic": 1.1,
+        "payback_period": 4.8
+      }
+    }
+  },
+  "returns_analysis": {
+    "sponsor_returns": {
+      "initial_investment": 200000000,
+      "ownership_percentage": 16.0,
+      "base_case": {
+        "exit_value": 384000000,
+        "irr": 13.9,
+        "moic": 1.9,
+        "total_return": 184000000
+      },
+      "upside_case": {
+        "exit_value": 601600000,
+        "irr": 24.6,
+        "moic": 3.0,
+        "total_return": 401600000
+      },
+      "downside_case": {
+        "exit_value": 217600000,
+        "irr": 1.7,
+        "moic": 1.1,
+        "total_return": 17600000
+      }
+    },
+    "management_returns": {
+      "initial_investment": 50000000,
+      "ownership_percentage": 4.0,
+      "base_case": {
+        "exit_value": 96000000,
+        "irr": 13.9,
+        "moic": 1.9,
+        "total_return": 46000000
+      }
+    }
+  },
+  "sensitivity_analysis": {
+    "irr_sensitivity": {
+      "exit_multiple": {
+        "8.0x": {
+          "15%_growth": 1.7,
+          "20%_growth": 8.5,
+          "25%_growth": 14.2
+        },
+        "10.0x": {
+          "15%_growth": 13.9,
+          "20%_growth": 19.8,
+          "25%_growth": 25.1
+        },
+        "12.0x": {
+          "15%_growth": 24.6,
+          "20%_growth": 29.8,
+          "25%_growth": 34.5
+        },
+        "14.0x": {
+          "15%_growth": 34.2,
+          "20%_growth": 38.9,
+          "25%_growth": 43.1
+        }
+      }
+    },
+    "key_drivers": [
+      "EBITDA growth rate",
+      "Exit multiple",
+      "Interest rates",
+      "Tax rates",
+      "Capex requirements"
+    ]
+  },
+  "risks": {
+    "operational_risks": {
+      "seasonality": {
+        "risk_level": "High",
+        "description": "Strong seasonality in winter product sales",
+        "mitigation": "Diversify product mix, expand into warmer climates"
+      },
+      "brand_damage": {
+        "risk_level": "High",
+        "description": "Luxury brand reputation is fragile",
+        "mitigation": "Strong brand management, quality control"
+      },
+      "competition": {
+        "risk_level": "Medium",
+        "description": "Competition from Moncler, Arc'teryx, etc.",
+        "mitigation": "Differentiation, innovation, brand loyalty"
+      }
+    },
+    "financial_risks": {
+      "interest_rate_risk": {
+        "risk_level": "High",
+        "description": "High leverage (6.7x EBITDA)",
+        "mitigation": "Fixed-rate debt, cash flow management"
+      },
+      "refinancing_risk": {
+        "risk_level": "Medium",
+        "description": "Need to refinance debt in 7 years",
+        "mitigation": "Strong cash flow generation, multiple options"
+      },
+      "currency_risk": {
+        "risk_level": "Medium",
+        "description": "CAD/USD exposure",
+        "mitigation": "Hedging strategies"
+      }
+    },
+    "market_risks": {
+      "economic_downturn": {
+        "risk_level": "High",
+        "description": "Luxury goods sensitive to economic cycles",
+        "mitigation": "Diversified revenue streams, cost control"
+      },
+      "climate_change": {
+        "risk_level": "Medium",
+        "description": "Warmer winters reduce demand",
+        "mitigation": "Expand into lighter products, global markets"
+      }
+    }
+  },
+  "assumptions": {
+    "revenue_growth": {
+      "year_1_2": "8-12% (moderate growth)",
+      "year_3_5": "10-15% (accelerated growth)",
+      "drivers": [
+        "New store openings",
+        "International expansion",
+        "Product line extensions",
+        "Digital growth"
+      ]
+    },
+    "ebitda_margin": {
+      "year_1": "13.1%",
+      "year_5": "16.8%",
+      "improvement_drivers": [
+        "Operating leverage",
+        "Cost efficiencies",
+        "Premium pricing",
+        "Mix shift to higher margin products"
+      ]
+    },
+    "capex": {
+      "year_1_5": "$60-80M annually",
+      "components": [
+        "New store openings: $30-40M",
+        "Manufacturing capacity: $15-20M",
+        "Technology & digital: $10-15M",
+        "Maintenance: $5-10M"
+      ]
+    },
+    "working_capital": {
+      "days_sales_outstanding": 30,
+      "days_payable_outstanding": 45,
+      "inventory_days": 120,
+      "seasonality": "Higher in Q3/Q4 (winter season)"
+    },
+    "exit_assumptions": {
+      "base_case": "10.0x EBITDA (historical luxury apparel average)",
+      "upside_case": "12.0x EBITDA (premium brand valuation)",
+      "downside_case": "8.0x EBITDA (distressed valuation)",
+      "exit_options": [
+        "IPO",
+        "Strategic sale to luxury conglomerate",
+        "Secondary sale to another PE firm"
+      ]
+    }
+  },
+  "comparable_transactions": [
+    {
+      "company": "Moncler",
+      "transaction": "2011 LBO",
+      "ev": 3200000000,
+      "multiple": 9.5,
+      "irr": 22,
+      "moic": 2.8
+    },
+    {
+      "company": "Canada Goose",
+      "transaction": "2013 PE Investment",
+      "ev": 250000000,
+      "multiple": 8.0,
+      "irr": 35,
+      "moic": 5.0
+    },
+    {
+      "company": "Arc'teryx",
+      "transaction": "2019 Acquisition",
+      "ev": 2100000000,
+      "multiple": 11.0,
+      "irr": "N/A",
+      "moic": "N/A"
+    }
+  ],
+  "summary_dashboard": {
+    "transaction_size": 1265000000,
+    "sponsor_equity": 200000000,
+    "total_debt": 1000000000,
+    "debt_ebitda": 6.7,
+    "equity_percentage": 20.9,
+    "base_case_irr": 13.9,
+    "base_case_moic": 1.9,
+    "upside_case_irr": 24.6,
+    "upside_case_moic": 3.0,
+    "downside_case_irr": 1.7,
+    "downside_case_moic": 1.1,
+    "payback_period": 4.5,
+    "key_risks": [
+      "High leverage (6.7x EBITDA)",
+      "Seasonality",
+      "Brand reputation",
+      "Economic sensitivity"
+    ],
+    "key_opportunities": [
+      "International expansion",
+      "Product diversification",
+      "Digital growth",
+      "Operating leverage"
+    ]
+  }
+}
