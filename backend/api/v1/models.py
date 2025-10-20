@@ -195,6 +195,36 @@ async def generate_model(
                 detail=f"Invalid model type: {model_type}. Must be dcf, lbo, comps, or merger"
             )
         
+        # Validate custom assumptions
+        if request.custom_assumptions:
+            from validation.rules import (
+                validate_dcf_assumptions,
+                validate_lbo_assumptions,
+                validate_comps_assumptions,
+                validate_merger_assumptions
+            )
+            
+            if model_type == 'dcf':
+                errors, _ = validate_dcf_assumptions(request.custom_assumptions)
+            elif model_type == 'lbo':
+                errors, _ = validate_lbo_assumptions(request.custom_assumptions)
+            elif model_type == 'comps':
+                errors, _ = validate_comps_assumptions(request.custom_assumptions)
+            elif model_type == 'merger':
+                errors, _ = validate_merger_assumptions(request.custom_assumptions)
+            
+            if errors:
+                error_details = [{"field": e.field, "message": e.message, "code": e.code} for e in errors]
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={
+                        "error": "validation_error",
+                        "code": "invalid_assumptions",
+                        "message": "Custom assumptions validation failed",
+                        "details": error_details
+                    }
+                )
+        
         # Fetch company data
         logger.info(f"Fetching data for {request.ticker}")
         company_data = fetch_company_data(request.ticker)
@@ -212,6 +242,12 @@ async def generate_model(
             
             # Generate model
             results = generate_dcf_model(bundle, request.custom_assumptions)
+            
+            # Run sanity checks
+            from validation.rules import validate_sanity_checks
+            sanity_warnings = validate_sanity_checks(results, model_type)
+            if sanity_warnings:
+                results['warnings'] = results.get('warnings', []) + [w.message for w in sanity_warnings]
         
         elif model_type == 'lbo':
             # TODO: Build LBO bundle

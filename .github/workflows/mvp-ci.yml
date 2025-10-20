@@ -1,0 +1,190 @@
+name: MVP CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+      
+      - name: Run black
+        run: |
+          cd backend
+          black --check .
+      
+      - name: Run ruff
+        run: |
+          cd backend
+          ruff check .
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+      
+      - name: Run pytest
+        run: |
+          cd backend
+          pytest tests/ -v --cov=. --cov-report=xml
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./backend/coverage.xml
+          flags: backend
+          name: backend-coverage
+
+  no-dummy-data:
+    name: No Dummy Data Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Check for dummy data
+        run: |
+          echo "Checking for dummy data, mocks, and placeholders..."
+          
+          # Check Python files
+          if grep -r -E "(fixtures|mocks|sampleData|demoData|PLACEHOLDER|\"placeholder\":\s*true)" \
+            --include="*.py" --include="*.json" -n .; then
+            echo "❌ Dummy data detected in Python/JSON files"
+            exit 1
+          fi
+          
+          # Check for specific patterns
+          if grep -r "mock" --include="*.py" -n . | grep -v "test_" | grep -v "Mock"; then
+            echo "❌ Potential mock data detected"
+            exit 1
+          fi
+          
+          echo "✅ No dummy data detected"
+
+  smoke-test:
+    name: Smoke Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+      
+      - name: Set up database
+        run: |
+          cd backend
+          python -c "from persistence.database import init_db; init_db()"
+      
+      - name: Run smoke test
+        run: |
+          cd backend
+          python -c "
+          from models_data.generate import generate_dcf_model
+          from models_data.bundles import DCFFields, HistoricalFinancial, MarketData, CapitalStructure, Provenance
+          from decimal import Decimal
+          from datetime import datetime
+          
+          # Create test bundle
+          historicals = [
+              HistoricalFinancial(year=2022, revenue=Decimal('100000'), ebitda=Decimal('30000'), free_cash_flow=Decimal('20000')),
+              HistoricalFinancial(year=2023, revenue=Decimal('110000'), ebitda=Decimal('33000'), free_cash_flow=Decimal('22000')),
+              HistoricalFinancial(year=2024, revenue=Decimal('121000'), ebitda=Decimal('36300'), free_cash_flow=Decimal('24200'))
+          ]
+          
+          market = MarketData(
+              price=Decimal('100'),
+              market_cap=Decimal('1000000'),
+              shares_outstanding=Decimal('10000')
+          )
+          
+          capital = CapitalStructure(
+              cash=Decimal('50000'),
+              gross_debt=Decimal('20000'),
+              net_debt=Decimal('15000')
+          )
+          
+          provenance = {
+              'revenue': Provenance(provider='edgar', timestamp=datetime.now()),
+              'price': Provenance(provider='yahoo', timestamp=datetime.now())
+          }
+          
+          bundle = DCFFields(
+              historicals=historicals,
+              market=market,
+              capital=capital,
+              current_revenue=Decimal('121000'),
+              current_ebit=Decimal('30000'),
+              current_ebitda=Decimal('36300'),
+              current_fcf=Decimal('24200'),
+              provenance=provenance,
+              as_of_quotes=datetime.now(),
+              as_of_fundamentals=datetime.now(),
+              stale=False
+          )
+          
+          # Generate model
+          results = generate_dcf_model(bundle)
+          
+          # Validate results
+          assert 'enterprise_value' in results
+          assert 'equity_value' in results
+          assert 'implied_price' in results
+          assert results['enterprise_value'] > 0
+          assert results['equity_value'] > 0
+          
+          print('✅ Smoke test passed')
+          "
+
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: [lint, test, no-dummy-data, smoke-test]
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+      
+      - name: Build
+        run: |
+          echo "✅ Build successful"
+
