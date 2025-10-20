@@ -338,12 +338,62 @@ async def download_excel(
             detail=f"Model {model_id} not found"
         )
     
-    # TODO: Generate Excel file
-    # For now, return a placeholder
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Excel export not yet implemented"
-    )
+    try:
+        # Import export functions
+        from exports.excel import (
+            export_dcf_to_excel,
+            export_lbo_to_excel,
+            export_comps_to_excel,
+            export_merger_to_excel
+        )
+        
+        # Generate filename
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"{model_run.model_type}_{model_run.ticker}_{timestamp}.xlsx"
+        output_path = os.path.join('exports', filename)
+        
+        # Ensure exports directory exists
+        os.makedirs('exports', exist_ok=True)
+        
+        # Generate Excel based on model type
+        if model_run.model_type == 'dcf':
+            export_dcf_to_excel(model_run.results_json, model_run.ticker, output_path)
+        elif model_run.model_type == 'lbo':
+            export_lbo_to_excel(model_run.results_json, model_run.ticker, output_path)
+        elif model_run.model_type == 'comps':
+            export_comps_to_excel(model_run.results_json, model_run.ticker, output_path)
+        elif model_run.model_type == 'merger':
+            export_merger_to_excel(model_run.results_json, model_run.ticker, output_path)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported model type: {model_run.model_type}"
+            )
+        
+        # Store file record
+        file_record = File(
+            model_id=model_run.id,
+            kind='xlsx',
+            path=output_path,
+            size=os.path.getsize(output_path)
+        )
+        db.add(file_record)
+        db.commit()
+        
+        # Return file
+        from fastapi.responses import FileResponse
+        return FileResponse(
+            output_path,
+            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            filename=filename
+        )
+    
+    except Exception as e:
+        logger.error(f"Error generating Excel file: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating Excel file: {str(e)}"
+        )
 
 
 @router.get("/{model_id}/pdf")
@@ -369,12 +419,62 @@ async def download_pdf(
             detail=f"Model {model_id} not found"
         )
     
-    # TODO: Generate PDF file
-    # For now, return a placeholder
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="PDF export not yet implemented"
-    )
+    try:
+        # Import export functions
+        from exports.pdf import (
+            export_dcf_to_pdf,
+            export_lbo_to_pdf,
+            export_comps_to_pdf,
+            export_merger_to_pdf
+        )
+        
+        # Generate filename
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"{model_run.model_type}_{model_run.ticker}_{timestamp}.pdf"
+        output_path = os.path.join('exports', filename)
+        
+        # Ensure exports directory exists
+        os.makedirs('exports', exist_ok=True)
+        
+        # Generate PDF based on model type
+        if model_run.model_type == 'dcf':
+            export_dcf_to_pdf(model_run.results_json, model_run.ticker, output_path)
+        elif model_run.model_type == 'lbo':
+            export_lbo_to_pdf(model_run.results_json, model_run.ticker, output_path)
+        elif model_run.model_type == 'comps':
+            export_comps_to_pdf(model_run.results_json, model_run.ticker, output_path)
+        elif model_run.model_type == 'merger':
+            export_merger_to_pdf(model_run.results_json, model_run.ticker, output_path)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported model type: {model_run.model_type}"
+            )
+        
+        # Store file record
+        file_record = File(
+            model_id=model_run.id,
+            kind='pdf',
+            path=output_path,
+            size=os.path.getsize(output_path)
+        )
+        db.add(file_record)
+        db.commit()
+        
+        # Return file
+        from fastapi.responses import FileResponse
+        return FileResponse(
+            output_path,
+            media_type='application/pdf',
+            filename=filename
+        )
+    
+    except Exception as e:
+        logger.error(f"Error generating PDF file: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating PDF file: {str(e)}"
+        )
 
 
 @router.delete("/{model_id}", status_code=status.HTTP_204_NO_CONTENT)
