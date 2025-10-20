@@ -1,401 +1,427 @@
-# FinModAI Market Overview API
+# FinModAI Backend - FastAPI Application
 
-Production-quality FastAPI backend that serves live market snapshots and sector leaders by merging Yahoo Finance public quote data with normalized SEC EDGAR fundamentals.
+Professional financial modeling platform with real-time data integration.
 
-## Features
+## 🚀 Quick Start
 
-✅ **No API Keys Required** - Uses Yahoo Finance public endpoints  
-✅ **FastAPI** - Modern async Python web framework  
-✅ **Background Refresh** - 15-minute TTL cache with automatic updates  
-✅ **Pydantic Models** - Type-safe request/response validation  
-✅ **Comprehensive Tests** - pytest with >90% coverage  
-✅ **CORS Enabled** - Ready for frontend integration  
-✅ **Production-Ready** - Structured logging, error handling, health checks  
+### 1. Install Dependencies
 
-## Architecture
+```bash
+cd backend
+pip install -r requirements.txt
+```
+
+### 2. Set Environment Variables
+
+Create a `.env` file in the `backend/` directory:
+
+```bash
+# Required
+JWT_SECRET=your-256-bit-secret-here-change-in-production
+
+# Optional (with defaults)
+DATA_MODE=production
+DATA_STALENESS_MAX_MIN=30
+REQUIRE_MIN_FUND_YEARS=3
+DATABASE_URL=sqlite:///./finmodai.db
+DEBUG=True
+
+# API Keys (optional)
+ALPHAVANTAGE_API_KEY=REDACTED
+FINNHUB_API_KEY=your_key_here
+POLYGON_API_KEY=REDACTED
+```
+
+### 3. Initialize Database
+
+```bash
+python -c "from persistence.database import init_db; init_db()"
+```
+
+### 4. Run the Server
+
+```bash
+python app.py
+```
+
+Or with uvicorn directly:
+
+```bash
+uvicorn app:app --reload --host 0.0.0.0 --port 8000
+```
+
+### 5. Test the API
+
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# API docs
+open http://localhost:8000/api/docs
+```
+
+---
+
+## 📚 API Endpoints
+
+### Authentication
+
+#### Sign Up
+```bash
+POST /api/v1/auth/signup
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "SecurePass123!",
+  "name": "John Doe"
+}
+```
+
+#### Login
+```bash
+POST /api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "SecurePass123!"
+}
+```
+
+#### Get Current User
+```bash
+GET /api/v1/auth/me
+Authorization: Bearer <token>
+```
+
+### Model Generation
+
+#### Generate DCF Model
+```bash
+POST /api/v1/models/generate
+Content-Type: application/json
+
+{
+  "model_type": "dcf",
+  "ticker": "AAPL",
+  "custom_assumptions": {
+    "wacc": 0.095,
+    "terminal_growth": 0.025,
+    "revenue_cagr_1_5": 0.07,
+    "capex_pct_sales": 0.05,
+    "delta_nwc_pct_sales": 0.01
+  }
+}
+```
+
+#### Get Model
+```bash
+GET /api/v1/models/{model_id}
+```
+
+#### Download Excel
+```bash
+GET /api/v1/models/{model_id}/excel
+```
+
+#### Download PDF
+```bash
+GET /api/v1/models/{model_id}/pdf
+```
+
+#### Delete Model
+```bash
+DELETE /api/v1/models/{model_id}
+```
+
+---
+
+## 🏗️ Architecture
+
+### Project Structure
 
 ```
 backend/
-├── app.py                  # FastAPI application
-├── config.py               # Configuration & env vars
-├── data/
-│   ├── loader.py          # EDGAR fundamentals loader
-│   └── sectors.py         # Sector/industry registry
-├── market/
-│   ├── yahoo.py           # Yahoo Finance async client
-│   ├── merge.py           # Quote + fundamentals merger
-│   ├── cache.py           # In-memory TTL cache
-│   └── refresh.py         # Background refresh service
-├── api/v1/
-│   ├── models.py          # Pydantic schemas
-│   └── routes.py          # API endpoints
-└── tests/
-    ├── test_merge.py      # Merge logic tests
-    ├── test_routes.py     # API endpoint tests
-    └── test_yahoo_parsing.py  # Yahoo response tests
+├── app.py                 # FastAPI application
+├── config.py              # Configuration
+├── requirements.txt       # Dependencies
+├── auth/                  # Authentication
+│   ├── models.py
+│   ├── jwt.py
+│   └── hashing.py
+├── persistence/           # Database
+│   ├── database.py
+│   └── schema.py
+├── models_data/           # Model generation
+│   ├── bundles.py
+│   └── generate.py
+├── api/v1/                # API endpoints
+│   ├── auth.py
+│   └── models.py
+├── exports/               # Export generation (TODO)
+│   ├── excel.py
+│   └── pdf.py
+└── tests/                 # Tests (TODO)
 ```
 
-## Installation
+### Data Flow
 
-### Prerequisites
+```
+User Request
+    ↓
+FastAPI Router
+    ↓
+Authentication (JWT)
+    ↓
+Model Generation
+    ↓
+Data Fetching (minimal_app.py)
+    ↓
+Model Execution (generate.py)
+    ↓
+Results Storage (Database)
+    ↓
+Response (JSON/Excel/PDF)
+```
 
-- Python 3.11+
-- EDGAR fundamentals data at `dataset/edgar_fundamentals.parquet` (or `.csv`)
+---
 
-### Setup
+## 🔧 Configuration
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `JWT_SECRET` | Required | Secret key for JWT tokens (min 32 chars) |
+| `DATA_MODE` | `production` | Data mode: production or test |
+| `DATA_STALENESS_MAX_MIN` | `30` | Max data age in minutes |
+| `REQUIRE_MIN_FUND_YEARS` | `3` | Min years of historical data |
+| `DATABASE_URL` | `sqlite:///./finmodai.db` | Database connection string |
+| `DEBUG` | `False` | Enable debug mode |
+| `JWT_EXPIRATION_HOURS` | `24` | JWT token expiration |
+| `CORS_ORIGINS` | `["http://localhost:3000"]` | Allowed CORS origins |
+
+---
+
+## 🧪 Testing
+
+### Manual Testing
 
 ```bash
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# Test configuration
+python config.py
 
-# Install dependencies
-pip install -r backend/requirements.txt
+# Test database
+python -c "from persistence.database import init_db; init_db(); print('✅ Database initialized')"
+
+# Test auth
+python -c "from auth import hash_password, verify_password; h = hash_password('test123'); print('Hash:', h); print('Verify:', verify_password('test123', h))"
+
+# Test JWT
+python -c "from auth.jwt import create_access_token, verify_token; t = create_access_token({'sub': 'user123', 'email': 'test@example.com'}); print('Token:', t); print('Verify:', verify_token(t))"
 ```
 
-## Usage
-
-### Start the API Server
+### API Testing with curl
 
 ```bash
-# Development mode (auto-reload)
-cd backend
-python app.py
+# Sign up
+curl -X POST http://localhost:8000/api/v1/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"Test123!","name":"Test User"}'
 
-# Or with uvicorn directly
-uvicorn backend.app:app --reload --host 0.0.0.0 --port 8000
+# Login
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"Test123!"}'
+
+# Generate DCF model
+curl -X POST http://localhost:8000/api/v1/models/generate \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"model_type":"dcf","ticker":"AAPL"}'
 ```
 
-### Access the API
+---
 
-- **API Root**: http://localhost:8000/
-- **Interactive Docs**: http://localhost:8000/docs
-- **Health Check**: http://localhost:8000/healthz
+## 📊 Database Schema
 
-## API Endpoints
+### Users Table
+- `id` (UUID) - Primary key
+- `email` (String) - Unique email
+- `email_hash` (String) - Email hash
+- `password_hash` (String) - Bcrypt hash
+- `name` (String) - User name
+- `created_at` (DateTime) - Creation timestamp
 
-### Health Check
+### Model Runs Table
+- `id` (UUID) - Primary key
+- `user_id` (UUID) - Foreign key to users
+- `model_type` (String) - DCF/LBO/Comps/Merger
+- `ticker` (String) - Company ticker
+- `target` (String) - Target ticker (for merger)
+- `created_at` (DateTime) - Creation timestamp
+- `as_of_quotes` (DateTime) - Quote timestamp
+- `as_of_fundamentals` (DateTime) - Fundamentals timestamp
+- `stale` (Boolean) - Staleness flag
+- `results_json` (JSONB) - Model results
+- `inputs_json` (JSONB) - Model inputs
+- `provenance_json` (JSONB) - Data provenance
+- `custom_assumptions` (JSONB) - Custom assumptions
+- `deleted_at` (DateTime) - Soft delete timestamp
 
-```http
-GET /healthz
-```
+### Files Table
+- `id` (UUID) - Primary key
+- `model_id` (UUID) - Foreign key to model_runs
+- `kind` (String) - xlsx or pdf
+- `path` (String) - File path
+- `size` (Integer) - File size
+- `created_at` (DateTime) - Creation timestamp
 
-Returns service health status and cache statistics.
+---
 
-### Market Snapshot
+## 🚨 Error Handling
 
-```http
-GET /api/v1/market/snapshot?sector=Technology&limit=100&offset=0&sort=market_cap&order=desc
-```
+### Error Codes
 
-**Query Parameters**:
-- `sector` (optional): Filter by sector (e.g., "Technology")
-- `industry` (optional): Filter by industry
-- `limit` (optional): Results per page (default: 100, max: 500)
-- `offset` (optional): Pagination offset (default: 0)
-- `sort` (optional): Sort field - `market_cap|ev|pe|ev_to_ebitda|price` (default: market_cap)
-- `order` (optional): Sort order - `asc|desc` (default: desc)
+- `validation_error` - Invalid input parameters
+- `missing_fields` - Required fields missing
+- `data_stale` - Data too old
+- `provider_unavailable` - External API down
+- `reconciliation_failed` - Data reconciliation error
+- `export_failed` - Export generation failed
 
-**Response**:
+### Error Response Format
+
 ```json
 {
-  "data": [
-    {
-      "ticker": "AAPL",
-      "name": "Apple Inc.",
-      "sector": "Technology",
-      "price": 178.72,
-      "change1d_pct": 1.23,
-      "market_cap": 2800000000000,
-      "ev": 2850000000000,
-      "ev_to_ebitda": 22.1,
-      "ev_to_revenue": 7.3,
-      "pe": 29.5,
-      "beta": 1.25,
-      "currency": "USD",
-      "as_of_quotes": "2025-10-14T12:00:00Z",
-      "as_of_fundamentals": "2023-12-31T00:00:00Z",
-      "stale": false
-    }
-  ],
-  "total": 500,
-  "limit": 100,
-  "offset": 0
+  "error": "validation_error",
+  "code": "invalid_request",
+  "message": "Invalid request parameters",
+  "details": [...],
+  "request_id": "uuid"
 }
 ```
 
-### Sector Leaders
+---
 
-```http
-GET /api/v1/market/leaders?sector=Technology&limit=3
-```
+## 🔒 Security
 
-**Query Parameters**:
-- `sector` (optional): Specific sector name. If omitted, returns top 3 for each sector.
-- `limit` (optional): Number of leaders per sector (default: 3, max: 10)
+### Authentication
+- JWT tokens with HS256 algorithm
+- Password hashing with bcrypt
+- Token expiration (24 hours default)
 
-**Single Sector Response**:
-```json
-{
-  "sector": "Technology",
-  "leaders": [
-    {"ticker": "AAPL", "name": "Apple Inc.", ...}
-  ],
-  "limit": 3
-}
-```
+### Data Protection
+- No dummy data in production mode
+- Staleness checks enforced
+- Provenance tracking for all data
+- Soft delete for audit trails
 
-**All Sectors Response** (when sector not specified):
-```json
-{
-  "sectors": [
-    {
-      "sector": "Technology",
-      "leaders": [{...}],
-      "limit": 3
-    },
-    ...
-  ]
-}
-```
+### CORS
+- Configurable allowed origins
+- Credentials support
+- Preflight handling
 
-### Company Detail
+---
 
-```http
-GET /api/v1/company/{ticker}
-```
+## 📈 Performance
 
-Returns detailed company data for model prefill, including:
-- Current quote (price, market cap, beta)
-- Latest fundamentals (revenue, EBITDA, net debt, etc.)
-- Derived metrics (EV, EV/EBITDA, P/E)
-- Sparkline (if prefetched)
+### Caching
+- In-memory TTL cache for quotes (15 min)
+- In-memory TTL cache for fundamentals (24 hours)
 
-**Response**:
-```json
-{
-  "ticker": "AAPL",
-  "name": "Apple Inc.",
-  "sector": "Technology",
-  "price": 178.72,
-  "market_cap": 2800000000000,
-  "beta": 1.25,
-  "pe": 29.5,
-  "fiscal_year": 2023,
-  "revenue": 394328.0,
-  "ebitda": 129956.0,
-  "net_debt": 50000.0,
-  "ev": 2850000000000,
-  "ev_to_ebitda": 22.1,
-  "sparkline": [0.3, 0.35, 0.4, 0.45, 0.5],
-  "as_of_quotes": "2025-10-14T12:00:00Z"
-}
-```
+### Database
+- SQLite for development
+- PostgreSQL for production
+- Connection pooling
+- Query optimization
 
-### Force Refresh (Admin)
+---
 
-```http
-POST /api/v1/_refresh
-```
+## 🐛 Troubleshooting
 
-Triggers an immediate refresh of market data. Returns refresh statistics.
+### Issue: JWT_SECRET not set
+**Solution**: Set `JWT_SECRET` in `.env` file (min 32 characters)
 
-## Configuration
+### Issue: Database connection failed
+**Solution**: Check `DATABASE_URL` in `.env` file
 
-Environment variables (optional, defaults provided):
+### Issue: Import errors
+**Solution**: Install dependencies with `pip install -r requirements.txt`
 
-```bash
-# Cache settings
-SNAPSHOT_TTL_MIN=15          # Cache TTL in minutes
-REFRESH_INTERVAL_MIN=15      # Background refresh interval
+### Issue: Port already in use
+**Solution**: Change port in `app.py` or kill existing process
 
-# Yahoo Finance
-YAHOO_BATCH_SIZE=100         # Tickers per batch request
-YAHOO_REQUEST_TIMEOUT=4.0    # Request timeout in seconds
+### Issue: Data not available for ticker
+**Solution**: Check if ticker is in SEC EDGAR database or has API data
 
-# Limits
-MAX_TICKERS=1200             # Maximum tickers to track
-```
+---
 
-## Data Flow
+## 🚀 Deployment
 
-1. **Startup**:
-   - Load EDGAR fundamentals from Parquet/CSV
-   - Compute latest fiscal year per ticker
-   - Start background refresh loop
+### Production Checklist
 
-2. **Background Refresh** (every 15 minutes):
-   - Fetch Yahoo quotes for all tickers (batched)
-   - Merge with EDGAR fundamentals
-   - Compute derived metrics (EV, EV/EBITDA, P/E)
-   - Update in-memory cache
-   - Compute and cache sector leaders
-   - Prefetch sparklines for top 100 by market cap
+- [ ] Set `DEBUG=False`
+- [ ] Set strong `JWT_SECRET`
+- [ ] Configure `DATABASE_URL` for PostgreSQL
+- [ ] Set `DATA_MODE=production`
+- [ ] Configure CORS origins
+- [ ] Setup SSL/TLS
+- [ ] Configure logging
+- [ ] Setup monitoring
+- [ ] Run migrations
+- [ ] Test all endpoints
 
-3. **API Requests**:
-   - Read from in-memory cache (no external calls)
-   - Filter, sort, paginate as requested
-   - Return in <150ms (cache hit)
-
-## Derived Metrics
-
-### Enterprise Value (EV)
-```
-EV = market_cap + net_debt
-```
-
-### EV/EBITDA
-```
-EV/EBITDA = EV / ebitda_latest
-```
-(Returns `null` if EBITDA ≤ 0)
-
-### EV/Revenue
-```
-EV/Revenue = EV / revenue_latest
-```
-(Returns `null` if Revenue ≤ 0)
-
-### P/E Ratio
-Priority:
-1. `trailingPE` from Yahoo (if available)
-2. `market_cap / net_income_latest` (if net_income > 0)
-3. `null` otherwise
-
-## Testing
-
-```bash
-# Run all tests
-pytest backend/tests/ -v
-
-# With coverage
-pytest backend/tests/ --cov=backend --cov-report=html
-
-# Run specific test file
-pytest backend/tests/test_merge.py -v
-```
-
-**Test Coverage**:
-- `test_merge.py`: EV, EV/EBITDA, P/E calculations with edge cases
-- `test_routes.py`: API endpoints with mocked cache
-- `test_yahoo_parsing.py`: Yahoo response parsing
-
-## Deployment
-
-### Local Development
-
-```bash
-python backend/app.py
-```
-
-### Production (Uvicorn)
-
-```bash
-uvicorn backend.app:app --host 0.0.0.0 --port 8000 --workers 4
-```
-
-### With Gunicorn (recommended)
-
-```bash
-gunicorn backend.app:app \
-  --workers 4 \
-  --worker-class uvicorn.workers.UvicornWorker \
-  --bind 0.0.0.0:8000 \
-  --access-logfile - \
-  --error-logfile -
-```
-
-### Docker
+### Docker (TODO)
 
 ```dockerfile
 FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY backend/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY backend/ ./backend/
-COPY dataset/ ./dataset/
+COPY . .
 
-EXPOSE 8000
-
-CMD ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-### Fly.io
+---
 
-```toml
-# fly.toml
-app = "finmodai-market-api"
+## 📝 TODO
 
-[build]
-  dockerfile = "Dockerfile"
+### Week 1
+- [x] Backend setup
+- [x] Authentication module
+- [x] Database persistence
+- [x] Model generation endpoints (DCF)
+- [ ] Excel export
+- [ ] PDF export
 
-[env]
-  SNAPSHOT_TTL_MIN = "15"
-  REFRESH_INTERVAL_MIN = "15"
+### Week 2
+- [ ] User authentication routes
+- [ ] Model history
+- [ ] Custom assumptions
+- [ ] LBO/Comps/Merger models
 
-[[services]]
-  internal_port = 8000
-  protocol = "tcp"
+### Week 3
+- [ ] Validation guardrails
+- [ ] Results visualization
+- [ ] Tests
+- [ ] CI/CD
 
-  [[services.ports]]
-    handlers = ["http"]
-    port = 80
+---
 
-  [[services.ports]]
-    handlers = ["tls", "http"]
-    port = 443
+## 📞 Support
 
-  [services.http_checks]
-    interval = 10000
-    timeout = 2000
-    path = "/healthz"
-```
+For questions or issues:
+- Check the logs for API errors
+- Verify API keys are set correctly
+- Test with AAPL first (has complete data)
+- Check SEC EDGAR data availability
 
-## Performance
+---
 
-**Expected Performance** (with warm cache):
-
-| Endpoint | Response Time | Cached Data |
-|----------|--------------|-------------|
-| `/healthz` | <10ms | N/A |
-| `/market/snapshot` (100 results) | <150ms | Yes |
-| `/market/leaders` | <50ms | Yes |
-| `/company/{ticker}` | <20ms | Yes |
-
-**Cache Warm-up**:
-- Initial refresh: ~45-60 seconds (1000+ tickers)
-- Incremental refresh: ~30-45 seconds (every 15 min)
-
-**Resource Usage**:
-- RAM: ~200-300 MB (with 1000 tickers in cache)
-- CPU: <5% idle, <30% during refresh
-
-## Troubleshooting
-
-### "Market data not available yet"
-- Cache is still warming up (wait 60s after startup)
-- Background refresh failed (check logs)
-- Force refresh: `POST /api/v1/_refresh`
-
-### High response times
-- Cache expired and refresh is running
-- Check health: `GET /healthz`
-- Increase `SNAPSHOT_TTL_MIN` to reduce refresh frequency
-
-### Missing tickers
-- Ticker not in EDGAR fundamentals dataset
-- Yahoo Finance doesn't return data for ticker
-- Check logs for failed quote fetches
-
-## License
-
-MIT - Built for FinModAI
-
-## Author
-
-FinModAI Engineering Team  
-Date: October 2025
-
+**Built with ❤️ for FinModAI**

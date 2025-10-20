@@ -127,10 +127,10 @@ async def root():
     }
 
 
-# Include routers (will be added in subsequent steps)
-# from api.v1 import auth, models
-# app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
-# app.include_router(models.router, prefix="/api/v1/models", tags=["models"])
+# Include routers
+from api.v1 import auth_router, models_router
+app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(models_router, prefix="/api/v1/models", tags=["models"])
 
 
 if __name__ == "__main__":
