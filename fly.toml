@@ -1,23 +1,15 @@
-# fly.toml app configuration file generated for finmodai
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+# Fly.io Configuration for FinModAI Backend
 
-app = "finmodai-z9qvtg"
-primary_region = "iad"
+app = "finmodai-backend"
+primary_region = "iad"  # Changed from SJC to avoid IPv6 issues
 
-# Build config removed - image will be specified via --image flag in CI
-# This prevents MANIFEST_UNKNOWN errors from stale tags
+[build]
+  dockerfile = "backend/Dockerfile"
 
 [env]
-  FLASK_ENV = "production"
-  PORT = "8000"
-  ALPHAVANTAGE_API_KEY = "EQJS9ZZ669MZCWPC"
-  FMP_API_KEY = "6FxULbNNuO1VAt6pkbr7MgzCaMlAIZjK"
-  FRED_API_KEY = "4987b43f319ba1c5d862ddabbbc4ecf8"
-  GOOGLE_FINANCE_EMAIL = "aromain27@amherst.edu"
-  GOOGLE_FINANCE_TOKEN = "3bafe26dc9d0e1f9"
-  FINNHUB_API_KEY = "d3jkenpr01qkv9k03lf0d3jkenpr01qkv9k03lfg"
-  SIMFIN_API_KEY = "c2b86058-a089-45df-a646-f3782594235e"
+  DATABASE_URL = "sqlite:///./finmodai.db"
+  DATA_MODE = "production"
+  DEBUG = "False"
 
 [http_service]
   internal_port = 8000
@@ -27,42 +19,11 @@ primary_region = "iad"
   min_machines_running = 0
   processes = ["app"]
 
-[[services]]
-  protocol = "tcp"
-  internal_port = 8000
-  processes = ["app"]
-  
-  [[services.ports]]
-    port = 80
-    handlers = ["http"]
-    force_https = true
-
-  [[services.ports]]
-    port = 443
-    handlers = ["tls", "http"]
-  
-  [services.concurrency]
-    type = "connections"
-    hard_limit = 25
-    soft_limit = 20
-
-  [[services.tcp_checks]]
-    interval = "15s"
-    timeout = "2s"
-    grace_period = "1s"
-    restart_limit = 0
-
-  [[services.http_checks]]
-    interval = 10000
-    grace_period = "5s"
-    method = "get"
-    path = "/healthz"
-    protocol = "http"
-    timeout = 2000
-    tls_skip_verify = false
-
 [[vm]]
+  memory = "512mb"
   cpu_kind = "shared"
   cpus = 1
-  memory_mb = 256
 
+# Disable IPv6 to avoid SJC region issues
+[experimental]
+  auto_rollback = true
