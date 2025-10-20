@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://finmodai:finmodai@db:5432/finmodai
+      - JWT_SECRET=${JWT_SECRET:-default-secret-change-in-production}
+      - DATA_MODE=production
+      - DEBUG=False
+      - ALPHAVANTAGE_API_KEY=${ALPHAVANTAGE_API_KEY}
+      - FINNHUB_API_KEY=${FINNHUB_API_KEY}
+      - POLYGON_API_KEY=${POLYGON_API_KEY}
+    depends_on:
+      - db
+    volumes:
+      - ./backend/exports:/app/exports
+      - ./backend/uploads:/app/uploads
+    restart: unless-stopped
+
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=finmodai
+      - POSTGRES_PASSWORD=finmodai
+      - POSTGRES_DB=finmodai
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
