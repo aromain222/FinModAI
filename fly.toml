@@ -1,7 +1,7 @@
 # Fly.io Configuration for FinModAI Backend
 
 app = "finmodai-backend"
-primary_region = "iad"  # Changed from SJC to avoid IPv6 issues
+primary_region = "iad"
 
 [build]
   dockerfile = "backend/Dockerfile"
@@ -24,6 +24,5 @@ primary_region = "iad"  # Changed from SJC to avoid IPv6 issues
   cpu_kind = "shared"
   cpus = 1
 
-# Disable IPv6 to avoid SJC region issues
 [experimental]
   auto_rollback = true
