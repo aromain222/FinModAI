@@ -10,17 +10,47 @@ primary_region = "iad"
   DATABASE_URL = "sqlite:///./finmodai.db"
   DATA_MODE = "production"
   DEBUG = "False"
+  PYTHONUNBUFFERED = "1"
+  WEB_CONCURRENCY = "2"
+  PORT = "8080"
 
-[http_service]
-  internal_port = 8000
-  force_https = true
-  auto_stop_machines = true
-  auto_start_machines = true
-  min_machines_running = 0
-  processes = ["app"]
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "connections"
+    soft_limit = 150
+    hard_limit = 200
+
+  [services.http_checks]
+    interval = "10s"
+    timeout = "2s"
+    grace_period = "30s"
+    method = "GET"
+    path = "/healthz"
+    protocol = "http"
+
+[checks]
+  [checks.ready]
+    grace_period = "30s"
+    interval = "15s"
+    timeout = "3s"
+    type = "http"
+    method = "GET"
+    path = "/healthz"
+    port = 8080
 
 [[vm]]
-  memory = "512mb"
+  memory = "1024mb"
   cpu_kind = "shared"
   cpus = 1
 

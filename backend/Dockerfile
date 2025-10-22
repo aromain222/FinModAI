@@ -12,6 +12,9 @@ RUN apt-get update && apt-get install -y \
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install gunicorn
+RUN pip install --no-cache-dir gunicorn
+
 # Copy application
 COPY backend/ .
 
@@ -19,8 +22,13 @@ COPY backend/ .
 RUN mkdir -p exports uploads
 
 # Expose port
-EXPOSE 8000
+EXPOSE 8080
 
-# Run application
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV WEB_CONCURRENCY=2
+ENV PORT=8080
+
+# Run application with gunicorn
+CMD ["sh", "-c", "gunicorn app:app --bind 0.0.0.0:${PORT} --workers ${WEB_CONCURRENCY} --timeout 120 --worker-class uvicorn.workers.UvicornWorker --access-logfile - --error-logfile -"]
 

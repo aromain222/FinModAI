@@ -9,6 +9,8 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 import logging
+import signal
+import sys
 from datetime import datetime
 
 from config import settings, validate_settings
@@ -18,6 +20,17 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+
+# Graceful shutdown handler
+def handle_sigterm(*_):
+    """Handle SIGTERM signal for graceful shutdown"""
+    logger.info("Received shutdown signal, exiting cleanly...")
+    sys.exit(0)
+
+
+# Register signal handler
+signal.signal(signal.SIGTERM, handle_sigterm)
 
 
 @asynccontextmanager
@@ -113,6 +126,13 @@ async def health_check():
         "version": settings.APP_VERSION,
         "data_mode": settings.DATA_MODE,
     }
+
+
+# Healthz endpoint for Fly.io health checks
+@app.get("/healthz")
+async def healthz():
+    """Healthz endpoint for Fly.io health checks"""
+    return {"status": "ok"}
 
 
 # Root endpoint
