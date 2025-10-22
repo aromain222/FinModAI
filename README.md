@@ -205,9 +205,36 @@ pytest tests/test_validation.py -v
 ### CI/CD
 - Automated testing on push/PR
 - Lint checks (black, ruff)
-- No-dummy-data checks
+- Real-data-enforcement checks (branch-aware)
 - Smoke tests
 - Coverage reporting
+
+#### Local CI Reproduction
+
+To see what the CI is catching locally, run:
+
+```bash
+# Check for disallowed strings in backend files
+git ls-files | grep -E '\.(ts|tsx|js|py|json)$' | xargs -I {} grep -n -E '(fixtures|mocks|sampleData|demoData|PLACEHOLDER|"placeholder"\s*:\s*true|MOCK|DEMO)' {} | less
+
+# Or focus on backend only
+find backend -name "*.py" -o -name "*.json" | grep -v __pycache__ | xargs -I {} grep -n -E '(fixtures|mocks|sampleData|demoData|PLACEHOLDER|"placeholder"\s*:\s*true|MOCK|DEMO)' {} | less
+```
+
+#### Handling False Positives
+
+If legitimate strings are flagged:
+
+1. **Wrap demo blocks** in `if (process.env.DATA_MODE === "test"):`
+2. **Move test files** to `dev/examples/` (excluded from build)
+3. **Use comments** to indicate legitimate usage: `# LEGIT: This is a real example, not a placeholder`
+
+#### Real Violations
+
+Remove any:
+- Imports from `fixtures/`, `mocks/`, `sampleData/`, `demoData/`
+- JSON placeholders like `"placeholder": true`
+- Dev seed values in production code paths
 
 ---
 
