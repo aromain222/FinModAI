@@ -1,6 +1,7 @@
 """
 API v1 Routes
 """
+
 import logging
 from typing import Optional
 
@@ -27,13 +28,9 @@ router = APIRouter(prefix="/api/v1")
 
 @router.get("/market/snapshot", response_model=SnapshotResponse)
 async def get_market_snapshot(
-    sector: Optional[str] = Query(
-        None, description="Filter by sector (e.g., Technology)"
-    ),
+    sector: Optional[str] = Query(None, description="Filter by sector (e.g., Technology)"),
     industry: Optional[str] = Query(None, description="Filter by industry"),
-    limit: int = Query(
-        settings.DEFAULT_SNAPSHOT_LIMIT, ge=1, le=settings.MAX_SNAPSHOT_LIMIT
-    ),
+    limit: int = Query(settings.DEFAULT_SNAPSHOT_LIMIT, ge=1, le=settings.MAX_SNAPSHOT_LIMIT),
     offset: int = Query(0, ge=0),
     sort: SortField = Query(SortField.MARKET_CAP, description="Sort field"),
     order: SortOrder = Query(SortOrder.DESC, description="Sort order"),
@@ -69,9 +66,11 @@ async def get_market_snapshot(
 
     # Handle None values in sorting
     snapshots_list.sort(
-        key=lambda x: x.get(sort_field)
-        if x.get(sort_field) is not None
-        else (float("-inf") if reverse else float("inf")),
+        key=lambda x: (
+            x.get(sort_field)
+            if x.get(sort_field) is not None
+            else (float("-inf") if reverse else float("inf"))
+        ),
         reverse=reverse,
     )
 
@@ -100,9 +99,7 @@ async def get_sector_leaders(
         leaders = market_cache.get_leaders(sector)
 
         if leaders is None:
-            raise HTTPException(
-                status_code=404, detail=f"No leaders found for sector: {sector}"
-            )
+            raise HTTPException(status_code=404, detail=f"No leaders found for sector: {sector}")
 
         # Limit to requested amount
         leaders = leaders[:limit]

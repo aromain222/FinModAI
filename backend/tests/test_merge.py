@@ -1,6 +1,7 @@
 """
 Tests for merge logic and derived metrics
 """
+
 import pytest
 from datetime import datetime
 

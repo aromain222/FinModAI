@@ -89,14 +89,10 @@ class DCFFields(BaseModel):
 
     @field_validator("historicals")
     @classmethod
-    def validate_historicals(
-        cls, v: List[HistoricalFinancial]
-    ) -> List[HistoricalFinancial]:
+    def validate_historicals(cls, v: List[HistoricalFinancial]) -> List[HistoricalFinancial]:
         """Ensure at least 3 years of historical data"""
         if len(v) < 3:
-            raise ValueError(
-                "DCF requires at least 3 years of historical financial data"
-            )
+            raise ValueError("DCF requires at least 3 years of historical financial data")
         return v
 
 

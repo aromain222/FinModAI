@@ -57,9 +57,7 @@ def get_current_user(
     # Get user from database
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
     return user
 
@@ -67,9 +65,7 @@ def get_current_user(
 # API Endpoints
 
 
-@router.post(
-    "/signup", response_model=TokenResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("/signup", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     """
     Create a new user account
@@ -111,9 +107,7 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         access_token=access_token,
         token_type="bearer",
         expires_in=24 * 60 * 60,  # 24 hours
-        user=UserResponse(
-            id=user.id, email=user.email, name=user.name, created_at=user.created_at
-        ),
+        user=UserResponse(id=user.id, email=user.email, name=user.name, created_at=user.created_at),
     )
 
 
@@ -146,9 +140,7 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
         access_token=access_token,
         token_type="bearer",
         expires_in=24 * 60 * 60,  # 24 hours
-        user=UserResponse(
-            id=user.id, email=user.email, name=user.name, created_at=user.created_at
-        ),
+        user=UserResponse(id=user.id, email=user.email, name=user.name, created_at=user.created_at),
     )
 
 

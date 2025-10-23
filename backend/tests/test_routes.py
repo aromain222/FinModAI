@@ -1,6 +1,7 @@
 """
 Tests for API routes (using mocked cache)
 """
+
 import pytest
 from datetime import datetime
 from fastapi.testclient import TestClient
@@ -172,9 +173,7 @@ def test_market_snapshot_empty_cache():
 def test_sector_leaders_single_sector(sample_snapshots):
     """Test getting leaders for a single sector"""
     # Setup cache with leaders
-    market_cache.set_leaders(
-        "Technology", [sample_snapshots["AAPL"], sample_snapshots["MSFT"]]
-    )
+    market_cache.set_leaders("Technology", [sample_snapshots["AAPL"], sample_snapshots["MSFT"]])
 
     response = client.get("/api/v1/market/leaders?sector=Technology&limit=3")
     assert response.status_code == 200

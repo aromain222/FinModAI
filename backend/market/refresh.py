@@ -1,6 +1,7 @@
 """
 Background refresh loop for market data
 """
+
 import asyncio
 import logging
 from datetime import datetime
@@ -62,9 +63,7 @@ class MarketRefreshService:
             self._compute_sector_leaders(snapshots)
 
             # Optionally prefetch sparklines for top N by market cap
-            top_tickers = self._get_top_tickers_by_market_cap(
-                snapshots, config.SPARKLINE_TOP_N
-            )
+            top_tickers = self._get_top_tickers_by_market_cap(snapshots, config.SPARKLINE_TOP_N)
             if top_tickers:
                 await self._prefetch_sparklines(top_tickers, client)
 
@@ -112,9 +111,7 @@ class MarketRefreshService:
                 market_cache.set_leaders(sector, leaders)
                 logger.debug(f"Cached {len(leaders)} leaders for {sector}")
 
-    def _get_top_tickers_by_market_cap(
-        self, snapshots: Dict[str, Dict], n: int
-    ) -> List[str]:
+    def _get_top_tickers_by_market_cap(self, snapshots: Dict[str, Dict], n: int) -> List[str]:
         """Get top N tickers by market cap"""
         sorted_snapshots = sorted(
             snapshots.values(), key=lambda x: x.get("market_cap", 0), reverse=True
@@ -122,9 +119,7 @@ class MarketRefreshService:
 
         return [s["ticker"] for s in sorted_snapshots[:n] if s.get("ticker")]
 
-    async def _prefetch_sparklines(
-        self, tickers: List[str], client: YahooFinanceClient
-    ) -> None:
+    async def _prefetch_sparklines(self, tickers: List[str], client: YahooFinanceClient) -> None:
         """Prefetch sparklines for top tickers"""
         logger.info(f"Prefetching sparklines for {len(tickers)} tickers...")
 
@@ -142,9 +137,7 @@ class MarketRefreshService:
     async def run_periodic_refresh(self) -> None:
         """Run refresh loop periodically"""
         self.running = True
-        logger.info(
-            f"Starting periodic refresh (interval: {config.REFRESH_INTERVAL_MIN} minutes)"
-        )
+        logger.info(f"Starting periodic refresh (interval: {config.REFRESH_INTERVAL_MIN} minutes)")
 
         # Initial refresh on startup
         await self.refresh_all_data()

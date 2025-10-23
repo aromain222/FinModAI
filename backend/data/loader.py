@@ -1,6 +1,7 @@
 """
 EDGAR Fundamentals Data Loader
 """
+
 import logging
 from typing import Dict, Optional
 
@@ -45,9 +46,7 @@ class FundamentalsLoader:
             return
 
         # Sort by ticker and fiscal_year descending
-        df_sorted = self.df.sort_values(
-            ["ticker", "fiscal_year"], ascending=[True, False]
-        )
+        df_sorted = self.df.sort_values(["ticker", "fiscal_year"], ascending=[True, False])
 
         # Group by ticker and take first (most recent)
         latest_df = df_sorted.groupby("ticker").first().reset_index()
@@ -81,9 +80,7 @@ class FundamentalsLoader:
             return pd.DataFrame()
 
         ticker_data = self.df[self.df["ticker"] == ticker.upper()]
-        ticker_data = ticker_data.sort_values("fiscal_year", ascending=False).head(
-            years
-        )
+        ticker_data = ticker_data.sort_values("fiscal_year", ascending=False).head(years)
 
         return ticker_data
 

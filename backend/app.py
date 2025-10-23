@@ -13,12 +13,10 @@ import signal
 import sys
 from datetime import datetime
 
-from config import settings, validate_settings
+from backend.config import settings, validate_settings
 
 # Setup logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -156,6 +154,4 @@ app.include_router(models_router, prefix="/api/v1/models", tags=["models"])
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(
-        "app:app", host="0.0.0.0", port=8000, reload=settings.DEBUG, log_level="info"
-    )
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=settings.DEBUG, log_level="info")

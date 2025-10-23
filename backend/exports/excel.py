@@ -8,9 +8,7 @@ from typing import Dict, Any
 from datetime import datetime
 
 
-def export_dcf_to_excel(
-    model_data: Dict[str, Any], ticker: str, output_path: str
-) -> str:
+def export_dcf_to_excel(model_data: Dict[str, Any], ticker: str, output_path: str) -> str:
     """
     Export DCF model to Excel with banker formatting
 
@@ -37,9 +35,7 @@ def export_dcf_to_excel(
         }
     )
 
-    subheader_format = workbook.add_format(
-        {"bold": True, "bg_color": "#e0e7ff", "border": 1}
-    )
+    subheader_format = workbook.add_format({"bold": True, "bg_color": "#e0e7ff", "border": 1})
 
     currency_format = workbook.add_format({"num_format": "$#,##0.00", "border": 1})
 
@@ -131,14 +127,10 @@ def export_dcf_to_excel(
     projections_sheet.write(row, 7, model_data.get("pv_of_fcf", 0), currency_format)
     row += 1
     projections_sheet.write(row, 5, "PV of Terminal Value:", subheader_format)
-    projections_sheet.write(
-        row, 7, model_data.get("pv_terminal_value", 0), currency_format
-    )
+    projections_sheet.write(row, 7, model_data.get("pv_terminal_value", 0), currency_format)
     row += 1
     projections_sheet.write(row, 5, "Enterprise Value:", subheader_format)
-    projections_sheet.write(
-        row, 7, model_data.get("enterprise_value", 0), currency_format
-    )
+    projections_sheet.write(row, 7, model_data.get("enterprise_value", 0), currency_format)
 
     # Set column widths
     for col in range(len(headers)):
@@ -165,9 +157,7 @@ def export_dcf_to_excel(
         sensitivity_sheet.write(row, 0, f"{wacc:.1%}", subheader_format)
         for col, growth in enumerate(growth_values, start=1):
             # Simplified sensitivity calculation
-            sensitivity_ev = (
-                base_ev * (1 + (wacc - 0.10) * 0.5) * (1 + (growth - 0.025) * 0.5)
-            )
+            sensitivity_ev = base_ev * (1 + (wacc - 0.10) * 0.5) * (1 + (growth - 0.025) * 0.5)
             sensitivity_sheet.write(row, col, sensitivity_ev, currency_format)
 
     # Set column widths
@@ -188,9 +178,7 @@ def export_dcf_to_excel(
     for row, (field, provider) in enumerate(provenance.items(), start=1):
         provenance_sheet.write(row, 0, field, subheader_format)
         provenance_sheet.write(row, 1, provider, number_format)
-        provenance_sheet.write(
-            row, 2, datetime.now().strftime("%Y-%m-%d"), number_format
-        )
+        provenance_sheet.write(row, 2, datetime.now().strftime("%Y-%m-%d"), number_format)
 
     # Set column widths
     provenance_sheet.set_column(0, 0, 20)
@@ -203,9 +191,7 @@ def export_dcf_to_excel(
     return output_path
 
 
-def export_lbo_to_excel(
-    model_data: Dict[str, Any], ticker: str, output_path: str
-) -> str:
+def export_lbo_to_excel(model_data: Dict[str, Any], ticker: str, output_path: str) -> str:
     """
     Export LBO model to Excel
 
@@ -221,9 +207,7 @@ def export_lbo_to_excel(
     raise NotImplementedError("LBO Excel export not yet implemented")
 
 
-def export_comps_to_excel(
-    model_data: Dict[str, Any], ticker: str, output_path: str
-) -> str:
+def export_comps_to_excel(model_data: Dict[str, Any], ticker: str, output_path: str) -> str:
     """
     Export Comps model to Excel
 
@@ -239,9 +223,7 @@ def export_comps_to_excel(
     raise NotImplementedError("Comps Excel export not yet implemented")
 
 
-def export_merger_to_excel(
-    model_data: Dict[str, Any], ticker: str, output_path: str
-) -> str:
+def export_merger_to_excel(model_data: Dict[str, Any], ticker: str, output_path: str) -> str:
     """
     Export Merger model to Excel
 

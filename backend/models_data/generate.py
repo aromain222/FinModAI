@@ -50,12 +50,8 @@ def generate_dcf_model(
 
     # Apply custom assumptions if provided
     if custom_assumptions:
-        revenue_growth = Decimal(
-            str(custom_assumptions.get("revenue_cagr_1_5", revenue_growth))
-        )
-        ebitda_growth = Decimal(
-            str(custom_assumptions.get("ebitda_cagr", ebitda_growth))
-        )
+        revenue_growth = Decimal(str(custom_assumptions.get("revenue_cagr_1_5", revenue_growth)))
+        ebitda_growth = Decimal(str(custom_assumptions.get("ebitda_cagr", ebitda_growth)))
 
     # Default assumptions
     wacc = (
@@ -112,9 +108,11 @@ def generate_dcf_model(
         )
 
     # Calculate terminal value
-    terminal_fcf = projections[-1]["fcf"] * (1 + terminal_growth)
-    terminal_value = float(terminal_fcf / (wacc - terminal_growth))
-    pv_terminal_value = terminal_value / ((1 + wacc) ** 5)
+    fcf_last = float(projections[-1]["fcf"])
+    g = float(terminal_growth)
+    terminal_fcf = fcf_last * (1.0 + g)
+    terminal_value = terminal_fcf / (float(wacc) - g)
+    pv_terminal_value = terminal_value / ((1 + float(wacc)) ** 5)
 
     # Calculate enterprise value
     pv_of_fcf = sum(p["pv_fcf"] for p in projections)
@@ -380,9 +378,7 @@ def generate_merger_model(
     target_share_price = float(bundle.target_market.price)
     premium_per_share = target_share_price * premium_pct
     purchase_price_per_share = target_share_price + premium_per_share
-    total_purchase_price = purchase_price_per_share * float(
-        bundle.target_market.shares_outstanding
-    )
+    total_purchase_price = purchase_price_per_share * float(bundle.target_market.shares_outstanding)
 
     # Calculate synergies
     combined_revenue = float(bundle.acquirer_revenue + bundle.target_revenue)

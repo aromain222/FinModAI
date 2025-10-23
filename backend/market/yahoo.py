@@ -1,6 +1,7 @@
 """
 Yahoo Finance Data Client (async, no API keys)
 """
+
 import asyncio
 import logging
 from datetime import datetime
@@ -72,17 +73,13 @@ class YahooFinanceClient:
                     if symbol:
                         quotes[symbol] = self._parse_quote(quote)
 
-                logger.info(
-                    f"Fetched {len(quotes)}/{len(tickers)} quotes (attempt {attempt + 1})"
-                )
+                logger.info(f"Fetched {len(quotes)}/{len(tickers)} quotes (attempt {attempt + 1})")
                 return quotes
 
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == 429:
                     wait_time = config.YAHOO_RETRY_BACKOFF**attempt
-                    logger.warning(
-                        f"Rate limited (429), waiting {wait_time}s before retry"
-                    )
+                    logger.warning(f"Rate limited (429), waiting {wait_time}s before retry")
                     await asyncio.sleep(wait_time)
                 else:
                     logger.error(f"HTTP error {e.response.status_code}: {e}")
@@ -93,9 +90,7 @@ class YahooFinanceClient:
                 if attempt < config.YAHOO_MAX_RETRIES - 1:
                     await asyncio.sleep(config.YAHOO_RETRY_BACKOFF**attempt)
 
-        logger.error(
-            f"Failed to fetch quotes after {config.YAHOO_MAX_RETRIES} attempts"
-        )
+        logger.error(f"Failed to fetch quotes after {config.YAHOO_MAX_RETRIES} attempts")
         return {}
 
     def _parse_quote(self, quote: dict) -> dict:
@@ -165,9 +160,7 @@ class YahooFinanceClient:
             if max_close == min_close:
                 return [0.5] * len(valid_closes)
 
-            normalized = [
-                (c - min_close) / (max_close - min_close) for c in valid_closes
-            ]
+            normalized = [(c - min_close) / (max_close - min_close) for c in valid_closes]
 
             return normalized
 
@@ -189,10 +182,7 @@ class YahooFinanceClient:
 
         # Split into batches
         batch_size = config.YAHOO_BATCH_SIZE
-        batches = [
-            all_tickers[i : i + batch_size]
-            for i in range(0, len(all_tickers), batch_size)
-        ]
+        batches = [all_tickers[i : i + batch_size] for i in range(0, len(all_tickers), batch_size)]
 
         logger.info(f"Fetching {len(all_tickers)} tickers in {len(batches)} batches")
 

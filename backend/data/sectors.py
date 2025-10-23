@@ -1,6 +1,7 @@
 """
 Sector and Industry Registry
 """
+
 import logging
 from typing import Dict, Optional
 

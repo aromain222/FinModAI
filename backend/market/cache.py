@@ -1,6 +1,7 @@
 """
 In-memory TTL cache for market data
 """
+
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, Optional, List

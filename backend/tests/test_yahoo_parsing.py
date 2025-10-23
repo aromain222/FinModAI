@@ -1,6 +1,7 @@
 """
 Tests for Yahoo Finance response parsing
 """
+
 from backend.market.yahoo import YahooFinanceClient
 
 

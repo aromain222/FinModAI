@@ -1,6 +1,7 @@
 """
 Merge Yahoo quotes with EDGAR fundamentals and compute derived metrics
 """
+
 import logging
 from datetime import datetime
 from typing import Dict, Optional
@@ -67,9 +68,7 @@ def compute_derived_metrics(quote: Dict, fundamentals: Optional[Dict]) -> Dict:
 
     # Compute EV = market_cap + net_debt
     if market_cap is not None and net_debt is not None:
-        result["ev"] = market_cap + (
-            net_debt * 1_000_000
-        )  # Convert net_debt from millions
+        result["ev"] = market_cap + (net_debt * 1_000_000)  # Convert net_debt from millions
 
     # Compute EV/EBITDA
     if result["ev"] is not None and ebitda is not None and ebitda > 0:

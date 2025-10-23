@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.orm import Session
 
 # Add parent directory to path
@@ -33,12 +33,12 @@ router = APIRouter()
 class ModelGenerateRequest(BaseModel):
     """Model generation request"""
 
+    model_config = ConfigDict(protected_namespaces=())
+
     model_type: str = Field(..., description="Model type: dcf, lbo, comps, or merger")
     ticker: str = Field(..., description="Company ticker symbol")
     target: Optional[str] = Field(None, description="Target ticker (for merger models)")
-    custom_assumptions: Optional[Dict[str, Any]] = Field(
-        None, description="Custom assumptions"
-    )
+    custom_assumptions: Optional[Dict[str, Any]] = Field(None, description="Custom assumptions")
     options: Optional[Dict[str, Any]] = Field(None, description="Generation options")
 
 
@@ -226,8 +226,7 @@ async def generate_model(request: ModelGenerateRequest, db: Session = Depends(ge
 
             if errors:
                 error_details = [
-                    {"field": e.field, "message": e.message, "code": e.code}
-                    for e in errors
+                    {"field": e.field, "message": e.message, "code": e.code} for e in errors
                 ]
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -308,9 +307,7 @@ async def generate_model(request: ModelGenerateRequest, db: Session = Depends(ge
         db.commit()
         db.refresh(model_run)
 
-        logger.info(
-            f"Generated {model_type} model for {request.ticker} with ID {model_run.id}"
-        )
+        logger.info(f"Generated {model_type} model for {request.ticker} with ID {model_run.id}")
 
         return ModelGenerateResponse(
             model_id=model_run.id,
@@ -365,9 +362,7 @@ async def get_model(model_id: UUID, db: Session = Depends(get_db)):
         inputs=model_run.inputs_json or {},
         provenance=model_run.provenance_json or {},
         custom_assumptions=model_run.custom_assumptions,
-        warnings=model_run.results_json.get("warnings", [])
-        if model_run.results_json
-        else [],
+        warnings=model_run.results_json.get("warnings", []) if model_run.results_json else [],
     )
 
 
@@ -415,9 +410,7 @@ async def download_excel(model_id: UUID, db: Session = Depends(get_db)):
         elif model_run.model_type == "comps":
             export_comps_to_excel(model_run.results_json, model_run.ticker, output_path)
         elif model_run.model_type == "merger":
-            export_merger_to_excel(
-                model_run.results_json, model_run.ticker, output_path
-            )
+            export_merger_to_excel(model_run.results_json, model_run.ticker, output_path)
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -515,9 +508,7 @@ async def download_pdf(model_id: UUID, db: Session = Depends(get_db)):
         # Return file
         from fastapi.responses import FileResponse
 
-        return FileResponse(
-            output_path, media_type="application/pdf", filename=filename
-        )
+        return FileResponse(output_path, media_type="application/pdf", filename=filename)
 
     except Exception as e:
         logger.error(f"Error generating PDF file: {e}", exc_info=True)

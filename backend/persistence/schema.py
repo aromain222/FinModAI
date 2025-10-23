@@ -35,9 +35,7 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    model_runs = relationship(
-        "ModelRun", back_populates="user", cascade="all, delete-orphan"
-    )
+    model_runs = relationship("ModelRun", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email})>"
@@ -65,9 +63,7 @@ class ModelRun(Base):
 
     # Relationships
     user = relationship("User", back_populates="model_runs")
-    files = relationship(
-        "File", back_populates="model_run", cascade="all, delete-orphan"
-    )
+    files = relationship("File", back_populates="model_run", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<ModelRun(id={self.id}, model_type={self.model_type}, ticker={self.ticker})>"
@@ -79,9 +75,7 @@ class File(Base):
     __tablename__ = "files"
 
     id = Column(UUID_TYPE, primary_key=True, default=lambda: str(uuid.uuid4()))
-    model_id = Column(
-        UUID_TYPE, ForeignKey("model_runs.id"), nullable=False, index=True
-    )
+    model_id = Column(UUID_TYPE, ForeignKey("model_runs.id"), nullable=False, index=True)
     kind = Column(String(10), nullable=False)  # 'xlsx' or 'pdf'
     path = Column(String(500), nullable=False)
     size = Column(Integer, nullable=True)

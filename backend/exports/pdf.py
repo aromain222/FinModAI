@@ -213,9 +213,7 @@ def _generate_dcf_html(model_data: Dict[str, Any], ticker: str) -> str:
     return html
 
 
-def _export_dcf_to_pdf_reportlab(
-    model_data: Dict[str, Any], ticker: str, output_path: str
-) -> str:
+def _export_dcf_to_pdf_reportlab(model_data: Dict[str, Any], ticker: str, output_path: str) -> str:
     """Fallback PDF generation using ReportLab"""
 
     from reportlab.lib.pagesizes import letter
@@ -329,17 +327,13 @@ def export_lbo_to_pdf(model_data: Dict[str, Any], ticker: str, output_path: str)
     raise NotImplementedError("LBO PDF export not yet implemented")
 
 
-def export_comps_to_pdf(
-    model_data: Dict[str, Any], ticker: str, output_path: str
-) -> str:
+def export_comps_to_pdf(model_data: Dict[str, Any], ticker: str, output_path: str) -> str:
     """Export Comps model to PDF"""
     # TODO: Implement Comps PDF export
     raise NotImplementedError("Comps PDF export not yet implemented")
 
 
-def export_merger_to_pdf(
-    model_data: Dict[str, Any], ticker: str, output_path: str
-) -> str:
+def export_merger_to_pdf(model_data: Dict[str, Any], ticker: str, output_path: str) -> str:
     """Export Merger model to PDF"""
     # TODO: Implement Merger PDF export
     raise NotImplementedError("Merger PDF export not yet implemented")

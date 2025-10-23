@@ -27,7 +27,7 @@ class ValidationWarning(BaseModel):
 
 
 def validate_dcf_assumptions(
-    assumptions: Dict[str, Any]
+    assumptions: Dict[str, Any],
 ) -> Tuple[List[ValidationError], List[ValidationWarning]]:
     """
     Validate DCF custom assumptions
@@ -66,14 +66,10 @@ def validate_dcf_assumptions(
         wacc = Decimal(str(assumptions["wacc"]))
         if wacc <= 0 or wacc > 1:
             errors.append(
-                ValidationError(
-                    "WACC must be between 0% and 100%", "invalid_range", "wacc"
-                )
+                ValidationError("WACC must be between 0% and 100%", "invalid_range", "wacc")
             )
         elif wacc > 0.25:
-            warnings.append(
-                ValidationWarning("WACC > 25% is unusually high", "high_wacc", "wacc")
-            )
+            warnings.append(ValidationWarning("WACC > 25% is unusually high", "high_wacc", "wacc"))
 
     # Terminal growth validation
     if "terminal_growth" in assumptions:
@@ -157,7 +153,7 @@ def validate_dcf_assumptions(
 
 
 def validate_lbo_assumptions(
-    assumptions: Dict[str, Any]
+    assumptions: Dict[str, Any],
 ) -> Tuple[List[ValidationError], List[ValidationWarning]]:
     """
     Validate LBO custom assumptions
@@ -219,9 +215,7 @@ def validate_lbo_assumptions(
             )
         elif leverage > 0.85:
             warnings.append(
-                ValidationWarning(
-                    "Leverage > 85% is very high", "high_leverage", "leverage_ratio"
-                )
+                ValidationWarning("Leverage > 85% is very high", "high_leverage", "leverage_ratio")
             )
 
     # Interest rate validation
@@ -241,16 +235,14 @@ def validate_lbo_assumptions(
         tax_rate = Decimal(str(assumptions["tax_rate"]))
         if tax_rate < 0 or tax_rate > 1:
             errors.append(
-                ValidationError(
-                    "Tax rate must be between 0% and 100%", "invalid_range", "tax_rate"
-                )
+                ValidationError("Tax rate must be between 0% and 100%", "invalid_range", "tax_rate")
             )
 
     return errors, warnings
 
 
 def validate_comps_assumptions(
-    assumptions: Dict[str, Any]
+    assumptions: Dict[str, Any],
 ) -> Tuple[List[ValidationError], List[ValidationWarning]]:
     """
     Validate Comps custom assumptions
@@ -269,9 +261,7 @@ def validate_comps_assumptions(
         peer_tickers = assumptions["peer_tickers"]
         if not isinstance(peer_tickers, list):
             errors.append(
-                ValidationError(
-                    "Peer tickers must be a list", "invalid_type", "peer_tickers"
-                )
+                ValidationError("Peer tickers must be a list", "invalid_type", "peer_tickers")
             )
         elif len(peer_tickers) < 2:
             errors.append(
@@ -294,7 +284,7 @@ def validate_comps_assumptions(
 
 
 def validate_merger_assumptions(
-    assumptions: Dict[str, Any]
+    assumptions: Dict[str, Any],
 ) -> Tuple[List[ValidationError], List[ValidationWarning]]:
     """
     Validate Merger custom assumptions
@@ -321,9 +311,7 @@ def validate_merger_assumptions(
             )
         elif premium > 0.5:
             warnings.append(
-                ValidationWarning(
-                    "Premium > 50% is unusually high", "high_premium", "premium_pct"
-                )
+                ValidationWarning("Premium > 50% is unusually high", "high_premium", "premium_pct")
             )
 
     # Synergy % validation
@@ -339,9 +327,7 @@ def validate_merger_assumptions(
             )
         elif synergy > 0.3:
             warnings.append(
-                ValidationWarning(
-                    "Synergy > 30% is unusually high", "high_synergy", "synergy_pct"
-                )
+                ValidationWarning("Synergy > 30% is unusually high", "high_synergy", "synergy_pct")
             )
 
     # Consideration mix validation
@@ -390,9 +376,7 @@ def validate_merger_assumptions(
     return errors, warnings
 
 
-def validate_sanity_checks(
-    model_data: Dict[str, Any], model_type: str
-) -> List[ValidationWarning]:
+def validate_sanity_checks(model_data: Dict[str, Any], model_type: str) -> List[ValidationWarning]:
     """
     Run sanity checks on model results
 
