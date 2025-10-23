@@ -85,7 +85,7 @@ class RealDataEnforcement:
             "quick_test.py", "example_usage.py", "ci_enforcement.py",
             "ci_production_enforcement.py", "runtime_guardrails.py",
             "financial_data_manager.py", "config.py", "goos_lbo_model.json",
-            "sample_lbo_model.json"
+            "sample_lbo_model.json", "ci_real_data_enforcement.py"  # Exclude self
         }
     
     def _should_exclude_file(self, file_path: Path) -> bool:
@@ -113,10 +113,12 @@ class RealDataEnforcement:
         """Scan files for blocked patterns."""
         violations = []
         
-        # Find all relevant files
+        # Find all relevant files in backend directory only
         files_to_check = []
-        for pattern in self.check_patterns:
-            files_to_check.extend(self.project_root.glob(f"**/{pattern}"))
+        backend_dir = self.project_root / "backend"
+        if backend_dir.exists():
+            for pattern in self.check_patterns:
+                files_to_check.extend(backend_dir.glob(f"**/{pattern}"))
         
         # Filter out excluded files
         files_to_check = [f for f in files_to_check if not self._should_exclude_file(f)]

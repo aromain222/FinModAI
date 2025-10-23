@@ -103,7 +103,7 @@ jobs:
           set -e
           echo "DATA_MODE=$DATA_MODE"
           echo "DATA_STALENESS_MAX_MIN=$DATA_STALENESS_MAX_MIN"
-          python ci_real_data_enforcement.py || echo "VIOLATION=1" >> $GITHUB_OUTPUT
+          cd .. && python ci_real_data_enforcement.py || echo "VIOLATION=1" >> $GITHUB_OUTPUT
 
       - name: Fail on protected branches only
         if: steps.rde.outputs.VIOLATION == '1'
