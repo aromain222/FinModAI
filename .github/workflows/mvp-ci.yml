@@ -66,6 +66,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ENFORCE_BRANCHES: '^(main|release/.*)$'   # protected branches
+      # Provide required vars so the checker runs consistently
+      DATA_MODE: production
+      DATA_STALENESS_MAX_MIN: "30"
+      REQUIRE_MIN_FUND_YEARS: "3"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -80,48 +84,23 @@ jobs:
           cd backend
           pip install -r requirements.txt
 
-      - name: Scan for dummy/mocks (diagnostic)
-        id: scan
+      - name: Run real data enforcement
+        id: rde
         run: |
-          set -euo pipefail
-          echo "Scanning for disallowed strings..."
-          
-          # Build list of target files (focus on backend only, exclude third-party)
-          mapfile -t FILES < <(find backend -name "*.py" -o -name "*.json" | grep -v __pycache__ | grep -v "site-packages" || true)
-          echo "Found ${#FILES[@]} candidate files in backend/"
-
-          # Pattern list (more specific to catch real violations)
-          PATTERN='(fixtures|mocks|sampleData|demoData|"placeholder"\s*:\s*true)'
-
-          # Grep with context, don't fail here; we'll decide based on branch
-          mkdir -p ci-artifacts
-          if grep -R -n -E "$PATTERN" "${FILES[@]}" > ci-artifacts/dummy_hits.txt 2>/dev/null; then
-            echo "HITS_FOUND=true" >> "$GITHUB_OUTPUT"
-            echo "::warning:: Disallowed strings detected. See dummy_hits.txt artifact."
-            echo "------------ Offending lines (first 200) ------------"
-            head -n 200 ci-artifacts/dummy_hits.txt
-          else
-            echo "HITS_FOUND=false" >> "$GITHUB_OUTPUT"
-            echo "No disallowed strings found."
-          fi
-
-      - name: Upload scan artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: real-data-enforcement-scan
-          path: ci-artifacts/
+          set -e
+          echo "DATA_MODE=$DATA_MODE"
+          echo "DATA_STALENESS_MAX_MIN=$DATA_STALENESS_MAX_MIN"
+          python ci_real_data_enforcement.py || echo "VIOLATION=1" >> $GITHUB_OUTPUT
 
       - name: Fail on protected branches only
-        if: steps.scan.outputs.HITS_FOUND == 'true'
+        if: steps.rde.outputs.VIOLATION == '1'
         run: |
           BRANCH="${GITHUB_REF_NAME}"
           if [[ "$BRANCH" =~ ${ENFORCE_BRANCHES} ]]; then
             echo "::error:: real-data-enforcement failed on protected branch '${BRANCH}'."
-            echo "       Fix the lines listed in dummy_hits.txt or move test-only data behind DATA_MODE=test."
             exit 1
           else
-            echo "::warning:: Hits found on non-protected branch '${BRANCH}', not failing the build."
+            echo "::warning:: real-data-enforcement failed on '${BRANCH}' (non-protected); not blocking."
           fi
 
       # Optional: run staleness/coverage validators as separate diagnostics, never silent-fail

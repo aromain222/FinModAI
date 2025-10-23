@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # Data Configuration
     DATA_MODE: str = Field(default="production", env="DATA_MODE")
-    DATA_STALENESS_MAX_MIN: int = Field(default=30, env="DATA_STALENESS_MAX_MIN")
+    DATA_STALENESS_MAX_MIN: Optional[int] = Field(default=None, env="DATA_STALENESS_MAX_MIN")
     REQUIRE_MIN_FUND_YEARS: int = Field(default=3, env="REQUIRE_MIN_FUND_YEARS")
 
     # JWT Authentication
@@ -72,9 +72,18 @@ def validate_settings() -> None:
                 "JWT_SECRET must be at least 32 characters in production mode"
             )
 
-        # Ensure no dummy data allowed
-        if settings.DATA_MODE == "production":
-            print("✅ Production mode: Dummy data blocked")
+        # Ensure DATA_STALENESS_MAX_MIN is explicitly set in production
+        if settings.DATA_STALENESS_MAX_MIN is None:
+            raise RuntimeError(
+                "Required env var DATA_STALENESS_MAX_MIN is not set for production."
+            )
+
+        print("✅ Production mode: Dummy data blocked")
+    else:
+        # In dev/test, default to 30 if not set
+        if settings.DATA_STALENESS_MAX_MIN is None:
+            settings.DATA_STALENESS_MAX_MIN = 30
+            print(f"✅ Development mode: DATA_STALENESS_MAX_MIN defaulted to 30")
 
 
 if __name__ == "__main__":
