@@ -54,6 +54,12 @@ class Settings(BaseSettings):
         default=16 * 1024 * 1024, env="MAX_UPLOAD_SIZE"
     )  # 16MB
 
+    # API Limits
+    DEFAULT_SNAPSHOT_LIMIT: int = Field(default=100, env="DEFAULT_SNAPSHOT_LIMIT")
+    MAX_SNAPSHOT_LIMIT: int = Field(default=1000, env="MAX_SNAPSHOT_LIMIT")
+    DEFAULT_LEADERS_LIMIT: int = Field(default=3, env="DEFAULT_LEADERS_LIMIT")
+    MAX_LEADERS_LIMIT: int = Field(default=50, env="MAX_LEADERS_LIMIT")
+
     class Config:
         env_file = ".env"
         case_sensitive = True

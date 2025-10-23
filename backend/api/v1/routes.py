@@ -15,7 +15,7 @@ from backend.api.v1.models import (
     SortField,
     SortOrder,
 )
-from backend.config import config
+from backend.config import settings
 from backend.data.loader import fundamentals_loader
 from backend.data.sectors import GICS_SECTORS
 from backend.market.cache import market_cache
@@ -32,7 +32,7 @@ async def get_market_snapshot(
     ),
     industry: Optional[str] = Query(None, description="Filter by industry"),
     limit: int = Query(
-        config.DEFAULT_SNAPSHOT_LIMIT, ge=1, le=config.MAX_SNAPSHOT_LIMIT
+        settings.DEFAULT_SNAPSHOT_LIMIT, ge=1, le=settings.MAX_SNAPSHOT_LIMIT
     ),
     offset: int = Query(0, ge=0),
     sort: SortField = Query(SortField.MARKET_CAP, description="Sort field"),
@@ -88,7 +88,7 @@ async def get_market_snapshot(
 @router.get("/market/leaders")
 async def get_sector_leaders(
     sector: Optional[str] = Query(None, description="Sector name (e.g., Technology)"),
-    limit: int = Query(config.DEFAULT_LEADERS_LIMIT, ge=1, le=config.MAX_LEADERS_LIMIT),
+    limit: int = Query(settings.DEFAULT_LEADERS_LIMIT, ge=1, le=settings.MAX_LEADERS_LIMIT),
 ):
     """
     Get top N companies by market cap for a sector
