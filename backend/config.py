@@ -103,7 +103,7 @@ def validate_settings() -> None:
         # In dev/test, default to 30 if not set
         if settings.data_staleness_max_min is None:
             settings.data_staleness_max_min = 30
-            print(f"✅ Development mode: DATA_STALENESS_MAX_MIN defaulted to 30")
+            print("✅ Development mode: DATA_STALENESS_MAX_MIN defaulted to 30")
 
 
 # Back-compat alias used by some modules/tests

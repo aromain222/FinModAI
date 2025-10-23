@@ -145,7 +145,8 @@ async def root():
 
 
 # Include routers
-from api.v1 import auth_router, models_router  # noqa: E402
+from backend.api.v1.auth import router as auth_router  # noqa: E402
+from backend.api.v1.models import router as models_router  # noqa: E402
 
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(models_router, prefix="/api/v1/models", tags=["models"])
