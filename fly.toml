@@ -1,14 +1,12 @@
 # Fly.io Configuration for FinModAI Backend
 
-app = "finmodai-backend"
+app = "finmodai-z9qvtg"
 primary_region = "iad"
 
 [build]
   dockerfile = "backend/Dockerfile"
 
 [env]
-  DATABASE_URL = "sqlite:///./finmodai.db"
-  DATA_MODE = "production"
   DEBUG = "False"
   PYTHONUNBUFFERED = "1"
   WEB_CONCURRENCY = "2"
