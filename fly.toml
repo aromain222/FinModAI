@@ -1,56 +1,45 @@
-# Fly.io Configuration for FinModAI Backend
+# fly.toml app configuration file generated for finmodai-z9qvtg on 2025-10-24T22:37:08-04:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app = "finmodai-z9qvtg"
-primary_region = "iad"
+app = 'finmodai-z9qvtg'
+primary_region = 'iad'
 
 [build]
-  dockerfile = "backend/Dockerfile"
+  dockerfile = 'backend/Dockerfile'
 
 [env]
-  DEBUG = "False"
-  PYTHONUNBUFFERED = "1"
-  WEB_CONCURRENCY = "2"
-  PORT = "8080"
+  PYTHONUNBUFFERED = '1'
+  WEB_CONCURRENCY = '2'
+  PORT = '8080'
 
 [[services]]
   internal_port = 8080
-  protocol = "tcp"
+  protocol = 'tcp'
 
   [[services.ports]]
     port = 80
-    handlers = ["http"]
+    handlers = ['http']
 
   [[services.ports]]
     port = 443
-    handlers = ["tls", "http"]
+    handlers = ['tls', 'http']
 
   [services.concurrency]
-    type = "connections"
+    type = 'connections'
     soft_limit = 150
     hard_limit = 200
 
   [services.http_checks]
-    interval = "10s"
-    timeout = "2s"
-    grace_period = "30s"
-    method = "GET"
-    path = "/healthz"
-    protocol = "http"
-
-[checks]
-  [checks.ready]
-    grace_period = "30s"
-    interval = "15s"
-    timeout = "3s"
-    type = "http"
-    method = "GET"
-    path = "/healthz"
-    port = 8080
+    interval = '10s'
+    timeout = '2s'
+    grace_period = '30s'
+    method = 'GET'
+    path = '/healthz'
+    protocol = 'http'
 
 [[vm]]
-  memory = "1024mb"
-  cpu_kind = "shared"
+  memory = '1024mb'
+  cpu_kind = 'shared'
   cpus = 1
-
-[experimental]
-  auto_rollback = true

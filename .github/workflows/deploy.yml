@@ -1,0 +1,106 @@
+name: Deploy to Fly.io (Machines)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Tag to deploy (optional; defaults to commit SHA)"
+        required: false
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    env:
+      APP_NAME: finmodai-z9qvtg
+    outputs:
+      image_tag: ${{ steps.vars.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Fly registry
+        uses: docker/login-action@v3
+        with:
+          registry: registry.fly.io
+          username: x
+          password: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Compute image tag
+        id: vars
+        run: |
+          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
+            echo "tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push image
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            -t registry.fly.io/${{ env.APP_NAME }}:${{ steps.vars.outputs.tag }} \
+            -f backend/Dockerfile \
+            --push \
+            .
+
+      - name: Echo image tag
+        run: echo "Built image tag registry.fly.io/${{ env.APP_NAME }}:${{ steps.vars.outputs.tag }}"
+
+  real-data-enforcement:
+    needs: build-and-push-image
+    runs-on: ubuntu-latest
+    env:
+      DATA_MODE: production
+      DATA_STALENESS_MAX_MIN: "30"
+      REQUIRE_MIN_FUND_YEARS: "3"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run real data enforcement
+        run: |
+          python3 ci_real_data_enforcement.py --project-root . --backend-only
+        working-directory: .
+
+  deploy-machines:
+    needs: [build-and-push-image, real-data-enforcement]
+    runs-on: ubuntu-latest
+    env:
+      APP_NAME: finmodai-z9qvtg
+      IMAGE_TAG: registry.fly.io/finmodai-z9qvtg:${{ needs.build-and-push-image.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy image
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          flyctl deploy -a $APP_NAME --image $IMAGE_TAG --strategy immediate
+
+      - name: Status
+        run: flyctl status -a $APP_NAME
+
+  rollback:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag != '' }}
+    runs-on: ubuntu-latest
+    env:
+      APP_NAME: finmodai-z9qvtg
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Rollback to image tag
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          flyctl deploy -a $APP_NAME --image registry.fly.io/$APP_NAME:${{ github.event.inputs.image_tag }} --strategy immediate
+
+

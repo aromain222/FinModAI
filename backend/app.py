@@ -35,18 +35,39 @@ signal.signal(signal.SIGTERM, handle_sigterm)
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown"""
     # Startup
-    logger.info("🚀 Starting FinModAI Backend...")
+    import os
+    
+    logger.info("🚀 Starting FinModAI Backend with enhanced logging...")
     logger.info(f"  Version: {settings.APP_VERSION}")
-    logger.info(f"  Data Mode: {settings.DATA_MODE}")
+    # Preflight: log critical env/state
+    logger.info(
+        "  Preflight: DATA_MODE=%s, DATA_STALENESS_MAX_MIN=%s, REQUIRE_MIN_FUND_YEARS=%s",
+        settings.data_mode,
+        str(settings.data_staleness_max_min),
+        str(settings.require_min_fund_years),
+    )
+    logger.info(
+        "  Environment: PORT=%s, PYTHONPATH=%s",
+        os.environ.get("PORT"),
+        os.environ.get("PYTHONPATH"),
+    )
     logger.info(f"  Database: {settings.DATABASE_URL}")
+    
+    # Ensure database directory exists
+    if settings.DATABASE_URL.startswith('sqlite:///'):
+        db_path = settings.DATABASE_URL.replace('sqlite:///', '')
+        if '/' in db_path:  # Only create directory if there's a path component
+            os.makedirs(os.path.dirname(db_path), exist_ok=True)
+            logger.info(f"  Ensured database directory exists for: {db_path}")
 
     # Validate settings
     try:
         validate_settings()
         logger.info("✅ Configuration validated")
-    except ValueError as e:
-        logger.error(f"❌ Configuration error: {e}")
-        raise
+    except (ValueError, RuntimeError) as e:
+        # Fail loud with distinct exit code for config/env errors
+        logger.error("❌ Configuration validation failed: %s", str(e))
+        sys.exit(78)
 
     # Initialize database
     # TODO: Add database initialization
@@ -122,7 +143,7 @@ async def health_check():
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
         "version": settings.APP_VERSION,
-        "data_mode": settings.DATA_MODE,
+        "data_mode": settings.data_mode,
     }
 
 
@@ -154,5 +175,7 @@ app.include_router(models_router, prefix="/api/v1/models", tags=["models"])
 
 if __name__ == "__main__":
     import uvicorn
+    import os
 
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=settings.DEBUG, log_level="info")
+    port = int(os.environ.get("PORT", "8080"))
+    uvicorn.run("backend.app:app", host="0.0.0.0", port=port, reload=settings.DEBUG, log_level="info")

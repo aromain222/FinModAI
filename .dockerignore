@@ -1,3 +1,53 @@
+# Git & VCS
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pytest_cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv
+venv
+.env
+.env.*
+
+# Node / Frontend
+node_modules
+
+# Tests & coverage
+tests/
+backend/tests/
+coverage*
+
+# Data & uploads
+data/
+uploads/
+exports/
+generated_models/
+logs/
+*.xlsx
+*.csv
+*.parquet
+*.feather
+
+# Caches
+.cache/
+.DS_Store
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Local tools
+ngrok
+*.log
+
 # Python
 __pycache__/
 *.py[cod]
