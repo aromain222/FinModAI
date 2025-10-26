@@ -30,5 +30,5 @@ ENV WEB_CONCURRENCY=2
 ENV PORT=8080
 
 # Run application with gunicorn
-CMD ["sh", "-c", "gunicorn app:app --bind 0.0.0.0:${PORT} --workers ${WEB_CONCURRENCY} --timeout 120 --worker-class uvicorn.workers.UvicornWorker --access-logfile - --error-logfile -"]
+CMD ["gunicorn","backend.app:app","--worker-class","uvicorn.workers.UvicornWorker","--bind","0.0.0.0:${PORT}","--workers","${WEB_CONCURRENCY}","--timeout","120","--graceful-timeout","30"]
 
