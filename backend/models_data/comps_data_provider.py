@@ -264,6 +264,9 @@ class CompsDataProvider:
     async def build_comps_model(self, ticker: str) -> Tuple[CompanyMetrics, List[CompanyMetrics]]:
         """Build complete comps model with target and peers"""
         try:
+            from backend.models_data.comps_data_validator import CompsDataValidator
+            validator = CompsDataValidator()
+            
             # Get peer group
             peer_tickers = await self.get_peer_group(ticker)
             
@@ -273,8 +276,15 @@ class CompsDataProvider:
                 *[self.build_company_metrics(peer) for peer in peer_tickers]
             )
             
-            target = all_metrics[0]
-            peers = all_metrics[1:]
+            raw_target = all_metrics[0]
+            raw_peers = all_metrics[1:]
+            
+            # Validate and fill gaps in data
+            target, peers = await validator.validate_comps_data(raw_target, raw_peers)
+            
+            # Log validation results
+            logger.info(f"Validated target company {ticker}")
+            logger.info(f"Validated {len(peers)} peers out of {len(raw_peers)} initial peers")
             
             return target, peers
             
