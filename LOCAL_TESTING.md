@@ -20,9 +20,9 @@ This will:
 
 Once running, you can access:
 
-- **API Documentation**: http://localhost:8000/docs
-- **Health Check**: http://localhost:8000/healthz
-- **Main Page**: http://localhost:8000/
+- **API Documentation**: http://localhost:8080/docs
+- **Health Check**: http://localhost:8080/healthz
+- **Main Page**: http://localhost:8080/
 
 ## Manual Setup
 
@@ -47,7 +47,7 @@ If you prefer to set up manually:
 
 The local setup uses these default environment variables:
 
-- `PORT=8000` - The port to run the server on
+- `PORT=8080` - The port to run the server on
 - `DATA_MODE=test` - Use test mode for development
 - `DATA_STALENESS_MAX_MIN=30` - Allow data up to 30 minutes old
 - `REQUIRE_MIN_FUND_YEARS=3` - Require at least 3 years of fundamental data
