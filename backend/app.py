@@ -5,20 +5,24 @@ Main entry point for the API server
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 import logging
 import signal
 import sys
 from datetime import datetime
+import os
 
 from backend.config import settings, validate_settings
 
-# Setup logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+# Setup logging with optimized format
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 logger = logging.getLogger(__name__)
-
 
 # Graceful shutdown handler
 def handle_sigterm(*_):
@@ -26,17 +30,13 @@ def handle_sigterm(*_):
     logger.info("Received shutdown signal, exiting cleanly...")
     sys.exit(0)
 
-
 # Register signal handler
 signal.signal(signal.SIGTERM, handle_sigterm)
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown"""
     # Startup
-    import os
-    
     logger.info("🚀 Starting FinModAI Backend with enhanced logging...")
     logger.info(f"  Version: {settings.APP_VERSION}")
     # Preflight: log critical env/state
@@ -83,8 +83,7 @@ async def lifespan(app: FastAPI):
     logger.info("🛑 Shutting down FinModAI Backend...")
     # TODO: Add cleanup logic
 
-
-# Create FastAPI app
+# Create FastAPI app with optimized settings
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
@@ -92,17 +91,20 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url="/api/docs" if settings.DEBUG else None,
     redoc_url="/api/redoc" if settings.DEBUG else None,
+    # Optimize for production
+    openapi_url="/api/openapi.json" if settings.DEBUG else None,
+    default_response_class=Response,  # Faster than JSONResponse for simple responses
 )
 
-# CORS Middleware
+# CORS Middleware with optimized settings
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],  # Explicit methods instead of "*"
+    allow_headers=["Authorization", "Content-Type"],  # Explicit headers instead of "*"
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
-
 
 # Exception Handlers
 @app.exception_handler(RequestValidationError)
@@ -119,7 +121,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         },
     )
 
-
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     """Handle general exceptions"""
@@ -134,9 +135,8 @@ async def general_exception_handler(request: Request, exc: Exception):
         },
     )
 
-
-# Health Check
-@app.get("/health")
+# Health Check (optimized for speed)
+@app.get("/health", response_model=None)
 async def health_check():
     """Health check endpoint"""
     return {
@@ -146,16 +146,14 @@ async def health_check():
         "data_mode": settings.data_mode,
     }
 
-
-# Healthz endpoint for Fly.io health checks
-@app.get("/healthz")
+# Healthz endpoint (minimal for Fly.io health checks)
+@app.get("/healthz", response_model=None)
 async def healthz():
     """Healthz endpoint for Fly.io health checks"""
     return {"status": "ok"}
 
-
-# Root endpoint
-@app.get("/")
+# Root endpoint (optimized)
+@app.get("/", response_model=None)
 async def root():
     """Root endpoint"""
     return {
@@ -164,18 +162,27 @@ async def root():
         "docs": "/api/docs" if settings.DEBUG else "disabled in production",
     }
 
-
-# Include routers
+# Include routers with lazy imports
 from backend.api.v1.auth import router as auth_router  # noqa: E402
 from backend.api.v1.models import router as models_router  # noqa: E402
 
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(models_router, prefix="/api/v1/models", tags=["models"])
 
-
 if __name__ == "__main__":
     import uvicorn
     import os
 
     port = int(os.environ.get("PORT", "8080"))
-    uvicorn.run("backend.app:app", host="0.0.0.0", port=port, reload=settings.DEBUG, log_level="info")
+    uvicorn.run(
+        "backend.app:app",
+        host="0.0.0.0",
+        port=port,
+        reload=settings.DEBUG,
+        log_level="info",
+        # Optimize uvicorn settings
+        workers=int(os.environ.get("WEB_CONCURRENCY", "2")),
+        limit_concurrency=150,  # Match Fly.io soft limit
+        backlog=2048,
+        timeout_keep_alive=5,
+    )

@@ -1,8 +1,4 @@
-# fly.toml app configuration file generated for finmodai-z9qvtg on 2025-10-24T22:37:08-04:00
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
-
+# fly.toml - Optimized for performance and reliability
 app = 'finmodai-z9qvtg'
 primary_region = 'iad'
 
@@ -13,14 +9,20 @@ primary_region = 'iad'
   PYTHONUNBUFFERED = '1'
   WEB_CONCURRENCY = '2'
   PORT = '8080'
+  PYTHONOPTIMIZE = '2'  # Enable Python optimizations
+  PYTHONHASHSEED = '0'  # Deterministic hashing
 
 [[services]]
   internal_port = 8080
   protocol = 'tcp'
+  auto_stop_machines = false  # Prevent cold starts
+  auto_start_machines = true
+  min_machines_running = 1  # Keep at least one machine warm
 
   [[services.ports]]
     port = 80
     handlers = ['http']
+    force_https = true
 
   [[services.ports]]
     port = 443
@@ -31,6 +33,7 @@ primary_region = 'iad'
     soft_limit = 150
     hard_limit = 200
 
+  # Optimized health checks
   [services.http_checks]
     interval = '10s'
     timeout = '2s'
@@ -38,8 +41,13 @@ primary_region = 'iad'
     method = 'GET'
     path = '/healthz'
     protocol = 'http'
+    tls_skip_verify = true  # Skip TLS verify for internal health checks
 
 [[vm]]
   memory = '1024mb'
   cpu_kind = 'shared'
   cpus = 1
+
+[metrics]
+  port = 9091
+  path = '/metrics'

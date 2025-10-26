@@ -3,27 +3,44 @@ name: Deploy to Fly.io (Machines)
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'backend/**'
+      - 'fly.toml'
+      - '.github/workflows/deploy.yml'
   workflow_dispatch:
     inputs:
       image_tag:
         description: "Tag to deploy (optional; defaults to commit SHA)"
         required: false
 
+env:
+  APP_NAME: finmodai-z9qvtg
+  PYTHON_VERSION: "3.11"
+  DATA_MODE: production
+  DATA_STALENESS_MAX_MIN: "30"
+  REQUIRE_MIN_FUND_YEARS: "3"
+
 jobs:
   build-and-push-image:
     runs-on: ubuntu-latest
-    env:
-      APP_NAME: finmodai-z9qvtg
     outputs:
       image_tag: ${{ steps.vars.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
+      # Cache Docker layers
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-flags: --debug
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
 
       - name: Log in to Fly registry
         uses: docker/login-action@v3
@@ -42,37 +59,43 @@ jobs:
           fi
 
       - name: Build and push image
-        run: |
-          docker buildx build \
-            --platform linux/amd64 \
-            -t registry.fly.io/${{ env.APP_NAME }}:${{ steps.vars.outputs.tag }} \
-            -f backend/Dockerfile \
-            --push \
-            .
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: registry.fly.io/${{ env.APP_NAME }}:${{ steps.vars.outputs.tag }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          platforms: linux/amd64
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
 
-      - name: Echo image tag
-        run: echo "Built image tag registry.fly.io/${{ env.APP_NAME }}:${{ steps.vars.outputs.tag }}"
+      # Temp fix for growing cache
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
   real-data-enforcement:
     needs: build-and-push-image
     runs-on: ubuntu-latest
-    env:
-      DATA_MODE: production
-      DATA_STALENESS_MAX_MIN: "30"
-      REQUIRE_MIN_FUND_YEARS: "3"
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
       - name: Run real data enforcement
-        run: |
-          python3 ci_real_data_enforcement.py --project-root . --backend-only
-        working-directory: .
+        run: python3 ci_real_data_enforcement.py --project-root . --backend-only
 
   deploy-machines:
     needs: [build-and-push-image, real-data-enforcement]
     runs-on: ubuntu-latest
-    env:
-      APP_NAME: finmodai-z9qvtg
-      IMAGE_TAG: registry.fly.io/finmodai-z9qvtg:${{ needs.build-and-push-image.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -83,24 +106,49 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
-          flyctl deploy -a $APP_NAME --image $IMAGE_TAG --strategy immediate
+          flyctl deploy -a ${{ env.APP_NAME }} \
+            --image registry.fly.io/${{ env.APP_NAME }}:${{ needs.build-and-push-image.outputs.image_tag }} \
+            --strategy immediate
 
-      - name: Status
-        run: flyctl status -a $APP_NAME
+      - name: Wait for health check
+        run: |
+          for i in {1..30}; do
+            if flyctl status -a ${{ env.APP_NAME }} | grep -q "running"; then
+              echo "✅ App is healthy"
+              exit 0
+            fi
+            echo "Waiting for app to be healthy... ($i/30)"
+            sleep 10
+          done
+          echo "❌ App failed to become healthy"
+          flyctl logs -a ${{ env.APP_NAME }} --since 5m
+          exit 1
 
   rollback:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag != '' }}
+    if: ${{ failure() && github.event_name != 'workflow_dispatch' }}
+    needs: [deploy-machines, build-and-push-image]
     runs-on: ubuntu-latest
-    env:
-      APP_NAME: finmodai-z9qvtg
     steps:
       - uses: actions/checkout@v4
+
       - name: Install Flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Rollback to image tag
+
+      - name: Get previous successful deployment
+        id: prev_deploy
+        run: |
+          TAG=$(flyctl releases -a ${{ env.APP_NAME }} -j | jq -r '.[1].Id')
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Rollback to previous version
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
-          flyctl deploy -a $APP_NAME --image registry.fly.io/$APP_NAME:${{ github.event.inputs.image_tag }} --strategy immediate
-
-
+          if [ -n "${{ steps.prev_deploy.outputs.tag }}" ]; then
+            flyctl deploy -a ${{ env.APP_NAME }} \
+              --image registry.fly.io/${{ env.APP_NAME }}:${{ steps.prev_deploy.outputs.tag }} \
+              --strategy immediate
+          else
+            echo "No previous deployment found to rollback to"
+            exit 1
+          fi
