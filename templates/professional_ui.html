@@ -11,6 +11,7 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/professional_theme.css" />
     <style>
         body { font-family: 'Inter', sans-serif; }
         .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: loading 1.5s infinite; }
@@ -873,7 +874,7 @@
                             <div className="lg:col-span-4 space-y-6">
                                 <div className="bg-[#12161C] border border-[#1C2430] rounded-2xl p-6">
                                     <h2 className="text-xl font-bold text-[#E6EDF3] mb-6 flex items-center">
-                                        <span className="text-2xl mr-3">📊</span>
+                                        <span className="text-2xl mr-3">DCF</span>
                                         DCF Analysis
                                     </h2>
                                     
@@ -966,7 +967,7 @@
                                     }}
                                     className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl"
                                 >
-                                    📊 View Realistic AAPL DCF Analysis
+                                    📊 View Realistic {ticker || 'Company'} DCF Analysis
                                 </button>
             </div>
 
@@ -974,7 +975,7 @@
                             <div className="lg:col-span-8">
                                 {state === STATE.IDLE && !preview && (
                                     <div className="bg-[#12161C] border border-[#1C2430] rounded-2xl p-12 text-center">
-                                        <span className="text-6xl mb-4 block">📊</span>
+                                        <span className="text-5xl mb-4 block">DCF</span>
                                         <h3 className="text-2xl font-bold text-[#E6EDF3] mb-2">DCF Model</h3>
                                         <p className="text-[#9FB0C3] text-lg">Enter a ticker to build a professional discounted cash flow model.</p>
                                     </div>
@@ -2001,7 +2002,7 @@
                                     className="w-full px-4 py-2 text-left text-[#E6EDF3] hover:bg-[#1C2430] transition-colors"
                                     role="menuitem"
                                 >
-                                    {action === 'dcf' && `📊 DCF Model`}
+                                    {action === 'dcf' && `DCF Model`}
                                     {action === 'lbo' && `💼 LBO Model`}
                                     {action === 'comps' && `📈 Comps Analysis`}
                                     {action === 'merger' && `🤝 Merger Model (Acquirer)`}
@@ -2306,7 +2307,7 @@
                                 <ModelTypeCard
                                     title="DCF Model"
                                     description="Discounted Cash Flow valuation with WACC and terminal value"
-                                    icon="📊"
+                                    icon=""
                                     color="from-green-500 to-emerald-600"
                                     modelType="dcf"
                                     navigate={navigate}

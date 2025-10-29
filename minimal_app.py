@@ -10,6 +10,17 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from enum import Enum
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
+import logging
+logging.basicConfig(level=logging.INFO, force=True)
+
+# Import deployment optimizations if available
+try:
+    from deployment_optimizations import get_environment, get_settings, apply_runtime_optimizations
+    DEPLOYMENT_OPTIMIZATIONS_AVAILABLE = True
+    print(f"Deployment optimizations enabled for {get_environment()} environment")
+except ImportError:
+    DEPLOYMENT_OPTIMIZATIONS_AVAILABLE = False
+    print("Deployment optimizations not available")
 
 # yfinance removed - was causing rate limiting issues
 YFINANCE_AVAILABLE = False
@@ -137,6 +148,31 @@ def preflight_check():
 # Create Flask app
 app = Flask(__name__)
 app.secret_key = 'finmodai_secret_key_2024'
+
+# Apply deployment optimizations if available
+if DEPLOYMENT_OPTIMIZATIONS_AVAILABLE:
+    # Get deployment settings
+    deployment_settings = get_settings()
+    
+    # Apply runtime optimizations
+    apply_runtime_optimizations()
+    
+    # Log deployment environment
+    print(f"Running in {get_environment()} environment with optimized settings")
+    
+    # Set cache TTL based on environment
+    app.config['CACHE_TTL'] = deployment_settings.get('cache_ttl', 3600)
+    
+    # Set request timeout
+    app.config['REQUEST_TIMEOUT'] = deployment_settings.get('request_timeout', 10)
+    
+    # Set max workers for threaded operations
+    app.config['MAX_WORKERS'] = deployment_settings.get('max_workers', 2)
+else:
+    # Default settings
+    app.config['CACHE_TTL'] = 3600
+    app.config['REQUEST_TIMEOUT'] = 10
+    app.config['MAX_WORKERS'] = 2
 
 # Run preflight check only when running directly, not when imported by gunicorn
 if __name__ == '__main__':
@@ -492,7 +528,7 @@ def get_companies():
 
 @app.route('/api/v1/market/sector-performance', methods=['GET'])
 def get_sector_performance():
-    """Get sector performance data for charts."""
+    """Get sector performance data for charts with fallback mechanisms."""
     try:
         range_param = request.args.get('range', '1D')
         valid_ranges = ['1D', '1W', '1M']
@@ -507,66 +543,82 @@ def get_sector_performance():
             'Information Technology', 'Materials', 'Real Estate', 'Utilities'
         ]
         
-        # Use Alpha Vantage TIME_SERIES_DAILY for real sector performance data
-        # Major stocks by sector for performance calculation
-        sector_stocks = {
-            'Information Technology': ['AAPL', 'MSFT', 'GOOGL', 'NVDA', 'META'],
-            'Communication Services': ['GOOGL', 'META', 'NFLX', 'DIS', 'CMCSA'],
-            'Consumer Discretionary': ['AMZN', 'TSLA', 'HD', 'MCD', 'NKE'],
-            'Consumer Staples': ['PG', 'KO', 'PEP', 'WMT', 'COST'],
-            'Health Care': ['JNJ', 'PFE', 'UNH', 'ABBV', 'MRK'],
-            'Financials': ['JPM', 'BAC', 'WFC', 'GS', 'MS'],
-            'Industrials': ['BA', 'CAT', 'GE', 'UPS', 'HON'],
-            'Energy': ['XOM', 'CVX', 'COP', 'EOG', 'SLB'],
-            'Materials': ['LIN', 'APD', 'SHW', 'FCX', 'NEM'],
-            'Real Estate': ['PLD', 'AMT', 'CCI', 'EQIX', 'PSA'],
-            'Utilities': ['NEE', 'SO', 'DUK', 'D', 'EXC']
-        }
-        
-        sector_performance = []
-        
-        for sector in gics_sectors:
-            sector_changes = []
-            stocks = sector_stocks.get(sector, [])
+        try:
+            # Use enhanced fallback system
+            from data_fallbacks import get_sector_performance_with_fallback
             
-            # Get performance for each stock in the sector (limit to avoid API limits)
-            for stock in stocks[:2]:  # Limit to 2 stocks per sector
-                try:
-                    timeseries_data = get_alphavantage_timeseries(stock)
-                    if timeseries_data and 'Time Series (Daily)' in timeseries_data:
-                        time_series = timeseries_data['Time Series (Daily)']
-                        dates = sorted(time_series.keys(), reverse=True)
-                        
-                        if len(dates) >= 2:
-                            current_close = float(time_series[dates[0]]['4. close'])
-                            prev_close = float(time_series[dates[1]]['4. close'])
-                            change_pct = ((current_close - prev_close) / prev_close) * 100
-                            sector_changes.append(change_pct)
+            # Get sector performance with fallbacks
+            result = get_sector_performance_with_fallback(gics_sectors, range_param)
+            
+            # Check if we got stale data
+            if result.get('stale', False):
+                # Add warning for stale data
+                result['warning'] = "Using cached or fallback data. Some information may not be current."
+            
+            return jsonify(result), 200
+            
+        except ImportError:
+            # Fallback to original implementation if data_fallbacks not available
+            # Use Alpha Vantage TIME_SERIES_DAILY for real sector performance data
+            # Major stocks by sector for performance calculation
+            sector_stocks = {
+                'Information Technology': ['AAPL', 'MSFT', 'GOOGL', 'NVDA', 'META'],
+                'Communication Services': ['GOOGL', 'META', 'NFLX', 'DIS', 'CMCSA'],
+                'Consumer Discretionary': ['AMZN', 'TSLA', 'HD', 'MCD', 'NKE'],
+                'Consumer Staples': ['PG', 'KO', 'PEP', 'WMT', 'COST'],
+                'Health Care': ['JNJ', 'PFE', 'UNH', 'ABBV', 'MRK'],
+                'Financials': ['JPM', 'BAC', 'WFC', 'GS', 'MS'],
+                'Industrials': ['BA', 'CAT', 'GE', 'UPS', 'HON'],
+                'Energy': ['XOM', 'CVX', 'COP', 'EOG', 'SLB'],
+                'Materials': ['LIN', 'APD', 'SHW', 'FCX', 'NEM'],
+                'Real Estate': ['PLD', 'AMT', 'CCI', 'EQIX', 'PSA'],
+                'Utilities': ['NEE', 'SO', 'DUK', 'D', 'EXC']
+            }
+            
+            sector_performance = []
+            
+            for sector in gics_sectors:
+                sector_changes = []
+                stocks = sector_stocks.get(sector, [])
+                
+                # Get performance for each stock in the sector (limit to avoid API limits)
+                for stock in stocks[:2]:  # Limit to 2 stocks per sector
+                    try:
+                        timeseries_data = get_alphavantage_timeseries(stock)
+                        if timeseries_data and 'Time Series (Daily)' in timeseries_data:
+                            time_series = timeseries_data['Time Series (Daily)']
+                            dates = sorted(time_series.keys(), reverse=True)
                             
-                except Exception as e:
-                    print(f"Error getting Alpha Vantage data for {stock}: {e}")
-                    continue
+                            if len(dates) >= 2:
+                                current_close = float(time_series[dates[0]]['4. close'])
+                                prev_close = float(time_series[dates[1]]['4. close'])
+                                change_pct = ((current_close - prev_close) / prev_close) * 100
+                                sector_changes.append(change_pct)
+                                
+                    except Exception as e:
+                        print(f"Error getting Alpha Vantage data for {stock}: {e}")
+                        continue
+                
+                # Calculate sector average performance
+                if sector_changes:
+                    avg_change = sum(sector_changes) / len(sector_changes)
+                else:
+                    # Fallback to deterministic mock data if no real data available
+                    base_change = (hash(sector + range_param) % 200 - 100) / 100.0
+                    avg_change = round(base_change * 2.5, 2)
+                
+                sector_performance.append({
+                    "sector": sector,
+                    "change1dPct": round(avg_change, 2)
+                })
             
-            # Calculate sector average performance
-            if sector_changes:
-                avg_change = sum(sector_changes) / len(sector_changes)
-            else:
-                # Fallback to deterministic mock data if no real data available
-                base_change = (hash(sector + range_param) % 200 - 100) / 100.0
-                avg_change = round(base_change * 2.5, 2)
-            
-            sector_performance.append({
-                "sector": sector,
-                "change1dPct": round(avg_change, 2)
-            })
-        
-        return jsonify({
-            "as_of": datetime.now().isoformat() + "Z",
-            "range": range_param,
-            "points": sector_performance,
-            "stale": False,
-            "source": "alphavantage_timeseries"
-        }), 200
+            return jsonify({
+                "as_of": datetime.now().isoformat() + "Z",
+                "range": range_param,
+                "points": sector_performance,
+                "stale": False,
+                "source": "alphavantage_timeseries"
+            }), 200
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -2075,6 +2127,15 @@ def download_comps(ticker):
             "message": str(e)
         }), 500
 
+@app.route('/debug/fallback-stats')
+def debug_fallback_stats():
+    """Return fallback system statistics for diagnostics."""
+    try:
+        from data_fallbacks import get_fallback_stats
+        return jsonify(get_fallback_stats()), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
     import socket
     
@@ -2339,41 +2400,53 @@ def lbo_api():
 
 
 def get_alphavantage_timeseries(ticker, function='TIME_SERIES_DAILY'):
-    """Get time series data from Alpha Vantage API."""
+    """
+    Get time series data from Alpha Vantage API with caching and fallbacks.
+    Uses the data_fallbacks system for reliability.
+    """
     try:
-        api_key = os.getenv('ALPHAVANTAGE_API_KEY')
-        if not api_key:
+        # Import data fallback system (with lazy import to avoid circular imports)
+        from data_fallbacks import get_alphavantage_with_fallback
+        
+        # Use enhanced fallback system
+        return get_alphavantage_with_fallback(ticker, function)
+        
+    except ImportError:
+        # Fallback to original implementation if data_fallbacks not available
+        try:
+            api_key = os.getenv('ALPHAVANTAGE_API_KEY')
+            if not api_key:
+                return None
+                
+            url = 'https://www.alphavantage.co/query'
+            params = {
+                'function': function,
+                'symbol': ticker,
+                'outputsize': 'compact',  # Last 100 data points
+                'apikey': api_key
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Check for API limit
+                if 'Note' in data:
+                    print(f"Alpha Vantage API limit reached for {ticker}")
+                    return None
+                    
+                if 'Time Series (Daily)' in data:
+                    return data
+                elif 'Meta Data' in data and 'Information' in data.get('Meta Data', {}):
+                    print(f"Alpha Vantage info message for {ticker}: {data['Meta Data']['Information']}")
+                    return None
+                    
             return None
             
-        url = 'https://www.alphavantage.co/query'
-        params = {
-            'function': function,
-            'symbol': ticker,
-            'outputsize': 'compact',  # Last 100 data points
-            'apikey': api_key
-        }
-        
-        response = requests.get(url, params=params, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            # Check for API limit
-            if 'Note' in data:
-                print(f"Alpha Vantage API limit reached for {ticker}")
-                return None
-                
-            if 'Time Series (Daily)' in data:
-                return data
-            elif 'Meta Data' in data and 'Information' in data.get('Meta Data', {}):
-                print(f"Alpha Vantage info message for {ticker}: {data['Meta Data']['Information']}")
-                return None
-                
-        return None
-        
-    except Exception as e:
-        print(f"Error fetching Alpha Vantage data for {ticker}: {e}")
-        return None
+        except Exception as e:
+            print(f"Error fetching Alpha Vantage data for {ticker}: {e}")
+            return None
 
 
 def get_alphavantage_quote(ticker):
