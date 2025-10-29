@@ -190,7 +190,9 @@ class DataFallbackSystem:
         
         # Check for API limit or errors
         if 'Note' in data:
-            raise ValueError(f"Alpha Vantage API limit reached: {data['Note']}")
+            err = ValueError(f"Alpha Vantage API limit reached: {data['Note']}")
+            _record_error(err)
+            raise err
         if 'Error Message' in data:
             raise ValueError(f"Alpha Vantage API error: {data['Error Message']}")
             
@@ -613,6 +615,17 @@ class DataFallbackSystem:
 
 # Create global fallback system instance
 fallback_system = DataFallbackSystem()
+
+# Store last exception for diagnostics
+last_error: Optional[str] = None
+
+def _record_error(err: Exception):
+    global last_error
+    last_error = f"{datetime.utcnow().isoformat()}Z | {str(err)}"
+
+def get_last_error() -> Optional[str]:
+    """Return the last recorded fallback error, if any."""
+    return last_error
 
 # Convenience functions
 def get_alphavantage_with_fallback(ticker, function='TIME_SERIES_DAILY', use_cache=True):

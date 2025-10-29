@@ -1456,14 +1456,15 @@ def generate_model():
             if model_type == 'dcf':
                 result = generate_dcf_model(ticker, climate)
                 MODEL_STORAGE[model_id]['result'] = result
-            else:
-                # For other model types, use default values
+            elif model_type == 'lbo':
+                # TODO: implement real LBO generation here
                 MODEL_STORAGE[model_id]['result'] = {
-                    'enterprise_value': 2500000000,
-                    'equity_value': 2000000000,
-                    'implied_price': 25.00,
-                    'current_price': 20.00,
-                    'upside_downside': 25.0
+                    'status': 'pending'
+                }
+            else:
+                MODEL_STORAGE[model_id]['result'] = {
+                    'error': 'unsupported_model',
+                    'message': f'Model type {model_type} is not supported.'
                 }
             
             # Redirect to results page
@@ -2133,6 +2134,16 @@ def debug_fallback_stats():
     try:
         from data_fallbacks import get_fallback_stats
         return jsonify(get_fallback_stats()), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/debug/last-error')
+def debug_last_error():
+    """Return the last recorded fallback-system exception (if any)."""
+    try:
+        from data_fallbacks import get_last_error
+        err = get_last_error()
+        return jsonify({"last_error": err or "none"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
