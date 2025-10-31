@@ -36,7 +36,7 @@ class FinancialDataEngine:
         # Initialize providers with API keys from environment
         self.simfin_key = os.getenv("SIMFIN_API_KEY")
         self.finnhub_key = os.getenv("FINNHUB_API_KEY")
-        self.fmp_key = os.getenv("FMP_API_KEY")
+        self.fmp_key = os.getenv("FMP_API_KEY") or os.getenv("FINANCIALMODELINGPREP_API_KEY")
         self.alpha_vantage_key = os.getenv("ALPHAVANTAGE_API_KEY")
         self.fred_key = os.getenv("FRED_API_KEY")
         self.polygon_key = os.getenv("POLYGON_API_KEY")

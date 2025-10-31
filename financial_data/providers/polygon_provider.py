@@ -13,6 +13,7 @@ class PolygonProvider(BaseProvider):
     """Polygon.io provider for financial data."""
     
     def __init__(self, api_key: str = None):
+        self.name = "polygon"  # Add name attribute for provenance tracking
         self.api_key = api_key or "your_polygon_key_here"
         self.base_url = "https://api.polygon.io"
         self.timeout = 30

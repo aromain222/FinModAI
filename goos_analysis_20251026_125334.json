@@ -1,0 +1,71 @@
+{
+  "company": {
+    "ticker": "GOOS",
+    "current_metrics": {
+      "revenue": 1428000000.0,
+      "ebitda": 106800000.0,
+      "market_cap": 1350000000.0
+    }
+  },
+  "seasonality": {
+    "is_seasonal": true,
+    "peak_quarters": [
+      3,
+      4
+    ],
+    "trough_quarters": [
+      1,
+      2
+    ]
+  },
+  "competitive_position": {
+    "market_share": 0.15,
+    "brand_strength": "strong",
+    "key_competitors": [
+      "Moncler",
+      "The North Face (VF Corp)",
+      "Moose Knuckles",
+      "Mackage"
+    ]
+  },
+  "macro_factors": {
+    "geographic_exposure": {
+      "North America": 0.45,
+      "Europe": 0.25,
+      "Asia": 0.3
+    },
+    "recession_sensitivity": 0.8
+  },
+  "investment_score": {
+    "total": 64.19438016581807,
+    "recommendation": "Hold",
+    "components": {
+      "financial_health": 55.51449545318829,
+      "market_position": 87.5,
+      "growth_potential": 64.06302521008404,
+      "risk_profile": 31.0,
+      "management_quality": 81.0
+    }
+  },
+  "analysis_points": [
+    "Strong seasonality with winter-focused product line",
+    "Q3/Q4 sales typically 2.5x higher than Q1/Q2",
+    "Requires strong working capital management",
+    "Inventory build-up needed before peak season",
+    "Strong luxury brand positioning",
+    "Premium pricing power maintained",
+    "Established supply chain for down filling",
+    "Growing competition in luxury outerwear",
+    "Direct-to-consumer channel expansion opportunity",
+    "High exposure to consumer discretionary spending",
+    "Geographic diversification provides some buffer",
+    "Currency fluctuations impact margins",
+    "Recession could significantly impact sales",
+    "Interest rates affect consumer financing"
+  ],
+  "market_conditions": {
+    "risk_free_rate": 0.0525,
+    "market_risk_premium": 0.06
+  },
+  "timestamp": "2025-10-26T12:53:34.933957"
+}

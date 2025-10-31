@@ -1,0 +1,76 @@
+{
+  "ticker": "TSLA",
+  "name": "Tesla, Inc.",
+  "industry": "Automotive Manufacturing",
+  "sector": "Consumer Discretionary",
+  "metrics": {
+    "current_price": 220.0,
+    "market_cap": 700000000000.0,
+    "enterprise_value": 720000000000.0,
+    "revenue_ttm": 96800000000.0,
+    "ebitda_ttm": 17300000000.0,
+    "net_debt": 20000000000.0
+  },
+  "growth_and_margins": {
+    "revenue_growth": 0.1,
+    "ebitda_growth": 0.12,
+    "gross_margin": 0.6,
+    "ebitda_margin": 0.1787190082644628
+  },
+  "valuation": {
+    "ev_ebitda": 41.61849710982659,
+    "pe_ratio": 15.0,
+    "pb_ratio": 2.5
+  },
+  "market_metrics": {
+    "beta": 2.1,
+    "institutional_ownership": 0.45,
+    "short_interest": 0.03
+  },
+  "scores": {
+    "financial_health": 75.0,
+    "market_position": 80.0,
+    "growth_potential": 70.0,
+    "risk_profile": 65.0,
+    "management_quality": 85.0,
+    "total_score": 74.75
+  },
+  "recommendation": {
+    "rating": "Buy",
+    "target_price": 252.99999999999997,
+    "upside_potential": 0.15
+  },
+  "swot_analysis": {
+    "strengths": [
+      "EV market leadership",
+      "Advanced technology",
+      "Strong brand loyalty",
+      "Vertical integration",
+      "Manufacturing innovation"
+    ],
+    "weaknesses": [
+      "Production scalability",
+      "Quality control issues",
+      "High capex requirements",
+      "Limited model range"
+    ],
+    "opportunities": [
+      "Global EV adoption",
+      "Autonomous driving",
+      "Energy storage market",
+      "Robotaxi potential",
+      "Government incentives"
+    ],
+    "threats": [
+      "Legacy automaker competition",
+      "Battery supply constraints",
+      "Regulatory changes",
+      "Raw material costs",
+      "Economic downturn impact"
+    ]
+  },
+  "timestamps": {
+    "analysis_date": "2025-10-26T20:30:46.551642",
+    "data_as_of": "2025-10-26T20:30:46.551604"
+  }
+}

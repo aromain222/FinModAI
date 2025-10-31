@@ -1,27 +1,15 @@
 services:
   - type: web
-    name: finmodai-professional
-    env: docker
-    plan: free
-    dockerfilePath: ./Dockerfile
+    name: finmodai
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.app:app --host 0.0.0.0 --port $PORT
     envVars:
-      - key: FLASK_ENV
-        value: production
-      - key: FLASK_SECRET_KEY
-        generateValue: true
-      - key: PORT
-        value: 8000
-      - key: ALPHAVANTAGE_API_KEY
-        value: EQJS9ZZ669MZCWPC
-      - key: FMP_API_KEY
-        value: 6FxULbNNuO1VAt6pkbr7MgzCaMlAIZjK 
-      - key: FRED_API_KEY
-        value: 4987b43f319ba1c5d862ddabbbc4ecf8
-      - key: GOOGLE_FINANCE_EMAIL
-        value: aromain27@amherst.edu
-      - key: GOOGLE_FINANCE_TOKEN
-        value: 3bafe26dc9d0e1f9
-      - key: FINNHUB_API_KEY
-        value: d3jkenpr01qkv9k03lf0d3jkenpr01qkv9k03lfg
-      - key: SIMFIN_API_KEY
-        value: c2b86058-a089-45df-a646-f3782594235e
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATA_MODE
+        value: development
+      - key: DATA_STALENESS_MAX_MIN
+        value: 30
+      - key: REQUIRE_MIN_FUND_YEARS
+        value: 3

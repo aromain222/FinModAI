@@ -1,0 +1,76 @@
+{
+  "ticker": "AAPL",
+  "name": "Apple Inc.",
+  "industry": "Consumer Technology",
+  "sector": "Information Technology",
+  "metrics": {
+    "current_price": 175.0,
+    "market_cap": 2700000000000.0,
+    "enterprise_value": 2800000000000.0,
+    "revenue_ttm": 383300000000.0,
+    "ebitda_ttm": 130200000000.0,
+    "net_debt": 100000000000.0
+  },
+  "growth_and_margins": {
+    "revenue_growth": 0.1,
+    "ebitda_growth": 0.12,
+    "gross_margin": 0.6,
+    "ebitda_margin": 0.33968171145316983
+  },
+  "valuation": {
+    "ev_ebitda": 21.50537634408602,
+    "pe_ratio": 15.0,
+    "pb_ratio": 2.5
+  },
+  "market_metrics": {
+    "beta": 1.2,
+    "institutional_ownership": 0.7,
+    "short_interest": 0.005
+  },
+  "scores": {
+    "financial_health": 75.0,
+    "market_position": 80.0,
+    "growth_potential": 70.0,
+    "risk_profile": 65.0,
+    "management_quality": 85.0,
+    "total_score": 74.75
+  },
+  "recommendation": {
+    "rating": "Buy",
+    "target_price": 201.24999999999997,
+    "upside_potential": 0.15
+  },
+  "swot_analysis": {
+    "strengths": [
+      "Strong brand ecosystem",
+      "High services revenue growth",
+      "Premium pricing power",
+      "Robust R&D capabilities",
+      "Global retail presence"
+    ],
+    "weaknesses": [
+      "Supply chain complexity",
+      "Hardware margin pressure",
+      "High product development costs",
+      "Market saturation in key segments"
+    ],
+    "opportunities": [
+      "Services expansion",
+      "AR/VR market growth",
+      "Healthcare technology",
+      "Electric vehicle potential",
+      "Emerging market penetration"
+    ],
+    "threats": [
+      "Antitrust regulation",
+      "Privacy concerns",
+      "Supply chain disruption",
+      "Intense competition",
+      "Tech sector slowdown"
+    ]
+  },
+  "timestamps": {
+    "analysis_date": "2025-10-26T23:00:59.912086",
+    "data_as_of": "2025-10-26T23:00:59.912023"
+  }
+}

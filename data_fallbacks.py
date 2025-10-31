@@ -96,6 +96,7 @@ class DataFallbackSystem:
         self.fallback_stats = {
             "primary_success": 0,
             "fallback_success": 0,
+            "fmp_success": 0,
             "ai_fallback_success": 0,
             "total_failures": 0,
             "total_requests": 0
@@ -147,6 +148,18 @@ class DataFallbackSystem:
                 return data
         except Exception as e:
             logger.warning(f"Yahoo Finance fallback failed for {ticker}: {e}")
+        
+        # Try Financial Modeling Prep
+        try:
+            data = self._get_fmp_fallback(ticker)
+            if data:
+                logger.info(f"Using FMP fallback for {ticker}")
+                if use_cache:
+                    cache_set(cache_key, data, ttl=3600)  # Cache for 1 hour
+                self.fallback_stats["fmp_success"] += 1
+                return data
+        except Exception as e:
+            logger.warning(f"FMP fallback failed for {ticker}: {e}")
         
         # Try AI-enhanced data gathering as last resort
         if AI_DATA_GATHERING_AVAILABLE:
@@ -246,6 +259,53 @@ class DataFallbackSystem:
         data = {
             "Meta Data": {
                 "1. Information": "Daily Time Series from Yahoo Finance (fallback)",
+                "2. Symbol": ticker,
+                "3. Last Refreshed": datetime.now().strftime('%Y-%m-%d'),
+                "4. Output Size": "Compact",
+                "5. Time Zone": "US/Eastern"
+            },
+            "Time Series (Daily)": time_series
+        }
+        
+        return data
+    
+    @exponential_backoff(max_retries=2)
+    def _get_fmp_fallback(self, ticker):
+        """Get data from Financial Modeling Prep as a fallback"""
+        try:
+            from financial_data.providers.fmp_provider import get_fmp_provider
+        except ImportError:
+            raise ValueError("FMP provider not installed")
+        
+        fmp = get_fmp_provider()
+        if not fmp:
+            raise ValueError("FMP provider not available (check API key)")
+        
+        # Get historical metrics
+        metrics = fmp.get_historical_metrics(ticker, years=5)
+        
+        if not metrics or not metrics.get('fcf'):
+            raise ValueError(f"No FMP data available for {ticker}")
+        
+        # Convert FMP data to Alpha Vantage-compatible format
+        # Use the most recent FCF as a proxy for "close" price movements
+        time_series = {}
+        
+        for i, date_str in enumerate(metrics.get('dates', [])):
+            if i < len(metrics['fcf']):
+                fcf = metrics['fcf'][i]
+                # Normalize FCF to a "price-like" number for compatibility
+                time_series[date_str] = {
+                    "1. open": str(fcf),
+                    "2. high": str(fcf),
+                    "3. low": str(fcf),
+                    "4. close": str(fcf),
+                    "5. volume": "0"
+                }
+        
+        data = {
+            "Meta Data": {
+                "1. Information": "Time Series from Financial Modeling Prep (fallback)",
                 "2. Symbol": ticker,
                 "3. Last Refreshed": datetime.now().strftime('%Y-%m-%d'),
                 "4. Output Size": "Compact",

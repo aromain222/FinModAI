@@ -1,8 +1,7 @@
-#!/usr/bin/env python3
 """
-WSGI entry point for production deployment
+WSGI config for Python Anywhere deployment
 """
-from minimal_app import app
+from backend.app import app
 
-if __name__ == "__main__":
-    app.run()
+# This is the WSGI entry point
+application = app

@@ -78,7 +78,7 @@ class AlphaVantageProvider(BaseProvider):
             current_price=current_price,
             market_cap=market_cap,
             beta=beta,
-            analyst_growth_y1=None,
+            analyst_growth_y1=None,s
             analyst_growth_y2=None,
             analyst_margin_y1=None
         )

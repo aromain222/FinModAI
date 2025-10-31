@@ -1,270 +1,119 @@
+#!/usr/bin/env python3
+"""Financial Modeling Prep data provider (cash-flow + income statement).
+Returns dict compatible with assumptions_builder expectations.
 """
-Financial Modeling Prep (FMP) Provider - Priority 1
-Provides: Income Statement, Balance Sheet, Cash Flow, Ratios, Estimates
-"""
-
-import requests
-from typing import Optional, List, Dict, Any
+import os, requests, logging, datetime
+from typing import Dict, Any, Optional
 from .base_provider import BaseProvider, ProviderData
 
+logger = logging.getLogger("fmp_provider")
+
+FMP_API = "https://financialmodelingprep.com/api/v3"
 
 class FMPProvider(BaseProvider):
-    """Financial Modeling Prep API provider."""
-    
-    BASE_URL = "https://financialmodelingprep.com/api/v3"
-    
-    def __init__(self, api_key: str):
-        super().__init__(api_key)
-        if not api_key:
-            raise ValueError("FMP_API_KEY is required")
-    
+    def __init__(self, api_key: Optional[str] = None):
+        self.name = "fmp"  # Add name for provider identification
+        self.api_key = api_key or os.getenv("FINANCIALMODELINGPREP_API_KEY") or os.getenv("FMP_API_KEY")
+        if not self.api_key:
+            raise ValueError("FINANCIALMODELINGPREP_API_KEY not set")
+
+    def _get(self, endpoint: str, params: Dict[str, Any] | None = None):
+        params = params or {}
+        params["apikey"] = self.api_key
+        url = f"{FMP_API}/{endpoint}"
+        r = requests.get(url, params=params, timeout=10)
+        r.raise_for_status()
+        return r.json()
+
+    def get_cash_flow(self, ticker: str, years: int = 5):
+        data = self._get(f"cash-flow-statement/{ticker}", {"limit": years})
+        if not data:
+            raise ValueError("FMP cash-flow empty")
+        return data
+
+    def get_income(self, ticker: str, years: int = 5):
+        data = self._get(f"income-statement/{ticker}", {"limit": years})
+        return data or []
+
     def fetch_data(self, ticker: str) -> Optional[ProviderData]:
-        """Fetch comprehensive financial data from FMP."""
+        """Fetch financial data from FMP API (implements BaseProvider interface)."""
         try:
-            # Fetch all required data in parallel would be better,
-            # but for now sequential is fine
+            print(f"Trying FMP for {ticker}...")
             
-            profile = self._fetch_profile(ticker)
-            if not profile:
+            # Get cash flow and income statement data
+            cf = self.get_cash_flow(ticker, years=5)
+            inc = self.get_income(ticker, years=5)
+            
+            if not cf or not inc:
                 return None
             
-            income_stmt = self._fetch_income_statement(ticker)
-            balance_sheet = self._fetch_balance_sheet(ticker)
-            cash_flow = self._fetch_cash_flow(ticker)
-            ratios = self._fetch_ratios(ticker)
-            estimates = self._fetch_estimates(ticker)
-            quote = self._fetch_quote(ticker)
+            # Create provider data
+            data = ProviderData()
+            data.ticker = ticker
+            data.company_name = ticker  # FMP doesn't provide company name in these endpoints
             
-            # Parse and structure data
-            return self._build_provider_data(
-                ticker=ticker,
-                profile=profile,
-                income_stmt=income_stmt,
-                balance_sheet=balance_sheet,
-                cash_flow=cash_flow,
-                ratios=ratios,
-                estimates=estimates,
-                quote=quote
-            )
+            # Extract dates and values
+            dates = [period.get("date") for period in cf]
+            
+            # Revenue
+            data.revenue = [period.get("revenue", 0) for period in inc]
+            
+            # Net Income
+            data.net_income = [period.get("netIncome", 0) for period in inc]
+            
+            # Free Cash Flow
+            data.free_cash_flow = [period.get("freeCashFlow", 0) for period in cf]
+            
+            # Operating Income (EBIT)
+            data.operating_income = [period.get("operatingIncome", 0) for period in inc]
+            
+            # Total Assets
+            data.total_assets = [period.get("totalAssets", 0) for period in cf]
+            
+            # Total Debt
+            data.total_debt = [
+                period.get("shortTermDebt", 0) + period.get("longTermDebt", 0) 
+                for period in cf
+            ]
+            
+            # Set provenance
+            data.provenance = {
+                "revenue": {"source": "fmp", "fetched": datetime.datetime.utcnow().isoformat() + "Z"},
+                "net_income": {"source": "fmp", "fetched": datetime.datetime.utcnow().isoformat() + "Z"},
+                "free_cash_flow": {"source": "fmp", "fetched": datetime.datetime.utcnow().isoformat() + "Z"},
+                "operating_income": {"source": "fmp", "fetched": datetime.datetime.utcnow().isoformat() + "Z"}
+            }
+            
+            return data
             
         except Exception as e:
             print(f"FMP fetch error for {ticker}: {e}")
             return None
-    
-    def _fetch_profile(self, ticker: str) -> Optional[Dict]:
-        """Get company profile."""
-        url = f"{self.BASE_URL}/profile/{ticker}"
-        params = {"apikey": self.api_key}
-        
+            
+    def get_historical_metrics(self, ticker: str, years: int = 5) -> Dict[str, Any]:
+        """Get historical metrics for use in fallback chain."""
+        cf = self.get_cash_flow(ticker, years)
+        inc = self.get_income(ticker, years)
+        metrics: Dict[str, Any] = {
+            "fcf": [period.get("freeCashFlow", 0) for period in cf],
+            "revenue": [period.get("revenue", 0) for period in inc],
+            "net_income": [period.get("netIncome", 0) for period in inc],
+            "dates": [period.get("date") for period in cf],
+            "provenance": {
+                "fcf": {"source": "fmp", "fetched": datetime.datetime.utcnow().isoformat() + "Z"}
+            }
+        }
+        return metrics
+
+# Convenience
+fmp_provider = None
+
+def get_fmp_provider():
+    global fmp_provider
+    if fmp_provider is None:
         try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            return data[0] if data else None
+            fmp_provider = FMPProvider()
         except Exception as e:
-            print(f"FMP profile error: {e}")
-            return None
-    
-    def _fetch_income_statement(self, ticker: str, limit: int = 10) -> List[Dict]:
-        """Get annual income statements."""
-        url = f"{self.BASE_URL}/income-statement/{ticker}"
-        params = {"apikey": self.api_key, "limit": limit}
-        
-        try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except Exception:
-            return []
-    
-    def _fetch_balance_sheet(self, ticker: str, limit: int = 10) -> List[Dict]:
-        """Get annual balance sheets."""
-        url = f"{self.BASE_URL}/balance-sheet-statement/{ticker}"
-        params = {"apikey": self.api_key, "limit": limit}
-        
-        try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except Exception:
-            return []
-    
-    def _fetch_cash_flow(self, ticker: str, limit: int = 10) -> List[Dict]:
-        """Get annual cash flow statements."""
-        url = f"{self.BASE_URL}/cash-flow-statement/{ticker}"
-        params = {"apikey": self.api_key, "limit": limit}
-        
-        try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except Exception:
-            return []
-    
-    def _fetch_ratios(self, ticker: str) -> List[Dict]:
-        """Get financial ratios."""
-        url = f"{self.BASE_URL}/ratios/{ticker}"
-        params = {"apikey": self.api_key, "limit": 5}
-        
-        try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except Exception:
-            return []
-    
-    def _fetch_estimates(self, ticker: str) -> Dict:
-        """Get analyst estimates."""
-        url = f"{self.BASE_URL}/analyst-estimates/{ticker}"
-        params = {"apikey": self.api_key, "limit": 3}
-        
-        try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            return data[0] if data else {}
-        except Exception:
-            return {}
-    
-    def _fetch_quote(self, ticker: str) -> Optional[Dict]:
-        """Get current quote/price."""
-        url = f"{self.BASE_URL}/quote/{ticker}"
-        params = {"apikey": self.api_key}
-        
-        try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            return data[0] if data else None
-        except Exception:
-                return None
-            
-    def _build_provider_data(
-        self,
-        ticker: str,
-        profile: Dict,
-        income_stmt: List[Dict],
-        balance_sheet: List[Dict],
-        cash_flow: List[Dict],
-        ratios: List[Dict],
-        estimates: Dict,
-        quote: Optional[Dict]
-    ) -> Optional[ProviderData]:
-        """Build ProviderData from FMP responses."""
-        
-        if not income_stmt or len(income_stmt) < 3:
-            print(f"FMP: Insufficient income statement data for {ticker}")
-            return None
-            
-        # Extract years (sorted descending - most recent first)
-        years = []
-        for stmt in income_stmt:
-            year = stmt.get("calendarYear")
-            if year:
-                years.append(int(year))
-        
-        if len(years) < 3:
-            return None
-    
-        # Align all data to these years
-        n = len(years)
-        
-        # Income statement items
-        revenue = []
-        operating_income = []
-        ebitda = []
-        da = []
-        net_income = []
-        pretax_income = []
-        tax_expense = []
-        
-        for stmt in income_stmt[:n]:
-            revenue.append(self._parse_float(stmt.get("revenue")))
-            operating_income.append(self._parse_float(stmt.get("operatingIncome")))
-            ebitda.append(self._parse_float(stmt.get("ebitda")))
-            
-            # D&A = EBITDA - EBIT
-            ebit = self._parse_float(stmt.get("operatingIncome"))
-            ebitda_val = self._parse_float(stmt.get("ebitda"))
-            if ebit and ebitda_val:
-                da.append(ebitda_val - ebit)
-            else:
-                da.append(self._parse_float(stmt.get("depreciationAndAmortization")))
-            
-            net_income.append(self._parse_float(stmt.get("netIncome")))
-            pretax_income.append(self._parse_float(stmt.get("incomeBeforeTax")))
-            tax_expense.append(self._parse_float(stmt.get("incomeTaxExpense")))
-        
-        # Balance sheet items
-        cash = []
-        total_debt = []
-        shares_outstanding = []
-        
-        for bs in balance_sheet[:n]:
-            cash.append(self._parse_float(bs.get("cashAndCashEquivalents")))
-            
-            # Total debt = short-term + long-term
-            st_debt = self._parse_float(bs.get("shortTermDebt")) or 0
-            lt_debt = self._parse_float(bs.get("longTermDebt")) or 0
-            total_debt.append(st_debt + lt_debt if (st_debt or lt_debt) else None)
-            
-            shares_outstanding.append(self._parse_float(bs.get("commonStock")) or 
-                                     self._parse_float(bs.get("weightedAverageShsOut")))
-        
-        # Cash flow items
-        capex = []
-        delta_nwc = []
-        
-        for cf in cash_flow[:n]:
-            capex.append(abs(self._parse_float(cf.get("capitalExpenditure")) or 0))
-            delta_nwc.append(self._parse_float(cf.get("changeInWorkingCapital")))
-        
-        # Market data
-        current_price = None
-        market_cap = None
-        beta = None
-        
-        if quote:
-            current_price = self._parse_float(quote.get("price"))
-            market_cap = self._parse_float(quote.get("marketCap"))
-            beta = self._parse_float(quote.get("beta"))
-        
-        # Estimates
-        analyst_growth_y1 = None
-        analyst_growth_y2 = None
-        analyst_margin_y1 = None
-        
-        if estimates:
-            est_rev = self._parse_float(estimates.get("estimatedRevenueAvg"))
-            if est_rev and revenue and revenue[0]:
-                analyst_growth_y1 = (est_rev / revenue[0]) - 1
-            
-            est_ebitda = self._parse_float(estimates.get("estimatedEbitdaAvg"))
-            if est_ebitda and est_rev and est_rev > 0:
-                analyst_margin_y1 = est_ebitda / est_rev
-        
-        return ProviderData(
-            ticker=ticker,
-            company_name=profile.get("companyName") if profile else ticker,
-            currency=profile.get("currency") if profile else "USD",
-            as_of=self._get_timestamp(),
-            years=years,
-            revenue=revenue,
-            operating_income=operating_income,
-            ebitda=ebitda,
-            da=da,
-            net_income=net_income,
-            cash=cash,
-            total_debt=total_debt,
-            shares_outstanding=shares_outstanding,
-            capex=capex,
-            delta_nwc=delta_nwc,
-            tax_expense=tax_expense,
-            pretax_income=pretax_income,
-            current_price=current_price,
-            market_cap=market_cap,
-            beta=beta,
-            analyst_growth_y1=analyst_growth_y1,
-            analyst_growth_y2=analyst_growth_y2,
-            analyst_margin_y1=analyst_margin_y1
-        )
+            logger.warning(f"FMP provider unavailable: {e}")
+            fmp_provider = False
+    return fmp_provider if fmp_provider is not False else None

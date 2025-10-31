@@ -1,35 +1,32 @@
-APP=finmodai-z9qvtg
-REGION=iad
-TAG?=$(shell date +%Y%m%d%H%M%S)
+.PHONY: dev dev-api dev-ui dev-tunnel clean init
 
-.PHONY: fly:login fly:region fly:secrets fly:deploy:image fly:status fly:checks fly:logs
+dev: dev-api
 
-fly:login:
-	flyctl auth login
+dev-api:
+	@echo "==> Finding available port..."
+	@mkdir -p scripts
+	@PORT=$$(python3 scripts/find_port.py) && \
+	echo "==> Starting backend on port $$PORT" && \
+	export $$(grep -v '^#' env/.env.development | xargs) && \
+	python3 -m uvicorn backend.app:app --host 0.0.0.0 --port $$PORT --reload
 
-fly:region:
-	flyctl regions set $(REGION) -a $(APP) || true
+dev-tunnel:
+	@which npx >/dev/null || (echo "Install Node/npm for ngrok step (optional)"; exit 1)
+	@export PORT=$${PORT:-8080}; \
+	echo "==> Launching ngrok tunnel to http://localhost:$$PORT"; \
+	npx ngrok http $$PORT
 
-fly:secrets:
-	flyctl secrets set \
-		DATA_MODE=production \
-		DATA_STALENESS_MAX_MIN=30 \
-		REQUIRE_MIN_FUND_YEARS=3 \
-		-a $(APP)
+clean:
+	@find . -name '__pycache__' -o -name '*.pyc' -o -name '.pytest_cache' | xargs rm -rf || true
 
-fly:deploy:image:
-	# Prebuild & push image to Fly registry, then deploy by image
-	flyctl auth docker
-	docker buildx build --platform linux/amd64 -t registry.fly.io/$(APP):$(TAG) -f backend/Dockerfile --push .
-	flyctl deploy -a $(APP) --image registry.fly.io/$(APP):$(TAG) --strategy immediate
-
-fly:status:
-	flyctl status -a $(APP)
-
-fly:checks:
-	flyctl checks list -a $(APP)
-
-fly:logs:
-	flyctl logs -a $(APP) --since 15m
-
-
+# Create environment files if they don't exist
+init:
+	@mkdir -p env
+	@if [ ! -f env/.env.development ]; then \
+		echo "Creating env/.env.development..."; \
+		echo "DATA_MODE=development\nDATA_STALENESS_MAX_MIN=30\nREQUIRE_MIN_FUND_YEARS=3\nPORT=8080\nDATABASE_URL=sqlite:///local.db" > env/.env.development; \
+	fi
+	@if [ ! -f env/.env.example ]; then \
+		echo "Creating env/.env.example..."; \
+		echo "DATA_MODE=development\nDATA_STALENESS_MAX_MIN=30\nREQUIRE_MIN_FUND_YEARS=3\nPORT=8080\nDATABASE_URL=sqlite:///local.db\n\n# Required API keys (do not commit)\n#POLYGON_API_KEY=REDACTED
+	fi
