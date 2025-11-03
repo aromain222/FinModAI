@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from enum import Enum
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
+from quart import Quart, jsonify, request, render_template
 import logging
 logging.basicConfig(level=logging.INFO, force=True)
 
@@ -146,7 +147,7 @@ def preflight_check():
             print(f"Warning: Provider health checks failed: {e}")
 
 # Create Flask app
-app = Flask(__name__)
+app = Quart(__name__)
 app.secret_key = 'finmodai_secret_key_2024'
 
 # Apply deployment optimizations if available
@@ -3117,3 +3118,123 @@ def build_merger_inputs(acquirer_data, target_data):
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+
+from backend.models.lbo.precedent_transactions import find_precedent_transactions
+from backend.models.lbo.debt_market import get_benchmark_rates
+
+@app.route('/api/v1/precedent-transactions', methods=['GET'])
+async def get_precedent_transactions():
+    """
+    Get precedent LBO/M&A transactions for a given ticker and industry.
+    """
+    ticker = request.args.get('ticker')
+    industry = request.args.get('industry')
+
+    if not ticker or not industry:
+        return jsonify({"error": "Ticker and industry parameters are required"}), 400
+
+    transactions = await find_precedent_transactions(ticker, industry)
+    return jsonify(transactions)
+
+@app.route('/api/v1/debt-market-conditions', methods=['GET'])
+def get_debt_market_conditions():
+    """
+    Get current debt market conditions for LBO modeling.
+    """
+    conditions = get_benchmark_rates()
+    return jsonify(conditions)
+
+from backend.models.lbo.lbo_model import LBOModel, LBOInputs
+
+@app.route('/api/v1/generate-lbo-model', methods=['POST'])
+async def generate_lbo_model():
+    """
+    Generate a full LBO model based on user-defined assumptions.
+    """
+    data = await request.get_json()
+    ticker = data.get('ticker')
+
+    if not ticker:
+        return jsonify({"error": "Ticker is a required field"}), 400
+
+    # 1. Fetch live financial data for the ticker
+    # Note: In a real app, we'd get this from our data_router
+    # For now, we'll use placeholder data.
+    live_financials = {
+        "ebitda": 150_000_000,
+        "net_debt": 250_000_000,
+    }
+
+    # 2. Create LBO input dataclass from request data and live data
+    try:
+        lbo_inputs = LBOInputs(
+            ebitda=live_financials["ebitda"],
+            net_debt=live_financials["net_debt"],
+            entry_multiple=float(data.get('entry_multiple', 10.0)),
+            exit_multiple=float(data.get('exit_multiple', 10.0)),
+            equity_financing_percent=float(data.get('equity_financing_percent', 40.0)),
+            debt_financing_percent=float(data.get('debt_financing_percent', 60.0)),
+            revenue_growth_rate=float(data.get('revenue_growth_rate', 0.05)),
+            ebitda_margin=float(data.get('ebitda_margin', 0.20))
+        )
+    except (ValueError, TypeError) as e:
+        return jsonify({"error": f"Invalid input parameter: {e}"}), 400
+
+    # 3. Instantiate and run the LBO model
+    lbo_model = LBOModel(lbo_inputs)
+    results = lbo_model.run()
+
+    # 4. Return the results
+    # The default JSON serializer can't handle dataclasses, so we convert to dict
+    def dataclass_to_dict(obj):
+        if hasattr(obj, '__dict__'):
+            return obj.__dict__
+        return obj
+
+    import json
+    return json.dumps(results, default=dataclass_to_dict, indent=2), {"Content-Type": "application/json"}
+
+from backend.models.comps.peer_finder import find_peer_group
+from backend.models.comps.comps_model import CompsModel, CompanyFinancials
+
+@app.route('/api/v1/generate-comps-model', methods=['POST'])
+async def generate_comps_model():
+    """
+    Generate a full Comparable Company Analysis (Comps) model.
+    """
+    data = await request.get_json()
+    ticker = data.get('ticker')
+    industry = data.get('industry', 'Software') # Default industry for now
+
+    if not ticker:
+        return jsonify({"error": "Ticker is a required field"}), 400
+
+    try:
+        # 1. Get peer group from AI
+        peer_group = await find_peer_group(ticker, industry)
+        
+        # 2. Fetch financials for target and peers (stubbed for now)
+        # In a real implementation, this would call our enhanced data_router
+        target_financials = CompanyFinancials(ticker, 2.5e12, 2.4e12, 200e9, 90e9, 70e9)
+        peer_financials = [
+            CompanyFinancials("GOOGL", 1.8e12, 1.7e12, 280e9, 85e9, 65e9),
+            CompanyFinancials("ORCL", 300e9, 350e9, 50e9, 20e9, 10e9),
+            CompanyFinancials("ADBE", 250e9, 245e9, 20e9, 8e9, 5e9),
+        ]
+
+        # 3. Run the comps model
+        comps_model = CompsModel(target_financials, peer_financials)
+        results = comps_model.run()
+
+        # 4. Return results
+        def dataclass_to_dict(obj):
+            if hasattr(obj, '__dict__'):
+                return obj.__dict__
+            return obj
+
+        import json
+        return json.dumps(results, default=dataclass_to_dict, indent=2), {"Content-Type": "application/json"}
+
+    except Exception as e:
+        print(f"❌ Error generating comps model: {e}")
+        return jsonify({"error": f"An internal error occurred: {str(e)}"}), 500

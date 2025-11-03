@@ -4,3 +4,10 @@ pandas==2.2.2
 numpy==1.26.4
 numpy-financial==1.0.0
 python-dotenv==1.0.1
+bs4
+requests
+lxml
+et-xmlfile
+openpyxl
+gunicorn
+quart

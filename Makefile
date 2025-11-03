@@ -1,4 +1,4 @@
-.PHONY: dev dev-api dev-ui dev-tunnel clean init
+.PHONY: dev dev-api dev-ui dev-tunnel clean init diag:data
 
 dev: dev-api
 
@@ -30,3 +30,7 @@ init:
 		echo "Creating env/.env.example..."; \
 		echo "DATA_MODE=development\nDATA_STALENESS_MAX_MIN=30\nREQUIRE_MIN_FUND_YEARS=3\nPORT=8080\nDATABASE_URL=sqlite:///local.db\n\n# Required API keys (do not commit)\n#POLYGON_API_KEY=REDACTED
 	fi
+
+diag:data:
+	@echo "Running data provider diagnostics for TICKER=$(TICKER)..."
+	@python scripts/diagnose_data.py $(TICKER)
