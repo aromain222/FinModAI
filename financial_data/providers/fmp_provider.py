@@ -17,7 +17,7 @@ class FMPProvider(BaseProvider):
         if not self.api_key:
             raise ValueError("FINANCIALMODELINGPREP_API_KEY not set")
 
-    def _get(self, endpoint: str, params: Dict[str, Any] | None = None):
+    def _get(self, endpoint: str, params: Optional[Dict[str, Any]] = None):
         params = params or {}
         params["apikey"] = self.api_key
         url = f"{FMP_API}/{endpoint}"

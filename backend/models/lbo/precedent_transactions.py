@@ -3,17 +3,31 @@ Uses an AI agent to find precedent LBO & M&A transactions.
 """
 import os
 import asyncio
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
-from ai_enhanced_data_gatherer import AIEnhancedDataGatherer
+# Lazy import to avoid crashing if mcp package is not installed
+_ai_gatherer: Optional[Any] = None
+AI_ENABLED = False
 
-# Initialize the AI data gatherer
-try:
-    ai_gatherer = AIEnhancedDataGatherer()
-    AI_ENABLED = True
-except Exception as e:
-    print(f"⚠️ AI for precedent transactions disabled: {e}")
-    AI_ENABLED = False
+def _get_ai_gatherer():
+    """Lazy import and initialization of AI gatherer."""
+    global _ai_gatherer, AI_ENABLED
+    if _ai_gatherer is not None:
+        return _ai_gatherer
+    
+    try:
+        from ai_enhanced_data_gatherer import AIEnhancedDataGatherer
+        _ai_gatherer = AIEnhancedDataGatherer()
+        AI_ENABLED = True
+        return _ai_gatherer
+    except ImportError as e:
+        print(f"⚠️ AI for precedent transactions disabled: {e}")
+        AI_ENABLED = False
+        return None
+    except Exception as e:
+        print(f"⚠️ AI for precedent transactions disabled: {e}")
+        AI_ENABLED = False
+        return None
 
 async def find_precedent_transactions(ticker: str, industry: str) -> List[Dict[str, Any]]:
     """
@@ -29,9 +43,7 @@ async def find_precedent_transactions(ticker: str, industry: str) -> List[Dict[s
         with details like target, acquirer, date, and EV/EBITDA multiple.
     """
     if not AI_ENABLED:
-        return [
-            {"error": "AI agent is not available for finding precedent transactions."}
-        ]
+        return []
 
     prompt = f"""
     Find at least 3 recent (last 2-3 years) Leveraged Buyout (LBO) or Merger & Acquisition (M&A)
@@ -49,34 +61,25 @@ async def find_precedent_transactions(ticker: str, industry: str) -> List[Dict[s
     """
 
     try:
-        # We need to run the async AI agent in a running event loop
+        ai_gatherer = _get_ai_gatherer()
+        if not ai_gatherer:
+            return []  # Return empty list if AI not available
+        
         await ai_gatherer._initialize()
         response = await ai_gatherer.agent.run(prompt)
-        
-        # The AI response will be a string containing JSON, we need to parse it
-        # (This parsing logic may need to be made more robust)
         output = getattr(response, "output", "")
-        # A simple way to extract JSON from a string that might have surrounding text
         start = output.find('[')
         end = output.rfind(']') + 1
         if start != -1 and end != -1:
             import json
             return json.loads(output[start:end])
-        else:
-            return [{"error": "Failed to parse a valid JSON array from the AI response."}]
-
+        return [{"error": "Failed to parse a valid JSON array from the AI response."}]
     except Exception as e:
         print(f"❌ Error finding precedent transactions with AI: {e}")
-        return [
-            {"error": f"An exception occurred while querying the AI agent: {e}"}
-        ]
+        return [{"error": f"An exception occurred while querying the AI agent: {e}"}]
 
 if __name__ == '__main__':
-    # Example usage:
-    # This needs to be run in an async context
     async def main():
-        # You need to provide an industry for the ticker
         transactions = await find_precedent_transactions("DELL", "Hardware Technology")
         print(transactions)
-
     asyncio.run(main())

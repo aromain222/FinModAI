@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="360" height="80" viewBox="0 0 360 80" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">CapitalBase Logo</title>
+  <desc id="desc">Stacked bars icon with the word CapitalBase set in a modern sans serif.</desc>
+  <g fill="none" fill-rule="evenodd">
+    <rect width="120" height="80" rx="20" fill="#0E1D34"/>
+    <g transform="translate(24 18)">
+      <rect x="0" y="36" width="72" height="12" rx="6" fill="#2B74FF"/>
+      <rect x="8" y="18" width="64" height="12" rx="6" stroke="#C5A45A" stroke-width="2" fill="none"/>
+      <rect x="16" y="0" width="56" height="12" rx="6" fill="#C5A45A"/>
+    </g>
+    <text x="140" y="50" font-family="Inter, 'Segoe UI', sans-serif" font-size="34" font-weight="600" fill="#E9EDF5">
+      Capital<tspan fill="#C5A45A">Base</tspan>
+    </text>
+  </g>
+</svg>

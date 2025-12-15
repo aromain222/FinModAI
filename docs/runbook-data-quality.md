@@ -57,5 +57,6 @@ python scripts/admin_cli.py refresh <TICKER>
 4.  Add the provider to the `data_router.py` hierarchy.
 5.  Add any required API key to `.env.example` and your environment.
 
+# --- Core Settings ---
 ---
 *This is a living document. Please update it as the system evolves.*

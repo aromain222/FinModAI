@@ -1,0 +1,235 @@
+{
+  "query": "What is the DCF valuation of a tech company with $1B revenue?",
+  "query_type": "valuation",
+  "narrative": "COMPANY presents a compelling valuation opportunity within its sector. Based on a discounted cash flow analysis and comparable company multiples, the intrinsic value range suggests meaningful upside from current levels.\n\n**Financial Profile:** The company generates approximately $1000.0M in annual revenue with 10.0% projected growth and 25.0% EBITDA margins. This operational efficiency positions the firm favorably against industry peers.\n\n**Valuation Methodology:** Employing a weighted average cost of capital (WACC) of 10.0%, the DCF model yields an enterprise value of $3000.0M. After adjusting for net debt of $200.0M, the implied equity value reaches $2800.0M, translating to $28.00 per share.\n\n**Investment Thesis:** The valuation is supported by strong fundamentals, sustainable competitive advantages, and favorable market positioning. The 12.0x EV/EBITDA multiple aligns with industry standards while reflecting the company's growth trajectory.\n\n**Conclusion:** The analysis indicates COMPANY trades at an attractive valuation relative to intrinsic value, presenting a favorable risk-reward profile for investors with a medium-term horizon.",
+  "quantitative_tables": [
+    {
+      "title": "DCF Valuation Model",
+      "data": [
+        {
+          "Year": 1,
+          "Revenue ($M)": "1100.0",
+          "EBITDA ($M)": "275.0",
+          "FCF ($M)": "152.2",
+          "PV of FCF ($M)": "138.4"
+        },
+        {
+          "Year": 2,
+          "Revenue ($M)": "1210.0",
+          "EBITDA ($M)": "302.5",
+          "FCF ($M)": "167.5",
+          "PV of FCF ($M)": "138.4"
+        },
+        {
+          "Year": 3,
+          "Revenue ($M)": "1331.0",
+          "EBITDA ($M)": "332.8",
+          "FCF ($M)": "184.2",
+          "PV of FCF ($M)": "138.4"
+        },
+        {
+          "Year": 4,
+          "Revenue ($M)": "1464.1",
+          "EBITDA ($M)": "366.0",
+          "FCF ($M)": "202.6",
+          "PV of FCF ($M)": "138.4"
+        },
+        {
+          "Year": 5,
+          "Revenue ($M)": "1610.5",
+          "EBITDA ($M)": "402.6",
+          "FCF ($M)": "222.9",
+          "PV of FCF ($M)": "138.4"
+        }
+      ],
+      "columns": [
+        "Year",
+        "Revenue ($M)",
+        "EBITDA ($M)",
+        "FCF ($M)",
+        "PV of FCF ($M)"
+      ],
+      "notes": "WACC: 10.0%, Terminal Growth: 2.5%"
+    },
+    {
+      "title": "Valuation Summary",
+      "data": [
+        {
+          "Metric": "Enterprise Value",
+          "Value": "$2583.6M"
+        },
+        {
+          "Metric": "Less: Net Debt",
+          "Value": "$200.0M"
+        },
+        {
+          "Metric": "Equity Value",
+          "Value": "$2383.6M"
+        },
+        {
+          "Metric": "Shares Outstanding (M)",
+          "Value": "100.0"
+        },
+        {
+          "Metric": "Price per Share",
+          "Value": "$23.84"
+        },
+        {
+          "Metric": "EV/Revenue",
+          "Value": "2.6x"
+        },
+        {
+          "Metric": "EV/EBITDA",
+          "Value": "10.3x"
+        },
+        {
+          "Metric": "P/E Ratio",
+          "Value": "20.0x"
+        }
+      ],
+      "columns": [
+        "Metric",
+        "Value"
+      ],
+      "notes": "Based on DCF analysis and comparable company multiples"
+    },
+    {
+      "title": "Sensitivity Analysis: Price per Share",
+      "data": [
+        {
+          "Terminal Growth": "1.5%",
+          "8.0%": "$29.00",
+          "9.0%": "$24.72",
+          "10.0%": "$21.45",
+          "11.0%": "$18.87",
+          "12.0%": "$16.79"
+        },
+        {
+          "Terminal Growth": "2.0%",
+          "8.0%": "$31.10",
+          "9.0%": "$26.22",
+          "10.0%": "$22.57",
+          "11.0%": "$19.73",
+          "12.0%": "$17.46"
+        },
+        {
+          "Terminal Growth": "2.5%",
+          "8.0%": "$33.59",
+          "9.0%": "$27.96",
+          "10.0%": "$23.84",
+          "11.0%": "$20.69",
+          "12.0%": "$18.21"
+        },
+        {
+          "Terminal Growth": "3.0%",
+          "8.0%": "$36.57",
+          "9.0%": "$29.98",
+          "10.0%": "$25.29",
+          "11.0%": "$21.77",
+          "12.0%": "$19.03"
+        },
+        {
+          "Terminal Growth": "3.5%",
+          "8.0%": "$40.21",
+          "9.0%": "$32.38",
+          "10.0%": "$26.96",
+          "11.0%": "$22.99",
+          "12.0%": "$19.96"
+        }
+      ],
+      "columns": [
+        "Terminal Growth",
+        "8.0%",
+        "9.0%",
+        "10.0%",
+        "11.0%",
+        "12.0%"
+      ],
+      "notes": "Sensitivity to WACC (columns) and Terminal Growth Rate (rows)"
+    }
+  ],
+  "assumptions": [
+    {
+      "name": "Base Revenue",
+      "value": 1000.0,
+      "unit": "$M",
+      "justification": "Current annual revenue based on latest financial statements or industry estimates",
+      "source": "Company filings / Industry benchmarks"
+    },
+    {
+      "name": "Revenue Growth Rate",
+      "value": "10.0",
+      "unit": "%",
+      "justification": "Based on historical growth, market opportunity, and competitive positioning",
+      "source": "Historical financials, management guidance"
+    },
+    {
+      "name": "EBITDA Margin",
+      "value": "25.0",
+      "unit": "%",
+      "justification": "Current margin profile reflecting operational efficiency and business mix",
+      "source": "Company financials, peer benchmarks"
+    },
+    {
+      "name": "CapEx as % of Revenue",
+      "value": "5.0",
+      "unit": "%",
+      "justification": "Maintenance CapEx requirements based on asset intensity and industry norms",
+      "source": "Historical CapEx analysis, industry standards"
+    },
+    {
+      "name": "NWC as % of Revenue",
+      "value": "10.0",
+      "unit": "%",
+      "justification": "Working capital requirements based on cash conversion cycle",
+      "source": "Balance sheet analysis"
+    },
+    {
+      "name": "Tax Rate",
+      "value": "21.0",
+      "unit": "%",
+      "justification": "Statutory corporate tax rate with adjustments for jurisdictional mix",
+      "source": "Tax code, company effective tax rate"
+    },
+    {
+      "name": "WACC (Discount Rate)",
+      "value": "10.0",
+      "unit": "%",
+      "justification": "Weighted average cost of capital based on capital structure, risk-free rate, and equity risk premium",
+      "source": "CAPM calculation, market data"
+    },
+    {
+      "name": "Terminal Growth Rate",
+      "value": "2.5",
+      "unit": "%",
+      "justification": "Long-term growth rate aligned with GDP growth and industry maturity",
+      "source": "Macroeconomic forecasts, industry analysis"
+    },
+    {
+      "name": "EV/EBITDA Multiple",
+      "value": "12.0",
+      "unit": "x",
+      "justification": "Trading multiple based on peer group median with adjustments for growth and quality",
+      "source": "Comparable company analysis"
+    },
+    {
+      "name": "Market Conditions",
+      "value": "Stable",
+      "unit": "",
+      "justification": "Assumes stable macroeconomic environment with moderate growth and controlled inflation",
+      "source": "Economic forecasts, market consensus"
+    }
+  ],
+  "sources": [
+    "Industry Benchmarks - Standard financial metrics for sector (estimated)",
+    "Comparable Company Analysis - Peer group valuation multiples (estimated)",
+    "Academic Research - Corporate finance best practices and methodologies",
+    "Damodaran Online - Cost of capital and valuation parameters",
+    "McKinsey Valuation - DCF methodology and best practices",
+    "Wall Street Research - Sell-side equity research reports and models",
+    "Financial Modeling Best Practices - Industry-standard methodologies",
+    "NOTE: Where specific company data unavailable, estimates based on industry norms and comparable companies"
+  ],
+  "generated_at": "2025-11-25T21:25:08.099250",
+  "confidence_level": "Medium"
+}
