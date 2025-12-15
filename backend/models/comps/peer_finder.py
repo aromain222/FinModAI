@@ -3,17 +3,31 @@ Uses an AI agent to identify a peer group of comparable public companies.
 """
 import asyncio
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
-from ai_enhanced_data_gatherer import AIEnhancedDataGatherer
+# Lazy import to avoid crashing if mcp package is not installed
+_ai_gatherer: Optional[Any] = None
+AI_ENABLED = False
 
-# Initialize the AI data gatherer
-try:
-    ai_gatherer = AIEnhancedDataGatherer()
-    AI_ENABLED = True
-except Exception as e:
-    print(f"⚠️ AI for peer group finding disabled: {e}")
-    AI_ENABLED = False
+def _get_ai_gatherer():
+    """Lazy import and initialization of AI gatherer."""
+    global _ai_gatherer, AI_ENABLED
+    if _ai_gatherer is not None:
+        return _ai_gatherer
+    
+    try:
+        from ai_enhanced_data_gatherer import AIEnhancedDataGatherer
+        _ai_gatherer = AIEnhancedDataGatherer()
+        AI_ENABLED = True
+        return _ai_gatherer
+    except ImportError as e:
+        print(f"⚠️ AI for peer group finding disabled: {e}")
+        AI_ENABLED = False
+        return None
+    except Exception as e:
+        print(f"⚠️ AI for peer group finding disabled: {e}")
+        AI_ENABLED = False
+        return None
 
 async def find_peer_group(ticker: str, industry: str) -> List[str]:
     """
@@ -45,6 +59,10 @@ async def find_peer_group(ticker: str, industry: str) -> List[str]:
     """
 
     try:
+        ai_gatherer = _get_ai_gatherer()
+        if not ai_gatherer:
+            raise ConnectionError("AI agent is not available for finding peer group.")
+        
         await ai_gatherer._initialize()
         response = await ai_gatherer.agent.run(prompt)
         

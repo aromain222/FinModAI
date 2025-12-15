@@ -1,0 +1,26 @@
+# FINMODAI Requirements
+# Elite Private-Equity-Grade Financial Analysis System
+
+# Core dependencies
+pandas>=1.5.0
+numpy>=1.23.0
+tabulate>=0.9.0  # Required for pandas markdown output
+
+# Web frameworks
+fastapi>=0.104.0
+uvicorn>=0.24.0
+flask>=2.3.0
+
+# Data validation
+pydantic>=2.0.0
+
+# Optional: Enhanced features
+python-dotenv>=1.0.0  # Environment variables
+structlog>=23.1.0     # Structured logging
+rich>=13.0.0          # Terminal formatting
+
+# Optional: Data providers (if not already installed)
+# requests>=2.31.0
+# beautifulsoup4>=4.12.0
+# lxml>=4.9.0
+

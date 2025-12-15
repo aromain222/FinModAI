@@ -72,4 +72,28 @@ credentials/
 google_drive_credentials.json
 *.env
 .env.*
+# Financial Modeling Prep API Key
+FMP_API_KEY=REDACTED
 
+# Alpha Vantage API Key
+ALPHAVANTAGE_API_KEY=REDACTED
+
+# SEC EDGAR (Required - No API key needed, just your email for User-Agent)
+SEC_UA_EMAIL=kingromain23@gmail.com
+
+# Optional API Keys (uncomment and add if you have them)
+ FINNHUB_API_KEY=d3nth2hr01qtm4jea48gd3nth2hr01qtm4jea490
+ POLYGON_API_KEY=REDACTED
+# FRED_API_KEY=your_fred_key_here
+ OPENAI_API_KEY=REDACTED
+# ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# Tiingo API Key (Free tier available)
+# Get your key at: https://api.tiingo.com/documentation/general/overview
+TIINGO_API_KEY=REDACTED
+
+NEWSAPI_API_KEY=d3da98f439d04ea590e73c8183b06ebd
+NEXT_PUBLIC_SUPABASE_URL=https://thvbhrzavzjnwecwhbgj.supabase.co
+SUPABASE_URL=https://thvbhrzavzjnwecwhbgj.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=REDACTED
+SUPABASE_ANON_KEY=REDACTED

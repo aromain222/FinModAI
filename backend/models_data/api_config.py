@@ -53,6 +53,13 @@ class APIManager:
                 api_key=os.getenv("FINNHUB_API_KEY", ""),
                 calls_per_minute=30,
                 calls_per_day=60000
+            ),
+            "tiingo": APIConfig(
+                name="Tiingo",
+                base_url="https://api.tiingo.com",
+                api_key=os.getenv("TIINGO_API_KEY", ""),
+                calls_per_minute=30,
+                calls_per_day=10000
             )
         }
         

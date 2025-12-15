@@ -1,17 +1,26 @@
 import json
 import uuid
 from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation
 import io
 import os
 import re
 import threading
 import time
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Iterable
 from dataclasses import dataclass, asdict
 from enum import Enum
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
-from quart import Quart, jsonify, request, render_template
+from quart import Quart, jsonify, request, render_template, redirect, url_for, flash, send_file, send_from_directory
 import logging
+import asyncio
+
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not installed, continue without it
+
 logging.basicConfig(level=logging.INFO, force=True)
 
 # Import deployment optimizations if available
@@ -82,6 +91,8 @@ except ImportError:
     FINANCIAL_DATA_AVAILABLE = False
     print("Warning: financial_data not available")
 
+from backend.market.data_router import get_router
+
 # Try to import LBO model
 try:
     from lbo_model import LBOEngine
@@ -146,9 +157,11 @@ def preflight_check():
         except Exception as e:
             print(f"Warning: Provider health checks failed: {e}")
 
-# Create Flask app
-app = Quart(__name__)
+# Create Quart app
+app = Quart(__name__, static_folder='static', template_folder='templates')
 app.secret_key = 'finmodai_secret_key_2024'
+
+DATA_ROUTER = get_router()
 
 # Apply deployment optimizations if available
 if DEPLOYMENT_OPTIMIZATIONS_AVAILABLE:
@@ -437,8 +450,17 @@ def generate_dcf_model(ticker, climate):
 
 # Routes
 @app.route('/')
-def index():
-    return render_template('professional_ui.html')
+async def index():
+    """
+    Serve the main React application.
+    """
+    # Support both SUPABASE_ANON_KEY and SUPABASE_API_KEY (for backwards compatibility)
+    supabase_anon_key = os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_API_KEY", "")
+    supabase_config = {
+        "url": os.getenv("SUPABASE_URL", ""),
+        "anonKey": supabase_anon_key
+    }
+    return await render_template('index.html', supabase_config=supabase_config)
 
 @app.route('/healthz', methods=['GET'])
 def healthz():
@@ -2148,28 +2170,6 @@ def debug_last_error():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-if __name__ == '__main__':
-    import socket
-    
-    def find_free_port():
-        """Find a free port starting from 10000"""
-        for port in range(10000, 10100):
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.bind(('', port))
-                    return port
-            except OSError:
-                continue
-        return None
-    
-    port = find_free_port()
-    if port is None:
-        print("No free ports available in range 10000-10099")
-        exit(1)
-    
-    print(f"Starting app on port {port}")
-    app.run(host='0.0.0.0', port=port)
-
 # LBO Model Endpoints
 _lbo_engine = None
 
@@ -2766,6 +2766,173 @@ def get_company_data(ticker):
         return None
 
 
+class DataBundleError(Exception):
+    """Raised when data_router cannot provide a usable bundle."""
+
+    def __init__(self, status_code: int, message: str, bundle: Optional[Dict[str, Any]] = None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.bundle = bundle or {}
+        self.message = message
+
+
+def _first(values: Any) -> Optional[float]:
+    if isinstance(values, list) and values:
+        return values[0]
+    return values
+
+
+def _extract_historicals(fields: Dict[str, Any], minimum_years: int = 3) -> List[Dict[str, Any]]:
+    revenues = fields.get("revenue") or []
+    if len(revenues) < minimum_years:
+        raise DataBundleError(409, "Insufficient revenue history for DCF/LBO models")
+
+    ebit = fields.get("ebit") or []
+    ebitda = fields.get("ebitda") or []
+    net_income = fields.get("net_income") or []
+    free_cash_flow = fields.get("free_cash_flow") or []
+    capex = fields.get("capex") or []
+    delta_nwc = fields.get("delta_nwc") or []
+
+    current_year = datetime.utcnow().year
+    historicals: List[Dict[str, Any]] = []
+    for idx, revenue in enumerate(revenues[: max(len(revenues), minimum_years)]):
+        year = current_year - idx
+        historicals.append(
+            {
+                "year": year,
+                "revenue": revenue,
+                "ebit": ebit[idx] if idx < len(ebit) else None,
+                "ebitda": ebitda[idx] if idx < len(ebitda) else None,
+                "net_income": net_income[idx] if idx < len(net_income) else None,
+                "free_cash_flow": free_cash_flow[idx] if idx < len(free_cash_flow) else None,
+                "capex": capex[idx] if idx < len(capex) else None,
+                "delta_nwc": delta_nwc[idx] if idx < len(delta_nwc) else None,
+            }
+        )
+
+    return historicals
+
+
+def _reduce_provenance(raw: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    provenance: Dict[str, Dict[str, Any]] = {}
+    for key, info in (raw or {}).items():
+        if ":" in key:
+            field = key.split(":", 1)[0]
+        else:
+            field = key
+        provenance[field] = {
+            "provider": info.get("provider", "unknown"),
+            "as_of": info.get("as_of") or info.get("timestamp"),
+            "confidence": info.get("confidence"),
+        }
+    return provenance
+
+
+def _convert_bundle_to_company_data(ticker: str, bundle: Dict[str, Any]) -> Dict[str, Any]:
+    fields = bundle.get("fields", {})
+    if not fields:
+        raise DataBundleError(502, "No financial fields returned from data router", bundle)
+
+    historicals = _extract_historicals(fields)
+
+    market_price = _first(fields.get("price")) or 0
+    market_cap = _first(fields.get("market_cap")) or 0
+    beta = _first(fields.get("beta")) or 1
+    shares_out = _first(fields.get("shares_outstanding")) or 0
+    cash = _first(fields.get("cash")) or 0
+    gross_debt = _first(fields.get("debt")) or 0
+    net_debt = gross_debt - cash if gross_debt is not None and cash is not None else None
+
+    if not shares_out and market_price and market_cap:
+        try:
+            shares_out = market_cap / market_price
+        except ZeroDivisionError:
+            shares_out = 0
+
+    latest = {
+        "revenue": historicals[0].get("revenue", 0),
+        "ebit": historicals[0].get("ebit", 0),
+        "ebitda": historicals[0].get("ebitda", 0),
+        "net_income": historicals[0].get("net_income", 0),
+        "free_cash_flow": historicals[0].get("free_cash_flow", 0),
+        "capex": historicals[0].get("capex", 0),
+        "delta_nwc": historicals[0].get("delta_nwc", 0),
+    }
+
+    provenance = _reduce_provenance(bundle.get("provenance", {}))
+
+    company_data = {
+        "ticker": ticker.upper(),
+        "historicals": historicals,
+        "latest": latest,
+        "market": {
+            "price": market_price,
+            "market_cap": market_cap,
+            "beta": beta,
+            "shares_out": shares_out,
+            "cash": cash,
+            "gross_debt": gross_debt,
+            "net_debt": net_debt,
+            "enterprise_value": _first(fields.get("enterprise_value")),
+        },
+        "provenance": provenance,
+        "as_of_quotes": bundle.get("as_of_system"),
+        "as_of_fundamentals": bundle.get("as_of_system"),
+        "stale": bundle.get("stale", False),
+    }
+
+    return company_data
+
+
+def get_company_data_from_router(ticker: str) -> Dict[str, Any]:
+    bundle, status_code = DATA_ROUTER.get_bundle(ticker)
+    if status_code != 200:
+        raise DataBundleError(status_code, bundle.get("error", "Failed to fetch financial data"), bundle)
+
+    if bundle.get("quarantined"):
+        raise DataBundleError(503, "Data for this ticker is quarantined", bundle)
+
+    return _convert_bundle_to_company_data(ticker, bundle)
+
+
+async def _collect_peer_company_data(ticker: str, industry: str, explicit_peers: Optional[Any] = None) -> (List[Dict[str, Any]], List[str]):
+    peer_candidates: List[str] = []
+
+    if explicit_peers:
+        if isinstance(explicit_peers, str):
+            peer_candidates = [p.strip().upper() for p in explicit_peers.split(',') if p.strip()]
+        elif isinstance(explicit_peers, list):
+            peer_candidates = [str(p).strip().upper() for p in explicit_peers if str(p).strip()]
+
+    if not peer_candidates:
+        try:
+            find_peer_group_fn = _get_find_peer_group()
+            if find_peer_group_fn:
+                peer_candidates = await find_peer_group_fn(ticker, industry)
+            else:
+                peer_candidates = []
+        except Exception:
+            peer_candidates = []
+
+    if not peer_candidates:
+        peer_candidates = [p for p in DEFAULT_PEER_FALLBACK if p != ticker]
+
+    peer_company_data: List[Dict[str, Any]] = []
+    used_symbols: List[str] = []
+    for peer in peer_candidates:
+        if peer == ticker:
+            continue
+        try:
+            peer_data = get_company_data_from_router(peer)
+        except DataBundleError:
+            continue
+        peer_company_data.append(peer_data)
+        used_symbols.append(peer)
+
+    return peer_company_data, used_symbols
+
+
 def build_dcf_inputs(company_data):
     """Build DCF model inputs from real company data."""
     try:
@@ -3116,11 +3283,16 @@ def build_merger_inputs(acquirer_data, target_data):
         return {'error': str(e)}
 
 
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
-
-from backend.models.lbo.precedent_transactions import find_precedent_transactions
 from backend.models.lbo.debt_market import get_benchmark_rates
+
+# Lazy import for precedent transactions (AI dependency optional)
+def _get_precedent_transactions():
+    try:
+        from backend.models.lbo.precedent_transactions import find_precedent_transactions
+        return find_precedent_transactions
+    except Exception as e:
+        print(f"⚠️ Precedent transactions not available: {e}")
+        return None
 
 @app.route('/api/v1/precedent-transactions', methods=['GET'])
 async def get_precedent_transactions():
@@ -3133,7 +3305,11 @@ async def get_precedent_transactions():
     if not ticker or not industry:
         return jsonify({"error": "Ticker and industry parameters are required"}), 400
 
-    transactions = await find_precedent_transactions(ticker, industry)
+    find_precedent_transactions_fn = _get_precedent_transactions()
+    if find_precedent_transactions_fn:
+        transactions = await find_precedent_transactions_fn(ticker, industry)
+    else:
+        transactions = []
     return jsonify(transactions)
 
 @app.route('/api/v1/debt-market-conditions', methods=['GET'])
@@ -3144,97 +3320,467 @@ def get_debt_market_conditions():
     conditions = get_benchmark_rates()
     return jsonify(conditions)
 
-from backend.models.lbo.lbo_model import LBOModel, LBOInputs
+from backend.models_data.bundle_builders import (
+    build_comps_fields_from_company_data,
+    build_dcf_fields_from_company_data,
+    build_lbo_fields_from_company_data,
+)
+from backend.models_data.generate import (
+    generate_comps_model as run_comps_engine,
+    generate_dcf_model as run_dcf_engine,
+    generate_lbo_model as run_lbo_engine,
+)
 
 @app.route('/api/v1/generate-lbo-model', methods=['POST'])
 async def generate_lbo_model():
-    """
-    Generate a full LBO model based on user-defined assumptions.
-    """
-    data = await request.get_json()
-    ticker = data.get('ticker')
+    """Generate a full LBO model using live fundamentals and user assumptions."""
+
+    data = await request.get_json() or {}
+    ticker = (data.get('ticker') or '').strip().upper()
 
     if not ticker:
         return jsonify({"error": "Ticker is a required field"}), 400
 
-    # 1. Fetch live financial data for the ticker
-    # Note: In a real app, we'd get this from our data_router
-    # For now, we'll use placeholder data.
-    live_financials = {
-        "ebitda": 150_000_000,
-        "net_debt": 250_000_000,
+    assumptions_payload = data.get('assumptions') or data
+
+    try:
+        company_data = get_company_data_from_router(ticker)
+    except DataBundleError as exc:
+        response_body = {
+            "error": "data_unavailable",
+            "message": exc.message,
+            "details": exc.bundle.get("errors"),
+        }
+        return jsonify(response_body), exc.status_code
+
+    try:
+        lbo_fields = build_lbo_fields_from_company_data(company_data)
+    except DataBundleError as exc:
+        response_body = {
+            "error": "bundle_conversion_failed",
+            "message": exc.message,
+        }
+        return jsonify(response_body), exc.status_code
+
+    custom_assumptions = _normalize_lbo_assumptions(assumptions_payload)
+
+    try:
+        results = run_lbo_engine(lbo_fields, custom_assumptions)
+    except Exception as exc:
+        return jsonify({"error": "model_failure", "message": str(exc)}), 500
+
+    payload = {
+        "ticker": ticker,
+        "inputs": {
+            "assumptions": custom_assumptions,
+        },
+        "results": results,
     }
 
-    # 2. Create LBO input dataclass from request data and live data
+    return jsonify(_serialize_for_json(payload))
+
+# Lazy import for peer finder (AI dependency optional)
+def _get_find_peer_group():
     try:
-        lbo_inputs = LBOInputs(
-            ebitda=live_financials["ebitda"],
-            net_debt=live_financials["net_debt"],
-            entry_multiple=float(data.get('entry_multiple', 10.0)),
-            exit_multiple=float(data.get('exit_multiple', 10.0)),
-            equity_financing_percent=float(data.get('equity_financing_percent', 40.0)),
-            debt_financing_percent=float(data.get('debt_financing_percent', 60.0)),
-            revenue_growth_rate=float(data.get('revenue_growth_rate', 0.05)),
-            ebitda_margin=float(data.get('ebitda_margin', 0.20))
-        )
-    except (ValueError, TypeError) as e:
-        return jsonify({"error": f"Invalid input parameter: {e}"}), 400
+        from backend.models.comps.peer_finder import find_peer_group
+        return find_peer_group
+    except Exception as e:
+        print(f"⚠️ Peer finder not available: {e}")
+        return None
 
-    # 3. Instantiate and run the LBO model
-    lbo_model = LBOModel(lbo_inputs)
-    results = lbo_model.run()
+DEFAULT_PEER_FALLBACK = ['MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA', 'NVDA', 'ORCL', 'CRM']
 
-    # 4. Return the results
-    # The default JSON serializer can't handle dataclasses, so we convert to dict
-    def dataclass_to_dict(obj):
-        if hasattr(obj, '__dict__'):
-            return obj.__dict__
-        return obj
-
-    import json
-    return json.dumps(results, default=dataclass_to_dict, indent=2), {"Content-Type": "application/json"}
-
-from backend.models.comps.peer_finder import find_peer_group
-from backend.models.comps.comps_model import CompsModel, CompanyFinancials
 
 @app.route('/api/v1/generate-comps-model', methods=['POST'])
 async def generate_comps_model():
-    """
-    Generate a full Comparable Company Analysis (Comps) model.
-    """
-    data = await request.get_json()
-    ticker = data.get('ticker')
-    industry = data.get('industry', 'Software') # Default industry for now
+    """Generate a Comparable Company Analysis (Comps) model with live data."""
+
+    data = await request.get_json() or {}
+    ticker = (data.get('ticker') or '').strip().upper()
+    industry = data.get('industry', 'Software')
 
     if not ticker:
         return jsonify({"error": "Ticker is a required field"}), 400
 
     try:
-        # 1. Get peer group from AI
-        peer_group = await find_peer_group(ticker, industry)
-        
-        # 2. Fetch financials for target and peers (stubbed for now)
-        # In a real implementation, this would call our enhanced data_router
-        target_financials = CompanyFinancials(ticker, 2.5e12, 2.4e12, 200e9, 90e9, 70e9)
-        peer_financials = [
-            CompanyFinancials("GOOGL", 1.8e12, 1.7e12, 280e9, 85e9, 65e9),
-            CompanyFinancials("ORCL", 300e9, 350e9, 50e9, 20e9, 10e9),
-            CompanyFinancials("ADBE", 250e9, 245e9, 20e9, 8e9, 5e9),
-        ]
+        company_data = get_company_data_from_router(ticker)
+    except DataBundleError as exc:
+        response_body = {
+            "error": "data_unavailable",
+            "message": exc.message,
+            "details": exc.bundle.get("errors"),
+        }
+        return jsonify(response_body), exc.status_code
 
-        # 3. Run the comps model
-        comps_model = CompsModel(target_financials, peer_financials)
-        results = comps_model.run()
+    explicit_peers = data.get('peers') or data.get('peer_tickers')
+    peer_company_data, peer_symbols = await _collect_peer_company_data(ticker, industry, explicit_peers)
 
-        # 4. Return results
-        def dataclass_to_dict(obj):
-            if hasattr(obj, '__dict__'):
-                return obj.__dict__
-            return obj
+    try:
+        comps_fields = build_comps_fields_from_company_data(company_data, peer_company_data)
+    except DataBundleError as exc:
+        response_body = {
+            "error": "bundle_conversion_failed",
+            "message": exc.message,
+        }
+        return jsonify(response_body), exc.status_code
 
-        import json
-        return json.dumps(results, default=dataclass_to_dict, indent=2), {"Content-Type": "application/json"}
+    custom_assumptions = data.get('assumptions') or {}
 
+    try:
+        results = run_comps_engine(comps_fields, custom_assumptions)
+    except Exception as exc:
+        return jsonify({"error": "model_failure", "message": str(exc)}), 500
+
+    payload = {
+        "ticker": ticker,
+        "peers": peer_symbols,
+        "results": results,
+    }
+
+    return jsonify(_serialize_for_json(payload))
+
+from backend.models.sensitivity.sensitivity_analysis import generate_sensitivity_table
+import numpy as np
+
+@app.route('/api/v1/generate-full-analysis', methods=['POST'])
+async def generate_full_analysis():
+    """
+    A consolidated endpoint to run a model and its sensitivity analysis.
+    """
+    data = await request.get_json() or {}
+    model_type = (data.get('model_type') or '').lower()
+    ticker = (data.get('ticker') or '').strip().upper()
+    assumptions = data.get('assumptions') or {}
+
+    if not model_type or not ticker:
+        return jsonify({"error": "model_type and ticker are required"}), 400
+
+    try:
+        company_data = get_company_data_from_router(ticker)
+    except DataBundleError as exc:
+        response_body = {
+            "error": "data_unavailable",
+            "message": exc.message,
+            "details": exc.bundle.get("errors"),
+        }
+        return jsonify(response_body), exc.status_code
+
+    try:
+        if model_type == 'dcf':
+            dcf_fields = build_dcf_fields_from_company_data(company_data)
+            custom_assumptions = _normalize_dcf_assumptions(assumptions)
+            base_model_result = run_dcf_engine(dcf_fields, custom_assumptions)
+
+            wacc = custom_assumptions.get('wacc', 0.10)
+            terminal_growth = custom_assumptions.get('terminal_growth', 0.025)
+
+            wacc_range = np.linspace(max(0.02, wacc - 0.01), wacc + 0.01, 5)
+            growth_range = np.linspace(terminal_growth - 0.005, terminal_growth + 0.005, 5)
+
+            def dcf_runner_for_sensitivity(w: float, g: float) -> Dict[str, Any]:
+                custom = dict(custom_assumptions)
+                custom['wacc'] = w
+                custom['terminal_growth'] = g
+                result = run_dcf_engine(dcf_fields, custom)
+                return {"implied_share_price": result.get('implied_price')}
+
+            sensitivity_result = generate_sensitivity_table(
+                model_function=dcf_runner_for_sensitivity,
+                base_inputs={},
+                variable1_name="wacc", variable1_range=wacc_range,
+                variable2_name="terminal_growth", variable2_range=growth_range,
+                output_key="implied_share_price"
+            )
+
+        elif model_type == 'lbo':
+            lbo_fields = build_lbo_fields_from_company_data(company_data)
+            custom_assumptions = _normalize_lbo_assumptions(assumptions)
+            base_model_result = run_lbo_engine(lbo_fields, custom_assumptions)
+
+            entry_multiple = custom_assumptions.get('entry_multiple', 10.0)
+            exit_multiple = custom_assumptions.get('exit_multiple', 10.0)
+
+            entry_range = np.linspace(max(1.0, entry_multiple - 1.5), entry_multiple + 1.5, 5)
+            exit_range = np.linspace(max(1.0, exit_multiple - 1.5), exit_multiple + 1.5, 5)
+
+            def lbo_runner_for_sensitivity(entry: float, exit_: float) -> Dict[str, Any]:
+                custom = dict(custom_assumptions)
+                custom['entry_multiple'] = entry
+                custom['exit_multiple'] = exit_
+                result = run_lbo_engine(lbo_fields, custom)
+                return {"irr": result.get('irr')}
+
+            sensitivity_result = generate_sensitivity_table(
+                model_function=lbo_runner_for_sensitivity,
+                base_inputs={},
+                variable1_name="entry_multiple", variable1_range=entry_range,
+                variable2_name="exit_multiple", variable2_range=exit_range,
+                output_key="irr"
+            )
+
+        else:
+            return jsonify({"error": f"Unsupported model_type '{model_type}'"}), 400
+
+        payload = {
+            "ticker": ticker,
+            "model_type": model_type,
+            "base_model": base_model_result,
+            "sensitivity_analysis": sensitivity_result,
+        }
+
+        return jsonify(_serialize_for_json(payload))
+
+    except DataBundleError as exc:
+        return jsonify({"error": "bundle_conversion_failed", "message": exc.message}), exc.status_code
+    except Exception as exc:
+        print(f"❌ Error in full analysis endpoint: {exc}")
+        return jsonify({"error": "model_failure", "message": str(exc)}), 500
+
+@app.route('/api/v1/full-valuation-summary', methods=['POST'])
+async def full_valuation_summary():
+    """
+    Runs all available models (DCF, Comps, LBO) to generate a consolidated
+    valuation summary for the Football Field chart.
+    """
+    data = await request.get_json() or {}
+    ticker = (data.get('ticker') or '').strip().upper()
+    industry = data.get('industry', 'Software')
+
+    if not ticker:
+        return jsonify({"error": "Ticker is a required field"}), 400
+
+    try:
+        company_data = get_company_data_from_router(ticker)
+    except DataBundleError as exc:
+        response_body = {
+            "error": "data_unavailable",
+            "message": exc.message,
+            "details": exc.bundle.get("errors"),
+        }
+        return jsonify(response_body), exc.status_code
+
+    valuation_ranges: List[Dict[str, Any]] = []
+
+    # DCF valuation band
+    try:
+        dcf_fields = build_dcf_fields_from_company_data(company_data)
+        base_dcf = run_dcf_engine(dcf_fields, {})
+        wacc_base = base_dcf.get('wacc', 0.10)
+        growth_base = base_dcf.get('terminal_growth', 0.025)
+
+        price_scenarios = []
+        for wacc in np.linspace(max(0.02, wacc_base - 0.01), wacc_base + 0.01, 3):
+            for growth in np.linspace(growth_base - 0.004, growth_base + 0.004, 3):
+                custom = {"wacc": wacc, "terminal_growth": growth}
+                scenario = run_dcf_engine(dcf_fields, custom)
+                implied = scenario.get('implied_price')
+                if implied is not None:
+                    price_scenarios.append(float(implied))
+
+        implied_base = base_dcf.get('implied_price')
+        if implied_base is not None:
+            price_scenarios.append(float(implied_base))
+
+        if price_scenarios:
+            dcf_low = min(price_scenarios)
+            dcf_high = max(price_scenarios)
+            valuation_ranges.append({"name": "Discounted Cash Flow", "low": dcf_low, "high": dcf_high})
+    except Exception as exc:
+        print(f"⚠️ DCF summary failed: {exc}")
+
+    # LBO valuation band
+    try:
+        lbo_fields = build_lbo_fields_from_company_data(company_data)
+        lbo_defaults = _normalize_lbo_assumptions({})
+        base_lbo = run_lbo_engine(lbo_fields, lbo_defaults)
+
+        shares_outstanding = float(lbo_fields.market.shares_outstanding or 0)
+        net_debt = float(lbo_fields.capital.net_debt or 0)
+
+        def lbo_equity_price(result: Dict[str, Any]) -> float:
+            exit_equity_value_raw = result.get('exit_equity_value')
+            if exit_equity_value_raw is None:
+                exit_equity_value = 0.0
+            else:
+                exit_equity_value = float(exit_equity_value_raw)
+            if shares_outstanding > 0:
+                return exit_equity_value / shares_outstanding
+            sponsor_equity_value_raw = result.get('sponsor_equity_value')
+            sponsor_equity_raw = result.get('sponsor_equity')
+            if sponsor_equity_value_raw is None or not sponsor_equity_raw:
+                return 0.0
+            sponsor_equity_value = float(sponsor_equity_value_raw)
+            initial_equity = float(sponsor_equity_raw)
+            if initial_equity == 0:
+                return 0.0
+            return sponsor_equity_value / initial_equity
+
+        prices = [lbo_equity_price(base_lbo)]
+        for delta in (-1.0, 1.0):
+            custom = dict(lbo_defaults)
+            custom['entry_multiple'] = max(1.0, custom['entry_multiple'] + delta)
+            custom['exit_multiple'] = max(1.0, custom['exit_multiple'] + delta)
+            scenario = run_lbo_engine(lbo_fields, custom)
+            prices.append(lbo_equity_price(scenario))
+
+        valuation_ranges.append({"name": "LBO Sponsor Valuation", "low": min(prices), "high": max(prices)})
+    except Exception as exc:
+        print(f"⚠️ LBO summary failed: {exc}")
+
+    # Comps valuation band
+    try:
+        peer_company_data, peer_symbols = await _collect_peer_company_data(ticker, industry, data.get('peers'))
+        comps_fields = build_comps_fields_from_company_data(company_data, peer_company_data)
+        comps_results = run_comps_engine(comps_fields, {})
+
+        latest = company_data.get('latest', {})
+        market_info = company_data.get('market', {})
+        revenue = float(latest.get('revenue') or 0)
+        ebitda = float(latest.get('ebitda') or 0)
+        shares_outstanding = float(market_info.get('shares_out') or 0)
+        net_debt = float(market_info.get('net_debt') or 0)
+
+        percentiles = comps_results.get('percentiles', {})
+        ev_revenue = percentiles.get('ev_revenue', {})
+        ev_ebitda = percentiles.get('ev_ebitda', {})
+
+        def ev_to_price(ev: float) -> float:
+            equity_value = ev - net_debt
+            if shares_outstanding > 0:
+                return equity_value / shares_outstanding
+            return equity_value
+
+        ev_candidates = []
+        for key in ('p25', 'median', 'p75'):
+            if revenue and key in ev_revenue:
+                ev_candidates.append(revenue * float(ev_revenue[key]))
+            if ebitda and key in ev_ebitda:
+                ev_candidates.append(ebitda * float(ev_ebitda[key]))
+
+        prices = [ev_to_price(ev) for ev in ev_candidates if ev]
+        if prices:
+            valuation_ranges.append({
+                "name": "Comparable Companies",
+                "low": min(prices),
+                "high": max(prices),
+                "peers": peer_symbols,
+            })
+    except Exception as exc:
+        print(f"⚠️ Comps summary failed: {exc}")
+
+    summary_payload = {
+        "ticker": ticker,
+        "current_price": float(company_data.get('market', {}).get('price') or 0),
+        "valuation_ranges": valuation_ranges,
+    }
+
+    return jsonify(_serialize_for_json(summary_payload))
+
+# Lazy import for AI insights (AI dependency optional)
+def _get_ai_insights():
+    try:
+        from backend.models.ai_insights import explain_model_results, generate_risks_and_catalysts
+        return explain_model_results, generate_risks_and_catalysts
     except Exception as e:
-        print(f"❌ Error generating comps model: {e}")
+        print(f"⚠️ AI insights not available: {e}")
+        return None, None
+
+@app.route('/api/v1/explain-model', methods=['POST'])
+async def explain_model():
+    """
+    Uses AI to generate a narrative explanation of a model's results.
+    """
+    data = await request.get_json()
+    model_name = data.get('model_name')
+    model_data = data.get('model_data')
+
+    if not all([model_name, model_data]):
+        return jsonify({"error": "model_name and model_data are required"}), 400
+
+    explain_fn, _ = _get_ai_insights()
+    if explain_fn:
+        explanation = await explain_fn(model_name, model_data)
+    else:
+        explanation = "AI insights are not available. Please install the mcp package to enable this feature."
+    return jsonify({"explanation": explanation})
+
+@app.route('/api/v1/risks-catalysts', methods=['POST'])
+async def get_risks_catalysts():
+    """
+    Uses AI to generate key risks and catalysts for a company.
+    """
+    data = await request.get_json()
+    ticker = data.get('ticker')
+    # In a real implementation, we'd pass real financials
+    financials = {"revenue": 1000, "ebitda_margin": 0.25} 
+
+    if not ticker:
+        return jsonify({"error": "Ticker is a required field"}), 400
+    
+    _, generate_fn = _get_ai_insights()
+    if generate_fn:
+        analysis = await generate_fn(ticker, financials)
+    else:
+        analysis = {"risks": ["AI insights not available"], "catalysts": ["AI insights not available"]}
+    return jsonify(analysis)
+
+@app.route('/api/v1/historical-financials', methods=['GET'])
+async def get_historical_financials():
+    """
+    Fetches and formats historical financial data for charting.
+    """
+    ticker = request.args.get('ticker')
+    if not ticker:
+        return jsonify({"error": "Ticker is a required field"}), 400
+
+    try:
+        company_data = get_company_data_from_router(ticker)
+        historicals = company_data.get('historicals', [])
+
+        if not historicals:
+            raise DataBundleError(409, "No historical financials available")
+
+        years = [h.get('year') for h in historicals]
+        revenue = [h.get('revenue') for h in historicals]
+        ebitda = [h.get('ebitda') for h in historicals]
+        net_income = [h.get('net_income') for h in historicals]
+
+        chart_data = {
+            "years": years,
+            "revenue": revenue,
+            "ebitda": ebitda,
+            "net_income": net_income,
+        }
+
+        return jsonify(_serialize_for_json(chart_data))
+
+    except DataBundleError as exc:
+        response_body = {
+            "error": "data_unavailable",
+            "message": exc.message,
+            "details": exc.bundle.get("errors"),
+        }
+        return jsonify(response_body), exc.status_code
+    except Exception as e:
+        print(f"❌ Error fetching historical financials for {ticker}: {e}")
         return jsonify({"error": f"An internal error occurred: {str(e)}"}), 500
+
+# --- Main Application Runner ---
+if __name__ == '__main__':
+    try:
+        asyncio.run(app.run_task(host='0.0.0.0', port=10000, debug=True))
+    except KeyboardInterrupt:
+        print("Server stopped.")
+
+def _serialize_for_json(data: Any) -> Any:
+    if isinstance(data, Decimal):
+        return float(data)
+    if isinstance(data, (np.floating, np.integer)):
+        return data.item()
+    if isinstance(data, dict):
+        return {k: _serialize_for_json(v) for k, v in data.items()}
+    if isinstance(data, list):
+        return [_serialize_for_json(v) for v in data]
+    if isinstance(data, (tuple, set)):
+        return [_serialize_for_json(v) for v in data]
+    return data

@@ -1,6 +1,10 @@
-.PHONY: dev dev-api dev-ui dev-tunnel clean init diag:data
+# This file defines common tasks for the project.
 
-dev: dev-api
+.PHONY: dev dev-api dev-ui dev-tunnel clean init diag_data
+
+dev:
+	@echo "Starting dev server..."
+	@bash run_local.sh
 
 dev-api:
 	@echo "==> Finding available port..."
@@ -31,6 +35,6 @@ init:
 		echo "DATA_MODE=development\nDATA_STALENESS_MAX_MIN=30\nREQUIRE_MIN_FUND_YEARS=3\nPORT=8080\nDATABASE_URL=sqlite:///local.db\n\n# Required API keys (do not commit)\n#POLYGON_API_KEY=REDACTED
 	fi
 
-diag:data:
+diag_data:
 	@echo "Running data provider diagnostics for TICKER=$(TICKER)..."
 	@python scripts/diagnose_data.py $(TICKER)

@@ -13,7 +13,7 @@ NASDAQ_URL = "https://ftp.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
 NYSE_URL =   "https://ftp.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
 
 class ExchangeDirectory:
-    def __init__(self, cache_path=...) -> None:
+    def __init__(self, cache_path=None) -> None:
         self.cache_path = cache_path or CACHE_PATH
         self.data, self.as_of = self._load_or_refresh()
 
