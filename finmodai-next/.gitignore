@@ -7,3 +7,21 @@ cache/
 .env.local
 .next/
 
+
+# Next.js
+.next/
+finmodai-next/.next/
+
+# Node
+node_modules/
+finmodai-next/node_modules/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Cache / outputs
+cache/
+*.meta
+*.xlsx
