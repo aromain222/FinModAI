@@ -1,35 +1,19 @@
-/**
- * API Route: /api/macro/snapshot
- * 
- * Returns current macro snapshot with all indicators
- * Supports time range query parameter: ?range=1W|1M|3M|1Y|5Y|MAX
- */
+import { NextResponse } from 'next/server';
+import { getMacroSnapshot } from '@/lib/data/macroService';
+import { MacroSnapshotSchema } from '@/lib/schemas/macro';
 
-import { NextRequest, NextResponse } from 'next/server';
-import { getMacroSnapshot } from '@/lib/macroData';
-import type { TimeRange } from '@/types/macro';
+export const runtime = 'nodejs';
 
-export const dynamic = 'force-dynamic';
-
-export async function GET(req: NextRequest) {
+export async function GET() {
+  const traceId = crypto.randomUUID();
   try {
-    const { searchParams } = new URL(req.url);
-    const range = (searchParams.get('range') || '1M') as TimeRange;
-    
-    console.log(`[/api/macro/snapshot] Fetching macro snapshot (range: ${range})`);
-    
-    const snapshot = getMacroSnapshot(range);
-    
-    console.log(`[/api/macro/snapshot] ✅ Snapshot generated (risk: ${snapshot.riskScore}, regime: ${snapshot.riskRegime})`);
-    
-    return NextResponse.json(snapshot, { status: 200 });
-  } catch (error) {
-    console.error('[/api/macro/snapshot] ❌ Error:', error);
-    
+    const { data, meta } = await getMacroSnapshot({ traceId });
+    const parsed = MacroSnapshotSchema.parse(data);
+    return NextResponse.json({ ok: true, data: parsed, meta });
+  } catch (error: any) {
     return NextResponse.json(
-      { error: 'Failed to fetch macro snapshot' },
-      { status: 500 }
+      { ok: false, error: { code: 'PROVIDER_ERROR', message: error?.message || 'Macro snapshot unavailable' }, meta: { traceId } },
+      { status: 502 }
     );
   }
 }
-

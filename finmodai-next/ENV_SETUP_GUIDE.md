@@ -8,7 +8,7 @@ Create a `.env.local` file in the root of the project with the following variabl
 
 ```bash
 # OpenAI API Key (REQUIRED for chat functionality)
-OPENAI_API_KEY=REDACTED
+OPENAI_API_KEY=
 
 # Optional: Specify OpenAI model (defaults to gpt-4o-mini if not set)
 OPENAI_MODEL=gpt-4o-mini
@@ -19,17 +19,18 @@ OPENAI_MODEL=gpt-4o-mini
 ```bash
 # Supabase Configuration (REQUIRED for login/auth)
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=REDACTED
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
 ```
 
 ### 🟡 **OPTIONAL** for Enhanced Features:
 
 ```bash
-# News API (optional - for macro news integration)
-NEWS_API_KEY=your-newsapi-key-here
+# Finnhub API Key (optional - for real-time market data and macro news)
+# Get your free key at: https://finnhub.io/register
+FINNHUB_API_KEY=your-finnhub-api-key-here
 
 # Supabase Service Role Key (optional - for macro indicators from database)
-SUPABASE_SERVICE_ROLE_KEY=REDACTED
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
 ```
 
 ## Quick Start

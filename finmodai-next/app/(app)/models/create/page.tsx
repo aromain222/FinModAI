@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Home, ArrowLeft, TrendingUp, TrendingDown, Activity } from 'lucide-react';
-import { ModelPreview } from '@/components/models/ModelPreview';
 import { DownloadWorkbookButton } from '@/components/models/DownloadWorkbookButton';
 import { ModelResultsShell } from '@/components/models/ModelResultsShell';
 import { PreviewForModelType } from '@/components/models/previews/PreviewForModelType';
@@ -16,24 +15,36 @@ import { AssumptionsPanel } from '@/components/models/AssumptionsPanel';
 import { DiagnosticsPanel } from '@/components/models/DiagnosticsPanel';
 import { parseModelOutput } from '@/lib/models/parseModelOutput';
 import { extractModelAssumptions } from '@/lib/models/extractAssumptions';
-import { downloadWorkbook, type DownloadWorkbookParams } from '@/lib/downloadWorkbook';
+import { downloadWorkbook } from '@/lib/downloadWorkbook';
 import { ModelGenerationTimer } from '@/components/models/ModelGenerationTimer';
 import { TickerAutocomplete } from '@/components/tickers/TickerAutocomplete';
-import type { TickerResult } from '@/components/tickers/TickerAutocomplete';
+import {
+  buildLboPayload,
+  LboDealInputError,
+  type LboAdvancedFormValues,
+  type LboDealFormValues,
+  type SelectedCompany,
+} from '@/lib/models/lbo/buildLboDealInputs';
 import type { GenerateModelResponse } from '@/types/models';
 import { cn } from '@/lib/utils';
 import { APP_NAME } from '@/lib/branding';
 import { MissingInputsModal } from '@/components/models/MissingInputsModal';
-import { validateModelInputs } from '@/lib/modelInputValidation';
 import { MergerInputsPanel } from '@/components/models/MergerInputsPanel';
 import { getMissingMergerInputs } from '@/lib/models/merger/schema';
 import type { MergerModelInput } from '@/lib/models/merger/schema';
+import { buildMaDealInputs } from '@/lib/models/merger/buildMaDealInputs';
+import type { SelectedMaCompany } from '@/lib/models/merger/maDealInputs';
+import type { LboAdvancedOptions } from '@/types/lbo';
 import { OperatingInputsPanel } from '@/components/models/OperatingInputsPanel';
 import { getMissingOperatingInputs } from '@/lib/models/operating/schema';
 import type { OperatingModelInput } from '@/lib/models/operating/schema';
 import { AppliedDefaultsList, AppliedDefaultBadge } from '@/components/models/AppliedDefaultBadge';
 import { mapDcfToTearSheet } from '@/lib/models/dcf/mapToTearSheet';
 import { TearSheetRenderer } from '@/components/models/results/TearSheetRenderer';
+import { useToast } from '@/components/ToastProvider';
+import { apiFetch } from '@/lib/api/client';
+import { handleModelError } from '@/lib/models/handleModelError';
+import { ErrorAlert } from '@/components/ui/ErrorAlert';
 
 const MODEL_OPTIONS = [
   { value: 'three-statement', label: 'Three Statement Model', description: 'Full P&L, Balance Sheet, Cash Flow' },
@@ -43,6 +54,9 @@ const MODEL_OPTIONS = [
   { value: 'merger', label: 'Merger Model', description: 'Combined IS + EPS bridge + accretion/dilution' },
   { value: 'operating', label: 'Operating Model', description: 'Monthly FP&A + cash runway + variance analysis' }
 ] as const;
+
+const DEMO_HIDE_MA = true;
+const UI_MODEL_OPTIONS = DEMO_HIDE_MA ? MODEL_OPTIONS.filter((m) => m.value !== 'merger') : MODEL_OPTIONS;
 
 type ModelType = (typeof MODEL_OPTIONS)[number]['value'];
 
@@ -66,6 +80,11 @@ type ModelData = {
 type ScenarioName = 'bear' | 'base' | 'bull';
 
 type InsightCard = { title: string; body: string };
+
+// Helper to check extended model types
+function isExtendedModelType(type: string): type is 'merger' | 'operating' {
+  return type === 'merger' || type === 'operating';
+}
 
 interface ScenarioInputs {
   revenueGrowth: number;
@@ -167,6 +186,14 @@ const SCENARIO_LABELS: Record<ScenarioName, string> = {
   bear: 'Bear Case',
 };
 
+type ScenarioApiValue = 'BASE' | 'BULLISH' | 'BEARISH';
+
+const SCENARIO_TAB_TO_API: Record<ScenarioName, ScenarioApiValue> = {
+  base: 'BASE',
+  bull: 'BULLISH',
+  bear: 'BEARISH',
+};
+
 type ScenarioSliderConfig = {
   key: keyof ScenarioInputs;
   label: string;
@@ -225,8 +252,14 @@ const SCENARIO_SLIDER_CONFIGS: ScenarioSliderConfig[] = [
 type EnrichedModelResponse = GenerateModelResponse & {
   assumptions?: any; // ThreeStatementAssumptions (unified for all model types)
   summaryText?: string; // AI-generated summary of the base case
+  lboOutput?: any;
 };
 const EMPTY_PREVIEW = { sheetName: '', columns: [] as string[], rows: [] as (string | number | null)[][] };
+
+// Helper to remove undefined fields from objects (JSON.stringify automatically omits undefined)
+const cleanPayload = <T extends Record<string, any>>(payload: T): T => {
+  return JSON.parse(JSON.stringify(payload)) as T;
+};
 
 const normalizeNarrativeText = (value: unknown): string | null => {
   if (!value) {
@@ -261,13 +294,20 @@ const normalizeNarrativeText = (value: unknown): string | null => {
   return String(value);
 };
 
+const normalizeNonEmpty = (value: string | null | undefined) => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
 
 export default function CreateModelPage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const searchParams = useSearchParams();
   const initialType = useMemo(() => {
     const param = searchParams.get('type');
-    return MODEL_OPTIONS.some((option) => option.value === param) ? (param as ModelType) : 'dcf';
+    return UI_MODEL_OPTIONS.some((option) => option.value === param) ? (param as ModelType) : 'dcf';
   }, [searchParams]);
 
   const [modelType, setModelType] = useState<ModelType>(initialType);
@@ -296,12 +336,14 @@ export default function CreateModelPage() {
   }, [searchParams]);
   
   const [ticker, setTicker] = useState(initialTicker);
-  const [companyName, setCompanyName] = useState<string | null>(null);
+  const [selectedCompany, setSelectedCompany] = useState<SelectedCompany | null>(null);
   
   // Scenario configuration
   const [scenarioConfig, setScenarioConfig] = useState<ScenarioConfigState>(() => createDefaultScenarioConfig());
   const [activeScenarioTab, setActiveScenarioTab] = useState<ScenarioName>('base');
   const [scenarioLocked, setScenarioLocked] = useState(false);
+  const [scenarioAdjustmentNotes, setScenarioAdjustmentNotes] = useState('');
+  const [scenarioSummaryNotes, setScenarioSummaryNotes] = useState('');
   const [showAdvancedLbo, setShowAdvancedLbo] = useState(false);
   const [advancedLboForm, setAdvancedLboForm] = useState<AdvancedLboFormState>(() => createDefaultAdvancedLboState());
   
@@ -312,6 +354,11 @@ export default function CreateModelPage() {
   // Merger-specific configuration
   const [mergerInputs, setMergerInputs] = useState<Partial<MergerModelInput>>({});
   const [mergerInputsValid, setMergerInputsValid] = useState(false);
+  const [mergerCompanyData, setMergerCompanyData] = useState<{
+    acquirer: SelectedMaCompany;
+    target: SelectedMaCompany;
+  } | null>(null);
+  const [mergerCompanyError, setMergerCompanyError] = useState<string | null>(null);
   
   // Operating-specific configuration
   const [operatingInputs, setOperatingInputs] = useState<Partial<OperatingModelInput>>({});
@@ -322,8 +369,10 @@ export default function CreateModelPage() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [blocks, setBlocks] = useState<string[]>([]);
   
-  const [loading, setLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorTraceId, setErrorTraceId] = useState<string | undefined>(undefined);
+  const [errorDetails, setErrorDetails] = useState<string | undefined>(undefined);
   const [modelData, setModelData] = useState<ModelData | null>(null);
   const [generatedModel, setGeneratedModel] = useState<EnrichedModelResponse | null>(null);
   const [showResults, setShowResults] = useState(false);
@@ -335,11 +384,75 @@ export default function CreateModelPage() {
   const [reportPayload, setReportPayload] = useState<any>(null);
   const [insightCards, setInsightCards] = useState<InsightCard[]>([]);
   const [reportPdfUrl, setReportPdfUrl] = useState<string | null>(null);
-  const scenarioControlsDisabled = scenarioLocked || loading;
+  const lboScenarioUnsupported = modelType === 'lbo';
+  const scenarioControlsDisabled = scenarioLocked || isGenerating;
   const [lastRequestBody, setLastRequestBody] = useState<Record<string, any> | null>(null);
   const aiSummaryText = normalizeNarrativeText(modelData?.summary);
   const aiKeyAssumptions = Array.isArray(modelData?.keyAssumptions) ? modelData.keyAssumptions : [];
+
+  const resolveModelId = (resp: any, fallback?: string | null) =>
+    resp?.modelId ??
+    resp?.id ??
+    resp?.inserted?.id ??
+    resp?.model?.id ??
+    fallback ??
+    null;
+
+  const navigateToModel = (resp: any, fallback?: string | null) => {
+    const targetId = resolveModelId(resp, fallback);
+    if (!targetId) {
+      throw new Error('No model id returned from create/generate');
+    }
+    const path = `/models/${targetId}`;
+    console.log('[NAV] Redirecting to', path, resp);
+    router.push(path);
+  };
   const hasAiSummaryCard = Boolean(aiSummaryText) || aiKeyAssumptions.length > 0;
+
+  useEffect(() => {
+    if (modelType !== 'merger') {
+      return;
+    }
+    const buyer = mergerInputs.buyerTicker?.trim().toUpperCase();
+    const target = mergerInputs.targetTicker?.trim().toUpperCase();
+    if (!buyer || !target) {
+      setMergerCompanyData(null);
+      setMergerCompanyError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setMergerCompanyError(null);
+
+    const fetchCompanyData = async () => {
+      try {
+        const response = await fetch('/api/models/merger/pulled-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ acquirer: buyer, target }),
+        });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload?.message || 'Unable to load merger company data');
+        }
+        const payload = await response.json();
+        if (!cancelled) {
+          setMergerCompanyData(payload);
+          setMergerCompanyError(null);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setMergerCompanyData(null);
+          setMergerCompanyError(err?.message || 'Unable to load merger company data');
+        }
+      }
+    };
+
+    fetchCompanyData();
+    return () => {
+      cancelled = true;
+    };
+  }, [modelType, mergerInputs.buyerTicker, mergerInputs.targetTicker]);
   
   // Required inputs validation
   const [missingInputsModalOpen, setMissingInputsModalOpen] = useState(false);
@@ -358,6 +471,22 @@ export default function CreateModelPage() {
     financingFeesPercent: '3.0',
     minimumCashBalance: '50',
   });
+  const isValidNumberField = (value: string) =>
+    value.trim().length > 0 && Number.isFinite(Number(value));
+  const lboDealInputReady =
+    modelType !== 'lbo'
+      ? true
+      : Boolean(selectedCompany?.name && selectedCompany?.ticker) &&
+        isValidNumberField(lboRequiredInputs.entryMultiple) &&
+        isValidNumberField(lboRequiredInputs.exitEBITDAMultiple) &&
+        isValidNumberField(lboRequiredInputs.offerPremium) &&
+        isValidNumberField(lboRequiredInputs.exitYear) &&
+        isValidNumberField(lboRequiredInputs.leverageMultiple) &&
+        isValidNumberField(lboRequiredInputs.termLoanBRate) &&
+        isValidNumberField(lboRequiredInputs.revolverRate) &&
+        isValidNumberField(lboRequiredInputs.transactionFeesPercent) &&
+        isValidNumberField(lboRequiredInputs.financingFeesPercent) &&
+        isValidNumberField(lboRequiredInputs.minimumCashBalance);
 
   useEffect(() => {
     setModelType(initialType);
@@ -371,6 +500,45 @@ export default function CreateModelPage() {
     }
   }, [searchParams]);
 
+  // Apply prefill data from Agent (if available)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const prefillKey = `modelPrefill_${modelType}`;
+    const prefillData = localStorage.getItem(prefillKey);
+    
+    if (prefillData) {
+      try {
+        const prefill = JSON.parse(prefillData);
+        
+        // Apply ticker if available
+        if (prefill.ticker && !ticker) {
+          setTicker(prefill.ticker.toUpperCase());
+        }
+        
+        // Apply buyer/target tickers for merger models
+        if (modelType === 'merger') {
+          if (prefill.buyerTicker && !ticker) {
+            setTicker(prefill.buyerTicker.toUpperCase());
+          }
+          // Note: targetTicker would need a separate field in the merger form
+        }
+        
+        // Apply forecast years for DCF/Operating models
+        if (prefill.forecastYears && (modelType === 'dcf' || modelType === 'operating')) {
+          // This would need to be applied to the scenario config or form state
+          // For now, we'll just log it
+          console.log('[Agent Prefill] Forecast years:', prefill.forecastYears);
+        }
+        
+        // Clear prefill after applying (one-time use)
+        localStorage.removeItem(prefillKey);
+      } catch (error) {
+        console.warn('[Agent Prefill] Failed to parse prefill data:', error);
+      }
+    }
+  }, [modelType, ticker]);
+
   // Save last ticker to localStorage when it changes (if "remember last ticker" is enabled)
   useEffect(() => {
     if (ticker && typeof window !== 'undefined') {
@@ -381,6 +549,12 @@ export default function CreateModelPage() {
     }
   }, [ticker]);
 
+  useEffect(() => {
+    if (selectedCompany && selectedCompany.ticker !== ticker.trim().toUpperCase()) {
+      setSelectedCompany(null);
+    }
+  }, [selectedCompany, ticker]);
+
   const scenarioFeatureEnabled = modelType === 'dcf' || modelType === 'lbo';
 
   useEffect(() => {
@@ -388,11 +562,51 @@ export default function CreateModelPage() {
   }, [modelType]);
 
   useEffect(() => {
+    if (modelType === 'lbo' && activeScenarioTab !== 'base') {
+      setActiveScenarioTab('base');
+    }
+  }, [modelType, activeScenarioTab]);
+
+  useEffect(() => {
     if (modelType !== 'lbo') {
       setShowAdvancedLbo(false);
       setAdvancedLboForm(createDefaultAdvancedLboState());
     }
   }, [modelType]);
+
+  useEffect(() => {
+    const includeFlag = scenarioFeatureEnabled ? scenarioConfig.includeScenarios : false;
+    const base = scenarioConfig.base;
+    const defaultNotes = includeFlag
+      ? `Base case: ${base.revenueGrowth}% revenue growth, ${base.ebitdaMargin}% EBITDA margin, ${base.wacc}% WACC, ${base.terminalGrowth}% terminal growth`
+      : '';
+
+    if (!includeFlag) {
+      if (scenarioAdjustmentNotes) {
+        setScenarioAdjustmentNotes('');
+      }
+      if (scenarioSummaryNotes) {
+        setScenarioSummaryNotes('');
+      }
+      return;
+    }
+
+    if (!scenarioAdjustmentNotes && defaultNotes) {
+      setScenarioAdjustmentNotes(defaultNotes);
+    }
+    if (!scenarioSummaryNotes && defaultNotes) {
+      setScenarioSummaryNotes(defaultNotes);
+    }
+  }, [
+    scenarioFeatureEnabled,
+    scenarioConfig.includeScenarios,
+    scenarioConfig.base.revenueGrowth,
+    scenarioConfig.base.ebitdaMargin,
+    scenarioConfig.base.wacc,
+    scenarioConfig.base.terminalGrowth,
+    scenarioAdjustmentNotes,
+    scenarioSummaryNotes,
+  ]);
 
   const fetchModelStats = useCallback(async (symbol: string, type: string) => {
     try {
@@ -456,8 +670,27 @@ export default function CreateModelPage() {
     return Object.keys(normalized).length > 0 ? normalized : undefined;
   };
 
+  const collectNullPaths = (value: unknown, prefix = ''): string[] => {
+    if (value === null) {
+      return [prefix || 'root'];
+    }
+    if (Array.isArray(value)) {
+      return value.flatMap((item, idx) => collectNullPaths(item, `${prefix}[${idx}]`));
+    }
+    if (value && typeof value === 'object') {
+      return Object.entries(value).flatMap(([key, val]) =>
+        collectNullPaths(val, prefix ? `${prefix}.${key}` : key)
+      );
+    }
+    return [];
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (isGenerating) {
+      return;
+    }
     
     // Define trimmedTicker for non-merger, non-operating models
     const trimmedTicker = modelType !== 'merger' && modelType !== 'operating' 
@@ -465,31 +698,20 @@ export default function CreateModelPage() {
       : '';
     
     // For merger models, ticker validation is different (needs buyer + target)
-    if (modelType !== 'merger' && modelType !== 'operating') {
+    if (modelType !== 'merger' && modelType !== 'operating' && modelType !== 'lbo') {
       if (!trimmedTicker) {
         setError('Please enter a ticker.');
         return;
       }
     }
 
-    // Validate required inputs before generation
     if (modelType === 'lbo') {
-      const validation = validateModelInputs('lbo', {
-        entryMultiple: lboRequiredInputs.entryMultiple ? parseFloat(lboRequiredInputs.entryMultiple) : undefined,
-        exitEBITDAMultiple: lboRequiredInputs.exitEBITDAMultiple ? parseFloat(lboRequiredInputs.exitEBITDAMultiple) : undefined,
-        offerPremium: lboRequiredInputs.offerPremium ? parseFloat(lboRequiredInputs.offerPremium) / 100 : undefined,
-        exitYear: lboRequiredInputs.exitYear ? parseFloat(lboRequiredInputs.exitYear) : undefined,
-        leverageMultiple: lboRequiredInputs.leverageMultiple ? parseFloat(lboRequiredInputs.leverageMultiple) : undefined,
-        termLoanBRate: lboRequiredInputs.termLoanBRate ? parseFloat(lboRequiredInputs.termLoanBRate) / 100 : undefined,
-        revolverRate: lboRequiredInputs.revolverRate ? parseFloat(lboRequiredInputs.revolverRate) / 100 : undefined,
-        transactionFeesPercent: lboRequiredInputs.transactionFeesPercent ? parseFloat(lboRequiredInputs.transactionFeesPercent) / 100 : undefined,
-        financingFeesPercent: lboRequiredInputs.financingFeesPercent ? parseFloat(lboRequiredInputs.financingFeesPercent) / 100 : undefined,
-        minimumCashBalance: lboRequiredInputs.minimumCashBalance ? parseFloat(lboRequiredInputs.minimumCashBalance) : undefined,
-      });
-      
-      if (!validation.isValid) {
-        setMissingInputs(validation.missingRequired);
-        setMissingInputsModalOpen(true);
+      if (!selectedCompany?.name || !selectedCompany?.ticker) {
+        setError('Select a company before generating an LBO model.');
+        return;
+      }
+      if (!lboDealInputReady) {
+        setError('Complete all required LBO inputs before generating.');
         return;
       }
     }
@@ -513,10 +735,163 @@ export default function CreateModelPage() {
       }
     }
 
+    const scenarioForRequest: ScenarioApiValue | null = scenarioFeatureEnabled
+      ? SCENARIO_TAB_TO_API[activeScenarioTab] ?? null
+      : 'BASE';
+
+    if (!scenarioForRequest) {
+      const message = 'Select a scenario in Settings before generating a model.';
+      setError(message);
+      showToast({
+        title: 'Missing scenario',
+        description: message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const includeScenarioFlag = scenarioFeatureEnabled ? scenarioConfig.includeScenarios : false;
+    const baseScenario = scenarioConfig.base;
+    const sliderOverridesPercent = scenarioFeatureEnabled
+      ? {
+          revenueGrowth: baseScenario.revenueGrowth,
+          ebitdaMargin: baseScenario.ebitdaMargin,
+          wacc: baseScenario.wacc,
+          terminalGrowth: baseScenario.terminalGrowth,
+        }
+      : null;
+    const sliderOverrides =
+      sliderOverridesPercent
+        ? {
+            revenueGrowth: sliderOverridesPercent.revenueGrowth / 100,
+            ebitdaMargin: sliderOverridesPercent.ebitdaMargin / 100,
+            wacc: sliderOverridesPercent.wacc / 100,
+            terminalGrowth: sliderOverridesPercent.terminalGrowth / 100,
+          }
+        : undefined;
+    const normalizedWacc = scenarioFeatureEnabled ? sliderOverrides?.wacc : undefined;
+    const normalizedTerminalGrowth = scenarioFeatureEnabled ? sliderOverrides?.terminalGrowth : undefined;
+    const scenarioInputsPayload = scenarioFeatureEnabled
+      ? {
+          base: mapScenarioInputsForApi(scenarioConfig.base),
+          ...(includeScenarioFlag
+            ? {
+                bull: mapScenarioInputsForApi(scenarioConfig.bull),
+                bear: mapScenarioInputsForApi(scenarioConfig.bear),
+              }
+            : {}),
+        }
+      : undefined;
+    const defaultScenarioNoteText = includeScenarioFlag
+      ? `Base case: ${baseScenario.revenueGrowth}% revenue growth, ${baseScenario.ebitdaMargin}% EBITDA margin, ${baseScenario.wacc}% WACC, ${baseScenario.terminalGrowth}% terminal growth`
+      : '';
+    const advancedLboPayload = normalizeAdvancedLboOptions();
+    const lboOverridesPayload =
+      modelType === 'lbo'
+        ? {
+            entryMultiple: lboRequiredInputs.entryMultiple ? parseFloat(lboRequiredInputs.entryMultiple) : undefined,
+            exitMultiple: lboRequiredInputs.exitEBITDAMultiple ? parseFloat(lboRequiredInputs.exitEBITDAMultiple) : undefined,
+            offerPremium: lboRequiredInputs.offerPremium ? parseFloat(lboRequiredInputs.offerPremium) / 100 : undefined,
+            leverageMultiple: lboRequiredInputs.leverageMultiple ? parseFloat(lboRequiredInputs.leverageMultiple) : undefined,
+            termLoanBRate: lboRequiredInputs.termLoanBRate ? parseFloat(lboRequiredInputs.termLoanBRate) / 100 : undefined,
+            revolverRate: lboRequiredInputs.revolverRate ? parseFloat(lboRequiredInputs.revolverRate) / 100 : undefined,
+            transactionFeesPercent: lboRequiredInputs.transactionFeesPercent ? parseFloat(lboRequiredInputs.transactionFeesPercent) / 100 : undefined,
+            financingFeesPercent: lboRequiredInputs.financingFeesPercent ? parseFloat(lboRequiredInputs.financingFeesPercent) / 100 : undefined,
+            minimumCash: lboRequiredInputs.minimumCashBalance ? parseFloat(lboRequiredInputs.minimumCashBalance) : undefined,
+            exitYear: lboRequiredInputs.exitYear ? parseFloat(lboRequiredInputs.exitYear) : undefined,
+          }
+        : undefined;
+    const customCompsList =
+      modelType === 'comps' && customComps.trim()
+        ? customComps
+            .split(',')
+            .map((t) => t.trim())
+            .filter((t) => t)
+        : undefined;
+    const scenarioValue = (scenarioForRequest || 'BASE').toUpperCase();
+    const scenarioAdjustmentNotesValue =
+      scenarioAdjustmentNotes && scenarioAdjustmentNotes.trim().length > 0
+        ? scenarioAdjustmentNotes
+        : defaultScenarioNoteText;
+    const scenarioSummaryNotesValue =
+      scenarioSummaryNotes && scenarioSummaryNotes.trim().length > 0
+        ? scenarioSummaryNotes
+        : scenarioAdjustmentNotesValue;
+
+    const assumptionsPayload: Record<string, any> = {
+      scenario: scenarioValue,
+      ticker: trimmedTicker,
+      modelType,
+      includeScenarios: includeScenarioFlag,
+      activeScenario: activeScenarioTab,
+      scenarioConfig,
+    };
+    if (scenarioInputsPayload) {
+      assumptionsPayload.scenarioInputs = scenarioInputsPayload;
+    }
+    assumptionsPayload.scenarioNotes = scenarioAdjustmentNotesValue;
+    if (sliderOverridesPercent) {
+      assumptionsPayload.sliderOverridesPercent = sliderOverridesPercent;
+    }
+    if (sliderOverrides) {
+      assumptionsPayload.sliderOverrides = sliderOverrides;
+    }
+    if (customCompsList) {
+      assumptionsPayload.customComps = customCompsList;
+    }
+    if (modelType === 'comps') {
+      assumptionsPayload.useOnlyCustom = useOnlyCustom;
+    }
+    if (advancedLboPayload) {
+      assumptionsPayload.lboAdvanced = advancedLboPayload;
+    }
+    if (lboOverridesPayload) {
+      assumptionsPayload.lboOverrides = lboOverridesPayload;
+    }
+    if (modelType === 'merger') {
+      assumptionsPayload.mergerInputs = mergerInputs;
+    }
+    if (modelType === 'operating') {
+      assumptionsPayload.operatingInputs = operatingInputs;
+    }
+
+    // For merger models, include buyerTicker and targetTicker
+    const buyerTicker = modelType === 'merger' && mergerInputs.buyerTicker
+      ? mergerInputs.buyerTicker.trim().toUpperCase()
+      : '';
+    const targetTicker = modelType === 'merger' && mergerInputs.targetTicker
+      ? mergerInputs.targetTicker.trim().toUpperCase()
+      : '';
+
+    const canonicalCompanyName = normalizeNonEmpty(selectedCompany?.name);
+    const canonicalTicker = modelType === 'lbo'
+      ? normalizeNonEmpty(selectedCompany?.ticker)
+      : normalizeNonEmpty(trimmedTicker);
+
+    const canonicalPayload = {
+      ticker: modelType === 'merger' ? buyerTicker : canonicalTicker ?? trimmedTicker, // For backwards compatibility
+      ...(modelType === 'merger' && buyerTicker && targetTicker ? {
+        buyerTicker,
+        targetTicker,
+      } : {}),
+      modelType,
+      model_type: modelType,
+      scenario: scenarioValue,
+      scenario_adjustment_notes: scenarioAdjustmentNotesValue,
+      scenarioNotes: scenarioAdjustmentNotesValue,
+      scenario_summary_notes: scenarioSummaryNotesValue,
+      scenarioSummaryNotes: scenarioSummaryNotesValue,
+      assumptions: assumptionsPayload,
+      ...(canonicalCompanyName ? {
+        companyName: canonicalCompanyName,
+        company_name: canonicalCompanyName,
+      } : {}),
+    };
+
     const metricsModelTypeParam = modelType === 'three-statement' ? 'three-statement' : modelType;
     const runStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
     setError(null);
-    setLoading(true);
+    setIsGenerating(true);
     setShowResults(false);
     setGeneratedModel(null);
     setLastDurationMs(undefined);
@@ -531,103 +906,209 @@ export default function CreateModelPage() {
     setReportError(null);
     setReportLoading(false);
 
-    const includeScenarioFlag = scenarioFeatureEnabled ? scenarioConfig.includeScenarios : false;
-    const baseScenario = scenarioConfig.base;
-    const scenarioInputsPayload = scenarioFeatureEnabled
-      ? {
-          base: mapScenarioInputsForApi(scenarioConfig.base),
-          ...(includeScenarioFlag
-            ? {
-                bull: mapScenarioInputsForApi(scenarioConfig.bull),
-                bear: mapScenarioInputsForApi(scenarioConfig.bear),
-              }
-            : {}),
-        }
-      : undefined;
-    const scenarioNoteText = includeScenarioFlag
-      ? `Base case: ${baseScenario.revenueGrowth}% revenue growth, ${baseScenario.ebitdaMargin}% EBITDA margin, ${baseScenario.wacc}% WACC, ${baseScenario.terminalGrowth}% terminal growth`
-      : undefined;
 
     let latestAnalysisData: ModelData | null = null;
+    let modelId: string | null = null;
 
     try {
-      // Step 1: Generate model analysis with AI (optional - for display purposes)
-      try {
-        const analysisResponse = await fetch('/api/models/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ticker: trimmedTicker,
-            companyName: companyName || undefined,
-            modelType,
-            includeScenario: includeScenarioFlag,
-            scenarioNotes: scenarioNoteText || null,
-          })
-        });
+      type CreateModelResponse = {
+        modelId: string;
+        id?: string;
+      };
 
-        if (analysisResponse.ok) {
-          const analysisData = await analysisResponse.json();
-          latestAnalysisData = analysisData;
-          setModelData(analysisData);
-        }
-      } catch (analysisError) {
-        console.warn('AI analysis failed, continuing with Excel generation:', analysisError);
+      const createData = await apiFetch<CreateModelResponse>('/api/models/create', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...canonicalPayload,
+        }),
+      });
+
+      // CRITICAL: Validate modelId exists before proceeding
+      modelId = resolveModelId(createData);
+      if (!modelId || typeof modelId !== 'string') {
+        throw new Error('No modelId returned from create endpoint');
       }
 
-      // Step 2: Generate Excel model with OpenAI-enriched assumptions
+      console.log('[handleSubmit] Create returned modelId:', modelId);
+
+      if ((modelType as string) === 'lbo') {
+        if (!modelId) {
+          throw new Error('Model ID is required for LBO model');
+        }
+
+        let dealInputs: ReturnType<typeof buildLboPayload>;
+        try {
+          const dealFormValues: LboDealFormValues = {
+            entryMultiple: lboRequiredInputs.entryMultiple,
+            exitEBITDAMultiple: lboRequiredInputs.exitEBITDAMultiple,
+            offerPremium: lboRequiredInputs.offerPremium,
+            exitYear: lboRequiredInputs.exitYear,
+            leverageMultiple: lboRequiredInputs.leverageMultiple,
+            termLoanBRate: lboRequiredInputs.termLoanBRate,
+            revolverRate: lboRequiredInputs.revolverRate,
+            transactionFeesPercent: lboRequiredInputs.transactionFeesPercent,
+            financingFeesPercent: lboRequiredInputs.financingFeesPercent,
+            minimumCashBalance: lboRequiredInputs.minimumCashBalance,
+          };
+          const advancedFormValues: LboAdvancedFormValues = {
+            managementRolloverPct: advancedLboForm.managementRolloverPct,
+            preferredEquityAmount: advancedLboForm.preferredEquityAmount,
+            subordinatedNotesAmount: advancedLboForm.subordinatedNotesAmount,
+            minimumCashAtClose: advancedLboForm.minimumCashAtClose,
+          };
+          dealInputs = buildLboPayload({
+            selectedCompany,
+            formValues: dealFormValues,
+            advancedValues: advancedFormValues,
+          });
+        } catch (err) {
+          if (err instanceof LboDealInputError) {
+            const fieldDetails = Object.entries(err.fieldErrors)
+              .map(([field, message]) => `${field}: ${message}`)
+              .join('; ');
+            setError(err.message);
+            setErrorDetails(fieldDetails);
+            return;
+          }
+          setError((err as Error)?.message || 'Invalid LBO inputs');
+          return;
+        }
+
+        if (process.env.NODE_ENV !== 'production') {
+          const nullPaths = collectNullPaths(dealInputs);
+          if (nullPaths.length > 0) {
+            throw new Error(`LBO payload contains nulls at: ${nullPaths.join(', ')}`);
+          }
+          console.log('[LBO_PAYLOAD]', {
+            company: dealInputs.company,
+            entry: dealInputs.entry,
+            exit: dealInputs.exit,
+            leverage: dealInputs.leverage,
+            debtPricing: dealInputs.debtPricing,
+            fees: dealInputs.fees,
+            liquidity: dealInputs.liquidity,
+            advanced: dealInputs.advanced,
+          });
+        }
+
+        setLastRequestBody(dealInputs as Record<string, any>);
+
+        const lboResponse = await fetch(`/api/models/lbo?modelId=${encodeURIComponent(modelId)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dealInputs),
+        });
+
+        if (!lboResponse.ok) {
+          const normalizedError = await handleModelError(lboResponse);
+          throw new Error(normalizedError.message);
+        }
+
+        const lboData = await lboResponse.json();
+
+        setAppliedDefaults(lboData.appliedDefaults || []);
+        setWarnings(lboData.warnings || []);
+        setBlocks(lboData.blocks || []);
+
+        if (lboData.blocks && lboData.blocks.length > 0) {
+          setError(`Model generation blocked: ${lboData.blocks.join('; ')}`);
+          return;
+        }
+
+        const resolvedModel: EnrichedModelResponse = {
+          modelId: modelId,
+          ticker: lboData.ticker || dealInputs.company.ticker,
+          modelType: 'lbo' as any,
+          createdAt: new Date().toISOString(),
+          downloadUrl: lboData.downloadUrl || '',
+          preview: lboData.preview || EMPTY_PREVIEW,
+          summaryText: lboData.report?.sections?.[0]?.body || `LBO model generated for ${dealInputs.company.ticker}`,
+          lboSummary: lboData.lboSummary,
+          lboOutput: lboData.lboOutput,
+        };
+
+        setGeneratedModel(resolvedModel);
+        setShowResults(true);
+        if (scenarioFeatureEnabled) {
+          setScenarioLocked(true);
+        }
+        const clientDuration = Math.max(
+          0,
+          Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - runStart)
+        );
+        setLastDurationMs(clientDuration);
+
+        navigateToModel(lboData, modelId);
+        return;
+      }
+
+      // Step 1: Generate Excel model with OpenAI-enriched assumptions
       // Note: If any data is missing, OpenAI fills in realistic values
       // so we never see zero NOPAT/FCF rows in the model
-      const advancedLboPayload = normalizeAdvancedLboOptions();
       const requestBody: Record<string, any> = {
-        ticker: trimmedTicker,
-        modelType,
+        ...canonicalPayload,
+        scenarioNotes: scenarioAdjustmentNotesValue,
+        scenario_summary_notes: scenarioSummaryNotesValue,
+        scenarioSummaryNotes: scenarioSummaryNotesValue,
         includeScenarios: includeScenarioFlag || undefined,
-        wacc: scenarioFeatureEnabled ? baseScenario.wacc / 100 : undefined,
-        terminalGrowth: scenarioFeatureEnabled ? baseScenario.terminalGrowth / 100 : undefined,
-        sliderOverrides: scenarioFeatureEnabled
-          ? {
-              revenueGrowth: baseScenario.revenueGrowth / 100,
-              ebitdaMargin: baseScenario.ebitdaMargin / 100,
-              wacc: baseScenario.wacc / 100,
-              terminalGrowth: baseScenario.terminalGrowth / 100,
-            }
-          : undefined,
+        wacc: normalizedWacc,
+        terminalGrowth: normalizedTerminalGrowth,
+        sliderOverrides,
         scenarioInputs: scenarioInputsPayload,
-        scenarioNotes: scenarioNoteText,
-        customComps:
-          modelType === 'comps' && customComps.trim()
-            ? customComps.split(',').map((t) => t.trim()).filter((t) => t)
-            : undefined,
+        customComps: customCompsList,
         useOnlyCustom: modelType === 'comps' ? useOnlyCustom : undefined,
-        lboAdvanced: modelType === 'lbo' ? advancedLboPayload : undefined,
-        lboOverrides: modelType === 'lbo' ? {
-          entryMultiple: lboRequiredInputs.entryMultiple ? parseFloat(lboRequiredInputs.entryMultiple) : undefined,
-          exitMultiple: lboRequiredInputs.exitEBITDAMultiple ? parseFloat(lboRequiredInputs.exitEBITDAMultiple) : undefined,
-          offerPremium: lboRequiredInputs.offerPremium ? parseFloat(lboRequiredInputs.offerPremium) / 100 : undefined,
-          leverageMultiple: lboRequiredInputs.leverageMultiple ? parseFloat(lboRequiredInputs.leverageMultiple) : undefined,
-          termLoanBRate: lboRequiredInputs.termLoanBRate ? parseFloat(lboRequiredInputs.termLoanBRate) / 100 : undefined,
-          revolverRate: lboRequiredInputs.revolverRate ? parseFloat(lboRequiredInputs.revolverRate) / 100 : undefined,
-          transactionFeesPercent: lboRequiredInputs.transactionFeesPercent ? parseFloat(lboRequiredInputs.transactionFeesPercent) / 100 : undefined,
-          financingFeesPercent: lboRequiredInputs.financingFeesPercent ? parseFloat(lboRequiredInputs.financingFeesPercent) / 100 : undefined,
-          minimumCash: lboRequiredInputs.minimumCashBalance ? parseFloat(lboRequiredInputs.minimumCashBalance) : undefined,
-          exitYear: lboRequiredInputs.exitYear ? parseFloat(lboRequiredInputs.exitYear) : undefined,
-        } : undefined,
-        mergerInputs: modelType === 'merger' ? mergerInputs : undefined,
-        operatingInputs: modelType === 'operating' ? operatingInputs : undefined,
+        lboAdvanced: advancedLboPayload,
+        lboOverrides: lboOverridesPayload,
+        mergerInputs: (modelType as string) === 'merger' ? mergerInputs : undefined,
+        operatingInputs: (modelType as string) === 'operating' ? operatingInputs : undefined,
       };
       setLastRequestBody(requestBody);
       
       // For merger models, use the merger-specific API
-      if (modelType === 'merger') {
+      // modelId is already set from STEP 0 (create)
+      if ((modelType as string) === 'merger') {
+        if (!modelId) {
+          throw new Error('Model ID is required for merger model');
+        }
+
+        if (mergerCompanyError) {
+          setError(mergerCompanyError);
+          return;
+        }
+
+        let maDealInputs;
+        try {
+          maDealInputs = buildMaDealInputs(
+            mergerCompanyData?.acquirer,
+            mergerCompanyData?.target,
+            {
+              dealStructure: mergerInputs.dealStructure,
+              premiumPct: mergerInputs.premiumPct,
+              stockPct: mergerInputs.stockPct,
+              feesTotal: mergerInputs.feesTotal,
+              revenueSynergies: mergerInputs.revenueSynergies,
+              cogsSavings: mergerInputs.cogsSavings,
+              opexSavings: mergerInputs.opexSavings,
+            }
+          );
+        } catch (err: any) {
+          setError(err?.message || 'Invalid M&A inputs');
+          return;
+        }
+
         const mergerResponse = await fetch('/api/models/merger', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(mergerInputs),
+          body: JSON.stringify({
+            ...mergerInputs,
+            maDealInputs,
+            modelId, // Pass modelId from create step
+          }),
         });
         
         if (!mergerResponse.ok) {
-          const errorData = await mergerResponse.json().catch(() => ({}));
-          throw new Error(errorData.error || 'Failed to generate merger model');
+          const normalizedError = await handleModelError(mergerResponse);
+          throw new Error(normalizedError.message);
         }
         
         const mergerData = await mergerResponse.json();
@@ -643,30 +1124,11 @@ export default function CreateModelPage() {
           return;
         }
         
-        // Download Excel
-        const downloadResponse = await fetch('/api/models/merger/download', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(mergerInputs),
-        });
-        
-        if (downloadResponse.ok) {
-          const blob = await downloadResponse.blob();
-          const url = URL.createObjectURL(blob);
-          const anchor = document.createElement('a');
-          anchor.href = url;
-          anchor.download = `Merger_Model_${mergerInputs.buyerTicker}_${mergerInputs.targetTicker}.xlsx`;
-          document.body.appendChild(anchor);
-          anchor.click();
-          anchor.remove();
-          URL.revokeObjectURL(url);
-        }
-        
-        // Set generated model
+        // Set generated model - use modelId from create step
         const resolvedModel: EnrichedModelResponse = {
-          modelId: mergerData.modelId || `merger-${Date.now()}`,
+          modelId: modelId, // Always use modelId from create step
           ticker: mergerData.ticker || `${mergerInputs.buyerTicker}/${mergerInputs.targetTicker}`,
-          modelType: 'merger',
+          modelType: 'merger' as any,
           createdAt: new Date().toISOString(),
           downloadUrl: '',
           preview: mergerData.preview || EMPTY_PREVIEW,
@@ -682,20 +1144,31 @@ export default function CreateModelPage() {
           Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - runStart)
         );
         setLastDurationMs(clientDuration);
+        
+        // Navigate to model detail page
+        navigateToModel(mergerData, modelId);
         return;
       }
       
       // For operating models, use the operating-specific API
-      if (modelType === 'operating') {
+      // modelId is already set from STEP 0 (create)
+      if ((modelType as string) === 'operating') {
+        if (!modelId) {
+          throw new Error('Model ID is required for operating model');
+        }
+
         const operatingResponse = await fetch('/api/models/operating', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(operatingInputs),
+          body: JSON.stringify({
+            ...operatingInputs,
+            modelId, // Pass modelId from create step
+          }),
         });
         
         if (!operatingResponse.ok) {
-          const errorData = await operatingResponse.json().catch(() => ({}));
-          throw new Error(errorData.error || 'Failed to generate operating model');
+          const normalizedError = await handleModelError(operatingResponse);
+          throw new Error(normalizedError.message);
         }
         
         const operatingData = await operatingResponse.json();
@@ -711,30 +1184,11 @@ export default function CreateModelPage() {
           return;
         }
         
-        // Download Excel
-        const downloadResponse = await fetch('/api/models/operating/download', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(operatingInputs),
-        });
-        
-        if (downloadResponse.ok) {
-          const blob = await downloadResponse.blob();
-          const url = URL.createObjectURL(blob);
-          const anchor = document.createElement('a');
-          anchor.href = url;
-          anchor.download = `Operating_Model_${operatingInputs.startMonth || 'model'}.xlsx`;
-          document.body.appendChild(anchor);
-          anchor.click();
-          anchor.remove();
-          URL.revokeObjectURL(url);
-        }
-        
-        // Set generated model
+        // Set generated model - use modelId from create step
         const resolvedModel: EnrichedModelResponse = {
-          modelId: operatingData.modelId || `operating-${Date.now()}`,
+          modelId: modelId, // Always use modelId from create step
           ticker: operatingData.ticker || `Operating Model - ${operatingInputs.startMonth}`,
-          modelType: 'operating',
+          modelType: 'operating' as any,
           createdAt: new Date().toISOString(),
           downloadUrl: '',
           preview: operatingData.preview || EMPTY_PREVIEW,
@@ -750,31 +1204,46 @@ export default function CreateModelPage() {
           Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - runStart)
         );
         setLastDurationMs(clientDuration);
+        
+        // Navigate to model detail page
+        navigateToModel(operatingData, modelId);
         return;
       }
       
-      // For standard models (DCF, LBO, 3-Statement, Comps), use generateModel API
-      const generateResponse = await fetch('/api/generateModel', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json', // Request JSON to get appliedDefaults
-        },
-        body: JSON.stringify(requestBody),
+      // STEP 2: Generate model data using the modelId from database
+      // modelId is already set from STEP 0 (create)
+      // CRITICAL: If generate fails, do NOT navigate
+      
+      // Clean payload: remove undefined fields and ensure correct types
+      const cleanedRequestBody = cleanPayload({
+        ...requestBody,
+        modelId, // Pass modelId from create step
+        // Ensure numeric fields are numbers, not strings
+        wacc: requestBody.wacc !== undefined ? Number(requestBody.wacc) : undefined,
+        terminalGrowth: requestBody.terminalGrowth !== undefined ? Number(requestBody.terminalGrowth) : undefined,
       });
       
-      if (!generateResponse.ok) {
-        const errorData = await generateResponse.json().catch(() => ({}));
-        if (errorData.blocks && errorData.blocks.length > 0) {
-          setBlocks(errorData.blocks);
-          setWarnings(errorData.warnings || []);
-          setError(`Model generation blocked: ${errorData.blocks.join('; ')}`);
-          return;
-        }
-        throw new Error(errorData.error || 'Failed to generate model');
+      const generateData = await apiFetch('/api/generateModel', {
+        method: 'POST',
+        headers: { 
+          'Accept': 'application/json', // Request JSON to get appliedDefaults
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(cleanedRequestBody),
+      });
+      
+      // Handle guardrail blocks (these are expected errors, not failures)
+      if (generateData.blocks && generateData.blocks.length > 0) {
+        setBlocks(generateData.blocks);
+        setWarnings(generateData.warnings || []);
+        setError(`Model generation blocked: ${generateData.blocks.join('; ')}`);
+        return; // Stop here - do not navigate
       }
       
-      const generateData = await generateResponse.json();
+      // Ensure modelId is in response (should match what we sent)
+      if (generateData.modelId !== modelId) {
+        console.warn('[handleSubmit] ModelId mismatch:', { sent: modelId, received: generateData.modelId });
+      }
       
       // Debug logging in dev
       if (process.env.NODE_ENV === 'development') {
@@ -786,27 +1255,30 @@ export default function CreateModelPage() {
       setWarnings(generateData.warnings || []);
       setBlocks(generateData.blocks || []);
       
-      // Download Excel (separate call for binary)
-      await downloadWorkbook(requestBody as DownloadWorkbookParams);
+      const resolvedModelId = resolveModelId(generateData, modelId);
+      if (!resolvedModelId) {
+        setError('Model created but no modelId returned. Please try again.');
+      }
 
+      // STEP 3: Use modelId from create step (never fallback to local generation)
       const resolvedModel: EnrichedModelResponse = {
-        modelId: `local-${Date.now()}`,
-        ticker: modelType === 'merger' 
+        modelId: modelId, // Always use modelId from create step
+        ticker: (modelType as string) === 'merger' 
           ? `${mergerInputs.buyerTicker}/${mergerInputs.targetTicker}`
-          : modelType === 'operating'
+          : (modelType as string) === 'operating'
           ? `Operating Model - ${operatingInputs.startMonth}`
           : trimmedTicker,
         modelType,
         createdAt: new Date().toISOString(),
-        downloadUrl: '',
+        downloadUrl: generateData.downloadUrl || '',
         preview: generateData.preview || EMPTY_PREVIEW,
         summaryText:
-          normalizeNarrativeText(latestAnalysisData?.summary) ??
-          normalizeNarrativeText(modelData?.summary) ??
+          normalizeNarrativeText((latestAnalysisData as any)?.summary) ??
+          normalizeNarrativeText((modelData as any)?.summary) ??
           `Excel model generated for ${
-            modelType === 'merger' 
+            (modelType as string) === 'merger' 
               ? `${mergerInputs.buyerTicker}/${mergerInputs.targetTicker}`
-              : modelType === 'operating'
+              : (modelType as string) === 'operating'
               ? `Operating Model - ${operatingInputs.startMonth}`
               : trimmedTicker
           }`,
@@ -825,9 +1297,13 @@ export default function CreateModelPage() {
         Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - runStart)
       );
       setLastDurationMs(clientDuration);
-      if (modelType !== 'merger' && modelType !== 'operating') {
+      if (!isExtendedModelType(modelType as string)) {
         fetchModelStats(trimmedTicker, metricsModelTypeParam);
       }
+
+      // STEP 3: Navigate to model detail page ONLY after successful generation
+      // This ensures modelId exists in database before navigation
+      navigateToModel(generateData, modelId);
 
     } catch (err) {
       const failureDuration = Math.max(
@@ -835,11 +1311,43 @@ export default function CreateModelPage() {
         Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - runStart)
       );
       setLastDurationMs(failureDuration);
-      const message = err instanceof Error ? err.message : 'Unexpected error generating the model.';
-      setError(message);
-      console.error('[handleSubmit] Error:', err);
+      
+      // Extract full error object from ApiError.raw or construct from error
+      let errorObj: any = null;
+      
+      // If it's an ApiError from apiFetch, use the raw response
+      if (err && typeof err === 'object' && 'raw' in err && (err as any).raw) {
+        errorObj = (err as any).raw;
+      } else {
+        // Otherwise, try to extract from the error
+        const normalizedError = await handleModelError(err);
+        errorObj = {
+          ok: false,
+          traceId: normalizedError.traceId,
+          error: {
+            message: normalizedError.message || 'Model generation failed',
+            details: normalizedError.details ? (Array.isArray(normalizedError.details) ? normalizedError.details : []) : [],
+          },
+        };
+      }
+      
+      // Set error state - pass the full error object to ErrorAlert
+      setError(errorObj);
+      setErrorTraceId(errorObj?.traceId);
+      setErrorDetails(errorObj?.error?.message);
+      
+      // Show minimal toast notification (full error shown in ErrorAlert component)
+      const displayMessage = errorObj?.error?.message || 'Model generation failed';
+      showToast({
+        title: 'Model generation failed',
+        description: displayMessage.substring(0, 100), // Truncate for toast
+        variant: 'destructive',
+      });
+      
+      // Log error for debugging
+      console.error('[handleSubmit] Model generation error:', { errorObj, err });
     } finally {
-      setLoading(false);
+      setIsGenerating(false);
     }
   };
 
@@ -854,6 +1362,8 @@ export default function CreateModelPage() {
     setScenarioConfig(createDefaultScenarioConfig());
     setScenarioLocked(false);
     setActiveScenarioTab('base');
+    setScenarioAdjustmentNotes('');
+    setScenarioSummaryNotes('');
     setReportText(null);
     setReportPayload(null);
     setInsightCards([]);
@@ -916,8 +1426,8 @@ export default function CreateModelPage() {
     }
     setReportPdfUrl(null);
 
-    const normalizedModelKind: ModelKind =
-      modelType === 'three-statement' ? 'three_statement' : (modelType as ModelKind);
+    const normalizedModelKind =
+      modelType === 'three-statement' ? 'three_statement' : modelType;
 
     const compsData = (generatedModel as any)?.assumptions?.compsModel;
     const compsStats = compsData?.stats;
@@ -950,10 +1460,10 @@ export default function CreateModelPage() {
       : undefined;
 
     const diagnosticsBullets =
-      generatedModel.diagnostics?.slice(0, 3).map((diag) => `${diag.title ?? 'Issue'}: ${diag.message}`) ?? [];
+      generatedModel.diagnostics?.slice(0, 3).map((diag: any) => `${diag.title ?? 'Issue'}: ${diag.message}`) ?? [];
 
-    const contextOverrides: Partial<ReportContext> = {
-      companyName: companyName || generatedModel.ticker || 'Unknown Company',
+    const contextOverrides: any = {
+      companyName: normalizeNonEmpty(selectedCompany?.name) || generatedModel.ticker || 'Unknown Company',
       asOfDate: new Date().toISOString().slice(0, 10),
       keyOutputs: {
         baseValuePerShare: basePrice,
@@ -1007,8 +1517,8 @@ export default function CreateModelPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to generate report');
+        const normalizedError = await handleModelError(response);
+        throw new Error(normalizedError.message);
       }
 
       const data = await response.json();
@@ -1024,7 +1534,11 @@ export default function CreateModelPage() {
         setReportPdfUrl(data.pdfUrl);
       }
     } catch (err) {
-      setReportError(err instanceof Error ? err.message : 'Failed to generate report.');
+      const normalizedError = await handleModelError(err);
+      const displayMessage = normalizedError.details 
+        ? `${normalizedError.details}${normalizedError.stage ? ` (stage: ${normalizedError.stage}${normalizedError.step ? `, step: ${normalizedError.step}` : ''})` : ''}`
+        : `${normalizedError.message}${normalizedError.stage ? ` (stage: ${normalizedError.stage}${normalizedError.step ? `, step: ${normalizedError.step}` : ''})` : ''}`;
+      setReportError(displayMessage);
     } finally {
       setReportLoading(false);
     }
@@ -1034,7 +1548,7 @@ export default function CreateModelPage() {
     <Card className="border border-dashed border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] text-[var(--cb-text-body)]">
       <CardContent className="flex flex-col items-center gap-3 p-5">
         <ModelGenerationTimer
-          isRunning={loading}
+          isRunning={isGenerating}
           durationMs={lastDurationMs}
           stats={timerStats}
         />
@@ -1085,7 +1599,7 @@ export default function CreateModelPage() {
             <div className="space-y-3">
               <Label htmlFor="model-type">Model Type</Label>
               <div className="grid gap-3 sm:grid-cols-2">
-                {MODEL_OPTIONS.map((option) => (
+                {UI_MODEL_OPTIONS.map((option) => (
                   <div
                     key={option.value}
                     onClick={() => setModelType(option.value)}
@@ -1107,16 +1621,29 @@ export default function CreateModelPage() {
 
             {/* Ticker Input */}
             <div className="space-y-2">
-              <Label htmlFor="ticker">Ticker Symbol</Label>
               <div className="flex gap-2">
-                <Input
-                  id="ticker"
-                  name="ticker"
-                  placeholder="Enter ticker (e.g., MSFT, AAPL)"
-                  value={ticker}
-                  onChange={(event: React.ChangeEvent<HTMLInputElement>) => setTicker(event.target.value.toUpperCase())}
-                  className="text-lg flex-1"
-                />
+                <div className="flex-1">
+                  <TickerAutocomplete
+                    value={ticker}
+                    onChange={(nextTicker) => setTicker(nextTicker.toUpperCase())}
+                    onCompanySelected={(company) => {
+                      if (!company) {
+                        setSelectedCompany(null);
+                        return;
+                      }
+                      const normalizedCompany: SelectedCompany = {
+                        ticker: company.symbol.toUpperCase(),
+                        name: company.name,
+                        exchange: company.exchange,
+                      };
+                      setSelectedCompany(normalizedCompany);
+                      setTicker(normalizedCompany.ticker);
+                    }}
+                    label="Ticker Symbol"
+                    placeholder="Enter ticker (e.g., MSFT, AAPL)"
+                    required
+                  />
+                </div>
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -1124,6 +1651,7 @@ export default function CreateModelPage() {
                     size="sm"
                     onClick={() => {
                       setTicker('AAPL');
+                      setSelectedCompany(null);
                       // Optionally set demo values for shares/base revenue if needed
                     }}
                     className="text-xs"
@@ -1136,6 +1664,7 @@ export default function CreateModelPage() {
                     size="sm"
                     onClick={() => {
                       setTicker('MSFT');
+                      setSelectedCompany(null);
                       // Optionally set demo values for shares/base revenue if needed
                     }}
                     className="text-xs"
@@ -1212,7 +1741,7 @@ export default function CreateModelPage() {
                         type="button"
                         onClick={handleScenarioReset}
                         className="text-xs font-semibold text-primary hover:underline disabled:opacity-50"
-                        disabled={loading}
+                        disabled={isGenerating}
                       >
                         Reset scenarios
                       </button>
@@ -1224,10 +1753,15 @@ export default function CreateModelPage() {
                           className="h-4 w-4 accent-primary"
                           checked={scenarioConfig.includeScenarios}
                           onChange={(e) => handleScenarioToggle(e.target.checked)}
-                          disabled={scenarioControlsDisabled}
+                          disabled={scenarioControlsDisabled || lboScenarioUnsupported}
                         />
                         <span className="text-muted-foreground">Include scenarios</span>
                       </Label>
+                      {lboScenarioUnsupported && (
+                        <span className="text-xs text-[var(--cb-text-muted)]">
+                          Not used in LBO yet (DCF / v2 feature)
+                        </span>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
@@ -1243,30 +1777,46 @@ export default function CreateModelPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    {SCENARIO_ORDER.map((scenario) => (
-                      <button
-                        key={scenario}
-                        type="button"
-                        onClick={() => setActiveScenarioTab(scenario)}
-                        disabled={scenarioControlsDisabled}
-                        className={cn(
-                          'rounded-full border-2 px-4 py-1.5 text-xs font-semibold transition-all',
-                          activeScenarioTab === scenario
-                            ? 'border-[var(--cb-green)] bg-[var(--cb-green)] text-[#041007] shadow-[0_0_12px_rgba(0,227,135,0.3)] font-bold'
-                            : 'border-[var(--cb-border-strong)] bg-[var(--cb-surface)] text-[var(--cb-text-primary)] hover:border-[var(--cb-green)]/50 hover:bg-[var(--cb-surface-alt)]',
-                          scenarioControlsDisabled && 'cursor-not-allowed opacity-50'
-                        )}
-                      >
-                        {SCENARIO_LABELS[scenario]}
-                      </button>
-                    ))}
+                    {SCENARIO_ORDER.map((scenario) => {
+                      const isScenarioTabDisabled =
+                        scenarioControlsDisabled ||
+                        (lboScenarioUnsupported && scenario !== 'base');
+                      return (
+                        <button
+                          key={scenario}
+                          type="button"
+                          onClick={() => setActiveScenarioTab(scenario)}
+                          disabled={isScenarioTabDisabled}
+                          className={cn(
+                            'rounded-full border-2 px-4 py-1.5 text-xs font-semibold transition-all',
+                            activeScenarioTab === scenario
+                              ? 'border-[var(--cb-green)] bg-[var(--cb-green)] text-[#041007] shadow-[0_0_12px_rgba(0,227,135,0.3)] font-bold'
+                              : 'border-[var(--cb-border-strong)] bg-[var(--cb-surface)] text-[var(--cb-text-primary)] hover:border-[var(--cb-green)]/50 hover:bg-[var(--cb-surface-alt)]',
+                            isScenarioTabDisabled && 'cursor-not-allowed opacity-50'
+                          )}
+                        >
+                          {SCENARIO_LABELS[scenario]}
+                        </button>
+                      );
+                    })}
                   </div>
+                  {lboScenarioUnsupported && (
+                    <p className="text-xs text-[var(--cb-text-muted)]">
+                      Bull/Bear scenarios are not used in LBO yet (DCF / v2 feature).
+                    </p>
+                  )}
 
                   <div className="space-y-5">
                     {SCENARIO_SLIDER_CONFIGS.map((config) => {
                       const Icon = config.icon;
                       const sliderValue = scenarioConfig[activeScenarioTab][config.key];
-                      const disabled = scenarioControlsDisabled || activeScenarioTab !== 'base';
+                      const isUnsupportedKey =
+                        lboScenarioUnsupported &&
+                        (config.key === 'wacc' || config.key === 'terminalGrowth');
+                      const disabled =
+                        scenarioControlsDisabled ||
+                        activeScenarioTab !== 'base' ||
+                        isUnsupportedKey;
                       const clampedValue = Math.min(config.max, Math.max(config.min, sliderValue));
                       
                       // Map config.key to appliedDefaults path
@@ -1320,6 +1870,11 @@ export default function CreateModelPage() {
                             disabled={disabled}
                             className="w-full accent-[var(--cb-green)] disabled:opacity-50"
                           />
+                          {isUnsupportedKey && (
+                            <p className="text-xs text-[var(--cb-text-muted)]">
+                              Not used in LBO yet (DCF / v2 feature)
+                            </p>
+                          )}
                           <div className="flex justify-between text-xs text-[var(--cb-text-muted)] dark:text-[var(--cb-text-secondary)]">
                             <span>{config.format(config.min)}</span>
                             <span>{config.format(config.max)}</span>
@@ -1634,18 +2189,28 @@ export default function CreateModelPage() {
             {timerPanel}
 
             {error && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+              <ErrorAlert
+                error={error}
+                traceId={errorTraceId}
+                details={errorDetails}
+                onDismiss={() => {
+                  setError(null);
+                  setErrorTraceId(undefined);
+                  setErrorDetails(undefined);
+                }}
+              />
             )}
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <Button 
                 type="submit" 
-                disabled={loading || 
+                disabled={isGenerating || 
+                         (modelType === 'lbo' && !lboDealInputReady) ||
                          (modelType === 'merger' && !mergerInputsValid) ||
                          (modelType === 'operating' && !operatingInputsValid)} 
                 className="flex-1"
               >
-                {loading ? 'Generating Model...' : 'Generate Model'}
+                {isGenerating ? 'Generating Model...' : 'Generate Model'}
               </Button>
               <Button type="button" variant="outline" onClick={() => router.push('/app')}>
                 Cancel
@@ -1690,10 +2255,14 @@ export default function CreateModelPage() {
               const modelDataForParsing = {
                 dcfSummary: (generatedModel as any).dcfSummary || generatedModel.dcfSummary,
                 lboSummary: generatedModel.lboSummary,
+                lboOutput: (generatedModel as any).lboOutput,
                 assumptions: generatedModel.assumptions,
                 compsModel: (generatedModel as any).assumptions?.compsModel,
                 mergerModel: (generatedModel as any).mergerModel,
                 operatingModel: (generatedModel as any).operatingModel,
+                statements: (generatedModel as any).statements || (generatedModel as any).statements,
+                threeStatement: (generatedModel as any).threeStatement || (generatedModel as any).threeStatement,
+                modelChecks: generatedModel.modelChecks ?? (generatedModel as any)?.results?.modelChecks,
               };
               
               // Debug logging (dev only) - verify dcfSummary structure
@@ -1715,6 +2284,10 @@ export default function CreateModelPage() {
                 appliedDefaults
               );
               
+              // Extract financials and assumptions for three-statement preview
+              const previewFinancials = (generatedModel as any).normalizedFinancials || null;
+              const previewAssumptions = modelDataForParsing.assumptions || null;
+              
               // Get diagnostics data
               const diagnostics = (generatedModel as any).diagnostics || [];
               const dataCompleteness: Record<string, 'available' | 'partial' | 'unavailable'> = {};
@@ -1727,17 +2300,35 @@ export default function CreateModelPage() {
               });
               
               // Get model name
-              const modelName = MODEL_OPTIONS.find(m => m.value === generatedModel.modelType)?.label || 
+              const modelName = UI_MODEL_OPTIONS.find(m => m.value === generatedModel.modelType)?.label || 
                 generatedModel.modelType.toUpperCase();
               
-              // Handle download via downloadWorkbook function
-              const handleDownload = async () => {
-                if (lastRequestBody) {
-                  await downloadWorkbook({
+              // Handle download - direct browser download via API route
+              const handleDownload = async (e?: React.MouseEvent) => {
+                if (e) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+
+                if (!generatedModel || !generatedModel.modelId) {
+                  setError('Model ID not available. Please regenerate the model.');
+                  return;
+                }
+
+                try {
+                  const result = await downloadWorkbook({
                     ticker: generatedModel.ticker,
                     modelType: generatedModel.modelType,
-                    ...lastRequestBody,
-                  } as DownloadWorkbookParams);
+                    modelId: generatedModel.modelId,
+                  });
+
+                  if (!result.success && (result as any).expected) {
+                    setError((result as any).message);
+                  }
+                } catch (error) {
+                  const normalizedError = await handleModelError(error);
+                  console.error('[DownloadExcel] Unexpected error:', error);
+                  setError(normalizedError.message);
                 }
               };
               
@@ -1764,7 +2355,7 @@ export default function CreateModelPage() {
                   <TearSheetRenderer
                     tearSheet={tearSheet}
                     actions={{
-                      onDownload: lastRequestBody ? handleDownload : undefined,
+                      onDownload: generatedModel?.modelId ? handleDownload : undefined,
                       onEditInputs: () => {
                         setShowResults(false);
                         setGeneratedModel(null);
@@ -1783,7 +2374,7 @@ export default function CreateModelPage() {
                   modelName={modelName}
                   generatedAt={generatedModel.createdAt}
                   status={blocks.length > 0 ? 'failed' : 'success'}
-                  onDownload={lastRequestBody ? handleDownload : undefined}
+                  onDownload={generatedModel ? handleDownload : undefined}
                   onRunAgain={resetForm}
                   preview={
                     modelOutput ? (
@@ -1798,6 +2389,17 @@ export default function CreateModelPage() {
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         } : undefined}
                         rawOutput={generatedModel.modelType === 'dcf' ? modelDataForParsing : undefined}
+                        financials={generatedModel.modelType === 'three-statement' ? previewFinancials : undefined}
+                        assumptions={generatedModel.modelType === 'three-statement' ? previewAssumptions : undefined}
+                      />
+                    ) : generatedModel.modelType === 'three-statement' ? (
+                      // For three-statement, always show preview (even if parsing failed)
+                      <PreviewForModelType
+                        modelType="three-statement"
+                        output={null}
+                        ticker={generatedModel.ticker}
+                        financials={previewFinancials}
+                        assumptions={previewAssumptions}
                       />
                     ) : (
                       <Card className="border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">

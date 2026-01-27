@@ -10,4 +10,4 @@ lxml
 et-xmlfile
 openpyxl
 gunicorn
-quart
+quartyfinance==0.2.65

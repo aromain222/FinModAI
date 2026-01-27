@@ -9,8 +9,8 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { Database } from '@/lib/supabaseClient';
-import Hero from '@/app/components/Hero';
 import { BarChart3, Building2, ShieldCheck } from 'lucide-react';
+import Hero from '@/app/components/Hero';
 
 const featureBlocks = [
   {
@@ -40,10 +40,11 @@ export default async function MarketingPage() {
   if (session) {
     redirect('/app');
   }
+  
+  // If not authenticated, allow marketing page (users can navigate to /auth from here)
 
   return (
     <main className="min-h-screen text-[var(--cb-text-body)]">
-      <Hero />
       <section className="mx-auto flex w-full max-w-5xl flex-col gap-12 px-4 py-16 sm:py-20">
         <div className="text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.4em] text-[var(--cb-green)]">Why CapitalBase</p>
@@ -77,13 +78,13 @@ export default async function MarketingPage() {
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
             <a
-              href="/signup"
+              href="/auth"
               className="rounded-md bg-[var(--cb-green)] px-6 py-3 text-sm font-semibold text-slate-900 shadow-[0_0_18px_rgba(0,227,135,0.35)] transition hover:bg-[var(--cb-green)]/90"
             >
-              Create a free account
+              Get started
             </a>
             <a
-              href="/login"
+              href="/auth"
               className="rounded-md border border-[#2C323A] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#181d24]"
             >
               Sign in

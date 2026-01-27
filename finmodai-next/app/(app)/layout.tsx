@@ -2,18 +2,20 @@
  * App Layout (Authenticated Routes)
  * 
  * Includes sidebar, top bar, and app shell.
- * Requires authentication or guest mode - redirects to /login if neither exists.
+ * Requires authentication - redirects to /auth if no session exists.
  */
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { ConsoleShell } from '@/components/ConsoleShell';
-import { GuestModeGate } from '@/components/auth/GuestModeGate';
+import { AuthGate } from '@/components/auth/AuthGate';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  // Use client-side gate to check for session or guest mode
-  // This allows guest mode to work (which is stored in localStorage, client-side only)
+  // Use client-side gate to check for Supabase session
   return (
-    <GuestModeGate>
+    <AuthGate>
       <ConsoleShell>{children}</ConsoleShell>
-    </GuestModeGate>
+    </AuthGate>
   );
 }

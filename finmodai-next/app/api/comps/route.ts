@@ -5,6 +5,9 @@ import { getStockQuoteWithTimeout, withTimeout } from '@/lib/marketstack';
 import { getLTMFinancials } from '@/lib/getLTMFinancials';
 import { cleanAndScaleFinancials, type RawFinancials } from '@/lib/financials';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 const MAX_SYMBOLS = 20;
 const DEFAULT_TIMEOUT_MS = 8000;
 

@@ -235,6 +235,9 @@ export default function SettingsPage() {
             {/* LBO Defaults */}
             <div className="space-y-4 border-l-2 border-[var(--cb-border-subtle)] pl-4">
               <h3 className="font-semibold text-[var(--cb-text-primary)]">LBO</h3>
+              <p className="text-xs text-[var(--cb-text-muted)]">
+                Not used in LBO yet (DCF / v2 feature)
+              </p>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="holdPeriod" className="text-[var(--cb-text-primary)]">Hold Period (Years)</Label>
@@ -245,6 +248,7 @@ export default function SettingsPage() {
                     max="10"
                     value={settings.defaults.lbo.holdPeriodYears || ''}
                     onChange={(e) => updateSettings('defaults.lbo.holdPeriodYears', e.target.value ? parseInt(e.target.value) : undefined)}
+                    disabled
                     className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
                   />
                 </div>
@@ -258,6 +262,7 @@ export default function SettingsPage() {
                     max="100"
                     value={settings.defaults.lbo.interestRate ? settings.defaults.lbo.interestRate * 100 : ''}
                     onChange={(e) => updateSettings('defaults.lbo.interestRate', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
+                    disabled
                     className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
                   />
                 </div>
@@ -269,6 +274,7 @@ export default function SettingsPage() {
                     min="0"
                     value={settings.defaults.lbo.minCash || ''}
                     onChange={(e) => updateSettings('defaults.lbo.minCash', e.target.value ? parseFloat(e.target.value) : undefined)}
+                    disabled
                     className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
                   />
                 </div>
@@ -282,6 +288,7 @@ export default function SettingsPage() {
                     max="100"
                     value={settings.defaults.lbo.feesPct ? settings.defaults.lbo.feesPct * 100 : ''}
                     onChange={(e) => updateSettings('defaults.lbo.feesPct', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
+                    disabled
                     className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
                   />
                 </div>
@@ -448,6 +455,9 @@ export default function SettingsPage() {
             {/* LBO Guardrails */}
             <div className="space-y-4 border-l-2 border-[var(--cb-border-subtle)] pl-4">
               <h3 className="font-semibold text-[var(--cb-text-primary)]">LBO</h3>
+              <p className="text-xs text-[var(--cb-text-muted)]">
+                Not used in LBO yet (DCF / v2 feature)
+              </p>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="maxIRR" className="text-[var(--cb-text-primary)]">Max IRR (%)</Label>
@@ -458,6 +468,7 @@ export default function SettingsPage() {
                     min="0"
                     value={settings.guardrails.lbo.maxIRR ? settings.guardrails.lbo.maxIRR * 100 : ''}
                     onChange={(e) => updateSettings('guardrails.lbo.maxIRR', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
+                    disabled
                     className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
                   />
                 </div>
@@ -470,6 +481,7 @@ export default function SettingsPage() {
                     min="0"
                     value={settings.guardrails.lbo.maxLeverage || ''}
                     onChange={(e) => updateSettings('guardrails.lbo.maxLeverage', e.target.value ? parseFloat(e.target.value) : undefined)}
+                    disabled
                     className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
                   />
                 </div>

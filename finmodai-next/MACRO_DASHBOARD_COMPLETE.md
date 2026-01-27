@@ -310,7 +310,7 @@ to 4.45%, while inflation continues its downward trajectory at 3.2% YoY.
 
 ### Environment Variables Required:
 ```env
-OPENAI_API_KEY=REDACTED
+OPENAI_API_KEY=sk-
 ```
 
 ### Dependencies (Already Installed):

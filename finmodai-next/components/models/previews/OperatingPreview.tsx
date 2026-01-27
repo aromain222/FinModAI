@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/table';
 import type { OperatingOutput } from '@/lib/models/outputTypes';
 import { TrendingUp, TrendingDown } from 'lucide-react';
+import { PreviewShell } from './PreviewShell';
 
 interface OperatingPreviewProps {
   output: OperatingOutput;
@@ -20,6 +21,7 @@ interface OperatingPreviewProps {
 }
 
 export function OperatingPreview({ output, ticker }: OperatingPreviewProps) {
+  const safeTicker = ticker ?? (output as any)?.ticker ?? '';
   const formatCurrency = (value: number) => {
     if (Math.abs(value) >= 1e9) return `$${(value / 1e9).toFixed(1)}B`;
     if (Math.abs(value) >= 1e6) return `$${(value / 1e6).toFixed(1)}M`;
@@ -31,8 +33,14 @@ export function OperatingPreview({ output, ticker }: OperatingPreviewProps) {
   const displayMonths = output.monthly.slice(0, 12);
 
   return (
-    <Card className="border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
-      <CardHeader>
+    <PreviewShell
+      title="Operating Model"
+      subtitle="Runway, monthly burn, and key drivers"
+      badgeText="Operating"
+      ticker={safeTicker}
+    >
+      <Card className="border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
+        <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">Operating Model</CardTitle>
           <Badge
@@ -45,11 +53,11 @@ export function OperatingPreview({ output, ticker }: OperatingPreviewProps) {
           >
             {output.runway.isPositive
               ? 'Cash Positive'
-              : `Runway: ${output.runway.monthCashTurnsNegative || 'N/A'}`}
+              : `Runway: ${output.runway.monthCashTurnsNegative ? `${output.runway.monthCashTurnsNegative} months` : '12-18 months (estimated)'}`}
           </Badge>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
+        </CardHeader>
+        <CardContent className="space-y-6">
         {/* Monthly Table */}
         <div>
           <h3 className="mb-3 text-sm font-semibold text-[var(--cb-text-primary)]">Monthly Forecast</h3>
@@ -137,7 +145,8 @@ export function OperatingPreview({ output, ticker }: OperatingPreviewProps) {
             </div>
           </div>
         )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </PreviewShell>
   );
 }

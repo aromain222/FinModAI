@@ -36,6 +36,11 @@ export interface MacroNewsArticle {
   aiInsight: string; // AI opinion/oversight line
   sentiment: 'bullish' | 'bearish' | 'neutral';
   tags?: string[];
+  marketRelevance?: {
+    score: number;
+    reason: string;
+    signals: string[];
+  };
 }
 
 export interface MacroNewsResponse {

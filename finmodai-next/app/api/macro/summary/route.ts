@@ -1,107 +1,124 @@
-/**
- * API Route: /api/macro/summary
- * 
- * Generates AI-powered market wrap using OpenAI
- */
+import { NextResponse } from 'next/server';
+import { fetchFredLatest, fetchFredSeries } from '@/lib/providers/macro/fred';
+import { ProviderError } from '@/lib/providers/errors';
+import { cached } from '@/lib/cache';
 
-import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
-import type { MacroSnapshot } from '@/lib/macroData';
+export const runtime = 'nodejs';
 
-export const dynamic = 'force-dynamic';
+type MacroPoint = { value: number | null; date: string | null; series: string };
+type MacroPointWithUnit = MacroPoint & { unit: string };
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const seriesMap = {
+  inflation: 'CPIAUCSL',
+  unemployment: 'UNRATE',
+  fedFunds: 'FEDFUNDS',
+} as const;
+
+const toPoint = (series: string, value: number | null, date: string | null, unit = '%'): MacroPointWithUnit => ({
+  value,
+  date,
+  series,
+  unit,
 });
 
-export async function POST(req: NextRequest) {
-  try {
-    console.log('[/api/macro/summary] Generating AI market wrap');
-    
-    const snapshot: MacroSnapshot = await req.json();
-    
-    // Build prompt for OpenAI
-    const prompt = buildMarketWrapPrompt(snapshot);
-    
-    console.log('[/api/macro/summary] Calling OpenAI...');
-    
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
-      messages: [
-        {
-          role: 'system',
-          content: `You are a senior investment strategist writing a daily market wrap for institutional investors. 
-Your tone is clear, direct, and analytical—like a Goldman Sachs or JPMorgan strategist.
-Keep it concise (< 200 words), actionable, and focused on valuation implications.`,
-        },
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      temperature: 0.7,
-      max_tokens: 300,
+const latestDate = (points: MacroPoint[]) => {
+  const timestamps = points
+    .map((point) => (point.date ? Date.parse(point.date) : NaN))
+    .filter((value) => Number.isFinite(value));
+  if (!timestamps.length) return new Date().toISOString();
+  return new Date(Math.max(...timestamps)).toISOString();
+};
+
+export async function GET() {
+  if (process.env.NODE_ENV !== 'production' || process.env.MACRO_DEBUG_KEYS === '1') {
+    console.log('[MACRO_KEYS]', {
+      FRED: !!process.env.FRED_API_KEY,
+      DATABENTO: !!process.env.DATABENTO_API_KEY,
+      WEBZ: !!process.env.WEBZ_API_KEY,
+      WEBZIO: !!process.env.WEBZIO_API_KEY,
+      OPENAI: !!process.env.OPENAI_API_KEY,
+      FINNHUB: !!process.env.FINNHUB_API_KEY,
+      POLYGON: !!process.env.POLYGON_API_KEY,
     });
-    
-    const summary = completion.choices[0]?.message?.content || 'Market summary unavailable.';
-    
-    console.log('[/api/macro/summary] ✅ AI summary generated');
-    
-    return NextResponse.json({ summary }, { status: 200 });
-    
-  } catch (error) {
-    console.error('[/api/macro/summary] ❌ Error:', error);
-    
-    // Fallback summary if OpenAI fails
-    const fallbackSummary = generateFallbackSummary();
-    
-    return NextResponse.json({ summary: fallbackSummary }, { status: 200 });
+  }
+
+  const cacheKey = 'macro:summary';
+  const ttlMs = 15 * 60 * 1000;
+
+  try {
+    const { value, stale } = await cached(
+      cacheKey,
+      ttlMs,
+      async (): Promise<{ source: string; updatedAt: string; data: any; warnings: string[] }> => {
+        const warnings: string[] = [];
+        const results = await Promise.allSettled([
+          fetchFredSeries(seriesMap.inflation, 25),
+          fetchFredLatest(seriesMap.unemployment),
+          fetchFredLatest(seriesMap.fedFunds),
+        ]);
+
+        const [inflationResult, unemploymentResult, fedFundsResult] = results;
+
+        const inflation =
+          inflationResult.status === 'fulfilled' && Array.isArray(inflationResult.value) && inflationResult.value.length
+            ? (() => {
+                const latest = inflationResult.value[0];
+                const yearAgo = inflationResult.value[12];
+                if (
+                  latest?.value != null &&
+                  yearAgo?.value != null &&
+                  Number.isFinite(latest.value) &&
+                  Number.isFinite(yearAgo.value) &&
+                  yearAgo.value !== 0
+                ) {
+                  const yoy = ((latest.value / yearAgo.value) - 1) * 100;
+                  return toPoint(seriesMap.inflation, Number.isFinite(yoy) ? yoy : null, latest.date, '%');
+                }
+                if (latest?.value != null) {
+                  warnings.push('cpi_yoy_unavailable');
+                  return toPoint(seriesMap.inflation, latest.value, latest.date, 'index');
+                }
+                return toPoint(seriesMap.inflation, null, null, '%');
+              })()
+            : toPoint(seriesMap.inflation, null, null, '%');
+        if (inflation.value == null) warnings.push('inflation_unavailable');
+
+        const unemployment =
+          unemploymentResult.status === 'fulfilled' && unemploymentResult.value
+            ? toPoint(seriesMap.unemployment, unemploymentResult.value.value, unemploymentResult.value.date, '%')
+            : toPoint(seriesMap.unemployment, null, null, '%');
+        if (unemployment.value == null) warnings.push('unemployment_unavailable');
+
+        const fedFunds =
+          fedFundsResult.status === 'fulfilled' && fedFundsResult.value
+            ? toPoint(seriesMap.fedFunds, fedFundsResult.value.value, fedFundsResult.value.date, '%')
+            : toPoint(seriesMap.fedFunds, null, null, '%');
+        if (fedFunds.value == null) warnings.push('fed_funds_unavailable');
+
+        if (results.some((res) => res.status === 'rejected' && res.reason instanceof ProviderError)) {
+          warnings.push('fred_unavailable');
+        }
+
+        const data = { inflation, unemployment, fedFunds };
+        const updatedAt = latestDate([inflation, unemployment, fedFunds]);
+        const source = warnings.length >= 3 ? 'fallback' : 'fred';
+        return { source, updatedAt, data, warnings };
+      }
+    );
+
+    const warnings = Array.isArray(value?.warnings) ? [...value.warnings] : [];
+    if (stale) warnings.push('stale_cache');
+    return NextResponse.json({ ...value, warnings: Array.from(new Set(warnings)) });
+  } catch {
+    return NextResponse.json({
+      source: 'fallback',
+      updatedAt: new Date().toISOString(),
+      data: {
+        inflation: toPoint(seriesMap.inflation, null, null, '%'),
+        unemployment: toPoint(seriesMap.unemployment, null, null, '%'),
+        fedFunds: toPoint(seriesMap.fedFunds, null, null, '%'),
+      },
+      warnings: ['summary_unavailable'],
+    });
   }
 }
-
-/**
- * Build prompt for OpenAI market wrap
- */
-function buildMarketWrapPrompt(snapshot: MacroSnapshot): string {
-  const { indicators, riskScore, riskRegime } = snapshot;
-  
-  return `Generate a concise market wrap based on these macro indicators:
-
-**Risk Environment:** ${riskRegime.toUpperCase()} (score: ${riskScore}/100)
-
-**Key Indicators:**
-- Fed Funds: ${indicators.fedFunds.value}% (1w: ${indicators.fedFunds.change1w > 0 ? '+' : ''}${indicators.fedFunds.change1w}%)
-- 10Y Treasury: ${indicators.treasury10y.value}% (1w: ${indicators.treasury10y.change1w > 0 ? '+' : ''}${indicators.treasury10y.change1w}%)
-- CPI (YoY): ${indicators.cpi.value}% (1w: ${indicators.cpi.change1w > 0 ? '+' : ''}${indicators.cpi.change1w}%)
-- Unemployment: ${indicators.unemployment.value}% (1w: ${indicators.unemployment.change1w > 0 ? '+' : ''}${indicators.unemployment.change1w}%)
-- S&P 500: ${indicators.sp500.value.toLocaleString()} (1w: ${indicators.sp500.change1w > 0 ? '+' : ''}${indicators.sp500.change1w}%)
-- VIX: ${indicators.vix.value} (1w: ${indicators.vix.change1w > 0 ? '+' : ''}${indicators.vix.change1w})
-
-**Your Task:**
-Write a 2-3 sentence macro overview, then provide:
-• 3 bullets on valuation implications (WACC, multiples, sector rotation)
-• 2 key risks to monitor
-
-Keep it under 200 words. Be specific and actionable.`;
-}
-
-/**
- * Generate fallback summary if OpenAI fails
- */
-function generateFallbackSummary(): string {
-  return `**Market Overview**
-
-Current macro conditions reflect a balanced environment with stable rates and moderate volatility. The Fed's policy stance remains data-dependent, with inflation trending toward target levels.
-
-**Valuation Implications:**
-• Cost of capital remains elevated at current rate levels, supporting selective positioning
-• Quality factors and cash flow generation remain key differentiators
-• Sector rotation favors defensives in uncertain environments
-
-**Key Risks:**
-• Inflation persistence could prompt further policy tightening
-• Geopolitical developments may increase volatility
-
-*Note: AI summary temporarily unavailable. Using default market commentary.*`;
-}
-

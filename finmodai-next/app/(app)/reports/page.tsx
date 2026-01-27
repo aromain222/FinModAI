@@ -1,51 +1,63 @@
 import Link from 'next/link';
-import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-
-import type { ModelReport } from '@/lib/reportTypes';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
-export default async function ReportsPage() {
-  const cookieStore = cookies();
-  const supabase = createServerComponentClient({ cookies: () => cookieStore });
+const mockReports = [
+  { id: '1', modelType: 'DCF', companyName: 'DemoCo', ticker: 'DEMO', createdAt: new Date().toISOString() },
+  { id: '2', modelType: 'LBO', companyName: 'Example Holdings', ticker: 'EXH', createdAt: new Date().toISOString() },
+  { id: '3', modelType: 'COMPS', companyName: 'Sample Corp', ticker: 'SAMP', createdAt: new Date().toISOString() },
+  { id: '4', modelType: 'MA', companyName: 'TargetCo', ticker: 'TCO', createdAt: new Date().toISOString() },
+];
 
-  const { data } = await supabase
-    .from('model_reports')
-    .select('id, report, created_at')
-    .order('created_at', { ascending: false })
-    .limit(20);
-
-  const reports = data ?? [];
+export default function ReportsPage() {
+  const reports = mockReports; // TODO: wire to Supabase model_reports table
 
   return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-10">
+    <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-10 text-[var(--cb-text-body)]">
       <PageHeader
-        title="Analyst Reports"
-        subtitle="Saved narratives from your most recent models. Click any card to reopen the full report view."
-        backHref="/models/create"
+        title="Reports"
+        subtitle="Model-generated reports by type. Generate a model to create your first report."
+        backHref="/models"
       />
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {reports.length === 0 && <p className="text-sm text-cb-slate">No reports yet. Generate one from a model run.</p>}
-        {reports.map((row) => {
-          const report = row.report as ModelReport | null;
-          if (!report) return null;
-          return (
+      {reports.length === 0 ? (
+        <Card className="rounded-3xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-6 shadow-sm">
+          <div className="space-y-2">
+            <h2 className="text-lg font-semibold text-[var(--cb-text-primary)]">No reports yet</h2>
+            <p className="text-sm text-[var(--cb-text-muted)]">
+              Generate a model to create your first report. Once reports are available, they&apos;ll appear here.
+            </p>
+            <div className="pt-2">
+              <Link href="/models">
+                <Button>Go to Models</Button>
+              </Link>
+            </div>
+          </div>
+        </Card>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {reports.map((report) => (
             <Link
-              key={row.id}
-              href={`/report/${row.id}`}
-              className="rounded-2xl border border-cb-line bg-white p-4 shadow-sm transition hover:border-cb-blue"
+              key={report.id}
+              href={`/report/${report.id}`}
+              className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-4 shadow-sm transition hover:border-[var(--cb-green)]/60"
             >
-              <p className="text-xs uppercase tracking-wide text-cb-slate">{report.modelType.toUpperCase()}</p>
-              <h2 className="mt-1 text-lg font-semibold text-cb-ink">
-                {report.companyName} ({report.ticker})
-              </h2>
-              <p className="text-sm text-cb-slate">{report.oneLineSummary}</p>
-              <p className="mt-2 text-xs text-cb-slate">Generated {new Date(report.generatedAt).toLocaleString()}</p>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-[var(--cb-text-primary)]">{report.companyName}</h3>
+                <Badge variant="outline" className="border-[var(--cb-border-subtle)] text-[var(--cb-text-muted)]">
+                  {report.modelType}
+                </Badge>
+              </div>
+              <p className="text-sm text-[var(--cb-text-muted)]">{report.ticker}</p>
+              <p className="text-xs text-[var(--cb-text-muted)] mt-2">
+                Created {new Date(report.createdAt).toLocaleString()}
+              </p>
             </Link>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
     </main>
   );
 }

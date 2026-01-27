@@ -73,8 +73,16 @@ export function ModelResultsShell({
         <div className="flex flex-wrap gap-2 sm:flex-nowrap">
           {actions.onDownload && (
             <Button
-              onClick={actions.onDownload}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (actions.onDownload) {
+                  actions.onDownload(e);
+                }
+              }}
               className="bg-[var(--cb-green)] hover:bg-[var(--cb-green)]/90 text-white"
+              disabled={false}
             >
               <Download className="h-4 w-4 mr-2" />
               Download Excel
@@ -82,6 +90,7 @@ export function ModelResultsShell({
           )}
           {actions.onEditInputs && (
             <Button
+              type="button"
               onClick={actions.onEditInputs}
               variant="outline"
               className="border-[var(--cb-border-subtle)]"
@@ -92,6 +101,7 @@ export function ModelResultsShell({
           )}
           {actions.onRunAgain && (
             <Button
+              type="button"
               onClick={actions.onRunAgain}
               variant="outline"
               className="border-[var(--cb-border-subtle)]"
@@ -102,6 +112,7 @@ export function ModelResultsShell({
           )}
           {actions.onDuplicate && (
             <Button
+              type="button"
               onClick={actions.onDuplicate}
               variant="outline"
               className="border-[var(--cb-border-subtle)]"

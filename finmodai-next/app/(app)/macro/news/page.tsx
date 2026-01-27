@@ -1,16 +1,11 @@
-import MacroNewsPage from '@/components/macro/MacroNewsPage';
-import { Newspaper } from 'lucide-react';
-import { APP_NAME } from '@/lib/branding';
+import { redirect } from 'next/navigation';
 
-export const metadata = {
-  title: `Macro News & AI Oversight | ${APP_NAME}`,
-  description: 'Recent macro headlines with AI-generated insights and analysis',
-};
-
-export default function NewsPage() {
-  return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <MacroNewsPage />
-    </div>
-  );
+/**
+ * Redirect: /macro/news → /market-intelligence
+ * 
+ * The "Market Pulse" has been deprecated.
+ * Users are redirected to "Market Brief" instead.
+ */
+export default function MarketPulseRedirect() {
+  redirect('/market-intelligence');
 }
