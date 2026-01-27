@@ -6,6 +6,12 @@ frontend/node_modules/
 .env
 .env.local
 .next/
+.next/
+node_modules/
+frontend/node_modules/
+finmodai-next/.macro-cache.json
+finmodai-next/.cursor/
+**/*.tsbuildinfo
 
 
 # Next.js
