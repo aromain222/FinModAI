@@ -19,6 +19,7 @@ export type CompanyFinancials = {
   ticker: string;
   marketCap: number;           // $ millions
   enterpriseValue: number;     // $ millions
+  cash?: number;
   revenue: number;             // LTM Revenue ($ millions)
   ebitda: number;              // LTM EBITDA ($ millions)
   ebit: number;                // LTM EBIT ($ millions)
@@ -121,6 +122,7 @@ export type PartialCompanyFinancials = {
   name?: string;
   ticker: string;
   marketCap?: number | null;
+  cash?: number | null;
   enterpriseValue?: number | null;
   revenue?: number | null;
   ebitda?: number | null;
@@ -148,4 +150,3 @@ export type FinancialEnrichmentRequest = {
     marketCap?: number;
   };
 };
-

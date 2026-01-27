@@ -1,11 +1,19 @@
 import { NextResponse } from 'next/server';
-import ExcelJS from 'exceljs';
-import { runLboModel } from '@/lib/lboEngine';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET() {
+  if (process.env.NODE_ENV === 'production') {
+    return new Response('Not available in production', { status: 404 });
+  }
+
   try {
+    const ExcelJSModule = await import('exceljs');
+    const ExcelJS = (ExcelJSModule as any).default ?? ExcelJSModule;
+    const { runLboModel } = await import('@/lib/lboEngine');
+
     const workbook = new ExcelJS.Workbook();
     await runLboModel({
       workbook,

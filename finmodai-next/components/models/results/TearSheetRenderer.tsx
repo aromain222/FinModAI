@@ -13,7 +13,7 @@ import type { TearSheet } from '@/lib/models/tearSheet/types';
 export interface TearSheetRendererProps {
   tearSheet: TearSheet;
   actions: {
-    onDownload?: () => void;
+    onDownload?: (e?: React.MouseEvent) => void;
     onEditInputs?: () => void;
     onRunAgain?: () => void;
     onDuplicate?: () => void;

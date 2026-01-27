@@ -1,0 +1,18 @@
+{
+  "inflation": {
+    "value": 3.2,
+    "date": "2024-12-01",
+    "series": "CPIAUCSL"
+  },
+  "unemployment": {
+    "value": 3.7,
+    "date": "2024-12-01",
+    "series": "UNRATE"
+  },
+  "fedFunds": {
+    "value": 5.25,
+    "date": "2024-12-01",
+    "series": "FEDFUNDS"
+  }
+}
+

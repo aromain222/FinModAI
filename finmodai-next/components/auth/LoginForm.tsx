@@ -7,7 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
-export function LoginForm() {
+type LoginFormProps = {
+  onSwitchMode?: () => void;
+};
+
+export function LoginForm({ onSwitchMode }: LoginFormProps) {
   const supabase = createClientComponentClient();
   const router = useRouter();
 
@@ -55,18 +59,9 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <div className="space-y-1 text-left">
-        <h2 className="text-xl font-semibold text-cb-ink">
-          Log in to CapitalBase
-        </h2>
-        <p className="text-sm text-cb-slate">
-          Enter your credentials to access your workspace.
-        </p>
-      </div>
-
       <div className="space-y-2">
-        <Label htmlFor="login-email" className="text-cb-ink font-medium">
-          Email address
+        <Label htmlFor="login-email" className="text-sm font-medium text-neutral-200">
+          Email
         </Label>
         <Input
           id="login-email"
@@ -77,12 +72,12 @@ export function LoginForm() {
           onChange={(e) => setEmail(e.target.value)}
           disabled={loading}
           required
-          className="bg-white text-cb-ink placeholder-cb-slate border border-cb-line focus-visible:ring-cb-blue focus-visible:border-cb-blue"
+          className="rounded-xl border border-neutral-800 bg-neutral-950 text-neutral-100 placeholder:text-neutral-500 focus-visible:border-emerald-500/40 focus-visible:ring-2 focus-visible:ring-emerald-500/25"
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="login-password" className="text-cb-ink font-medium">
+        <Label htmlFor="login-password" className="text-sm font-medium text-neutral-200">
           Password
         </Label>
         <Input
@@ -95,22 +90,38 @@ export function LoginForm() {
           onChange={(e) => setPassword(e.target.value)}
           disabled={loading}
           required
-          className="bg-white text-cb-ink placeholder-cb-slate border border-cb-line focus-visible:ring-cb-blue focus-visible:border-cb-blue"
+          className="rounded-xl border border-neutral-800 bg-neutral-950 text-neutral-100 placeholder:text-neutral-500 focus-visible:border-emerald-500/40 focus-visible:ring-2 focus-visible:ring-emerald-500/25"
         />
       </div>
 
       {error && (
-        <p className="text-sm text-red-500" role="alert">
+        <p className="text-xs text-red-400" role="alert">
           {error}
         </p>
       )}
 
+      <div className="flex items-center justify-between text-xs text-neutral-400">
+        <a
+          href="/auth/reset"
+          className="font-semibold text-emerald-300 hover:text-emerald-200"
+        >
+          Forgot password?
+        </a>
+        <button
+          type="button"
+          onClick={() => onSwitchMode?.()}
+          className="font-semibold text-emerald-300 hover:text-emerald-200"
+        >
+          Create account
+        </button>
+      </div>
+
       <Button
         type="submit"
-        className="w-full rounded-lg bg-cb-blue text-white font-medium py-2.5 hover:bg-blue-500 transition"
+        className="w-full rounded-xl bg-emerald-500 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-emerald-400"
         disabled={loading}
       >
-        {loading ? "Logging in..." : "Log in"}
+        {loading ? "Signing in..." : "Sign in"}
       </Button>
     </form>
   );

@@ -260,7 +260,7 @@ export function TickerAutocomplete({
       {isOpen && !isLoading && results.length === 0 && query.trim().length > 0 && (
         <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg p-3">
           <p className="text-sm text-muted-foreground text-center">
-            No tickers found for "{query}"
+            No tickers found for &quot;{query}&quot;
           </p>
         </div>
       )}

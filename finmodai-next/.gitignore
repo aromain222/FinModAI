@@ -1,6 +1,6 @@
 node_modules/
 frontend/node_modules/
-cache/
+/cache/
 *.meta
 *.xlsx
 .env
@@ -22,6 +22,10 @@ finmodai-next/node_modules/
 .env.*.local
 
 # Cache / outputs
-cache/
+/cache/
 *.meta
 *.xlsx
+.market-brief-headlines-cache.json
+
+# Sentry Config File
+.env.sentry-build-plugin

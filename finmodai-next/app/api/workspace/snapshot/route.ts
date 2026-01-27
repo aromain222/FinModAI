@@ -10,6 +10,8 @@ import { countModels, getRecentModels } from '@/lib/modelsRepo';
 import { getLastSuccessfulRun, getAverageRuntime } from '@/lib/modelRuns';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET() {
   try {

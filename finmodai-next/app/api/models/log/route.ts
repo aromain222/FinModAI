@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     const record = await insertModel({
       ticker,
       type,
-      status: 'completed',
+      status: 'ready',
       file_name: body?.fileName ?? null,
       notes: body?.notes ?? null
     });

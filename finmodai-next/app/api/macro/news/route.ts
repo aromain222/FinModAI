@@ -1,142 +1,116 @@
-/**
- * API Route: /api/macro/news
- * 
- * Returns recent macro news with AI summaries and insights
- * Supports time window query parameter: ?window=today|1W|1M
- */
-
 import { NextRequest, NextResponse } from 'next/server';
-import type { MacroNewsResponse, MacroNewsArticle } from '@/types/macro';
+import { getCache, setCache } from '@/lib/cache/memory';
+import { fetchMacroNewsLive } from '@/lib/news/headlinesPipeline';
+import { NewsItemSchema } from '@/lib/schemas/news';
 
-export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
-export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const window = searchParams.get('window') || '1W';
-    
-    console.log(`[/api/macro/news] Fetching macro news (window: ${window})`);
-    
-    // TODO: Replace with real news API + OpenAI summarization
-    // For now, return mock data
-    const articles = getMockNewsArticles(window);
-    
-    const response: MacroNewsResponse = {
-      articles,
-      generatedAt: new Date().toISOString(),
-    };
-    
-    console.log(`[/api/macro/news] ✅ Returned ${articles.length} articles`);
-    
-    return NextResponse.json(response, { status: 200 });
-  } catch (error) {
-    console.error('[/api/macro/news] ❌ Error:', error);
-    
-    return NextResponse.json(
-      { error: 'Failed to fetch macro news' },
-      { status: 500 }
-    );
+type Range = '1D' | '1W' | '1M';
+
+type CacheValue = {
+  items: unknown[];
+  source: string;
+  providers: Record<string, { ok: boolean; status?: number; reason?: string; durationMs: number }>;
+  counts: { rawTotal: number; postFilterTotal: number; perProviderRaw: Record<string, number> };
+};
+
+export async function GET(request: NextRequest) {
+  const traceId = crypto.randomUUID();
+  if (process.env.NODE_ENV !== 'production' || process.env.MACRO_DEBUG_KEYS === '1') {
+    console.log('[MACRO_KEYS]', {
+      FRED: !!process.env.FRED_API_KEY,
+      DATABENTO: !!process.env.DATABENTO_API_KEY,
+      WEBZ: !!process.env.WEBZ_API_KEY,
+      WEBZIO: !!process.env.WEBZIO_API_KEY,
+      OPENAI: !!process.env.OPENAI_API_KEY,
+      FINNHUB: !!process.env.FINNHUB_API_KEY,
+      POLYGON: !!process.env.POLYGON_API_KEY,
+      MARKETSTACK: !!process.env.MARKETSTACK_API_KEY,
+    });
   }
-}
 
-/**
- * Generate mock news articles
- * TODO: Replace with real news API integration
- */
-function getMockNewsArticles(window: string): MacroNewsArticle[] {
-  const now = new Date();
-  
-  const articles: MacroNewsArticle[] = [
-    {
-      id: '1',
-      title: 'Fed Signals Potential Rate Cuts in 2025 as Inflation Cools',
-      source: 'Bloomberg',
-      publishedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(), // 2h ago
-      url: 'https://bloomberg.com',
-      summary: 'Federal Reserve officials indicated they may begin cutting interest rates in mid-2025 if inflation continues its downward trajectory. Recent CPI data showing a 3.2% year-over-year increase has given policymakers confidence that their restrictive stance is working.',
-      aiInsight: 'Rate cut expectations could support equity valuations and reduce discount rates in DCF models. Monitor 10Y Treasury yields for early signals.',
-      sentiment: 'bullish',
-      tags: ['Fed', 'Rates', 'Inflation'],
+  const searchParams = request.nextUrl.searchParams;
+  const range = (searchParams.get('range') || '1W').toUpperCase() as Range;
+  const limit = Number(searchParams.get('limit') || 20);
+  const queryOverride = searchParams.get('q') || '';
+
+  const baseQuery = 'Federal Reserve OR inflation OR CPI OR unemployment OR rates OR tariffs OR war';
+  const query = [queryOverride, baseQuery].filter(Boolean).join(' OR ');
+
+  const cacheKey = `news:macro:${range}:${queryOverride}:${limit}`;
+  const ttlMs = 10 * 60 * 1000;
+  const cached = getCache<CacheValue>(cacheKey);
+  if (cached && !cached.stale) {
+    const items = (cached.value.items ?? [])
+      .map((item) => NewsItemSchema.safeParse(item))
+      .filter((parsed) => parsed.success)
+      .map((parsed) => parsed.data)
+      .sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1));
+
+    return NextResponse.json({
+      ok: true,
+      data: { items },
+      meta: {
+        source: cached.value.source || 'cache',
+        stale: false,
+        fetchedAt: new Date().toISOString(),
+        traceId,
+        providers: cached.value.providers,
+        counts: cached.value.counts,
+      },
+    });
+  }
+
+  if (cached && cached.stale) {
+    fetchMacroNewsLive({ range, query, limit, traceId })
+      .then((live) => {
+        const anyOk = Object.values(live.providers).some((p) => p.ok);
+        if (!anyOk) return;
+        setCache(cacheKey, { items: live.items, source: live.source, providers: live.providers, counts: live.counts }, ttlMs);
+      })
+      .catch(() => {});
+
+    const items = (cached.value.items ?? [])
+      .map((item) => NewsItemSchema.safeParse(item))
+      .filter((parsed) => parsed.success)
+      .map((parsed) => parsed.data)
+      .sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1));
+
+    return NextResponse.json({
+      ok: true,
+      data: { items },
+      meta: {
+        source: cached.value.source || 'cache',
+        stale: true,
+        fetchedAt: new Date().toISOString(),
+        traceId,
+        providers: cached.value.providers,
+        counts: { ...cached.value.counts, postFilterTotal: items.length },
+        reason: 'cache_stale',
+      },
+    });
+  }
+
+  const live = await fetchMacroNewsLive({ range, query, limit, traceId });
+  const anyOk = Object.values(live.providers).some((p) => p.ok);
+  if (anyOk) {
+    setCache(cacheKey, { items: live.items, source: live.source, providers: live.providers, counts: live.counts }, ttlMs);
+  }
+
+  const items = (live.items ?? []).map((item) => NewsItemSchema.parse(item));
+  items.sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1));
+
+  return NextResponse.json({
+    ok: true,
+    data: { items },
+    meta: {
+      source: anyOk ? live.source : 'fallback',
+      stale: !anyOk,
+      fetchedAt: new Date().toISOString(),
+      traceId,
+      reason: anyOk ? (items.length ? undefined : 'empty') : 'provider_error',
+      providers: live.providers,
+      counts: live.counts,
     },
-    {
-      id: '2',
-      title: 'Labor Market Shows Resilience Despite Higher Rates',
-      source: 'WSJ',
-      publishedAt: new Date(now.getTime() - 5 * 60 * 60 * 1000).toISOString(), // 5h ago
-      url: 'https://wsj.com',
-      summary: 'November jobs report exceeded expectations with 220,000 new payrolls added. Unemployment remains at 3.9%, suggesting the economy is achieving a soft landing. Wage growth moderated to 4.1% year-over-year.',
-      aiInsight: 'Strong labor market supports consumer spending but may delay Fed rate cuts. Neutral for equities in the near term.',
-      sentiment: 'neutral',
-      tags: ['Employment', 'Economy'],
-    },
-    {
-      id: '3',
-      title: 'Treasury Yields Fall as Investors Bet on Policy Pivot',
-      source: 'Reuters',
-      publishedAt: new Date(now.getTime() - 8 * 60 * 60 * 1000).toISOString(), // 8h ago
-      url: 'https://reuters.com',
-      summary: 'The 10-year Treasury yield dropped to 4.45%, down from 4.70% last month. Bond markets are pricing in three rate cuts by end of 2025. Duration assets are seeing renewed interest from institutional investors.',
-      aiInsight: 'Lower yields reduce cost of capital and support higher equity multiples. Favorable for growth stocks and long-duration assets.',
-      sentiment: 'bullish',
-      tags: ['Bonds', 'Yields', 'Fed'],
-    },
-    {
-      id: '4',
-      title: 'VIX Drops to 13 as Market Volatility Subsides',
-      source: 'CNBC',
-      publishedAt: new Date(now.getTime() - 12 * 60 * 60 * 1000).toISOString(), // 12h ago
-      url: 'https://cnbc.com',
-      summary: 'The CBOE Volatility Index fell to 13.2, its lowest level in six months. Options traders are pricing in subdued near-term volatility as macro uncertainty fades. S&P 500 implied volatility for 30-day options is below historical averages.',
-      aiInsight: 'Low volatility environment supports risk-on positioning. However, complacency can precede sharp reversals—monitor geopolitical risks.',
-      sentiment: 'neutral',
-      tags: ['VIX', 'Volatility', 'Risk'],
-    },
-    {
-      id: '5',
-      title: 'Oil Prices Surge on OPEC+ Production Cuts',
-      source: 'FT',
-      publishedAt: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(), // 1d ago
-      url: 'https://ft.com',
-      summary: 'Brent crude jumped 4% to $85/barrel after OPEC+ announced extended production cuts through Q2 2025. Energy sector equities rallied on the news, while concerns about renewed inflation pressures emerged.',
-      aiInsight: 'Rising oil prices could reignite inflation concerns and delay Fed easing. Bearish for rate-sensitive sectors, bullish for energy.',
-      sentiment: 'bearish',
-      tags: ['Oil', 'Energy', 'Inflation'],
-    },
-    {
-      id: '6',
-      title: 'China Economic Data Beats Expectations',
-      source: 'Bloomberg',
-      publishedAt: new Date(now.getTime() - 36 * 60 * 60 * 1000).toISOString(), // 1.5d ago
-      url: 'https://bloomberg.com',
-      summary: 'Chinese manufacturing PMI rose to 51.2, signaling expansion for the third consecutive month. Stimulus measures and property sector stabilization are supporting growth. Analysts are upgrading 2025 GDP forecasts.',
-      aiInsight: 'China recovery supports global growth outlook and commodity demand. Positive for cyclical sectors and emerging markets.',
-      sentiment: 'bullish',
-      tags: ['China', 'Global', 'Growth'],
-    },
-  ];
-  
-  // Filter by window
-  const cutoffTime = getCutoffTime(window);
-  return articles.filter(article => {
-    const publishedTime = new Date(article.publishedAt).getTime();
-    return publishedTime >= cutoffTime;
   });
 }
-
-/**
- * Get cutoff time for news window
- */
-function getCutoffTime(window: string): number {
-  const now = Date.now();
-  switch (window) {
-    case 'today':
-      return now - 24 * 60 * 60 * 1000; // 24 hours
-    case '1W':
-      return now - 7 * 24 * 60 * 60 * 1000; // 7 days
-    case '1M':
-      return now - 30 * 24 * 60 * 60 * 1000; // 30 days
-    default:
-      return now - 7 * 24 * 60 * 60 * 1000; // Default 7 days
-  }
-}
-

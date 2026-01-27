@@ -16,7 +16,7 @@ export interface ModelResultsShellProps {
   
   // Actions
   downloadUrl?: string;
-  onDownload?: () => void;
+  onDownload?: (e?: React.MouseEvent) => void;
   onViewInputs?: () => void;
   onRunAgain?: () => void;
   onCopyLink?: () => void;
@@ -78,7 +78,7 @@ export function ModelResultsShell({
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--cb-text-primary)]">
+          <h1 className="text-heading-1">
             {ticker} — {modelName}
           </h1>
           <div className="mt-2 flex items-center gap-3 text-sm text-[var(--cb-text-muted)]">
@@ -95,25 +95,22 @@ export function ModelResultsShell({
 
       {/* Action Row */}
       <div className="flex flex-wrap items-center gap-2">
-        {downloadUrl && (
+        {(onDownload || downloadUrl) && (
           <Button
-            asChild
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (onDownload) {
+                onDownload(e);
+              } else if (downloadUrl) {
+                window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+              }
+            }}
             size="sm"
             variant="default"
             className="gap-2"
-          >
-            <a href={downloadUrl} download>
-              <Download className="h-4 w-4" />
-              Download Excel
-            </a>
-          </Button>
-        )}
-        {onDownload && !downloadUrl && (
-          <Button
-            onClick={onDownload}
-            size="sm"
-            variant="default"
-            className="gap-2"
+            disabled={false}
           >
             <Download className="h-4 w-4" />
             Download Excel
@@ -165,6 +162,14 @@ export function ModelResultsShell({
 
       {/* Main Content - Two Columns */}
       <div className="grid gap-6 lg:grid-cols-3">
+        {/* KPI / quick analysis (optional) */}
+        {additionalAnalysis && (
+          <div className="lg:col-span-3">
+            <div className="card-premium p-3">
+              <div className="flex items-center gap-4">{additionalAnalysis}</div>
+            </div>
+          </div>
+        )}
         {/* Left Column - Primary Preview (2/3 width) */}
         <div className="lg:col-span-2">
           {preview}

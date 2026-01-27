@@ -1,37 +1,44 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { APP_WORKSPACE_NAME } from "@/lib/branding";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { DemoHealth } from "@/components/DemoHealth";
 
 type DashboardTopbarProps = {
   userEmail?: string;
 };
 
 export function DashboardTopbar({ userEmail: propUserEmail }: DashboardTopbarProps) {
+  const pathname = usePathname();
+  const hideForModelDetail = /^\/models\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    pathname
+  );
   const router = useRouter();
   const supabase = createClientComponentClient();
-  const [userEmail, setUserEmail] = useState(propUserEmail || "guest@capitalbase.app");
+  const [userEmail, setUserEmail] = useState(propUserEmail || "");
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   useEffect(() => {
-    // Get current user email from Supabase session
+    if (hideForModelDetail) return;
+    // Get current user email from Supabase session (single source of truth)
     async function getUserEmail() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user?.email) {
         setUserEmail(session.user.email);
       } else {
-        // Check if guest mode
-        const isGuest = typeof window !== 'undefined' && localStorage.getItem('cb_guest') === '1';
-        setUserEmail(isGuest ? "guest@capitalbase.app" : "guest@capitalbase.app");
+        // No session - should not happen as AuthGate redirects, but set empty string
+        setUserEmail("");
       }
     }
     getUserEmail();
-  }, [supabase]);
+  }, [supabase, hideForModelDetail]);
+
+  if (hideForModelDetail) return null;
 
   async function handleSwitchAccount() {
     setIsSigningOut(true);
@@ -43,20 +50,18 @@ export function DashboardTopbar({ userEmail: propUserEmail }: DashboardTopbarPro
         await supabase.auth.signOut();
       }
 
-      // Clear guest mode
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('cb_guest');
-      }
+      // Clear any cached auth state
+      // (No guest mode to clear)
 
       // Clear any cached user data
       // (Add any other cleanup here if needed)
 
-      // Redirect to login
-      router.replace('/login');
+      // Redirect to /auth
+      router.replace('/auth');
     } catch (error) {
       console.error('[DashboardTopbar] Error signing out:', error);
-      // Still redirect to login even if sign out fails
-      router.replace('/login');
+      // Still redirect to /auth even if sign out fails
+      router.replace('/auth');
     } finally {
       setIsSigningOut(false);
     }
@@ -71,10 +76,11 @@ export function DashboardTopbar({ userEmail: propUserEmail }: DashboardTopbarPro
         <h1 className="text-2xl font-semibold text-[var(--cb-text-primary)]">{APP_WORKSPACE_NAME}</h1>
       </div>
       <div className="flex items-center gap-4">
+        <DemoHealth />
         <ThemeToggle />
         <div className="hidden text-right sm:block">
           <p className="text-xs uppercase tracking-wide text-[var(--cb-text-muted)]">Signed in as</p>
-          <p className="text-sm font-medium text-[var(--cb-text-primary)]">{userEmail || "Guest"}</p>
+          <p className="text-sm font-medium text-[var(--cb-text-primary)]">{userEmail || "Loading..."}</p>
         </div>
         <Avatar>
           <AvatarFallback className="bg-[var(--cb-green)]/10 text-sm font-semibold text-[var(--cb-green)]">

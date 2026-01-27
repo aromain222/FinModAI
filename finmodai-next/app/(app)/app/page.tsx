@@ -9,7 +9,9 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { countModels, getRecentModels } from '@/lib/modelsRepo';
 import { getModelStats, mapModelTypeToMetrics } from '@/lib/modelMetrics';
-import { getSupabaseServerClient } from '@/lib/supabaseClient';
+import { cookies } from 'next/headers';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import type { Database } from '@/lib/supabaseClient';
 import {
   APP_DASHBOARD_TAGLINE,
   APP_DASHBOARD_TITLE,
@@ -56,7 +58,7 @@ async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
       }
     } else {
       // If no models, try to get the most recent run from model_run_stats
-      const supabase = getSupabaseServerClient();
+      const supabase = createServerComponentClient<Database>({ cookies });
       const { data } = await supabase
         .from('model_run_stats')
         .select('created_at, duration_ms')
@@ -105,47 +107,47 @@ export default async function AppHomePage() {
   const snapshot = await getWorkspaceSnapshot();
 
   return (
-    <main className="min-h-screen bg-cb-soft px-6 py-10">
+    <main className="min-h-screen bg-gradient-to-b from-black via-slate-950 to-black px-6 py-10">
       <div className="mx-auto max-w-6xl space-y-10">
         <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cb-blue">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">
             {APP_NAME} Workspace
           </p>
-          <h1 className="text-3xl font-bold text-cb-ink">{APP_DASHBOARD_TITLE}</h1>
-          <p className="text-base text-cb-slate">
+          <h1 className="text-3xl font-bold text-white">{APP_DASHBOARD_TITLE}</h1>
+          <p className="text-base text-slate-300">
             {APP_DASHBOARD_TAGLINE}
           </p>
         </header>
 
         <section className="grid gap-6 md:grid-cols-2">
-          <div className="rounded-2xl border border-cb-line bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-cb-ink">Start a new model</h2>
-            <p className="mt-2 text-sm text-cb-slate">
+          <div className="cb-panel p-6">
+            <h2 className="text-xl font-semibold text-white">Start a new model</h2>
+            <p className="mt-2 text-sm text-slate-300">
               Spin up a new DCF, LBO, or three-statement workbook in seconds.
             </p>
-            <Button asChild className="mt-4 w-full bg-cb-blue text-white hover:bg-blue-500">
+            <Button asChild className="mt-4 w-full bg-emerald-600 text-white hover:bg-emerald-500">
               <Link href="/models/create">Create model</Link>
             </Button>
           </div>
 
-          <div className="rounded-2xl border border-cb-line bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-cb-ink">Workspace snapshot</h2>
+          <div className="cb-panel p-6">
+            <h2 className="text-xl font-semibold text-white">Workspace snapshot</h2>
             {snapshot.totalModels === 0 ? (
-              <div className="mt-4 space-y-3 text-sm text-cb-slate">
-                <p className="text-cb-slate">No models yet</p>
-                <Button asChild className="w-full bg-cb-blue text-white hover:bg-blue-500">
+              <div className="mt-4 space-y-3 text-sm text-slate-300">
+                <p className="text-slate-400">No models yet</p>
+                <Button asChild className="w-full bg-emerald-600 text-white hover:bg-emerald-500">
                   <Link href="/models/create">Create your first model</Link>
                 </Button>
               </div>
             ) : (
-              <div className="mt-4 space-y-3 text-sm text-cb-slate">
+              <div className="mt-4 space-y-3 text-sm text-slate-300">
                 <div className="flex items-center justify-between">
                   <span>Total models</span>
-                  <span className="text-base font-semibold text-cb-ink">{snapshot.totalModels}</span>
+                  <span className="text-base font-semibold text-white">{snapshot.totalModels}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Last ticker</span>
-                  <span className="text-base font-semibold text-cb-ink">
+                  <span className="text-base font-semibold text-white">
                     {snapshot.lastModel
                       ? `${snapshot.lastModel.ticker} (${formatModelLabel(snapshot.lastModel.modelType)})`
                       : '—'}
@@ -153,18 +155,18 @@ export default async function AppHomePage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Last run</span>
-                  <span className="text-base font-semibold text-cb-ink">
+                  <span className="text-base font-semibold text-white">
                     {snapshot.lastRunAt ? timeAgo(snapshot.lastRunAt) : '—'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Avg runtime</span>
-                  <span className="text-base font-semibold text-cb-ink">
+                  <span className="text-base font-semibold text-white">
                     {snapshot.avgRuntimeMs ? formatDuration(snapshot.avgRuntimeMs) : '—'}
                   </span>
                 </div>
                 {snapshot.lastRunAt === null && (
-                  <div className="text-right text-xs text-cb-slate">
+                  <div className="text-right text-xs text-slate-400">
                     Benchmarks populate after your first successful run.
                   </div>
                 )}
@@ -179,8 +181,8 @@ export default async function AppHomePage() {
           <CTABox title="Macro dashboard" description="Monitor rates, indices, and headlines shaping multiples." href="/macro" />
         </section>
 
-        <section className="rounded-2xl border border-dashed border-cb-line bg-white/80 p-6 text-sm text-cb-slate">
-          {APP_WORKSPACE_FOOTER}
+        <section className="cb-panel p-6 border-dashed">
+          <p className="text-sm text-slate-400">{APP_WORKSPACE_FOOTER}</p>
         </section>
       </div>
     </main>
@@ -191,11 +193,11 @@ function CTABox({ title, description, href }: { title: string; description: stri
   return (
     <Link
       href={href}
-      className="rounded-2xl border border-cb-line bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-cb-blue/50"
+      className="cb-panel-hover p-5 transition hover:-translate-y-0.5"
     >
-      <h2 className="text-lg font-semibold text-cb-ink">{title}</h2>
-      <p className="mt-2 text-sm text-cb-slate">{description}</p>
-      <span className="mt-4 inline-flex items-center text-sm font-semibold text-cb-blue">
+      <h2 className="text-lg font-semibold text-white">{title}</h2>
+      <p className="mt-2 text-sm text-slate-300">{description}</p>
+      <span className="mt-4 inline-flex items-center text-sm font-semibold text-emerald-400">
         Open →
       </span>
     </Link>

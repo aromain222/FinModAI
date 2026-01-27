@@ -8,9 +8,10 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 interface SignupFormProps {
   onSignUpComplete?: () => void;
+  onSwitchMode?: () => void;
 }
 
-export function SignupForm({ onSignUpComplete }: SignupFormProps) {
+export function SignupForm({ onSignUpComplete, onSwitchMode }: SignupFormProps) {
   const supabase = createClientComponentClient();
 
   const [email, setEmail] = useState("");
@@ -67,17 +68,8 @@ export function SignupForm({ onSignUpComplete }: SignupFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <div className="space-y-1 text-left">
-        <h2 className="text-xl font-semibold text-cb-ink">
-          Create your CapitalBase account
-        </h2>
-        <p className="text-sm text-cb-slate">
-          Build models, save scenarios, and sync across devices.
-        </p>
-      </div>
-
       <div className="space-y-2">
-        <Label htmlFor="signup-full-name" className="text-cb-ink font-medium">
+        <Label htmlFor="signup-full-name" className="text-sm font-medium text-neutral-200">
           Full name (optional)
         </Label>
         <Input
@@ -87,13 +79,13 @@ export function SignupForm({ onSignUpComplete }: SignupFormProps) {
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
           disabled={loading}
-          className="bg-white text-cb-ink placeholder-cb-slate border border-cb-line focus-visible:ring-cb-blue focus-visible:border-cb-blue"
+          className="rounded-xl border border-neutral-800 bg-neutral-950 text-neutral-100 placeholder:text-neutral-500 focus-visible:border-emerald-500/40 focus-visible:ring-2 focus-visible:ring-emerald-500/25"
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="signup-email" className="text-cb-ink font-medium">
-          Email address
+        <Label htmlFor="signup-email" className="text-sm font-medium text-neutral-200">
+          Email
         </Label>
         <Input
           id="signup-email"
@@ -104,12 +96,12 @@ export function SignupForm({ onSignUpComplete }: SignupFormProps) {
           onChange={(e) => setEmail(e.target.value)}
           disabled={loading}
           required
-          className="bg-white text-cb-ink placeholder-cb-slate border border-cb-line focus-visible:ring-cb-blue focus-visible:border-cb-blue"
+          className="rounded-xl border border-neutral-800 bg-neutral-950 text-neutral-100 placeholder:text-neutral-500 focus-visible:border-emerald-500/40 focus-visible:ring-2 focus-visible:ring-emerald-500/25"
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="signup-password" className="text-cb-ink font-medium">
+        <Label htmlFor="signup-password" className="text-sm font-medium text-neutral-200">
           Password
         </Label>
         <Input
@@ -122,25 +114,36 @@ export function SignupForm({ onSignUpComplete }: SignupFormProps) {
           onChange={(e) => setPassword(e.target.value)}
           disabled={loading}
           required
-          className="bg-white text-cb-ink placeholder-cb-slate border border-cb-line focus-visible:ring-cb-blue focus-visible:border-cb-blue"
+          className="rounded-xl border border-neutral-800 bg-neutral-950 text-neutral-100 placeholder:text-neutral-500 focus-visible:border-emerald-500/40 focus-visible:ring-2 focus-visible:ring-emerald-500/25"
         />
       </div>
 
       {error && (
-        <p className="text-sm text-red-500" role="alert">
+        <p className="text-xs text-red-400" role="alert">
           {error}
         </p>
       )}
 
       {success && (
-        <p className="text-sm text-emerald-500" role="status">
+        <p className="text-xs text-emerald-400" role="status">
           {success}
         </p>
       )}
 
+      <div className="flex items-center justify-between text-xs text-neutral-400">
+        <span>Have an account?</span>
+        <button
+          type="button"
+          onClick={() => onSwitchMode?.()}
+          className="font-semibold text-emerald-300 hover:text-emerald-200"
+        >
+          Sign in
+        </button>
+      </div>
+
       <Button
         type="submit"
-        className="w-full rounded-lg bg-cb-blue text-white font-medium py-2.5 hover:bg-blue-500 transition"
+        className="w-full rounded-xl bg-emerald-500 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-emerald-400"
         disabled={loading}
       >
         {loading ? "Creating account..." : "Create account"}

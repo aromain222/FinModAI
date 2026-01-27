@@ -10,10 +10,14 @@
  * 3. Enrich assumptions with OpenAI
  * 4. Sanitize and validate assumptions
  * 5. Generate Excel model
- * 6. Return: assumptions, summary, preview, downloadUrl, diagnostics
+ * 6. Return: assumptions, summary, preview, diagnostics
  */
 
-import { NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
+import path from 'node:path';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import ExcelJS from 'exceljs';
 import { APP_NAME } from '@/lib/branding';
 import type { ModelType as RequestModelType } from '@/types/models';
@@ -23,6 +27,7 @@ import {
   validateSanitizedAssumptions, 
   formatSanitizationLog 
 } from '@/lib/sanitizeAssumptions';
+import { safeSanitizeAssumptions } from '@/lib/models/sanitizeAssumptions';
 import type {
   ThreeStatementAssumptions,
   PartialThreeStatementAssumptions,
@@ -31,8 +36,8 @@ import type { DataDiagnostics } from '@/types/diagnostics';
 import { createDiagnostic, logDiagnostic } from '@/types/diagnostics';
 import { performSanityChecks } from '@/lib/data/fetchWithDiagnostics';
 import type { DCFInputs } from '@/lib/dcfGenerator';
-import { ensureMillions, formatMillions } from '@/lib/unitConversion';
-import { cleanAndScaleFinancials, type RawFinancials, type ScaledFinancials } from '@/lib/financials';
+import { formatMillions } from '@/lib/unitConversion';
+import { type ScaledFinancials } from '@/lib/financials';
 import type { APIAttempt } from '@/lib/data/dcfValidation';
 import { buildLboWorkbook, type LboEngineOutput } from '@/lib/lboEngine';
 import type { LBOInputs } from '@/lib/lboGenerator';
@@ -44,8 +49,15 @@ import { buildUnifiedAssumptionsFromPolygon } from '@/lib/unifiedAssumptions';
 import type { LboAdvancedOptions } from '@/types/lbo';
 import { generatePreviewFromWorkbook } from '@/lib/generatePreview';
 import { getSettings } from '@/lib/settings/store';
+import { handleModelError } from '@/lib/models/errorHandler';
 import { applyDefaultsToModelInputs } from '@/lib/models/shared/applyDefaults';
 import { evaluateGuardrails } from '@/lib/models/shared/guardrails';
+import { uploadXlsxToR2, assertR2Env, checkR2Env } from '@/lib/r2';
+import { cookies } from 'next/headers';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { normalizeModelRequest } from '@/types/modelContracts';
+import { NormalizeInputsError, normalizeInputs } from '@/lib/modeling/normalizeInputs';
+// Removed randomUUID import - modelId must come from database
 
 const deepClone = <T,>(value: T): T => {
   if (typeof globalThis.structuredClone === 'function') {
@@ -54,31 +66,182 @@ const deepClone = <T,>(value: T): T => {
   return JSON.parse(JSON.stringify(value));
 };
 
+const toUsdMillions = (raw: any): number => {
+  const num = typeof raw === 'number' && isFinite(raw) ? raw : Number(raw);
+  if (!isFinite(num)) return 0;
+  // Assume raw dollars; convert once
+  let millions = num / 1_000_000;
+  // Clamp obvious double/missed conversions
+  if (millions > 1_000_000) {
+    millions = millions / 1_000;
+  } else if (millions > 0 && millions < 1) {
+    millions = millions * 1_000_000;
+  }
+  return millions;
+};
+
+const toMillionShares = (raw: any): number => {
+  const num = typeof raw === 'number' && isFinite(raw) ? raw : Number(raw);
+  if (!isFinite(num)) return 0;
+  if (num > 1_000_000) return num / 1_000_000;
+  return num;
+};
+
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+const stringifyErrorDetails = (value: unknown): string | undefined => {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value === 'string') return value;
+  if (value instanceof Error) return value.message || undefined;
+  try {
+    const serialized = JSON.stringify(value);
+    if (!serialized || serialized === '{}' || serialized === '[]') return undefined;
+    return serialized.length > 800 ? `${serialized.slice(0, 800)}...` : serialized;
+  } catch {
+    return String(value);
+  }
+};
+
+const normalizeNullableString = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const lowered = trimmed.toLowerCase();
+  if (lowered === 'null' || lowered === 'undefined') return undefined;
+  return trimmed;
+};
+
+// Helper to safely parse JSON strings
+const jsonStringOrObject = <T extends z.ZodTypeAny>(schema: T) =>
+  z.union([
+    schema,
+    z.string().transform((str, ctx) => {
+      try {
+        return JSON.parse(str);
+      } catch {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Invalid JSON string',
+        });
+        return z.NEVER;
+      }
+    }).pipe(schema),
+  ]);
+
+const generateModelSchema = z
+  .object({
+    modelId: z.string().min(1, 'modelId is required'),
+    ticker: z.preprocess(
+      normalizeNullableString,
+      z.string().min(1)
+    ).optional(),
+    modelType: z.string().min(1).optional(),
+    model_type: z.string().min(1).optional(),
+    scenario: z.string().optional(),
+    scenario_adjustment_notes: z.string().optional().nullable(),
+    scenarioAdjustmentNotes: z.string().optional().nullable(),
+    // Handle assumptions as record, object, or stringified JSON
+    assumptions: z.union([
+      z.record(z.any()),
+      z.object({}).passthrough(),
+      z.string().transform((str, ctx) => {
+        try {
+          const parsed = JSON.parse(str);
+          return typeof parsed === 'object' && parsed !== null ? parsed : {};
+        } catch {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Invalid JSON string in assumptions',
+          });
+          return z.NEVER;
+        }
+      }),
+    ]).optional().default({}),
+    companyName: z.preprocess(
+      normalizeNullableString,
+      z.string().min(1)
+    ).optional(),
+    company_name: z.preprocess(
+      normalizeNullableString,
+      z.string().min(1)
+    ).optional(),
+    // Consolidate duplicate fields - prefer camelCase
+    // model_type will be normalized to modelType in normalizeModelRequest
+    // Coerce numeric fields from strings
+    wacc: z.union([z.number(), z.string().transform((s) => {
+      const num = parseFloat(s);
+      return Number.isFinite(num) ? num : undefined;
+    })]).optional(),
+    terminalGrowth: z.union([z.number(), z.string().transform((s) => {
+      const num = parseFloat(s);
+      return Number.isFinite(num) ? num : undefined;
+    })]).optional(),
+    // Handle nested objects that might be stringified
+    sliderOverrides: jsonStringOrObject(z.record(z.any())).optional(),
+    lboAdvanced: jsonStringOrObject(z.record(z.any())).optional(),
+    lboOverrides: jsonStringOrObject(z.record(z.any())).optional(),
+    scenarioInputs: jsonStringOrObject(z.record(z.any())).optional(),
+    mergerInputs: jsonStringOrObject(z.record(z.any())).optional(),
+    operatingInputs: jsonStringOrObject(z.record(z.any())).optional(),
+  })
+  .passthrough()
+  .superRefine((value, ctx) => {
+    const ticker = normalizeNullableString(value.ticker);
+    const companyName = normalizeNullableString(value.companyName ?? value.company_name);
+    if (!ticker && !companyName) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'companyName or ticker is required',
+        path: ['companyName'],
+      });
+    }
+  });
 
 /**
  * Validate request body
  */
-function validateRequestBody(body: any): { ticker: string; modelType: RequestModelType; rest: any } {
+function validateRequestBody(body: any): {
+  ticker: string;
+  modelType: RequestModelType;
+  scenario: Scenario;
+  assumptions: Record<string, any>;
+} {
   if (!body || typeof body !== 'object') {
     throw new Error('Missing or invalid JSON body');
   }
 
-  const { ticker, modelType, ...rest } = body;
+  const { ticker, modelType, model_type, scenario, assumptions } = body;
 
   if (!ticker || typeof ticker !== 'string' || ticker.trim().length === 0) {
     throw new Error('Ticker is required and must be a non-empty string');
   }
 
-  const allowedTypes: RequestModelType[] = ['three-statement', 'dcf', 'lbo', 'comps'];
-  if (!modelType || !allowedTypes.includes(modelType)) {
-    throw new Error(`Invalid modelType "${modelType}". Must be one of: ${allowedTypes.join(', ')}`);
+  const allowedTypes: RequestModelType[] = ['three-statement', 'dcf', 'comps'];
+  const preferredModelType = (modelType || model_type || 'dcf') as RequestModelType;
+  const resolvedModelType = allowedTypes.includes(preferredModelType) ? preferredModelType : 'dcf';
+
+  const scenarioAliases: Record<string, Scenario> = {
+    BASE: 'BASE',
+    BULL: 'BULLISH',
+    BULLISH: 'BULLISH',
+    BEAR: 'BEARISH',
+    BEARISH: 'BEARISH',
+  };
+
+  const normalizedScenarioKey =
+    typeof scenario === 'string' && scenario.trim().length > 0 ? scenario.trim().toUpperCase() : '';
+  const resolvedScenario = scenarioAliases[normalizedScenarioKey] || 'BASE';
+
+  if (!assumptions || typeof assumptions !== 'object') {
+    throw new Error('Assumptions payload is required');
   }
 
   return {
     ticker: ticker.trim().toUpperCase(),
-    modelType,
-    rest,
+    modelType: resolvedModelType,
+    scenario: resolvedScenario,
+    assumptions,
   };
 }
 
@@ -120,14 +283,20 @@ function buildPartialAssumptions(
 
   // Add LTM data if available
   if (ltmFinancials) {
-    if (ltmFinancials.revenue) {
-      partial.revenue = [ltmFinancials.revenue];
+    const ltmRevenueM = toUsdMillions(ltmFinancials.revenue);
+    if (ltmRevenueM) {
+      partial.revenue = [ltmRevenueM];
     }
-    if (ltmFinancials.grossProfit && ltmFinancials.revenue) {
-      partial.cogsPct = [(ltmFinancials.revenue - ltmFinancials.grossProfit) / ltmFinancials.revenue];
+    if (ltmFinancials.grossProfit && ltmRevenueM) {
+      partial.cogsPct = [(ltmRevenueM - toUsdMillions(ltmFinancials.grossProfit)) / ltmRevenueM];
     }
-    if (ltmFinancials.operatingIncome && ltmFinancials.revenue) {
-      partial.opexPct = [(ltmFinancials.revenue - ltmFinancials.operatingIncome - (ltmFinancials.revenue - ltmFinancials.grossProfit)) / ltmFinancials.revenue];
+    if (ltmFinancials.operatingIncome && ltmRevenueM) {
+      partial.opexPct = [
+        (ltmRevenueM -
+          toUsdMillions(ltmFinancials.operatingIncome) -
+          (ltmRevenueM - toUsdMillions(ltmFinancials.grossProfit))) /
+          ltmRevenueM,
+      ];
     }
   }
 
@@ -150,9 +319,11 @@ async function buildDcfModelWithAssumptions(
   ticker: string,
   assumptions: ThreeStatementAssumptions,
   body: any,
+  scenario: Scenario,
   normalizedFinancials?: ScaledFinancials | null,
-  appliedDefaults: any[] = []
-): Promise<{ dcfSummary?: any }> {
+  appliedDefaults: any[] = [],
+  modelType: RequestModelType = 'dcf'
+): Promise<{ dcfSummary?: any; validation?: any; raw?: { results: any; normalizedInputs: any } }> {
   console.log(`[generateModel] ========== DCF VALUATION ENGINE v7.0 ==========`);
   console.log(`[generateModel] Building DCF for ${ticker}`);
 
@@ -170,6 +341,16 @@ async function buildDcfModelWithAssumptions(
         wacc: clampOverride(body.sliderOverrides.wacc, 0.05, 0.2),
       }
     : { revenueGrowth: undefined, ebitdaMargin: undefined, wacc: undefined };
+  
+  // Defensive scenario inputs handling - handle case-insensitive scenario keys
+  const scenarioKey = scenario.toLowerCase();
+  const scenarioInputsRaw = body?.scenarioInputs && typeof body.scenarioInputs === 'object' ? body.scenarioInputs : {};
+  const scenarioInput =
+    scenarioInputsRaw[scenarioKey] ??
+    scenarioInputsRaw[scenario.toLowerCase()] ??
+    scenarioInputsRaw.base ??
+    scenarioInputsRaw.BASE ??
+    {};
   
   // Import all required modules
   const { generateBankerDCF, computeDCFSeries, normalizeDCFInputs } = await import('@/lib/dcfGenerator');
@@ -203,8 +384,6 @@ async function buildDcfModelWithAssumptions(
     createJSONSummary,
   } = await import('@/lib/outputFormatter');
   
-  // Get scenario from request (default: BASE)
-  const scenario: Scenario = (body.scenario?.toUpperCase() as Scenario) || 'BASE';
   console.log(`[generateModel] Scenario: ${scenario}`);
   
   // Track API attempts for validation
@@ -243,9 +422,57 @@ async function buildDcfModelWithAssumptions(
   
   // STEP 4: Ensure all monetary values are in millions (MANDATORY SCALING PROTOCOL)
   console.log(`[generateModel] STEP 3: Applying MANDATORY SCALING PROTOCOL...`);
-  const netDebtMillions = normalizedFinancials?.netDebtM ?? ensureMillions(assumptions.debt - assumptions.startingCash, 'netDebt');
-  const sharesOutstandingMillions = normalizedFinancials?.sharesOutstandingM ?? ensureMillions(assumptions.sharesOutstanding, 'sharesOutstanding');
-  const revenueByYear = assumptions.revenue.map(r => ensureMillions(r, 'revenue'));
+  const netDebtMillions = normalizedFinancials?.netDebtM ?? toUsdMillions(assumptions.debt - assumptions.startingCash);
+  
+  // Determine shares outstanding with source priority:
+  // 1. Cap table (if modeled in 3-statement) - check if shares are in assumptions from cap table
+  // 2. Market data (normalizedFinancials from Polygon) 
+  // 3. Assumption (user-provided)
+  let sharesOutstandingMillions: number;
+  let sharesSource: 'capTable' | 'marketData' | 'assumption';
+  
+  // Check if shares come from cap table (3-statement model would have this)
+  // For now, we'll check if assumptions.sharesOutstanding exists and is from a cap table
+  // In a full implementation, you'd check if there's a cap table sheet/modeled shares
+  const capTableShares = assumptions.sharesOutstanding && assumptions.sharesOutstanding > 0 
+    ? toMillionShares(assumptions.sharesOutstanding) 
+    : null;
+  
+  if (capTableShares && capTableShares > 0) {
+    sharesOutstandingMillions = capTableShares;
+    sharesSource = 'capTable';
+    console.log(`[generateModel] Shares outstanding from cap table: ${sharesOutstandingMillions.toFixed(2)}M`);
+  } else if (normalizedFinancials?.sharesOutstandingM && normalizedFinancials.sharesOutstandingM > 0) {
+    sharesOutstandingMillions = normalizedFinancials.sharesOutstandingM;
+    sharesSource = 'marketData';
+    console.log(`[generateModel] Shares outstanding from market data (Polygon): ${sharesOutstandingMillions.toFixed(2)}M`);
+  } else {
+    sharesOutstandingMillions = toMillionShares(assumptions.sharesOutstanding) ?? 0;
+    sharesSource = 'assumption';
+    if (sharesOutstandingMillions > 0) {
+      console.log(`[generateModel] Shares outstanding from assumption: ${sharesOutstandingMillions.toFixed(2)}M`);
+    }
+  }
+  
+  // SAFETY CHECK: Shares outstanding - warn if missing but continue
+  // ALWAYS write shares to workbook (even if 0) for deterministic output
+  if (!sharesOutstandingMillions || sharesOutstandingMillions <= 0) {
+    console.warn(`[generateModel] ⚠️  Shares outstanding is missing or invalid: ${sharesOutstandingMillions}`);
+    console.warn(`[generateModel] Per-share metrics will be unavailable. EV and equity value will still be calculated.`);
+    console.warn(`[generateModel] Shares will be written as 0 in workbook with named range CB_OUT_SHARES_OUT.`);
+  } else {
+    console.log(`[generateModel] Shares outstanding (millions): ${sharesOutstandingMillions.toFixed(2)}M (source: ${sharesSource})`);
+  }
+  let revenueByYear = assumptions.revenue.map((r: number) => r);
+  if (normalizedFinancials?.revenueM && revenueByYear.length > 0) {
+    revenueByYear[0] = normalizedFinancials.revenueM;
+  }
+  // Ensure length matches years by padding with simple growth
+  while (revenueByYear.length < assumptions.years.length) {
+    const last = revenueByYear[revenueByYear.length - 1] || revenueByYear[0] || 1000;
+    const growth = typeof assumptions.revenueGrowth?.[0] === 'number' ? assumptions.revenueGrowth[0] : 0.05;
+    revenueByYear.push(last * (1 + growth));
+  }
   
   if (sliderOverrides.revenueGrowth !== undefined) {
     for (let i = 1; i < revenueByYear.length; i++) {
@@ -253,6 +480,12 @@ async function buildDcfModelWithAssumptions(
     }
     console.log(
       `[generateModel] Slider override: Applied ${(sliderOverrides.revenueGrowth * 100).toFixed(1)}% revenue growth across forecast years.`
+    );
+  }
+  if (revenueByYear.length > 0) {
+    const firstRev = revenueByYear[0];
+    console.log(
+      `[generateModel] Revenue Y1 (USD millions): ${formatMillions(firstRev)}`
     );
   }
   
@@ -449,20 +682,9 @@ async function buildDcfModelWithAssumptions(
     // Balance sheet (in millions)
     netDebtMillions,
     sharesOutstandingMillions,
+    sharesSource, // Track source for workbook labeling
   };
 
-  // STEP 7: VALIDATION & ABORT LOGIC
-  console.log(`[generateModel] STEP 5: Validating DCF inputs...`);
-  const validationResult = validateDCFInputs(dcfInputs, apiAttempts);
-  logValidationResult(validationResult, ticker);
-  
-  // ABORT if validation fails
-  if (!validationResult.canProceed) {
-    const errorReport = formatValidationError(validationResult, ticker);
-    console.error(errorReport);
-    throw new Error(`DCF validation failed for ${ticker}: ${validationResult.missingCriticalFields.join(', ')} missing`);
-  }
-  
   // Log inference summary
   const inferenceSummary = createInferenceSummary(inferences);
   if (inferenceSummary.length > 0) {
@@ -489,6 +711,21 @@ async function buildDcfModelWithAssumptions(
   // Normalize and compute DCF (for diagnostics)
   const normalizedInputs = normalizeDCFInputs(dcfInputs);
   const results = computeDCFSeries(normalizedInputs);
+
+  // Validate DCF inputs and results (tiered validation)
+  const validationResult = validateDCFInputs(normalizedInputs, results, apiAttempts);
+  validationResult.warnings = validationResult.warnings || [];
+  validationResult.errors = validationResult.errors || [];
+  logValidationResult(validationResult, ticker);
+
+  // Only block model generation on fatal errors (isValid=false)
+  // Warnings are informational and do not block download/preview
+  if (!validationResult.isValid) {
+    results.isValid = false;
+    results.invalidReason = validationResult.reason ?? 'Validation failure';
+
+    throw new Error(validationResult.reason || 'DCF validation failed');
+  }
   
   console.log(`[generateModel] ========== DCF RESULTS DEBUG ==========`);
   console.log(`[generateModel] EBIT Year 1: ${formatMillions(results.ebitByYear[0])}`);
@@ -506,8 +743,8 @@ async function buildDcfModelWithAssumptions(
   );
   console.log(`[generateModel] ==========================================`);
 
-  // Generate DCF workbook (will normalize, compute, and build Excel)
-  const bankerWorkbook = await generateBankerDCF(dcfInputs);
+  // Generate DCF workbook (uses normalized inputs/results)
+  const bankerWorkbook = await generateBankerDCF(normalizedInputs, results);
 
   // Copy DCF Model sheet to main workbook
   const bankerSheet = bankerWorkbook.getWorksheet('DCF Model');
@@ -526,7 +763,7 @@ async function buildDcfModelWithAssumptions(
   // STEP 9: FORMAT OUTPUT (v7.0)
   console.log(`[generateModel] STEP 8: Formatting output with Analyst AI marketing...`);
   
-  const scenarioAdjustmentNotes = createScenarioSummary(scenario, adjustedEstimates, waccAdjustment);
+  const scenarioSummaryNotes = createScenarioSummary(scenario, adjustedEstimates, waccAdjustment);
   
   const dcfSummary = formatDCFOutput(
     ticker,
@@ -534,7 +771,7 @@ async function buildDcfModelWithAssumptions(
     normalizedInputs,
     results,
     waccSource,
-    scenarioAdjustmentNotes
+    scenarioSummaryNotes
   );
   
   // Log formatted output to console
@@ -546,7 +783,6 @@ async function buildDcfModelWithAssumptions(
   return { 
     dcfSummary: {
       ...jsonSummary,
-      // Add raw results for preview parsing
       results: {
         enterpriseValue: results.enterpriseValue,
         equityValue: results.equityValue,
@@ -558,20 +794,20 @@ async function buildDcfModelWithAssumptions(
         revenueByYear: normalizedInputs.revenueByYear,
         ebitByYear: results.ebitByYear,
         ufcfByYear: results.ufcfByYear,
-        // Extract first 3 years for preview
         revenueProjections: normalizedInputs.revenueByYear.slice(0, 3),
         ebitdaProjections: results.ebitByYear.slice(0, 3).map((ebit, i) => 
           ebit + (results.daByYear[i] || 0)
         ),
         fcfProjections: results.ufcfByYear.slice(0, 3),
       },
-      // Include assumptions for preview
       assumptions: {
         ...jsonSummary.assumptions,
         taxRate: normalizedInputs.taxRate,
         projectionHorizon: normalizedInputs.years.length,
       },
-    }
+    },
+    validation: validationResult,
+    raw: { results, normalizedInputs },
   };
 }
 
@@ -666,10 +902,14 @@ async function buildThreeStatementModelWithAssumptions(
   });
   row++;
 
-  // Interest Expense
+  // Interest Expense (from debt schedule)
   sheet.getCell(row, 1).value = 'Interest Expense';
-  const interestExpense = assumptions.debt * assumptions.interestRate;
+  // Calculate interest from average debt for each period
+  let beginDebt = assumptions.debt;
   assumptions.years.forEach((_, idx) => {
+    // For simplicity, use constant debt (proper debt schedule would track beginning/ending)
+    const avgDebt = beginDebt;
+    const interestExpense = avgDebt * assumptions.interestRate;
     sheet.getCell(row, idx + 2).value = -interestExpense;
     sheet.getCell(row, idx + 2).numFmt = '$#,##0';
   });
@@ -682,6 +922,8 @@ async function buildThreeStatementModelWithAssumptions(
     const opex = rev * assumptions.opexPct[idx];
     const da = rev * assumptions.daPct[idx];
     const ebit = rev - cogs - opex - da;
+    const avgDebt = beginDebt; // Use constant debt for now
+    const interestExpense = avgDebt * assumptions.interestRate;
     const ebt = ebit - interestExpense;
     sheet.getCell(row, idx + 2).value = ebt;
     sheet.getCell(row, idx + 2).numFmt = '$#,##0';
@@ -695,8 +937,11 @@ async function buildThreeStatementModelWithAssumptions(
     const opex = rev * assumptions.opexPct[idx];
     const da = rev * assumptions.daPct[idx];
     const ebit = rev - cogs - opex - da;
+    const avgDebt = beginDebt;
+    const interestExpense = avgDebt * assumptions.interestRate;
     const ebt = ebit - interestExpense;
-    const taxes = ebt * assumptions.taxRate;
+    // Tax logic: 0 if EBT < 0, otherwise EBT * taxRate
+    const taxes = ebt < 0 ? 0 : ebt * assumptions.taxRate;
     sheet.getCell(row, idx + 2).value = -taxes;
     sheet.getCell(row, idx + 2).numFmt = '$#,##0';
   });
@@ -711,8 +956,10 @@ async function buildThreeStatementModelWithAssumptions(
     const opex = rev * assumptions.opexPct[idx];
     const da = rev * assumptions.daPct[idx];
     const ebit = rev - cogs - opex - da;
+    const avgDebt = beginDebt;
+    const interestExpense = avgDebt * assumptions.interestRate;
     const ebt = ebit - interestExpense;
-    const taxes = ebt * assumptions.taxRate;
+    const taxes = ebt < 0 ? 0 : ebt * assumptions.taxRate;
     const netIncome = ebt - taxes;
     sheet.getCell(row, idx + 2).value = netIncome;
     sheet.getCell(row, idx + 2).numFmt = '$#,##0';
@@ -854,7 +1101,8 @@ async function buildCompsModelWithAssumptions(
   ticker: string,
   assumptions: ThreeStatementAssumptions,
   normalizedFinancials?: ScaledFinancials | null,
-  diagnostics?: DataDiagnostics[]
+  diagnostics?: DataDiagnostics[],
+  requestBody?: any
 ): Promise<void> {
   console.log(`[generateModel] Building Comps for ${ticker}`);
   
@@ -864,8 +1112,25 @@ async function buildCompsModelWithAssumptions(
   const { generateCompsExcel } = await import('@/lib/compsExcelGenerator');
 
   // Get custom comps from request (if provided)
-  const customComps = cleanTickerArray((assumptions as any).customComps || []);
-  const useOnlyCustom = (assumptions as any).useOnlyCustom || false;
+  let normalized: ReturnType<typeof normalizeInputs> | null = null;
+  try {
+    normalized = normalizeInputs(
+      'comps',
+      requestBody && typeof requestBody === 'object' ? { ...requestBody, ticker } : { ticker }
+    );
+  } catch {
+    normalized = null;
+  }
+
+  const customComps = cleanTickerArray(
+    (normalized ? normalized.tickers.filter((peer) => peer !== ticker) : []) as any
+  );
+  const useOnlyCustom = Boolean(
+    (requestBody as any)?.useOnlyCustom ??
+      (requestBody as any)?.assumptions?.useOnlyCustom ??
+      (assumptions as any)?.useOnlyCustom ??
+      false
+  );
 
   // Identify peers
   let autoPeers: string[] = [];
@@ -940,36 +1205,176 @@ export async function POST(req: NextRequest) {
   let metricsModelType: MetricsModelType | null = null;
   let metricsSuccess = false;
   let runId: string | null = null;
+  const supabase = createRouteHandlerClient({ cookies });
+  let modelId: string | null = null;
+  let userId: string | null = null;
+  const traceId = randomUUID();
+  const diagnostics: DataDiagnostics[] = [];
+  let enrichedAssumptions: ThreeStatementAssumptions | null = null;
+  let sanitizedAssumptions: ThreeStatementAssumptions | null = null;
   
-  // Create run record at start
   try {
-    runId = await createModelRun({
-      ticker: cleanTicker,
-      modelType,
-    });
-  } catch (err) {
-    console.warn('[generateModel] Failed to create run record:', err);
-  }
-
-  try {
-    console.log('[generateModel] ========== Incoming request ==========');
-    const diagnostics: DataDiagnostics[] = [];
+    console.log('[generateModel] ========== Incoming request ==========', { traceId });
   
   // STEP 1: Validate request body
   let cleanTicker: string;
   let modelType: RequestModelType;
   let body: any;
   let requestedLboAdvanced: LboAdvancedOptions | undefined;
+  let requestScenario: Scenario = 'BASE';
+  let requestScenarioNotes: string | null = null;
+  let requestAssumptions: Record<string, any> | null = null;
   
   try {
-    body = await req.json();
+    const json = await req.json();
+    
+    // Dev-only logging: log raw request body (truncated)
+    if (process.env.NODE_ENV !== 'production') {
+      const bodyPreview = JSON.stringify(json, null, 2);
+      const truncated = bodyPreview.length > 2000 ? bodyPreview.substring(0, 2000) + '... (truncated)' : bodyPreview;
+      console.log('[generateModel] Raw request body:', truncated);
+    }
+    
+    const parseResult = generateModelSchema.safeParse(json);
+    if (!parseResult.success) {
+      // Dev-only: structured Zod error logging
+      if (process.env.NODE_ENV !== 'production') {
+        const issues = parseResult.error.errors.map((i) => ({
+          path: i.path.join('.'),
+          expected: i.expected,
+          received: i.received,
+          message: i.message,
+          code: i.code,
+        }));
+        console.error('[generateModel] ❌ Zod validation failed:', JSON.stringify(issues, null, 2));
+      }
+      
+      // Structured error response with field-level details
+      const issues = parseResult.error.errors.map((i) => ({
+        path: i.path.join('.') || 'root',
+        expected: i.expected || 'unknown',
+        received: i.received || 'unknown',
+        message: i.message,
+      }));
+      
+      const message = parseResult.error.errors.map((error) => {
+        const path = error.path.join('.') || 'root';
+        return `${path}: ${error.message}`;
+      }).join('; ');
+      
+      return NextResponse.json(
+        {
+          error: 'VALIDATION_ERROR',
+          message: 'Request body validation failed',
+          details: message,
+          issues: issues,
+          code: 'INPUT_VALIDATION_FAILED',
+          traceId,
+          stage: 'validate',
+          step: 'parse_body',
+        },
+        { status: 400 }
+      );
+    }
+    body = parseResult.data;
     requestedLboAdvanced =
       body?.lboAdvanced && typeof body.lboAdvanced === 'object' ? body.lboAdvanced : undefined;
+
+    // Normalize tickers for LBO/COMPS before validation so mismatched payload shapes
+    // (tickerSymbol/symbol/assumptions.company.ticker/peers arrays) don't fail with "Ticker is required".
+    try {
+      const rawModelType =
+        typeof body?.modelType === 'string'
+          ? body.modelType
+          : typeof body?.model_type === 'string'
+            ? body.model_type
+            : '';
+      const normalizedModelType = rawModelType.trim().toLowerCase();
+      if (normalizedModelType === 'lbo' || normalizedModelType === 'comps') {
+        const normalized = normalizeInputs(normalizedModelType, body);
+        body.ticker = normalized.primaryTicker;
+
+        if (!body.assumptions || typeof body.assumptions !== 'object') {
+          body.assumptions = {};
+        }
+        if (typeof body.assumptions.ticker !== 'string' || body.assumptions.ticker.trim().length === 0) {
+          body.assumptions.ticker = normalized.primaryTicker;
+        }
+
+        // Preserve explicit peer inputs on the request body (sanitization drops unknown fields).
+        if (normalizedModelType === 'comps') {
+          const peers = normalized.tickers.filter((ticker) => ticker !== normalized.primaryTicker);
+          if (peers.length > 0 && !Array.isArray((body as any).customComps)) {
+            (body as any).customComps = peers;
+          }
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to normalize tickers';
+      const code = error instanceof NormalizeInputsError ? error.code : 'INPUT_NORMALIZATION_FAILED';
+      return NextResponse.json(
+        {
+          error: 'INVALID_REQUEST',
+          message: 'Failed to normalize request',
+          details: message,
+          code,
+          traceId,
+          stage: 'normalize',
+          step: 'normalize_tickers',
+        },
+        { status: 400 }
+      );
+    }
+
     console.log('[generateModel] Raw body:', JSON.stringify(body, null, 2));
+    
+    // Normalize and consolidate duplicate fields - use camelCase canonical
+    const normalizedPayload = normalizeModelRequest(body);
+    const normalizedTicker = normalizeNullableString(normalizedPayload.ticker ?? body.ticker);
+    const normalizedCompanyName = normalizeNullableString(
+      normalizedPayload.companyName ?? body.companyName ?? body.company_name
+    );
+
+    if (!normalizedTicker && !normalizedCompanyName) {
+      return NextResponse.json(
+        {
+          error: 'MISSING_COMPANY_CONTEXT',
+          message: 'Provide at least a ticker or company name for model generation.',
+          traceId,
+          stage: 'validate',
+          step: 'company_context',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Consolidate duplicate fields - remove snake_case duplicates, keep camelCase only
+    body = {
+      ...body,
+      // Canonical camelCase fields
+      ticker: normalizedTicker ?? body.ticker,
+      modelType: normalizedPayload.modelType || body.modelType || body.model_type,
+      scenario: normalizedPayload.scenario,
+      scenarioAdjustmentNotes: normalizedPayload.scenario_adjustment_notes,
+      scenarioSummaryNotes: normalizedPayload.scenario_summary_notes,
+      assumptions: normalizedPayload.assumptions,
+      companyName: normalizedCompanyName,
+      // Remove duplicate snake_case fields - they cause validation confusion
+      // Keep model_type temporarily for backwards compatibility, but prefer modelType
+      model_type: normalizedPayload.modelType || body.modelType || body.model_type,
+      scenario_adjustment_notes: normalizedPayload.scenario_adjustment_notes,
+      scenario_summary_notes: normalizedPayload.scenario_summary_notes,
+      company_name: normalizedCompanyName,
+      // Map scenarioNotes from any source
+      scenarioNotes: normalizedPayload.scenario_adjustment_notes || body.scenarioNotes || body.scenarioAdjustmentNotes || '',
+    };
     
     const validated = validateRequestBody(body);
     cleanTicker = validated.ticker;
     modelType = validated.modelType;
+    requestScenario = validated.scenario;
+    requestAssumptions = deepClone(validated.assumptions);
+    requestScenarioNotes = normalizedPayload.scenario_adjustment_notes || '';
     metricsTicker = cleanTicker;
     const metricsType = mapModelTypeToMetrics(modelType);
     if (metricsType) {
@@ -977,9 +1382,195 @@ export async function POST(req: NextRequest) {
     }
     
     console.log('[generateModel] ✅ Request validated:', { ticker: cleanTicker, modelType });
+    
+    // CRITICAL: modelId must be provided and come from /api/models/create
+    if (!body.modelId || typeof body.modelId !== 'string') {
+      return NextResponse.json(
+        { 
+          error: 'Model ID is required. Call /api/models/create first to create a model record.',
+          code: 'MISSING_MODEL_ID'
+        },
+        { status: 400 }
+      );
+    }
+
+    // Create run record after validation (runModel pipeline owns LBO/COMPS run tracking)
+    if (modelType !== 'lbo' && modelType !== 'comps') {
+      try {
+        runId = await createModelRun({
+          ticker: cleanTicker,
+          modelType,
+          modelId: body.modelId,
+          traceId,
+        });
+      } catch (err) {
+        console.warn('[generateModel] Failed to create run record:', err);
+      }
+    }
   } catch (err: any) {
     console.error('[generateModel] ❌ Request validation / parsing failed:', err);
-    throw new Error(`Invalid request: ${err?.message || 'Failed to parse or validate request body'}`);
+      return NextResponse.json(
+        {
+          error: 'INVALID_REQUEST',
+          message: 'Failed to parse or validate request body',
+          details: err?.message || 'Failed to parse or validate request body',
+          traceId,
+          stage: 'validate',
+          step: 'parse_body',
+        },
+        { status: 400 }
+      );
+    }
+
+  // Get user ID for R2 key generation
+  try {
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      console.error('[generateModel] Failed to fetch session:', sessionError, { traceId });
+      return NextResponse.json(
+        {
+          error: 'UNAUTHORIZED',
+          details: sessionError.message,
+          traceId,
+        },
+        { status: 401 }
+      );
+    }
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        {
+          error: 'UNAUTHORIZED',
+          details: 'Authentication required.',
+          traceId,
+        },
+        { status: 401 }
+      );
+    }
+
+    userId = session.user.id;
+    console.log('[generateModel][SESSION]', { traceId, userId });
+
+    // CRITICAL: Verify model exists in database before generating
+    modelId = body.modelId;
+    const { data: existingModel, error: fetchError } = await supabase
+      .from('models')
+      .select('id, user_id, ticker, model_type, scenario, scenario_adjustment_notes, scenario_summary_notes, assumptions')
+      .eq('id', modelId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    console.log('[generateModel][MODEL_LOOKUP]', {
+      traceId,
+      modelId,
+      userId,
+      found: Boolean(existingModel),
+    });
+
+    if (fetchError) {
+      console.error('[generateModel] Database error checking model:', fetchError, { traceId, modelId });
+      return NextResponse.json(
+        { error: 'DATABASE_ERROR', details: fetchError.message, traceId },
+        { status: 500 }
+      );
+    }
+
+    if (!existingModel) {
+      console.warn('[generateModel] Model not found', {
+        traceId,
+        modelId,
+        userId,
+        hint: 'Likely RLS/user_id mismatch or stale modelId',
+      });
+      return NextResponse.json(
+        {
+          error: 'MODEL_NOT_FOUND',
+          details: 'Model record does not exist. Call /api/models/create first.',
+          traceId,
+        },
+        { status: 404 }
+      );
+    }
+
+    // Verify user owns the model
+    if (existingModel.user_id !== userId) {
+      return NextResponse.json(
+        { error: 'FORBIDDEN', details: 'Model belongs to a different user.', traceId },
+        { status: 403 }
+      );
+    }
+
+    // Canonical modelType and scenario after DB fetch
+    const resolvedModelTypeRaw =
+      (typeof body?.modelType === 'string' && body.modelType.trim()) ||
+      (typeof body?.model_type === 'string' && body.model_type.trim()) ||
+      (typeof (existingModel as any)?.model_type === 'string' && (existingModel as any).model_type.trim()) ||
+      (typeof (existingModel as any)?.type === 'string' && (existingModel as any).type.trim()) ||
+      'dcf';
+    const allowedTypes: RequestModelType[] = ['three-statement', 'dcf', 'comps'];
+    modelType = allowedTypes.includes(resolvedModelTypeRaw as RequestModelType)
+      ? (resolvedModelTypeRaw as RequestModelType)
+      : 'dcf';
+
+    if (modelType === 'lbo') {
+      return NextResponse.json(
+        {
+          error: 'INVALID_LBO_INPUTS',
+          message: 'Use /api/models/lbo for LBO generation.',
+          traceId,
+        },
+        { status: 400 }
+      );
+    }
+
+    const resolvedScenarioRaw =
+      (typeof body?.scenario === 'string' && body.scenario.trim()) ||
+      (typeof body?.assumptions?.scenario === 'string' && body.assumptions.scenario.trim()) ||
+      (typeof existingModel.scenario === 'string' && existingModel.scenario.trim()) ||
+      'BASE';
+    requestScenario =
+      (resolvedScenarioRaw.toUpperCase() as Scenario) in { BASE: 1, BULL: 1, BULLISH: 1, BEAR: 1, BEARISH: 1 }
+        ? (resolvedScenarioRaw.toUpperCase() as Scenario)
+        : 'BASE';
+
+    console.log('[generateModel] ✅ Model verified:', { traceId, modelId, ticker: existingModel.ticker, modelType, requestScenario });
+
+    requestScenarioNotes =
+      requestScenarioNotes ??
+      existingModel.scenario_adjustment_notes ??
+      '';
+    body.scenarioNotes =
+      body.scenarioNotes ??
+      body.scenario_summary_notes ??
+      body.scenarioSummaryNotes ??
+      existingModel.scenario_summary_notes ??
+      '';
+
+    // Update status to show work-in-progress
+    let generatingQuery = supabase
+      .from('models')
+      .update({
+        status: 'generating',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', modelId);
+    if (userId) {
+      generatingQuery = generatingQuery.eq('user_id', userId);
+    }
+    const { error: generatingError } = await generatingQuery;
+    if (generatingError) {
+      console.error('[generateModel] Unable to set status=generating:', generatingError, { traceId, modelId });
+    }
+  } catch (err) {
+    console.warn('[generateModel] Failed to verify model:', err, { traceId, modelId });
+    return NextResponse.json(
+      { error: 'Failed to verify model', traceId },
+      { status: 500 }
+    );
   }
 
   // STEP 2: Fetch financial data
@@ -1033,17 +1624,23 @@ export async function POST(req: NextRequest) {
         ? ltmFinancials.marketCap
         : unifiedAssumptions.sharePrice * unifiedAssumptions.fdShares;
 
-    const rawFinancials: RawFinancials = {
-      revenue: unifiedAssumptions.ltmRevenue * 1_000_000,
-      ebit: fallbackEbit * 1_000_000,
-      ebitda: unifiedAssumptions.ltmEbitda * 1_000_000,
-      freeCashFlow: fallbackFcf * 1_000_000,
-      netDebt: unifiedAssumptions.netDebt * 1_000_000,
-      sharesOutstanding: unifiedAssumptions.fdShares * 1_000_000,
-      marketCap: fallbackMarketCap * 1_000_000,
-    };
+    const revenueM = toUsdMillions(unifiedAssumptions.ltmRevenue);
+    const ebitdaM = toUsdMillions(unifiedAssumptions.ltmEbitda);
+    const ebitM = toUsdMillions(fallbackEbit);
+    const fcfM = toUsdMillions(fallbackFcf);
+    const netDebtM = toUsdMillions(unifiedAssumptions.netDebt);
+    const sharesOutstandingM = toMillionShares(unifiedAssumptions.fdShares);
+    const marketCapM = toUsdMillions(fallbackMarketCap);
 
-    normalizedFinancials = cleanAndScaleFinancials(rawFinancials);
+    normalizedFinancials = {
+      revenueM,
+      ebitdaM,
+      ebitM,
+      fcfM,
+      netDebtM,
+      sharesOutstandingM,
+      marketCapM,
+    };
   } catch (err: any) {
     console.error('[generateModel] ❌ Failed to build unified assumptions:', err);
     throw new Error(err?.message || 'Unable to prepare financial inputs');
@@ -1086,7 +1683,6 @@ export async function POST(req: NextRequest) {
   }
 
   // STEP 4: Enrich assumptions with OpenAI
-  let enrichedAssumptions: ThreeStatementAssumptions;
   const aiFallbackDiag = createDiagnostic(cleanTicker, modelType as any, 'AI-Fallback', 'ai-fallback', true);
   const aiStartTime = Date.now();
   
@@ -1117,17 +1713,184 @@ export async function POST(req: NextRequest) {
     throw new Error(err?.message || 'AI enrichment failed');
   }
 
+  if (!enrichedAssumptions) {
+    return NextResponse.json(
+      {
+        error: 'ENRICHMENT_FAILED',
+        message: 'Assumptions enrichment did not produce a result',
+        traceId,
+        stage: 'compute',
+        step: 'enrich_assumptions',
+      },
+      { status: 500 }
+    );
+  }
+
+  // Delegate COMPS generation to the unified runModelPipeline.
+  // Note: This happens after enrichment but before sanitization, so we use enrichedAssumptions
+  if (modelType === 'comps') {
+    try {
+      const { runCompsPipeline } = await import('@/lib/models/comps/pipeline');
+      
+      // Convert to canonical input format
+      // Use enrichedAssumptions since sanitization hasn't happened yet
+      const canonicalInput = {
+        modelType: 'comps' as const,
+        tickers: [cleanTicker],
+        assumptions: {
+          ...enrichedAssumptions,
+          ...body,
+          ticker: cleanTicker,
+        },
+        options: {
+          includeExcel: true,
+          includePreview: true,
+        },
+      };
+      
+      // Run pipeline
+      const pipelineResult = await runCompsPipeline(canonicalInput, {
+        traceId,
+        modelId: modelId || undefined,
+        normalizedFinancials,
+        requestBody: body,
+      });
+      
+      metricsSuccess = true;
+      
+      // Convert pipeline output to legacy response format for backward compatibility
+      const downloadUrl = pipelineResult.artifact?.downloadUrl || null;
+      const preview = pipelineResult.preview || null;
+      
+      // Update model record with results
+      if (modelId && supabase && userId) {
+        try {
+          await supabase
+            .from('models')
+            .update({
+              status: pipelineResult.status === 'success' ? 'ready' : 'partial',
+              preview: preview ? JSON.stringify(preview) : null,
+              results: JSON.stringify({
+                modelType,
+                ticker: cleanTicker,
+                downloadUrl,
+                preview,
+                warnings: pipelineResult.warnings || [],
+              }),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', modelId)
+            .eq('user_id', userId);
+        } catch (dbError) {
+          console.warn('[generateModel] Failed to update model record', dbError);
+        }
+      }
+      
+      return NextResponse.json({
+        success: true,
+        modelId: pipelineResult.modelId || modelId,
+        status: pipelineResult.status === 'success' ? 'ready' : 'partial',
+        ticker: cleanTicker,
+        modelType,
+        scenario: requestScenario,
+        downloadUrl,
+        preview,
+        warnings: pipelineResult.warnings || [],
+      });
+    } catch (error: any) {
+      // Use handleModelError - should always be defined due to import sanity check
+      try {
+        return handleModelError(error, {
+          traceId,
+          modelType: 'comps',
+          defaultStage: 'compute',
+          defaultStep: 'run_pipeline',
+        });
+      } catch (handlerError) {
+        console.error('[GENERATE_MODEL_ERROR] handleModelError failed', handlerError);
+        // Fall through to inline handler
+      }
+      
+      // Inline error handler fallback - NO stack traces in response
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : typeof error === 'string' 
+          ? error 
+          : 'Pipeline execution failed';
+      const errorDetails = stringifyErrorDetails((error as any)?.details) || stringifyErrorDetails(error);
+      
+      // Log stack trace server-side (dev only) but never include in response
+      if (error instanceof Error && process.env.NODE_ENV === 'development') {
+        console.error('[generateModel] Pipeline error stack (server-side only):', error.stack);
+      }
+      
+      console.error('[GENERATE_MODEL_ERROR_INLINE]', {
+        message: errorMessage,
+        traceId,
+        modelType: modelType as 'lbo' | 'comps',
+      });
+      
+      // Response includes only user-friendly message, never stack traces
+      const fieldErrors =
+        error && typeof error === 'object' && 'fieldErrors' in error ? (error as any).fieldErrors : undefined;
+      const warnings =
+        error && typeof error === 'object' && 'warnings' in error ? (error as any).warnings : undefined;
+      
+      return NextResponse.json(
+        {
+          error: 'PIPELINE_EXECUTION_FAILED',
+          message: errorMessage,
+          ...(errorDetails && !errorDetails.includes('at ') ? { details: errorDetails } : {}),
+          traceId,
+          stage: 'compute',
+          step: 'run_pipeline',
+          ...(fieldErrors ? { fieldErrors } : {}),
+          ...(warnings ? { warnings } : {}),
+        },
+        { status: 500 }
+      );
+    }
+  }
+
   // STEP 5: Sanitize assumptions
-  let sanitizedAssumptions: ThreeStatementAssumptions;
   const sanitizeDiag = createDiagnostic(cleanTicker, modelType as any, ltmFinancials?.dataSource as any || 'AI-Fallback', 'sanitize', true);
   const sanitizeStartTime = Date.now();
   
-  try {
-    console.log('[generateModel] Sanitizing assumptions...');
-    const sanitizationResult = sanitizeAssumptions(enrichedAssumptions);
-    sanitizeDiag.durationMs = Date.now() - sanitizeStartTime;
+  console.log('[generateModel] Sanitizing assumptions...');
+  const sanitizeResult = safeSanitizeAssumptions(enrichedAssumptions);
+  sanitizeDiag.durationMs = Date.now() - sanitizeStartTime;
+  
+  if (!sanitizeResult.ok) {
+    // Sanitization failed - return error response safely
+    sanitizeDiag.ok = false;
+    sanitizeDiag.errors.push(sanitizeResult.error || 'Sanitization failed');
+    if (sanitizeResult.details) {
+      sanitizeDiag.errors.push(sanitizeResult.details);
+    }
+    console.error('[generateModel] ❌ Sanitization/validation failed:', sanitizeResult.error, sanitizeResult.details);
+    logDiagnostic(sanitizeDiag);
+    diagnostics.push(sanitizeDiag);
     
-    // Log sanitization results
+    // Return structured error response without referencing uninitialized variables
+    return NextResponse.json(
+      {
+        error: 'Failed to generate model',
+        details: sanitizeResult.details || sanitizeResult.error || 'Invalid financial assumptions',
+        traceId,
+        stage: 'validate',
+        step: 'sanitize_assumptions',
+      },
+      { status: 500 }
+    );
+  }
+  
+  // Sanitization succeeded - use the sanitized value
+  sanitizedAssumptions = sanitizeResult.value;
+  
+  // Log sanitization results (for debugging)
+  try {
+    // Re-run sanitize to get warnings/errors for diagnostics (safe since we know it succeeded)
+    const sanitizationResult = sanitizeAssumptions(enrichedAssumptions);
     const sanitizationLog = formatSanitizationLog(sanitizationResult);
     if (sanitizationLog) {
       console.log(`[generateModel] Sanitization results:\n${sanitizationLog}`);
@@ -1140,33 +1903,37 @@ export async function POST(req: NextRequest) {
     if (sanitizationResult.warnings.length > 0) {
       sanitizeDiag.warnings.push(...sanitizationResult.warnings.map(w => w.issue));
     }
-    
-    // Validate sanitized assumptions (throws if critical errors)
-    validateSanitizedAssumptions(sanitizationResult);
-    sanitizedAssumptions = sanitizationResult.sanitized;
-    if (normalizedFinancials) {
-      sanitizedAssumptions.sharesOutstanding = normalizedFinancials.sharesOutstandingM || sanitizedAssumptions.sharesOutstanding;
-      (sanitizedAssumptions as any).netDebt = normalizedFinancials.netDebtM;
-      sanitizedAssumptions.debt = normalizedFinancials.netDebtM + sanitizedAssumptions.startingCash;
-    }
-    if (requestedLboAdvanced) {
-      (sanitizedAssumptions as any).lboAdvanced = requestedLboAdvanced;
-    }
-    
-    console.log('[generateModel] ✅ Assumptions sanitized and validated');
-    logDiagnostic(sanitizeDiag);
-    diagnostics.push(sanitizeDiag);
-  } catch (err: any) {
-    sanitizeDiag.ok = false;
-    sanitizeDiag.durationMs = Date.now() - sanitizeStartTime;
-    sanitizeDiag.errors.push(err?.message || 'Sanitization failed');
-    console.error('[generateModel] ❌ Sanitization/validation failed:', err);
-    logDiagnostic(sanitizeDiag);
-    diagnostics.push(sanitizeDiag);
-    throw new Error(err?.message || 'Invalid financial assumptions');
+  } catch {
+    // Ignore errors in diagnostics logging - sanitization already succeeded
   }
+  
+  // Apply normalized financials and LBO advanced options to sanitized assumptions
+  if (normalizedFinancials) {
+    sanitizedAssumptions.sharesOutstanding = normalizedFinancials.sharesOutstandingM || sanitizedAssumptions.sharesOutstanding;
+    (sanitizedAssumptions as any).netDebt = normalizedFinancials.netDebtM;
+    sanitizedAssumptions.debt = normalizedFinancials.netDebtM + sanitizedAssumptions.startingCash;
+  }
+  if (requestedLboAdvanced) {
+    (sanitizedAssumptions as any).lboAdvanced = requestedLboAdvanced;
+  }
+  
+  console.log('[generateModel] ✅ Assumptions sanitized and validated');
+  logDiagnostic(sanitizeDiag);
+  diagnostics.push(sanitizeDiag);
 
   // STEP 6: Perform sanity checks
+  // Guard: sanitizedAssumptions must be non-null at this point
+  if (!sanitizedAssumptions) {
+    return NextResponse.json(
+      {
+        error: 'Failed to generate model',
+        details: 'Assumptions were not sanitized successfully',
+        traceId,
+      },
+      { status: 500 }
+    );
+  }
+
   const sanityDiag = performSanityChecks({
     ticker: cleanTicker,
     modelType: modelType as any,
@@ -1186,6 +1953,8 @@ export async function POST(req: NextRequest) {
 
   let dcfSummary: any = undefined;
   let lboSummary: LboEngineOutput | undefined;
+  let validationSummary: { reason?: string | null; errors?: any[]; warnings?: any[] } | null = null;
+  let dcfRaw: { results: any; normalizedInputs: any } | null = null;
   
   try {
     console.log('[generateModel] Building Excel workbook...');
@@ -1195,60 +1964,60 @@ export async function POST(req: NextRequest) {
         await buildThreeStatementModelWithAssumptions(workbook, cleanTicker, sanitizedAssumptions);
         break;
       case 'dcf':
+        // PREFLIGHT: Resolve shares outstanding (BEST EFFORT - not mandatory)
+        const { resolveSharesOutstanding } = await import('@/lib/data/sharesOutstanding');
+        const sharesResult = await resolveSharesOutstanding(cleanTicker);
+        
+        // Log shares outstanding resolution status
+        if (sharesResult.success && sharesResult.sharesOutstandingMm && sharesResult.sharesOutstandingMm > 0) {
+          console.log(`[generateModel] ✅ Shares outstanding resolved: ${sharesResult.sharesOutstandingMm.toFixed(2)}M (source: ${sharesResult.source}, confidence: ${sharesResult.confidence})`);
+          
+          // Inject resolved shares into assumptions if not already present
+          if (!sanitizedAssumptions.sharesOutstanding || sanitizedAssumptions.sharesOutstanding <= 0) {
+            sanitizedAssumptions.sharesOutstanding = sharesResult.sharesOutstandingMm; // keep in millions
+          }
+          
+          // Also update normalizedFinancials if available
+          if (normalizedFinancials && (!normalizedFinancials.sharesOutstandingM || normalizedFinancials.sharesOutstandingM <= 0)) {
+            normalizedFinancials.sharesOutstandingM = sharesResult.sharesOutstandingMm;
+          }
+        } else {
+          // Shares outstanding missing - log warning but continue
+          console.warn(`[generateModel] ⚠️  Shares outstanding unavailable for ${cleanTicker}`);
+          console.warn(`[generateModel] Sources attempted: ${sharesResult.warnings.join('; ')}`);
+          console.warn(`[generateModel] Per-share metrics will be disabled in preview`);
+          
+          // Set to null/0 to signal unavailability
+          sanitizedAssumptions.sharesOutstanding = 0;
+          if (normalizedFinancials) {
+            normalizedFinancials.sharesOutstandingM = 0;
+          }
+        }
+        
         const dcfResult = await buildDcfModelWithAssumptions(
           workbook,
           cleanTicker,
           sanitizedAssumptions,
           body,
+          requestScenario,
           normalizedFinancials,
-          appliedDefaults
+          appliedDefaults,
+          modelType
         );
         dcfSummary = dcfResult.dcfSummary;
+        validationSummary = dcfResult.validation ?? null;
+        dcfRaw = dcfResult.raw ?? null;
         break;
       case 'lbo':
-        try {
-          lboSummary = await buildLboModelWithAssumptions(
-            workbook,
-            cleanTicker,
-            sanitizedAssumptions,
-            normalizedFinancials,
-            body
-          );
-          console.log('[LBO_DEBUG] REAL workbook sheets:', workbook.worksheets.map((sheet) => sheet.name));
-        } catch (lboError) {
-          console.error('[LBO_ERROR] Failed to build real LBO workbook:', lboError);
-          const fallbackWorkbook = new ExcelJS.Workbook();
-          const fallbackSheet = fallbackWorkbook.addWorksheet('LBO Fallback – Error');
-          fallbackSheet.getCell('A1').value = 'LBO workbook fallback (error occurred)';
-          fallbackSheet.getCell('A3').value = 'Ticker';
-          fallbackSheet.getCell('B3').value = cleanTicker;
-          fallbackSheet.getCell('A5').value = 'Check server logs for [LBO_ERROR] to investigate the failure.';
-
-          const fallbackBufferRaw = await fallbackWorkbook.xlsx.writeBuffer();
-          const fallbackBuffer = Buffer.isBuffer(fallbackBufferRaw)
-            ? fallbackBufferRaw
-            : Buffer.from(fallbackBufferRaw);
-
-          const fallbackFilename = `${cleanTicker}_${modelType}_fallback.xlsx`;
-          return new NextResponse(fallbackBuffer, {
-            status: 200,
-            headers: {
-              'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-              'Content-Disposition': `attachment; filename="${fallbackFilename}"`,
-              'Cache-Control': 'no-store',
-            },
-          });
-        }
-        break;
+        // DEPRECATED: LBO is now handled by pipeline above (lines 1352-1428)
+        // This case should not be reached, but kept as fallback
+        console.warn('[generateModel] LBO reached legacy switch case - this should not happen');
+        throw new Error('LBO model generation should use pipeline (see lines 1352-1428). This is a fallback error.');
       case 'comps':
-        await buildCompsModelWithAssumptions(
-          workbook,
-          cleanTicker,
-          sanitizedAssumptions,
-          normalizedFinancials,
-          diagnostics
-        );
-        break;
+        // DEPRECATED: Comps is now handled by pipeline above (lines 1352-1428)
+        // This case should not be reached, but kept as fallback
+        console.warn('[generateModel] Comps reached legacy switch case - this should not happen');
+        throw new Error('Comps model generation should use pipeline (see lines 1352-1428). This is a fallback error.');
       default:
         throw new Error(`Unsupported model type: ${modelType}`);
     }
@@ -1296,6 +2065,19 @@ export async function POST(req: NextRequest) {
       
       if (guardrailResult.blocks.length > 0) {
         console.warn('[generateModel] ⚠️  Guardrails blocked generation:', guardrailResult.blocks);
+        if (modelId) {
+          let failQuery = supabase
+            .from('models')
+            .update({
+              status: 'failed',
+              error: guardrailResult.blocks.join('; '),
+            })
+            .eq('id', modelId);
+          if (userId) {
+            failQuery = failQuery.eq('user_id', userId);
+          }
+          await failQuery;
+        }
         return NextResponse.json(
           {
             error: 'Model outputs violate guardrails',
@@ -1334,54 +2116,332 @@ export async function POST(req: NextRequest) {
   console.log('[MODEL_DEBUG] sheets:', workbook.worksheets.map((sheet) => sheet.name));
   console.log('[MODEL_DEBUG] buffer size:', workbookBuffer.length, 'bytes');
 
-  const downloadFilename = `${cleanTicker}_${modelType}.xlsx`;
-  
-  // Check if client wants JSON response with preview (via query param or header)
-  const wantsJson = req.headers.get('accept')?.includes('application/json') || 
-                    req.nextUrl.searchParams.get('format') === 'json';
-  
-  if (wantsJson) {
-    // Build response object
-    const response: any = {
-      success: true,
-      ticker: cleanTicker,
-      modelType,
-      preview,
-      downloadUrl: `/api/models/[modelId]/download?ticker=${encodeURIComponent(cleanTicker)}&type=${encodeURIComponent(modelType)}`,
-      filename: downloadFilename,
-      sheets: workbook.worksheets.map(s => s.name),
-      bufferSize: workbookBuffer.length,
-      appliedDefaults,
-      warnings: guardrailResult.warnings,
-    };
-
-    // Include model-specific summaries for preview parsing
-    if (modelType === 'dcf' && dcfSummary) {
-      response.dcfSummary = dcfSummary;
-      // Dev logging
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[DCF RESPONSE SHAPE]', JSON.stringify(dcfSummary, null, 2));
-      }
-    }
-    if (modelType === 'lbo' && lboSummary) {
-      response.lboSummary = lboSummary;
-    }
-
-    return NextResponse.json(response);
+  if (!modelId) {
+    throw new Error('Model verification state missing (no modelId)');
   }
 
-  // Default: return binary XLSX file
-  return new NextResponse(workbookBuffer, {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': `attachment; filename="${downloadFilename}"`,
-      'Content-Length': workbookBuffer.length.toString(),
-      'Cache-Control': 'no-store',
-      'X-Workbook-Sheets': workbook.worksheets.length.toString(),
-      'X-Preview-Available': preview ? 'true' : 'false',
-    },
+  const safeKeyTicker = cleanTicker.replace(/[^A-Z0-9]+/gi, '').toUpperCase() || 'MODEL';
+  const downloadFilename = `${cleanTicker}-${modelType}.xlsx`;
+  
+  // STEP 9: Upload to R2 and update model record
+  // modelId is already verified above (comes from /api/models/create)
+  const r2Key = `models/${modelId}/${safeKeyTicker}-${modelType}.xlsx`;
+  let effectiveR2Key: string | null = r2Key;
+  let localDownloadUrl: string | null = null;
+  let localExportPath: string | null = null;
+
+  const missingR2Env = checkR2Env();
+  const canUseLocalExport = process.env.NODE_ENV !== 'production';
+
+  if (missingR2Env.length > 0) {
+    if (!canUseLocalExport) {
+      console.error('[generateModel] ❌ R2 environment variables missing:', missingR2Env);
+      if (modelId) {
+        let envFailQuery = supabase
+          .from('models')
+          .update({
+            status: 'failed',
+            error: 'R2 configuration missing',
+          })
+          .eq('id', modelId);
+        if (userId) {
+          envFailQuery = envFailQuery.eq('user_id', userId);
+        }
+        await envFailQuery;
+      }
+      return NextResponse.json(
+        {
+          error: 'R2_ENV_MISSING',
+          details: 'Cloud storage is not configured. Set R2 env vars to enable downloads.',
+          missing: missingR2Env,
+        },
+        { status: 500 }
+      );
+    }
+
+    console.warn('[generateModel] ⚠️  R2 env missing; using local export fallback', { missing: missingR2Env });
+    try {
+      effectiveR2Key = null;
+      const localDir = path.resolve(process.cwd(), '.local-model-exports', modelId);
+      await mkdir(localDir, { recursive: true });
+      localExportPath = path.join(localDir, downloadFilename);
+      await writeFile(localExportPath, workbookBuffer);
+      localDownloadUrl = new URL(`/api/models/${encodeURIComponent(modelId)}/download-local`, req.nextUrl.origin).toString();
+    } catch (localErr: any) {
+      console.error('[generateModel] ❌ Local export failed', { message: localErr?.message, traceId, modelId });
+      if (modelId) {
+        let failQuery = supabase
+          .from('models')
+          .update({
+            status: 'failed',
+            error: localErr?.message || 'Local export failed',
+          })
+          .eq('id', modelId);
+        if (userId) {
+          failQuery = failQuery.eq('user_id', userId);
+        }
+        await failQuery;
+      }
+      return NextResponse.json(
+        {
+          error: 'LOCAL_EXPORT_FAILED',
+          details: localErr?.message || 'Failed to write local Excel export.',
+          traceId,
+        },
+        { status: 500 }
+      );
+    }
+  } else {
+    // Strict R2 env check (should pass since missingR2Env is empty)
+    assertR2Env();
+
+    try {
+      await uploadXlsxToR2({
+        key: r2Key,
+        buffer: workbookBuffer,
+        filename: downloadFilename,
+      });
+    } catch (r2Error: any) {
+      console.error('[R2] upload/sign failed', {
+        message: r2Error?.message,
+        name: r2Error?.name,
+        code: r2Error?.code,
+        stack: r2Error?.stack,
+      });
+      if (modelId) {
+        let failQuery = supabase
+          .from('models')
+          .update({
+            status: 'failed',
+            error: r2Error?.message || 'Model generation failed',
+          })
+          .eq('id', modelId);
+        if (userId) {
+          failQuery = failQuery.eq('user_id', userId);
+        }
+        await failQuery;
+      }
+      return NextResponse.json(
+        {
+          error: 'R2_UPLOAD_FAILED',
+          details: r2Error?.message || 'Failed to upload Excel export to storage.',
+          traceId,
+        },
+        { status: 500 }
+      );
+    }
+  }
+
+  const statementsPayload =
+    modelType === 'three-statement' && sanitizedAssumptions
+      ? (() => {
+          const years = sanitizedAssumptions.years || [];
+          const periods = ['LTM', ...years.slice(1).map((y: string) => `FY+${y}`)];
+          const revenue = sanitizedAssumptions.revenue || [];
+          const cogs = revenue.map((rev: number, idx: number) => rev * (sanitizedAssumptions.cogsPct?.[idx] || 0));
+          const grossProfit = revenue.map((rev: number, idx: number) => rev - cogs[idx]);
+          const operatingExpenses = revenue.map((rev: number, idx: number) => rev * (sanitizedAssumptions.opexPct?.[idx] || 0));
+          const da = revenue.map((rev: number, idx: number) => rev * (sanitizedAssumptions.daPct?.[idx] || 0));
+          const ebit = revenue.map((rev: number, idx: number) => grossProfit[idx] - operatingExpenses[idx] - da[idx]);
+          const ebitda = ebit.map((val: number, idx: number) => val + da[idx]);
+          // Debt schedule: calculate interest from average debt
+          const debt = (sanitizedAssumptions.debt || 0) * 1_000_000; // Convert to raw dollars
+          const interestRate = sanitizedAssumptions.interestRate || 0.05;
+          // For simplicity, use constant debt (will be improved with proper debt schedule)
+          const avgDebt = debt;
+          const interestExpense = avgDebt * interestRate;
+          const ebt = ebit.map((val: number) => val - interestExpense);
+          // Tax logic: 0 if EBT < 0, otherwise EBT * taxRate
+          const taxRate = sanitizedAssumptions.taxRate || 0.21;
+          const taxes = ebt.map((val: number) => val < 0 ? 0 : val * taxRate);
+          const netIncome = ebt.map((val: number, idx: number) => val - taxes[idx]);
+          const capex = revenue.map((rev: number, idx: number) => rev * (sanitizedAssumptions.capexPctRevenue?.[idx] || 0.04));
+          const operatingCashFlow = netIncome.map((ni: number, idx: number) => ni + da[idx]);
+          const investingCashFlow = capex.map((cap: number) => -cap);
+          const financingCashFlow = years.map(() => 0);
+          const netChangeInCash = operatingCashFlow.map((ocf: number, idx: number) => ocf + investingCashFlow[idx] + financingCashFlow[idx]);
+          const startingCash = (normalizedFinancials?.cashM || 0) * 1_000_000;
+          const cash = [startingCash];
+          netChangeInCash.slice(1).forEach((change: number) => {
+            cash.push((cash[cash.length - 1] || 0) + change);
+          });
+          const ppeEstimate = revenue.map((rev: number) => rev * 0.5);
+          const totalAssets = cash.map((c: number, idx: number) => c + ppeEstimate[idx]);
+          const totalLiabilities = years.map(() => (sanitizedAssumptions.debt || 0) * 1_000_000);
+          const totalEquity = totalAssets.map((assets: number, idx: number) => assets - totalLiabilities[idx]);
+          return {
+            periods,
+            incomeStatement: {
+              revenue,
+              cogs,
+              grossProfit,
+              operatingExpenses,
+              ebitda,
+              ebit,
+              netIncome,
+            },
+            cashFlow: {
+              operatingCashFlow,
+              investingCashFlow,
+              financingCashFlow,
+              netChangeInCash,
+            },
+            balanceSheet: {
+              cash,
+              totalAssets,
+              totalLiabilities,
+              totalEquity,
+            },
+          };
+        })()
+      : null;
+
+  const scenarioSummaryNotes = (() => {
+    const adjustments = dcfSummary?.scenarioAdjustments;
+    if (Array.isArray(adjustments) && adjustments.length > 0) {
+      return adjustments;
+    }
+    if (body?.scenarioNotes && typeof body.scenarioNotes === 'string' && body.scenarioNotes.length > 0) {
+      return body.scenarioNotes;
+    }
+    if (requestScenarioNotes && requestScenarioNotes.length > 0) {
+      return requestScenarioNotes;
+    }
+    return null;
+  })();
+  const scenarioSummaryNotesValue = Array.isArray(scenarioSummaryNotes)
+    ? scenarioSummaryNotes.join('\n')
+    : scenarioSummaryNotes ?? '';
+
+  const dcfResults = dcfSummary?.results ?? dcfRaw?.results ?? null;
+  const dcfNormalized = dcfRaw?.normalizedInputs ?? null;
+  const resultsPayload: Record<string, any> = {
+    preview,
+    modelType,
+    ticker: cleanTicker,
+    scenario: requestScenario,
+    scenarioNotes: scenarioSummaryNotes,
+    export_mode: effectiveR2Key ? 'r2' : 'local',
+    download_url: localDownloadUrl ?? undefined,
+    local_path: localExportPath ?? undefined,
+    warnings: guardrailResult.warnings,
+    sheets: workbook.worksheets.map((sheet) => sheet.name),
+    filename: downloadFilename,
+    assumptionsUsed: requestAssumptions ?? null,
+    isValid: true,
+    invalidReason: null,
+    validation: validationSummary
+      ? {
+          reason: validationSummary.reason ?? null,
+          errors: (validationSummary.errors || []).map((err: any) =>
+            typeof err === 'string' ? err : `${err.field ?? 'field'}: ${err.issue ?? err.message ?? 'invalid'}`
+          ),
+          warnings: (validationSummary.warnings || []).map((warn: any) =>
+            typeof warn === 'string' ? warn : `${warn.field ?? 'field'}: ${warn.issue ?? warn.message ?? 'warning'}`
+          ),
+        }
+      : { reason: null, errors: [], warnings: [] },
+    results: dcfResults
+      ? {
+          ...dcfResults,
+          revenueByYear: dcfNormalized?.revenueByYear ?? dcfResults.revenueByYear,
+          netDebt: dcfNormalized?.netDebtMillions ?? dcfResults.netDebt,
+          sharesOutstanding: dcfNormalized?.sharesOutstandingMillions ?? dcfResults.sharesOutstanding,
+          isValid: true,
+          invalidReason: null,
+        }
+      : undefined,
+  };
+
+  if (dcfSummary) {
+    resultsPayload.dcfSummary = dcfSummary;
+  }
+
+  if (lboSummary) {
+    resultsPayload.lboSummary = lboSummary;
+  }
+
+  if (statementsPayload) {
+    resultsPayload.statements = statementsPayload;
+  }
+
+  console.log('[generateModel] normalized scenario:', requestScenario);
+  console.log('[generateModel] preparing model update', {
+    traceId,
+    modelId,
+    scenario: requestScenario,
+    pointer: effectiveR2Key ?? localDownloadUrl,
   });
+
+  let updateQuery = supabase
+    .from('models')
+    .update({
+      r2_key: effectiveR2Key,
+      file_name: downloadFilename,
+      status: 'ready',
+      results: resultsPayload,
+      preview,
+      assumptions: requestAssumptions ?? null,
+      normalized_assumptions: sanitizedAssumptions ?? requestAssumptions ?? null,
+      validation: validationSummary
+        ? {
+            reason: validationSummary.reason ?? null,
+            errors: validationSummary.errors ?? [],
+            warnings: validationSummary.warnings ?? [],
+          }
+        : null,
+      scenario: requestScenario,
+      scenario_adjustment_notes: requestScenarioNotes ?? '',
+      scenario_summary_notes: scenarioSummaryNotesValue,
+      error: null,
+    })
+    .eq('id', modelId)
+    .eq('user_id', userId);
+  const { error: updateError } = await updateQuery;
+
+  if (updateError) {
+    console.error('[generateModel] Failed to update model record:', updateError);
+    return NextResponse.json(
+      {
+        error: 'MODEL_UPDATE_FAILED',
+        details: updateError.message,
+        code: updateError.code,
+      },
+      { status: 500 }
+    );
+  }
+
+  console.log(`[generateModel] ✅ Model record updated: ${modelId}`);
+  console.log(
+    `[generateModel] ✅ Model export ready (${effectiveR2Key ? 'r2' : 'local'}): ${effectiveR2Key ?? localDownloadUrl}`
+  );
+  
+  const responseBody: Record<string, any> = {
+    success: true,
+    modelId,
+    status: 'ready',
+    ticker: cleanTicker,
+    modelType,
+    scenario: requestScenario,
+    scenario_adjustment_notes: requestScenarioNotes,
+    scenarioAdjustmentNotes: requestScenarioNotes,
+    scenario_summary_notes: scenarioSummaryNotesValue,
+    scenarioSummaryNotes: scenarioSummaryNotesValue,
+    results: resultsPayload,
+    preview,
+    appliedDefaults,
+    warnings: guardrailResult.warnings,
+  };
+
+  if (dcfSummary) {
+    responseBody.dcfSummary = dcfSummary;
+  }
+
+  if (lboSummary) {
+    responseBody.lboSummary = lboSummary;
+  }
+
+  return NextResponse.json(responseBody);
   } catch (error: any) {
     // Update run record to failed
     if (runId) {
@@ -1390,12 +2450,96 @@ export async function POST(req: NextRequest) {
         errorMessage: error?.message || 'Unknown error',
       });
     }
+
+    if (modelId) {
+      let failQuery = supabase
+        .from('models')
+        .update({
+          status: 'failed',
+          error: error?.message || 'Model generation failed',
+        })
+        .eq('id', modelId);
+      if (userId) {
+        failQuery = failQuery.eq('user_id', userId);
+      }
+      await failQuery;
+    }
     
-    console.error('[GENERATE_MODEL_ERROR]', error);
+    console.error('[GENERATE_MODEL_ERROR]', error, { traceId, modelId });
+    
+    // Use handleModelError - should always be defined due to import sanity check
+    try {
+      return handleModelError(error, {
+        traceId,
+        modelType: modelType || 'three-statement',
+        defaultStage: 'compute',
+        defaultStep: 'unknown',
+        httpStatus: 500,
+      });
+    } catch (handlerError) {
+      console.error('[GENERATE_MODEL_ERROR] handleModelError failed', handlerError);
+      // Fall through to inline handler
+    }
+    
+    // Helper functions for error extraction
+    function toErrorMessage(err: unknown): string {
+      if (err instanceof Error) return err.message;
+      try {
+        return JSON.stringify(err);
+      } catch {
+        return String(err);
+      }
+    }
+
+    function toErrorDetails(err: unknown): Array<{ path?: string; message: string }> {
+      // Zod errors (if you use zod)
+      const anyErr = err as any;
+      if (anyErr?.issues && Array.isArray(anyErr.issues)) {
+        return anyErr.issues.map((i: any) => ({
+          path: Array.isArray(i.path) ? i.path.join('.') : String(i.path ?? ''),
+          message: String(i.message ?? 'Invalid input'),
+        }));
+      }
+      return [];
+    }
+
+    const errorMessage = toErrorMessage(error);
+    const errorDetails = toErrorDetails(error);
+
+    // Server log always
+    console.error('[GENERATE_MODEL_ERROR] generation failed', { traceId, message: errorMessage, error });
+
+    // In dev, include stack for instant diagnosis
+    const stack =
+      process.env.NODE_ENV !== 'production' && error instanceof Error
+        ? error.stack
+        : undefined;
+
+    // Attempt to send to Sentry if available (server-side only)
+    if (typeof window === 'undefined') {
+      try {
+        // Dynamic import to avoid bundling Sentry if not configured
+        const Sentry = await import('@sentry/nextjs').catch(() => null);
+        if (Sentry?.captureException && typeof Sentry.captureException === 'function') {
+          Sentry.captureException(error, {
+            tags: { traceId, modelType: modelType || 'three-statement' },
+            extra: { modelId },
+          });
+        }
+      } catch {
+        // Sentry not available or failed to import, continue without it
+      }
+    }
+    
     return NextResponse.json(
       {
-        error: 'Failed to generate model',
-        details: error?.message ?? null,
+        ok: false,
+        traceId,
+        error: {
+          message: errorMessage,
+          details: errorDetails,
+          ...(stack ? { stack } : {}),
+        },
       },
       { status: 500 }
     );

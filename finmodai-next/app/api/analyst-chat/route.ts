@@ -23,7 +23,8 @@ export async function POST(req: NextRequest) {
     if (contextType === 'model' && modelId) {
       try {
         const model = await getModelById(modelId);
-        contextualSummary = `Model: ${model.ticker} (${model.type}), status ${model.status}, created ${model.created_at}`;
+        const resolvedType = (model as any)?.model_type ?? model.type ?? 'dcf';
+        contextualSummary = `Model: ${model.ticker} (${resolvedType}), status ${model.status}, created ${model.created_at}`;
       } catch (error) {
         console.error('Unable to load model context', error);
       }

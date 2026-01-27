@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { APP_NAME } from '@/lib/branding';
 
@@ -134,7 +137,20 @@ export function ChatInterface({ userEmail }: ChatInterfaceProps) {
           </div>
         </ScrollArea>
 
-        <form onSubmit={handleSubmit} className="space-y-3 border-t border-border bg-white p-4">
+        <div className="space-y-3 border-t border-border bg-white p-4 opacity-60">
+          {/* Coming Soon Callout */}
+          <div className="rounded-lg border border-amber-500/20 bg-amber-50 p-3 mb-3">
+            <div className="flex items-start gap-2">
+              <Clock className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs font-semibold text-amber-900 mb-1">Chat Coming Soon</p>
+                <p className="text-xs text-amber-700">
+                  Our analyst chat feature is in development. This will provide macro-aware financial reasoning and analysis.
+                </p>
+              </div>
+            </div>
+          </div>
+        <form onSubmit={(e) => { e.preventDefault(); return false; }} className="space-y-3">
           <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border/80 p-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
             <label htmlFor="pdf-upload" className="flex flex-col text-secondary sm:flex-1">
               <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Attach PDF (optional)</span>
@@ -153,21 +169,43 @@ export function ChatInterface({ userEmail }: ChatInterfaceProps) {
               </span>
             )}
           </div>
-          <Textarea
-            id="prompt"
-            name="prompt"
-            placeholder="Ask about a company, sector, or macro thesis..."
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            disabled={isStreaming}
-          />
+          <div className="relative">
+            <Textarea
+              id="prompt"
+              name="prompt"
+              placeholder="Ask about a company, sector, or macro thesis..."
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              disabled={true}
+            />
+            <div className="absolute top-2 right-2">
+              <Badge variant="outline" className="bg-slate-800/80 border-slate-600 text-slate-300">
+                Coming soon
+              </Badge>
+            </div>
+          </div>
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>Use professional reasoning only. No investment advice will be given.</span>
-            <Button type="submit" disabled={isStreaming || !input.trim()}>
-              {isStreaming ? 'Analyzing…' : 'Send'}
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button type="button" disabled={true} onClick={(e) => e.preventDefault()}>
+                      Send
+                      <Badge variant="outline" className="ml-2 bg-slate-800/80 border-slate-600 text-slate-300">
+                        Coming soon
+                      </Badge>
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Chat feature is not yet available. We're working on bringing this to you soon.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
-        </form>
+          </form>
+        </div>
       </CardContent>
     </Card>
   );

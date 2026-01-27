@@ -4,6 +4,7 @@
 
 import type { DataDiagnostics } from './diagnostics';
 import type { LboEngineOutput } from '@/lib/lboEngine';
+import type { LBOOutput } from '@/lib/models/outputTypes';
 
 export type ModelType = 'dcf' | 'lbo' | 'three-statement' | 'comps';
 
@@ -60,6 +61,7 @@ export type GenerateModelResponse = {
   scenarioSummaries?: Partial<Record<'base' | 'bull' | 'bear', DcfScenarioSummary>>;
 
   lboSummary?: LboEngineOutput;
+  lboOutput?: LBOOutput;
 };
 
 export type ModelRecord = {

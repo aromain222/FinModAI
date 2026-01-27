@@ -8,7 +8,6 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
  * Login Page Client Component
  * 
  * Only redirects away from /login if user is truly authenticated (has Supabase session).
- * Guest mode should NOT auto-redirect - user must explicitly click "Continue as guest".
  */
 export function LoginPageClient({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -18,8 +17,7 @@ export function LoginPageClient({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function checkAuth() {
       try {
-        // Only check for Supabase session - do NOT check guest mode
-        // Guest mode should only be set when user clicks "Continue as guest"
+        // Only check for Supabase session
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session) {

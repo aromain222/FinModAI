@@ -18,6 +18,7 @@ interface MergerInputsPanelProps {
 export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: MergerInputsPanelProps) {
   const [missingInputsModalOpen, setMissingInputsModalOpen] = useState(false);
   const [missingInputs, setMissingInputs] = useState<string[]>([]);
+  const v2Note = 'Not used in M&A v1 — planned for v2';
   
   // Initialize integration costs array when forecast years changes
   useEffect(() => {
@@ -51,6 +52,13 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
   
   const handleChange = (key: keyof MergerModelInput, value: any) => {
     const updated = { ...inputs, [key]: value };
+    if (key === 'dealStructure') {
+      if (value === 'cash') {
+        updated.stockPct = 0;
+      } else if (value === 'stock') {
+        updated.stockPct = 1;
+      }
+    }
     onChange(updated);
   };
   
@@ -147,8 +155,10 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
                 value={inputs.offerPrice || ''}
                 onChange={(e) => handleChange('offerPrice', e.target.value ? parseFloat(e.target.value) : undefined)}
                 placeholder="150.00"
-                className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+                disabled
+                className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)] opacity-60"
               />
+              <p className="text-xs text-[var(--cb-text-muted)]">{v2Note}</p>
             </div>
             <div className="space-y-1">
               <Label htmlFor="premium-pct" className="text-[var(--cb-text-primary)]">
@@ -186,16 +196,18 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
                 <Label htmlFor="exchange-ratio" className="text-[var(--cb-text-primary)]">
                   Exchange Ratio
                 </Label>
-                <Input
-                  id="exchange-ratio"
-                  type="number"
-                  step="0.001"
-                  value={inputs.exchangeRatio || ''}
-                  onChange={(e) => handleChange('exchangeRatio', e.target.value ? parseFloat(e.target.value) : undefined)}
-                  placeholder="1.250"
-                  className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
-                />
-              </div>
+              <Input
+                id="exchange-ratio"
+                type="number"
+                step="0.001"
+                value={inputs.exchangeRatio || ''}
+                onChange={(e) => handleChange('exchangeRatio', e.target.value ? parseFloat(e.target.value) : undefined)}
+                placeholder="1.250"
+                disabled
+                className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)] opacity-60"
+              />
+              <p className="text-xs text-[var(--cb-text-muted)]">{v2Note}</p>
+            </div>
             </div>
           )}
           
@@ -222,12 +234,14 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
                 id="fees-treatment"
                 value={inputs.feesTreatment || ''}
                 onChange={(e) => handleChange('feesTreatment', e.target.value as 'expense' | 'capitalize')}
-                className="w-full rounded-md border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] px-3 py-2 text-[var(--cb-text-primary)]"
+                disabled
+                className="w-full rounded-md border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] px-3 py-2 text-[var(--cb-text-primary)] opacity-60"
               >
                 <option value="">Select...</option>
                 <option value="expense">Expense</option>
                 <option value="capitalize">Capitalize</option>
               </select>
+              <p className="text-xs text-[var(--cb-text-muted)]">{v2Note}</p>
             </div>
           </div>
           
@@ -243,8 +257,10 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
               step="1"
               value={inputs.forecastYears || 5}
               onChange={(e) => handleChange('forecastYears', e.target.value ? parseInt(e.target.value) : 5)}
-              className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+              disabled
+              className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)] opacity-60"
             />
+            <p className="text-xs text-[var(--cb-text-muted)]">{v2Note}</p>
           </div>
           
           <div className="space-y-1">
@@ -258,8 +274,10 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
               value={inputs.taxRate ? inputs.taxRate * 100 : (pulledData?.buyer?.taxRate ? pulledData.buyer.taxRate * 100 : pulledData?.target?.taxRate ? pulledData.target.taxRate * 100 : '')}
               onChange={(e) => handleChange('taxRate', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
               placeholder="21.0"
-              className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+              disabled
+              className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)] opacity-60"
             />
+            <p className="text-xs text-[var(--cb-text-muted)]">{v2Note}</p>
             {(pulledData?.buyer?.taxRate || pulledData?.target?.taxRate) && (
               <p className="text-xs text-[var(--cb-text-muted)]">Using pulled tax rate</p>
             )}
@@ -286,8 +304,10 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
                 value={inputs.buyerCashUsed || ''}
                 onChange={(e) => handleChange('buyerCashUsed', e.target.value ? parseFloat(e.target.value) : undefined)}
                 placeholder="5000"
-                className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+                disabled
+                className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)] opacity-60"
               />
+              <p className="text-xs text-[var(--cb-text-muted)]">{v2Note}</p>
             </div>
             <div className="space-y-1">
               <Label htmlFor="new-debt" className="text-[var(--cb-text-primary)]">
@@ -300,8 +320,10 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
                 value={inputs.newDebt || ''}
                 onChange={(e) => handleChange('newDebt', e.target.value ? parseFloat(e.target.value) : undefined)}
                 placeholder="10000"
-                className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+                disabled
+                className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)] opacity-60"
               />
+              <p className="text-xs text-[var(--cb-text-muted)]">{v2Note}</p>
             </div>
           </div>
           
@@ -317,8 +339,10 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
                 value={inputs.newDebtRate ? inputs.newDebtRate * 100 : ''}
                 onChange={(e) => handleChange('newDebtRate', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
                 placeholder="5.0"
-                className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+                disabled
+                className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)] opacity-60"
               />
+              <p className="text-xs text-[var(--cb-text-muted)]">{v2Note}</p>
             </div>
           )}
           
@@ -333,8 +357,10 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
               value={inputs.minCash || ''}
               onChange={(e) => handleChange('minCash', e.target.value ? parseFloat(e.target.value) : undefined)}
               placeholder="1000"
-              className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+              disabled
+              className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)] opacity-60"
             />
+            <p className="text-xs text-[var(--cb-text-muted)]">{v2Note}</p>
           </div>
         </CardContent>
       </Card>
@@ -380,8 +406,10 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
                 rampYears: e.target.value ? parseInt(e.target.value) : undefined,
               })}
               placeholder="3"
-              className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+              disabled
+              className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)] opacity-60"
             />
+            <p className="text-xs text-[var(--cb-text-muted)]">{v2Note}</p>
           </div>
           
           {hasRevenueSynergy && (
@@ -397,8 +425,10 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
                   value={inputs.synergyCOGSPct ? inputs.synergyCOGSPct * 100 : ''}
                   onChange={(e) => handleChange('synergyCOGSPct', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
                   placeholder="60.0"
-                  className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+                  disabled
+                  className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)] opacity-60"
                 />
+                <p className="text-xs text-[var(--cb-text-muted)]">{v2Note}</p>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="synergy-gm-pct" className="text-[var(--cb-text-primary)]">
@@ -411,8 +441,10 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
                   value={inputs.synergyGrossMarginPct ? inputs.synergyGrossMarginPct * 100 : ''}
                   onChange={(e) => handleChange('synergyGrossMarginPct', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
                   placeholder="40.0"
-                  className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+                  disabled
+                  className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)] opacity-60"
                 />
+                <p className="text-xs text-[var(--cb-text-muted)]">{v2Note}</p>
               </div>
             </div>
           )}
@@ -460,6 +492,7 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
             <p className="text-xs text-[var(--cb-text-muted)]">
               Must provide {forecastYears} values (can be zeros)
             </p>
+            <p className="text-xs text-[var(--cb-text-muted)]">{v2Note}</p>
             <div className="grid gap-2 md:grid-cols-5">
               {Array.from({ length: forecastYears }, (_, i) => {
                 const currentValue = (inputs.integrationCosts && inputs.integrationCosts[i] !== undefined) 
@@ -484,7 +517,8 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
                         handleChange('integrationCosts', newArray);
                       }}
                       placeholder="0"
-                      className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+                      disabled
+                      className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)] opacity-60"
                     />
                   </div>
                 );
@@ -510,12 +544,14 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
               id="purchase-accounting"
               checked={inputs.purchaseAccountingEnabled !== false}
               onChange={(e) => handleChange('purchaseAccountingEnabled', e.target.checked)}
-              className="h-4 w-4 accent-[var(--cb-green)]"
+              disabled
+              className="h-4 w-4 accent-[var(--cb-green)] opacity-60"
             />
             <Label htmlFor="purchase-accounting" className="text-[var(--cb-text-primary)]">
               Enable Purchase Accounting
             </Label>
           </div>
+          <p className="text-xs text-[var(--cb-text-muted)]">{v2Note}</p>
           
           {inputs.purchaseAccountingEnabled !== false && (
             <div className="grid gap-4 md:grid-cols-2">
@@ -530,8 +566,10 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
                   value={inputs.intangiblesPct ? inputs.intangiblesPct * 100 : ''}
                   onChange={(e) => handleChange('intangiblesPct', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
                   placeholder="30.0"
-                  className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+                  disabled
+                  className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)] opacity-60"
                 />
+                <p className="text-xs text-[var(--cb-text-muted)]">{v2Note}</p>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="intangibles-life" className="text-[var(--cb-text-primary)]">
@@ -546,8 +584,10 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
                   value={inputs.intangiblesLifeYears || ''}
                   onChange={(e) => handleChange('intangiblesLifeYears', e.target.value ? parseInt(e.target.value) : undefined)}
                   placeholder="15"
-                  className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+                  disabled
+                  className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)] opacity-60"
                 />
+                <p className="text-xs text-[var(--cb-text-muted)]">{v2Note}</p>
               </div>
             </div>
           )}

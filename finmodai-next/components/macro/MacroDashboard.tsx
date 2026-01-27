@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback, startTransition } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,22 +15,16 @@ import {
   ChevronUp,
   RefreshCw,
 } from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
+import { MacroLineChart } from '@/components/charts/MacroLineChart';
 import { cn } from '@/lib/utils';
 import type { MacroDetail, MacroOverviewResponse } from '@/types/macro';
 
 type TimeRange = '1D' | '1W' | '1M' | '6M' | '1Y' | '5Y';
+
+// Normalize range to '1Y' or '5Y' for chart component
+function normalizeRangeForChart(range: TimeRange): '1Y' | '5Y' {
+  return range === '5Y' ? '5Y' : '1Y';
+}
 
 type MacroPoint = {
   date: string;
@@ -39,57 +33,67 @@ type MacroPoint = {
 
 /**
  * Generate scaled fake history so lines actually move
+ * FIXED: Creates proper date ranges spanning the full time period
  */
 function generateSeries(
   base: number,
   volatility: number,
-  points: number
+  range: TimeRange
 ): MacroPoint[] {
   const data: MacroPoint[] = [];
   let current = base;
-
+  const now = new Date();
+  
+  // Determine date increment and number of points based on range
+  let dateIncrement: number; // in days
+  let points: number;
+  
+  switch (range) {
+    case '1D':
+      dateIncrement = 1; // daily
+      points = 24; // hourly would be too many, use daily for 1D
+      break;
+    case '1W':
+      dateIncrement = 1; // daily
+      points = 7;
+      break;
+    case '1M':
+      dateIncrement = 1; // daily
+      points = 30;
+      break;
+    case '6M':
+      dateIncrement = 7; // weekly
+      points = 26;
+      break;
+    case '1Y':
+      dateIncrement = 7; // weekly (52 weeks)
+      points = 52;
+      break;
+    case '5Y':
+      dateIncrement = 30; // monthly (60 months)
+      points = 60;
+      break;
+  }
+  
+  // Generate data points going backwards from now
   for (let i = points - 1; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
+    const date = new Date(now);
+    date.setDate(date.getDate() - (i * dateIncrement));
+    
+    // Add some volatility
     const shock = (Math.random() - 0.5) * volatility;
     current = Math.max(0, current + shock);
-    data.push({ date: date.toISOString(), value: Number(current.toFixed(2)) });
+    
+    data.push({ 
+      date: date.toISOString(), 
+      value: Number(current.toFixed(2)) 
+    });
   }
+  
   return data;
 }
 
-/**
- * Get number of data points for each time range
- */
-function getPointsForRange(range: TimeRange): number {
-  switch (range) {
-    case '1D': return 24; // hourly-ish
-    case '1W': return 7;
-    case '1M': return 30;
-    case '6M': return 26; // weekly
-    case '1Y': return 52; // weekly
-    case '5Y': return 60; // monthly-ish
-  }
-}
-
-/**
- * Format X-axis labels based on time range
- */
-function formatXAxisLabel(iso: string, range: TimeRange): string {
-  const d = new Date(iso);
-  switch (range) {
-    case '1D':
-      return d.toLocaleTimeString('en-US', { hour: 'numeric' });
-    case '1W':
-    case '1M':
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    case '6M':
-    case '1Y':
-      return d.toLocaleDateString('en-US', { month: 'short' });
-    case '5Y':
-      return d.getFullYear().toString();
-  }
-}
+// REMOVED: formatXAxisLabel - now handled by MacroLineChart component
 
 /**
  * Calculate percent change in a series
@@ -150,7 +154,7 @@ function getMacroNarrative(
 }
 
 export default function MacroDashboard() {
-  const [timeRange, setTimeRange] = useState<TimeRange>('1M');
+  const [timeRange, setTimeRange] = useState<TimeRange>('1Y');
   const [expanded, setExpanded] = useState(false);
   const [macroDetail, setMacroDetail] = useState<MacroDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -158,15 +162,10 @@ export default function MacroDashboard() {
 
   const timeRanges: TimeRange[] = ['1D', '1W', '1M', '6M', '1Y', '5Y'];
 
-  // Fetch detailed breakdown when expanded or horizon changes
-  useEffect(() => {
-    if (expanded) {
-      fetchDetailedBreakdown();
-    }
-  }, [expanded, timeRange]);
-
-  const fetchDetailedBreakdown = async () => {
+  // Memoize fetch function to prevent recreation on every render
+  const fetchDetailedBreakdown = useCallback(async () => {
     try {
+      console.time('[MacroDashboard] fetchDetailedBreakdown');
       setLoadingDetail(true);
       setDetailError(null);
 
@@ -177,54 +176,68 @@ export default function MacroDashboard() {
       }
 
       const data: MacroOverviewResponse = await response.json();
-      setMacroDetail(data.detailedBreakdown);
+      startTransition(() => {
+        setMacroDetail(data.detailedBreakdown);
+      });
     } catch (error) {
       console.error('[MacroDashboard] Failed to fetch detail:', error);
       setDetailError('Couldn\'t load full breakdown, showing high-level view only.');
     } finally {
       setLoadingDetail(false);
+      console.timeEnd('[MacroDashboard] fetchDetailedBreakdown');
     }
-  };
+  }, [timeRange]);
 
-  const handleToggleExpand = () => {
-    setExpanded(!expanded);
-  };
+  // Fetch detailed breakdown when expanded or horizon changes
+  useEffect(() => {
+    if (expanded) {
+      fetchDetailedBreakdown();
+    }
+  }, [expanded, fetchDetailedBreakdown]);
+
+  const handleToggleExpand = useCallback(() => {
+    startTransition(() => {
+      setExpanded(prev => !prev);
+    });
+  }, []);
 
   // Generate dynamic data based on time range
-  const points = getPointsForRange(timeRange);
-
+  // FIXED: Pass range directly to generateSeries so it creates proper date spans
   const fedFundsData = useMemo(
-    () => generateSeries(5.33, 0.08, points),
-    [timeRange, points]
+    () => generateSeries(5.33, 0.08, timeRange),
+    [timeRange]
   );
 
   const tenYearData = useMemo(
-    () => generateSeries(4.45, 0.15, points),
-    [timeRange, points]
+    () => generateSeries(4.45, 0.15, timeRange),
+    [timeRange]
   );
 
   const cpiData = useMemo(
-    () => generateSeries(3.2, 0.12, points),
-    [timeRange, points]
+    () => generateSeries(3.2, 0.12, timeRange),
+    [timeRange]
   );
 
   const sp500Data = useMemo(
-    () => generateSeries(4800, 40, points),
-    [timeRange, points]
+    () => generateSeries(4800, 40, timeRange),
+    [timeRange]
   );
 
   const unemploymentData = useMemo(
-    () => generateSeries(3.9, 0.06, points),
-    [timeRange, points]
+    () => generateSeries(3.9, 0.06, timeRange),
+    [timeRange]
   );
 
   const vixData = useMemo(
-    () => generateSeries(13, 0.35, points),
-    [timeRange, points]
+    () => generateSeries(13, 0.35, timeRange),
+    [timeRange]
   );
 
-  // Generate AI narrative
-  const aiNarrative = getMacroNarrative(timeRange, sp500Data, vixData, fedFundsData);
+  // Generate AI narrative (memoized to prevent recalculation on every render)
+  const aiNarrative = useMemo(
+    () => getMacroNarrative(timeRange, sp500Data, vixData, fedFundsData),
+    [timeRange, sp500Data, vixData, fedFundsData]
+  );
 
   // Get horizon label for display
   const getHorizonLabel = (range: TimeRange): string => {
@@ -238,9 +251,9 @@ export default function MacroDashboard() {
     }
   };
 
-  // Calculate current values and changes
-  const getCurrentValue = (data: MacroPoint[]) => data[data.length - 1]?.value || 0;
-  const getChange = (data: MacroPoint[]) => percentChange(data);
+  // Memoize calculation functions to prevent recreation
+  const getCurrentValue = useCallback((data: MacroPoint[]) => data[data.length - 1]?.value || 0, []);
+  const getChange = useCallback((data: MacroPoint[]) => percentChange(data), []);
 
   return (
     <div className="space-y-6">
@@ -261,7 +274,11 @@ export default function MacroDashboard() {
             {timeRanges.map((range) => (
               <button
                 key={range}
-                onClick={() => setTimeRange(range)}
+                onClick={() => {
+                  startTransition(() => {
+                    setTimeRange(range);
+                  });
+                }}
                 className={cn(
                   'rounded-full px-3 py-1 text-xs border transition',
                   timeRange === range
@@ -339,7 +356,7 @@ export default function MacroDashboard() {
                   <div className="space-y-2">
                     <h4 className="text-xs font-semibold text-foreground flex items-center gap-2">
                       <TrendingUp className="h-4 w-4 text-green-600" />
-                      What's Working
+                      What&apos;s Working
                     </h4>
                     <ul className="space-y-1.5 text-xs text-muted-foreground">
                       {macroDetail.whatsWorking.map((item, i) => (
@@ -355,7 +372,7 @@ export default function MacroDashboard() {
                   <div className="space-y-2">
                     <h4 className="text-xs font-semibold text-foreground flex items-center gap-2">
                       <TrendingDown className="h-4 w-4 text-red-600" />
-                      What's Struggling
+                      What&apos;s Struggling
                     </h4>
                     <ul className="space-y-1.5 text-xs text-muted-foreground">
                       {macroDetail.whatsStruggling.map((item, i) => (
@@ -421,17 +438,11 @@ export default function MacroDashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={60}>
-              <LineChart data={fedFundsData}>
-                <Line 
-                  type="monotone" 
-                  dataKey="value" 
-                  stroke="#3b82f6" 
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <MacroLineChart 
+              data={fedFundsData} 
+              range={normalizeRangeForChart(timeRange)}
+              height={60}
+            />
           </CardContent>
         </Card>
 
@@ -449,17 +460,11 @@ export default function MacroDashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={60}>
-              <LineChart data={tenYearData}>
-                <Line 
-                  type="monotone" 
-                  dataKey="value" 
-                  stroke="#8b5cf6" 
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <MacroLineChart 
+              data={tenYearData} 
+              range={normalizeRangeForChart(timeRange)}
+              height={60}
+            />
           </CardContent>
         </Card>
 
@@ -477,17 +482,11 @@ export default function MacroDashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={60}>
-              <LineChart data={cpiData}>
-                <Line 
-                  type="monotone" 
-                  dataKey="value" 
-                  stroke="#f59e0b" 
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <MacroLineChart 
+              data={cpiData} 
+              range={normalizeRangeForChart(timeRange)}
+              height={60}
+            />
           </CardContent>
         </Card>
       </div>
@@ -504,36 +503,11 @@ export default function MacroDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={sp500Data} margin={{ left: 0, right: 8, top: 8, bottom: 8 }}>
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={(v) => formatXAxisLabel(v, timeRange)}
-                  tickLine={false}
-                  axisLine={false}
-                  interval="preserveStartEnd"
-                  style={{ fontSize: 11 }}
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  width={60}
-                  style={{ fontSize: 11 }}
-                />
-                <Tooltip
-                  formatter={(value: any) => [value, 'Index Level']}
-                  labelFormatter={(v) => formatXAxisLabel(v as string, timeRange)}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  stroke="#2563eb"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 3 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <MacroLineChart 
+              data={sp500Data} 
+              range={normalizeRangeForChart(timeRange)}
+              height={260}
+            />
           </CardContent>
         </Card>
 
@@ -547,41 +521,11 @@ export default function MacroDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={260}>
-              <AreaChart data={unemploymentData} margin={{ left: 0, right: 8, top: 8, bottom: 8 }}>
-                <defs>
-                  <linearGradient id="unempFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0.05} />
-                  </linearGradient>
-                </defs>
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={(v) => formatXAxisLabel(v, timeRange)}
-                  tickLine={false}
-                  axisLine={false}
-                  interval="preserveStartEnd"
-                  style={{ fontSize: 11 }}
-                />
-                <YAxis 
-                  tickLine={false} 
-                  axisLine={false} 
-                  width={40} 
-                  style={{ fontSize: 11 }} 
-                />
-                <Tooltip
-                  formatter={(value: any) => [`${value}%`, 'Unemployment']}
-                  labelFormatter={(v) => formatXAxisLabel(v as string, timeRange)}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke="#22c55e"
-                  strokeWidth={2}
-                  fill="url(#unempFill)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <MacroLineChart 
+              data={unemploymentData} 
+              range={normalizeRangeForChart(timeRange)}
+              height={260}
+            />
           </CardContent>
         </Card>
 
@@ -595,33 +539,11 @@ export default function MacroDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={vixData} margin={{ left: 0, right: 8, top: 8, bottom: 8 }}>
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={(v) => formatXAxisLabel(v, timeRange)}
-                  tickLine={false}
-                  axisLine={false}
-                  interval="preserveStartEnd"
-                  style={{ fontSize: 11 }}
-                />
-                <YAxis 
-                  tickLine={false} 
-                  axisLine={false} 
-                  width={40} 
-                  style={{ fontSize: 11 }} 
-                />
-                <Tooltip
-                  formatter={(value: any) => [value, 'VIX']}
-                  labelFormatter={(v) => formatXAxisLabel(v as string, timeRange)}
-                />
-                <Bar 
-                  dataKey="value" 
-                  fill="#ef4444" 
-                  opacity={0.7}
-                />
-              </BarChart>
-            </ResponsiveContainer>
+            <MacroLineChart 
+              data={vixData} 
+              range={normalizeRangeForChart(timeRange)}
+              height={260}
+            />
           </CardContent>
         </Card>
       </div>

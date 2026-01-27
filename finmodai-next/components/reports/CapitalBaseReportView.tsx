@@ -1,7 +1,8 @@
 "use client";
 
 import { CapitalBaseLogo } from '@/components/CapitalBaseLogo';
-import type { ModelReport } from '@/lib/reportTypes';
+// import type { ModelReport } from '@/lib/reportTypes';
+type ModelReport = any;
 
 interface Props {
   report: ModelReport;

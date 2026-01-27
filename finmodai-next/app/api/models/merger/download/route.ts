@@ -1,141 +1,48 @@
 /**
- * Merger Model Excel Download API
- * 
- * Returns binary .xlsx buffer with correct headers.
+ * Merger Model Download API
+ *
+ * Delegates generation + storage to `runModel()` and redirects to the produced artifact URL.
+ * Prefer using `/api/models/[modelId]/download` for a stable download entrypoint once the model exists.
  */
 
 import { NextResponse } from 'next/server';
-import { MergerModelInputSchema, getMissingMergerInputs } from '@/lib/models/merger/schema';
-import { computeMergerModel } from '@/lib/models/merger/compute';
-import { generateMergerWorkbook } from '@/lib/models/merger/excel';
-import { getLTMFinancials } from '@/lib/getLTMFinancials';
+import { runModel, ModelRunError } from '@/lib/modeling/runModel';
 
 export const runtime = 'nodejs';
 
-function convertToCompanyFinancials(ltm: any, ticker: string): any {
-  const cogs = ltm.revenue && ltm.ebitda ? 
-    Math.max(0, ltm.revenue - ltm.ebitda - (ltm.revenue * 0.15)) : 
-    0;
-  
-  const grossProfit = ltm.revenue - cogs;
-  const opex = ltm.revenue && ltm.ebitda ? 
-    Math.max(0, ltm.revenue - cogs - ltm.ebitda) : 
-    0;
-  
-  const da = ltm.ebitda && ltm.ebit ? 
-    Math.max(0, ltm.ebitda - ltm.ebit) : 
-    0;
-  
-  return {
-    ticker,
-    revenue: ltm.revenue || 0,
-    cogs,
-    grossProfit,
-    opex,
-    ebitda: ltm.ebitda || 0,
-    ebit: ltm.ebit || 0,
-    da,
-    interestExpense: 0,
-    netIncome: ltm.netIncome || 0,
-    sharesOutstanding: ltm.sharesOutstanding || 0,
-    cash: ltm.cash || 0,
-    debt: ltm.totalDebt || 0,
-    price: ltm.price || 0,
-    taxRate: 0.21,
-  };
-}
-
 export async function POST(req: Request) {
+  const baseUrl = (() => {
+    try {
+      return new URL(req.url).origin;
+    } catch {
+      return process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    }
+  })();
+
   try {
-    const body = await req.json();
-    
-    // Pull data for validation
-    let buyerLTM = null;
-    let targetLTM = null;
-    try {
-      if (body.buyerTicker) buyerLTM = await getLTMFinancials(body.buyerTicker);
-    } catch (e) {}
-    try {
-      if (body.targetTicker) targetLTM = await getLTMFinancials(body.targetTicker);
-    } catch (e) {}
-    
-    const pulledData = {
-      buyer: buyerLTM ? { price: buyerLTM.price, shares: buyerLTM.sharesOutstanding, cash: buyerLTM.cash } : undefined,
-      target: targetLTM ? { price: targetLTM.price, shares: targetLTM.sharesOutstanding, cash: targetLTM.cash, debt: targetLTM.totalDebt } : undefined,
-    };
-    
-    // Validate inputs
-    const missing = getMissingMergerInputs(body, pulledData);
-    if (missing.length > 0) {
-      return NextResponse.json(
-        {
-          error: 'Missing required inputs',
-          missingRequired: missing,
-        },
-        { status: 400 }
-      );
+    let body: any = await req.json();
+
+    // Allow nested merger payloads (e.g. { mergerInputs: { ... } })
+    if (body && typeof body === 'object' && body.mergerInputs && typeof body.mergerInputs === 'object') {
+      body = { ...body.mergerInputs, ...body };
     }
-    
-    // Parse and validate with Zod
-    const parseResult = MergerModelInputSchema.safeParse(body);
-    if (!parseResult.success) {
-      return NextResponse.json(
-        {
-          error: 'Invalid input data',
-          details: parseResult.error.errors,
-        },
-        { status: 400 }
-      );
-    }
-    
-    const input = parseResult.data;
-    
-    // Use already-pulled data or fetch
-    if (!buyerLTM) buyerLTM = await getLTMFinancials(input.buyerTicker);
-    const buyerFinancials = convertToCompanyFinancials(buyerLTM, input.buyerTicker);
-    
-    if (!targetLTM) targetLTM = await getLTMFinancials(input.targetTicker);
-    const targetFinancials = convertToCompanyFinancials(targetLTM, input.targetTicker);
-    
-    // Compute model (will throw if invariants violated)
-    let output;
-    try {
-      output = computeMergerModel(input, buyerFinancials, targetFinancials);
-    } catch (computeError: any) {
-      return NextResponse.json(
-        {
-          error: computeError.message || 'Model computation failed',
-        },
-        { status: 400 }
-      );
-    }
-    
-    // Generate Excel
-    const workbook = await generateMergerWorkbook(
-      input,
-      output,
-      buyerFinancials,
-      targetFinancials
-    );
-    
-    // Convert to buffer
-    const buffer = await workbook.xlsx.writeBuffer();
-    
-    // Return binary with correct headers
-    const filename = `Merger_Model_${input.buyerTicker}_${input.targetTicker}_${new Date().toISOString().split('T')[0]}.xlsx`;
-    
-    return new NextResponse(buffer as any, {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-      },
-    });
+
+    const run = await runModel({ modelType: 'merger', assumptions: body }, { baseUrl });
+    return NextResponse.redirect(run.artifact.downloadUrl, 303);
   } catch (error: any) {
+    if (error instanceof ModelRunError) {
+      const payload: any = error.toResponseBody();
+      const maybeBlocks = (error as any)?.cause;
+      if (error.code === 'GUARDRAIL_BLOCKED' && Array.isArray(maybeBlocks)) {
+        payload.blocks = maybeBlocks;
+      }
+      return NextResponse.json(payload, { status: error.httpStatus });
+    }
+
     console.error('[merger download] Error:', error);
     return NextResponse.json(
       {
-        error: error.message || 'Failed to generate merger model Excel',
+        error: error?.message || 'Failed to generate merger model Excel',
       },
       { status: 500 }
     );
