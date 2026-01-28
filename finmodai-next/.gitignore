@@ -43,3 +43,7 @@ finmodai-next/node_modules/
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+# local scratch
+*.stub
+*.broken
