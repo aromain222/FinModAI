@@ -13,7 +13,8 @@ import { buildMergerPreview } from '@/lib/modeling/preview';
 import { generateMergerWorkbook } from '@/lib/models/merger/excel';
 import { computeMergerModel } from '@/lib/models/merger/compute';
 import { MergerModelInputSchema, getMissingMergerInputs } from '@/lib/models/merger/schema';
-import { getModelData } from '@/lib/modeling/getModelData';
+// NOTE: getModelData lives under lib/data (build fix).
+import { getModelData } from '@/lib/data/getModelData';
 import { applyDefaultsToModelInputs } from '@/lib/models/shared/applyDefaults';
 import { getCurrentUserSettings } from '@/lib/settings/store';
 import { uploadXlsxToR2, checkR2Env } from '@/lib/r2';

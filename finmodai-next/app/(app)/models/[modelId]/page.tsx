@@ -26,6 +26,8 @@ type ModelResponse = Omit<ModelRow, 'user_id'> & {
   notes?: string | null;
 };
 
+const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+
 const formatDate = (value?: string | null) => {
   if (!value) return '—';
   const date = new Date(value);
@@ -561,8 +563,9 @@ export default function ModelDetailPage({ params }: { params: { modelId: string 
       pricePerShare = pricePerShareFromModel;
       pricePerShareSource = 'workbook'; // From model calculation
     } else if (equityValue && shares && shares > 0) {
-      // Only compute if shares are from workbook/results (not market data)
-      if (effectiveShareSource === 'sheet' || effectiveShareSource === 'results' || effectiveShareSource === 'workbook') {
+      // Only compute if shares are from workbook sheet or stored results (not market data)
+      // (Note: 'workbook' is a price/source concept here, not a shares source.)
+      if (effectiveShareSource === 'sheet' || effectiveShareSource === 'results') {
         pricePerShare = equityValue / shares;
         pricePerShareSource = 'workbook';
       } else {
@@ -604,8 +607,8 @@ export default function ModelDetailPage({ params }: { params: { modelId: string 
   const valuationSignal = useMemo(() => {
     const marketPrice = keyOutputs.marketPrice;
     const intrinsicPrice = keyOutputs.pricePerShare;
-    if (!marketPrice || !intrinsicPrice) return null;
-    if (!Number.isFinite(marketPrice) || !Number.isFinite(intrinsicPrice)) return null;
+    if (!isFiniteNumber(marketPrice) || marketPrice <= 0) return null;
+    if (!isFiniteNumber(intrinsicPrice) || intrinsicPrice <= 0) return null;
     if (marketPrice === intrinsicPrice) return null;
     return marketPrice < intrinsicPrice ? 'LOW' : 'HIGH';
   }, [keyOutputs.marketPrice, keyOutputs.pricePerShare]);
@@ -616,7 +619,7 @@ export default function ModelDetailPage({ params }: { params: { modelId: string 
       const text = toErrorText(n);
       if (text) set.add(text);
     });
-    if (!keyOutputs.shares) {
+    if (!isFiniteNumber(keyOutputs.shares) || keyOutputs.shares <= 0) {
       set.add('Model price/share pending: shares outstanding unavailable.');
     }
     return Array.from(set);
@@ -843,7 +846,7 @@ export default function ModelDetailPage({ params }: { params: { modelId: string 
 	                            },
 	                            {
 	                              label: 'Price / Share',
-	                              value: keyOutputs.pricePerShare !== null ? formatCurrency(keyOutputs.pricePerShare, 'RAW') : '—',
+	                              value: isFiniteNumber(keyOutputs.pricePerShare) ? formatCurrency(keyOutputs.pricePerShare, 'RAW') : '—',
 	                              source: keyOutputs.pricePerShareSource,
 	                              reason: keyOutputs.pricePerShareReason,
 	                              shareSource: keyOutputs.shareSource,
@@ -878,8 +881,8 @@ export default function ModelDetailPage({ params }: { params: { modelId: string 
 	                            },
 	                            {
 	                              label: 'Shares (mm)',
-	                              value: formatSharesMm(keyOutputs.shares),
-	                              source: keyOutputs.shares ? keyOutputs.shareSource : null,
+	                              value: isFiniteNumber(keyOutputs.shares) && keyOutputs.shares > 0 ? formatSharesMm(keyOutputs.shares) : '—',
+	                              source: isFiniteNumber(keyOutputs.shares) && keyOutputs.shares > 0 ? keyOutputs.shareSource : null,
 	                              confidence: keyOutputs.shareConfidence ?? null,
 	                            },
 	                          ].map((item: any) => {
@@ -898,16 +901,18 @@ export default function ModelDetailPage({ params }: { params: { modelId: string 
 								tooltipContent = 'Price per share cannot be computed';
 							}
 
+	                            const shouldTooltip = typeof tooltipContent === 'string' && tooltipContent.length > 0;
+
 	                            const valueSpan = (
 	                              <span
-	                                className={`text-sm font-semibold tabular-nums whitespace-nowrap ${isUnavailable || isPriceUnavailable ? 'text-slate-400' : 'text-slate-100'} ${(hasTooltip || hasReason) ? 'cursor-help' : ''}`}
-	                                tabIndex={(hasTooltip || hasReason) ? 0 : undefined}
+	                                className={`text-sm font-semibold tabular-nums whitespace-nowrap ${isUnavailable || isPriceUnavailable ? 'text-slate-400' : 'text-slate-100'} ${shouldTooltip ? 'cursor-help' : ''}`}
+	                                tabIndex={shouldTooltip ? 0 : undefined}
 	                              >
 	                                {String(item.value)}
 	                              </span>
 	                            );
 
-	                            const valueNode = (hasTooltip || hasReason) ? (
+	                            const valueNode = shouldTooltip ? (
 	                              <Tooltip>
 	                                <TooltipTrigger asChild>{valueSpan}</TooltipTrigger>
 	                                <TooltipContent className="border border-white/10 bg-black/90 text-xs text-slate-100 max-w-xs">
