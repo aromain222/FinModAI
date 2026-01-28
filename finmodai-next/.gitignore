@@ -47,3 +47,6 @@ finmodai-next/node_modules/
 # local scratch
 *.stub
 *.broken
+# --- Allow server env contract to be versioned ---
+!lib/env/
+!lib/env/server.ts
