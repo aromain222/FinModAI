@@ -1,100 +1,81 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
+############################
+# Node / Next.js
+############################
+node_modules/
+.next/
+out/
 dist/
-downloads/
-eggs/
-.eggs/
-/lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+build/
 
-# Virtual environments
-venv/
-env/
-ENV/
-
+############################
 # Environment variables
+############################
 .env
+.env.*
 .env.local
 .env.production
 
-# IDE
+# Allow example env file
+!.env.example
+
+############################
+# Python
+############################
+__pycache__/
+*.py[cod]
+.Python
+venv/
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
+wheels/
+
+############################
+# OS / IDE
+############################
+.DS_Store
+Thumbs.db
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS
-.DS_Store
-Thumbs.db
+############################
+# Logs / temp
+############################
+*.log
+*.tmp
+*.temp
+*.bak
+*.backup
 
-# Generated files
+############################
+# Data / generated files
+############################
 generated_models/*.xlsx
 uploads/*
 !generated_models/.gitkeep
 !uploads/.gitkeep
 
-# Logs
-*.log
-
-# Database
-*.db
-*.sqlite3
-
-# Temporary files
-*.tmp
-*.temp
-*.new
-*.new[0-9]
-*.bak
-*.backup
-*.backup[0-9]
-
-# Embedded repositories
-Bitcoin-Scraper/
-
-# Credentials and API keys
+############################
+# Credentials (never commit)
+############################
 credentials/
 *credentials*.json
 *service_account*.json
 google_drive_credentials.json
-*.env
-.env.*
-# Financial Modeling Prep API Key
-FMP_API_KEY=REDACTED
 
-# Alpha Vantage API Key
-ALPHAVANTAGE_API_KEY=REDACTED
+############################
+# Cache / misc
+############################
+.cache/
+.market-brief-headlines-cache.json
 
-# SEC EDGAR (Required - No API key needed, just your email for User-Agent)
-SEC_UA_EMAIL=kingromain23@gmail.com
-
-# Optional API Keys (uncomment and add if you have them)
- FINNHUB_API_KEY=d3nth2hr01qtm4jea48gd3nth2hr01qtm4jea490
- POLYGON_API_KEY=REDACTED
-# FRED_API_KEY=your_fred_key_here
- OPENAI_API_KEY=REDACTED
-# ANTHROPIC_API_KEY=your_anthropic_api_key_here
-
-# Tiingo API Key (Free tier available)
-# Get your key at: https://api.tiingo.com/documentation/general/overview
-TIINGO_API_KEY=REDACTED
-
-NEWSAPI_API_KEY=d3da98f439d04ea590e73c8183b06ebd
-NEXT_PUBLIC_SUPABASE_URL=https://thvbhrzavzjnwecwhbgj.supabase.co
-SUPABASE_URL=https://thvbhrzavzjnwecwhbgj.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=REDACTED
-SUPABASE_ANON_KEY=REDACTED
-.gitignore.save
+############################
+# ✅ Track server env contract
+############################
+!lib/
+!lib/env/
+!lib/env/server.ts
