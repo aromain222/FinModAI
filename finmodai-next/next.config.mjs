@@ -59,6 +59,7 @@ export default withSentryConfig(
   {
     org: 'capitalbase',
     project: 'javascript-nextjs',
+    authToken: process.env.SENTRY_AUTH_TOKEN,
     silent: !process.env.CI,
     widenClientFileUpload: true,
   },

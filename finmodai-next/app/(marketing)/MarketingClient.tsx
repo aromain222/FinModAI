@@ -5,5 +5,5 @@
  * for the (marketing) route group. Fixes Vercel ENOENT during trace collection.
  */
 export default function MarketingClient() {
-  return null;
+  return <span aria-hidden="true" className="sr-only" />;
 }
