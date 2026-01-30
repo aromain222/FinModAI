@@ -38,7 +38,7 @@ export default async function MarketingPage() {
   } = await supabase.auth.getSession();
 
   if (session) {
-    redirect('/dashboard');
+    redirect('/app');
   }
   
   // If not authenticated, allow marketing page (users can navigate to /auth from here)
