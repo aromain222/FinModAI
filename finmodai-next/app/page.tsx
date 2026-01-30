@@ -31,14 +31,14 @@ const featureBlocks = [
 ];
 
 export default async function MarketingPage() {
-  // Check if user is authenticated - if so, redirect to app
+  // Check if user is authenticated - if so, redirect to dashboard
   const supabase = createServerComponentClient<Database>({ cookies });
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
   if (session) {
-    redirect('/app');
+    redirect('/dashboard');
   }
   
   // If not authenticated, allow marketing page (users can navigate to /auth from here)
