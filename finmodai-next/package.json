@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node -e \"console.log('HAS_SENTRY_AUTH_TOKEN=', !!process.env.SENTRY_AUTH_TOKEN)\" && next build",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
