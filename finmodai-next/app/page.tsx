@@ -11,7 +11,6 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { Database } from '@/lib/supabaseClient';
 import { BarChart3, Building2, ShieldCheck } from 'lucide-react';
 import Hero from '@/app/components/Hero';
-import MarketingClient from './MarketingClient';
 
 const featureBlocks = [
   {
@@ -93,7 +92,6 @@ export default async function MarketingPage() {
           </div>
         </div>
       </section>
-      <MarketingClient />
     </main>
   );
 }
