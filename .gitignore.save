@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated files
+generated_models/*.xlsx
+uploads/*
+!generated_models/.gitkeep
+!uploads/.gitkeep
+
+# Logs
+*.log
+
+# Database
+*.db
+*.sqlite3
+
+# Temporary files
+*.tmp
+*.temp
+*.new
+*.new[0-9]
+*.bak
+*.backup
+*.backup[0-9]
+
+# Embedded repositories
+Bitcoin-Scraper/
+
+# Credentials and API keys
+credentials/
+*credentials*.json
+*service_account*.json
+google_drive_credentials.json
+*.envALPHAVANTAGE_API_KEY=7PCNA3SMQYDG9MPH
+
+# SEC EDGAR (Required - No API key needed, just your email for User-Agent)
+SEC_UA_EMAIL=kingromain23@gmail.com

@@ -1,3 +1,0 @@
-export function register() {
-  // TEMP no-op: debugging request hang on localhost
-}
