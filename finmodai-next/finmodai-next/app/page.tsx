@@ -12,7 +12,7 @@ export default async function RootPage() {
   } = await supabase.auth.getSession();
 
   if (session) {
-    redirect('/app');
+    redirect('/dashboard');
   }
 
   return <MarketingPage />;
