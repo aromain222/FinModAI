@@ -339,7 +339,7 @@ export default function MacroDashboard() {
                   <div className="space-y-2">
                     <h4 className="text-xs font-semibold text-foreground flex items-center gap-2">
                       <TrendingUp className="h-4 w-4 text-green-600" />
-                      What's Working
+                      What&apos;s Working
                     </h4>
                     <ul className="space-y-1.5 text-xs text-muted-foreground">
                       {macroDetail.whatsWorking.map((item, i) => (
@@ -355,7 +355,7 @@ export default function MacroDashboard() {
                   <div className="space-y-2">
                     <h4 className="text-xs font-semibold text-foreground flex items-center gap-2">
                       <TrendingDown className="h-4 w-4 text-red-600" />
-                      What's Struggling
+                      What&apos;s Struggling
                     </h4>
                     <ul className="space-y-1.5 text-xs text-muted-foreground">
                       {macroDetail.whatsStruggling.map((item, i) => (

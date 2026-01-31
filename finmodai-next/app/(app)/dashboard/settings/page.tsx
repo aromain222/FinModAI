@@ -146,10 +146,11 @@ export default function SettingsPage() {
               <Input
                 id="displayName"
                 type="text"
-                value={settings.profile.displayName || ''}
-                onChange={(e) => updateSettings('profile.displayName', e.target.value || undefined)}
+                value={''}
+                onChange={(e) => {}}
                 placeholder="Analyst"
                 className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+                disabled
               />
             </div>
             <div className="space-y-2">
@@ -157,10 +158,11 @@ export default function SettingsPage() {
               <Input
                 id="orgName"
                 type="text"
-                value={settings.profile.orgName || ''}
-                onChange={(e) => updateSettings('profile.orgName', e.target.value || undefined)}
+                value={''}
+                onChange={(e) => {}}
                 placeholder="Your Organization"
                 className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+                disabled
               />
             </div>
           </CardContent>

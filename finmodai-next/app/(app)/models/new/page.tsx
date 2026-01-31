@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { APP_NAME } from '@/lib/branding';
+import { DownloadWorkbookButton } from '@/components/models/DownloadWorkbookButton';
 import type { LboAdvancedOptions } from '@/types/lbo';
 
 type ModelType = 'dcf' | 'comps' | 'lbo';

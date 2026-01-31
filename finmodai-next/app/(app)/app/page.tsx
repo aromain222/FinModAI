@@ -42,37 +42,35 @@ async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
       lastRunAt = lastModel.created_at;
       
       // Get runtime stats for the last model
-      const metricsType = mapModelTypeToMetrics(lastModel.type);
+      const metricsType = mapModelTypeToMetrics(lastModel.model_type);
       if (metricsType) {
-        const stats = await getModelStats({
-          ticker: lastModel.ticker,
-          modelType: metricsType,
-          maxSamples: 20, // Last 20 runs for average
-        });
+        const stats = getModelStats();
         
-        if (stats.sampleCount > 0) {
-          avgRuntimeMs = stats.avgDurationMs;
+        if (stats.totalModels > 0 && stats.avgGenerationTime) {
+          avgRuntimeMs = stats.avgGenerationTime;
         }
       }
     } else {
       // If no models, try to get the most recent run from model_run_stats
       const supabase = getSupabaseServerClient();
-      const { data } = await supabase
-        .from('model_run_stats')
-        .select('created_at, duration_ms')
-        .order('created_at', { ascending: false })
-        .limit(20);
-      
-      if (data && data.length > 0) {
-        lastRunAt = data[0].created_at;
-        const durations = data
-          .map((row) => (typeof row.duration_ms === 'number' ? row.duration_ms : null))
-          .filter((value): value is number => typeof value === 'number' && value >= 0);
+      if (supabase) {
+        const { data } = await supabase
+          .from('model_run_stats')
+          .select('created_at, duration_ms')
+          .order('created_at', { ascending: false })
+          .limit(20);
         
-        if (durations.length > 0) {
-          avgRuntimeMs = Math.round(
-            durations.reduce((sum, value) => sum + value, 0) / durations.length
-          );
+        if (data && data.length > 0) {
+          lastRunAt = data[0].created_at;
+          const durations = data
+            .map((row) => (typeof row.duration_ms === 'number' ? row.duration_ms : null))
+            .filter((value): value is number => typeof value === 'number' && value >= 0);
+          
+          if (durations.length > 0) {
+            avgRuntimeMs = Math.round(
+              durations.reduce((sum, value) => sum + value, 0) / durations.length
+            );
+          }
         }
       }
     }
@@ -82,7 +80,7 @@ async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
       lastModel: lastModel
         ? {
             ticker: lastModel.ticker,
-            modelType: lastModel.type,
+            modelType: lastModel.model_type,
             createdAt: lastModel.created_at,
           }
         : null,
