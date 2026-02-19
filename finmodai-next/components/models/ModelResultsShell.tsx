@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Download, FileText, RotateCcw, Copy, Check } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import { ToastEnhanced } from '@/components/ui/toast-enhanced';
 
 export interface ModelResultsShellProps {
   // Header
@@ -17,9 +19,11 @@ export interface ModelResultsShellProps {
   // Actions
   downloadUrl?: string;
   onDownload?: () => void;
+  onDownloadPdfReport?: () => void;
   onViewInputs?: () => void;
   onRunAgain?: () => void;
   onCopyLink?: () => void;
+  pdfReportUrl?: string;
   
   // Content
   preview: ReactNode;
@@ -28,6 +32,12 @@ export interface ModelResultsShellProps {
   
   // Optional additional analysis (collapsed by default)
   additionalAnalysis?: ReactNode;
+  
+  // Model state
+  state?: 'draft' | 'assumptions_required' | 'computable' | 'generating' | 'generated' | 'failed';
+  missingInputs?: string[];
+  estimatedInputs?: Array<{ key: string; value: number; source: string; confidence: 'low' | 'medium' | 'high' }>;
+  onCompleteAssumptions?: () => void;
 }
 
 export function ModelResultsShell({
@@ -37,16 +47,24 @@ export function ModelResultsShell({
   status = 'success',
   downloadUrl,
   onDownload,
+  onDownloadPdfReport,
   onViewInputs,
   onRunAgain,
   onCopyLink,
+  pdfReportUrl,
   preview,
   assumptions,
   diagnostics,
   additionalAnalysis,
+  state = 'generated',
+  missingInputs = [],
+  estimatedInputs = [],
+  onCompleteAssumptions,
 }: ModelResultsShellProps) {
   const [linkCopied, setLinkCopied] = React.useState(false);
   const [showAdditional, setShowAdditional] = React.useState(false);
+  const [isDownloading, setIsDownloading] = React.useState(false);
+  const { toasts, showToast, removeToast } = useToast();
 
   const handleCopyLink = () => {
     if (onCopyLink) {
@@ -56,6 +74,68 @@ export function ModelResultsShell({
     }
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
+  };
+
+  const handleDownloadClick = async () => {
+    if (isDownloading) return;
+    // Validate state before download
+    if (state !== 'generated') {
+      showToast({
+        title: 'Model not ready',
+        description: state === 'assumptions_required' 
+          ? 'Please complete required assumptions first.'
+          : `Model state: ${state}. Cannot download until model is generated.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setIsDownloading(true);
+      if (!downloadUrl && onDownload) {
+        await onDownload();
+        return;
+      }
+
+      if (!downloadUrl) {
+        showToast({
+          title: 'Download unavailable',
+          description: 'No download URL provided. Please regenerate the model.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Validate download URL format
+      const isValidUrl =
+        downloadUrl.startsWith('http://') ||
+        downloadUrl.startsWith('https://') ||
+        downloadUrl.startsWith('data:application');
+
+      if (!isValidUrl || downloadUrl.endsWith('/')) {
+        console.error('[ModelResultsShell] Invalid download URL format:', downloadUrl);
+        showToast({
+          title: 'Download failed',
+          description: 'Invalid download URL. Please regenerate the model.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Trigger navigation to signed URL; keep async to allow spinner
+      window.location.assign(downloadUrl);
+    } catch (err) {
+      console.error('[ModelResultsShell] Download failed', err);
+      // Best-effort: call onDownload fallback if provided
+      onDownload?.();
+      showToast({
+        title: 'Download failed',
+        description: err instanceof Error ? err.message : 'Please retry in a moment.',
+        variant: 'destructive',
+      });
+    } finally {
+      setTimeout(() => setIsDownloading(false), 1500);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -75,6 +155,11 @@ export function ModelResultsShell({
 
   return (
     <div className="space-y-6">
+      {/* Units notice - visible at top of every model */}
+      <p className="text-sm font-medium text-[var(--cb-text-muted)] rounded-md bg-[var(--cb-surface)] border border-[var(--cb-border-subtle)] px-3 py-2">
+        All figures in USD millions (unless otherwise noted).
+      </p>
+
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -95,28 +180,48 @@ export function ModelResultsShell({
 
       {/* Action Row */}
       <div className="flex flex-wrap items-center gap-2">
-        {downloadUrl && (
+        {/* Only show download button when state is 'generated' */}
+        {(downloadUrl || onDownload) && state === 'generated' && (
           <Button
-            asChild
+            onClick={handleDownloadClick}
             size="sm"
             variant="default"
             className="gap-2"
-          >
-            <a href={downloadUrl} download>
-              <Download className="h-4 w-4" />
-              Download Excel
-            </a>
-          </Button>
-        )}
-        {onDownload && !downloadUrl && (
-          <Button
-            onClick={onDownload}
-            size="sm"
-            variant="default"
-            className="gap-2"
+            disabled={isDownloading}
           >
             <Download className="h-4 w-4" />
-            Download Excel
+            {isDownloading ? 'Preparing…' : 'Download Excel'}
+          </Button>
+        )}
+        {(pdfReportUrl || onDownloadPdfReport) && state === 'generated' && (
+          <Button
+            onClick={() => {
+              if (onDownloadPdfReport) {
+                onDownloadPdfReport();
+                return;
+              }
+              if (pdfReportUrl) {
+                window.open(pdfReportUrl, '_blank', 'noopener,noreferrer');
+              }
+            }}
+            size="sm"
+            variant="outline"
+            className="gap-2"
+          >
+            <FileText className="h-4 w-4" />
+            Download PDF Report
+          </Button>
+        )}
+        {/* Show assumptions completion button when state is 'assumptions_required' */}
+        {state === 'assumptions_required' && (
+          <Button
+            onClick={onCompleteAssumptions || (() => {})}
+            size="sm"
+            variant="default"
+            className="gap-2"
+          >
+            <FileText className="h-4 w-4" />
+            Complete Assumptions
           </Button>
         )}
         {onViewInputs && (
@@ -217,6 +322,9 @@ export function ModelResultsShell({
           )}
         </Card>
       )}
+
+      {/* Local toasts for download failures */}
+      <ToastEnhanced toasts={toasts} onRemove={removeToast} />
     </div>
   );
 }

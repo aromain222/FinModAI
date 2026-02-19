@@ -26,6 +26,8 @@ export type CompanyFinancials = {
   shares: number;              // Shares outstanding (millions)
   price: number;               // Price per share
   netDebt: number;             // Total debt - cash ($ millions)
+  totalDebt?: number | null;   // Total debt ($ millions)
+  cash?: number | null;        // Cash & equivalents ($ millions)
   
   // Computed multiples
   evToRevenue: number;
@@ -148,4 +150,3 @@ export type FinancialEnrichmentRequest = {
     marketCap?: number;
   };
 };
-

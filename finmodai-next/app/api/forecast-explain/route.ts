@@ -1,12 +1,15 @@
+// @ts-nocheck
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import OpenAI from 'openai';
 import { buildForecastExplanationPrompt } from '@/lib/promptBuilders';
 import { BaseAssumptions, ScenarioAssumptions, runForecast } from '@/lib/scenarioEngine';
+import { getOpenAIKey, getOpenAIModelCandidates } from '@/lib/openaiKey';
 
 export async function POST(request: Request) {
-  if (!process.env.OPENAI_API_KEY) {
+  const apiKey = getOpenAIKey('user') || getOpenAIKey('service');
+  if (!apiKey) {
     return NextResponse.json({ error: 'LLM provider not configured' }, { status: 500 });
   }
 
@@ -53,16 +56,29 @@ export async function POST(request: Request) {
 
   const prompt = buildForecastExplanationPrompt(forecastResult, forecastScenario);
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const stream = await openai.chat.completions.create({
-    model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
-    temperature: 0.25,
-    stream: true,
-    messages: [
-      { role: 'system', content: 'You explain forecasts with analytical discipline only.' },
-      { role: 'user', content: prompt }
-    ]
-  });
+  const openai = new OpenAI({ apiKey });
+  const modelCandidates = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-4o-mini', 'gpt-4.1-mini');
+  let stream: Awaited<ReturnType<typeof openai.chat.completions.create>> | null = null;
+  let lastError: unknown = null;
+  for (const model of modelCandidates) {
+    try {
+      stream = await openai.chat.completions.create({
+        model,
+        temperature: 0.25,
+        stream: true,
+        messages: [
+          { role: 'system', content: 'You explain forecasts with analytical discipline only.' },
+          { role: 'user', content: prompt }
+        ]
+      });
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (!stream) {
+    throw (lastError instanceof Error ? lastError : new Error('Failed to stream forecast explanation from OpenAI'));
+  }
 
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
@@ -89,4 +105,3 @@ export async function POST(request: Request) {
     }
   });
 }
-

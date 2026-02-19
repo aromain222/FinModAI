@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     
     // TODO: Extract userId from auth
     const userId = undefined;
-    await saveSettings(userId, validated);
+    await saveSettings(validated, userId);
     
     return NextResponse.json({ success: true });
   } catch (error: any) {

@@ -8,7 +8,6 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import type { Database } from '@/lib/supabaseClient';
 import Hero from '@/app/components/Hero';
 import { BarChart3, Building2, ShieldCheck } from 'lucide-react';
 
@@ -32,7 +31,7 @@ const featureBlocks = [
 
 export default async function MarketingPage() {
   // Check if user is authenticated - if so, redirect to app
-  const supabase = createServerComponentClient<Database>({ cookies });
+  const supabase = createServerComponentClient({ cookies });
   const {
     data: { session },
   } = await supabase.auth.getSession();

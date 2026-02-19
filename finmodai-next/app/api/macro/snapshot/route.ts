@@ -10,21 +10,26 @@ import { getMacroSnapshot } from '@/lib/macroData';
 import type { TimeRange } from '@/types/macro';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0; // No caching - always fetch fresh data
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const range = (searchParams.get('range') || '1M') as TimeRange;
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[/api/macro/snapshot] Fetching macro snapshot (range: ${range})`);
+    }
     
-    console.log(`[/api/macro/snapshot] Fetching macro snapshot (range: ${range})`);
-    
-    const snapshot = getMacroSnapshot(range);
-    
-    console.log(`[/api/macro/snapshot] ✅ Snapshot generated (risk: ${snapshot.riskScore}, regime: ${snapshot.riskRegime})`);
+    const snapshot = await getMacroSnapshot(range);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[/api/macro/snapshot] ✅ Snapshot generated with ${Object.keys(snapshot.series).length} series`);
+    }
     
     return NextResponse.json(snapshot, { status: 200 });
   } catch (error) {
-    console.error('[/api/macro/snapshot] ❌ Error:', error);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[/api/macro/snapshot] ❌ Error:', error);
+    }
     
     return NextResponse.json(
       { error: 'Failed to fetch macro snapshot' },
@@ -32,4 +37,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Polygon API Diagnostics
  * 

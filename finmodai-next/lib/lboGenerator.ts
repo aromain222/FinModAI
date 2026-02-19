@@ -1,48 +1,54 @@
 /**
  * LBO Generator
- * Type definitions for LBO model inputs
+ * Type definitions for LBO model inputs (calculator engine)
  */
 
 export interface LBOInputs {
   ticker: string;
   companyName?: string;
-  
-  // Entry valuation
-  enterpriseValue: number;
-  purchaseMultiple?: number; // EV / EBITDA
-  
-  // Financials
+
+  // Baseline financials (USD millions)
   revenue: number;
   ebitda: number;
-  ebitdaMargin?: number;
-  
-  // Growth assumptions
-  revenueGrowth?: number[];
-  ebitdaMarginExpansion?: number;
-  
-  // Cash flow assumptions
-  capexPctRevenue?: number;
+  netDebt?: number;
+
+  // Entry / exit assumptions
+  entryMultiple: number; // EV / EBITDA
+  exitMultiple: number; // EV / EBITDA
+  transactionFeesPercent: number; // % of entry EV
+  exitFeesPercent: number; // % of exit EV
+
+  // Financing mix
+  debtPercent: number;
+  equityPercent: number;
+  interestRate: number; // blended interest rate
+  amortizationPercent: number; // % of debt per year
+  cashSweepPercent: number; // % of excess cash
+
+  // Operating assumptions
+  revenueGrowth: number | number[];
+  ebitdaMargin: number;
+  capexPctRevenue: number;
+  deltaNwcPctRevenue: number;
+  taxRate: number;
+  depreciationPctRevenue?: number;
   nwcPctRevenue?: number;
-  taxRate?: number;
-  
-  // Exit assumptions
-  exitMultiple?: number;
-  holdPeriod?: number;
-  
-  // Debt structure
+  daPctRevenue?: number;
+
+  // Exit timing
+  holdingPeriodYears: number;
+
+  // Optional buffers
+  minimumCashBalance?: number;
+
+  // Legacy compatibility (populated by engine as derived)
   debtToEquity?: number;
+  leverageMultiple?: number;
   seniorDebtPct?: number;
   subordinatedDebtPct?: number;
   seniorRate?: number;
   subRate?: number;
-  
-  // Transaction
-  transactionFees?: number;
-  financingFees?: number;
-  
-  // Other
-  currency?: string;
-  managementRollover?: number;
+  holdPeriod?: number;
 }
 
 // Re-export from lboEngine for convenience

@@ -9,6 +9,10 @@ export interface ValidationResult {
   warnings: string[];
 }
 
+export type SanitizationResult<T> =
+  | { ok: true; value: T; warnings: string[] }
+  | { ok: false; error: { code: string; message: string; details?: any }; warnings: string[] };
+
 export interface AssumptionBounds {
   min?: number;
   max?: number;
@@ -209,47 +213,104 @@ export function validateAllAssumptions(assumptions: {
  */
 export function sanitizeAssumptions<T extends Record<string, any>>(
   assumptions: T,
-  bounds: Record<string, AssumptionBounds> = {}
-): T {
-  const sanitized = { ...assumptions };
+  bounds: Record<string, AssumptionBounds> = {},
+  ctx?: { ticker: string; modelType: string }
+): SanitizationResult<T> {
+  try {
+    // Work on a mutable/indexable object and cast back to T at the boundary.
+    const sanitized: Record<string, any> = { ...assumptions };
   
-  // Default bounds
-  const defaultBounds: Record<string, AssumptionBounds> = {
-    revenueGrowth: { min: -0.5, max: 1.0 },
-    ebitdaMargin: { min: 0, max: 1.0 },
-    ebitMargin: { min: 0, max: 1.0 },
-    wacc: { min: 0.01, max: 0.30 },
-    terminalGrowth: { min: 0, max: 0.05 },
-    taxRate: { min: 0, max: 0.50 },
-    capexPctRevenue: { min: 0, max: 0.30 },
-    nwcPctRevenue: { min: -0.20, max: 0.30 }
-  };
+    // Preserve identity if present
+    if (!sanitized['ticker'] && ctx?.ticker) (sanitized as any)['ticker'] = ctx.ticker;
+    if (!sanitized['modelType'] && ctx?.modelType) (sanitized as any)['modelType'] = ctx.modelType;
   
-  const allBounds = { ...defaultBounds, ...bounds };
-  
-  for (const [key, value] of Object.entries(sanitized)) {
-    if (typeof value === 'number' && allBounds[key]) {
-      const { min, max } = allBounds[key];
-      if (min !== undefined && value < min) {
-        sanitized[key] = min;
+    // Default bounds
+    const defaultBounds: Record<string, AssumptionBounds> = {
+      revenueGrowth: { min: -0.5, max: 1.0 },
+      ebitdaMargin: { min: 0, max: 1.0 },
+      ebitMargin: { min: 0, max: 1.0 },
+      wacc: { min: 0.01, max: 0.30 },
+      terminalGrowth: { min: 0, max: 0.05 },
+      taxRate: { min: 0, max: 0.50 },
+      capexPctRevenue: { min: 0, max: 0.30 },
+      nwcPctRevenue: { min: -0.20, max: 0.30 }
+    };
+    
+    const allBounds = { ...defaultBounds, ...bounds };
+    
+    for (const [key, value] of Object.entries(sanitized)) {
+      if (typeof value === 'number' && allBounds[key]) {
+        const { min, max } = allBounds[key];
+        if (min !== undefined && value < min) {
+          sanitized[key] = min;
+        }
+        if (max !== undefined && value > max) {
+          sanitized[key] = max;
+        }
       }
-      if (max !== undefined && value > max) {
-        sanitized[key] = max;
+      if (Array.isArray(value)) {
+        sanitized[key] = value.map((v: any) =>
+          typeof v === 'number' && isFinite(v) ? v : null
+        ) as any;
       }
     }
-  }
+    
+    if (!sanitized['ticker'] || !sanitized['modelType']) {
+      return {
+        ok: false,
+        warnings: [],
+        error: { code: 'missing_identity', message: 'ticker/modelType missing in assumptions' },
+      };
+    }
   
-  return sanitized;
+    return { ok: true, value: sanitized as T, warnings: [] };
+  } catch (error: any) {
+    return {
+      ok: false,
+      warnings: [],
+      error: {
+        code: 'sanitize_failed',
+        message: error?.message || 'Sanitization failed',
+      },
+    };
+  }
 }
 
-export function formatSanitizationLog(before: Record<string, any>, after: Record<string, any>): string {
-  const changes: string[] = [];
-  for (const key in before) {
-    if (before[key] !== after[key]) {
-      changes.push(`${key}: ${before[key]} → ${after[key]}`);
+/**
+ * Format sanitization log with defensive handling
+ * Supports both old signature (before, after) and new signature with optional context
+ */
+export function formatSanitizationLog(
+  before: Record<string, any> | undefined,
+  after: Record<string, any> | undefined,
+  ctx: { ticker: string; modelType: string }
+): string {
+  try {
+    const ticker = ctx?.ticker || 'unknown';
+    const modelType = ctx?.modelType || 'unknown';
+    if (!before && !after) return `Sanitization log: No data provided [${ticker}:${modelType}]`;
+    const beforeData = before || {};
+    const afterData = after || before || {};
+    const changes: string[] = [];
+    const allKeys = new Set([...Object.keys(beforeData), ...Object.keys(afterData)]);
+    for (const key of allKeys) {
+      const beforeVal = (beforeData as any)[key];
+      const afterVal = (afterData as any)[key];
+      if (Array.isArray(beforeVal) && Array.isArray(afterVal)) {
+        if (JSON.stringify(beforeVal) !== JSON.stringify(afterVal)) {
+          changes.push(`${key}: [array] → [array]`);
+        }
+      } else if (beforeVal !== afterVal) {
+        const beforeStr = typeof beforeVal === 'object' ? JSON.stringify(beforeVal) : String(beforeVal);
+        const afterStr = typeof afterVal === 'object' ? JSON.stringify(afterVal) : String(afterVal);
+        changes.push(`${key}: ${beforeStr} → ${afterStr}`);
+      }
     }
+    const context = ` [${ticker}:${modelType}]`;
+    return changes.length > 0 ? `Sanitized${context}: ${changes.join(', ')}` : `No changes${context}`;
+  } catch {
+    return 'Sanitization log unavailable (logging error)';
   }
-  return changes.length > 0 ? `Sanitized: ${changes.join(', ')}` : 'No changes';
 }
 
 export function validateSanitizedAssumptions(assumptions: Record<string, any>): ValidationResult {

@@ -30,9 +30,11 @@ export async function generatePreviewFromWorkbook(
     
     // Extract column headers (first row)
     const headerRow = worksheet.getRow(1);
-    headerRow.eachCell((cell, colNumber) => {
-      columns[colNumber - 1] = cell.value?.toString() || `Col ${colNumber}`;
-    });
+    if (headerRow) {
+      headerRow.eachCell((cell, colNumber) => {
+        columns[colNumber - 1] = cell.value?.toString() || `Col ${colNumber}`;
+      });
+    }
     
     // Extract data rows
     let rowCount = 0;
@@ -57,12 +59,16 @@ export async function generatePreviewFromWorkbook(
       rowCount++;
     });
     
+    // Ensure columns and rows are always arrays
+    const safeColumns = Array.isArray(columns) ? columns : [];
+    const safeRows = Array.isArray(rows) ? rows : [];
+    
     return {
       sheetName: worksheet.name,
-      columns,
-      rows,
-      rowCount: rows.length,
-      columnCount: columns.length
+      columns: safeColumns,
+      rows: safeRows,
+      rowCount: safeRows.length,
+      columnCount: safeColumns.length
     };
   } catch (error) {
     console.error('[generatePreviewFromWorkbook] Error:', error);

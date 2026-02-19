@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { SignupForm } from "@/components/auth/SignupForm";
+import { isDemoMode } from "@/lib/demo/isDemoMode";
 
 type AuthMode = "login" | "signup" | "guest";
 
@@ -14,10 +15,32 @@ export interface AuthPageProps {
 export function AuthPage({ initialMode = "login" }: AuthPageProps) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const demoMode = isDemoMode(searchParams);
+  const [demoUpdatedAt, setDemoUpdatedAt] = useState<string | null>(null);
 
   useEffect(() => {
     setMode(initialMode);
   }, [initialMode]);
+
+  useEffect(() => {
+    if (!demoMode) return;
+    let active = true;
+    fetch('/api/demo/last-updated')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!active) return;
+        if (data?.lastUpdated) {
+          setDemoUpdatedAt(data.lastUpdated);
+        }
+      })
+      .catch(() => {
+        if (active) setDemoUpdatedAt(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [demoMode]);
 
   const options = useMemo<
     { id: AuthMode; label: string; emphasis?: "default" | "outline" }[]
@@ -50,6 +73,16 @@ export function AuthPage({ initialMode = "login" }: AuthPageProps) {
             Access your analyst workspace, create an account, or jump straight
             into the product as a guest.
           </p>
+          {demoMode && (
+            <div className="mt-4 rounded-lg border border-cb-line bg-white/80 px-3 py-2 text-xs text-cb-slate">
+              <span className="font-semibold text-cb-ink">Demo Environment</span> — curated company data.
+              {demoUpdatedAt && (
+                <span className="block text-[0.7rem] text-cb-slate mt-1">
+                  Last updated: {new Date(demoUpdatedAt).toLocaleString()}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="mb-6 grid grid-cols-3 gap-2">

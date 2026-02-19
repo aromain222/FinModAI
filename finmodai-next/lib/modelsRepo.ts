@@ -17,7 +17,14 @@ export interface ModelRecord {
   id: string;
   user_id?: string;
   ticker: string;
-  model_type: 'dcf' | 'lbo' | 'comps' | 'merger' | 'operating' | 'three-statement';
+  model_type:
+    | 'dcf'
+    | 'lbo'
+    | 'comps'
+    | 'merger'
+    | 'operating'
+    | 'three-statement'
+    | 'scorecard';
   status: 'pending' | 'generating' | 'ready' | 'error' | 'failed';
   file_name?: string;
   r2_key?: string;

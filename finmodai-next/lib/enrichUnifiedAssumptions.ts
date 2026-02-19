@@ -4,10 +4,8 @@
  */
 
 import OpenAI from 'openai';
-
-const openai = process.env.OPENAI_API_KEY ? new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-}) : null;
+import { getOpenAIKey } from '@/lib/openaiKey';
+import { CAPITAL_BASE_THREE_STATEMENT_VALIDATION_SYSTEM } from '@/lib/prompts/capitalBaseThreeStatement';
 
 export interface UnifiedAssumptions {
   ticker: string;
@@ -24,6 +22,11 @@ export interface UnifiedAssumptions {
   netDebt?: number;
   sharesOutstanding?: number;
   sector?: string;
+  // Enhanced data sources
+  historicalData?: Record<string, number[]>;
+  consensusEstimates?: any;
+  peerComps?: any;
+  workingCapitalDetails?: any;
   [key: string]: any;
 }
 
@@ -34,57 +37,187 @@ export interface EnrichedAssumptions extends UnifiedAssumptions {
 }
 
 /**
- * Enrich assumptions using AI
+ * Enrich assumptions using AI and enhanced inference
  */
 export async function enrichUnifiedAssumptions(
-  assumptions: UnifiedAssumptions
+  assumptions: UnifiedAssumptions | any, // Accept both types for compatibility
+  historicalData?: Record<string, number[]>
 ): Promise<EnrichedAssumptions> {
-  // If no OpenAI key, return assumptions as-is with defaults
-  if (!openai) {
-    console.warn('[enrichUnifiedAssumptions] OpenAI API key not configured, using defaults');
-    return {
-      ...applyDefaults(assumptions),
-      enriched: false,
-      confidence: 'low'
-    };
+  // Extract enhanced data sources from assumptions
+  const consensusEstimates = assumptions.consensusEstimates;
+  const peerComps = assumptions.peerComps;
+  const workingCapitalDetails = assumptions.workingCapitalDetails;
+  const historicalDataFromAssumptions = assumptions.historicalData || historicalData;
+  
+  // CRITICAL: Preserve revenue from assumptions if it exists (this is LTM data from the ticker)
+  // Don't overwrite it during enrichment
+  const preservedRevenue = assumptions.revenue && Array.isArray(assumptions.revenue) && assumptions.revenue.length > 0
+    ? assumptions.revenue
+    : undefined;
+  
+  // Step 1: Use enhanced inference to fill missing data
+  const { inferMissingDataEnhanced, applyInferences } = await import('@/lib/data/enhancedInference');
+  
+  // Identify missing fields
+  // NOTE: revenue is NOT in requiredFields - we preserve it from LTM data, not infer it
+  const missingFields: string[] = [];
+  const requiredFields = [
+    'revenueGrowth', 'ebitdaMargin', 'ebitMargin', 'netMargin',
+    'wacc', 'terminalGrowth', 'taxRate', 'capexPctRevenue', 'nwcPctRevenue',
+    'depreciationPctRevenue', 'ebitda', 'ebit', 'netIncome', 'grossProfit',
+    'netDebt', 'totalEquity', 'workingCapital', 'freeCashFlow', 'operatingCashFlow'
+  ];
+  
+  for (const field of requiredFields) {
+    if (assumptions[field] == null || assumptions[field] === 0) {
+      missingFields.push(field);
+    }
   }
   
-  try {
-    const prompt = buildEnrichmentPrompt(assumptions);
-    
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a financial analyst helping to validate and improve financial model assumptions. Provide concise, actionable suggestions.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.3,
-      max_tokens: 500
-    });
-    
-    const aiResponse = completion.choices[0]?.message?.content || '';
-    const suggestions = parseAISuggestions(aiResponse);
-    
-    return {
-      ...applyDefaults(assumptions),
-      enriched: true,
-      aiSuggestions: suggestions,
-      confidence: 'high'
-    };
-  } catch (error) {
-    console.error('[enrichUnifiedAssumptions] AI enrichment failed:', error);
-    return {
-      ...applyDefaults(assumptions),
-      enriched: false,
-      confidence: 'medium'
-    };
+  // Enhance data with consensus estimates if available
+  let dataWithEstimates = { ...assumptions };
+  if (consensusEstimates) {
+    // Use consensus revenue estimates for growth projections
+    if (consensusEstimates.revenueEstimateFY1 && assumptions.revenue) {
+      const growth = (consensusEstimates.revenueEstimateFY1 - assumptions.revenue) / assumptions.revenue;
+      if (!dataWithEstimates.revenueGrowth || dataWithEstimates.revenueGrowth === 0) {
+        dataWithEstimates.revenueGrowth = Math.max(0, Math.min(0.5, growth)); // Clamp to 0-50%
+      }
+    }
   }
+  
+  // Enhance data with peer medians if available
+  if (peerComps && peerComps.medians) {
+    const medians = peerComps.medians;
+    // Use peer medians as defaults for missing fields
+    if (!dataWithEstimates.revenueGrowth || dataWithEstimates.revenueGrowth === 0) {
+      dataWithEstimates.revenueGrowth = medians.revenueGrowth;
+    }
+    if (!dataWithEstimates.ebitdaMargin || dataWithEstimates.ebitdaMargin === 0) {
+      dataWithEstimates.ebitdaMargin = medians.ebitdaMargin;
+    }
+    if (!dataWithEstimates.capexPctRevenue || dataWithEstimates.capexPctRevenue === 0) {
+      dataWithEstimates.capexPctRevenue = medians.capexPctRevenue;
+    }
+    if (!dataWithEstimates.nwcPctRevenue || dataWithEstimates.nwcPctRevenue === 0) {
+      dataWithEstimates.nwcPctRevenue = medians.nwcPctRevenue;
+    }
+  }
+  
+  // Enhance data with working capital details if available
+  if (workingCapitalDetails) {
+    // Use actual working capital days if available
+    if (workingCapitalDetails.arDays > 0 && !assumptions.arDays) {
+      dataWithEstimates.arDays = workingCapitalDetails.arDays;
+    }
+    if (workingCapitalDetails.inventoryDays > 0 && !assumptions.inventoryDays) {
+      dataWithEstimates.inventoryDays = workingCapitalDetails.inventoryDays;
+    }
+    if (workingCapitalDetails.apDays > 0 && !assumptions.apDays) {
+      dataWithEstimates.apDays = workingCapitalDetails.apDays;
+    }
+    if (workingCapitalDetails.nwcPctRevenue > 0 && !dataWithEstimates.nwcPctRevenue) {
+      dataWithEstimates.nwcPctRevenue = workingCapitalDetails.nwcPctRevenue;
+    }
+  }
+  
+  // Run enhanced inference
+  let enrichedData = dataWithEstimates;
+  let inferences: any[] = [];
+  
+  if (missingFields.length > 0) {
+    console.log(`[enrichUnifiedAssumptions] Filling ${missingFields.length} missing fields using enhanced inference`);
+    
+    // Pass peer medians to inference for sector median fallback
+    const peerMedians = peerComps?.medians ? {
+      revenueGrowth: peerComps.medians.revenueGrowth,
+      ebitdaMargin: peerComps.medians.ebitdaMargin,
+      ebitMargin: peerComps.medians.ebitMargin,
+      netMargin: peerComps.medians.netMargin,
+      capexPctRevenue: peerComps.medians.capexPctRevenue,
+      nwcPctRevenue: peerComps.medians.nwcPctRevenue,
+    } : undefined;
+    
+    inferences = await inferMissingDataEnhanced(
+      enrichedData,
+      missingFields,
+      assumptions.sector || peerComps?.sector,
+      historicalDataFromAssumptions,
+      peerMedians
+    );
+    
+    enrichedData = applyInferences(enrichedData, inferences);
+  }
+  
+  // Step 2: Use OpenAI for validation and additional suggestions (optional) — service key for backend
+  const apiKey = getOpenAIKey('service');
+  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  
+  let aiSuggestions: string[] = [];
+  let confidence: 'high' | 'medium' | 'low' = inferences.length > 0 ? 'high' : 'medium';
+  
+  if (apiKey && missingFields.length > 0) {
+    try {
+      const openai = new OpenAI({ apiKey });
+      const prompt = buildEnrichmentPrompt(enrichedData);
+      
+      console.log('🔥 OPENAI CALL FIRED (assumption validation)', {
+        hasKey: !!apiKey,
+        model,
+        ticker: assumptions.ticker,
+        missingFields: missingFields.length,
+        timestamp: new Date().toISOString(),
+      });
+
+      const isThreeStatement = assumptions.modelType === 'three-statement';
+      const systemContent = isThreeStatement
+        ? CAPITAL_BASE_THREE_STATEMENT_VALIDATION_SYSTEM
+        : 'You are a financial analyst helping to validate and improve financial model assumptions. Provide concise, actionable suggestions.';
+
+      const completion = await openai.chat.completions.create({
+        model,
+        messages: [
+          { role: 'system', content: systemContent },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 500
+      });
+
+      console.log('✅ OPENAI CALL SUCCESS (assumption validation)', {
+        model: completion.model,
+        tokens: completion.usage?.total_tokens,
+      });
+
+      const aiResponse = completion.choices[0]?.message?.content || '';
+      aiSuggestions = parseAISuggestions(aiResponse);
+      confidence = 'high';
+    } catch (error) {
+      console.error('[enrichUnifiedAssumptions] AI validation failed (non-blocking):', error);
+      // Continue with inference results even if OpenAI fails
+    }
+  }
+  
+  // Apply final defaults for any remaining missing values
+  const finalData = applyDefaults(enrichedData);
+  
+  // CRITICAL: Restore preserved revenue if it was set (this is LTM data from the ticker)
+  // This ensures SOFI-specific revenue is not overwritten by enrichment
+  if (preservedRevenue) {
+    finalData.revenue = preservedRevenue;
+    console.log(
+      `[enrichUnifiedAssumptions] ✅ Preserved revenue from LTM data: ${preservedRevenue
+        .map((r: unknown) => (typeof r === 'number' ? r.toFixed(0) : String(r)))
+        .join(', ')}`
+    );
+  }
+  
+  return {
+    ...finalData,
+    enriched: inferences.length > 0 || aiSuggestions.length > 0,
+    aiSuggestions: aiSuggestions.length > 0 ? aiSuggestions : undefined,
+    confidence
+  };
 }
 
 /**

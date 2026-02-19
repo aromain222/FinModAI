@@ -4,8 +4,20 @@
 
 import type { DataDiagnostics } from './diagnostics';
 import type { LboEngineOutput } from '@/lib/lboEngine';
+import type { ModelPreviewSnapshot } from './modelPreview';
+import type { ModelDocument } from '@/lib/models/schema';
+import type { CanonicalFinancials } from '@/lib/canonicalFinancials';
+import type { ConsistencyWarning } from '@/lib/modelConsistency';
+import type { MissingInputSpec } from '@/lib/models/shared/missingInputSpecs';
 
-export type ModelType = 'dcf' | 'lbo' | 'three-statement' | 'comps';
+export type ModelType =
+  | 'dcf'
+  | 'lbo'
+  | 'three-statement'
+  | 'comps'
+  | 'merger'
+  | 'operating'
+  | 'scorecard';
 
 export type Scenario = 'BULLISH' | 'BEARISH' | 'BASE';
 
@@ -53,7 +65,15 @@ export type GenerateModelResponse = {
   createdAt: string;
   downloadUrl: string;
   preview: ModelPreview;
+  previewSnapshot?: ModelPreviewSnapshot | null;
+  modelDocument?: ModelDocument | null;
+  canonicalFinancials?: CanonicalFinancials;
+  overrideLog?: CanonicalFinancials['overrides'];
+  consistencyWarnings?: string[];
+  consistencyDetails?: ConsistencyWarning[];
   diagnostics?: DataDiagnostics[];  // Data quality diagnostics
+  missingInputs?: string[];
+  requiredInputs?: MissingInputSpec[];
   
   // DCF Valuation Engine v7.0 Output
   dcfSummary?: DcfScenarioSummary;

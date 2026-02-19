@@ -3,6 +3,7 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 import { AlertTriangle, Info } from 'lucide-react';
 
 export interface CalloutBlockProps {
@@ -76,19 +77,34 @@ export function CalloutBlock({
               ))}
             </ul>
             {(ctaLabel && (ctaHref || onCtaClick)) && (
-              <Button
-                onClick={onCtaClick}
-                href={ctaHref}
-                size="sm"
-                variant="outline"
-                className={
-                  isWarning
-                    ? 'border-amber-600 text-amber-700 hover:bg-amber-100 dark:border-amber-500 dark:text-amber-400 dark:hover:bg-amber-950/40'
-                    : 'border-blue-600 text-blue-700 hover:bg-blue-100 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-950/40'
-                }
-              >
-                {ctaLabel}
-              </Button>
+              ctaHref ? (
+                <Button
+                  asChild
+                  onClick={onCtaClick}
+                  size="sm"
+                  variant="outline"
+                  className={
+                    isWarning
+                      ? 'border-amber-600 text-amber-700 hover:bg-amber-100 dark:border-amber-500 dark:text-amber-400 dark:hover:bg-amber-950/40'
+                      : 'border-blue-600 text-blue-700 hover:bg-blue-100 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-950/40'
+                  }
+                >
+                  <Link href={ctaHref}>{ctaLabel}</Link>
+                </Button>
+              ) : (
+                <Button
+                  onClick={onCtaClick}
+                  size="sm"
+                  variant="outline"
+                  className={
+                    isWarning
+                      ? 'border-amber-600 text-amber-700 hover:bg-amber-100 dark:border-amber-500 dark:text-amber-400 dark:hover:bg-amber-950/40'
+                      : 'border-blue-600 text-blue-700 hover:bg-blue-100 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-950/40'
+                  }
+                >
+                  {ctaLabel}
+                </Button>
+              )
             )}
           </div>
         </div>

@@ -1,4 +1,4 @@
-export type ReportModelType = 'dcf' | 'lbo' | 'comps' | 'merger' | 'operating' | 'three-statement';
+export type ReportModelType = 'dcf' | 'lbo' | 'comps' | 'merger' | 'operating' | 'three-statement' | 'scorecard';
 
 export interface ReportContext {
   ticker: string;

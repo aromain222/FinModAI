@@ -9,41 +9,48 @@ export interface GuardrailResult {
   warnings: string[];
 }
 
-export function evaluateGuardrails(inputs: Record<string, any>): GuardrailResult {
-  const errors: string[] = [];
+export interface GuardrailSettings {
+  [key: string]: any;
+}
+
+export function evaluateGuardrails(
+  modelType: string,
+  outputs: Record<string, any>,
+  settings?: GuardrailSettings
+): { warnings: string[]; blocks: string[] } {
+  const blocks: string[] = [];
   const warnings: string[] = [];
   
-  // Revenue guardrails
-  if (inputs.revenue !== undefined) {
-    if (inputs.revenue <= 0) {
-      errors.push('Revenue must be positive');
-    } else if (inputs.revenue < 1000000) {
-      warnings.push('Revenue appears very low (< $1M)');
-    }
-  }
-  
-  // Growth rate guardrails
-  if (inputs.revenueGrowth !== undefined) {
-    const growth = Array.isArray(inputs.revenueGrowth) ? inputs.revenueGrowth[0] : inputs.revenueGrowth;
-    if (growth < -0.5) {
-      errors.push('Revenue growth cannot be less than -50%');
-    } else if (growth > 1.0) {
-      errors.push('Revenue growth cannot exceed 100%');
-    }
-  }
-  
   // WACC guardrails
-  if (inputs.wacc !== undefined) {
-    if (inputs.wacc <= 0) {
-      errors.push('WACC must be positive');
-    } else if (inputs.wacc > 0.30) {
-      errors.push('WACC cannot exceed 30%');
+  if (outputs.wacc !== undefined) {
+    if (outputs.wacc <= 0) {
+      blocks.push('WACC must be positive');
+    } else if (outputs.wacc > 0.30) {
+      warnings.push('WACC exceeds 30% - unusually high');
+    }
+  }
+  
+  // Terminal growth guardrails
+  if (outputs.terminalGrowth !== undefined) {
+    if (outputs.terminalGrowth < 0) {
+      warnings.push('Terminal growth is negative');
+    } else if (outputs.terminalGrowth > 0.05) {
+      warnings.push('Terminal growth exceeds 5% - may be unrealistic');
+    }
+  }
+  
+  // LBO-specific guardrails
+  if (modelType === 'lbo') {
+    if (outputs.irr !== undefined && outputs.irr < 0.15) {
+      warnings.push('IRR below 15% - may indicate poor investment');
+    }
+    if (outputs.leverageMultiple !== undefined && outputs.leverageMultiple > 10) {
+      warnings.push('Leverage multiple exceeds 10x - high risk');
     }
   }
   
   return {
-    passed: errors.length === 0,
-    errors,
-    warnings
+    warnings,
+    blocks
   };
 }

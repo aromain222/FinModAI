@@ -10,6 +10,7 @@ export function extractAssumptions(data: Record<string, any>): Record<string, an
   const assumptionFields = [
     'revenueGrowth',
     'ebitdaMargin',
+    'daPct',
     'wacc',
     'terminalGrowth',
     'taxRate',

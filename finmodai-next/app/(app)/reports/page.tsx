@@ -38,10 +38,10 @@ export default async function ReportsPage() {
             >
               <p className="text-xs uppercase tracking-wide text-cb-slate">{report.modelType.toUpperCase()}</p>
               <h2 className="mt-1 text-lg font-semibold text-cb-ink">
-                {report.companyName} ({report.ticker})
+                {report.title || report.ticker}
               </h2>
-              <p className="text-sm text-cb-slate">{report.oneLineSummary}</p>
-              <p className="mt-2 text-xs text-cb-slate">Generated {new Date(report.generatedAt).toLocaleString()}</p>
+              <p className="text-sm text-cb-slate">{report.ticker}</p>
+              <p className="mt-2 text-xs text-cb-slate">Generated {new Date(report.createdAt).toLocaleString()}</p>
             </Link>
           );
         })}

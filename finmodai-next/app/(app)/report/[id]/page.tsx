@@ -26,7 +26,7 @@ export default async function ReportDetailPage({ params }: { params: { id: strin
   return (
     <main className="mx-auto max-w-5xl px-4 py-10">
       <PageHeader
-        title={report.companyName}
+        title={report.title || report.ticker}
         subtitle={`${report.ticker} · ${report.modelType.toUpperCase()} Model Insight`}
         backHref="/reports"
       />

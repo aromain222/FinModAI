@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { APP_NAME } from '@/lib/branding';
+import { getOpenAIKey, getOpenAIModelCandidates } from '@/lib/openaiKey';
 
 const SYSTEM_PROMPT = `
 You are the MACRO-AWARE FINANCIAL ANALYSIS ENGINE for ${APP_NAME}.
@@ -33,13 +34,13 @@ type ChatMessage = {
 };
 
 export async function POST(request: Request) {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = getOpenAIKey('user') || getOpenAIKey('service');
   
   if (!apiKey) {
-    console.error('OPENAI_API_KEY is not set in environment variables');
+    console.error('OpenAI API key is not set in environment variables');
     return NextResponse.json(
       { 
-        error: 'OpenAI API key is not configured. Please add OPENAI_API_KEY to your .env.local file.' 
+        error: 'OpenAI API key is not configured. Please add OPENAI_API_KEY or OPENAI_SERVICE_API_KEY to your .env.local file.' 
       }, 
       { status: 500 }
     );
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
       const macroNewsModule = await import('@/lib/fetchMacroNews');
       const macroIndicatorsModule = await import('@/lib/fetchMacroEconomicIndicators');
       
-      const macroNews = await macroNewsModule.fetchMacroNews(topic || sanitizedMessages.at(-1)?.content);
+      const macroNews = await macroNewsModule.fetchMacroNews(10);
       const macroIndicators = await macroIndicatorsModule.fetchMacroEconomicIndicators();
       macroContext = [macroNews, macroIndicators].filter(Boolean).join('\n');
     } catch (macroError) {
@@ -87,17 +88,30 @@ export async function POST(request: Request) {
       ? `The user says they attached a PDF model file named "${pdfFileName}". You cannot access the file contents. Treat it as a reference and mention that you are responding without direct access to the PDF.`
       : undefined;
 
-    const stream = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
-      temperature: 0.2,
-      stream: true,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        ...(pdfContext ? [{ role: 'system', content: pdfContext }] : []),
-        ...(macroContext ? [{ role: 'system', content: `Macro context:\n${macroContext}` }] : []),
-        ...sanitizedMessages
-      ]
-    });
+    const modelCandidates = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-4o-mini', 'gpt-4.1-mini');
+    let stream: Awaited<ReturnType<typeof openai.chat.completions.create>> | null = null;
+    let lastError: unknown = null;
+    for (const model of modelCandidates) {
+      try {
+        stream = await openai.chat.completions.create({
+          model,
+          temperature: 0.2,
+          stream: true,
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT } as const,
+            ...(pdfContext ? [{ role: 'system' as const, content: pdfContext }] : []),
+            ...(macroContext ? [{ role: 'system' as const, content: `Macro context:\n${macroContext}` }] : []),
+            ...sanitizedMessages.map(msg => ({ role: msg.role as 'user' | 'assistant', content: msg.content }))
+          ]
+        });
+        break;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (!stream) {
+      throw (lastError instanceof Error ? lastError : new Error('Failed to stream analysis from OpenAI'));
+    }
 
     const encoder = new TextEncoder();
     const readable = new ReadableStream({

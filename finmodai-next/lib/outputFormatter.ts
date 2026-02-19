@@ -47,3 +47,34 @@ function formatPrice(value: number): string {
 function formatPercent(value: number): string {
   return `${(value * 100).toFixed(2)}%`;
 }
+
+// Stub functions for compatibility
+export function formatDCFOutput(
+  ticker: string,
+  scenario: string,
+  inputs: any,
+  results: any,
+  waccSource?: string,
+  scenarioNotes?: string
+): Record<string, any> {
+  return {
+    ticker,
+    scenario,
+    enterpriseValue: results?.enterpriseValue || 0,
+    equityValue: results?.equityValue || 0,
+    pricePerShare: results?.pricePerShare || 0,
+    wacc: inputs?.wacc || 0.10,
+    terminalGrowth: inputs?.terminalGrowth || 0.025,
+    waccSource: waccSource || 'inferred',
+    scenarioNotes: scenarioNotes || '',
+    valuationResults: results,
+  };
+}
+
+export function logFormattedOutput(output: Record<string, any>): void {
+  console.log('[DCF Output]', JSON.stringify(output, null, 2));
+}
+
+export function createJSONSummary(output: Record<string, any>): Record<string, any> {
+  return output; // Return the object directly, not a string
+}

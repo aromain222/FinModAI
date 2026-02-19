@@ -100,7 +100,7 @@ export type AssumptionEnrichmentRequest = {
   ticker: string;
   companyName?: string;
   sector?: string;
-  modelType: 'dcf' | 'lbo' | 'three-statement' | 'comps';
+  modelType: 'dcf' | 'lbo' | 'three-statement' | 'comps' | 'scorecard';
   currency?: string;
   partialAssumptions: PartialThreeStatementAssumptions;
   userNotes?: string;

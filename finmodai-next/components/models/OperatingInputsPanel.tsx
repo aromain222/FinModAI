@@ -32,8 +32,9 @@ export function OperatingInputsPanel({ inputs, onChange, onValidate }: Operating
       if (updated.opexModel?.hiresSchedule) {
         const current = updated.opexModel.hiresSchedule;
         const newSchedule = Array(newMonths).fill(0);
-        current.forEach((val, idx) => {
-          if (idx < newMonths) newSchedule[idx] = val;
+        current.forEach((val: unknown, idx: number) => {
+          const n = typeof val === 'number' ? val : Number(val);
+          if (idx < newMonths && Number.isFinite(n)) newSchedule[idx] = n;
         });
         updated.opexModel = { ...updated.opexModel, hiresSchedule: newSchedule };
       }
@@ -42,8 +43,9 @@ export function OperatingInputsPanel({ inputs, onChange, onValidate }: Operating
       if (updated.capexSchedule) {
         const current = updated.capexSchedule;
         const newSchedule = Array(newMonths).fill(0);
-        current.forEach((val, idx) => {
-          if (idx < newMonths) newSchedule[idx] = val;
+        current.forEach((val: unknown, idx: number) => {
+          const n = typeof val === 'number' ? val : Number(val);
+          if (idx < newMonths && Number.isFinite(n)) newSchedule[idx] = n;
         });
         updated.capexSchedule = newSchedule;
       }
@@ -52,8 +54,9 @@ export function OperatingInputsPanel({ inputs, onChange, onValidate }: Operating
       if (updated.debt?.principalRepaymentSchedule) {
         const current = updated.debt.principalRepaymentSchedule;
         const newSchedule = Array(newMonths).fill(0);
-        current.forEach((val, idx) => {
-          if (idx < newMonths) newSchedule[idx] = val;
+        current.forEach((val: unknown, idx: number) => {
+          const n = typeof val === 'number' ? val : Number(val);
+          if (idx < newMonths && Number.isFinite(n)) newSchedule[idx] = n;
         });
         updated.debt = { ...updated.debt, principalRepaymentSchedule: newSchedule };
       }

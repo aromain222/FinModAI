@@ -6,11 +6,19 @@
 
 import { NextResponse } from 'next/server';
 import { MergerModelInputSchema, getMissingMergerInputs } from '@/lib/models/merger/schema';
-import { computeMergerModel } from '@/lib/models/merger/compute';
 import { generateMergerWorkbook } from '@/lib/models/merger/excel';
 import { getLTMFinancials } from '@/lib/getLTMFinancials';
+import { isDemoMode } from '@/lib/demo/isDemoMode';
+import { isDemoTickerAvailable } from '@/lib/data/providers/demoProvider';
 
 export const runtime = 'nodejs';
+
+function derivePriceFromMarketCap(ltm: any): number {
+  const marketCap = typeof ltm?.marketCap === 'number' ? ltm.marketCap : null;
+  const shares = typeof ltm?.sharesOutstanding === 'number' ? ltm.sharesOutstanding : null;
+  if (!marketCap || !shares || shares <= 0) return 0;
+  return marketCap / shares;
+}
 
 function convertToCompanyFinancials(ltm: any, ticker: string): any {
   const cogs = ltm.revenue && ltm.ebitda ? 
@@ -40,28 +48,115 @@ function convertToCompanyFinancials(ltm: any, ticker: string): any {
     sharesOutstanding: ltm.sharesOutstanding || 0,
     cash: ltm.cash || 0,
     debt: ltm.totalDebt || 0,
-    price: ltm.price || 0,
+    price: derivePriceFromMarketCap(ltm),
     taxRate: 0.21,
+  };
+}
+
+function toMergerWorkbookInputs(input: any, buyerTicker: string, buyerLTM: any, targetLTM: any) {
+  const buyerPrice = derivePriceFromMarketCap(buyerLTM);
+  const targetPrice = derivePriceFromMarketCap(targetLTM);
+  const buyerMarketCap =
+    buyerLTM?.marketCap ??
+    (buyerPrice > 0 && buyerLTM?.sharesOutstanding ? buyerPrice * buyerLTM.sharesOutstanding : undefined);
+  const targetMarketCap =
+    targetLTM?.marketCap ??
+    (targetPrice > 0 && targetLTM?.sharesOutstanding ? targetPrice * targetLTM.sharesOutstanding : undefined);
+
+  return {
+    acquirerTicker: buyerTicker,
+    acquirerName: buyerLTM?.companyName,
+    acquirerRevenue: buyerLTM?.revenue,
+    acquirerEBITDA: buyerLTM?.ebitda,
+    acquirerEBIT: buyerLTM?.operatingIncome,
+    acquirerNetIncome: buyerLTM?.netIncome,
+    acquirerShares: buyerLTM?.sharesOutstanding,
+    acquirerMarketCap: buyerMarketCap,
+    acquirerPrice: buyerPrice || undefined,
+
+    targetTicker: input.targetTicker,
+    targetName: targetLTM?.companyName,
+    targetRevenue: targetLTM?.revenue,
+    targetEBITDA: targetLTM?.ebitda,
+    targetEBIT: targetLTM?.operatingIncome,
+    targetNetIncome: targetLTM?.netIncome,
+    targetShares: targetLTM?.sharesOutstanding,
+    targetMarketCap: targetMarketCap,
+    targetPrice: targetPrice || undefined,
+
+    purchasePrice: input.purchasePrice,
+    offerPrice: input.offerPrice,
+    dealValue: input.dealValue || input.purchasePrice,
+    cashPct: input.cashPct,
+    stockPct: input.stockPct,
+    debtPct: input.debtPct,
+    exchangeRatio: input.exchangeRatio,
+    newDebt: input.newDebt,
+    newDebtRate: input.newDebtRate,
+    synergies: input.synergies,
+    integrationCosts: input.integrationCosts,
+    oneTimeCosts: input.oneTimeCosts,
+    taxRate: input.taxRate,
   };
 }
 
 export async function POST(req: Request) {
   try {
+    if (!isDemoMode()) {
+      return NextResponse.json(
+        { error: 'Demo mode is required.' },
+        { status: 400 }
+      );
+    }
     const body = await req.json();
     
     // Pull data for validation
+    // Support both buyerTicker and acquirerTicker
+    const buyerTickerRaw = body.acquirerTicker || body.buyerTicker;
+    
     let buyerLTM = null;
     let targetLTM = null;
+    if (buyerTickerRaw) {
+      const demoAllowed = await isDemoTickerAvailable(buyerTickerRaw);
+      if (!demoAllowed) {
+        return NextResponse.json(
+          { error: 'This demo ticker is not in the curated demo set. Choose a demo company.' },
+          { status: 400 }
+        );
+      }
+    }
+    if (body.targetTicker) {
+      const demoAllowed = await isDemoTickerAvailable(body.targetTicker);
+      if (!demoAllowed) {
+        return NextResponse.json(
+          { error: 'This demo ticker is not in the curated demo set. Choose a demo company.' },
+          { status: 400 }
+        );
+      }
+    }
     try {
-      if (body.buyerTicker) buyerLTM = await getLTMFinancials(body.buyerTicker);
+      if (buyerTickerRaw) buyerLTM = await getLTMFinancials(buyerTickerRaw);
     } catch (e) {}
     try {
       if (body.targetTicker) targetLTM = await getLTMFinancials(body.targetTicker);
     } catch (e) {}
     
     const pulledData = {
-      buyer: buyerLTM ? { price: buyerLTM.price, shares: buyerLTM.sharesOutstanding, cash: buyerLTM.cash } : undefined,
-      target: targetLTM ? { price: targetLTM.price, shares: targetLTM.sharesOutstanding, cash: targetLTM.cash, debt: targetLTM.totalDebt } : undefined,
+      buyer: buyerLTM
+        ? {
+            price: derivePriceFromMarketCap(buyerLTM),
+            shares: buyerLTM.sharesOutstanding,
+            cash: buyerLTM.cash,
+          }
+        : undefined,
+      target: targetLTM
+        ? {
+            price: derivePriceFromMarketCap(targetLTM),
+            shares: targetLTM.sharesOutstanding,
+            cash: targetLTM.cash,
+            debt: targetLTM.totalDebt,
+          }
+        : undefined,
     };
     
     // Validate inputs
@@ -90,39 +185,28 @@ export async function POST(req: Request) {
     
     const input = parseResult.data;
     
-    // Use already-pulled data or fetch
-    if (!buyerLTM) buyerLTM = await getLTMFinancials(input.buyerTicker);
-    const buyerFinancials = convertToCompanyFinancials(buyerLTM, input.buyerTicker);
-    
-    if (!targetLTM) targetLTM = await getLTMFinancials(input.targetTicker);
-    const targetFinancials = convertToCompanyFinancials(targetLTM, input.targetTicker);
-    
-    // Compute model (will throw if invariants violated)
-    let output;
-    try {
-      output = computeMergerModel(input, buyerFinancials, targetFinancials);
-    } catch (computeError: any) {
+    // Normalize field names: support both buyerTicker and acquirerTicker
+    const buyerTicker = input.acquirerTicker || (input as any).buyerTicker;
+    if (!buyerTicker) {
       return NextResponse.json(
-        {
-          error: computeError.message || 'Model computation failed',
-        },
+        { error: 'acquirerTicker or buyerTicker is required' },
         { status: 400 }
       );
     }
     
-    // Generate Excel
-    const workbook = await generateMergerWorkbook(
-      input,
-      output,
-      buyerFinancials,
-      targetFinancials
-    );
+    // Use already-pulled data or fetch
+    if (!buyerLTM) buyerLTM = await getLTMFinancials(buyerTicker);
+    if (!targetLTM) targetLTM = await getLTMFinancials(input.targetTicker);
+
+    // Generate Excel (excel layer computes the model from inputs)
+    const workbookInputs = toMergerWorkbookInputs(input, buyerTicker, buyerLTM, targetLTM);
+    const workbook = await generateMergerWorkbook(workbookInputs);
     
     // Convert to buffer
     const buffer = await workbook.xlsx.writeBuffer();
     
     // Return binary with correct headers
-    const filename = `Merger_Model_${input.buyerTicker}_${input.targetTicker}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const filename = `Merger_Model_${buyerTicker}_${input.targetTicker}_${new Date().toISOString().split('T')[0]}.xlsx`;
     
     return new NextResponse(buffer as any, {
       status: 200,

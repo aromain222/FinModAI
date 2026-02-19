@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar } from 'recharts';
 import { BaseAssumptions, ScenarioAssumptions, DcfResult, ForecastResult } from '@/lib/scenarioEngine';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,8 +15,8 @@ type ScenarioBundle = {
   scenario: ScenarioAssumptions;
   dcf: DcfResult;
   forecast: {
-    quarterly: ForecastResult;
     yearly: ForecastResult;
+    quarterly?: ForecastResult;
   };
 };
 
@@ -32,7 +32,9 @@ type SavedScenario = {
   type: string;
   ticker?: string;
   created_at: string;
-  assumptions: ScenarioAssumptions;
+  // Stored scenarios can be either "delta" assumptions (ScenarioAssumptions) or
+  // full BaseAssumptions depending on the route/version. Guard at runtime.
+  assumptions: unknown;
 };
 
 const defaultAssumptions: BaseAssumptions = {
@@ -41,16 +43,27 @@ const defaultAssumptions: BaseAssumptions = {
   revenueGrowth: 0.06,
   ebitdaMargin: 0.31,
   taxRate: 0.21,
-  capexPercent: 0.05,
+  capexPctRevenue: 0.05,
+  nwcPctRevenue: 0.10,
   wacc: 0.09,
   terminalGrowth: 0.02,
   netDebt: -60000,
   sharesOutstanding: 16000,
-  forecastYears: 5
 };
 
 const percent = (value: number) => `${(value * 100).toFixed(1)}%`;
 const currency = (value: number) => `$${(value / 1000).toFixed(2)}B`;
+
+function isBaseAssumptions(value: unknown): value is BaseAssumptions {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.ticker === 'string' &&
+    typeof v.revenue === 'number' &&
+    typeof v.revenueGrowth === 'number' &&
+    typeof v.ebitdaMargin === 'number'
+  );
+}
 
 export function ScenarioForecastSection({ initialCustomScenarios = [] }: { initialCustomScenarios?: SavedScenario[] }) {
   const [assumptions, setAssumptions] = useState<BaseAssumptions>(defaultAssumptions);
@@ -66,6 +79,17 @@ export function ScenarioForecastSection({ initialCustomScenarios = [] }: { initi
   const [customName, setCustomName] = useState('Custom Scenario');
   const [customSaving, setCustomSaving] = useState(false);
   const forecastRef = useRef<HTMLDivElement>(null);
+
+  const effectiveScenario = useCallback(
+    (scenario: ScenarioAssumptions) => {
+      const revenueGrowth = (assumptions.revenueGrowth || 0) + (scenario.revenueGrowthDelta || 0);
+      const ebitdaMargin = (assumptions.ebitdaMargin || 0) + (scenario.ebitdaMarginDelta || 0);
+      const wacc = (assumptions.wacc ?? 0.1) + (scenario.waccDelta || 0);
+      const terminalGrowth = (assumptions.terminalGrowth ?? 0.02) + (scenario.terminalGrowthDelta || 0);
+      return { revenueGrowth, ebitdaMargin, wacc, terminalGrowth };
+    },
+    [assumptions.ebitdaMargin, assumptions.revenueGrowth, assumptions.terminalGrowth, assumptions.wacc]
+  );
 
   const handleInputChange = (key: keyof BaseAssumptions, value: string) => {
     setAssumptions((prev) => ({
@@ -200,28 +224,28 @@ export function ScenarioForecastSection({ initialCustomScenarios = [] }: { initi
               label="WACC %"
               type="number"
               step="0.01"
-              value={assumptions.wacc}
+              value={assumptions.wacc ?? ''}
               onChange={(value) => handleInputChange('wacc', value)}
             />
             <InputField
               label="Terminal Growth %"
               type="number"
               step="0.005"
-              value={assumptions.terminalGrowth}
+              value={assumptions.terminalGrowth ?? ''}
               onChange={(value) => handleInputChange('terminalGrowth', value)}
             />
             <InputField
               label="Capex % of Revenue"
               type="number"
               step="0.005"
-              value={assumptions.capexPercent}
-              onChange={(value) => handleInputChange('capexPercent', value)}
+              value={assumptions.capexPctRevenue ?? ''}
+              onChange={(value) => handleInputChange('capexPctRevenue', value)}
             />
             <InputField
               label="Tax Rate %"
               type="number"
               step="0.01"
-              value={assumptions.taxRate}
+              value={assumptions.taxRate ?? ''}
               onChange={(value) => handleInputChange('taxRate', value)}
             />
           </div>
@@ -238,26 +262,25 @@ export function ScenarioForecastSection({ initialCustomScenarios = [] }: { initi
           {(['base', 'bull', 'bear'] as const).map((type) => {
             const bundle = scenarios[type];
             if (!bundle) return null;
+            const eff = effectiveScenario(bundle.scenario);
             return (
               <Card key={bundle.recordId} className={cn('border-2', getBorderClass(type))}>
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     <span>{bundle.scenario.name}</span>
-                    <span className="text-sm text-muted-foreground">{percent(bundle.scenario.revenueGrowth)}</span>
+                    <span className="text-sm text-muted-foreground">{percent(eff.revenueGrowth)}</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm text-muted-foreground">
                   <div>
                     <p>Enterprise Value: <strong>{currency(bundle.dcf.enterpriseValue)}</strong></p>
                     <p>Equity Value: <strong>{currency(bundle.dcf.equityValue)}</strong></p>
-                    {bundle.dcf.impliedSharePrice && (
-                      <p>Implied Price: <strong>${bundle.dcf.impliedSharePrice.toFixed(2)}</strong></p>
-                    )}
+                    <p>Implied Price: <strong>${bundle.dcf.pricePerShare.toFixed(2)}</strong></p>
                   </div>
                   <div className="text-xs">
-                    <p>Margin: {percent(bundle.scenario.ebitdaMargin)}</p>
-                    <p>WACC: {percent(bundle.scenario.wacc)}</p>
-                    <p>Terminal Growth: {percent(bundle.scenario.terminalGrowth)}</p>
+                    <p>Margin: {percent(eff.ebitdaMargin)}</p>
+                    <p>WACC: {percent(eff.wacc)}</p>
+                    <p>Terminal Growth: {percent(eff.terminalGrowth)}</p>
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => handleExplainScenario(bundle)} disabled={scenarioExplainLoading === bundle.recordId}>
@@ -304,16 +327,16 @@ export function ScenarioForecastSection({ initialCustomScenarios = [] }: { initi
           ) : (
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
+                <BarChart data={chartData} barGap={6}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="label" tick={{ fontSize: 12 }} />
                   <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(1)}B`} />
                   <Tooltip formatter={(value: number) => currency(value)} />
                   <Legend />
-                  <Line type="monotone" dataKey="base" stroke="#2563eb" strokeWidth={2} dot={false} name="Base Revenue" />
-                  <Line type="monotone" dataKey="bull" stroke="#16a34a" strokeWidth={2} dot={false} name="Bull Revenue" />
-                  <Line type="monotone" dataKey="bear" stroke="#dc2626" strokeWidth={2} dot={false} name="Bear Revenue" />
-                </LineChart>
+                  <Bar dataKey="base" fill="#2563eb" radius={[4, 4, 0, 0]} name="Base Revenue" />
+                  <Bar dataKey="bull" fill="#16a34a" radius={[4, 4, 0, 0]} name="Bull Revenue" />
+                  <Bar dataKey="bear" fill="#dc2626" radius={[4, 4, 0, 0]} name="Bear Revenue" />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           )}
@@ -357,7 +380,16 @@ export function ScenarioForecastSection({ initialCustomScenarios = [] }: { initi
                         <p className="font-medium text-secondary">{item.name}</p>
                         <p className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleDateString()}</p>
                       </div>
-                      <Button variant="ghost" size="sm" onClick={() => setAssumptions(item.assumptions)}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          if (isBaseAssumptions(item.assumptions)) {
+                            setAssumptions(item.assumptions);
+                          }
+                        }}
+                        disabled={!isBaseAssumptions(item.assumptions)}
+                      >
                         Load
                       </Button>
                     </div>
@@ -434,15 +466,19 @@ function buildChartData(scenarios: ScenarioMap, frequency: 'quarterly' | 'yearly
 
   const assign = (type: 'base' | 'bull' | 'bear', data?: ForecastResult) => {
     if (!data) return;
-    data.data.forEach((point) => {
-      register(point.label);
-      rows[point.label][type] = point.revenue;
+    data.projections.forEach((point) => {
+      const label = String(point.year);
+      register(label);
+      rows[label][type] = point.revenue;
     });
   };
 
-  assign('base', scenarios.base?.forecast[frequency]);
-  assign('bull', scenarios.bull?.forecast[frequency]);
-  assign('bear', scenarios.bear?.forecast[frequency]);
+  const pick = (bundle?: ScenarioBundle) =>
+    frequency === 'quarterly' ? bundle?.forecast.quarterly ?? bundle?.forecast.yearly : bundle?.forecast.yearly;
+
+  assign('base', pick(scenarios.base));
+  assign('bull', pick(scenarios.bull));
+  assign('bear', pick(scenarios.bear));
 
   return labelOrder.map((label) => rows[label]);
 }
@@ -466,4 +502,3 @@ async function streamText(endpoint: string, payload: Record<string, unknown>) {
   }
   return result;
 }
-

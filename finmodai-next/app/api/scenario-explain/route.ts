@@ -4,6 +4,7 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import OpenAI from 'openai';
 import { buildScenarioExplanationPrompt } from '@/lib/promptBuilders';
 import { DcfResult, ForecastResult, ScenarioAssumptions } from '@/lib/scenarioEngine';
+import { getOpenAIKey, getOpenAIModelCandidates } from '@/lib/openaiKey';
 
 type ScenarioRow = {
   id: string;
@@ -22,7 +23,8 @@ type ScenarioResultRow = {
 };
 
 export async function POST(request: Request) {
-  if (!process.env.OPENAI_API_KEY) {
+  const apiKey = getOpenAIKey('user') || getOpenAIKey('service');
+  if (!apiKey) {
     return NextResponse.json({ error: 'LLM provider not configured' }, { status: 500 });
   }
 
@@ -70,21 +72,32 @@ export async function POST(request: Request) {
 
   const prompt = buildScenarioExplanationPrompt(
     scenario.name,
-    scenario.assumptions,
-    resultRow.dcf_output,
-    resultRow.forecast_output?.yearly ?? resultRow.forecast_output?.quarterly
+    scenario.assumptions
   );
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const stream = await openai.chat.completions.create({
-    model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
-    temperature: 0.25,
-    stream: true,
-    messages: [
-      { role: 'system', content: 'You explain financial scenarios without giving advice.' },
-      { role: 'user', content: prompt }
-    ]
-  });
+  const openai = new OpenAI({ apiKey });
+  const modelCandidates = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-4o-mini', 'gpt-4.1-mini');
+  let stream: Awaited<ReturnType<typeof openai.chat.completions.create>> | null = null;
+  let lastError: unknown = null;
+  for (const model of modelCandidates) {
+    try {
+      stream = await openai.chat.completions.create({
+        model,
+        temperature: 0.25,
+        stream: true,
+        messages: [
+          { role: 'system', content: 'You explain financial scenarios without giving advice.' },
+          { role: 'user', content: prompt }
+        ]
+      });
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (!stream) {
+    throw (lastError instanceof Error ? lastError : new Error('Failed to stream scenario explanation from OpenAI'));
+  }
 
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
@@ -111,4 +124,3 @@ export async function POST(request: Request) {
     }
   });
 }
-

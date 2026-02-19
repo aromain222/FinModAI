@@ -4,67 +4,75 @@ import { cookies } from 'next/headers';
 import {
   BaseAssumptions,
   ScenarioAssumptions,
-  generateBaseCase,
-  generateBullCase,
-  generateBearCase,
+  createStandardScenarios,
   runDcf,
   runForecast,
   ForecastResult,
-  DcfResult
+  DcfResult,
+  computeDeltaVsBase,
 } from '@/lib/scenarioEngine';
+import { buildScenarioBaselineFromDemo } from '@/lib/scenarios/demoBaseline';
+import { standardScenarioTemplate } from '@/lib/scenarios/templates';
 
 type ScenarioPayload = {
   scenario: ScenarioAssumptions;
   dcf: DcfResult;
   forecast: {
-    quarterly: ForecastResult;
     yearly: ForecastResult;
   };
+  deltaVsBase: ReturnType<typeof computeDeltaVsBase>;
   recordId: string;
+  kind: 'base' | 'bull' | 'bear';
 };
 
 export async function POST(request: Request) {
   const body = await request.json();
   const baseAssumptions: BaseAssumptions | undefined = body?.baseAssumptions;
-  const ticker: string | undefined = body?.ticker;
+  const tickerOverride: string | undefined = body?.ticker;
 
-  if (!baseAssumptions || typeof baseAssumptions !== 'object') {
+  const demoMode = process.env.DEMO_MODE === 'true' || process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+  if (!demoMode && (!baseAssumptions || typeof baseAssumptions !== 'object')) {
     return NextResponse.json({ error: 'baseAssumptions are required.' }, { status: 400 });
   }
 
   const supabase = createRouteHandlerClient({ cookies });
   const {
-    data: { user }
+    data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const sanitized = sanitizeBaseAssumptions(baseAssumptions);
-
-  const scenarios = [generateBaseCase, generateBullCase, generateBearCase].map((fn) =>
-    fn({ ...sanitized, ticker })
-  );
-
+  const resolvedTicker = (tickerOverride ?? baseAssumptions?.ticker ?? '').toUpperCase().trim();
+  if (!resolvedTicker) {
+    return NextResponse.json({ error: 'ticker required' }, { status: 400 });
+  }
+  const baseline = demoMode ? await buildScenarioBaselineFromDemo(resolvedTicker) : null;
+  const base = demoMode ? baseline!.base : sanitizeBaseAssumptions(baseAssumptions as BaseAssumptions);
+  const scenarios = demoMode ? standardScenarioTemplate(baseline!.sector) : createStandardScenarios();
   const results: ScenarioPayload[] = [];
 
+  const baseDcf = await runDcf(base, { name: 'Base Case' }, 5);
+
   for (const scenario of scenarios) {
-    const dcf = runDcf(scenario);
-    const forecastQuarterly = runForecast(scenario, { periods: 4, frequency: 'quarterly' });
-    const forecastYearly = runForecast(scenario, {
-      periods: scenario.forecastYears ?? 5,
-      frequency: 'yearly'
-    });
+    const kind: ScenarioPayload['kind'] =
+      scenario.name.toLowerCase().includes('bull') ? 'bull' :
+      scenario.name.toLowerCase().includes('bear') ? 'bear' :
+      'base';
+
+    const dcf = await runDcf(base, scenario, 5);
+    const forecastYearly = await runForecast(base, scenario, 5);
+    const deltaVsBase = computeDeltaVsBase(baseDcf, dcf, base, scenario);
 
     const { data: scenarioRow, error: scenarioError } = await supabase
       .from('scenarios')
       .insert({
         user_id: user.id,
         name: scenario.name,
-        type: scenario.type,
-        ticker: scenario.ticker,
-        assumptions: scenario
+        type: kind,
+        ticker: resolvedTicker,
+        assumptions: scenario,
       })
       .select()
       .single();
@@ -78,9 +86,8 @@ export async function POST(request: Request) {
       scenario_id: scenarioRow.id,
       dcf_output: dcf,
       forecast_output: {
-        quarterly: forecastQuarterly,
-        yearly: forecastYearly
-      }
+        yearly: forecastYearly,
+      },
     });
 
     if (resultError) {
@@ -91,36 +98,33 @@ export async function POST(request: Request) {
     results.push({
       scenario,
       dcf,
-      forecast: {
-        quarterly: forecastQuarterly,
-        yearly: forecastYearly
-      },
-      recordId: scenarioRow.id
+      forecast: { yearly: forecastYearly },
+      deltaVsBase,
+      recordId: scenarioRow.id,
+      kind,
     });
   }
 
-  // TODO: apply plan-based gating (e.g., free-tier returns only base scenario)
-
   return NextResponse.json({
-    base: results.find((r) => r.scenario.type === 'base'),
-    bull: results.find((r) => r.scenario.type === 'bull'),
-    bear: results.find((r) => r.scenario.type === 'bear')
+    base: results.find((r) => r.kind === 'base') ?? null,
+    bull: results.find((r) => r.kind === 'bull') ?? null,
+    bear: results.find((r) => r.kind === 'bear') ?? null,
   });
 }
 
 function sanitizeBaseAssumptions(input: BaseAssumptions): BaseAssumptions {
   return {
     ...input,
+    ticker: (input.ticker || '').toUpperCase(),
     revenue: Number(input.revenue) || 1,
     revenueGrowth: Number(input.revenueGrowth) || 0,
     ebitdaMargin: Number(input.ebitdaMargin) || 0,
-    taxRate: Number(input.taxRate) || 0.21,
-    capexPercent: Number(input.capexPercent) || 0.05,
-    wacc: Number(input.wacc) || 0.1,
-    terminalGrowth: Number(input.terminalGrowth) || 0.02,
-    netDebt: Number(input.netDebt ?? 0),
-    sharesOutstanding: input.sharesOutstanding ? Number(input.sharesOutstanding) : undefined,
-    forecastYears: input.forecastYears ? Number(input.forecastYears) : 5
+    taxRate: input.taxRate !== undefined ? Number(input.taxRate) : 0.21,
+    wacc: input.wacc !== undefined ? Number(input.wacc) : 0.1,
+    terminalGrowth: input.terminalGrowth !== undefined ? Number(input.terminalGrowth) : 0.02,
+    capexPctRevenue: input.capexPctRevenue !== undefined ? Number(input.capexPctRevenue) : 0.05,
+    nwcPctRevenue: input.nwcPctRevenue !== undefined ? Number(input.nwcPctRevenue) : 0.1,
+    netDebt: input.netDebt !== undefined ? Number(input.netDebt) : 0,
+    sharesOutstanding: input.sharesOutstanding !== undefined ? Number(input.sharesOutstanding) : undefined,
   };
 }
-

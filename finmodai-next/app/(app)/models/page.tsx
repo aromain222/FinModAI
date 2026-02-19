@@ -10,7 +10,7 @@ import { APP_NAME } from '@/lib/branding';
 type Model = {
   id: string;
   ticker: string;
-  type: string;
+  model_type: string;
   status: string;
   created_at: string;
 };
@@ -106,7 +106,7 @@ export default function ModelsPage() {
                       className="transition hover:bg-[var(--cb-surface-alt)]/60"
                     >
                       <td className="py-3 font-semibold">{model.ticker}</td>
-                      <td className="py-3">{formatModelLabel(model.type)}</td>
+                      <td className="py-3">{formatModelLabel(model.model_type)}</td>
                       <td className="py-3 text-[var(--cb-text-muted)]">
                         {new Date(model.created_at).toLocaleDateString('en-US', {
                           month: 'short',
@@ -134,7 +134,7 @@ export default function ModelsPage() {
                           <Button asChild size="sm" variant="ghost">
                             <Link href={`/models/${model.id}`}>View</Link>
                           </Button>
-                          <DownloadModelButton ticker={model.ticker} modelType={model.type} />
+                          <DownloadModelButton ticker={model.ticker} modelType={model.model_type} />
                         </div>
                       </td>
                     </tr>
@@ -177,6 +177,8 @@ function formatModelLabel(type: string) {
       return 'LBO';
     case 'comps':
       return 'Comps';
+    case 'scorecard':
+      return 'Scorecard';
     default:
       return type;
   }

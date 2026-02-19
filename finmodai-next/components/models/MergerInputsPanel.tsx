@@ -26,14 +26,15 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
       const newArray = Array(forecastYears).fill(0);
       if (inputs.integrationCosts) {
         // Preserve existing values
-        inputs.integrationCosts.forEach((val, idx) => {
-          if (idx < forecastYears) newArray[idx] = val;
+        inputs.integrationCosts.forEach((val: unknown, idx: number) => {
+          const n = typeof val === 'number' ? val : Number(val);
+          if (idx < forecastYears && Number.isFinite(n)) newArray[idx] = n;
         });
       }
       // Only update if different to avoid loops
       const needsUpdate = !inputs.integrationCosts || 
                          inputs.integrationCosts.length !== forecastYears ||
-                         inputs.integrationCosts.some((val, idx) => idx >= forecastYears);
+                         inputs.integrationCosts.some((_val: unknown, idx: number) => idx >= forecastYears);
       if (needsUpdate) {
         onChange({ ...inputs, integrationCosts: newArray });
       }
@@ -84,13 +85,13 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1">
-              <Label htmlFor="buyer-ticker" className="text-[var(--cb-text-primary)]">
-                Buyer Ticker <span className="text-[var(--cb-danger)]">*</span>
+              <Label htmlFor="acquirer-ticker" className="text-[var(--cb-text-primary)]">
+                Acquirer Ticker <span className="text-[var(--cb-danger)]">*</span>
               </Label>
               <Input
-                id="buyer-ticker"
-                value={inputs.buyerTicker || ''}
-                onChange={(e) => handleChange('buyerTicker', e.target.value.toUpperCase())}
+                id="acquirer-ticker"
+                value={inputs.acquirerTicker || ''}
+                onChange={(e) => handleChange('acquirerTicker', e.target.value.toUpperCase())}
                 placeholder="AAPL"
                 className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
               />
@@ -161,6 +162,105 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
                 value={inputs.premiumPct ? inputs.premiumPct * 100 : ''}
                 onChange={(e) => handleChange('premiumPct', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
                 placeholder="30.0"
+                className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+              />
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <Label className="text-[var(--cb-text-primary)]">
+              Consideration Mix (%)
+            </Label>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-1">
+                <Label htmlFor="cash-pct" className="text-xs text-[var(--cb-text-muted)]">
+                  Cash %
+                </Label>
+                <Input
+                  id="cash-pct"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  value={inputs.cashPct ? inputs.cashPct * 100 : ''}
+                  onChange={(e) => handleChange('cashPct', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
+                  placeholder="50.0"
+                  className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="stock-pct-mix" className="text-xs text-[var(--cb-text-muted)]">
+                  Stock %
+                </Label>
+                <Input
+                  id="stock-pct-mix"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  value={inputs.stockPct ? inputs.stockPct * 100 : ''}
+                  onChange={(e) => handleChange('stockPct', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
+                  placeholder="40.0"
+                  className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="debt-pct" className="text-xs text-[var(--cb-text-muted)]">
+                  Debt %
+                </Label>
+                <Input
+                  id="debt-pct"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  value={inputs.debtPct ? inputs.debtPct * 100 : ''}
+                  onChange={(e) => handleChange('debtPct', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
+                  placeholder="10.0"
+                  className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+                />
+              </div>
+            </div>
+            {(inputs.cashPct !== undefined || inputs.stockPct !== undefined || inputs.debtPct !== undefined) && (
+              <p className="text-xs text-[var(--cb-text-muted)]">
+                Total: {((inputs.cashPct || 0) * 100 + (inputs.stockPct || 0) * 100 + (inputs.debtPct || 0) * 100).toFixed(1)}% 
+                {Math.abs(((inputs.cashPct || 0) + (inputs.stockPct || 0) + (inputs.debtPct || 0)) - 1.0) > 0.01 && 
+                  <span className="text-[var(--cb-danger)]"> (must equal 100%)</span>
+                }
+              </p>
+            )}
+          </div>
+          
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="transaction-fees-pct" className="text-[var(--cb-text-primary)]">
+                Transaction Fees (% of purchase price)
+              </Label>
+              <Input
+                id="transaction-fees-pct"
+                type="number"
+                step="0.1"
+                min="0"
+                max="10"
+                value={inputs.transactionFeesPct ? inputs.transactionFeesPct * 100 : ''}
+                onChange={(e) => handleChange('transactionFeesPct', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
+                placeholder="2.0"
+                className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="foregone-cash-yield" className="text-[var(--cb-text-primary)]">
+                Foregone Cash Yield (%)
+              </Label>
+              <Input
+                id="foregone-cash-yield"
+                type="number"
+                step="0.1"
+                min="0"
+                max="10"
+                value={inputs.foregoneCashYield ? inputs.foregoneCashYield * 100 : ''}
+                onChange={(e) => handleChange('foregoneCashYield', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
+                placeholder="2.5"
                 className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
               />
             </div>
@@ -451,6 +551,40 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
               placeholder="150"
               className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
             />
+          </div>
+          
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="cost-synergies-pct" className="text-[var(--cb-text-primary)]">
+                Cost Synergies (% of combined costs)
+              </Label>
+              <Input
+                id="cost-synergies-pct"
+                type="number"
+                step="0.1"
+                min="0"
+                max="100"
+                value={inputs.costSynergiesPct ? inputs.costSynergiesPct * 100 : ''}
+                onChange={(e) => handleChange('costSynergiesPct', e.target.value ? parseFloat(e.target.value) / 100 : undefined)}
+                placeholder="5.0"
+                className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="one-time-costs" className="text-[var(--cb-text-primary)]">
+                One-Time Integration Costs ($M)
+              </Label>
+              <Input
+                id="one-time-costs"
+                type="number"
+                step="0.1"
+                min="0"
+                value={inputs.oneTimeCosts || ''}
+                onChange={(e) => handleChange('oneTimeCosts', e.target.value ? parseFloat(e.target.value) : undefined)}
+                placeholder="100"
+                className="bg-[var(--cb-surface-alt)] border-[var(--cb-border-subtle)] text-[var(--cb-text-primary)]"
+              />
+            </div>
           </div>
           
           <div className="space-y-2">

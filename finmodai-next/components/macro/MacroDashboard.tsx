@@ -1,252 +1,242 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Activity, 
-  ArrowLeft,
-  Newspaper,
-  Sparkles,
-  ChevronDown,
-  ChevronUp,
-  RefreshCw,
-} from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
+  TrendingUp,
+  TrendingDown,
+  ArrowLeft,
+  RefreshCw,
+  AlertCircle,
+  Globe2,
+  Info,
+} from 'lucide-react';
+import { LoadingPanel, ErrorState } from '@/components/loading';
+import { LOADING_TABS, getEmptyError } from '@/lib/loadingCopy';
 import { cn } from '@/lib/utils';
-import type { MacroDetail, MacroOverviewResponse } from '@/types/macro';
-
-type TimeRange = '1D' | '1W' | '1M' | '6M' | '1Y' | '5Y';
-
-type MacroPoint = {
-  date: string;
-  value: number;
-};
+import type { MacroSnapshot, TimeRange } from '@/lib/macroData';
+import { MacroChart } from './MacroChart';
+import { MacroSeries } from '@/types/macroSeries';
+import type { WorldBriefEventCard, WorldBriefResponseV2 } from '@/types/worldBrief';
 
 /**
- * Generate scaled fake history so lines actually move
+ * Metric helpers
  */
-function generateSeries(
-  base: number,
-  volatility: number,
-  points: number
-): MacroPoint[] {
-  const data: MacroPoint[] = [];
-  let current = base;
-
-  for (let i = points - 1; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    const shock = (Math.random() - 0.5) * volatility;
-    current = Math.max(0, current + shock);
-    data.push({ date: date.toISOString(), value: Number(current.toFixed(2)) });
-  }
-  return data;
+function formatValue(unit: MacroSeries['meta']['unit'], value?: number | null, decimals = 2): string {
+  if (value === undefined || value === null || !isFinite(value)) return '—';
+  const rounded = Number(value.toFixed(decimals));
+  const safe = Math.abs(rounded) < Math.pow(10, -decimals) ? 0 : rounded;
+  if (unit === 'percent') return `${safe.toFixed(decimals)}%`;
+  if (unit === 'bps') return `${(safe * 100).toFixed(0)} bps`;
+  if (unit === 'index' || unit === 'level') return safe.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return safe.toFixed(decimals);
 }
 
-/**
- * Get number of data points for each time range
- */
-function getPointsForRange(range: TimeRange): number {
-  switch (range) {
-    case '1D': return 24; // hourly-ish
-    case '1W': return 7;
-    case '1M': return 30;
-    case '6M': return 26; // weekly
-    case '1Y': return 52; // weekly
-    case '5Y': return 60; // monthly-ish
+type ChangeDirection = 'up' | 'down' | 'neutral';
+
+function computeChange(
+  latest: number | null | undefined,
+  first: number | null | undefined,
+  unit: MacroSeries['meta']['unit']
+): { text: string; direction: ChangeDirection } {
+  if (latest === null || first === null || latest === undefined || first === undefined) return { text: '—', direction: 'neutral' as const };
+  if (!isFinite(latest) || !isFinite(first)) return { text: '—', direction: 'neutral' as const };
+  const delta = latest - first;
+  let text: string;
+  if (unit === 'percent' || unit === 'bps' || unit === 'level') {
+    const displayUnit = unit === 'bps' ? `${(delta * 100).toFixed(0)} bps` : `${delta >= 0 ? '+' : ''}${delta.toFixed(2)}${unit === 'percent' ? '%' : ''}`;
+    text = displayUnit;
+  } else {
+    const pct = first !== 0 ? (delta / first) * 100 : 0;
+    text = `${delta >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
   }
+  const direction: ChangeDirection = Math.abs(delta) < 1e-6 ? 'neutral' : delta > 0 ? 'up' : 'down';
+  return { text, direction };
 }
 
-/**
- * Format X-axis labels based on time range
- */
-function formatXAxisLabel(iso: string, range: TimeRange): string {
-  const d = new Date(iso);
-  switch (range) {
-    case '1D':
-      return d.toLocaleTimeString('en-US', { hour: 'numeric' });
-    case '1W':
-    case '1M':
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    case '6M':
-    case '1Y':
-      return d.toLocaleDateString('en-US', { month: 'short' });
-    case '5Y':
-      return d.getFullYear().toString();
-  }
+function latestAndFirst(series?: MacroSeries) {
+  if (!series) return { latest: null, first: null };
+  const valid = (series.points || []).filter(p => p.value !== null && isFinite(p.value as number));
+  if (valid.length === 0) return { latest: null, first: null };
+  return { first: valid[0].value as number, latest: valid[valid.length - 1].value as number };
 }
 
-/**
- * Calculate percent change in a series
- */
-function percentChange(series: MacroPoint[]): number {
-  if (!series.length) return 0;
-  const first = series[0].value;
-  const last = series[series.length - 1].value;
-  if (first === 0) return 0;
-  return ((last - first) / first) * 100;
+function summarizeWorldItem(item: WorldBriefEventCard): string {
+  return item.what_happened;
 }
 
-/**
- * Generate AI narrative based on time range and data
- */
-function getMacroNarrative(
-  range: TimeRange,
-  spx: MacroPoint[],
-  vix: MacroPoint[],
-  fed: MacroPoint[]
-): string {
-  const spxChg = percentChange(spx);
-  const vixChg = percentChange(vix);
-  const fedChg = percentChange(fed);
-
-  const riskOn = spxChg > 0 && vixChg <= 0;
-  const riskOff = spxChg < 0 && vixChg > 0;
-
-  const horizon =
-    range === '1D' ? 'today' :
-    range === '1W' ? 'this week' :
-    range === '1M' ? 'this month' :
-    range === '6M' ? 'the last 6 months' :
-    range === '1Y' ? 'the last year' :
-    'the last five years';
-
-  if (riskOn) {
-    return `Over ${horizon}, risk sentiment has been constructive: the S&P is up roughly ${spxChg.toFixed(
-      1
-    )}% while the VIX has drifted lower. Fed policy has moved by about ${fedChg.toFixed(
-      1
-    )}bps over the same window, suggesting markets are comfortable with the current rate path.`;
-  }
-
-  if (riskOff) {
-    return `Over ${horizon}, markets have traded defensively: the S&P is down about ${Math.abs(
-      spxChg
-    ).toFixed(
-      1
-    )}% while the VIX has risen, pointing to higher risk aversion. Shifts in the policy rate of roughly ${fedChg.toFixed(
-      1
-    )}bps are contributing to the volatility.`;
-  }
-
-  return `Over ${horizon}, price action has been more mixed: the S&P has moved about ${spxChg.toFixed(
-    1
-  )}% and volatility is little changed. This suggests a more range-bound tape while investors wait for clearer signals on growth, inflation, and the Fed.`;
+function formatStatusLabel(value?: string | null): string | undefined {
+  if (!value) return value ?? undefined;
+  const normalized = value.toLowerCase();
+  if (normalized.includes('fallback_invalid')) return 'Data unavailable';
+  if (normalized.includes('insufficient')) return 'Not enough history';
+  return value;
 }
+
+// Confidence is retained in the API contract for internal diagnostics, but we intentionally
+// do not render confidence badges in the UI (they read as arbitrary and hurt trust).
 
 export default function MacroDashboard() {
   const [timeRange, setTimeRange] = useState<TimeRange>('1M');
-  const [expanded, setExpanded] = useState(false);
-  const [macroDetail, setMacroDetail] = useState<MacroDetail | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
+  const [snapshot, setSnapshot] = useState<MacroSnapshot | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [worldItems, setWorldItems] = useState<WorldBriefEventCard[]>([]);
+  const [worldLoading, setWorldLoading] = useState(true);
+  const [worldError, setWorldError] = useState<string | null>(null);
+  const [worldNote, setWorldNote] = useState<string | null>(null);
+  const [hiddenKeys, setHiddenKeys] = useState<string[]>([]);
 
-  const timeRanges: TimeRange[] = ['1D', '1W', '1M', '6M', '1Y', '5Y'];
+  const timeRanges: TimeRange[] = ['1W', '1M', '3M', '1Y', '5Y', 'MAX'];
 
-  // Fetch detailed breakdown when expanded or horizon changes
-  useEffect(() => {
-    if (expanded) {
-      fetchDetailedBreakdown();
-    }
-  }, [expanded, timeRange]);
-
-  const fetchDetailedBreakdown = async () => {
+  const fetchMacroData = useCallback(async () => {
     try {
-      setLoadingDetail(true);
-      setDetailError(null);
-
-      const response = await fetch(`/api/macro/overview?horizon=${timeRange}`);
+      setLoading(true);
+      setError(null);
       
+      const response = await fetch(`/api/macro/snapshot?range=${timeRange}`);
       if (!response.ok) {
-        throw new Error('Failed to fetch detailed breakdown');
+        throw new Error('Failed to fetch macro snapshot');
       }
-
-      const data: MacroOverviewResponse = await response.json();
-      setMacroDetail(data.detailedBreakdown);
-    } catch (error) {
-      console.error('[MacroDashboard] Failed to fetch detail:', error);
-      setDetailError('Couldn\'t load full breakdown, showing high-level view only.');
+      const data = await response.json();
+      setSnapshot(data);
+      
+      console.log('[MacroDashboard] Snapshot loaded:', {
+        horizon: data.horizon,
+        metricsCount: Object.keys(data.metrics).length,
+        quality: data.quality.overall
+      });
+    } catch (err: any) {
+      console.error('[MacroDashboard] Failed to fetch macro data:', err);
+      setError(err.message || 'Failed to load macro data');
     } finally {
-      setLoadingDetail(false);
+      setLoading(false);
     }
+  }, [timeRange]);
+
+  // Fetch macro snapshot when time range changes
+  useEffect(() => {
+    fetchMacroData();
+  }, [fetchMacroData]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('worldBriefHidden');
+    if (stored) {
+      setHiddenKeys(JSON.parse(stored));
+    }
+  }, []);
+
+  const toggleHide = (key: string) => {
+    const next = hiddenKeys.includes(key)
+      ? hiddenKeys.filter(k => k !== key)
+      : [...hiddenKeys, key];
+    setHiddenKeys(next);
+    localStorage.setItem('worldBriefHidden', JSON.stringify(next));
   };
 
-  const handleToggleExpand = () => {
-    setExpanded(!expanded);
-  };
+  const fetchWorldBrief = useCallback(async () => {
+    try {
+      setWorldLoading(true);
+      setWorldError(null);
+      setWorldNote(null);
+      const response = await fetch('/api/world-brief?timeframe=72h');
+      if (!response.ok) throw new Error('Failed to fetch world brief');
+      const data: WorldBriefResponseV2 = await response.json();
+      const events = Array.isArray(data.events) ? data.events : [];
+      setWorldItems(events);
+      setWorldNote((data as any).note || null);
+    } catch (err: any) {
+      setWorldError(err.message || 'Failed to load world brief');
+    } finally {
+      setWorldLoading(false);
+    }
+  }, []);
 
-  // Generate dynamic data based on time range
-  const points = getPointsForRange(timeRange);
+  useEffect(() => {
+    fetchWorldBrief();
+  }, [fetchWorldBrief]);
 
-  const fedFundsData = useMemo(
-    () => generateSeries(5.33, 0.08, points),
-    [timeRange, points]
-  );
-
-  const tenYearData = useMemo(
-    () => generateSeries(4.45, 0.15, points),
-    [timeRange, points]
-  );
-
-  const cpiData = useMemo(
-    () => generateSeries(3.2, 0.12, points),
-    [timeRange, points]
-  );
-
-  const sp500Data = useMemo(
-    () => generateSeries(4800, 40, points),
-    [timeRange, points]
-  );
-
-  const unemploymentData = useMemo(
-    () => generateSeries(3.9, 0.06, points),
-    [timeRange, points]
-  );
-
-  const vixData = useMemo(
-    () => generateSeries(13, 0.35, points),
-    [timeRange, points]
-  );
-
-  // Generate AI narrative
-  const aiNarrative = getMacroNarrative(timeRange, sp500Data, vixData, fedFundsData);
-
-  // Get horizon label for display
-  const getHorizonLabel = (range: TimeRange): string => {
-    switch (range) {
-      case '1D': return '1 Day';
+  const horizonLabel = useMemo(() => {
+    switch (timeRange) {
       case '1W': return '1 Week';
       case '1M': return '1 Month';
-      case '6M': return '6 Months';
+      case '3M': return '3 Months';
       case '1Y': return '1 Year';
       case '5Y': return '5 Years';
+      default: return 'Max';
     }
+  }, [timeRange]);
+
+  const renderChangeBadge = (direction: 'up' | 'down' | 'neutral', text: string) => {
+    const color =
+      direction === 'up' ? 'text-emerald-500 bg-emerald-500/10' :
+      direction === 'down' ? 'text-red-500 bg-red-500/10' :
+      'text-muted-foreground bg-muted';
+    const Icon = direction === 'up' ? TrendingUp : direction === 'down' ? TrendingDown : Info;
+    return (
+      <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs', color)}>
+        <Icon className="h-3 w-3" />
+        {text}
+      </span>
+    );
   };
 
-  // Calculate current values and changes
-  const getCurrentValue = (data: MacroPoint[]) => data[data.length - 1]?.value || 0;
-  const getChange = (data: MacroPoint[]) => percentChange(data);
+  const renderSeriesCard = (key: string, label: string, series?: MacroSeries) => {
+    if (!series) return null;
+    const { latest, first } = latestAndFirst(series);
+    const change = computeChange(latest, first, series.meta.unit);
+    return (
+      <Card key={key} className="shadow-sm border-border/60">
+        <CardHeader className="pb-2">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-base">{label}</CardTitle>
+              <CardDescription className="mt-1 text-sm">
+                {formatValue(series.meta.unit, latest)} {renderChangeBadge(change.direction, change.text)}
+              </CardDescription>
+            </div>
+            <div className="text-xs text-muted-foreground text-right">
+              <div className="font-medium">{series.meta.frequency === 'monthly' ? 'Monthly' : series.meta.frequency === 'daily' ? 'Daily' : 'Policy'}</div>
+              <div className="text-[11px]">{series.meta.source}</div>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-2 min-w-0 w-full">
+          <MacroChart series={series} range={timeRange} currentValue={latest ?? undefined} />
+        </CardContent>
+      </Card>
+    );
+  };
 
-  return (
-    <div className="space-y-6">
-      {/* Header with Back Button and Time Range Toggle */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
+  const macroCopy = LOADING_TABS.macroDashboard;
+  const emptyError = getEmptyError('macroDashboard');
+
+  // Show loading state
+  if (loading) {
+    return (
+      <LoadingPanel
+        title={macroCopy.title}
+        subtitle={macroCopy.subtitle}
+        steps={macroCopy.steps}
+        variant={macroCopy.variant}
+        showProgress={true}
+      />
+    );
+  }
+
+  // Show error state
+  if (error || !snapshot) {
+    return (
+      <div className="space-y-6">
+        <ErrorState
+          title={error || emptyError.errorTitle('macro data')}
+          onRetry={fetchMacroData}
+          retryLabel={emptyError.retryLabel}
+        />
+        <div className="flex gap-3">
           <Button asChild variant="ghost" size="sm">
             <Link href="/dashboard">
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -254,430 +244,250 @@ export default function MacroDashboard() {
             </Link>
           </Button>
         </div>
-        
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Time range:</span>
-          <div className="flex gap-2">
-            {timeRanges.map((range) => (
-              <button
-                key={range}
-                onClick={() => setTimeRange(range)}
-                className={cn(
-                  'rounded-full px-3 py-1 text-xs border transition',
-                  timeRange === range
-                    ? 'bg-primary text-white border-primary'
-                    : 'bg-white text-muted-foreground hover:border-primary/40'
-                )}
-              >
-                {range}
-              </button>
-            ))}
+      </div>
+    );
+  }
+
+  const { metrics, series, quality } = snapshot;
+  const sectorBreadth = snapshot.sectorBreadth;
+
+  return (
+    <div className="space-y-8">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/dashboard">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Dashboard
+              </Link>
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold leading-tight">Macro Dashboard</h1>
+              <p className="text-sm text-muted-foreground">Frequency-aware charts; gaps preserved, no over-smoothing.</p>
+            </div>
           </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Time range:</span>
+            <div className="flex gap-2 rounded-full bg-muted/60 p-1">
+              {timeRanges.map((range) => (
+                <button
+                  key={range}
+                  onClick={() => setTimeRange(range)}
+                  className={cn(
+                    'px-3 py-1 text-sm rounded-full transition',
+                    timeRange === range ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {range}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Horizon: {horizonLabel} • As of {new Date(snapshot.asOf).toLocaleString()}
         </div>
       </div>
 
-      {/* AI Macro Overview - Expandable */}
-      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
-        <CardHeader>
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Sparkles className="h-5 w-5 text-primary" />
-                AI Macro Overview
-              </CardTitle>
-              <CardDescription className="mt-1">
-                Summary is automatically tailored to the selected horizon ({getHorizonLabel(timeRange)})
-              </CardDescription>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleToggleExpand}
-              className="flex items-center gap-1"
-            >
-              {expanded ? (
-                <>
-                  <ChevronUp className="h-4 w-4" />
-                  Collapse
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="h-4 w-4" />
-                  Expand
-                </>
-              )}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Summary (always visible) */}
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            {aiNarrative}
-          </p>
-
-          {/* Expanded content */}
-          {expanded && (
-            <>
-              <div className="h-px w-full bg-border" />
-
-              {loadingDetail && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground py-4">
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  <span>Fetching detailed view…</span>
+      <div className="max-h-[520px] overflow-y-auto pr-2">
+        <div className="grid gap-4 xl:grid-cols-3 md:grid-cols-2 min-w-0">
+          {renderSeriesCard('fedFunds', 'Fed Funds Rate', series.fedFunds)}
+          {renderSeriesCard('treasury10y', '10Y Treasury', series.treasury10y)}
+          {renderSeriesCard('cpi', 'CPI (YoY)', series.cpi)}
+          {renderSeriesCard('sp500', 'S&P 500 (proxy: SPY)', series.sp500)}
+          {renderSeriesCard('unemployment', 'Unemployment Rate', series.unemployment)}
+          <Card className="shadow-sm border-border/60">
+            <CardHeader className="pb-2">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">VIX (Volatility)</CardTitle>
+                  <CardDescription className="mt-1 text-sm flex flex-wrap items-center gap-2">
+                    {formatValue('index', metrics.vix_level)}
+                    {renderChangeBadge(
+                      computeChange(
+                        metrics.vix_level ?? null,
+                        series.vix?.points?.find((p) => p.value !== null)?.value as number | null,
+                        'index'
+                      ).direction,
+                      computeChange(
+                        metrics.vix_level ?? null,
+                        series.vix?.points?.find((p) => p.value !== null)?.value as number | null,
+                        'index'
+                      ).text
+                    )}
+                  </CardDescription>
                 </div>
-              )}
+                <div className="text-xs text-muted-foreground text-right">
+                  <div className="font-medium">Daily</div>
+                  <div className="text-[11px]">{series.vix?.meta.source}</div>
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Realized S&P vol (ann.): {formatValue('percent', metrics.realized_vol_annual)}
+              </div>
+            </CardHeader>
+            <CardContent className="pt-2 min-w-0 w-full">
+              <MacroChart series={series.vix} range={timeRange} currentValue={metrics.vix_level ?? undefined} />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
-              {detailError && !loadingDetail && (
-                <p className="text-xs text-destructive py-2">
-                  {detailError}
-                </p>
-              )}
-
-              {!loadingDetail && !detailError && macroDetail && (
-                <div className="grid gap-6 md:grid-cols-2">
-                  {/* What's Working */}
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-semibold text-foreground flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4 text-green-600" />
-                      What&apos;s Working
-                    </h4>
-                    <ul className="space-y-1.5 text-xs text-muted-foreground">
-                      {macroDetail.whatsWorking.map((item, i) => (
-                        <li key={i} className="flex gap-2">
-                          <span className="text-green-600 mt-0.5">•</span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="shadow-sm border-border/60">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-emerald-500" />
+              <CardTitle className="text-base">Top Rising Sectors</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {sectorBreadth?.rising && sectorBreadth.rising.length > 0 ? (
+              <div className="space-y-2">
+                {sectorBreadth.rising.slice(0, 10).map((item) => (
+                  <div key={item.key} className="flex items-center justify-between text-sm">
+                    <div>
+                      <div className="font-medium">{item.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {item.symbol} • {item.provider}
+                      </div>
+                    </div>
+                    <div className={cn('font-semibold', item.returnPct >= 0 ? 'text-emerald-600' : 'text-red-500')}>
+                      {item.returnPct >= 0 ? '+' : ''}{item.returnPct.toFixed(2)}%
+                    </div>
                   </div>
-
-                  {/* What's Struggling */}
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-semibold text-foreground flex items-center gap-2">
-                      <TrendingDown className="h-4 w-4 text-red-600" />
-                      What&apos;s Struggling
-                    </h4>
-                    <ul className="space-y-1.5 text-xs text-muted-foreground">
-                      {macroDetail.whatsStruggling.map((item, i) => (
-                        <li key={i} className="flex gap-2">
-                          <span className="text-red-600 mt-0.5">•</span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
+                ))}
+                {sectorBreadth.warnings.length > 0 && (
+                  <div className="mt-2 text-xs text-amber-600">
+                    {formatStatusLabel(sectorBreadth.warnings[0])}
                   </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                {formatStatusLabel(sectorBreadth?.warnings?.[0]) || 'No rising sectors data available'}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-                  {/* Cross-Asset Read */}
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-semibold text-foreground flex items-center gap-2">
-                      <Activity className="h-4 w-4 text-blue-600" />
-                      Cross-Asset Read
-                    </h4>
-                    <ul className="space-y-1.5 text-xs text-muted-foreground">
-                      {macroDetail.crossAssetRead.map((item, i) => (
-                        <li key={i} className="flex gap-2">
-                          <span className="text-blue-600 mt-0.5">•</span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
+        <Card className="shadow-sm border-border/60">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <TrendingDown className="h-4 w-4 text-red-500" />
+              <CardTitle className="text-base">Top Falling Sectors</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {sectorBreadth?.falling && sectorBreadth.falling.length > 0 ? (
+              <div className="space-y-2">
+                {sectorBreadth.falling.slice(0, 10).map((item) => (
+                  <div key={item.key} className="flex items-center justify-between text-sm">
+                    <div>
+                      <div className="font-medium">{item.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {item.symbol} • {item.provider}
+                      </div>
+                    </div>
+                    <div className={cn('font-semibold', item.returnPct >= 0 ? 'text-emerald-600' : 'text-red-500')}>
+                      {item.returnPct >= 0 ? '+' : ''}{item.returnPct.toFixed(2)}%
+                    </div>
                   </div>
+                ))}
+                {sectorBreadth.warnings.length > 0 && (
+                  <div className="mt-2 text-xs text-amber-600">
+                    {formatStatusLabel(sectorBreadth.warnings[0])}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                {formatStatusLabel(sectorBreadth?.warnings?.[0]) || 'No falling sectors data available'}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-                  {/* Risk Flags / Watchlist */}
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-semibold text-foreground flex items-center gap-2">
-                      <span className="text-amber-600">⚠</span>
-                      Risk Flags / Watchlist
-                    </h4>
-                    <ul className="space-y-1.5 text-xs text-muted-foreground">
-                      {macroDetail.riskFlags.map((item, i) => (
-                        <li key={i} className="flex gap-2">
-                          <span className="text-amber-600 mt-0.5">•</span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+      <Card className="shadow-sm border-border/60">
+        <CardHeader className="flex flex-row items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Globe2 className="h-5 w-5" />
+              World Brief
+            </CardTitle>
+            <CardDescription>Top geopolitical and macro developments from the last 3 days.</CardDescription>
+          </div>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/world-brief">View all</Link>
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {worldLoading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              Fetching world brief...
+            </div>
+          )}
+          {worldError && !worldLoading && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{worldError}</AlertDescription>
+            </Alert>
+          )}
+          {!worldLoading && !worldError && (
+            <>
+              {worldItems.length === 0 ? (
+                <Alert variant="default" className="border-amber-300 bg-amber-50/70 dark:bg-amber-900/20">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-sm">
+                    {formatStatusLabel(worldNote) || 'No headlines available right now. Try expanding to All World or increasing the range.'}
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="space-y-3 max-h-[360px] overflow-y-auto pr-2">
+                  {worldItems
+                    .filter((item) => !hiddenKeys.includes(`${item.event_id}`))
+                    .slice(0, 3)
+                    .map((item) => (
+                      <div key={item.event_id} className="rounded-md border border-border/60 p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium">{item.headline}</span>
+                          <span className="text-[11px] text-muted-foreground">
+                            {item.sources?.[0]?.published_at
+                              ? new Date(item.sources[0].published_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+                              : ''}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                            {item.primary_regions?.[0] || 'Global'}
+                          </span>
+                          {(item.tags || []).slice(0, 2).map((tag) => (
+                            <span key={tag} className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                        <p className="mt-2 text-xs text-muted-foreground">{summarizeWorldItem(item)}</p>
+                        <div className="mt-2 flex items-center justify-between text-[11px]">
+                          <button
+                            onClick={() => toggleHide(`${item.event_id}`)}
+                            className="underline text-muted-foreground"
+                          >
+                            Hide similar
+                          </button>
+                          <Link href="/world-brief" className="text-primary hover:underline">
+                            Open brief
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
                 </div>
               )}
             </>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Key Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Fed Funds Rate */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Fed Funds Rate
-            </CardTitle>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold">
-                {getCurrentValue(fedFundsData).toFixed(2)}%
-              </span>
-              <ChangeIndicator change={getChange(fedFundsData)} />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={60}>
-              <LineChart data={fedFundsData}>
-                <Line 
-                  type="monotone" 
-                  dataKey="value" 
-                  stroke="#3b82f6" 
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* 10Y Treasury */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              10Y Treasury
-            </CardTitle>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold">
-                {getCurrentValue(tenYearData).toFixed(2)}%
-              </span>
-              <ChangeIndicator change={getChange(tenYearData)} />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={60}>
-              <LineChart data={tenYearData}>
-                <Line 
-                  type="monotone" 
-                  dataKey="value" 
-                  stroke="#8b5cf6" 
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* CPI */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              CPI (YoY)
-            </CardTitle>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold">
-                {getCurrentValue(cpiData).toFixed(1)}%
-              </span>
-              <ChangeIndicator change={getChange(cpiData)} />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={60}>
-              <LineChart data={cpiData}>
-                <Line 
-                  type="monotone" 
-                  dataKey="value" 
-                  stroke="#f59e0b" 
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Large Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* S&P 500 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">S&P 500</CardTitle>
-            <CardDescription>
-              {getCurrentValue(sp500Data).toLocaleString()} 
-              <ChangeIndicator change={getChange(sp500Data)} />
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={sp500Data} margin={{ left: 0, right: 8, top: 8, bottom: 8 }}>
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={(v) => formatXAxisLabel(v, timeRange)}
-                  tickLine={false}
-                  axisLine={false}
-                  interval="preserveStartEnd"
-                  style={{ fontSize: 11 }}
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  width={60}
-                  style={{ fontSize: 11 }}
-                />
-                <Tooltip
-                  formatter={(value: any) => [value, 'Index Level']}
-                  labelFormatter={(v) => formatXAxisLabel(v as string, timeRange)}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  stroke="#2563eb"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 3 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Unemployment */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Unemployment Rate</CardTitle>
-            <CardDescription>
-              {getCurrentValue(unemploymentData).toFixed(1)}% 
-              <ChangeIndicator change={getChange(unemploymentData)} />
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={260}>
-              <AreaChart data={unemploymentData} margin={{ left: 0, right: 8, top: 8, bottom: 8 }}>
-                <defs>
-                  <linearGradient id="unempFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0.05} />
-                  </linearGradient>
-                </defs>
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={(v) => formatXAxisLabel(v, timeRange)}
-                  tickLine={false}
-                  axisLine={false}
-                  interval="preserveStartEnd"
-                  style={{ fontSize: 11 }}
-                />
-                <YAxis 
-                  tickLine={false} 
-                  axisLine={false} 
-                  width={40} 
-                  style={{ fontSize: 11 }} 
-                />
-                <Tooltip
-                  formatter={(value: any) => [`${value}%`, 'Unemployment']}
-                  labelFormatter={(v) => formatXAxisLabel(v as string, timeRange)}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke="#22c55e"
-                  strokeWidth={2}
-                  fill="url(#unempFill)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* VIX */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base">VIX (Volatility Index)</CardTitle>
-            <CardDescription>
-              {getCurrentValue(vixData).toFixed(1)} 
-              <ChangeIndicator change={getChange(vixData)} />
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={vixData} margin={{ left: 0, right: 8, top: 8, bottom: 8 }}>
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={(v) => formatXAxisLabel(v, timeRange)}
-                  tickLine={false}
-                  axisLine={false}
-                  interval="preserveStartEnd"
-                  style={{ fontSize: 11 }}
-                />
-                <YAxis 
-                  tickLine={false} 
-                  axisLine={false} 
-                  width={40} 
-                  style={{ fontSize: 11 }} 
-                />
-                <Tooltip
-                  formatter={(value: any) => [value, 'VIX']}
-                  labelFormatter={(v) => formatXAxisLabel(v as string, timeRange)}
-                />
-                <Bar 
-                  dataKey="value" 
-                  fill="#ef4444" 
-                  opacity={0.7}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Macro News Preview */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Newspaper className="h-5 w-5" />
-            Macro Headlines
-          </CardTitle>
-          <CardDescription>
-            Recent macro news and market insights
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="flex items-start gap-3 pb-3 border-b">
-              <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0 bg-green-500" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">
-                  Fed Signals Potential Rate Cuts in 2025
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Bloomberg • 2h ago
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 pb-3 border-b">
-              <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0 bg-gray-400" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">
-                  Labor Market Shows Resilience
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  WSJ • 5h ago
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0 bg-green-500" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">
-                  Treasury Yields Fall on Policy Pivot Bets
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Reuters • 8h ago
-                </p>
-              </div>
-            </div>
-            <Button asChild variant="outline" size="sm" className="w-full mt-3">
-              <Link href="/macro/news">
-                View all macro news
-              </Link>
-            </Button>
-          </div>
         </CardContent>
       </Card>
 
@@ -690,32 +500,5 @@ export default function MacroDashboard() {
         </Button>
       </div>
     </div>
-  );
-}
-
-/**
- * Change Indicator Component
- */
-function ChangeIndicator({ change }: { change: number }) {
-  const isPositive = change > 0;
-  const isNeutral = Math.abs(change) < 0.01;
-
-  if (isNeutral) {
-    return (
-      <span className="text-xs text-muted-foreground">
-        (—)
-      </span>
-    );
-  }
-
-  return (
-    <span className={`text-xs flex items-center gap-1 ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-      {isPositive ? (
-        <TrendingUp className="h-3 w-3" />
-      ) : (
-        <TrendingDown className="h-3 w-3" />
-      )}
-      {isPositive ? '+' : ''}{change.toFixed(1)}%
-    </span>
   );
 }

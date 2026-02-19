@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,14 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  Info,
 } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import type { MacroNewsArticle } from '@/types/macro';
 import { cn } from '@/lib/utils';
 
@@ -25,11 +32,7 @@ export default function MacroNewsPage() {
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('1W');
   const [sentimentFilter, setSentimentFilter] = useState<SentimentFilter>('all');
 
-  useEffect(() => {
-    fetchNews();
-  }, [timeWindow]);
-
-  const fetchNews = async () => {
+  const fetchNews = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -52,7 +55,11 @@ export default function MacroNewsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [timeWindow]);
+
+  useEffect(() => {
+    fetchNews();
+  }, [fetchNews]);
 
   const filteredArticles = sentimentFilter === 'all'
     ? articles
@@ -203,34 +210,117 @@ export default function MacroNewsPage() {
                         <span>{article.source}</span>
                         <span>•</span>
                         <span>{getRelativeTime(article.publishedAt)}</span>
-                        {article.tags && article.tags.length > 0 && (
+                        {/* Show affected_channels if available, otherwise legacy tags */}
+                        {(article.analysis?.affected_channels && article.analysis.affected_channels.length > 0) ||
+                         (article.tags && article.tags.length > 0) ? (
                           <>
                             <span>•</span>
                             <div className="flex gap-1">
-                              {article.tags.map((tag) => (
+                              {(article.analysis?.affected_channels || article.tags || []).map((tag, idx) => (
                                 <span
-                                  key={tag}
-                                  className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-secondary"
+                                  key={idx}
+                                  className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-secondary text-secondary-foreground border border-border"
                                 >
                                   {tag}
                                 </span>
                               ))}
                             </div>
                           </>
-                        )}
+                        ) : null}
                       </CardDescription>
                     </div>
                     <SentimentBadge sentiment={article.sentiment} />
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-sm leading-relaxed">{article.summary}</p>
-                  <div className="rounded-lg border-l-4 border-primary bg-primary/5 p-3">
-                    <p className="text-sm italic text-muted-foreground">
-                      <span className="font-semibold text-foreground">AI Insight:</span>{' '}
-                      {article.aiInsight}
-                    </p>
-                  </div>
+                <CardContent className="space-y-4">
+                  {/* Summary Bullets */}
+                  {article.analysis?.what_happened_sentences && article.analysis.what_happened_sentences.length > 0 ? (
+                    <div>
+                      <h4 className="text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wide">
+                        What Happened
+                      </h4>
+                      <p className="text-sm text-foreground leading-relaxed">
+                        {article.analysis.what_happened_sentences.join(' ')}
+                      </p>
+                    </div>
+                  ) : (
+                    // Fallback to legacy summary
+                    <p className="text-sm leading-relaxed">{article.summary}</p>
+                  )}
+
+                  {/* Potential Market Impact */}
+                  {article.analysis?.market_impact_sentences && article.analysis.market_impact_sentences.length > 0 ? (
+                    <div className="rounded-lg border-l-4 border-primary bg-primary/5 p-3">
+                      <h4 className="text-xs font-semibold text-foreground mb-1.5 uppercase tracking-wide">
+                        Market Impact
+                      </h4>
+                      <p className="text-sm text-foreground leading-relaxed">
+                        {article.analysis.market_impact_sentences.join(' ')}
+                      </p>
+                    </div>
+                  ) : (
+                    // Fallback to legacy AI insight
+                    <div className="rounded-lg border-l-4 border-primary bg-primary/5 p-3">
+                      <p className="text-sm italic text-muted-foreground">
+                        <span className="font-semibold text-foreground">AI Insight:</span>{' '}
+                        {article.aiInsight}
+                      </p>
+                    </div>
+                  )}
+
+
+                  {/* Second-order Effects */}
+                  {article.analysis?.second_order_effects && article.analysis.second_order_effects.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wide">
+                        Second-Order Effects
+                      </h4>
+                      <ul className="space-y-1">
+                        {article.analysis.second_order_effects.map((bullet, idx) => (
+                          <li key={idx} className="text-sm text-foreground flex items-start">
+                            <span className="mr-2 text-muted-foreground">•</span>
+                            <span>{bullet}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Key Numbers */}
+                  {article.analysis?.key_numbers && article.analysis.key_numbers.length > 0 && (
+                    <div className="text-xs text-muted-foreground">
+                      <span className="font-semibold">Key numbers: </span>
+                      {article.analysis.key_numbers.map((num, idx) => (
+                        <span key={idx}>
+                          {num.label}: {num.value}
+                          {idx < article.analysis!.key_numbers!.length - 1 ? ', ' : ''}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Caveat (keep reasoning tooltip, remove confidence badges/labels) */}
+                  {article.analysis && (
+                    <div className="flex items-center justify-between pt-2 border-t border-border">
+                      <div className="flex items-center gap-1.5">
+                        {article.analysis.reasoning_short && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="text-xs max-w-xs">{article.analysis.reasoning_short}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground italic">
+                        Directional, depends on follow-through.
+                      </p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))
@@ -289,4 +379,3 @@ function getRelativeTime(isoString: string): string {
   if (diffHours < 24) return `${diffHours}h ago`;
   return `${diffDays}d ago`;
 }
-

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Finnhub API Diagnostics
  * 

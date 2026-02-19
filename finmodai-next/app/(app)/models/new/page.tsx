@@ -11,28 +11,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { APP_NAME } from '@/lib/branding';
 import { DownloadWorkbookButton } from '@/components/models/DownloadWorkbookButton';
-import type { LboAdvancedOptions } from '@/types/lbo';
 
-type ModelType = 'dcf' | 'comps' | 'lbo';
-
-type AdvancedLboFormState = {
-  managementRolloverPct: string;
-  preferredEquityAmount: string;
-  subordinatedNotesAmount: string;
-  minimumCashAtClose: string;
-};
-
-const createDefaultAdvancedLboState = (): AdvancedLboFormState => ({
-  managementRolloverPct: '',
-  preferredEquityAmount: '',
-  subordinatedNotesAmount: '',
-  minimumCashAtClose: '',
-});
+type ModelType = 'dcf' | 'comps' | 'scorecard';
 
 const MODEL_OPTIONS: { value: ModelType; label: string; description: string }[] = [
   { value: 'dcf', label: 'DCF', description: 'Multi-stage cash flow model with terminal value controls.' },
   { value: 'comps', label: 'Comps', description: 'Comparable companies with trading multiples output.' },
-  { value: 'lbo', label: 'LBO', description: 'Leverage, debt paydown, and sponsor IRR analysis.' }
+  { value: 'scorecard', label: 'Scorecard', description: 'Fundamentals ratio scorecard with sector benchmarks.' },
 ];
 
 export default function CreateModelPage() {
@@ -50,8 +35,6 @@ export default function CreateModelPage() {
   const [assumptionsText, setAssumptionsText] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showAdvancedLbo, setShowAdvancedLbo] = useState(false);
-  const [advancedLboForm, setAdvancedLboForm] = useState<AdvancedLboFormState>(() => createDefaultAdvancedLboState());
   const [downloadRequest, setDownloadRequest] = useState<Record<string, any> | null>(null);
   const [downloadTicker, setDownloadTicker] = useState<string | null>(null);
   const [downloadModelType, setDownloadModelType] = useState<ModelType | null>(null);
@@ -62,49 +45,6 @@ export default function CreateModelPage() {
       setModelType(param);
     }
   }, [searchParams]);
-
-  useEffect(() => {
-    if (modelType !== 'lbo') {
-      setShowAdvancedLbo(false);
-      setAdvancedLboForm(createDefaultAdvancedLboState());
-    }
-  }, [modelType]);
-
-  const handleAdvancedInputChange = (field: keyof AdvancedLboFormState, value: string) => {
-    setAdvancedLboForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const parseAdvancedNumber = (value: string): number | undefined => {
-    if (value === undefined || value === null) return undefined;
-    const trimmed = value.toString().trim();
-    if (!trimmed) return undefined;
-    const parsed = Number(trimmed);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  };
-
-  const normalizeAdvancedLboOptions = (): LboAdvancedOptions | undefined => {
-    if (modelType !== 'lbo') {
-      return undefined;
-    }
-    const normalized: LboAdvancedOptions = {};
-    const pctValue = parseAdvancedNumber(advancedLboForm.managementRolloverPct);
-    if (pctValue !== undefined && pctValue > 0) {
-      normalized.managementRolloverPct = Math.min(Math.max(pctValue / 100, 0), 0.9);
-    }
-    const preferred = parseAdvancedNumber(advancedLboForm.preferredEquityAmount);
-    if (preferred !== undefined && preferred > 0) {
-      normalized.preferredEquityAmount = preferred;
-    }
-    const subNotes = parseAdvancedNumber(advancedLboForm.subordinatedNotesAmount);
-    if (subNotes !== undefined && subNotes > 0) {
-      normalized.subordinatedNotesAmount = subNotes;
-    }
-    const minCash = parseAdvancedNumber(advancedLboForm.minimumCashAtClose);
-    if (minCash !== undefined && minCash > 0) {
-      normalized.minimumCashAtClose = minCash;
-    }
-    return Object.keys(normalized).length > 0 ? normalized : undefined;
-  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -117,14 +57,10 @@ export default function CreateModelPage() {
     setError(null);
 
     try {
-      const advancedLboPayload = normalizeAdvancedLboOptions();
       const requestPayload: Record<string, any> = {
         modelType,
         ticker: trimmedTicker,
       };
-      if (advancedLboPayload) {
-        requestPayload.lboAdvanced = advancedLboPayload;
-      }
       setDownloadRequest(requestPayload);
       setDownloadTicker(trimmedTicker);
       setDownloadModelType(modelType);
@@ -267,83 +203,6 @@ export default function CreateModelPage() {
             )}
           </div>
 
-          {modelType === 'lbo' && (
-            <div className="space-y-3 rounded-lg border border-dashed border-border p-4">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm font-semibold text-secondary">Advanced LBO Options</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAdvancedLbo((prev) => !prev)}
-                >
-                  {showAdvancedLbo ? 'Hide Options' : 'Show Options'}
-                </Button>
-              </div>
-              {showAdvancedLbo && (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label htmlFor="lite-lbo-rollover">Management rollover (% of equity)</Label>
-                    <Input
-                      id="lite-lbo-rollover"
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.5}
-                      value={advancedLboForm.managementRolloverPct}
-                      onChange={(event) =>
-                        handleAdvancedInputChange('managementRolloverPct', event.target.value)
-                      }
-                      placeholder="5"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="lite-lbo-preferred">Preferred equity ($MM)</Label>
-                    <Input
-                      id="lite-lbo-preferred"
-                      type="number"
-                      min={0}
-                      step={0.1}
-                      value={advancedLboForm.preferredEquityAmount}
-                      onChange={(event) =>
-                        handleAdvancedInputChange('preferredEquityAmount', event.target.value)
-                      }
-                      placeholder="20"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="lite-lbo-sub-notes">Subordinated notes ($MM)</Label>
-                    <Input
-                      id="lite-lbo-sub-notes"
-                      type="number"
-                      min={0}
-                      step={0.1}
-                      value={advancedLboForm.subordinatedNotesAmount}
-                      onChange={(event) =>
-                        handleAdvancedInputChange('subordinatedNotesAmount', event.target.value)
-                      }
-                      placeholder="30"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="lite-lbo-min-cash">Minimum cash at close ($MM)</Label>
-                    <Input
-                      id="lite-lbo-min-cash"
-                      type="number"
-                      min={0}
-                      step={0.1}
-                      value={advancedLboForm.minimumCashAtClose}
-                      onChange={(event) =>
-                        handleAdvancedInputChange('minimumCashAtClose', event.target.value)
-                      }
-                      placeholder="50"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
           )}
@@ -377,5 +236,5 @@ export default function CreateModelPage() {
 }
 
 function isModelType(value: string | null): value is ModelType {
-  return value === 'dcf' || value === 'comps' || value === 'lbo';
+  return value === 'dcf' || value === 'comps' || value === 'scorecard';
 }

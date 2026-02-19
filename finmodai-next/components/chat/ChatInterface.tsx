@@ -67,7 +67,7 @@ export function ChatInterface({ userEmail }: ChatInterfaceProps) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          messages: [...messages.filter((m) => m.role !== 'system'), userMessage],
+          messages: [...messages, userMessage],
           topic: extractTicker(trimmed),
           pdfFileName: pdfFile?.name ?? null
         })

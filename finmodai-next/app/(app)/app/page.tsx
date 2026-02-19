@@ -222,6 +222,8 @@ function formatModelLabel(type: string) {
       return 'LBO';
     case 'comps':
       return 'Comps';
+    case 'scorecard':
+      return 'Scorecard';
     default:
       return type;
   }

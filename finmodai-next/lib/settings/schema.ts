@@ -22,10 +22,15 @@ export const AppSettingsSchema = z.object({
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
 
 export interface AppliedDefault {
-  field: string;
+  /**
+   * Canonical identifier for the setting that was applied.
+   * Historically some code used `field`; newer code uses `path`.
+   */
+  path: string;
+  field?: string;
   value: any;
   reason: string;
-  source: 'user' | 'system' | 'ai' | 'sector';
+  source: 'user' | 'system' | 'ai' | 'sector' | 'settings';
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {

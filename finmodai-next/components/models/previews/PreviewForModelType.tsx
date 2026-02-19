@@ -8,12 +8,15 @@ import { LboPreview } from './LboPreview';
 import { CompsPreview } from './CompsPreview';
 import { MergerPreview } from './MergerPreview';
 import { OperatingPreview } from './OperatingPreview';
+import { ScorecardPreview } from './ScorecardPreview';
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertTriangle } from 'lucide-react';
 
 interface PreviewForModelTypeProps {
-  modelType: ModelOutput['type'];
-  output: ModelOutput['data'];
+  // Legacy preview router. Newer flows render ModelDocument via ModelPreviewRenderer.
+  // Keep this permissive to avoid type drift across model output shapes.
+  modelType: string;
+  output: any;
   ticker: string;
   onEditAssumptions?: () => void;
   rawOutput?: any; // For debug drawer
@@ -25,26 +28,58 @@ interface PreviewForModelTypeProps {
  */
 export function PreviewForModelType({ modelType, output, ticker, onEditAssumptions, rawOutput }: PreviewForModelTypeProps) {
   try {
+    // Extract preview from rawOutput if available (from API response)
+    const preview = rawOutput?.preview || output?.preview || null;
+    
+    // Create a unified output object with preview
+    const outputWithPreview = preview ? { ...output, preview } : output;
+    
     switch (modelType) {
       case 'three-statement':
-        return <ThreeStatementPreview output={output as any} ticker={ticker} />;
+        // Use literal preview if available (preview from generatePreviewFromWorkbook)
+        if (rawOutput?.preview && rawOutput.preview.columns && rawOutput.preview.columns.length > 0) {
+          const { LiteralThreeStatementPreview } = require('./LiteralThreeStatementPreview');
+          return (
+            <LiteralThreeStatementPreview
+              preview={rawOutput.preview}
+              ticker={ticker}
+              downloadUrl={rawOutput.downloadUrl}
+              onDownload={onEditAssumptions} // Reuse for download
+            />
+          );
+        }
+        return <ThreeStatementPreview output={outputWithPreview as any} ticker={ticker} />;
       case 'dcf':
         return (
           <DcfPreview 
-            output={output as any} 
+            output={outputWithPreview as any} 
             ticker={ticker} 
             onEditAssumptions={onEditAssumptions} 
             rawDcfOutput={rawOutput || null}
           />
         );
       case 'lbo':
-        return <LboPreview output={output as any} ticker={ticker} />;
+        return <LboPreview output={outputWithPreview as any} ticker={ticker} />;
       case 'comps':
-        return <CompsPreview output={output as any} ticker={ticker} />;
+        // Use literal preview if available (preview from generatePreviewFromWorkbook)
+        if (rawOutput?.preview && rawOutput.preview.columns && rawOutput.preview.columns.length > 0) {
+          const { LiteralCompsPreview } = require('./LiteralCompsPreview');
+          return (
+            <LiteralCompsPreview
+              preview={rawOutput.preview}
+              ticker={ticker}
+              downloadUrl={rawOutput.downloadUrl}
+              onDownload={onEditAssumptions} // Reuse for download
+            />
+          );
+        }
+        return <CompsPreview output={outputWithPreview as any} ticker={ticker} onEditPeers={onEditAssumptions} />;
       case 'merger':
-        return <MergerPreview output={output as any} ticker={ticker} />;
+        return <MergerPreview output={outputWithPreview as any} ticker={ticker} />;
       case 'operating':
-        return <OperatingPreview output={output as any} ticker={ticker} />;
+        return <OperatingPreview output={outputWithPreview as any} ticker={ticker} />;
+      case 'scorecard':
+        return <ScorecardPreview output={rawOutput || outputWithPreview} ticker={ticker} />;
       default:
         return (
           <Card className="border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">

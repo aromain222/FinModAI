@@ -7,11 +7,13 @@ export async function copyWorksheet(
 ): Promise<ExcelJS.Worksheet> {
   const newSheet = target.addWorksheet(newName || source.name);
   
-  // Copy column definitions
-  newSheet.columns = source.columns.map(col => ({
-    key: col.key,
-    width: col.width
-  }));
+  // Copy column definitions (handle null columns)
+  if (source.columns && Array.isArray(source.columns) && source.columns.length > 0) {
+    newSheet.columns = source.columns.map(col => ({
+      key: col.key,
+      width: col.width
+    }));
+  }
   
   // Copy rows
   source.eachRow((row, rowNumber) => {

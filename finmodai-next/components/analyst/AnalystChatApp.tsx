@@ -63,12 +63,25 @@ export function AnalystChatApp({ models, defaultModelId }: AnalystChatAppProps) 
         })
       });
 
-      if (!response.ok) throw new Error('Chat request failed');
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error((payload && typeof payload.error === 'string' && payload.error) || 'Chat request failed');
+      }
       const payload = await response.json();
+      const replyText =
+        (payload && typeof payload.reply === 'string' && payload.reply.trim().length > 0
+          ? payload.reply
+          : payload && typeof payload.error === 'string' && payload.error.trim().length > 0
+            ? payload.error
+            : 'No response generated.');
+      const withErrorDetail =
+        payload?.fallback && typeof payload?.error === 'string' && payload.error.trim().length > 0
+          ? `${replyText}\n\n[debug] ${payload.error}`
+          : replyText;
       const reply: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: payload?.reply ?? 'No response generated.'
+        content: withErrorDetail
       };
       setMessages((prev) => [...prev, reply]);
     } catch (error) {
@@ -119,7 +132,7 @@ export function AnalystChatApp({ models, defaultModelId }: AnalystChatAppProps) 
                   <option value="">Select model</option>
                   {models.map((model) => (
                     <option key={model.id} value={model.id}>
-                      {model.ticker} ({model.type})
+                      {model.ticker} ({model.model_type})
                     </option>
                   ))}
                 </select>

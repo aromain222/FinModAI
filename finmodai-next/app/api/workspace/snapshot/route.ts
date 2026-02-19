@@ -24,14 +24,14 @@ export async function GET() {
     const lastRunAt = await getLastSuccessfulRun();
     
     // Get average runtime from successful runs
-    const avgRuntimeMs = await getAverageRuntime(20);
+    const avgRuntimeMs = getAverageRuntime() ?? null;
     
     return NextResponse.json({
       totalModels,
       lastModel: lastModel
         ? {
             ticker: lastModel.ticker,
-            modelType: lastModel.type,
+            modelType: lastModel.model_type,
             createdAt: lastModel.created_at,
           }
         : null,

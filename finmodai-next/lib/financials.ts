@@ -101,13 +101,29 @@ export function cleanAndScaleFinancials(raw: RawFinancials): ScaledFinancials {
     scaleFactor
   };
   
-  // Add any additional fields
+  // Add any additional fields (totalDebt, netDebt, etc.)
   for (const [key, value] of Object.entries(parsed)) {
     if (!(key in scaled) && value !== undefined) {
       scaled[key] = value * scaleFactor;
     }
   }
-  
+
+  // Set netDebtM / totalDebtM (millions) so route and DCF can use them
+  const totalDebtScaled = typeof scaled.totalDebt === 'number' ? scaled.totalDebt : (scaled as any).totalDebt;
+  const netDebtScaled = typeof scaled.netDebt === 'number' ? scaled.netDebt : (scaled as any).netDebt;
+  const cashScaled = typeof scaled.cash === 'number' ? scaled.cash : undefined;
+  if (typeof totalDebtScaled === 'number') {
+    (scaled as any).totalDebtM = normalizeToMillions(totalDebtScaled, scale);
+  }
+  if (typeof netDebtScaled === 'number') {
+    (scaled as any).netDebtM = normalizeToMillions(netDebtScaled, scale);
+  } else if ((scaled as any).totalDebtM != null && typeof cashScaled === 'number') {
+    (scaled as any).netDebtM = (scaled as any).totalDebtM - normalizeToMillions(cashScaled, scale);
+  }
+  if (typeof cashScaled === 'number') {
+    (scaled as any).cashM = normalizeToMillions(cashScaled, scale);
+  }
+
   return scaled;
 }
 

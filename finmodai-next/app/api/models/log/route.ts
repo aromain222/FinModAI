@@ -5,16 +5,16 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const ticker = body?.ticker;
-    const type = body?.modelType;
+    const modelType = body?.modelType;
 
-    if (!ticker || !type) {
+    if (!ticker || !modelType) {
       return NextResponse.json({ error: 'ticker and modelType are required' }, { status: 400 });
     }
 
     const record = await insertModel({
       ticker,
-      type,
-      status: 'completed',
+      model_type: modelType,
+      status: 'ready',
       file_name: body?.fileName ?? null,
       notes: body?.notes ?? null
     });

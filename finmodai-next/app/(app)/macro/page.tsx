@@ -9,20 +9,17 @@ export const metadata = {
 
 export default function MacroPage() {
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      {/* Page Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <Activity className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold">Macro Dashboard</h1>
+    <div className="w-full px-6 lg:px-8 2xl:px-10 h-[calc(100vh-72px)] overflow-hidden">
+      <div className="flex items-center gap-3 py-4">
+        <Activity className="h-6 w-6 text-primary" />
+        <div>
+          <h1 className="text-xl font-semibold">Macro IQ</h1>
+          <p className="text-xs text-muted-foreground">Real-time macro indicators and event intelligence</p>
         </div>
-        <p className="text-muted-foreground">
-          Real-time macro indicators, risk analysis, and AI-powered market insights
-        </p>
       </div>
-
-      {/* Dashboard */}
-      <MacroDashboard />
+      <div className="h-[calc(100%-60px)] min-h-0">
+        <MacroDashboard />
+      </div>
     </div>
   );
 }

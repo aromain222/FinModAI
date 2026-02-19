@@ -74,7 +74,7 @@ export type AssumptionEnrichmentRequest = {
   ticker: string;
   companyName?: string;
   sector?: string;
-  modelType: 'dcf' | 'lbo' | 'three-statement' | 'comps';
+  modelType: 'dcf' | 'lbo' | 'three-statement' | 'comps' | 'scorecard';
   currency?: string;
   partialAssumptions: PartialDcfAssumptions;
   userNotes?: string;
@@ -91,4 +91,3 @@ export const DEFAULT_DCF_ASSUMPTIONS: Partial<DcfAssumptions> = {
   wacc: 0.10,                 // 10% discount rate
   terminalGrowth: 0.025,      // 2.5% perpetual growth
 };
-

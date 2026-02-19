@@ -9,7 +9,8 @@ import {
   LineChart, 
   FileText, 
   Settings, 
-  MessageSquare 
+  MessageSquare,
+  Newspaper 
 } from "lucide-react";
 import { CapitalBaseLogo } from "@/components/CapitalBaseLogo";
 import { APP_CONSOLE_NAME, APP_NAME } from "@/lib/branding";
@@ -19,7 +20,8 @@ const navItems = [
   { href: '/app', label: 'Overview', icon: LayoutDashboard, section: 'Workspace' },
   { href: '/models', label: 'Models', icon: Layers, section: 'Workspace' },
   { href: '/scenario-engine', label: 'Scenario Engine', icon: SlidersHorizontal, section: 'Tools' },
-  { href: '/macro', label: 'Macro IQ', icon: LineChart, section: 'Tools' },
+  { href: '/news', label: 'News', icon: Newspaper, section: 'Tools' },
+  { href: '/market', label: 'Market', icon: LineChart, section: 'Tools' },
   { href: '/reports', label: 'Reports', icon: FileText, section: 'Tools' },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings, section: 'Settings' },
   { href: '/analyst-chat', label: 'Analyst Chat', icon: MessageSquare, section: 'Tools' }
@@ -53,7 +55,7 @@ export function DashboardSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden w-64 border-r border-[var(--cb-border)] bg-[var(--cb-bg)] px-5 py-6 text-[var(--cb-text-body)] transition-colors md:flex md:flex-col">
+    <aside className="hidden w-[230px] border-r border-[var(--cb-border)] bg-[var(--cb-bg)] px-4 py-6 text-[var(--cb-text-body)] transition-colors md:flex md:flex-col">
       <div className="mb-8 space-y-2">
         <CapitalBaseLogo />
         <div className="pt-2">
@@ -100,7 +102,7 @@ export function DashboardSidebar() {
                             : "text-[var(--cb-text-muted)] group-hover:text-[var(--cb-text-secondary)]"
                         )}
                       />
-                      <span>{label}</span>
+                      <span className="truncate">{label}</span>
                     </Link>
                   );
                 })}

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { APP_WORKSPACE_NAME } from "@/lib/branding";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { isDemoMode } from "@/lib/demo/isDemoMode";
 
 type DashboardTopbarProps = {
   userEmail?: string;
@@ -14,9 +15,11 @@ type DashboardTopbarProps = {
 
 export function DashboardTopbar({ userEmail: propUserEmail }: DashboardTopbarProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClientComponentClient();
   const [userEmail, setUserEmail] = useState(propUserEmail || "guest@capitalbase.app");
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const demoMode = isDemoMode(searchParams);
 
   useEffect(() => {
     // Get current user email from Supabase session
@@ -66,9 +69,16 @@ export function DashboardTopbar({ userEmail: propUserEmail }: DashboardTopbarPro
 
   return (
     <header className="flex items-center justify-between border-b border-[var(--cb-border)] bg-[var(--cb-surface)] px-6 py-4 text-[var(--cb-text-body)] shadow-panel transition-colors">
-      <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-[var(--cb-text-muted)]">Workspace</p>
-        <h1 className="text-2xl font-semibold text-[var(--cb-text-primary)]">{APP_WORKSPACE_NAME}</h1>
+      <div className="flex items-center gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-[var(--cb-text-muted)]">Workspace</p>
+          <h1 className="text-2xl font-semibold text-[var(--cb-text-primary)]">{APP_WORKSPACE_NAME}</h1>
+        </div>
+        {demoMode && (
+          <span className="rounded-full bg-[var(--cb-green)]/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--cb-green)]">
+            Demo
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-4">
         <ThemeToggle />

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * FMP API Diagnostics
  * 

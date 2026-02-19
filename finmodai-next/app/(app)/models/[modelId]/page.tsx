@@ -1,23 +1,25 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { DownloadModelButton } from '@/components/models/DownloadButton';
 import { NotesEditor } from '@/components/models/NotesEditor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Home, ArrowLeft, Loader2, TrendingUp, Activity, DollarSign } from 'lucide-react';
+import { Home, ArrowLeft, TrendingUp, Activity, DollarSign } from 'lucide-react';
 import { APP_NAME } from '@/lib/branding';
+import { LoadingPanel } from '@/components/loading';
+import { LOADING_TABS } from '@/lib/loadingCopy';
 
 type Model = {
   id: string;
   ticker: string;
-  type: string;
+  model_type: string;
   status: string;
-  notes: string | null;
+  notes?: string;
   created_at: string;
-  file_name: string | null;
+  file_name?: string;
 };
 
 export default function ModelDetailPage() {
@@ -29,13 +31,7 @@ export default function ModelDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (modelId) {
-      fetchModel();
-    }
-  }, [modelId]);
-
-  const fetchModel = async () => {
+  const fetchModel = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -56,18 +52,27 @@ export default function ModelDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [modelId]);
+
+  useEffect(() => {
+    if (modelId) {
+      fetchModel();
+    }
+  }, [modelId, fetchModel]);
+
+  const modelDetailCopy = LOADING_TABS.modelDetail;
 
   if (loading) {
     return (
       <main className="min-h-screen bg-background px-6 py-10">
         <div className="mx-auto max-w-5xl">
-          <div className="flex items-center justify-center rounded-2xl border border-border bg-white p-12 shadow-sm">
-            <div className="text-center">
-              <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-              <p className="mt-3 text-sm text-muted-foreground">Loading model...</p>
-            </div>
-          </div>
+          <LoadingPanel
+            title={modelDetailCopy.title}
+            subtitle={modelDetailCopy.subtitle}
+            steps={modelDetailCopy.steps}
+            variant={modelDetailCopy.variant}
+            showProgress={true}
+          />
         </div>
       </main>
     );
@@ -130,7 +135,7 @@ export default function ModelDetailPage() {
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-primary">{model.ticker}</p>
-            <h1 className="text-3xl font-semibold text-secondary">{formatModelLabel(model.type)} Model</h1>
+            <h1 className="text-3xl font-semibold text-secondary">{formatModelLabel(model.model_type)} Model</h1>
             <p className="text-sm text-muted-foreground">
               Created {new Date(model.created_at).toLocaleDateString('en-US', {
                 month: 'long',
@@ -142,7 +147,7 @@ export default function ModelDetailPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <DownloadModelButton ticker={model.ticker} modelType={model.type} variant="default" />
+            <DownloadModelButton ticker={model.ticker} modelType={model.model_type} variant="default" />
             <Button asChild variant="outline" size="sm">
               <Link href={`/scenario-engine?ticker=${model.ticker}`}>Scenario Engine</Link>
             </Button>
@@ -166,19 +171,19 @@ export default function ModelDetailPage() {
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Enterprise Value</p>
                   <p className="text-lg font-semibold text-secondary">
-                    {getPlaceholderValue(model.type, 'ev')}
+                    {getPlaceholderValue(model.model_type, 'ev')}
                   </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Equity Value</p>
                   <p className="text-lg font-semibold text-secondary">
-                    {getPlaceholderValue(model.type, 'equity')}
+                    {getPlaceholderValue(model.model_type, 'equity')}
                   </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Price Target</p>
                   <p className="text-lg font-semibold text-green-600">
-                    {getPlaceholderValue(model.type, 'price')}
+                    {getPlaceholderValue(model.model_type, 'price')}
                   </p>
                 </div>
               </div>
@@ -197,19 +202,19 @@ export default function ModelDetailPage() {
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Revenue Growth</p>
                   <p className="text-lg font-semibold text-secondary">
-                    {getPlaceholderValue(model.type, 'growth')}
+                    {getPlaceholderValue(model.model_type, 'growth')}
                   </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">EBITDA Margin</p>
                   <p className="text-lg font-semibold text-secondary">
-                    {getPlaceholderValue(model.type, 'margin')}
+                    {getPlaceholderValue(model.model_type, 'margin')}
                   </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">WACC</p>
                   <p className="text-lg font-semibold text-secondary">
-                    {getPlaceholderValue(model.type, 'wacc')}
+                    {getPlaceholderValue(model.model_type, 'wacc')}
                   </p>
                 </div>
               </div>
@@ -227,7 +232,7 @@ export default function ModelDetailPage() {
               <div className="space-y-3">
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Model Type</p>
-                  <p className="text-lg font-semibold text-secondary">{formatModelLabel(model.type)}</p>
+                  <p className="text-lg font-semibold text-secondary">{formatModelLabel(model.model_type)}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Status</p>
@@ -260,7 +265,7 @@ export default function ModelDetailPage() {
             <CardTitle>Model Description</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            <p>{getModelDescription(model.type, model.ticker)}</p>
+            <p>{getModelDescription(model.model_type, model.ticker)}</p>
             <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700">
               <strong>💡 Tip:</strong> Use the Scenario Engine to run bull/bear cases and visualize sensitivity analysis.
               Open the Analyst Chat to ask questions about this model.
@@ -274,7 +279,7 @@ export default function ModelDetailPage() {
             <CardTitle>Analyst Notes</CardTitle>
           </CardHeader>
           <CardContent>
-            <NotesEditor modelId={model.id} initialValue={model.notes} />
+            <NotesEditor modelId={model.id} initialValue={model.notes || null} />
           </CardContent>
         </Card>
 
@@ -293,7 +298,7 @@ export default function ModelDetailPage() {
             </Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href={`/models/create?type=${model.type}`}>
+            <Link href={`/models/create?type=${model.model_type}`}>
               <Plus className="mr-2 h-4 w-4" />
               Create Similar Model
             </Link>
@@ -314,6 +319,8 @@ function formatModelLabel(type: string) {
       return 'LBO';
     case 'comps':
       return 'Comps';
+    case 'scorecard':
+      return 'Scorecard';
     default:
       return type;
   }
@@ -329,6 +336,8 @@ function getModelDescription(type: string, ticker: string) {
       return `This Trading Comps model for ${ticker} compares valuation multiples (EV/Revenue, EV/EBITDA, P/E) against peer companies to determine relative valuation and identify potential mispricing.`;
     case 'three-statement':
       return `This Three-Statement model for ${ticker} integrates the Income Statement, Balance Sheet, and Cash Flow Statement with dynamic linking. It projects financials forward and maintains accounting consistency.`;
+    case 'scorecard':
+      return `This Fundamentals Scorecard for ${ticker} benchmarks core operating and balance-sheet ratios against sector medians using demo snapshots. It is deterministic, fast to compute, and designed for demo-safe relative context.`;
     default:
       return `Financial model for ${ticker} generated by ${APP_NAME}. Download the Excel workbook to view detailed calculations and assumptions.`;
   }

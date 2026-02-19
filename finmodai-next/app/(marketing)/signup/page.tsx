@@ -7,12 +7,11 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import type { Database } from '@/lib/supabaseClient';
 import { AuthPage } from '@/components/auth/AuthPage';
 
 export default async function SignupPage() {
   // If already authenticated, redirect to app
-  const supabase = createServerComponentClient<Database>({ cookies });
+  const supabase = createServerComponentClient({ cookies });
   const {
     data: { session },
   } = await supabase.auth.getSession();

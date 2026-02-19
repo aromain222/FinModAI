@@ -27,10 +27,11 @@ export async function applyDefaultsToModelInputs<T extends Record<string, any>>(
     if (result[inputKey] === undefined && settings[settingKey] !== undefined) {
       result[inputKey] = settings[settingKey] as any;
       appliedDefaults.push({
+        path: String(inputKey),
         field: String(inputKey),
         value: settings[settingKey],
         reason: `Using default ${label} from settings`,
-        source: 'system'
+        source: 'settings'
       });
     }
   }

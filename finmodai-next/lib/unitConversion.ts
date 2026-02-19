@@ -26,7 +26,9 @@ export function ensureMillions(value: number, currentUnit: FinancialUnit = 'actu
 /**
  * Format a number as millions with proper suffix
  */
-export function formatMillions(value: number, decimals: number = 1): string {
+export function formatMillions(value: number | null | undefined, decimals: number = 1): string {
+  if (value === null || value === undefined) return 'N/A';
+  if (typeof value !== 'number' || !isFinite(value)) return 'N/A';
   return `$${value.toFixed(decimals)}M`;
 }
 

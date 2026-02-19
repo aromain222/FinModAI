@@ -3,7 +3,14 @@
  * Track and analyze model generation metrics
  */
 
-export type ModelType = 'dcf' | 'lbo' | 'comps' | 'merger' | 'operating' | 'three-statement';
+export type ModelType =
+  | 'dcf'
+  | 'lbo'
+  | 'comps'
+  | 'merger'
+  | 'operating'
+  | 'three-statement'
+  | 'scorecard';
 
 export interface ModelStats {
   totalModels: number;
@@ -53,7 +60,8 @@ export function getModelStats(): ModelStats {
     'comps': 0,
     'merger': 0,
     'operating': 0,
-    'three-statement': 0
+    'three-statement': 0,
+    'scorecard': 0,
   };
   
   const byStatus: Record<string, number> = {
@@ -134,6 +142,9 @@ export function mapModelTypeToMetrics(modelType: string): ModelType {
     case 'threestatement':
     case '3statement':
       return 'three-statement';
+    case 'scorecard':
+    case 'fundamentalsscorecard':
+      return 'scorecard';
     default:
       return 'dcf'; // Default fallback
   }
@@ -166,7 +177,8 @@ export function getErrorRateByType(): Record<ModelType, number> {
     'comps': 0,
     'merger': 0,
     'operating': 0,
-    'three-statement': 0
+    'three-statement': 0,
+    'scorecard': 0,
   };
   
   const countsByType: Record<ModelType, { total: number; errors: number }> = {
@@ -175,7 +187,8 @@ export function getErrorRateByType(): Record<ModelType, number> {
     'comps': { total: 0, errors: 0 },
     'merger': { total: 0, errors: 0 },
     'operating': { total: 0, errors: 0 },
-    'three-statement': { total: 0, errors: 0 }
+    'three-statement': { total: 0, errors: 0 },
+    'scorecard': { total: 0, errors: 0 },
   };
   
   for (const metric of metricsStore) {

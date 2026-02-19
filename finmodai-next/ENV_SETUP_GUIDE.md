@@ -25,8 +25,11 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=REDACTED
 ### 🟡 **OPTIONAL** for Enhanced Features:
 
 ```bash
-# News API (optional - for macro news integration)
-NEWS_API_KEY=your-newsapi-key-here
+# Perigon API key (optional - preferred provider for live headlines)
+PERIGON_API_KEY=your-perigon-api-key-here
+
+# NewsAPI key (optional fallback provider)
+NEWSAPI_KEY=your-newsapi-key-here
 
 # Supabase Service Role Key (optional - for macro indicators from database)
 SUPABASE_SERVICE_ROLE_KEY=REDACTED
@@ -76,4 +79,3 @@ After setting up your `.env.local`:
 If you see a response, everything is working! 🎉
 
 If you see an error about missing API keys, double-check your `.env.local` file.
-

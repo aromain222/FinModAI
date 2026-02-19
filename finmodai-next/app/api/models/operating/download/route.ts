@@ -43,9 +43,9 @@ export async function POST(req: Request) {
     const input = parseResult.data;
     
     // Compute model (will throw if invariants violated)
-    let output;
+    let output: any;
     try {
-      output = computeOperatingModel(input);
+      output = await computeOperatingModel(input);
     } catch (computeError: any) {
       return NextResponse.json(
         {
@@ -56,9 +56,9 @@ export async function POST(req: Request) {
     }
     
     // Compute variances (if actuals exist)
-    let variance = null;
+    let variance: any = null;
     try {
-      variance = computeVariances(input, output);
+      variance = await computeVariances(input, output);
     } catch (varianceError: any) {
       return NextResponse.json(
         {
@@ -68,14 +68,18 @@ export async function POST(req: Request) {
       );
     }
     
-    // Generate Excel
-    const workbook = await generateOperatingWorkbook(input, output, variance);
+    // Generate Excel (excel layer expects a single "data" object)
+    const workbook = await generateOperatingWorkbook({
+      ...input,
+      ...output,
+      variance,
+    });
     
     // Convert to buffer
     const buffer = await workbook.xlsx.writeBuffer();
     
     // Return binary with correct headers
-    const filename = `Operating_Model_${input.startMonth}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const filename = `Operating_Model_${input.ticker}_${new Date().toISOString().split('T')[0]}.xlsx`;
     
     return new NextResponse(buffer as any, {
       status: 200,
