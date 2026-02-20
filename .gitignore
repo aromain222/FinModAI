@@ -25,6 +25,7 @@ wheels/
 venv/
 env/
 ENV/
+!finmodai-next/lib/env/
 
 # Environment variables
 .env
