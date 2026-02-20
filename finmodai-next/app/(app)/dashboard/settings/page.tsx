@@ -22,6 +22,7 @@ export default function SettingsPage() {
   useEffect(() => {
     loadSettings();
     loadSystemStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only init
   }, []);
 
   const loadSettings = async () => {

@@ -114,7 +114,8 @@ export async function selectComparableUniverse(
     throw new Error(`Target ticker ${cleanTicker} not found in demo_company_snapshots.`);
   }
 
-  const targetFeatures = computeFeatures(targetRow as SnapshotRow);
+  const targetRowTyped = targetRow as SnapshotRow;
+  const targetFeatures = computeFeatures(targetRowTyped);
   if (!targetFeatures) {
     throw new Error('Target snapshot missing required financials for similarity screen.');
   }
@@ -201,7 +202,7 @@ export async function selectComparableUniverse(
     } satisfies ComparableCompany;
   });
 
-  const sector = targetRow.sector ?? null;
+  const sector = targetRowTyped.sector ?? null;
   const sameSector = sector
     ? scored.filter((item) => item.sector?.toLowerCase() === String(sector).toLowerCase())
     : [];
@@ -224,17 +225,17 @@ export async function selectComparableUniverse(
     }
   }
 
-  const targetNetDebt = (targetRow.total_debt ? toNumber(targetRow.total_debt) ?? 0 : 0) - (targetRow.cash ? toNumber(targetRow.cash) ?? 0 : 0);
+  const targetNetDebt = (targetRowTyped.total_debt ? toNumber(targetRowTyped.total_debt) ?? 0 : 0) - (targetRowTyped.cash ? toNumber(targetRowTyped.cash) ?? 0 : 0);
   const target: ComparableCompany = {
     ticker: cleanTicker,
-    company_name: targetRow.company_name ?? null,
-    sector: targetRow.sector ?? null,
-    revenue_ltm: toNumber(targetRow.revenue_ltm) as number,
-    ebitda_ltm: toNumber(targetRow.ebitda_ltm) as number,
-    net_income_ltm: toNumber(targetRow.net_income_ltm) as number,
-    cash: toNumber(targetRow.cash) ?? 0,
-    total_debt: toNumber(targetRow.total_debt) ?? 0,
-    shares_outstanding: toNumber(targetRow.shares_outstanding),
+    company_name: targetRowTyped.company_name ?? null,
+    sector: targetRowTyped.sector ?? null,
+    revenue_ltm: toNumber(targetRowTyped.revenue_ltm) as number,
+    ebitda_ltm: toNumber(targetRowTyped.ebitda_ltm) as number,
+    net_income_ltm: toNumber(targetRowTyped.net_income_ltm) as number,
+    cash: toNumber(targetRowTyped.cash) ?? 0,
+    total_debt: toNumber(targetRowTyped.total_debt) ?? 0,
+    shares_outstanding: toNumber(targetRowTyped.shares_outstanding),
     logRevenue: targetFeatures.logRevenue,
     ebitdaMargin: targetFeatures.ebitdaMargin,
     netMargin: targetFeatures.netMargin,

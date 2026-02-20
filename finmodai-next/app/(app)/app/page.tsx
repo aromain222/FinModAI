@@ -60,9 +60,10 @@ async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
           .order('created_at', { ascending: false })
           .limit(20);
         
-        if (data && data.length > 0) {
-          lastRunAt = data[0].created_at;
-          const durations = data
+        const rows = (data ?? []) as { created_at: string; duration_ms: number | null }[];
+        if (rows.length > 0) {
+          lastRunAt = rows[0].created_at;
+          const durations = rows
             .map((row) => (typeof row.duration_ms === 'number' ? row.duration_ms : null))
             .filter((value): value is number => typeof value === 'number' && value >= 0);
           

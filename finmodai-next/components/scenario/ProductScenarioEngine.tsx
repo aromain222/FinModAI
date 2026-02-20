@@ -131,7 +131,7 @@ export function ProductScenarioEngine() {
     if (selectedFrame !== 'base') {
       generateAIExplanation(frame, scenarioAssumptions, baseValuation, scenarioVal);
     }
-    
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- generateAIExplanation intentionally not in deps
   }, [selectedFrame, sandbox, baseValuation, tickerSnapshot]);
   
   // Generate AI explanation

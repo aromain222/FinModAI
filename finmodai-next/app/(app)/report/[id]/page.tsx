@@ -17,7 +17,7 @@ export default async function ReportDetailPage({ params }: { params: { id: strin
         .maybeSingle();
 
       if (!result.error && result.data) {
-        data = result.data as typeof data;
+        data = result.data as { id: string; report: ModelReport; created_at: string };
       }
     } catch (e) {
       if (process.env.NODE_ENV === 'development') {
@@ -26,8 +26,10 @@ export default async function ReportDetailPage({ params }: { params: { id: strin
     }
   }
   if (!data) notFound();
-  const report = data.report as ModelReport;
-  report.id = data.id;
+  type Row = { id: string; report: ModelReport; created_at: string };
+  const row = data as Row;
+  const report = row.report as ModelReport;
+  report.id = row.id;
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10">

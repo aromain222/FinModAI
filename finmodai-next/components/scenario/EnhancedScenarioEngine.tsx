@@ -58,6 +58,7 @@ export function EnhancedScenarioEngine({ initialTicker }: EnhancedScenarioEngine
     }, 500);
     
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleFetchTicker is stable for ticker
   }, [ticker]);
 
   const handleFetchTicker = async () => {

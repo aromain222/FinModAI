@@ -51,17 +51,13 @@ export async function upsertMacroEvents(events: MacroEvent[]): Promise<void> {
     }))
   );
 
-  const { error: eventError } = await supabase
-    .from('macro_events')
-    .upsert(eventRows, { onConflict: 'event_key' });
+  const { error: eventError } = await (supabase.from('macro_events') as any).upsert(eventRows, { onConflict: 'event_key' });
 
   if (eventError) {
     console.error('[macroEventsStore] event upsert failed', eventError);
   }
 
-  const { error: sourceError } = await supabase
-    .from('macro_event_sources')
-    .upsert(sourceRows, { onConflict: 'url' });
+  const { error: sourceError } = await (supabase.from('macro_event_sources') as any).upsert(sourceRows, { onConflict: 'url' });
 
   if (sourceError) {
     console.error('[macroEventsStore] source upsert failed', sourceError);
@@ -73,8 +69,7 @@ export async function fetchRecentMacroEvents(days: number, minConfidence = 0.7):
   if (!supabase) return [];
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
-  const { data: eventRows, error } = await supabase
-    .from('macro_events')
+  const { data: eventRows, error } = await (supabase.from('macro_events') as any)
     .select('event_key,event_title,what_happened,why_it_matters,region,country_codes,impact_tags,confidence,entities,published_at,updated_at')
     .gte('published_at', since)
     .gte('confidence', minConfidence)
@@ -84,9 +79,9 @@ export async function fetchRecentMacroEvents(days: number, minConfidence = 0.7):
 
   if (error || !eventRows || eventRows.length === 0) return [];
 
-  const keys = eventRows.map((r) => r.event_key);
-  const { data: sourceRows } = await supabase
-    .from('macro_event_sources')
+  const rows = eventRows as MacroEventRow[];
+  const keys = rows.map((r) => r.event_key);
+  const { data: sourceRows } = await (supabase.from('macro_event_sources') as any)
     .select('event_key,url,source,title,published_at')
     .in('event_key', keys);
 

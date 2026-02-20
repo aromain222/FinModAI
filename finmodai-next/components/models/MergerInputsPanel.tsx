@@ -39,6 +39,7 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
         onChange({ ...inputs, integrationCosts: newArray });
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- inputs/onChange intentionally partial to avoid loops
   }, [inputs.forecastYears]); // Only depend on forecastYears
   
   // Validate on every change
@@ -48,6 +49,7 @@ export function MergerInputsPanel({ inputs, onChange, onValidate, pulledData }: 
     if (onValidate) {
       onValidate(missing.length === 0, missing);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onValidate intentionally not in deps
   }, [inputs, pulledData]); // Remove onValidate from deps to avoid loops
   
   const handleChange = (key: keyof MergerModelInput, value: any) => {

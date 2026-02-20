@@ -63,6 +63,7 @@ export function OperatingInputsPanel({ inputs, onChange, onValidate }: Operating
       
       onChange(updated);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- inputs/months/onChange intentionally partial
   }, [inputs.months]);
   
   // Validate on every change
@@ -72,6 +73,7 @@ export function OperatingInputsPanel({ inputs, onChange, onValidate }: Operating
     if (onValidate) {
       onValidate(missing.length === 0, missing);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onValidate intentionally not in deps
   }, [inputs]);
   
   const handleChange = (key: string, value: any) => {

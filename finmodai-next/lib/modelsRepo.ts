@@ -107,11 +107,7 @@ export async function insertModel(model: Omit<ModelRecord, 'id' | 'created_at' |
   }
   
   try {
-    const { data, error } = await supabase
-      .from('models')
-      .insert([model])
-      .select()
-      .single();
+    const { data, error } = await (supabase.from('models') as any).insert([model]).select().single();
     
     if (error) throw error;
     return data as ModelRecord;
@@ -131,8 +127,7 @@ export async function updateModelNotes(modelId: string, notes: string): Promise<
   }
   
   try {
-    const { error } = await supabase
-      .from('models')
+    const { error } = await (supabase.from('models') as any)
       .update({ notes, updated_at: new Date().toISOString() })
       .eq('id', modelId);
     
@@ -191,8 +186,7 @@ export async function updateModelStatus(
       updates.error = error;
     }
     
-    const { error: updateError } = await supabase
-      .from('models')
+    const { error: updateError } = await (supabase.from('models') as any)
       .update(updates)
       .eq('id', modelId);
     
@@ -214,10 +208,7 @@ export async function deleteModel(modelId: string): Promise<boolean> {
   }
   
   try {
-    const { error } = await supabase
-      .from('models')
-      .delete()
-      .eq('id', modelId);
+    const { error } = await (supabase.from('models') as any).delete().eq('id', modelId);
     
     if (error) throw error;
     return true;
