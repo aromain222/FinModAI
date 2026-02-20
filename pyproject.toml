@@ -1,3 +1,9 @@
+[project]
+name = "finmodai"
+version = "0.0.0"
+description = "FinModAI monorepo"
+dependencies = []
+
 [tool.black]
 line-length = 100
 target-version = ["py311"]
