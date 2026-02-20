@@ -1,0 +1,5 @@
+[project]
+name = "finmodai-next"
+version = "0.0.0"
+description = "FinModAI Next.js app"
+dependencies = []
