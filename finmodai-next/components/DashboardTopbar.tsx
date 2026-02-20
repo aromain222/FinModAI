@@ -16,14 +16,13 @@ type DashboardTopbarProps = {
 export function DashboardTopbar({ userEmail: propUserEmail }: DashboardTopbarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const supabase = createClientComponentClient();
   const [userEmail, setUserEmail] = useState(propUserEmail || "guest@capitalbase.app");
   const [isSigningOut, setIsSigningOut] = useState(false);
   const demoMode = isDemoMode(searchParams);
 
   useEffect(() => {
-    // Get current user email from Supabase session
     async function getUserEmail() {
+      const supabase = createClientComponentClient();
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user?.email) {
         setUserEmail(session.user.email);
@@ -34,13 +33,12 @@ export function DashboardTopbar({ userEmail: propUserEmail }: DashboardTopbarPro
       }
     }
     getUserEmail();
-  }, [supabase]);
+  }, []);
 
   async function handleSwitchAccount() {
     setIsSigningOut(true);
-    
+    const supabase = createClientComponentClient();
     try {
-      // Sign out from Supabase if authenticated
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         await supabase.auth.signOut();

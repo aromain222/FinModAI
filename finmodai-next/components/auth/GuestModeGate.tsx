@@ -7,22 +7,18 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 /**
  * Guest Mode Gate - Client-side component to check for guest mode
  * 
- * This component checks if the user is in guest mode (localStorage flag)
- * and allows access to the app even without a Supabase session.
- * If neither session nor guest mode exists, redirects to login.
+ * Supabase client is created only inside useEffect so it never runs on the server
+ * (avoids "Application error: a server-side exception" on Vercel).
  */
 export function GuestModeGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const supabase = createClientComponentClient();
   const [isChecking, setIsChecking] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
 
   useEffect(() => {
     async function checkAccess() {
       try {
-        // TEMP: Log for debugging
-        console.log('[GuestModeGate] Checking access...');
-        
+        const supabase = createClientComponentClient();
         // Check for Supabase session
         const { data: { session } } = await supabase.auth.getSession();
         console.log('[GuestModeGate] Session:', session ? 'exists' : 'none');
@@ -61,7 +57,7 @@ export function GuestModeGate({ children }: { children: React.ReactNode }) {
     }
 
     checkAccess();
-  }, [router, supabase]);
+  }, [router]);
 
   if (isChecking) {
     // Show loading state while checking

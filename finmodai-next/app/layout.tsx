@@ -2,16 +2,10 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import '@/styles/globals.css';
 import { APP_NAME } from '@/lib/branding';
-
-// Validate API keys at startup (server-side only)
-if (typeof window === 'undefined') {
-  try {
-    require('@/lib/startupValidation');
-  } catch (error) {
-    // Ignore errors during build
-  }
-}
 import { ThemeProvider } from '@/components/ThemeProvider';
+
+// Startup validation disabled in root layout to avoid server-side throws on Vercel.
+// Run validation in dev via a separate script or API route if needed.
 
 const inter = Inter({ subsets: ['latin'] });
 

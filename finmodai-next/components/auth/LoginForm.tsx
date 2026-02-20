@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 export function LoginForm() {
-  const supabase = createClientComponentClient();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -31,7 +30,7 @@ export function LoginForm() {
     }
 
     try {
-      console.log("[AUTH] Login attempt for", trimmedEmail);
+      const supabase = createClientComponentClient();
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: trimmedEmail,
         password,

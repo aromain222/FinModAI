@@ -1,24 +1,16 @@
 /**
  * Signup Page (Marketing Route)
  * 
- * If user is already authenticated, redirect to /app.
+ * Session redirect is done client-side to avoid server-side Supabase errors on Vercel.
  */
 
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { AuthPage } from '@/components/auth/AuthPage';
+import { SignupAuthRedirect } from '@/components/auth/SignupAuthRedirect';
 
-export default async function SignupPage() {
-  // If already authenticated, redirect to app
-  const supabase = createServerComponentClient({ cookies });
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (session) {
-    redirect('/app');
-  }
-
-  return <AuthPage initialMode="signup" />;
+export default function SignupPage() {
+  return (
+    <SignupAuthRedirect>
+      <AuthPage initialMode="signup" />
+    </SignupAuthRedirect>
+  );
 }

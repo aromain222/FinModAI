@@ -11,8 +11,6 @@ interface SignupFormProps {
 }
 
 export function SignupForm({ onSignUpComplete }: SignupFormProps) {
-  const supabase = createClientComponentClient();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -36,7 +34,7 @@ export function SignupForm({ onSignUpComplete }: SignupFormProps) {
     }
 
     try {
-      console.log("[AUTH] Signup attempt for", trimmedEmail);
+      const supabase = createClientComponentClient();
       const { error: signUpError } = await supabase.auth.signUp({
         email: trimmedEmail,
         password,

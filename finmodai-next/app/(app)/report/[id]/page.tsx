@@ -1,25 +1,31 @@
-import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { getSupabaseServerClient } from '@/lib/supabaseClient';
 
 import { CapitalBaseReportView } from '@/components/reports/CapitalBaseReportView';
 import type { ModelReport } from '@/lib/reportTypes';
 import { PageHeader } from '@/components/ui/PageHeader';
 
 export default async function ReportDetailPage({ params }: { params: { id: string } }) {
-  const cookieStore = cookies();
-  const supabase = createServerComponentClient({ cookies: () => cookieStore });
+  let data: { id: string; report: ModelReport; created_at: string } | null = null;
+  const supabase = getSupabaseServerClient();
+  if (supabase) {
+    try {
+      const result = await supabase
+        .from('model_reports')
+        .select('id, report, created_at')
+        .eq('id', params.id)
+        .maybeSingle();
 
-  const { data, error } = await supabase
-    .from('model_reports')
-    .select('id, report, created_at')
-    .eq('id', params.id)
-    .maybeSingle();
-
-  if (error || !data) {
-    notFound();
+      if (!result.error && result.data) {
+        data = result.data as typeof data;
+      }
+    } catch (e) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[ReportDetailPage] Supabase error:', (e as Error)?.message);
+      }
+    }
   }
-
+  if (!data) notFound();
   const report = data.report as ModelReport;
   report.id = data.id;
 

@@ -1,21 +1,26 @@
 import Link from 'next/link';
-import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { getSupabaseServerClient } from '@/lib/supabaseClient';
 
 import type { ModelReport } from '@/lib/reportTypes';
 import { PageHeader } from '@/components/ui/PageHeader';
 
 export default async function ReportsPage() {
-  const cookieStore = cookies();
-  const supabase = createServerComponentClient({ cookies: () => cookieStore });
-
-  const { data } = await supabase
-    .from('model_reports')
-    .select('id, report, created_at')
-    .order('created_at', { ascending: false })
-    .limit(20);
-
-  const reports = data ?? [];
+  let reports: { id: string; report: ModelReport | null; created_at: string }[] = [];
+  const supabase = getSupabaseServerClient();
+  if (supabase) {
+    try {
+      const { data } = await supabase
+        .from('model_reports')
+        .select('id, report, created_at')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      reports = (data ?? []) as typeof reports;
+    } catch (e) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[ReportsPage] Supabase error:', (e as Error)?.message);
+      }
+    }
+  }
 
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-10">

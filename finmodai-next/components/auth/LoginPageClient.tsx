@@ -12,14 +12,12 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
  */
 export function LoginPageClient({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const supabase = createClientComponentClient();
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
     async function checkAuth() {
       try {
-        // Only check for Supabase session - do NOT check guest mode
-        // Guest mode should only be set when user clicks "Continue as guest"
+        const supabase = createClientComponentClient();
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session) {
@@ -39,7 +37,7 @@ export function LoginPageClient({ children }: { children: React.ReactNode }) {
     }
 
     checkAuth();
-  }, [router, supabase]);
+  }, [router]);
 
   // Show loading state while checking (prevents flash of login form)
   if (isChecking) {

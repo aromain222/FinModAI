@@ -2,13 +2,11 @@
  * Marketing Homepage
  * 
  * Public landing page with hero, features, and CTAs.
- * Only shown to logged-out users.
+ * Session redirect is done client-side to avoid server-side Supabase errors on Vercel.
  */
 
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import Hero from '@/app/components/Hero';
+import { MarketingAuthRedirect } from '@/components/auth/MarketingAuthRedirect';
 import { BarChart3, Building2, ShieldCheck } from 'lucide-react';
 
 const featureBlocks = [
@@ -29,18 +27,9 @@ const featureBlocks = [
   },
 ];
 
-export default async function MarketingPage() {
-  // Check if user is authenticated - if so, redirect to app
-  const supabase = createServerComponentClient({ cookies });
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (session) {
-    redirect('/app');
-  }
-
+export default function MarketingPage() {
   return (
+    <MarketingAuthRedirect>
     <main className="min-h-screen text-[var(--cb-text-body)]">
       <Hero />
       <section className="mx-auto flex w-full max-w-5xl flex-col gap-12 px-4 py-16 sm:py-20">
@@ -91,5 +80,6 @@ export default async function MarketingPage() {
         </div>
       </section>
     </main>
+    </MarketingAuthRedirect>
   );
 }
