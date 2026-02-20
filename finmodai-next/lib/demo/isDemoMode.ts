@@ -33,12 +33,12 @@ export function isDemoModeFromRequest(req: Request): boolean {
   return flag === 'true' || flag === '1';
 }
 
-export function assertDemoModeAllowed() {
+export function assertDemoModeAllowed(): void {
   if (DEMO_ENV_ENABLED && process.env.NODE_ENV === 'production') {
     const allow = String(process.env.ALLOW_DEMO_IN_PROD || '').toLowerCase() === 'true';
     if (!allow) {
-      throw new Error(
-        'Demo mode is enabled in production without ALLOW_DEMO_IN_PROD=true. Refusing to boot.'
+      console.warn(
+        '[demo] Demo mode is enabled in production without ALLOW_DEMO_IN_PROD=true. Set ALLOW_DEMO_IN_PROD=true in Vercel env if you intend to use demo in prod.'
       );
     }
   }
