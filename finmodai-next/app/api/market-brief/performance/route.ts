@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchDailySeries, assessDailySeriesQuality } from '@/lib/marketData/fetchDailySeries';
 
+export const dynamic = 'force-dynamic';
+
 type MarketRange = '1D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'YTD' | 'MAX';
 
 const RANGE_POINTS: Record<MarketRange, number> = {

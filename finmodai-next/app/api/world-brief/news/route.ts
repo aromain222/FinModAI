@@ -6,6 +6,8 @@
  */
 
 import { NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
 import { fetchMacroNews } from '@/lib/fetchMacroNews';
 import { routeArticle, deduplicateArticles } from '@/lib/newsRouter';
 import OpenAI from 'openai';

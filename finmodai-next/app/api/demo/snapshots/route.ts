@@ -4,6 +4,8 @@ import {
   getDemoSnapshotsBySector,
 } from '@/lib/data/providers/demoProvider';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/demo/snapshots
  * Query: top=20 (default) for Market Brief landing, or sector=Technology for Comps/sector view.
