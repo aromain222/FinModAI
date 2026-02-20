@@ -100,7 +100,8 @@ export async function POST(req: NextRequest) {
         );
       })
       .slice(-12);
-    const lastUserMessage = safeMessages.filter((message) => message.role === 'user').slice(-1)[0]?.content || '';
+    type SafeMessage = { role: 'user' | 'assistant' | 'system'; content: string };
+    const lastUserMessage = safeMessages.filter((message: SafeMessage) => message.role === 'user').slice(-1)[0]?.content || '';
     fallbackUserMessage = lastUserMessage;
 
     const openAiKey = getOpenAIKey('user') || getOpenAIKey('service');

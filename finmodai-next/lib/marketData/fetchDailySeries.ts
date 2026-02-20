@@ -190,14 +190,14 @@ async function fetchFromSupabaseCache(opts: FetchOptions): Promise<MarketOHLCPoi
   const rows = Array.isArray(data) ? (data as CachedSeriesRow[]) : [];
   if (rows.length <= 10) return null;
 
-  const points: MarketOHLCPoint[] = rows
+  const points = rows
     .map((row) => {
       const close = typeof row.close === 'number' ? row.close : Number(row.close);
       const date = new Date(row.date).toISOString();
       if (!Number.isFinite(close) || Number.isNaN(new Date(date).getTime())) return null;
       return { date, close };
     })
-    .filter((item): item is MarketOHLCPoint => item !== null);
+    .filter((item) => item != null) as MarketOHLCPoint[];
 
   return points.length > 10 ? points : null;
 }

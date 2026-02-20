@@ -453,7 +453,7 @@ export default function MarketDashboard() {
   const [rangeKey, setRangeKey] = useState<RangeKey>('1M');
 
   const [performanceData, setPerformanceData] = useState<CandleApiPoint[]>([]);
-  const [performanceMeta, setPerformanceMeta] = useState<CandleApiResponse | null>(null);
+  const [performanceMeta, setPerformanceMeta] = useState<CandleApiSuccessResponse | null>(null);
   const [performanceLoading, setPerformanceLoading] = useState(true);
   const [performanceError, setPerformanceError] = useState<string | null>(null);
   const [performanceEmptyNote, setPerformanceEmptyNote] = useState<string | null>(null);

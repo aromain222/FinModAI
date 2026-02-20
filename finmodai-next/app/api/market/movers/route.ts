@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
       })
     );
 
-    const valid = returns.filter((item): item is StockMove => item !== null);
+    const valid = returns.filter((item) => item != null) as StockMove[];
     if (valid.length === 0) {
       return toResponse(
         {

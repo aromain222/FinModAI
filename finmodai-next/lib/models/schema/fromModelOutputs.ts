@@ -941,13 +941,13 @@ function buildCompsSections(params: BuildModelDocumentParams) {
   const multipleValues = {
     evToRevenue: peers
       .map((peer: any) => toFiniteNumber(peer?.evToRevenue ?? peer?.evRevenue))
-      .filter((value): value is number => value !== null && value > 0),
+      .filter((value: number | null): value is number => value !== null && value > 0),
     evToEbitda: peers
       .map((peer: any) => toFiniteNumber(peer?.evToEbitda ?? peer?.evEbitda))
-      .filter((value): value is number => value !== null && value > 0),
+      .filter((value: number | null): value is number => value !== null && value > 0),
     peRatio: peers
       .map((peer: any) => toFiniteNumber(peer?.peRatio ?? peer?.pe))
-      .filter((value): value is number => value !== null && value > 0),
+      .filter((value: number | null): value is number => value !== null && value > 0),
   };
   const calcMean = (values: number[]): number | null =>
     values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;

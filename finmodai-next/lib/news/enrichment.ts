@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
 import { z } from 'zod';
 import { getOpenAIKey, getOpenAIModelCandidates } from '@/lib/openaiKey';
-import { headlineEnrichmentSchema, type HeadlineEnrichment } from '@/lib/news/types';
+import { headlineEnrichmentSchema, type HeadlineEnrichment, type SectorName } from '@/lib/news/types';
 import { inferEventImpact } from '@/lib/news/eventImpact';
 import { assessHeadlineRelevance } from '@/lib/news/relevance';
 
@@ -353,7 +353,7 @@ function coerceToHeadlineEnrichment(payload: unknown): HeadlineEnrichment {
     impacted_sectors: impactedSectorsRaw
       .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
       .map((item) => ({
-        sector: normalizeSectorLabel(item.sector),
+        sector: normalizeSectorLabel(item.sector) as SectorName,
         direction: normalizeDirection(item.direction),
         rationale: typeof item.rationale === 'string' ? item.rationale : undefined,
       })),
@@ -370,10 +370,10 @@ function coerceToHeadlineEnrichment(payload: unknown): HeadlineEnrichment {
               rationale: typeof item.rationale === 'string' ? item.rationale : undefined,
             };
           })
-          .filter((item): item is { ticker: string; direction: 'up' | 'down' | 'mixed' | 'unknown'; rationale?: string } => item !== null)
+          .filter((item) => item != null)
           .map((item) => [`${item.ticker}:${item.direction}`, item] as const)
       ).values()
-    ),
+    ) as HeadlineEnrichment['impacted_tickers'],
     confidence:
       row.confidence === 'high' || row.confidence === 'medium' || row.confidence === 'low'
         ? row.confidence

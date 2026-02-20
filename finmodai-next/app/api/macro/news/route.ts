@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import type { MacroNewsResponse, MacroNewsArticle } from '@/types/macro';
+import type { MacroNewsResponse, MacroNewsArticle, MacroArticleAnalysis } from '@/types/macro';
 import { generateMacroArticleAnalysis, getAnalysisCacheKey } from '@/lib/macroArticleAnalysis';
 import OpenAI from 'openai';
 import { getOpenAIKey } from '@/lib/openaiKey';
@@ -74,16 +74,16 @@ export async function GET(req: NextRequest) {
     const articles: MacroNewsArticle[] = [];
     
     // Simple in-memory cache for analysis (in production, use Redis or similar)
-    const analysisCache = new Map<string, unknown>();
+    const analysisCache = new Map<string, MacroArticleAnalysis>();
     
     for (const item of newsItems.slice(0, 10)) {
       try {
         // Generate article analysis (summary + market impact)
-        let analysis;
+        let analysis: MacroArticleAnalysis;
         const cacheKey = getAnalysisCacheKey(item);
         
         if (analysisCache.has(cacheKey)) {
-          analysis = analysisCache.get(cacheKey);
+          analysis = analysisCache.get(cacheKey)!;
         } else {
           analysis = await generateMacroArticleAnalysis(
             {

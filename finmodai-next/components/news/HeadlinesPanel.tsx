@@ -87,7 +87,7 @@ function parseResponse(payload: unknown): NewsSuccessResponse | NewsErrorRespons
         imageUrl: typeof row.imageUrl === 'string' ? row.imageUrl : undefined,
       } satisfies NewsItem;
     })
-    .filter((item): item is NewsItem => item !== null);
+    .filter((item) => item != null) as NewsItem[];
 
   const provider =
     data.provider === 'perigon' ||

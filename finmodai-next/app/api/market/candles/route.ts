@@ -233,14 +233,13 @@ export async function GET(request: NextRequest) {
       end: window.toIso,
     });
 
-    const candles: Candle[] = series.points
-      .map((point) => {
-        const t = new Date(point.date).getTime();
-        const c = Number(point.close);
-        if (!Number.isFinite(t) || !Number.isFinite(c)) return null;
-        return { t, o: c, h: c, l: c, c, v: null } satisfies Candle;
-      })
-      .filter((item): item is Candle => item !== null);
+    const raw = series.points.map((point) => {
+      const t = new Date(point.date).getTime();
+      const c = Number(point.close);
+      if (!Number.isFinite(t) || !Number.isFinite(c)) return null;
+      return { t, o: c, h: c, l: c, c, v: null } satisfies Candle;
+    });
+    const candles = raw.filter((item) => item != null) as Candle[];
 
     if (candles.length < 2 || !series.ok) {
       return jsonWithCache(

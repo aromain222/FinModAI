@@ -58,6 +58,7 @@ type CompsSummary = {
     pricePerShareByEvEbitda?: number;
     pricePerShareByEvRevenue?: number;
     pricePerShareByPe?: number;
+    blendedPricePerShare?: number;
   };
   peers?: unknown[];
   warnings?: string[];

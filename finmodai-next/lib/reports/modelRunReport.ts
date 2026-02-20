@@ -193,13 +193,13 @@ function extractDcfSnapshot(result: RunResult): SnapshotItem[] {
   const terminalPct = pvTerminal !== null && enterprise !== null && enterprise !== 0 ? pvTerminal / enterprise : null;
 
   return [
-    { label: 'Enterprise Value', value: ev, format: 'money' },
-    { label: 'Equity Value', value: equity, format: 'money' },
-    { label: 'Implied Price / Share', value: implied, format: 'money' },
-    { label: 'WACC', value: wacc, format: 'percent' },
-    { label: 'Terminal Growth', value: terminalGrowth, format: 'percent' },
-    { label: '% EV from Terminal Value', value: terminalPct, format: 'percent' },
-  ].filter((item) => item.value !== null);
+    { label: 'Enterprise Value', value: ev, format: 'money' as const },
+    { label: 'Equity Value', value: equity, format: 'money' as const },
+    { label: 'Implied Price / Share', value: implied, format: 'money' as const },
+    { label: 'WACC', value: wacc, format: 'percent' as const },
+    { label: 'Terminal Growth', value: terminalGrowth, format: 'percent' as const },
+    { label: '% EV from Terminal Value', value: terminalPct, format: 'percent' as const },
+  ].filter((item) => item.value !== null) as SnapshotItem[];
 }
 
 function extractCompsSnapshot(doc: ModelDocument | null): SnapshotItem[] {
@@ -215,11 +215,11 @@ function extractCompsSnapshot(doc: ModelDocument | null): SnapshotItem[] {
   const impliedBlend = blendRow ? toFinite(valueFromRow(blendRow, ['implied_price'])) : null;
 
   return [
-    { label: 'Median EV / Revenue', value: evRev, format: 'multiple' },
-    { label: 'Median EV / EBITDA', value: evEbitda, format: 'multiple' },
-    { label: 'Median P / E', value: pe, format: 'multiple' },
-    { label: 'Blended Implied Price', value: impliedBlend, format: 'money' },
-  ].filter((item) => item.value !== null);
+    { label: 'Median EV / Revenue', value: evRev, format: 'multiple' as const },
+    { label: 'Median EV / EBITDA', value: evEbitda, format: 'multiple' as const },
+    { label: 'Median P / E', value: pe, format: 'multiple' as const },
+    { label: 'Blended Implied Price', value: impliedBlend, format: 'money' as const },
+  ].filter((item) => item.value !== null) as SnapshotItem[];
 }
 
 function extractThreeStatementSnapshot(doc: ModelDocument | null): SnapshotItem[] {
@@ -256,11 +256,11 @@ function extractThreeStatementSnapshot(doc: ModelDocument | null): SnapshotItem[
       : null;
 
   return [
-    { label: 'Start Revenue', value: startRevenue, format: 'money' },
-    { label: 'End Revenue', value: endRevenue, format: 'money' },
-    { label: 'Revenue CAGR', value: revenueCagr, format: 'percent' },
-    { label: 'End EBITDA Margin', value: endMargin, format: 'percent' },
-  ].filter((item) => item.value !== null);
+    { label: 'Start Revenue', value: startRevenue, format: 'money' as const },
+    { label: 'End Revenue', value: endRevenue, format: 'money' as const },
+    { label: 'Revenue CAGR', value: revenueCagr, format: 'percent' as const },
+    { label: 'End EBITDA Margin', value: endMargin, format: 'percent' as const },
+  ].filter((item) => item.value !== null) as SnapshotItem[];
 }
 
 function extractScorecardSnapshot(result: RunResult): SnapshotItem[] {
@@ -340,7 +340,7 @@ function normalizeModelDocument(value: unknown): ModelDocument | null {
   if (!isObject(value)) return null;
   const sections = (value as { sections?: unknown }).sections;
   if (!Array.isArray(sections)) return null;
-  return value as ModelDocument;
+  return value as unknown as ModelDocument;
 }
 
 function labelModelType(modelType: string): string {

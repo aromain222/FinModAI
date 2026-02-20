@@ -257,7 +257,7 @@ async function createModelBriefSheet(
     valueCell.value = item.value as any;
     if (item.format) applyNumberFormat(valueCell, item.format);
     valueCell.alignment = { vertical: 'top', horizontal: item.format ? 'right' : 'left', wrapText: true };
-    valueCell.font = createNormalStyle().font;
+    valueCell.font = createNormalStyle().font ?? {};
     row += 1;
   }
 
@@ -286,7 +286,7 @@ async function createModelBriefSheet(
   const summaryCell = sheet.getCell(row, 1);
   summaryCell.value = summary;
   summaryCell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
-  summaryCell.font = createNormalStyle().font;
+  summaryCell.font = createNormalStyle().font ?? {};
 
   setColWidthsKit(sheet, [34, 34, 18, 18]);
   const lastUsedRow = row + 3;

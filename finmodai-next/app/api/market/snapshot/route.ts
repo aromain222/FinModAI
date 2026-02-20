@@ -121,7 +121,7 @@ function normalizeDemoCandles(rows: DemoCandleRow[] | null): Array<Record<string
         v: Number.isFinite(volume) ? volume : null,
       };
     })
-    .filter((item): item is Record<string, unknown> => item !== null);
+    .filter((item) => item != null) as Array<Record<string, unknown>>;
 }
 
 export async function GET(req: NextRequest) {
