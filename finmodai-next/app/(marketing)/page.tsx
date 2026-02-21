@@ -49,10 +49,10 @@ export default function MarketingPage() {
           </p>
           <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
             <Button asChild size="lg" className="rounded-lg px-8 shadow-[0_0_24px_rgba(0,227,135,0.25)] transition hover:shadow-[0_0_32px_rgba(0,227,135,0.35)]">
-              <Link href="/demo">Request Demo</Link>
+              <Link href="/request-demo">Request Demo</Link>
             </Button>
             <Button asChild variant="secondary" size="lg" className="rounded-lg border-[var(--cb-border-subtle)] bg-white/5 px-8 backdrop-blur-sm hover:bg-white/10 hover:border-[var(--cb-green)]/30">
-              <Link href="/demo">View Platform</Link>
+              <Link href="/request-demo">View Platform</Link>
             </Button>
           </div>
         </div>
