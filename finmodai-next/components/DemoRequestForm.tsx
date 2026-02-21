@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -63,14 +62,9 @@ export function DemoRequestForm() {
 
   if (success) {
     return (
-      <div className="space-y-6 text-center">
-        <p className="text-[var(--cb-green)] font-medium">
-          You’re in. We’ll be in touch and you can try the demo below.
-        </p>
-        <Button asChild size="lg" className="rounded-lg shadow-[0_0_24px_rgba(0,227,135,0.25)]">
-          <Link href="/app">Open demo</Link>
-        </Button>
-      </div>
+      <p className="text-[var(--cb-green)] font-medium">
+        Thanks. We’ll be in touch.
+      </p>
     );
   }
 
