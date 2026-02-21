@@ -27,7 +27,7 @@ export default function DemoPage() {
           Request a demo
         </h1>
         <p className="text-[var(--cb-text-body)]">
-          Name and email. We’ll reach out to you individually.
+          Enter your name and email. This is not instant access—we’ll reach out to you individually.
         </p>
         <div className="pt-4">
           <DemoRequestForm />
