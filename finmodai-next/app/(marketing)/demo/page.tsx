@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 
 export default function DemoPage() {
   return (
-    <main className="min-h-screen bg-[#080b0f] flex flex-col items-center justify-center px-4">
+    <main className="min-h-screen bg-[#080b0f] flex flex-col items-center justify-center px-4" data-page="demo-request">
       <div className="max-w-lg w-full text-center space-y-8">
         <p className="text-xs font-semibold uppercase tracking-[0.4em] text-[var(--cb-green)]/90">
           Request demo
