@@ -1,12 +1,10 @@
 /**
  * Marketing landing (/) – investor-ready, institutional.
- * Routes: / (this), /demo (demo gate), /market (app).
  */
 
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { WaitlistForm } from '@/components/MarketingLanding';
 
 const FEATURES = [
   {
@@ -24,7 +22,7 @@ const FEATURES = [
 ];
 
 const STEPS = [
-  { step: 1, title: 'Request access', body: 'Join the waitlist or request a demo.' },
+  { step: 1, title: 'Request access', body: 'Join the waitlist for early access.' },
   { step: 2, title: 'Get oriented', body: 'Walk through the command center and scenario tools.' },
   { step: 3, title: 'Run your process', body: 'Plug in your tickers and macro views.' },
 ];
@@ -49,10 +47,13 @@ export default function MarketingPage() {
           </p>
           <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
             <Button asChild size="lg" className="rounded-lg px-8 shadow-[0_0_24px_rgba(0,227,135,0.25)] transition hover:shadow-[0_0_32px_rgba(0,227,135,0.35)]">
-              <Link href="/request-demo">Request Demo</Link>
+              <Link href="/demo">Demo</Link>
             </Button>
             <Button asChild variant="secondary" size="lg" className="rounded-lg border-[var(--cb-border-subtle)] bg-white/5 px-8 backdrop-blur-sm hover:bg-white/10 hover:border-[var(--cb-green)]/30">
-              <Link href="/request-demo">View Platform</Link>
+              <Link href="/waitlist">Join waitlist</Link>
+            </Button>
+            <Button asChild variant="secondary" size="lg" className="rounded-lg border-[var(--cb-border-subtle)] bg-white/5 px-8 backdrop-blur-sm hover:bg-white/10 hover:border-[var(--cb-green)]/30">
+              <Link href="/login">View Platform</Link>
             </Button>
           </div>
         </div>
@@ -100,22 +101,6 @@ export default function MarketingPage() {
         </div>
       </section>
 
-      {/* Waitlist */}
-      <section className="relative border-t border-white/5 bg-[#0b0e13] px-4 py-24">
-        <div className="mx-auto max-w-6xl">
-          <div className="mx-auto max-w-xl rounded-2xl border border-white/10 bg-white/[0.02] p-10 shadow-xl">
-            <h2 className="text-center text-2xl font-semibold tracking-tight text-white">
-              Early access
-            </h2>
-            <p className="mt-3 text-center text-sm text-[var(--cb-text-muted)]">
-              Join the waitlist for early access to the platform.
-            </p>
-            <div className="mt-8">
-              <WaitlistForm />
-            </div>
-          </div>
-        </div>
-      </section>
     </main>
   );
 }

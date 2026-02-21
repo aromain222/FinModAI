@@ -1,9 +1,10 @@
 /**
- * /demo redirects to /request-demo so the name+email form is always shown (avoids cached old page).
+ * Demo link for sharing – redirects straight to login so recipients
+ * see the app gate (guest or sign in) in one click.
  */
 
 import { redirect } from 'next/navigation';
 
 export default function DemoPage() {
-  redirect('/request-demo');
+  redirect('/login');
 }
