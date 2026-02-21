@@ -1,25 +1,12 @@
-/**
- * Demo request – single source of truth. Name + email only; we reach out individually.
- * No "Open demo" / "Try CapitalBase" – this is the only demo gate UI.
- */
-
 import type { Metadata } from 'next';
 import { APP_NAME } from '@/lib/branding';
-import { DemoRequestForm } from '@/components/DemoRequestForm';
+import { RequestDemoForm } from './RequestDemoForm';
 
 export const metadata: Metadata = {
   title: `${APP_NAME} – Request a demo`,
-  description: 'Request a demo. Enter your name and email; we’ll reach out to you.',
-  openGraph: {
-    title: `${APP_NAME} – Request a demo`,
-    description: 'Request a demo. Enter your name and email; we’ll reach out to you.',
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: `${APP_NAME} – Request a demo`,
-    description: 'Request a demo. Enter your name and email; we’ll reach out to you.',
-  },
+  description: 'Request a demo. Name and email; we’ll reach out.',
+  openGraph: { title: `${APP_NAME} – Request a demo`, description: 'Request a demo. Name and email; we’ll reach out.', type: 'website' },
+  twitter: { card: 'summary_large_image', title: `${APP_NAME} – Request a demo`, description: 'Request a demo. Name and email; we’ll reach out.' },
 };
 
 export const dynamic = 'force-dynamic';
@@ -36,10 +23,10 @@ export default function RequestDemoPage() {
           Get in touch
         </h1>
         <p className="text-[var(--cb-text-body)] text-sm sm:text-base">
-          Enter your name and email below. This is not instant access—we’ll contact you individually to schedule a walkthrough.
+          Enter your name and email. We’ll contact you to schedule a walkthrough—no instant access.
         </p>
         <div className="pt-2">
-          <DemoRequestForm />
+          <RequestDemoForm />
         </div>
       </div>
     </main>
