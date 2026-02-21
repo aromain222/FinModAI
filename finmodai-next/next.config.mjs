@@ -6,18 +6,6 @@ const nextConfig = {
       allowedOrigins: ['localhost:3000']
     }
   },
-  async headers() {
-    return [
-      {
-        source: '/demo',
-        headers: [{ key: 'Cache-Control', value: 'no-store, must-revalidate' }],
-      },
-      {
-        source: '/request-demo',
-        headers: [{ key: 'Cache-Control', value: 'no-store, must-revalidate' }],
-      },
-    ];
-  },
 };
 
 export default nextConfig;
