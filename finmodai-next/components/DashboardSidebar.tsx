@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { 
   LayoutDashboard, 
   Layers, 
-  SlidersHorizontal, 
   LineChart, 
   FileText, 
   Settings, 
@@ -19,7 +18,6 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: '/app', label: 'Overview', icon: LayoutDashboard, section: 'Workspace' },
   { href: '/models', label: 'Models', icon: Layers, section: 'Workspace' },
-  { href: '/scenario-engine', label: 'Scenario Engine', icon: SlidersHorizontal, section: 'Tools' },
   { href: '/news', label: 'News', icon: Newspaper, section: 'Tools' },
   { href: '/market', label: 'Market', icon: LineChart, section: 'Tools' },
   { href: '/reports', label: 'Reports', icon: FileText, section: 'Tools' },

@@ -77,6 +77,57 @@ interface StockSummary {
   warnings?: string[];
 }
 
+type ImpactLayout = {
+  lead: string | null;
+  winnersLosers: string[];
+  monitoringAnchors: string[];
+  invalidationTrigger: string | null;
+  remainder: string[];
+};
+
+function parseImpactLayout(raw: string | null | undefined): ImpactLayout | null {
+  if (!raw) return null;
+  const normalized = raw.replace(/\s+/g, ' ').trim();
+  if (!normalized) return null;
+
+  const text = normalized.replace(/^market impact:\s*/i, '').trim();
+  const winnersMatch = text.match(
+    /likely winners\/losers:\s*([\s\S]*?)(?=(monitoring anchors:|invalidation trigger:|$))/i
+  );
+  const monitoringMatch = text.match(/monitoring anchors:\s*([\s\S]*?)(?=(invalidation trigger:|$))/i);
+  const invalidationMatch = text.match(/invalidation trigger:\s*([\s\S]*)$/i);
+
+  const markers = [
+    winnersMatch?.index ?? Infinity,
+    monitoringMatch?.index ?? Infinity,
+    invalidationMatch?.index ?? Infinity,
+  ];
+  const firstMarker = Math.min(...markers);
+  const core = Number.isFinite(firstMarker) ? text.slice(0, firstMarker).trim() : text;
+  const sentences = core
+    .split(/(?<=[.!?])\s+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  const winnersLosers = (winnersMatch?.[1] ?? '')
+    .split(/\s*;\s*/g)
+    .map((entry) => entry.trim().replace(/\.$/, ''))
+    .filter(Boolean);
+  const monitoringAnchors = (monitoringMatch?.[1] ?? '')
+    .replace(/ and /gi, ', ')
+    .split(/\s*[;,]\s*/g)
+    .map((entry) => entry.trim().replace(/\.$/, ''))
+    .filter(Boolean);
+
+  return {
+    lead: sentences[0] ?? null,
+    remainder: sentences.slice(1),
+    winnersLosers,
+    monitoringAnchors,
+    invalidationTrigger: invalidationMatch?.[1]?.trim() || null,
+  };
+}
+
 export default function MarketBriefPage() {
   const [chartRange, setChartRange] = useState<ChartRange>('1D');
   const [selectedSymbol, setSelectedSymbol] = useState('SPY');
@@ -328,8 +379,70 @@ export default function MarketBriefPage() {
                         </div>
                       </div>
                       {isExpanded && (
-                        <div className="mt-2 border-t border-zinc-800/40 pt-2 text-xs text-muted-foreground">
-                          {item.whyItMatters || item.marketImpact || 'Additional analysis unavailable.'}
+                        <div className="mt-2 border-t border-zinc-800/40 pt-2">
+                          {(() => {
+                            const impactText = item.whyItMatters || item.marketImpact || '';
+                            const parsed = parseImpactLayout(impactText);
+                            if (!parsed) {
+                              return (
+                                <p className="text-xs text-muted-foreground">
+                                  Additional analysis unavailable.
+                                </p>
+                              );
+                            }
+
+                            return (
+                              <div className="space-y-2 text-xs text-muted-foreground">
+                                {parsed.lead && (
+                                  <p className="rounded-md border border-zinc-800/50 bg-zinc-900/40 px-2 py-1.5 text-zinc-200">
+                                    {parsed.lead}
+                                  </p>
+                                )}
+                                {parsed.remainder.map((line, lineIdx) => (
+                                  <p key={`impact-rem-${idx}-${lineIdx}`}>{line}</p>
+                                ))}
+                                {parsed.winnersLosers.length > 0 && (
+                                  <div>
+                                    <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-zinc-400/70">
+                                      Winners / Losers
+                                    </div>
+                                    <ul className="space-y-1">
+                                      {parsed.winnersLosers.map((entry, entryIdx) => (
+                                        <li key={`impact-wl-${idx}-${entryIdx}`} className="text-zinc-300">
+                                          {entry}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {parsed.monitoringAnchors.length > 0 && (
+                                  <div>
+                                    <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-zinc-400/70">
+                                      Monitoring Anchors
+                                    </div>
+                                    <div className="flex flex-wrap gap-1">
+                                      {parsed.monitoringAnchors.map((anchor, anchorIdx) => (
+                                        <span
+                                          key={`impact-anchor-${idx}-${anchorIdx}`}
+                                          className="rounded-full border border-zinc-700/70 bg-zinc-900/60 px-2 py-0.5 text-[10px] text-zinc-300"
+                                        >
+                                          {anchor}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {parsed.invalidationTrigger && (
+                                  <div>
+                                    <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-zinc-400/70">
+                                      Invalidation Trigger
+                                    </div>
+                                    <p>{parsed.invalidationTrigger}</p>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                     </Card>

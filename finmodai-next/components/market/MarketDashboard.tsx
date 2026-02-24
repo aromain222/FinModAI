@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDownRight, ArrowUpRight, Loader2, Minus, RefreshCw } from 'lucide-react';
 import {
   Bar,
@@ -115,6 +115,66 @@ type CandlePoint = {
 };
 
 const RANGE_OPTIONS: RangeKey[] = ['1W', '1M', '3M', '1Y', 'YTD', '5Y', 'MAX'];
+const RANGE_POINT_COUNT: Record<Exclude<RangeKey, 'YTD'>, number> = {
+  '1W': 6,
+  '1M': 22,
+  '3M': 66,
+  '1Y': 252,
+  '5Y': 252 * 5,
+  MAX: 252 * 8,
+};
+
+const RANGE_TOTAL_RETURN: Record<RangeKey, number> = {
+  '1W': 0.006,
+  '1M': 0.015,
+  '3M': 0.045,
+  '1Y': 0.12,
+  YTD: 0.08,
+  '5Y': 0.62,
+  MAX: 1.05,
+};
+
+function parseNumeric(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function parseTimestampMs(value: unknown): number | null {
+  const numeric = parseNumeric(value);
+  if (numeric !== null) {
+    return numeric > 1e12 ? numeric : numeric * 1000;
+  }
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function normalizeCandlePayload(points: unknown): CandleApiPoint[] {
+  if (!Array.isArray(points)) return [];
+  const dedup = new Map<number, CandleApiPoint>();
+
+  for (const raw of points) {
+    if (!raw || typeof raw !== 'object') continue;
+    const row = raw as Record<string, unknown>;
+    const t = parseTimestampMs(row.t);
+    const c = parseNumeric(row.c);
+    const o = parseNumeric(row.o) ?? c;
+    const h = parseNumeric(row.h) ?? c;
+    const l = parseNumeric(row.l) ?? c;
+    const v = parseNumeric(row.v);
+
+    if (t === null || c === null || o === null || h === null || l === null) continue;
+    dedup.set(t, { t, o, h, l, c, v });
+  }
+
+  return Array.from(dedup.values()).sort((a, b) => a.t - b.t);
+}
 
 function formatNumber(value: number | null | undefined, digits = 2): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '—';
@@ -190,6 +250,75 @@ function buildCandleData(points: CandleApiPoint[]): CandlePoint[] {
   });
 }
 
+function countBusinessDaysSinceYearStart(): number {
+  const now = new Date();
+  const cursor = new Date(now.getFullYear(), 0, 1);
+  let count = 0;
+  while (cursor <= now) {
+    const day = cursor.getDay();
+    if (day !== 0 && day !== 6) count += 1;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return Math.max(10, count);
+}
+
+function getPointCountForRange(range: RangeKey): number {
+  if (range === 'YTD') return countBusinessDaysSinceYearStart();
+  return RANGE_POINT_COUNT[range];
+}
+
+function buildDemoCandleData(range: RangeKey, referenceClose: number | null = null): CandlePoint[] {
+  const pointCount = getPointCountForRange(range);
+  const tradingDays: number[] = [];
+  const cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+  while (tradingDays.length < pointCount) {
+    const day = cursor.getDay();
+    if (day !== 0 && day !== 6) tradingDays.push(cursor.getTime());
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  tradingDays.reverse();
+
+  const anchorClose = referenceClose && referenceClose > 100 ? referenceClose : 550;
+  const totalReturn = RANGE_TOTAL_RETURN[range];
+  const startClose = anchorClose / (1 + totalReturn);
+  const sessions = Math.max(pointCount - 1, 1);
+  const trendPerSession = Math.pow(anchorClose / startClose, 1 / sessions) - 1;
+  let prevClose = startClose;
+  const raw: Array<Omit<CandlePoint, 'ema21'>> = [];
+
+  for (let i = 0; i < pointCount; i += 1) {
+    const cycle = Math.sin(i / 8.5) * 0.0028 + Math.cos(i / 21) * 0.0016;
+    const micro = Math.sin(i * 0.83) * 0.0014 + Math.cos(i * 1.27) * 0.0011;
+    const event = i % 41 === 0 ? -0.009 : i % 57 === 0 ? 0.007 : 0;
+    const dailyRet = trendPerSession + cycle + micro + event;
+
+    const close = Math.max(40, prevClose * (1 + dailyRet));
+    const gapRet = dailyRet * 0.35 + Math.sin(i * 1.43) * 0.0012;
+    const open = Math.max(40, prevClose * (1 + gapRet));
+    const intradaySpread = Math.max(0.0038, Math.abs(dailyRet) * 1.4 + 0.0045 + Math.abs(Math.cos(i / 5.2)) * 0.0015);
+    const high = Math.max(open, close) * (1 + intradaySpread * 0.52);
+    const low = Math.min(open, close) * (1 - intradaySpread * 0.48);
+    const volume =
+      38_000_000 +
+      Math.round((Math.sin(i / 6.2) + 1) * 10_000_000 + (Math.cos(i / 13.1) + 1) * 7_000_000 + Math.abs(dailyRet) * 310_000_000);
+
+    raw.push({
+      t: tradingDays[i],
+      open,
+      high,
+      low: Math.max(1, low),
+      close,
+      volume,
+    });
+
+    prevClose = close;
+  }
+
+  const ema = computeEma(raw.map((point) => point.close), 21);
+  return raw.map((point, idx) => ({ ...point, ema21: ema[idx] }));
+}
+
 function ArrowGlyph({ value }: { value: number | null | undefined }) {
   if (value === null || value === undefined || !Number.isFinite(value) || value === 0) {
     return <Minus className="h-3.5 w-3.5 text-zinc-400" />;
@@ -252,14 +381,14 @@ function MetricTile({
 function CandleChart({
   data,
   loading,
-  error,
-  emptyNote,
+  isDemo,
+  demoNote,
   onRetry,
 }: {
   data: CandlePoint[];
   loading: boolean;
-  error: string | null;
-  emptyNote: string | null;
+  isDemo: boolean;
+  demoNote: string | null;
   onRetry: () => void;
 }) {
   if (loading) {
@@ -273,27 +402,11 @@ function CandleChart({
     );
   }
 
-  if (error) {
-    return (
-      <div className="flex min-h-[510px] w-full min-w-0 flex-col items-center justify-center gap-2 rounded-xl bg-zinc-900/20">
-        <p className="text-sm text-zinc-300">Data unavailable</p>
-        <Button variant="outline" size="sm" onClick={onRetry}>Retry</Button>
-      </div>
-    );
-  }
-
-  if (data.length === 0) {
-    return (
-      <div className="flex min-h-[510px] w-full min-w-0 items-center justify-center rounded-xl bg-zinc-900/20 text-sm text-zinc-400">
-        {emptyNote || 'No data returned for selected range'}
-      </div>
-    );
-  }
-
   if (data.length < 2) {
     return (
-      <div className="flex min-h-[510px] w-full min-w-0 items-center justify-center rounded-xl bg-zinc-900/20 text-sm text-zinc-400">
-        Insufficient data for range
+      <div className="flex min-h-[510px] w-full min-w-0 flex-col items-center justify-center gap-2 rounded-xl bg-zinc-900/20 text-sm text-zinc-300">
+        <span>Chart unavailable</span>
+        <Button variant="outline" size="sm" onClick={onRetry}>Retry</Button>
       </div>
     );
   }
@@ -342,107 +455,121 @@ function CandleChart({
   };
 
   return (
-    <div className="h-[560px] w-full min-w-0 rounded-xl bg-zinc-900/20 p-2">
-      <div className="grid h-full min-h-0 grid-rows-[4fr_1.35fr] gap-2">
-        <div className="min-h-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart
-              key={`spy-price-${data[0]?.t ?? 0}-${data[data.length - 1]?.t ?? 0}-${data.length}`}
-              data={chartData}
-              syncId="spy-market-chart"
-              margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
-            >
-              <CartesianGrid stroke="#27272a" strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="t" type="number" scale="time" domain={['dataMin', 'dataMax']} hide />
-              <YAxis
-                orientation="right"
-                tick={{ fill: '#9ca3af', fontSize: 11 }}
-                stroke="#3f3f46"
-                domain={[yMin, yMax]}
-                width={56}
-                tickCount={6}
-                tickFormatter={(value) => formatNumber(typeof value === 'number' ? value : Number(value), 2)}
-              />
-              <Tooltip
-                labelFormatter={tooltipLabelFormatter}
-                formatter={(value: number | string, name: string, item: { payload?: { open?: number; high?: number; low?: number; close?: number; volume?: number } }) => {
-                  if (name === 'close') {
-                    const row = item?.payload;
-                    return [
-                      `O ${formatNumber(row?.open, 2)}  H ${formatNumber(row?.high, 2)}  L ${formatNumber(row?.low, 2)}  C ${formatNumber(row?.close, 2)}`,
-                      'OHLC',
-                    ];
-                  }
-                  return tooltipValueFormatter(value, name);
-                }}
-                contentStyle={{
-                  backgroundColor: 'rgba(24, 24, 27, 0.96)',
-                  borderColor: 'rgba(63, 63, 70, 0.9)',
-                  borderRadius: '8px',
-                  color: '#e4e4e7',
-                }}
-              />
-              <Line
-                type="linear"
-                dataKey="close"
-                stroke="#e4e4e7"
-                strokeWidth={2.1}
-                dot={chartData.length <= 12 ? { r: 2, strokeWidth: 0, fill: '#e4e4e7' } : false}
-                name="close"
-              />
-              <Line
-                type="linear"
-                dataKey="ema21"
-                stroke="#60a5fa"
-                strokeWidth={1.5}
-                dot={false}
-                connectNulls={false}
-                name="ema21"
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
+    <div className="w-full min-w-0">
+      {isDemo && (
+        <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-amber-500/35 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-200">
+          <div className="truncate">
+            <span className="font-semibold uppercase tracking-[0.12em] text-amber-100">Demo chart</span>
+            <span className="ml-2 text-amber-200/90">{demoNote || 'Using simulated market path'}</span>
+          </div>
+          <Button variant="outline" size="sm" className="h-6 px-2 text-[10px]" onClick={onRetry}>
+            Retry
+          </Button>
         </div>
+      )}
 
-        <div className="min-h-0 border-t border-zinc-800/45 pt-1">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={chartData}
-              syncId="spy-market-chart"
-              margin={{ top: 4, right: 12, left: 0, bottom: 10 }}
-            >
-              <XAxis
-                dataKey="t"
-                type="number"
-                scale="time"
-                domain={['dataMin', 'dataMax']}
-                tickFormatter={xTickFormatter}
-                tick={{ fill: '#9ca3af', fontSize: 11 }}
-                stroke="#3f3f46"
-                minTickGap={42}
-              />
-              <YAxis
-                orientation="right"
-                tick={false}
-                stroke="#3f3f46"
-                domain={[0, Math.ceil(maxVolume * 1.1)]}
-                width={0}
-              />
-              <Tooltip
-                labelFormatter={tooltipLabelFormatter}
-                formatter={(value: number | string) => {
-                  const numeric = typeof value === 'number' ? value : Number(value);
-                  return [compactVolume(numeric), 'Volume'];
-                }}
-                contentStyle={{
-                  backgroundColor: 'rgba(24, 24, 27, 0.96)',
-                  borderColor: 'rgba(63, 63, 70, 0.9)',
-                  borderRadius: '8px',
-                  color: '#e4e4e7',
-                }}
-              />
-              <Bar dataKey="volume" fill="#334155" opacity={0.5} barSize={6} name="volume" />
-            </BarChart>
-          </ResponsiveContainer>
+      <div className="h-[560px] rounded-xl bg-zinc-900/20 p-2">
+        <div className="grid h-full min-h-0 grid-rows-[4fr_1.35fr] gap-2">
+          <div className="min-h-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart
+                key={`spy-price-${chartData[0]?.t ?? 0}-${chartData[chartData.length - 1]?.t ?? 0}-${chartData.length}`}
+                data={chartData}
+                syncId="spy-market-chart"
+                margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
+              >
+                <CartesianGrid stroke="#27272a" strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="t" type="number" scale="time" domain={['dataMin', 'dataMax']} hide />
+                <YAxis
+                  orientation="right"
+                  tick={{ fill: '#9ca3af', fontSize: 11 }}
+                  stroke="#3f3f46"
+                  domain={[yMin, yMax]}
+                  width={56}
+                  tickCount={6}
+                  tickFormatter={(value) => formatNumber(typeof value === 'number' ? value : Number(value), 2)}
+                />
+                <Tooltip
+                  labelFormatter={tooltipLabelFormatter}
+                  formatter={(value: number | string, name: string, item: { payload?: { open?: number; high?: number; low?: number; close?: number; volume?: number } }) => {
+                    if (name === 'close') {
+                      const row = item?.payload;
+                      return [
+                        `O ${formatNumber(row?.open, 2)}  H ${formatNumber(row?.high, 2)}  L ${formatNumber(row?.low, 2)}  C ${formatNumber(row?.close, 2)}`,
+                        'OHLC',
+                      ];
+                    }
+                    return tooltipValueFormatter(value, name);
+                  }}
+                  contentStyle={{
+                    backgroundColor: 'rgba(24, 24, 27, 0.96)',
+                    borderColor: 'rgba(63, 63, 70, 0.9)',
+                    borderRadius: '8px',
+                    color: '#e4e4e7',
+                  }}
+                />
+                <Line
+                  type="linear"
+                  dataKey="close"
+                  stroke={isDemo ? '#fbbf24' : '#e4e4e7'}
+                  strokeWidth={2.1}
+                  dot={chartData.length <= 12 ? { r: 2, strokeWidth: 0, fill: isDemo ? '#fbbf24' : '#e4e4e7' } : false}
+                  name="close"
+                />
+                <Line
+                  type="linear"
+                  dataKey="ema21"
+                  stroke={isDemo ? '#fcd34d' : '#60a5fa'}
+                  strokeWidth={1.5}
+                  dot={false}
+                  connectNulls={false}
+                  name="ema21"
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="min-h-0 border-t border-zinc-800/45 pt-1">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={chartData}
+                syncId="spy-market-chart"
+                margin={{ top: 4, right: 12, left: 0, bottom: 10 }}
+              >
+                <XAxis
+                  dataKey="t"
+                  type="number"
+                  scale="time"
+                  domain={['dataMin', 'dataMax']}
+                  tickFormatter={xTickFormatter}
+                  tick={{ fill: '#9ca3af', fontSize: 11 }}
+                  stroke="#3f3f46"
+                  minTickGap={42}
+                />
+                <YAxis
+                  orientation="right"
+                  tick={false}
+                  stroke="#3f3f46"
+                  domain={[0, Math.ceil(maxVolume * 1.1)]}
+                  width={0}
+                />
+                <Tooltip
+                  labelFormatter={tooltipLabelFormatter}
+                  formatter={(value: number | string) => {
+                    const numeric = typeof value === 'number' ? value : Number(value);
+                    return [compactVolume(numeric), 'Volume'];
+                  }}
+                  contentStyle={{
+                    backgroundColor: 'rgba(24, 24, 27, 0.96)',
+                    borderColor: 'rgba(63, 63, 70, 0.9)',
+                    borderRadius: '8px',
+                    color: '#e4e4e7',
+                  }}
+                />
+                <Bar dataKey="volume" fill={isDemo ? '#b45309' : '#334155'} opacity={0.5} barSize={6} name="volume" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
     </div>
@@ -468,8 +595,11 @@ export default function MarketDashboard() {
   const [structureError, setStructureError] = useState<string | null>(null);
 
   const [snapshot, setSnapshot] = useState<MacroSnapshotResponse | null>(null);
+  const performanceRequestIdRef = useRef(0);
+  const structureRequestIdRef = useRef(0);
 
   const fetchPerformance = async (range: RangeKey, isRefresh = false) => {
+    const requestId = ++performanceRequestIdRef.current;
     setPerformanceLoading(true);
     if (isRefresh) setRefreshing(true);
     setPerformanceError(null);
@@ -481,6 +611,7 @@ export default function MarketDashboard() {
       if (!res.ok) throw new Error('Failed to fetch chart data');
 
       const payload = (await res.json()) as CandleApiSuccessResponse | CandleApiErrorResponse;
+      if (requestId !== performanceRequestIdRef.current) return;
       if (!payload.ok) {
         setPerformanceData([]);
         setPerformanceMeta(null);
@@ -488,9 +619,9 @@ export default function MarketDashboard() {
         return;
       }
 
-      const points = Array.isArray(payload.candles) ? payload.candles : [];
+      const points = normalizeCandlePayload(payload.candles);
       setPerformanceData(points);
-      setPerformanceMeta(payload);
+      setPerformanceMeta({ ...payload, candles: points });
       setPerformanceEmptyNote(points.length === 0 ? 'No data returned for selected range' : null);
 
       if (process.env.NODE_ENV !== 'production') {
@@ -506,16 +637,20 @@ export default function MarketDashboard() {
         });
       }
     } catch (error: any) {
+      if (requestId !== performanceRequestIdRef.current) return;
       setPerformanceError(error?.message || 'Data unavailable');
       setPerformanceData([]);
       setPerformanceMeta(null);
     } finally {
-      setPerformanceLoading(false);
-      if (isRefresh) setRefreshing(false);
+      if (requestId === performanceRequestIdRef.current) {
+        setPerformanceLoading(false);
+        if (isRefresh) setRefreshing(false);
+      }
     }
   };
 
   const fetchStructure = async (range: RangeKey) => {
+    const requestId = ++structureRequestIdRef.current;
     setStructureLoading(true);
     setStructureError(null);
     setStocks(null);
@@ -529,6 +664,7 @@ export default function MarketDashboard() {
       fetch(`/api/market/sectors?tf=${range}`, { cache: 'no-store' }),
       fetch(`/api/macro/snapshot?range=${macroRange}`, { cache: 'no-store' }),
     ]);
+    if (requestId !== structureRequestIdRef.current) return;
 
     if (stocksRes.status === 'fulfilled' && stocksRes.value.ok) {
       const payload = await stocksRes.value.json();
@@ -589,7 +725,9 @@ export default function MarketDashboard() {
       setStructureError('Failed to fetch movers and sectors');
     }
 
-    setStructureLoading(false);
+    if (requestId === structureRequestIdRef.current) {
+      setStructureLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -597,7 +735,21 @@ export default function MarketDashboard() {
     fetchStructure(rangeKey);
   }, [rangeKey]);
 
-  const candleData = useMemo(() => buildCandleData(performanceData), [performanceData]);
+  const liveCandleData = useMemo(() => buildCandleData(performanceData), [performanceData]);
+  const demoCandleData = useMemo(
+    () => buildDemoCandleData(rangeKey, liveCandleData[liveCandleData.length - 1]?.close ?? null),
+    [rangeKey, liveCandleData]
+  );
+  const isDemoChart =
+    !performanceLoading && (performanceError !== null || performanceEmptyNote !== null || liveCandleData.length < 2);
+  const demoReason = isDemoChart
+    ? performanceError ||
+      performanceEmptyNote ||
+      (liveCandleData.length === 1
+        ? `Only one live candle returned for ${rangeKey}`
+        : `Live candles unavailable for ${rangeKey}`)
+    : null;
+  const candleData = isDemoChart ? demoCandleData : liveCandleData;
 
   const latest = candleData[candleData.length - 1] ?? null;
   const windowStartPoint = candleData[0] ?? null;
@@ -637,9 +789,9 @@ export default function MarketDashboard() {
   }, [stocks]);
 
   const breadth = useMemo(() => {
-    const risingCount = sectors?.rising?.length ?? 0;
-    const fallingCount = sectors?.falling?.length ?? 0;
-    const advDecl = fallingCount > 0 ? risingCount / fallingCount : risingCount > 0 ? Number.POSITIVE_INFINITY : null;
+    const risingCount = stocks?.rising?.length ?? sectors?.rising?.length ?? 0;
+    const fallingCount = stocks?.falling?.length ?? sectors?.falling?.length ?? 0;
+    const advDeclRatio = fallingCount > 0 ? risingCount / fallingCount : null;
 
     const sp500Series = snapshot?.series?.sp500?.points?.filter((p) => Number.isFinite(p.value)) ?? [];
     const spValues = sp500Series.map((p) => p.value as number);
@@ -648,12 +800,14 @@ export default function MarketDashboard() {
     const ma200 = spValues.length >= 200 ? spValues.slice(-200).reduce((a, b) => a + b, 0) / 200 : null;
 
     return {
-      advDecl,
+      advanceCount: risingCount,
+      declineCount: fallingCount,
+      advDeclRatio,
       pctAbove50: latestSp && ma50 ? (latestSp > ma50 ? 100 : 0) : null,
       pctAbove200: latestSp && ma200 ? (latestSp > ma200 ? 100 : 0) : null,
       breadthPct: risingCount + fallingCount > 0 ? (risingCount / (risingCount + fallingCount)) * 100 : null,
     };
-  }, [sectors, snapshot]);
+  }, [sectors, snapshot, stocks]);
 
   const spSpark = useMemo(() => {
     const values = (snapshot?.series?.sp500?.points ?? [])
@@ -698,7 +852,12 @@ export default function MarketDashboard() {
     <div className="h-[calc(100vh-72px)] w-full overflow-y-auto overflow-x-hidden bg-zinc-950">
       <div className="mx-auto flex min-h-full w-full max-w-[1200px] flex-col gap-y-8 px-6 py-6">
         <div className="text-right text-[11px] text-zinc-400">
-          As of {new Date(snapshot?.asOf || performanceMeta?.candles?.[performanceMeta.candles.length - 1]?.t || Date.now()).toLocaleString()}
+          As of {new Date(
+            snapshot?.asOf ||
+              performanceMeta?.candles?.[performanceMeta.candles.length - 1]?.t ||
+              candleData[candleData.length - 1]?.t ||
+              Date.now()
+          ).toLocaleString()}
         </div>
         <section className="h-[132px] overflow-hidden rounded-2xl border border-zinc-800/40 bg-zinc-900/25 transition-colors duration-200 ease-out">
           <div className="grid h-full grid-cols-1 divide-y divide-zinc-800/35 md:grid-cols-3 md:divide-x md:divide-y-0">
@@ -708,7 +867,7 @@ export default function MarketDashboard() {
                 <div>
                   <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-300/70">Adv / Decl</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-zinc-50">
-                    {Number.isFinite(breadth.advDecl) ? (breadth.advDecl as number).toFixed(2) : '—'}
+                    {`${breadth.advanceCount} / ${breadth.declineCount}`}
                   </div>
                 </div>
                 <div>
@@ -732,6 +891,9 @@ export default function MarketDashboard() {
                       <span className="font-medium text-emerald-400">+{stock.returnPct.toFixed(2)}%</span>
                     </div>
                   ))}
+                  {!structureLoading && !moversUnavailable && (stocks?.rising ?? []).length === 0 && (
+                    <div className="text-[11px] text-zinc-400">No gainers in selected range</div>
+                  )}
                   {structureLoading && <div className="h-8 animate-pulse rounded bg-zinc-800/30" />}
                 </div>
                 <div>
@@ -745,6 +907,9 @@ export default function MarketDashboard() {
                       <span className="font-medium text-rose-400">{stock.returnPct.toFixed(2)}%</span>
                     </div>
                   ))}
+                  {!structureLoading && !moversUnavailable && (stocks?.falling ?? []).length === 0 && (
+                    <div className="text-[11px] text-zinc-400">No losers in selected range</div>
+                  )}
                   {structureLoading && <div className="h-8 animate-pulse rounded bg-zinc-800/30" />}
                 </div>
               </div>
@@ -764,6 +929,9 @@ export default function MarketDashboard() {
                     <span className="font-medium text-emerald-400">+{sector.returnPct.toFixed(2)}%</span>
                   </div>
                 ))}
+                {!structureLoading && !sectorsUnavailable && (sectors?.rising ?? []).length === 0 && (
+                  <div className="text-[11px] text-zinc-400">No rising sectors in selected range</div>
+                )}
                 {structureLoading && <div className="h-8 animate-pulse rounded bg-zinc-800/30" />}
               </div>
               <div>
@@ -777,6 +945,9 @@ export default function MarketDashboard() {
                     <span className="font-medium text-rose-400">{sector.returnPct.toFixed(2)}%</span>
                   </div>
                 ))}
+                {!structureLoading && !sectorsUnavailable && (sectors?.falling ?? []).length === 0 && (
+                  <div className="text-[11px] text-zinc-400">No falling sectors in selected range</div>
+                )}
                 {structureLoading && <div className="h-8 animate-pulse rounded bg-zinc-800/30" />}
                 </div>
               </div>
@@ -831,9 +1002,14 @@ export default function MarketDashboard() {
               <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-zinc-400/70">
                 <span>S&P 500 (proxy: SPY)</span>
                 <span className="normal-case tracking-normal text-zinc-500">
-                  {performanceMeta ? performanceMeta.provider : ''}
+                  {isDemoChart ? 'Simulated feed' : performanceMeta ? performanceMeta.provider : ''}
                 </span>
-                {performanceMeta?.source && performanceMeta.source !== 'none' && (
+                {isDemoChart && (
+                  <span className="rounded-full border border-amber-500/45 bg-amber-500/15 px-2 py-0.5 text-[10px] tracking-normal text-amber-200">
+                    Demo
+                  </span>
+                )}
+                {!isDemoChart && performanceMeta?.source && performanceMeta.source !== 'none' && (
                   <span className="rounded-full border border-zinc-700/50 bg-zinc-800/40 px-2 py-0.5 text-[10px] tracking-normal text-zinc-300">
                     {performanceMeta.source === 'cache' ? 'Cached' : 'Live'}
                   </span>
@@ -873,8 +1049,8 @@ export default function MarketDashboard() {
               key={`SPY-${rangeKey}`}
               data={candleData}
               loading={performanceLoading}
-              error={performanceError}
-              emptyNote={performanceEmptyNote}
+              isDemo={isDemoChart}
+              demoNote={demoReason}
               onRetry={() => void fetchPerformance(rangeKey, true)}
             />
           </div>

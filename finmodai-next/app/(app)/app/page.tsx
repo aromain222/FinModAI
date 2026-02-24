@@ -174,7 +174,6 @@ export default async function AppHomePage() {
 
         <section className="grid gap-4 md:grid-cols-3">
           <CTABox title="Recent models" description="Jump back into the valuation packages you touched last." href="/models" />
-          <CTABox title="Scenario Engine" description="Configure bull/base/bear cases with instant football fields." href="/scenario-engine" />
           <CTABox title="Macro dashboard" description="Monitor rates, indices, and headlines shaping multiples." href="/macro" />
         </section>
 

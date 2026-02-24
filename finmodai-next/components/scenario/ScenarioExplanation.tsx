@@ -83,9 +83,7 @@ export function ScenarioExplanation({
             )}
           </div>
           <div className="prose prose-sm dark:prose-invert max-w-none">
-            <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
-              {aiSummary}
-            </p>
+            {parseMarkdown(aiSummary)}
           </div>
         </div>
       )}
@@ -176,14 +174,23 @@ function parseMarkdown(text: string) {
             </div>
           );
         }
+
+        if (/^[A-Za-z][A-Za-z\s]+:$/.test(line.trim())) {
+          return (
+            <div key={idx} className="font-semibold text-gray-900 dark:text-white text-sm">
+              {line.trim()}
+            </div>
+          );
+        }
         
         // Bullet points
-        if (line.startsWith('•')) {
+        if (line.startsWith('•') || line.startsWith('- ')) {
+          const bulletText = line.startsWith('•') ? line.substring(1).trim() : line.substring(2).trim();
           return (
             <div key={idx} className="flex items-start ml-2">
               <span className="text-gray-400 mr-2">•</span>
               <span className="text-gray-700 dark:text-gray-300 text-sm">
-                {line.substring(1).trim()}
+                {bulletText}
               </span>
             </div>
           );
@@ -210,7 +217,7 @@ function parseMarkdown(text: string) {
         
         // Regular text
         return (
-          <div key={idx} className="text-gray-700 dark:text-gray-300 text-sm">
+          <div key={idx} className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
             {line}
           </div>
         );

@@ -75,7 +75,8 @@ export function buildModelPreviewSnapshot(params: BuildPreviewParams): ModelPrev
   };
 
   switch (modelType) {
-    case 'dcf': {
+    case 'dcf':
+    case 'reverse-dcf': {
       const results = dcfSummary?.results || {};
       const assumptionsBlock = dcfSummary?.assumptions || assumptions || {};
       const revenueSeries = results.revenueByYear || [];

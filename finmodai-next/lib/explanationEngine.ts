@@ -312,7 +312,7 @@ export async function generateAIScenarioExplanation(
       })
       .join('\n');
     
-    const prompt = `You are a financial analyst. Provide a concise, professional explanation of the following scenario analysis for ${ticker}.
+    const prompt = `You are a financial analyst. Explain the scenario analysis below for ${ticker} in plain English.
 
 **Scenario:** ${scenarioName}
 **Description:** ${scenarioDescription}
@@ -327,12 +327,21 @@ ${assumptionSummary}
 
 **Data Quality:** ${dataQuality}
 
-Provide a 2-3 paragraph explanation suitable for an investor that:
-1. Summarizes what this scenario represents and why it matters
-2. Explains the key drivers of the valuation change
-3. Discusses the investment implications and risks
+Write the response using this exact structure:
+Summary:
+- 2-4 short bullets, plain language, no jargon.
 
-Be specific, data-driven, and actionable. ${dataQuality === 'low' ? 'Note that data quality is low, so emphasize that results are directional.' : ''}`;
+Key Drivers:
+- 3-5 bullets on what moved valuation and why.
+
+What To Watch Next:
+- 2-4 bullets with practical monitoring signals and invalidation conditions.
+
+Rules:
+- Keep sentences short and concrete.
+- Avoid dense paragraph blocks.
+- Use the numeric inputs above directly.
+- ${dataQuality === 'low' ? 'State clearly that outputs are directional because data quality is low.' : 'Briefly mention key model limits without overstating certainty.'}`;
 
     const modelCandidates = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-4o-mini', 'gpt-4.1-mini');
     let response: Awaited<ReturnType<typeof openai.chat.completions.create>> | null = null;
@@ -345,7 +354,7 @@ Be specific, data-driven, and actionable. ${dataQuality === 'low' ? 'Note that d
             {
               role: 'system',
               content:
-                'You are a professional financial analyst providing clear, concise scenario analysis explanations. Be specific, honest about limitations, and focus on investment implications.',
+                'You are a professional financial analyst. Use direct, plain language, short bullets, and clear reasoning. Avoid jargon-heavy writing.',
             },
             {
               role: 'user',

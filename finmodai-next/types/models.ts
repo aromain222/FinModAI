@@ -12,6 +12,8 @@ import type { MissingInputSpec } from '@/lib/models/shared/missingInputSpecs';
 
 export type ModelType =
   | 'dcf'
+  | 'reverse-dcf'
+  | 'debt-capacity-lite'
   | 'lbo'
   | 'three-statement'
   | 'comps'
@@ -80,6 +82,22 @@ export type GenerateModelResponse = {
   scenarioSummaries?: Partial<Record<'base' | 'bull' | 'bear', DcfScenarioSummary>>;
 
   lboSummary?: LboEngineOutput;
+  debtCapacityLite?: {
+    label: string;
+    leverageCap: number;
+    coverageCap: number;
+    maxDebt: number;
+    bindingConstraint: 'leverage' | 'coverage';
+    headroomVsNetDebt: number | null;
+    currentNetDebt: number | null;
+    inputs: {
+      ebitda: number;
+      maxLeverage: number;
+      minInterestCoverage: number;
+      interestRate: number;
+    };
+    formattedOutput?: string;
+  };
 };
 
 export type ModelRecord = {

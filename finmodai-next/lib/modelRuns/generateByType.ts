@@ -12,6 +12,7 @@ type GeneratedPayload = {
   modelDocument?: unknown;
   dcfSummary?: unknown;
   lboSummary?: unknown;
+  debtCapacityLite?: unknown;
   scorecardSummary?: unknown;
   assumptions?: unknown;
   diagnostics?: unknown;
@@ -19,7 +20,15 @@ type GeneratedPayload = {
   appliedDefaults?: unknown;
 };
 
-const SUPPORTED_MODEL_TYPES = new Set(['dcf', 'three-statement', 'lbo', 'comps', 'scorecard']);
+const SUPPORTED_MODEL_TYPES = new Set([
+  'dcf',
+  'reverse-dcf',
+  'debt-capacity-lite',
+  'three-statement',
+  'lbo',
+  'comps',
+  'scorecard',
+]);
 
 function stableStringify(value: unknown): string {
   if (value === null || typeof value !== 'object') {
@@ -237,6 +246,7 @@ export async function generateRunForModelType({
       modelDocument: generationJson?.modelDocument,
       dcfSummary: generationJson?.dcfSummary,
       lboSummary: generationJson?.lboSummary,
+      debtCapacityLite: generationJson?.debtCapacityLite,
       scorecardSummary: generationJson?.scorecardSummary,
       assumptions: generationJson?.assumptions,
       diagnostics: generationJson?.diagnostics,

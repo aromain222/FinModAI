@@ -44,6 +44,12 @@ function ensureMinSentences(text: string, minimum: number, extras: string[]): st
   return base.join(' ');
 }
 
+function ensureNaturalSummary(text: string, fallbackText: string, minimum = 2): string {
+  const primary = text.trim();
+  if (primary && splitSentences(primary).length >= minimum) return primary;
+  return ensureMinSentences(primary || fallbackText, minimum, splitSentences(fallbackText));
+}
+
 const SUMMARY_STOPWORDS = new Set([
   'the', 'and', 'for', 'with', 'from', 'into', 'over', 'under', 'amid', 'after', 'before', 'while',
   'that', 'this', 'will', 'would', 'could', 'should', 'their', 'about', 'today', 'market', 'markets',
@@ -190,7 +196,7 @@ function hasArticleSpecificity(text: string | null | undefined, headline: { titl
 
 function isGenericSummary(text: string | null | undefined): boolean {
   if (!text) return true;
-  if (text.trim().length < 140) return true;
+  if (text.trim().length < 80) return true;
   return GENERIC_SUMMARY_PATTERNS.some((pattern) => pattern.test(text));
 }
 
@@ -230,12 +236,10 @@ export function deterministicFallback(headline: {
       ? `Headline drivers include ${specificTokens.join(', ')}.`
       : `Headline driver: ${headline.title}.`;
   const directional = directionalTriplet(impact.bias);
-  const aiSummary = ensureMinSentences(
+  const aiSummary = ensureNaturalSummary(
     `${headline.title}. ${headline.description ?? ''} ${specificPhrase} Base case over 1-5 trading days is ${impact.bias}, with first-order transmission through ${theme.channel}. Initial expression is likely ${theme.baseCase}, with sector read-through of ${sectorSummary}. Confirmation should come from ${theme.watch.join(', ')} and cross-asset breadth; invalidate if those anchors diverge from price action tied to this headline.`,
-    4,
-    [
-      `If follow-through strengthens in rates, FX, and spreads, the move can broaden beyond the initial headline impulse.`,
-    ]
+    `${headline.title}. Base case over 1-5 sessions follows ${theme.channel}. Monitor ${theme.watch.join(', ')} for confirmation versus invalidation.`,
+    2
   );
   const whyItMatters = ensureMinSentences(
     `Market impact: for this headline, base case over 1-5 sessions is equities ${directional.equities}, rates ${directional.rates}, and USD ${directional.usd}. The transmission channel is ${transmissionHint}, tied specifically to ${specificEntities[0] ?? specificTokens[0] ?? 'the reported catalyst'}, with confirmation expected in ${theme.watch.join(', ')}. Sector impact should show up first via ${sectorSummary} before broad index follow-through. Invalidate the view if rates, FX, and credit fail to confirm the move implied by this catalyst within 2-3 sessions.`,
@@ -393,8 +397,10 @@ function ensureCompleteness(
     const shouldFallback = !candidate || isGenericSummary(candidate) || !hasArticleSpecificity(candidate, headline);
     const picked = shouldFallback ? (fallback.ai_summary ?? '').trim() : candidate;
     if (!picked) return null;
-    if (hasArticleSpecificity(picked, headline)) return picked;
-    return `${picked} Catalyst from headline: ${headline.title}.`;
+    const withSpecificity = hasArticleSpecificity(picked, headline)
+      ? picked
+      : `${picked} Catalyst from headline: ${headline.title}.`;
+    return ensureNaturalSummary(withSpecificity, fallback.ai_summary ?? '', 2);
   };
   const ensureConcreteImpact = (text: string | null, fallbackText: string | null): string | null => {
     const candidate = text ?? '';
@@ -460,11 +466,11 @@ function hasLowQualityLegacySummary(summary: string | null | undefined): boolean
   if (!summary) return true;
   const text = summary.toLowerCase();
   return (
-    text.includes('primary market posture is') ||
+      text.includes('primary market posture is') ||
     text.includes('first-order transmission channel') ||
       text.includes('additional context unavailable') ||
       text.includes('near-term direction is rates-led and valuation-sensitive') ||
-      text.length < 180 ||
+      text.length < 80 ||
       !/(market impact|yields?|dxy|vix|credit|spread|sector|transmission)/i.test(text)
   );
 }
@@ -564,13 +570,8 @@ export async function getEnrichmentForHeadline(headline: {
 Description: ${headline.description ?? ''}
 Additional context: ${(headline.contextLines ?? []).join(' | ')}
 Return JSON with:
-ai_summary (exactly 4-6 sentences. Must include: catalyst, transmission channel across rates/fx/credit/earnings, 1-5 day base-case market reaction, and invalidation/monitoring signals),
-why_it_matters (exactly 4 sentences and MUST be written as Market Impact. Sentence structure:
-1) Start with 'Market impact:' and state directional base case for equities, rates, and USD over 1-5 sessions.
-2) Explain the transmission channel (rates/fx/credit/earnings) and why that direction follows.
-3) Write 'Likely winners/losers:' then name 2-4 sectors with direction and a complete brief rationale each (e.g. 'Financials up (net interest margin widens); duration-sensitive sectors down (yield pressure)'). Finish every rationale; do not cut off mid-phrase.
-4) Give 2 monitoring anchors + 1 invalidation trigger (e.g., 2Y/10Y, DXY, VIX, IG/HY, breadth).
-Complete every sentence and every parenthetical. No trailing or unfinished clauses.),
+ai_summary (natural-language summary in 2-5 sentences. Explain what happened in plain words, why it matters, and the likely near-term setup. No bullet list style, no shorthand dump),
+why_it_matters (natural-language market intelligence note in 3-6 sentences. Explain how this specific headline could move equities/rates/USD/credit, include likely sector winners/losers and monitoring/invalidation signals in normal prose. Start with 'Market impact:' but keep the rest conversational and clear),
 impacted_tickers (array of {ticker,direction,rationale?}),
 impacted_sectors (array of {sector,direction,rationale?}),
 confidence (high|medium|low)
@@ -581,8 +582,8 @@ Rules:
 - Avoid region or institution codes in tickers (e.g., EU, ECB, US). Use real tradable tickers only, or return [].
 - Include at least two concrete monitoring anchors in text: 2Y/10Y yields, DXY, VIX, IG/HY spreads, sector breadth.
 - Reuse at least two concrete terms from the title/description (names, instruments, policy body, or macro release) so the summary is article-specific.
-- Include one explicit sentence beginning with "Market impact:" and state expected direction in equities, rates, and USD.
-- Winners/losers: each sector must have a full rationale (e.g. "Financials up (NIM widens)" not "Financials up (net interest margin").
+- Keep language plain and readable; avoid dense jargon chains and avoid semicolon-heavy run-ons.
+- Winners/losers rationales must be complete phrases (no unfinished parentheticals).
 - Do not invent facts, earnings numbers, or policy actions not present in the headline.
 - Keep language precise and institutional.`,
             },
@@ -653,10 +654,10 @@ Rules:
     const enriched = ensureCompleteness(coerceToHeadlineEnrichment(parsed), headline);
     const enrichment = headlineEnrichmentSchema.parse({
       ...enriched,
-      ai_summary: ensureMinSentences(
+      ai_summary: ensureNaturalSummary(
         enriched.ai_summary ?? '',
-        4,
-        splitSentences(deterministicFallback(headline).ai_summary ?? '')
+        deterministicFallback(headline).ai_summary ?? '',
+        2
       ),
       why_it_matters: ensureMinSentences(
         enriched.why_it_matters ?? '',

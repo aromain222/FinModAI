@@ -40,6 +40,15 @@ type NewsErrorResponse = {
   details?: Record<string, unknown>;
 };
 
+type MarketImpactSections = {
+  lead: string | null;
+  drivers: string[];
+  winnersLosers: string[];
+  monitoringAnchors: string[];
+  invalidationTrigger: string | null;
+  fallback: string;
+};
+
 function providerLabel(provider?: 'perigon' | 'benzinga' | 'newsapi' | 'supabase' | 'none'): string {
   if (provider === 'perigon') return 'Perigon';
   if (provider === 'benzinga') return 'Benzinga';
@@ -104,6 +113,144 @@ function errorDisplay(error: NewsErrorResponse): string {
   const env = typeof error.details?.env === 'string' ? error.details.env : null;
   if (env) return `${error.error} (${env})`;
   return error.error;
+}
+
+function cleanImpactText(value: string): string {
+  return value.replace(/\s+/g, ' ').replace(/\s*([,;:.])\s*/g, '$1 ').replace(/\s+/g, ' ').trim();
+}
+
+function splitListItems(value: string): string[] {
+  const normalized = value
+    .replace(/\s+/g, ' ')
+    .replace(/^\s*[-*]\s*/g, '')
+    .trim();
+  if (!normalized) return [];
+  return normalized
+    .split(/\s*;\s*|\s*\|\s*/g)
+    .map((item) => item.trim().replace(/\.$/, ''))
+    .filter(Boolean);
+}
+
+function parseMarketImpactSections(raw: string | null | undefined): MarketImpactSections | null {
+  if (!raw || typeof raw !== 'string') return null;
+  const fallback = cleanImpactText(raw);
+  if (!fallback) return null;
+
+  const text = fallback.replace(/^market impact:\s*/i, '').trim();
+
+  const winnersMatch = text.match(
+    /likely winners\/losers:\s*([\s\S]*?)(?=(monitoring anchors:|invalidation trigger:|$))/i
+  );
+  const monitoringMatch = text.match(/monitoring anchors:\s*([\s\S]*?)(?=(invalidation trigger:|$))/i);
+  const invalidationMatch = text.match(/invalidation trigger:\s*([\s\S]*)$/i);
+
+  const markers = [
+    winnersMatch?.index ?? Infinity,
+    monitoringMatch?.index ?? Infinity,
+    invalidationMatch?.index ?? Infinity,
+  ];
+  const firstMarker = Math.min(...markers);
+  const core = Number.isFinite(firstMarker) ? text.slice(0, firstMarker).trim() : text;
+
+  const coreSentences = core
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+
+  const lead = coreSentences.length > 0 ? coreSentences[0] : null;
+  const drivers = coreSentences.slice(1);
+  const winnersLosers = splitListItems(winnersMatch?.[1] ?? '');
+  const monitoringRaw = (monitoringMatch?.[1] ?? '')
+    .replace(/ and /gi, ', ')
+    .replace(/\//g, '/');
+  const monitoringAnchors = monitoringRaw
+    .split(/\s*[;,]\s*/g)
+    .map((item) => item.trim().replace(/\.$/, ''))
+    .filter(Boolean);
+  const invalidationTrigger = invalidationMatch?.[1]?.trim() || null;
+
+  return {
+    lead,
+    drivers,
+    winnersLosers,
+    monitoringAnchors,
+    invalidationTrigger,
+    fallback,
+  };
+}
+
+function MarketImpactBlock({ text }: { text: string }) {
+  const parsed = parseMarketImpactSections(text);
+  if (!parsed) {
+    return <p className="text-sm leading-6 text-zinc-300">Additional context unavailable.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {parsed.lead && (
+        <div className="rounded-md border border-zinc-800/50 bg-zinc-900/40 px-3 py-2">
+          <p className="text-sm font-medium leading-6 text-zinc-200">{parsed.lead}</p>
+        </div>
+      )}
+
+      {parsed.drivers.length > 0 && (
+        <div>
+          <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-zinc-400/70">Drivers</div>
+          <div className="space-y-1">
+            {parsed.drivers.map((driver, idx) => (
+              <p key={`driver-${idx}`} className="text-sm leading-6 text-zinc-300">
+                {driver}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {parsed.winnersLosers.length > 0 && (
+        <div>
+          <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-zinc-400/70">Likely Winners / Losers</div>
+          <ul className="space-y-1">
+            {parsed.winnersLosers.map((item, idx) => (
+              <li key={`wl-${idx}`} className="text-sm leading-6 text-zinc-300">
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {parsed.monitoringAnchors.length > 0 && (
+        <div>
+          <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-zinc-400/70">Monitoring Anchors</div>
+          <div className="flex flex-wrap gap-1.5">
+            {parsed.monitoringAnchors.map((anchor, idx) => (
+              <span
+                key={`anchor-${idx}`}
+                className="rounded-full border border-zinc-700/70 bg-zinc-900/60 px-2 py-0.5 text-[11px] text-zinc-300"
+              >
+                {anchor}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {parsed.invalidationTrigger && (
+        <div>
+          <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-zinc-400/70">Invalidation Trigger</div>
+          <p className="text-sm leading-6 text-zinc-300">{parsed.invalidationTrigger}</p>
+        </div>
+      )}
+
+      {!parsed.lead &&
+        parsed.drivers.length === 0 &&
+        parsed.winnersLosers.length === 0 &&
+        parsed.monitoringAnchors.length === 0 &&
+        !parsed.invalidationTrigger && (
+          <p className="text-sm leading-6 text-zinc-300">{parsed.fallback}</p>
+        )}
+    </div>
+  );
 }
 
 export default function HeadlinesPanel({
@@ -361,9 +508,7 @@ export default function HeadlinesPanel({
                     <ImpactChips title="Impacted Tickers" items={enrichment.impacted_tickers} />
                     <div>
                       <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-zinc-400/70">Market Impact</div>
-                      <p className="text-sm leading-6 text-zinc-300">
-                        {enrichment.why_it_matters ?? 'Additional context unavailable.'}
-                      </p>
+                      <MarketImpactBlock text={enrichment.why_it_matters ?? ''} />
                     </div>
                   </>
                 )}

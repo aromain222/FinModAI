@@ -148,9 +148,6 @@ export default function ModelDetailPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <DownloadModelButton ticker={model.ticker} modelType={model.model_type} variant="default" />
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/scenario-engine?ticker=${model.ticker}`}>Scenario Engine</Link>
-            </Button>
             <Button asChild variant="ghost" size="sm">
               <Link href={`/analyst-chat?modelId=${model.id}`}>Analyst Chat</Link>
             </Button>
@@ -267,8 +264,7 @@ export default function ModelDetailPage() {
           <CardContent className="text-sm text-muted-foreground">
             <p>{getModelDescription(model.model_type, model.ticker)}</p>
             <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700">
-              <strong>💡 Tip:</strong> Use the Scenario Engine to run bull/bear cases and visualize sensitivity analysis.
-              Open the Analyst Chat to ask questions about this model.
+              <strong>Tip:</strong> Open Analyst Chat to ask questions about this model.
             </div>
           </CardContent>
         </Card>
@@ -285,12 +281,6 @@ export default function ModelDetailPage() {
 
         {/* Quick Actions */}
         <div className="flex flex-wrap gap-3">
-          <Button asChild variant="outline">
-            <Link href={`/scenario-engine?ticker=${model.ticker}`}>
-              <TrendingUp className="mr-2 h-4 w-4" />
-              Run Scenarios
-            </Link>
-          </Button>
           <Button asChild variant="outline">
             <Link href={`/analyst-chat?modelId=${model.id}`}>
               <Activity className="mr-2 h-4 w-4" />

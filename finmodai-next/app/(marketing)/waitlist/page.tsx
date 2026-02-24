@@ -23,7 +23,7 @@ export default function WaitlistPage() {
           Join the waitlist
         </h1>
         <p className="text-[var(--cb-text-body)] text-sm sm:text-base">
-          Enter your name and email. We’ll be in touch when we open access.
+          Enter your name and email. We’ll get in touch and send you the demo link—no instant access here.
         </p>
         <div className="pt-2">
           <WaitlistForm />

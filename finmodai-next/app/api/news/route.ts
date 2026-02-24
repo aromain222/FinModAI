@@ -309,7 +309,20 @@ function toEventBaseTitle(eventType: RelevanceEventType): string {
   return titles[eventType];
 }
 
-function synthesizeEventTitle(eventType: RelevanceEventType, theme: string): string {
+function toFocusHeadline(title: string): string {
+  const cleaned = title
+    .replace(/\s*\|\s*[^|]+$/g, '')
+    .replace(/\s*-\s*(Reuters|Bloomberg|CNBC|WSJ|FT|Financial Times)\b.*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return '';
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  return words.slice(0, 10).join(' ');
+}
+
+function synthesizeEventTitle(eventType: RelevanceEventType, theme: string, focus?: string): string {
+  const focusLabel = typeof focus === 'string' ? focus.trim() : '';
+  if (focusLabel.length > 0) return `${toThemeLabel(theme)} — ${focusLabel}`;
   return `${toThemeLabel(theme)} — ${toEventBaseTitle(eventType)}`;
 }
 
@@ -388,7 +401,48 @@ function splitSentences(text: string): string[] {
     .filter((sentence) => sentence.length > 0);
 }
 
-function ensureDetailedText(base: string, minimum: number, extras: string[]): string {
+function clampSentence(text: string, maxChars = 220): string {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxChars) return normalized;
+  const sliced = normalized.slice(0, maxChars);
+  const cutAt = sliced.lastIndexOf(' ');
+  return `${(cutAt > 120 ? sliced.slice(0, cutAt) : sliced).trim()}...`;
+}
+
+function toPlainNarrative(text: string, maxSentences: number): string {
+  const sentences = splitSentences(text).map((sentence) => clampSentence(sentence));
+  if (sentences.length === 0) return clampSentence(text);
+  return sentences.slice(0, maxSentences).join(' ');
+}
+
+function sectorDirectionSummary(direction: Direction): string {
+  if (direction === 'up') return 'up';
+  if (direction === 'down') return 'down';
+  if (direction === 'mixed') return 'mixed';
+  return 'unclear';
+}
+
+function buildReadableImpact(
+  rawImpact: string,
+  sectors: Array<{ sector: string; direction: Direction }>
+): string {
+  const lead = toPlainNarrative(rawImpact, 1);
+  const winnersLosers = sectors
+    .slice(0, 4)
+    .map((item) => `${item.sector} ${sectorDirectionSummary(item.direction)}`)
+    .join('; ');
+  const winnersLosersText = winnersLosers.length > 0 ? winnersLosers : 'broad index proxies mixed';
+  const anchors = '2Y/10Y yields, DXY, VIX, IG/HY spreads';
+
+  return [
+    `Market impact: ${lead}`,
+    `Likely winners/losers: ${winnersLosersText}.`,
+    `Monitoring anchors: ${anchors}.`,
+    'Invalidation trigger: if volatility and credit spreads fail to confirm within 1-3 sessions.',
+  ].join(' ');
+}
+
+function ensureNarrative(base: string, minimum: number, extras: string[]): string {
   const sentences = splitSentences(base);
   for (const extra of extras) {
     if (sentences.length >= minimum) break;
@@ -397,21 +451,21 @@ function ensureDetailedText(base: string, minimum: number, extras: string[]): st
   return sentences.join(' ');
 }
 
+function ensureImpactPrefix(text: string): string {
+  if (/^market impact:/i.test(text)) return text;
+  return `Market impact: ${text}`.trim();
+}
+
 function makeDetailedEvent(event: EventItem): EventItem {
   const sectorNames = event.impacted_sectors.map((sector) => sector.sector).slice(0, 3);
-  const tickerNames = event.impacted_tickers.map((ticker) => ticker.ticker).slice(0, 3);
-  const aiSummary = ensureDetailedText(event.ai_summary, 4, [
-    `Market impact is expected to transmit through rates, USD, and risk appetite with second-order effects in credit and sector dispersion.`,
-    `First-order sensitivity is concentrated in ${sectorNames.length > 0 ? sectorNames.join(', ') : 'rate-sensitive and cyclical sectors'}${tickerNames.length > 0 ? `, with potential single-name sensitivity in ${tickerNames.join(', ')}` : ''}.`,
-    `Base case reaction should be validated against 2Y/10Y yields, DXY, VIX, and IG/HY spreads before conviction is increased.`,
-    `Invalidation: if cross-asset confirmation fails to follow within 2-3 sessions, treat as a headline-driven move rather than a durable macro regime shift.`,
-  ]);
-  const whyItMatters = ensureDetailedText(event.why_it_matters, 4, [
-    `Market impact: expect near-term repricing in equities via discount rates and risk premia, with the cleanest signal in front-end yields and credit spreads.`,
-    `If rates rise and USD strengthens, duration equities and cyclicals typically underperform while defensives and value factors can hold up; the reverse holds in a dovish/risk-on unwind.`,
-    `Sector rotation is the primary expression channel (breadth dispersion), so leadership in ${sectorNames.length > 0 ? sectorNames.join(', ') : 'duration/cyclicals/defensives'} matters more than index level on day one.`,
-    `What to watch next: follow-through in 2Y/10Y, DXY, VIX, and IG/HY; invalidate if those anchors fade while equities mean-revert.`,
-  ]);
+  const aiSummary = toPlainNarrative(
+    ensureNarrative(event.ai_summary, 2, [
+      `Catalyst concentration is highest in ${sectorNames.length > 0 ? sectorNames.join(', ') : 'macro-sensitive sectors'}.`,
+      `Validate with 2Y/10Y, DXY, VIX, and IG/HY spreads.`,
+    ]),
+    3
+  );
+  const whyItMatters = ensureImpactPrefix(buildReadableImpact(event.why_it_matters, event.impacted_sectors));
 
   return {
     ...event,
@@ -682,11 +736,12 @@ function toEventFromCluster(cluster: {
   items: RelevantHeadline[];
 }): EventItem {
   const lead = cluster.items[0];
-  const title = synthesizeEventTitle(cluster.eventType, cluster.theme);
-  const whatHappened = cluster.items
-    .slice(0, 2)
-    .map((item) => item.title)
-    .join('; ');
+  const focusHeadline = toFocusHeadline(lead?.title ?? '');
+  const title = synthesizeEventTitle(cluster.eventType, cluster.theme, focusHeadline);
+  const related = cluster.items.slice(1, 3).map((item) => item.title);
+  const whatHappened = related.length > 0
+    ? `${lead.title}. Related: ${related.join('; ')}.`
+    : lead.title;
   const impactSeed = inferEventImpact({
     eventType: cluster.eventType,
     title,
@@ -702,18 +757,22 @@ function toEventFromCluster(cluster: {
     id: hashId(`${cluster.eventType}:${cluster.theme}:${cluster.items.map((item) => item.url).join('|')}`),
     title,
     what_happened: whatHappened,
-    ai_summary: ensureDetailedText(impactSeed.whyItMatters, 4, [
-      `Catalyst concentration is highest in ${toThemeLabel(cluster.theme).toLowerCase()} signals from the latest headline cluster.`,
-      `Transmission should be tracked through rates, FX, and credit channels to confirm broad macro spillover.`,
-      `Near-term positioning risk increases if cross-asset confirmation supports the same directional narrative.`,
-      `Invalidation comes from a reversal in yields, dollar, or implied volatility against the headline direction.`,
-    ]),
-    why_it_matters: ensureDetailedText(impactSeed.whyItMatters, 4, [
-      `This cluster matters because it can shift discount rates, growth expectations, and risk premia simultaneously.`,
-      `Relative performance impact is likely to be largest in rate-sensitive and macro-beta sectors.`,
-      `Institutional positioning tends to magnify price moves when multiple sources align on the same macro regime.`,
-      `Risk should be sized to scenario ranges until follow-through confirms persistence over several sessions.`,
-    ]),
+    ai_summary: toPlainNarrative(ensureNarrative(impactSeed.whyItMatters, 2, [
+        `Catalyst cluster is concentrated in ${toThemeLabel(cluster.theme).toLowerCase()}.`,
+        `Transmission should be tracked through rates, FX, and credit channels.`,
+      ]), 3),
+    why_it_matters: ensureImpactPrefix(
+      buildReadableImpact(
+        ensureNarrative(impactSeed.whyItMatters, 3, [
+          `Watch 2Y/10Y, DXY, VIX, and IG/HY spreads to confirm whether the move is broadening.`,
+          `If those anchors diverge from price action, the shock is likely being absorbed rather than repriced.`,
+        ]),
+        impactSeed.affectedSectors.map((sector) => ({
+          sector: sector.sector,
+          direction: sector.direction as Direction,
+        }))
+      )
+    ),
     impacted_sectors: impactSeed.affectedSectors.map((sector) => ({
       sector: sector.sector,
       direction: sector.direction as Direction,
@@ -746,7 +805,7 @@ function toEventFromCluster(cluster: {
 function dedupeEvents(events: EventItem[]): EventItem[] {
   const byKey = new Map<string, EventItem>();
   for (const event of events) {
-    const key = normalizeEventKey(event.title);
+    const key = `${normalizeEventKey(event.title)}|${normalizeEventKey(event.what_happened).slice(0, 140)}`;
     const existing = byKey.get(key);
     if (!existing) {
       byKey.set(key, event);
@@ -1164,18 +1223,30 @@ async function handleEvents(params: Params): Promise<EventsResponse> {
   const errors: string[] = [];
   const supabase = getSupabaseClient();
 
-  const live = await pullLiveHeadlines(params, ['perigon', 'newsapi'], errors);
+  const live = await pullLiveHeadlines(params, ['perigon', 'benzinga', 'newsapi'], errors);
   const strictLive = evaluateRelevantHeadlines(dedupeHeadlines(live.items), 35);
   const softLive = evaluateRelevantHeadlines(dedupeHeadlines(live.items), 26);
-  const looseLive = evaluateRelevantHeadlines(dedupeHeadlines(live.items), 12);
+  const looseLive = evaluateRelevantHeadlines(dedupeHeadlines(live.items), 10);
   const selectedForEvents =
-    strictLive.accepted.length >= 6
+    strictLive.accepted.length >= 8
       ? strictLive.accepted
-      : softLive.accepted.length >= 4
+      : softLive.accepted.length >= 6
       ? softLive.accepted
       : looseLive.accepted;
-  const eventClusters = clusterRelevantHeadlines(selectedForEvents, params.limit);
+  const eventClusters = clusterRelevantHeadlines(selectedForEvents, Math.max(params.limit * 2, 24));
   const baseEvents = dedupeEvents(eventClusters.map(toEventFromCluster)).slice(0, params.limit);
+  const secondaryEvents = dedupeEvents(
+    eventClusters.flatMap((cluster) =>
+      cluster.items.slice(1, 3).map((item) =>
+        toEventFromCluster({
+          eventType: cluster.eventType,
+          theme: cluster.theme,
+          items: [item],
+        })
+      )
+    )
+  );
+  const seededEvents = dedupeEvents([...baseEvents, ...secondaryEvents]).slice(0, params.limit);
 
   if (isDev()) {
     console.debug('[api/news][events][live]', {
@@ -1184,11 +1255,12 @@ async function handleEvents(params: Params): Promise<EventsResponse> {
       relevantCount: strictLive.accepted.length,
       droppedNoiseCount: strictLive.droppedNoiseCount,
       eventClusterCount: eventClusters.length,
-      minScoreUsed: strictLive.accepted.length >= 6 ? 35 : softLive.accepted.length >= 4 ? 26 : 12,
+      minScoreUsed: strictLive.accepted.length >= 8 ? 35 : softLive.accepted.length >= 6 ? 26 : 10,
+      seededCount: seededEvents.length,
     });
   }
   const derivedLiveEvents = await Promise.all(
-    baseEvents.map(async (event) => {
+    seededEvents.map(async (event) => {
       const primarySource = event.sources[0];
       if (!primarySource) return event;
       try {
@@ -1234,7 +1306,7 @@ async function handleEvents(params: Params): Promise<EventsResponse> {
   }
 
   let supabaseEvents: EventItem[] = [];
-  const minimumEvents = Math.min(params.limit, 4);
+  const minimumEvents = Math.min(params.limit, params.range === '1D' ? 4 : params.range === '3D' ? 7 : 9);
   if (supabase && derivedLiveEvents.length < minimumEvents) {
     supabaseEvents = await readEventsFromSupabase(supabase, params, errors);
   }

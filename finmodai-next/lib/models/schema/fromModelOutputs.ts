@@ -27,6 +27,21 @@ type BuildModelDocumentParams = {
   dcfSummary?: any;
   threeStatementSummary?: ThreeStatementSummary | null;
   lboSummary?: any;
+  debtCapacityLiteSummary?: {
+    label: string;
+    leverageCap: number;
+    coverageCap: number;
+    maxDebt: number;
+    bindingConstraint: 'leverage' | 'coverage';
+    headroomVsNetDebt: number | null;
+    currentNetDebt: number | null;
+    inputs?: {
+      ebitda: number;
+      maxLeverage: number;
+      minInterestCoverage: number;
+      interestRate: number;
+    };
+  } | null;
   compsSummary?: any;
   scorecardSummary?: ScorecardSummary | null;
 };
@@ -1346,6 +1361,58 @@ function buildScorecardSections(params: BuildModelDocumentParams) {
   ];
 }
 
+function buildDebtCapacityLiteSections(params: BuildModelDocumentParams) {
+  const summary = params.debtCapacityLiteSummary || null;
+  if (!summary) {
+    return [
+      {
+        id: 'debt_capacity_lite',
+        title: 'Debt Capacity Lite',
+        layout: 'fullWidth' as const,
+        blocks: [
+          summaryTableFromObject(
+            'debt_capacity_lite_summary',
+            'Debt Capacity Lite',
+            {
+              Ticker: params.ticker,
+              Label: 'Debt Capacity Lite (Demo assumptions)',
+              Status: 'No output available',
+            },
+            'missing'
+          ),
+        ],
+      },
+    ];
+  }
+
+  return [
+    {
+      id: 'debt_capacity_lite',
+      title: 'Debt Capacity Lite',
+      layout: 'fullWidth' as const,
+      blocks: [
+        summaryTableFromObject(
+          'debt_capacity_lite_summary',
+          summary.label || 'Debt Capacity Lite (Demo assumptions)',
+          {
+            EBITDA: summary.inputs?.ebitda ?? null,
+            'Max Leverage (x)': summary.inputs?.maxLeverage ?? null,
+            'Min Interest Coverage (x)': summary.inputs?.minInterestCoverage ?? null,
+            'Interest Rate': summary.inputs?.interestRate ?? null,
+            'Leverage-based Cap': summary.leverageCap,
+            'Coverage-based Cap': summary.coverageCap,
+            'Selected Max Debt': summary.maxDebt,
+            'Binding Constraint': summary.bindingConstraint,
+            'Current Net Debt': summary.currentNetDebt,
+            'Headroom vs Net Debt': summary.headroomVsNetDebt,
+          },
+          'reported'
+        ),
+      ],
+    },
+  ];
+}
+
 function buildDefaultSections(params: BuildModelDocumentParams) {
   return [
     {
@@ -1375,12 +1442,14 @@ export function buildDocumentFromModelOutputs(params: BuildModelDocumentParams):
   } as ModelDocument['meta'];
 
   const sections =
-    params.modelType === 'dcf'
+    params.modelType === 'dcf' || params.modelType === 'reverse-dcf'
       ? buildDcfSections(params)
       : params.modelType === 'three-statement'
         ? buildThreeStatementSections(params)
         : params.modelType === 'lbo'
           ? buildLboSections(params)
+          : params.modelType === 'debt-capacity-lite'
+            ? buildDebtCapacityLiteSections(params)
           : params.modelType === 'comps'
             ? buildCompsSections(params)
             : params.modelType === 'scorecard'

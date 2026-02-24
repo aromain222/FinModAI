@@ -5,6 +5,7 @@
 
 export type ModelType =
   | 'dcf'
+  | 'debt-capacity-lite'
   | 'lbo'
   | 'comps'
   | 'merger'
@@ -56,6 +57,7 @@ export function getModelStats(): ModelStats {
   
   const byType: Record<ModelType, number> = {
     'dcf': 0,
+    'debt-capacity-lite': 0,
     'lbo': 0,
     'comps': 0,
     'merger': 0,
@@ -126,7 +128,10 @@ export function mapModelTypeToMetrics(modelType: string): ModelType {
   
   switch (normalized) {
     case 'dcf':
+    case 'reversedcf':
       return 'dcf';
+    case 'debtcapacitylite':
+      return 'debt-capacity-lite';
     case 'lbo':
       return 'lbo';
     case 'comps':
@@ -173,6 +178,7 @@ export function getGenerationTimePercentile(percentile: number): number | undefi
 export function getErrorRateByType(): Record<ModelType, number> {
   const errorRates: Record<ModelType, number> = {
     'dcf': 0,
+    'debt-capacity-lite': 0,
     'lbo': 0,
     'comps': 0,
     'merger': 0,
@@ -183,6 +189,7 @@ export function getErrorRateByType(): Record<ModelType, number> {
   
   const countsByType: Record<ModelType, { total: number; errors: number }> = {
     'dcf': { total: 0, errors: 0 },
+    'debt-capacity-lite': { total: 0, errors: 0 },
     'lbo': { total: 0, errors: 0 },
     'comps': { total: 0, errors: 0 },
     'merger': { total: 0, errors: 0 },

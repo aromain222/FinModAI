@@ -59,6 +59,7 @@ export interface LBOExcelInputs {
     ebitda?: 'Reported' | 'Derived' | 'User';
     [key: string]: 'Reported' | 'Derived' | 'User' | undefined;
   };
+  notes?: string[];
 }
 
 /**
@@ -837,6 +838,9 @@ function createLBOSourcesNotesSheet(
     'Debt schedule assumes level amortization over holding period',
     'No advanced features like revolver sweeps (not supported)',
     'Sensitivities show Entry Multiple × Exit Multiple and Leverage × Exit Multiple',
+    ...(Array.isArray(inputs?.notes)
+      ? inputs.notes.filter((note): note is string => typeof note === 'string' && note.trim().length > 0)
+      : []),
   ];
 
   notes.forEach(note => {

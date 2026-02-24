@@ -390,8 +390,11 @@ export function runLboModel(inputs: LboInputs): LboEngineOutput {
  * Build LBO workbook using ExcelJS
  * Redirects to new comprehensive LBO Excel generator
  */
-export async function buildLboWorkbook(output: LboEngineOutput): Promise<ExcelJS.Workbook> {
+export async function buildLboWorkbook(
+  output: LboEngineOutput,
+  inputs?: import('./models/lbo/excel').LBOExcelInputs
+): Promise<ExcelJS.Workbook> {
   // Use the new comprehensive LBO Excel generator
   const { generateLBOWorkbook } = await import('./models/lbo/excel');
-  return generateLBOWorkbook(output);
+  return generateLBOWorkbook(output, inputs);
 }

@@ -7,7 +7,7 @@ export const TIMEFRAME_ROW_COUNT: Record<MarketTimeframe, number> = {
   'YTD': 252,
   '1Y': 252,
   '5Y': 1260,
-  'MAX': Number.MAX_SAFE_INTEGER,
+  'MAX': 2520,
 };
 
 export const TIMEFRAME_MIN_POINTS: Record<MarketTimeframe, number> = {

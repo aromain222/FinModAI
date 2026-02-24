@@ -66,7 +66,7 @@ export function WaitlistForm() {
     return (
       <div className="rounded-xl border border-[var(--cb-green)]/20 bg-[var(--cb-green)]/5 px-6 py-5 text-center">
         <p className="text-sm font-medium text-[var(--cb-green)]">
-          You’re on the list. We’ll be in touch.
+          You’re on the list. We’ll email you the demo link.
         </p>
       </div>
     );

@@ -32,6 +32,15 @@ type EventsError = {
   message?: string;
 };
 
+type ParsedImpact = {
+  lead: string | null;
+  winnersLosers: string[];
+  monitoringAnchors: string[];
+  invalidationTrigger: string | null;
+  remainder: string[];
+  fallback: string;
+};
+
 function providerLabel(provider?: string): string {
   if (!provider) return 'Unknown';
   if (provider === 'supabase') return 'Supabase';
@@ -69,27 +78,161 @@ function errorText(error: EventsError): string {
   return `${error.error}${provider}${message}${details}`.trim();
 }
 
-function dedupeEventsByTitle(items: EventItem[]): EventItem[] {
-  const byTitle = new Map<string, EventItem>();
+function dedupeEvents(items: EventItem[]): EventItem[] {
+  const byKey = new Map<string, EventItem>();
   for (const event of items) {
-    const key = event.title
+    const titleKey = event.title
       .toLowerCase()
       .normalize('NFKD')
       .replace(/[^\w\s]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
-    const existing = byTitle.get(key);
+    const key = `${event.id}::${titleKey}::${event.published_at}`;
+    const existing = byKey.get(key);
     if (!existing) {
-      byTitle.set(key, event);
+      byKey.set(key, event);
       continue;
     }
     const existingTs = new Date(existing.published_at ?? 0).getTime();
     const currentTs = new Date(event.published_at ?? 0).getTime();
     if (currentTs > existingTs) {
-      byTitle.set(key, event);
+      byKey.set(key, event);
     }
   }
-  return Array.from(byTitle.values());
+  return Array.from(byKey.values()).sort(
+    (a, b) => new Date(b.published_at ?? 0).getTime() - new Date(a.published_at ?? 0).getTime()
+  );
+}
+
+function splitSentences(text: string): string[] {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function parseImpact(text: string | null | undefined): ParsedImpact | null {
+  if (!text) return null;
+  const fallback = text.replace(/\s+/g, ' ').trim();
+  if (!fallback) return null;
+  const normalized = fallback.replace(/^market impact:\s*/i, '').trim();
+
+  const winnersMatch = normalized.match(
+    /likely winners\/losers:\s*([\s\S]*?)(?=(monitoring anchors:|invalidation trigger:|$))/i
+  );
+  const monitoringMatch = normalized.match(/monitoring anchors:\s*([\s\S]*?)(?=(invalidation trigger:|$))/i);
+  const invalidationMatch = normalized.match(/invalidation trigger:\s*([\s\S]*)$/i);
+  const markers = [
+    winnersMatch?.index ?? Infinity,
+    monitoringMatch?.index ?? Infinity,
+    invalidationMatch?.index ?? Infinity,
+  ];
+  const firstMarker = Math.min(...markers);
+  const core = Number.isFinite(firstMarker) ? normalized.slice(0, firstMarker).trim() : normalized;
+  const coreSentences = splitSentences(core);
+
+  const winnersLosers = (winnersMatch?.[1] ?? '')
+    .split(/\s*;\s*/g)
+    .map((entry) => entry.trim().replace(/\.$/, ''))
+    .filter(Boolean);
+  const monitoringAnchors = (monitoringMatch?.[1] ?? '')
+    .replace(/ and /gi, ', ')
+    .split(/\s*[;,]\s*/g)
+    .map((entry) => entry.trim().replace(/\.$/, ''))
+    .filter(Boolean);
+
+  return {
+    lead: coreSentences[0] ?? null,
+    remainder: coreSentences.slice(1),
+    winnersLosers,
+    monitoringAnchors,
+    invalidationTrigger: invalidationMatch?.[1]?.trim() || null,
+    fallback,
+  };
+}
+
+function SummaryBlock({ text }: { text: string }) {
+  const sentences = splitSentences(text).slice(0, 3);
+  if (sentences.length === 0) {
+    return <p className="text-sm leading-6 text-zinc-200">Summary unavailable.</p>;
+  }
+  return (
+    <div className="space-y-2">
+      <p className="rounded-md border border-zinc-800/50 bg-zinc-900/40 px-3 py-2 text-sm leading-6 text-zinc-200">
+        {sentences[0]}
+      </p>
+      {sentences.slice(1).map((line, idx) => (
+        <p key={`evt-sum-${idx}`} className="text-sm leading-6 text-zinc-300">
+          {line}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function MarketImpactBlock({ text }: { text: string }) {
+  const parsed = parseImpact(text);
+  if (!parsed) return <p className="text-sm leading-6 text-zinc-300">Additional context unavailable.</p>;
+
+  return (
+    <div className="space-y-3">
+      {parsed.lead && (
+        <div className="rounded-md border border-zinc-800/50 bg-zinc-900/40 px-3 py-2">
+          <p className="text-sm leading-6 text-zinc-200">{parsed.lead}</p>
+        </div>
+      )}
+
+      {parsed.remainder.map((line, idx) => (
+        <p key={`evt-impact-rem-${idx}`} className="text-sm leading-6 text-zinc-300">
+          {line}
+        </p>
+      ))}
+
+      {parsed.winnersLosers.length > 0 && (
+        <div>
+          <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-zinc-400/70">Likely Winners / Losers</div>
+          <ul className="space-y-1">
+            {parsed.winnersLosers.map((entry, idx) => (
+              <li key={`evt-impact-wl-${idx}`} className="text-sm leading-6 text-zinc-300">
+                {entry}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {parsed.monitoringAnchors.length > 0 && (
+        <div>
+          <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-zinc-400/70">Monitoring Anchors</div>
+          <div className="flex flex-wrap gap-1.5">
+            {parsed.monitoringAnchors.map((anchor, idx) => (
+              <span
+                key={`evt-impact-anchor-${idx}`}
+                className="rounded-full border border-zinc-700/70 bg-zinc-900/60 px-2 py-0.5 text-[11px] text-zinc-300"
+              >
+                {anchor}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {parsed.invalidationTrigger && (
+        <div>
+          <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-zinc-400/70">Invalidation Trigger</div>
+          <p className="text-sm leading-6 text-zinc-300">{parsed.invalidationTrigger}</p>
+        </div>
+      )}
+
+      {!parsed.lead &&
+        parsed.remainder.length === 0 &&
+        parsed.winnersLosers.length === 0 &&
+        parsed.monitoringAnchors.length === 0 &&
+        !parsed.invalidationTrigger && (
+          <p className="text-sm leading-6 text-zinc-300">{parsed.fallback}</p>
+        )}
+    </div>
+  );
 }
 
 export default function EventsPanel({
@@ -114,7 +257,7 @@ export default function EventsPanel({
     setError(null);
 
     try {
-      const response = await fetch(`/api/news?type=events&range=${range}&tag=${topic}&limit=20`, {
+      const response = await fetch(`/api/news?type=events&range=${range}&tag=${topic}&limit=30`, {
         cache: 'no-store',
       });
       const raw = await response.json();
@@ -127,7 +270,7 @@ export default function EventsPanel({
         return;
       }
 
-      setEvents(dedupeEventsByTitle(payload.events ?? payload.items ?? []));
+      setEvents(dedupeEvents(payload.events ?? payload.items ?? []));
       setProvider(payload.provider);
     } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : 'Failed to load events';
@@ -239,12 +382,12 @@ export default function EventsPanel({
               >
                 <div>
                   <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-zinc-400/70">AI Summary</div>
-                  <p className="text-sm leading-6 text-zinc-200">{event.ai_summary}</p>
+                  <SummaryBlock text={event.ai_summary} />
                 </div>
 
                 <div>
                   <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-zinc-400/70">Market Impact</div>
-                  <p className="text-sm leading-6 text-zinc-300">{event.why_it_matters}</p>
+                  <MarketImpactBlock text={event.why_it_matters} />
                 </div>
 
                 <ImpactChips title="Impacted Sectors" items={event.impacted_sectors} />

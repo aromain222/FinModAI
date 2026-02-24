@@ -42,6 +42,7 @@ import { isDemoMode } from '@/lib/demo/isDemoMode';
 import { LoadingPanel } from '@/components/loading';
 import { LOADING_TABS } from '@/lib/loadingCopy';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -51,21 +52,31 @@ import {
 } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Search } from 'lucide-react';
+import { QUICK_LBO_DEFAULT_SUMMARY } from '@/lib/models/lbo/quick';
 
 const MODEL_OPTIONS = [
   { value: 'three-statement', label: 'Three Statement Model', description: 'Full P&L, Balance Sheet, Cash Flow' },
   { value: 'dcf', label: 'Discounted Cash Flow (DCF)', description: 'Intrinsic valuation with terminal value' },
+  { value: 'reverse-dcf', label: 'Reverse DCF (Demo)', description: 'Solve implied growth from price and DCF assumptions' },
+  { value: 'debt-capacity-lite', label: 'Debt Capacity Lite', description: 'Quick max debt estimate from EBITDA constraints' },
   { value: 'comps', label: 'Trading Comps Model', description: 'Peer group valuation multiples' },
   { value: 'scorecard', label: 'Fundamentals Scorecard', description: 'Deterministic ratio scorecard with sector context' },
-  // LBO, Merger, Operating hidden from UI (backend still supports)
+  // Merger and Operating remain hidden from UI
   { value: 'lbo', label: 'Leveraged Buyout (LBO)', description: 'Returns analysis with debt paydown' },
   { value: 'merger', label: 'Merger Model', description: 'Combined IS + EPS bridge + accretion/dilution' },
   { value: 'operating', label: 'Operating Model', description: 'Monthly FP&A + cash runway + variance analysis' }
 ] as const;
 
-/** Model types shown in create dropdown (LBO, M&A, Operating hidden from UI) */
+/** Model types shown in create dropdown */
 const CREATE_MODEL_OPTIONS = MODEL_OPTIONS.filter(
-  (o) => o.value === 'three-statement' || o.value === 'dcf' || o.value === 'comps' || o.value === 'scorecard'
+  (o) =>
+    o.value === 'three-statement' ||
+    o.value === 'dcf' ||
+    o.value === 'reverse-dcf' ||
+    o.value === 'debt-capacity-lite' ||
+    o.value === 'comps' ||
+    o.value === 'scorecard' ||
+    o.value === 'lbo'
 );
 
 type ModelType = (typeof MODEL_OPTIONS)[number]['value'];
@@ -113,6 +124,26 @@ const createDefaultAdvancedDcfState = (): AdvancedDcfFormState => ({
   beta: '',
   equityRiskPremium: '',
   costOfDebt: '',
+});
+
+const createDefaultDcfSensitivityState = () => ({
+  waccRangePct: '2.0',
+  waccStepPct: '0.5',
+  terminalGrowthRangePct: '1.0',
+  terminalGrowthStepPct: '0.25',
+});
+
+const createDefaultLboSensitivityState = () => ({
+  entryRange: '2.0',
+  entryStep: '0.5',
+  exitRange: '2.0',
+  exitStep: '0.5',
+});
+
+const createDefaultDebtCapacityLiteState = () => ({
+  maxLeverage: '4.0',
+  minInterestCoverage: '2.0',
+  interestRatePct: '7.0',
 });
 
 const SCENARIO_LIMITS: Record<keyof ScenarioInputs, { min: number; max: number }> = {
@@ -315,6 +346,19 @@ type EnrichedModelResponse = GenerateModelResponse & {
   requiredInputs?: MissingInputSpec[];
   estimatedInputs?: Array<{ key: string; value: number; source: string; confidence: 'low' | 'medium' | 'high' }>;
 };
+
+type BreakEvenResult = {
+  converged: boolean;
+  modelType: 'dcf' | 'lbo';
+  solveFor: string;
+  solvedValue: number;
+  achievedValue: number | null;
+  targetValue: number;
+  residualError: number | null;
+  iterations: number;
+  reason?: string;
+  fixedAssumptions?: Record<string, number | string>;
+};
 const EMPTY_PREVIEW = { sheetName: '', columns: [] as string[], rows: [] as (string | number | null)[][] };
 
 /**
@@ -377,6 +421,43 @@ const normalizeNarrativeText = (value: unknown): string | null => {
     }
   }
   return String(value);
+};
+
+const firstNumeric = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (typeof item === 'number' && Number.isFinite(item)) return item;
+    }
+  }
+  return undefined;
+};
+
+const getMatrixExtents = (matrix: Array<Array<number | null | undefined>>): { min: number; max: number } | null => {
+  const numbers: number[] = [];
+  matrix.forEach((row) => {
+    row.forEach((value) => {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        numbers.push(value);
+      }
+    });
+  });
+  if (numbers.length === 0) return null;
+  return {
+    min: Math.min(...numbers),
+    max: Math.max(...numbers),
+  };
+};
+
+const getHeatColor = (
+  value: number | null | undefined,
+  extents: { min: number; max: number } | null
+): string | undefined => {
+  if (value === null || value === undefined || !Number.isFinite(value) || !extents) return undefined;
+  const span = extents.max - extents.min;
+  const ratio = span > 0 ? (value - extents.min) / span : 0.5;
+  const hue = 8 + ratio * 132; // red -> green
+  return `hsl(${hue.toFixed(0)} 72% 86%)`;
 };
 
 
@@ -636,6 +717,7 @@ function CreateModelPageInner() {
   }, [modelType, missingInputs, missingInputSpecsOverride]);
   
   // LBO required inputs state
+  const [quickLboMode, setQuickLboMode] = useState(true);
   const [lboRequiredInputs, setLboRequiredInputs] = useState({
     entryMultiple: '10.0',
     exitMultiple: '10.0',
@@ -654,6 +736,25 @@ function CreateModelPageInner() {
     holdingPeriodYears: '5',
     minimumCashBalance: '0',
   });
+  const [reverseDcfInputs, setReverseDcfInputs] = useState({
+    waccPct: '10.0',
+    terminalGrowthPct: '2.5',
+    projectionYears: '5',
+    targetPrice: '',
+  });
+  const [debtCapacityLiteInputs, setDebtCapacityLiteInputs] = useState(
+    createDefaultDebtCapacityLiteState
+  );
+  const [dcfSensitivityInputs, setDcfSensitivityInputs] = useState(createDefaultDcfSensitivityState);
+  const [lboSensitivityInputs, setLboSensitivityInputs] = useState(createDefaultLboSensitivityState);
+  const [sensitivityLoading, setSensitivityLoading] = useState(false);
+  const [sensitivityError, setSensitivityError] = useState<string | null>(null);
+  const [breakEvenSolveFor, setBreakEvenSolveFor] = useState<'revenueGrowth' | 'ebitdaMargin' | 'exitMultiple' | 'entryMultiple'>('revenueGrowth');
+  const [breakEvenTargetPrice, setBreakEvenTargetPrice] = useState('');
+  const [breakEvenTargetIrr, setBreakEvenTargetIrr] = useState('');
+  const [breakEvenLoading, setBreakEvenLoading] = useState(false);
+  const [breakEvenError, setBreakEvenError] = useState<string | null>(null);
+  const [breakEvenResult, setBreakEvenResult] = useState<BreakEvenResult | null>(null);
 
   useEffect(() => {
     setModelType(initialType);
@@ -714,8 +815,52 @@ function CreateModelPageInner() {
     if (modelType !== 'lbo') {
       setShowAdvancedLbo(false);
       setAdvancedLboForm(createDefaultAdvancedLboState());
+      setQuickLboMode(true);
     }
   }, [modelType]);
+
+  useEffect(() => {
+    if (modelType === 'lbo' && quickLboMode) {
+      setShowAdvancedLbo(false);
+    }
+  }, [modelType, quickLboMode]);
+
+  useEffect(() => {
+    if (!generatedModel) return;
+    const dcfConfig = (generatedModel as any)?.dcfSummary?.sensitivity?.config;
+    if (dcfConfig) {
+      setDcfSensitivityInputs({
+        waccRangePct: String(dcfConfig.waccRangePct ?? '2.0'),
+        waccStepPct: String(dcfConfig.waccStepPct ?? '0.5'),
+        terminalGrowthRangePct: String(dcfConfig.terminalGrowthRangePct ?? '1.0'),
+        terminalGrowthStepPct: String(dcfConfig.terminalGrowthStepPct ?? '0.25'),
+      });
+    }
+    const lboConfig = (generatedModel as any)?.lboSummary?.sensitivity?.config;
+    if (lboConfig) {
+      setLboSensitivityInputs({
+        entryRange: String(lboConfig.entryRange ?? '2.0'),
+        entryStep: String(lboConfig.entryStep ?? '0.5'),
+        exitRange: String(lboConfig.exitRange ?? '2.0'),
+        exitStep: String(lboConfig.exitStep ?? '0.5'),
+      });
+    }
+    setSensitivityError(null);
+    if (generatedModel.modelType === 'dcf') {
+      setBreakEvenSolveFor('revenueGrowth');
+      setBreakEvenTargetPrice('');
+      setBreakEvenTargetIrr('');
+    } else if (generatedModel.modelType === 'lbo') {
+      setBreakEvenSolveFor('exitMultiple');
+      const baseIrr = (generatedModel as any)?.lboSummary?.returns?.irr;
+      setBreakEvenTargetIrr(
+        typeof baseIrr === 'number' && Number.isFinite(baseIrr) ? (baseIrr * 100).toFixed(1) : ''
+      );
+      setBreakEvenTargetPrice('');
+    }
+    setBreakEvenError(null);
+    setBreakEvenResult(null);
+  }, [generatedModel]);
 
   const fetchModelStats = useCallback(async (symbol: string, type: string) => {
     try {
@@ -950,25 +1095,155 @@ function CreateModelPageInner() {
     }
 
     // Validate required inputs before generation
+    if (modelType === 'reverse-dcf') {
+      const waccPct = parseAdvancedNumber(reverseDcfInputs.waccPct);
+      const terminalGrowthPct = parseAdvancedNumber(reverseDcfInputs.terminalGrowthPct);
+      const projectionYears = parseAdvancedNumber(reverseDcfInputs.projectionYears);
+      const targetPrice = parseAdvancedNumber(reverseDcfInputs.targetPrice);
+
+      if (
+        waccPct === undefined ||
+        terminalGrowthPct === undefined ||
+        projectionYears === undefined
+      ) {
+        setError('Reverse DCF requires WACC, terminal growth, and projection years.');
+        return;
+      }
+      if (waccPct <= 0 || waccPct >= 60) {
+        setError('WACC must be between 0% and 60%.');
+        return;
+      }
+      if (terminalGrowthPct <= -10 || terminalGrowthPct >= waccPct) {
+        setError('Terminal growth must be less than WACC.');
+        return;
+      }
+      if (projectionYears < 3 || projectionYears > 10) {
+        setError('Projection years must be between 3 and 10.');
+        return;
+      }
+      if (reverseDcfInputs.targetPrice.trim().length > 0 && (targetPrice === undefined || targetPrice <= 0)) {
+        setError('Target price must be a positive number when provided.');
+        return;
+      }
+    }
+
+    if (modelType === 'dcf') {
+      const waccRangePct = parseAdvancedNumber(dcfSensitivityInputs.waccRangePct);
+      const waccStepPct = parseAdvancedNumber(dcfSensitivityInputs.waccStepPct);
+      const terminalGrowthRangePct = parseAdvancedNumber(dcfSensitivityInputs.terminalGrowthRangePct);
+      const terminalGrowthStepPct = parseAdvancedNumber(dcfSensitivityInputs.terminalGrowthStepPct);
+      if (
+        waccRangePct === undefined ||
+        waccStepPct === undefined ||
+        terminalGrowthRangePct === undefined ||
+        terminalGrowthStepPct === undefined
+      ) {
+        setError('Sensitivity inputs require range and step values.');
+        return;
+      }
+      if (
+        waccRangePct <= 0 ||
+        waccStepPct <= 0 ||
+        terminalGrowthRangePct <= 0 ||
+        terminalGrowthStepPct <= 0
+      ) {
+        setError('Sensitivity range and step values must be positive.');
+        return;
+      }
+    }
+
+    if (modelType === 'debt-capacity-lite') {
+      const maxLeverage = parseAdvancedNumber(debtCapacityLiteInputs.maxLeverage);
+      const minInterestCoverage = parseAdvancedNumber(debtCapacityLiteInputs.minInterestCoverage);
+      const interestRatePct = parseAdvancedNumber(debtCapacityLiteInputs.interestRatePct);
+      if (maxLeverage === undefined || minInterestCoverage === undefined || interestRatePct === undefined) {
+        setError('Debt Capacity Lite requires max leverage, minimum interest coverage, and interest rate.');
+        return;
+      }
+      if (maxLeverage <= 0 || maxLeverage > 20) {
+        setError('Max leverage must be greater than 0x and no more than 20x.');
+        return;
+      }
+      if (minInterestCoverage <= 0 || minInterestCoverage > 20) {
+        setError('Minimum interest coverage must be greater than 0x and no more than 20x.');
+        return;
+      }
+      if (interestRatePct <= 0 || interestRatePct > 100) {
+        setError('Interest rate must be greater than 0% and no more than 100%.');
+        return;
+      }
+    }
+
     if (modelType === 'lbo') {
+      const entryRange = parseAdvancedNumber(lboSensitivityInputs.entryRange);
+      const entryStep = parseAdvancedNumber(lboSensitivityInputs.entryStep);
+      const exitRange = parseAdvancedNumber(lboSensitivityInputs.exitRange);
+      const exitStep = parseAdvancedNumber(lboSensitivityInputs.exitStep);
+      if (
+        entryRange === undefined ||
+        entryStep === undefined ||
+        exitRange === undefined ||
+        exitStep === undefined
+      ) {
+        setError('Sensitivity inputs require entry/exit range and step values.');
+        return;
+      }
+      if (entryRange <= 0 || entryStep <= 0 || exitRange <= 0 || exitStep <= 0) {
+        setError('Sensitivity range and step values must be positive.');
+        return;
+      }
+    }
+
+    if (modelType === 'lbo') {
+      const isQuickLbo = quickLboMode;
       const validation = validateModelInputs({
         entryMultiple: lboRequiredInputs.entryMultiple ? parseFloat(lboRequiredInputs.entryMultiple) : undefined,
         exitMultiple: lboRequiredInputs.exitMultiple ? parseFloat(lboRequiredInputs.exitMultiple) : undefined,
-        transactionFeesPercent: lboRequiredInputs.transactionFeesPercent ? parseFloat(lboRequiredInputs.transactionFeesPercent) / 100 : undefined,
-        exitFeesPercent: lboRequiredInputs.exitFeesPercent ? parseFloat(lboRequiredInputs.exitFeesPercent) / 100 : undefined,
+        transactionFeesPercent:
+          !isQuickLbo && lboRequiredInputs.transactionFeesPercent
+            ? parseFloat(lboRequiredInputs.transactionFeesPercent) / 100
+            : undefined,
+        exitFeesPercent:
+          !isQuickLbo && lboRequiredInputs.exitFeesPercent
+            ? parseFloat(lboRequiredInputs.exitFeesPercent) / 100
+            : undefined,
         debtPercent: lboRequiredInputs.debtPercent ? parseFloat(lboRequiredInputs.debtPercent) : undefined,
-        equityPercent: lboRequiredInputs.equityPercent ? parseFloat(lboRequiredInputs.equityPercent) : undefined,
+        equityPercent:
+          !isQuickLbo && lboRequiredInputs.equityPercent
+            ? parseFloat(lboRequiredInputs.equityPercent)
+            : undefined,
         interestRate: lboRequiredInputs.interestRate ? parseFloat(lboRequiredInputs.interestRate) / 100 : undefined,
-        amortizationPercent: lboRequiredInputs.amortizationPercent ? parseFloat(lboRequiredInputs.amortizationPercent) / 100 : undefined,
-        cashSweepPercent: lboRequiredInputs.cashSweepPercent ? parseFloat(lboRequiredInputs.cashSweepPercent) / 100 : undefined,
+        amortizationPercent:
+          !isQuickLbo && lboRequiredInputs.amortizationPercent
+            ? parseFloat(lboRequiredInputs.amortizationPercent) / 100
+            : undefined,
+        cashSweepPercent:
+          !isQuickLbo && lboRequiredInputs.cashSweepPercent
+            ? parseFloat(lboRequiredInputs.cashSweepPercent) / 100
+            : undefined,
         revenueGrowth: lboRequiredInputs.revenueGrowth ? parseFloat(lboRequiredInputs.revenueGrowth) / 100 : undefined,
-        ebitdaMargin: lboRequiredInputs.ebitdaMargin ? parseFloat(lboRequiredInputs.ebitdaMargin) / 100 : undefined,
-        capexPctRevenue: lboRequiredInputs.capexPctRevenue ? parseFloat(lboRequiredInputs.capexPctRevenue) / 100 : undefined,
-        deltaNwcPctRevenue: lboRequiredInputs.deltaNwcPctRevenue ? parseFloat(lboRequiredInputs.deltaNwcPctRevenue) / 100 : undefined,
-        taxRate: lboRequiredInputs.taxRate ? parseFloat(lboRequiredInputs.taxRate) / 100 : undefined,
+        ebitdaMargin:
+          !isQuickLbo && lboRequiredInputs.ebitdaMargin
+            ? parseFloat(lboRequiredInputs.ebitdaMargin) / 100
+            : undefined,
+        capexPctRevenue:
+          !isQuickLbo && lboRequiredInputs.capexPctRevenue
+            ? parseFloat(lboRequiredInputs.capexPctRevenue) / 100
+            : undefined,
+        deltaNwcPctRevenue:
+          !isQuickLbo && lboRequiredInputs.deltaNwcPctRevenue
+            ? parseFloat(lboRequiredInputs.deltaNwcPctRevenue) / 100
+            : undefined,
+        taxRate:
+          !isQuickLbo && lboRequiredInputs.taxRate
+            ? parseFloat(lboRequiredInputs.taxRate) / 100
+            : undefined,
         holdingPeriodYears: lboRequiredInputs.holdingPeriodYears ? parseFloat(lboRequiredInputs.holdingPeriodYears) : undefined,
-        minimumCashBalance: lboRequiredInputs.minimumCashBalance ? parseFloat(lboRequiredInputs.minimumCashBalance) : undefined,
-      });
+        minimumCashBalance:
+          !isQuickLbo && lboRequiredInputs.minimumCashBalance
+            ? parseFloat(lboRequiredInputs.minimumCashBalance)
+            : undefined,
+      }, { quickLbo: isQuickLbo });
       
       if (!validation.isValid) {
         const missingKeys = Array.isArray((validation as any).missingKeys)
@@ -1005,6 +1280,9 @@ function CreateModelPageInner() {
     setLoading(true);
     setShowResults(false);
     setGeneratedModel(null);
+    setBreakEvenResult(null);
+    setBreakEvenError(null);
+    setBreakEvenLoading(false);
     setLastDurationMs(undefined);
     setTimerStats(undefined);
     setReportText(null);
@@ -1139,19 +1417,111 @@ function CreateModelPageInner() {
         lboEntryMultiple !== undefined && lboDebtPct !== undefined
           ? lboEntryMultiple * lboDebtPct
           : undefined;
+      const isQuickLbo = modelType === 'lbo' && quickLboMode;
+      const lboQuickInputs =
+        isQuickLbo
+          ? {
+              entryMultiple: lboEntryMultiple,
+              debtPercent: lboRequiredInputs.debtPercent
+                ? parseFloat(lboRequiredInputs.debtPercent)
+                : undefined,
+              interestRatePct: lboRequiredInputs.interestRate
+                ? parseFloat(lboRequiredInputs.interestRate)
+                : undefined,
+              revenueGrowthPct: lboRequiredInputs.revenueGrowth
+                ? parseFloat(lboRequiredInputs.revenueGrowth)
+                : undefined,
+              exitMultiple: lboExitMultiple,
+              holdingPeriodYears: lboHoldPeriod,
+            }
+          : undefined;
 
       const useAdvancedDcf = modelType === 'dcf';
       const advancedDcfBeta = useAdvancedDcf ? parseAdvancedNumber(advancedDcfForm.beta) : undefined;
       const advancedDcfErp = useAdvancedDcf ? parsePercentInput(advancedDcfForm.equityRiskPremium) : undefined;
       const advancedDcfCostOfDebt = useAdvancedDcf ? parsePercentInput(advancedDcfForm.costOfDebt) : undefined;
+      const reverseDcfWaccPct = modelType === 'reverse-dcf' ? parseAdvancedNumber(reverseDcfInputs.waccPct) : undefined;
+      const reverseDcfTerminalGrowthPct =
+        modelType === 'reverse-dcf' ? parseAdvancedNumber(reverseDcfInputs.terminalGrowthPct) : undefined;
+      const reverseDcfProjectionYears =
+        modelType === 'reverse-dcf' ? parseAdvancedNumber(reverseDcfInputs.projectionYears) : undefined;
+      const reverseDcfTargetPrice =
+        modelType === 'reverse-dcf' ? parseAdvancedNumber(reverseDcfInputs.targetPrice) : undefined;
+      const reverseDcfPayload =
+        modelType === 'reverse-dcf'
+          ? Object.fromEntries(
+              Object.entries({
+                waccPct: reverseDcfWaccPct,
+                terminalGrowthPct: reverseDcfTerminalGrowthPct,
+                projectionYears: reverseDcfProjectionYears,
+                targetPrice: reverseDcfTargetPrice,
+              }).filter(([, value]) => value !== undefined)
+            )
+          : undefined;
+      const debtCapacityLitePayload =
+        modelType === 'debt-capacity-lite'
+          ? Object.fromEntries(
+              Object.entries({
+                maxLeverage: parseAdvancedNumber(debtCapacityLiteInputs.maxLeverage),
+                minInterestCoverage: parseAdvancedNumber(debtCapacityLiteInputs.minInterestCoverage),
+                interestRatePct: parseAdvancedNumber(debtCapacityLiteInputs.interestRatePct),
+              }).filter(([, value]) => value !== undefined)
+            )
+          : undefined;
+      const dcfSensitivityPayload =
+        modelType === 'dcf'
+          ? Object.fromEntries(
+              Object.entries({
+                waccRangePct: parseAdvancedNumber(dcfSensitivityInputs.waccRangePct),
+                waccStepPct: parseAdvancedNumber(dcfSensitivityInputs.waccStepPct),
+                terminalGrowthRangePct: parseAdvancedNumber(dcfSensitivityInputs.terminalGrowthRangePct),
+                terminalGrowthStepPct: parseAdvancedNumber(dcfSensitivityInputs.terminalGrowthStepPct),
+              }).filter(([, value]) => value !== undefined)
+            )
+          : undefined;
+      const lboSensitivityPayload =
+        modelType === 'lbo'
+          ? Object.fromEntries(
+              Object.entries({
+                entryRange: parseAdvancedNumber(lboSensitivityInputs.entryRange),
+                entryStep: parseAdvancedNumber(lboSensitivityInputs.entryStep),
+                exitRange: parseAdvancedNumber(lboSensitivityInputs.exitRange),
+                exitStep: parseAdvancedNumber(lboSensitivityInputs.exitStep),
+              }).filter(([, value]) => value !== undefined)
+            )
+          : undefined;
 
       let requestBody: Record<string, any> = {
         ticker: trimmedTicker,
         modelType,
         dataSource: 'demo',
         includeScenarios: includeScenarioFlag || undefined,
-        wacc: scenarioFeatureEnabled ? baseScenario.wacc / 100 : undefined,
-        terminalGrowth: scenarioFeatureEnabled ? baseScenario.terminalGrowth / 100 : undefined,
+        wacc:
+          modelType === 'reverse-dcf'
+            ? reverseDcfWaccPct !== undefined
+              ? reverseDcfWaccPct / 100
+              : undefined
+            : scenarioFeatureEnabled
+              ? baseScenario.wacc / 100
+              : undefined,
+        terminalGrowth:
+          modelType === 'reverse-dcf'
+            ? reverseDcfTerminalGrowthPct !== undefined
+              ? reverseDcfTerminalGrowthPct / 100
+              : undefined
+            : scenarioFeatureEnabled
+              ? baseScenario.terminalGrowth / 100
+              : undefined,
+        projectionYears: modelType === 'reverse-dcf' ? reverseDcfProjectionYears : undefined,
+        targetPrice: modelType === 'reverse-dcf' ? reverseDcfTargetPrice : undefined,
+        reverseDcfInputs: reverseDcfPayload,
+        debtCapacityLiteInputs: debtCapacityLitePayload,
+        sensitivity:
+          modelType === 'dcf'
+            ? { dcf: dcfSensitivityPayload }
+            : modelType === 'lbo'
+              ? { lbo: lboSensitivityPayload }
+              : undefined,
         sliderOverrides: scenarioFeatureEnabled
           ? modelType === 'lbo'
             ? {
@@ -1177,8 +1547,13 @@ function CreateModelPageInner() {
             ? customComps.split(',').map((t) => t.trim()).filter((t) => t)
             : undefined,
         useOnlyCustom: modelType === 'comps' ? useOnlyCustom : undefined,
-        lboAdvanced: modelType === 'lbo' ? advancedLboPayload : undefined,
-        lboOverrides: modelType === 'lbo'
+        quickLbo: isQuickLbo ? true : undefined,
+        lboQuickInputs:
+          isQuickLbo
+            ? Object.fromEntries(Object.entries(lboQuickInputs || {}).filter(([, value]) => value !== undefined))
+            : undefined,
+        lboAdvanced: modelType === 'lbo' && !isQuickLbo ? advancedLboPayload : undefined,
+        lboOverrides: modelType === 'lbo' && !isQuickLbo
           ? {
               entryMultiple: lboEntryMultiple,
               exitMultiple: lboExitMultiple,
@@ -1201,7 +1576,7 @@ function CreateModelPageInner() {
               revolverRate: lboInterestRate,
             }
           : undefined,
-        lboDealAssumptions: modelType === 'lbo'
+        lboDealAssumptions: modelType === 'lbo' && !isQuickLbo
           ? {
               entry: {
                 entryMultiple: lboEntryMultiple,
@@ -1513,6 +1888,7 @@ function CreateModelPageInner() {
         // Store model-specific summaries for preview parsing
         dcfSummary: generateData.dcfSummary,
         lboSummary: generateData.lboSummary,
+        debtCapacityLite: generateData.debtCapacityLite,
         assumptions: generateData.assumptions,
         diagnostics: generateData.diagnostics,
         // Store state information
@@ -1546,6 +1922,238 @@ function CreateModelPageInner() {
     }
   };
 
+  const handleRefreshSensitivity = useCallback(async () => {
+    if (!generatedModel || !lastRequestBody) return;
+    const activeModelType = generatedModel.modelType;
+    if (activeModelType !== 'dcf' && activeModelType !== 'lbo') return;
+
+    setSensitivityError(null);
+    setSensitivityLoading(true);
+    try {
+      const dcfSensitivityPayload =
+        activeModelType === 'dcf'
+          ? {
+              waccRangePct: parseAdvancedNumber(dcfSensitivityInputs.waccRangePct),
+              waccStepPct: parseAdvancedNumber(dcfSensitivityInputs.waccStepPct),
+              terminalGrowthRangePct: parseAdvancedNumber(dcfSensitivityInputs.terminalGrowthRangePct),
+              terminalGrowthStepPct: parseAdvancedNumber(dcfSensitivityInputs.terminalGrowthStepPct),
+            }
+          : undefined;
+      const lboSensitivityPayload =
+        activeModelType === 'lbo'
+          ? {
+              entryRange: parseAdvancedNumber(lboSensitivityInputs.entryRange),
+              entryStep: parseAdvancedNumber(lboSensitivityInputs.entryStep),
+              exitRange: parseAdvancedNumber(lboSensitivityInputs.exitRange),
+              exitStep: parseAdvancedNumber(lboSensitivityInputs.exitStep),
+            }
+          : undefined;
+
+      const payload = {
+        ...lastRequestBody,
+        sensitivity:
+          activeModelType === 'dcf'
+            ? { dcf: dcfSensitivityPayload }
+            : { lbo: lboSensitivityPayload },
+      };
+
+      const genResp = await fetch(`/api/model-types/${activeModelType}/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      let generateData = await genResp.json();
+
+      if (!genResp.ok) {
+        throw new Error(generateData?.message || generateData?.error || 'Failed to refresh sensitivity.');
+      }
+
+      if (generateData?.status !== 'generated') {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        const poll = await fetch(`/api/model-types/${activeModelType}/generate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+        const pollData = await poll.json();
+        if (pollData?.status !== 'generated') {
+          throw new Error(`Sensitivity refresh not ready: ${pollData?.status || 'unknown'}`);
+        }
+        generateData = pollData;
+      }
+
+      setLastRequestBody(payload);
+      setGeneratedModel((prev) => {
+        if (!prev) return prev;
+        const next: any = { ...prev };
+        if (activeModelType === 'dcf') {
+          next.dcfSummary = {
+            ...(prev as any).dcfSummary,
+            sensitivity: generateData?.dcfSummary?.sensitivity,
+          };
+        }
+        if (activeModelType === 'lbo') {
+          next.lboSummary = {
+            ...(prev as any).lboSummary,
+            sensitivity: generateData?.lboSummary?.sensitivity,
+          };
+        }
+        return next;
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to refresh sensitivity.';
+      setSensitivityError(message);
+    } finally {
+      setSensitivityLoading(false);
+    }
+  }, [
+    generatedModel,
+    lastRequestBody,
+    dcfSensitivityInputs,
+    lboSensitivityInputs,
+  ]);
+
+  const handleSolveBreakEven = useCallback(async () => {
+    if (!generatedModel) return;
+    if (generatedModel.modelType !== 'dcf' && generatedModel.modelType !== 'lbo') return;
+    setBreakEvenLoading(true);
+    setBreakEvenError(null);
+    setBreakEvenResult(null);
+
+    try {
+      if (generatedModel.modelType === 'dcf') {
+        const assumptions = (generatedModel as any)?.assumptions || {};
+        const canonical = (generatedModel as any)?.canonicalFinancials?.values || {};
+        const dcfSummary = (generatedModel as any)?.dcfSummary || {};
+        const solveFor = breakEvenSolveFor === 'ebitdaMargin' ? 'ebitdaMargin' : 'revenueGrowth';
+
+        const payload = {
+          modelType: 'dcf',
+          ticker: generatedModel.ticker,
+          solveFor,
+          targetPrice: parseAdvancedNumber(breakEvenTargetPrice),
+          dcfContext: {
+            marketPrice:
+              canonical?.price?.value ??
+              dcfSummary?.marketContext?.sharePrice ??
+              undefined,
+            revenue:
+              canonical?.revenue?.value ??
+              firstNumeric(assumptions?.revenue) ??
+              undefined,
+            revenueGrowth:
+              firstNumeric(assumptions?.revenueGrowth) ??
+              firstNumeric(dcfSummary?.assumptions?.revenueGrowth) ??
+              undefined,
+            ebitdaMargin:
+              firstNumeric(assumptions?.ebitdaMargin) ??
+              firstNumeric(dcfSummary?.assumptions?.ebitdaMargin) ??
+              undefined,
+            taxRate:
+              assumptions?.taxRate ??
+              dcfSummary?.assumptions?.taxRate ??
+              undefined,
+            capexPctRevenue:
+              firstNumeric(assumptions?.capexPctRevenue) ??
+              dcfSummary?.assumptions?.capexPercentOfRevenue ??
+              undefined,
+            nwcPctRevenue:
+              firstNumeric(assumptions?.nwcPctRevenue) ??
+              dcfSummary?.assumptions?.changeInWCPercentOfRevenue ??
+              undefined,
+            netDebt:
+              dcfSummary?.results?.netDebt ??
+              canonical?.netDebt?.value ??
+              undefined,
+            sharesOutstanding:
+              assumptions?.sharesOutstanding ??
+              canonical?.sharesOutstanding?.value ??
+              undefined,
+            wacc:
+              dcfSummary?.wacc ??
+              dcfSummary?.valuationResults?.wacc ??
+              assumptions?.wacc ??
+              undefined,
+            terminalGrowth:
+              dcfSummary?.terminalGrowth ??
+              dcfSummary?.valuationResults?.terminalGrowth ??
+              assumptions?.terminalGrowth ??
+              undefined,
+            projectionYears:
+              dcfSummary?.assumptions?.projectionHorizon ??
+              assumptions?.years?.length ??
+              5,
+          },
+        };
+
+        const response = await fetch('/api/models/breakeven', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          if (data?.result) {
+            setBreakEvenResult(data.result as BreakEvenResult);
+          }
+          throw new Error(data?.message || data?.error || 'Break-even solver failed.');
+        }
+        if (!data?.result) {
+          throw new Error('Break-even solver did not return a result.');
+        }
+        setBreakEvenResult(data.result as BreakEvenResult);
+        return;
+      }
+
+      const targetIrrPct = parseAdvancedNumber(breakEvenTargetIrr);
+      if (targetIrrPct === undefined) {
+        throw new Error('Enter a target IRR (%) before solving.');
+      }
+      const solveFor = breakEvenSolveFor === 'entryMultiple' ? 'entryMultiple' : 'exitMultiple';
+      const lboInputs = (generatedModel as any)?.lboSummary?.inputs;
+      if (!lboInputs) {
+        throw new Error('LBO inputs unavailable for break-even solve.');
+      }
+      const response = await fetch('/api/models/breakeven', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          modelType: 'lbo',
+          ticker: generatedModel.ticker,
+          solveFor,
+          targetIRR: targetIrrPct,
+          lboInputs,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (data?.result) {
+          setBreakEvenResult(data.result as BreakEvenResult);
+        }
+        throw new Error(data?.message || data?.error || 'Break-even solver failed.');
+      }
+      if (!data?.result) {
+        throw new Error('Break-even solver did not return a result.');
+      }
+      setBreakEvenResult(data.result as BreakEvenResult);
+    } catch (err) {
+      setBreakEvenError(err instanceof Error ? err.message : 'Break-even solver failed.');
+    } finally {
+      setBreakEvenLoading(false);
+    }
+  }, [
+    generatedModel,
+    breakEvenSolveFor,
+    breakEvenTargetPrice,
+    breakEvenTargetIrr,
+  ]);
+
   const resetForm = () => {
     setTicker('');
     setModelData(null);
@@ -1569,6 +2177,23 @@ function CreateModelPageInner() {
     setShowAdvancedLbo(false);
     setAdvancedDcfForm(createDefaultAdvancedDcfState());
     setShowAdvancedDcf(false);
+    setReverseDcfInputs({
+      waccPct: '10.0',
+      terminalGrowthPct: '2.5',
+      projectionYears: '5',
+      targetPrice: '',
+    });
+    setDebtCapacityLiteInputs(createDefaultDebtCapacityLiteState());
+    setDcfSensitivityInputs(createDefaultDcfSensitivityState());
+    setLboSensitivityInputs(createDefaultLboSensitivityState());
+    setSensitivityError(null);
+    setSensitivityLoading(false);
+    setBreakEvenSolveFor('revenueGrowth');
+    setBreakEvenTargetPrice('');
+    setBreakEvenTargetIrr('');
+    setBreakEvenLoading(false);
+    setBreakEvenError(null);
+    setBreakEvenResult(null);
     setMergerInputs({});
     setMergerInputsValid(false);
     setOperatingInputs({});
@@ -1629,7 +2254,11 @@ function CreateModelPageInner() {
     setReportPdfUrl(null);
 
     const normalizedModelKind =
-      modelType === 'three-statement' ? 'three_statement' : modelType;
+      modelType === 'three-statement'
+        ? 'three_statement'
+        : modelType === 'reverse-dcf'
+          ? 'dcf'
+          : modelType;
 
     const compsData = (generatedModel as any)?.assumptions?.compsModel;
     const compsStats = compsData?.stats;
@@ -2281,6 +2910,165 @@ function CreateModelPageInner() {
               </Card>
             )}
 
+            {modelType === 'reverse-dcf' && (
+              <Card className="border-[var(--cb-border-subtle)]">
+                <CardHeader>
+                  <CardTitle className="text-lg">Reverse DCF Inputs (Demo)</CardTitle>
+                  <CardDescription>
+                    Solve implied revenue CAGR from market price using fixed DCF assumptions.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="reverse-dcf-wacc">
+                      WACC (%) <span className="text-[var(--cb-danger)]">*</span>
+                    </Label>
+                    <Input
+                      id="reverse-dcf-wacc"
+                      type="number"
+                      min={0}
+                      max={60}
+                      step={0.1}
+                      placeholder="10.0"
+                      value={reverseDcfInputs.waccPct}
+                      onChange={(event) =>
+                        setReverseDcfInputs((prev) => ({ ...prev, waccPct: event.target.value }))
+                      }
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="reverse-dcf-terminal-growth">
+                      Terminal Growth (%) <span className="text-[var(--cb-danger)]">*</span>
+                    </Label>
+                    <Input
+                      id="reverse-dcf-terminal-growth"
+                      type="number"
+                      min={-10}
+                      max={20}
+                      step={0.1}
+                      placeholder="2.5"
+                      value={reverseDcfInputs.terminalGrowthPct}
+                      onChange={(event) =>
+                        setReverseDcfInputs((prev) => ({ ...prev, terminalGrowthPct: event.target.value }))
+                      }
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="reverse-dcf-years">
+                      Projection Years <span className="text-[var(--cb-danger)]">*</span>
+                    </Label>
+                    <Input
+                      id="reverse-dcf-years"
+                      type="number"
+                      min={3}
+                      max={10}
+                      step={1}
+                      placeholder="5"
+                      value={reverseDcfInputs.projectionYears}
+                      onChange={(event) =>
+                        setReverseDcfInputs((prev) => ({ ...prev, projectionYears: event.target.value }))
+                      }
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="reverse-dcf-target-price">Target Price (Optional)</Label>
+                    <Input
+                      id="reverse-dcf-target-price"
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      placeholder="Uses demo market price if blank"
+                      value={reverseDcfInputs.targetPrice}
+                      onChange={(event) =>
+                        setReverseDcfInputs((prev) => ({ ...prev, targetPrice: event.target.value }))
+                      }
+                    />
+                    <p className="text-xs text-[var(--cb-text-muted)]">
+                      Leave blank to default target price to current demo market price.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {modelType === 'debt-capacity-lite' && (
+              <Card className="border-[var(--cb-border-subtle)]">
+                <CardHeader>
+                  <CardTitle className="text-lg">Debt Capacity Lite Inputs (Demo)</CardTitle>
+                  <CardDescription>
+                    Estimate max debt from EBITDA with leverage and coverage constraints.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="debt-capacity-max-leverage">
+                      Max Leverage (x) <span className="text-[var(--cb-danger)]">*</span>
+                    </Label>
+                    <Input
+                      id="debt-capacity-max-leverage"
+                      type="number"
+                      min={0.1}
+                      max={20}
+                      step={0.1}
+                      placeholder="4.0"
+                      value={debtCapacityLiteInputs.maxLeverage}
+                      onChange={(event) =>
+                        setDebtCapacityLiteInputs((prev) => ({ ...prev, maxLeverage: event.target.value }))
+                      }
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="debt-capacity-min-coverage">
+                      Min Interest Coverage (x) <span className="text-[var(--cb-danger)]">*</span>
+                    </Label>
+                    <Input
+                      id="debt-capacity-min-coverage"
+                      type="number"
+                      min={0.1}
+                      max={20}
+                      step={0.1}
+                      placeholder="2.0"
+                      value={debtCapacityLiteInputs.minInterestCoverage}
+                      onChange={(event) =>
+                        setDebtCapacityLiteInputs((prev) => ({
+                          ...prev,
+                          minInterestCoverage: event.target.value,
+                        }))
+                      }
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="debt-capacity-interest-rate">
+                      Interest Rate (%) <span className="text-[var(--cb-danger)]">*</span>
+                    </Label>
+                    <Input
+                      id="debt-capacity-interest-rate"
+                      type="number"
+                      min={0.1}
+                      max={100}
+                      step={0.1}
+                      placeholder="7.0"
+                      value={debtCapacityLiteInputs.interestRatePct}
+                      onChange={(event) =>
+                        setDebtCapacityLiteInputs((prev) => ({ ...prev, interestRatePct: event.target.value }))
+                      }
+                      required
+                    />
+                  </div>
+                  <div className="md:col-span-3 rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-subtle)] p-3">
+                    <p className="text-xs text-[var(--cb-text-muted)]">
+                      Formula: <code>maxDebt = min(EBITDA × maxLeverage, EBITDA ÷ minCoverage ÷ interestRate)</code>.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {modelType === 'dcf' && (
               <Card className="border-[var(--cb-border-subtle)]">
                 <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -2341,6 +3129,154 @@ function CreateModelPageInner() {
 
             {modelType === 'lbo' && (
               <>
+                <Card className="border-[var(--cb-border-subtle)]">
+                  <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <CardTitle className="text-lg">LBO Input Mode</CardTitle>
+                      <CardDescription>
+                        Quick LBO uses demo assumptions to reduce setup to core deal levers.
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-lg border border-[var(--cb-border-subtle)] px-3 py-2">
+                      <Label htmlFor="quick-lbo-toggle" className="text-sm font-medium">
+                        Quick LBO (Demo)
+                      </Label>
+                      <Switch
+                        id="quick-lbo-toggle"
+                        checked={quickLboMode}
+                        onCheckedChange={setQuickLboMode}
+                      />
+                    </div>
+                  </CardHeader>
+                </Card>
+
+                {quickLboMode && (
+                  <Card className="border-[var(--cb-green)]/30">
+                    <CardHeader>
+                      <CardTitle className="text-lg">
+                        Quick LBO Inputs <span className="text-[var(--cb-danger)]">*</span>
+                      </CardTitle>
+                      <CardDescription>
+                        Provide only the core levers. Remaining assumptions are auto-filled for demo mode.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label htmlFor="lbo-entry-multiple-quick">
+                          Entry Multiple (EV / EBITDA) <span className="text-[var(--cb-danger)]">*</span>
+                        </Label>
+                        <Input
+                          id="lbo-entry-multiple-quick"
+                          type="number"
+                          min={0}
+                          step={0.1}
+                          value={lboRequiredInputs.entryMultiple}
+                          onChange={(e) => setLboRequiredInputs(prev => ({ ...prev, entryMultiple: e.target.value }))}
+                          placeholder="10.0"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="lbo-debt-percent-quick">
+                          Debt % <span className="text-[var(--cb-danger)]">*</span>
+                        </Label>
+                        <Input
+                          id="lbo-debt-percent-quick"
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={lboRequiredInputs.debtPercent}
+                          onChange={(e) => setLboRequiredInputs(prev => ({ ...prev, debtPercent: e.target.value }))}
+                          placeholder="60"
+                          required
+                        />
+                        <p className="text-xs text-[var(--cb-text-muted)]">
+                          Equity auto-derived: {Number.isFinite(parseFloat(lboRequiredInputs.debtPercent))
+                            ? `${Math.max(0, 100 - parseFloat(lboRequiredInputs.debtPercent)).toFixed(1)}%`
+                            : '—'}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="lbo-interest-rate-quick">
+                          Interest Rate (%) <span className="text-[var(--cb-danger)]">*</span>
+                        </Label>
+                        <Input
+                          id="lbo-interest-rate-quick"
+                          type="number"
+                          min={0}
+                          max={25}
+                          step={0.1}
+                          value={lboRequiredInputs.interestRate}
+                          onChange={(e) => setLboRequiredInputs(prev => ({ ...prev, interestRate: e.target.value }))}
+                          placeholder="7.0"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="lbo-revenue-growth-quick">
+                          Revenue Growth (%) <span className="text-[var(--cb-danger)]">*</span>
+                        </Label>
+                        <Input
+                          id="lbo-revenue-growth-quick"
+                          type="number"
+                          step={0.1}
+                          value={lboRequiredInputs.revenueGrowth}
+                          onChange={(e) => setLboRequiredInputs(prev => ({ ...prev, revenueGrowth: e.target.value }))}
+                          placeholder="5.0"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="lbo-exit-multiple-quick">
+                          Exit Multiple (EV / EBITDA) <span className="text-[var(--cb-danger)]">*</span>
+                        </Label>
+                        <Input
+                          id="lbo-exit-multiple-quick"
+                          type="number"
+                          min={0}
+                          step={0.1}
+                          value={lboRequiredInputs.exitMultiple}
+                          onChange={(e) => setLboRequiredInputs(prev => ({ ...prev, exitMultiple: e.target.value }))}
+                          placeholder="10.0"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="lbo-hold-period-quick">
+                          Holding Period (years) <span className="text-[var(--cb-danger)]">*</span>
+                        </Label>
+                        <Input
+                          id="lbo-hold-period-quick"
+                          type="number"
+                          min={1}
+                          max={10}
+                          step={0.5}
+                          value={lboRequiredInputs.holdingPeriodYears}
+                          onChange={(e) => setLboRequiredInputs(prev => ({ ...prev, holdingPeriodYears: e.target.value }))}
+                          placeholder="5"
+                          required
+                        />
+                      </div>
+                      <div className="md:col-span-2 rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-subtle)] px-3 py-3">
+                        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--cb-text-muted)]">
+                          Auto-filled assumptions
+                        </div>
+                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                          {QUICK_LBO_DEFAULT_SUMMARY.map((item) => (
+                            <div key={item.label} className="flex items-center justify-between text-xs">
+                              <span className="text-[var(--cb-text-muted)]">{item.label}</span>
+                              <span className="font-medium text-[var(--cb-text-primary)]">{item.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {!quickLboMode && (
+                <>
                 <Card className="border-[var(--cb-green)]/30">
                   <CardHeader>
                     <CardTitle className="text-lg">
@@ -2715,6 +3651,8 @@ function CreateModelPageInner() {
                 )}
               </Card>
               </>
+              )}
+              </>
             )}
 
             {/* Merger Model Inputs */}
@@ -2923,6 +3861,462 @@ function CreateModelPageInner() {
                     ) : undefined
                   }
                 />
+              );
+            })()}
+
+            {generatedModel && (generatedModel.modelType === 'dcf' || generatedModel.modelType === 'lbo') && (
+              <section className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-6">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-[var(--cb-text-primary)]">Break-even Solver</h2>
+                    <p className="text-sm text-[var(--cb-text-secondary)]">
+                      Solve one assumption to hit a target output using demo assumptions.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSolveBreakEven}
+                    disabled={breakEvenLoading}
+                  >
+                    {breakEvenLoading ? 'Solving…' : 'Solve'}
+                  </Button>
+                </div>
+
+                {generatedModel.modelType === 'dcf' ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="be-dcf-solvefor">Solve For</Label>
+                      <Select
+                        value={breakEvenSolveFor === 'ebitdaMargin' ? 'ebitdaMargin' : 'revenueGrowth'}
+                        onValueChange={(value) =>
+                          setBreakEvenSolveFor(value === 'ebitdaMargin' ? 'ebitdaMargin' : 'revenueGrowth')
+                        }
+                      >
+                        <SelectTrigger id="be-dcf-solvefor">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="revenueGrowth">Revenue Growth</SelectItem>
+                          <SelectItem value="ebitdaMargin">EBITDA Margin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="be-dcf-target">Target Price (optional)</Label>
+                      <Input
+                        id="be-dcf-target"
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        placeholder="Uses current demo market price if blank"
+                        value={breakEvenTargetPrice}
+                        onChange={(event) => setBreakEvenTargetPrice(event.target.value)}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="be-lbo-solvefor">Solve For</Label>
+                      <Select
+                        value={breakEvenSolveFor === 'entryMultiple' ? 'entryMultiple' : 'exitMultiple'}
+                        onValueChange={(value) =>
+                          setBreakEvenSolveFor(value === 'entryMultiple' ? 'entryMultiple' : 'exitMultiple')
+                        }
+                      >
+                        <SelectTrigger id="be-lbo-solvefor">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="exitMultiple">Exit Multiple</SelectItem>
+                          <SelectItem value="entryMultiple">Entry Multiple</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="be-lbo-target">Target IRR (%)</Label>
+                      <Input
+                        id="be-lbo-target"
+                        type="number"
+                        step={0.1}
+                        placeholder="20.0"
+                        value={breakEvenTargetIrr}
+                        onChange={(event) => setBreakEvenTargetIrr(event.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {breakEvenError && (
+                  <p className="mt-3 text-sm text-red-500">{breakEvenError}</p>
+                )}
+
+                {breakEvenResult && (
+                  <div className="mt-4 space-y-3 rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      <div>
+                        <p className="text-xs text-[var(--cb-text-muted)]">Solved Value</p>
+                        <p className="font-mono text-sm text-[var(--cb-text-primary)]">
+                          {breakEvenResult.modelType === 'dcf'
+                            ? breakEvenResult.solveFor === 'revenueGrowth'
+                              ? `${(breakEvenResult.solvedValue * 100).toFixed(2)}%`
+                              : `${(breakEvenResult.solvedValue * 100).toFixed(2)}%`
+                            : `${breakEvenResult.solvedValue.toFixed(2)}x`}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-[var(--cb-text-muted)]">Convergence</p>
+                        <p className="text-sm text-[var(--cb-text-primary)]">
+                          {breakEvenResult.converged ? 'Converged' : `Failed (${breakEvenResult.reason || 'unknown'})`}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-[var(--cb-text-muted)]">Residual Error</p>
+                        <p className="font-mono text-sm text-[var(--cb-text-primary)]">
+                          {typeof breakEvenResult.residualError === 'number'
+                            ? breakEvenResult.modelType === 'dcf'
+                              ? `$${breakEvenResult.residualError.toFixed(4)}`
+                              : `${(breakEvenResult.residualError * 100).toFixed(3)}%`
+                            : 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-[var(--cb-text-muted)]">Iterations</p>
+                        <p className="font-mono text-sm text-[var(--cb-text-primary)]">
+                          {breakEvenResult.iterations}
+                        </p>
+                      </div>
+                    </div>
+                    {breakEvenResult.fixedAssumptions &&
+                      Object.keys(breakEvenResult.fixedAssumptions).length > 0 && (
+                        <div>
+                          <p className="mb-1 text-xs font-medium text-[var(--cb-text-muted)]">Fixed assumptions</p>
+                          <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
+                            {Object.entries(breakEvenResult.fixedAssumptions).map(([key, value]) => (
+                              <p key={key} className="text-xs text-[var(--cb-text-secondary)]">
+                                <span className="font-medium text-[var(--cb-text-primary)]">{key}:</span>{' '}
+                                {typeof value === 'number'
+                                  ? Number.isFinite(value)
+                                    ? Math.abs(value) < 1
+                                      ? value.toFixed(4)
+                                      : value.toFixed(2)
+                                    : 'N/A'
+                                  : String(value)}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {generatedModel && generatedModel.modelType === 'debt-capacity-lite' && generatedModel.debtCapacityLite && (
+              <section className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-6">
+                <div className="mb-4">
+                  <h2 className="text-lg font-semibold text-[var(--cb-text-primary)]">
+                    {generatedModel.debtCapacityLite.label}
+                  </h2>
+                  <p className="text-sm text-[var(--cb-text-secondary)]">
+                    Estimated using demo EBITDA and user-provided leverage/coverage constraints.
+                  </p>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  <div>
+                    <p className="text-xs text-[var(--cb-text-muted)]">Leverage-based Cap</p>
+                    <p className="font-mono text-sm text-[var(--cb-text-primary)]">
+                      {generatedModel.debtCapacityLite.leverageCap.toFixed(2)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--cb-text-muted)]">Coverage-based Cap</p>
+                    <p className="font-mono text-sm text-[var(--cb-text-primary)]">
+                      {generatedModel.debtCapacityLite.coverageCap.toFixed(2)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--cb-text-muted)]">Selected Max Debt</p>
+                    <p className="font-mono text-sm text-[var(--cb-text-primary)]">
+                      {generatedModel.debtCapacityLite.maxDebt.toFixed(2)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--cb-text-muted)]">Binding Constraint</p>
+                    <p className="text-sm text-[var(--cb-text-primary)]">
+                      {generatedModel.debtCapacityLite.bindingConstraint === 'leverage'
+                        ? 'Leverage constraint'
+                        : 'Coverage constraint'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--cb-text-muted)]">Current Net Debt</p>
+                    <p className="font-mono text-sm text-[var(--cb-text-primary)]">
+                      {typeof generatedModel.debtCapacityLite.currentNetDebt === 'number'
+                        ? generatedModel.debtCapacityLite.currentNetDebt.toFixed(2)
+                        : 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--cb-text-muted)]">Headroom vs Net Debt</p>
+                    <p className="font-mono text-sm text-[var(--cb-text-primary)]">
+                      {typeof generatedModel.debtCapacityLite.headroomVsNetDebt === 'number'
+                        ? generatedModel.debtCapacityLite.headroomVsNetDebt.toFixed(2)
+                        : 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {generatedModel && (generatedModel.modelType === 'dcf' || generatedModel.modelType === 'lbo') && (() => {
+              const isDcfSensitivity = generatedModel.modelType === 'dcf';
+              const dcfSensitivity = (generatedModel as any)?.dcfSummary?.sensitivity;
+              const lboSensitivity = (generatedModel as any)?.lboSummary?.sensitivity;
+              const dcfExtents = isDcfSensitivity
+                ? getMatrixExtents((dcfSensitivity?.values || []) as Array<Array<number | null>>)
+                : null;
+              const lboExtents = !isDcfSensitivity
+                ? getMatrixExtents((lboSensitivity?.irr || []) as Array<Array<number | null>>)
+                : null;
+
+              if (isDcfSensitivity && !dcfSensitivity) return null;
+              if (!isDcfSensitivity && !lboSensitivity) return null;
+
+              return (
+                <section className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-6">
+                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h2 className="text-lg font-semibold text-[var(--cb-text-primary)]">Sensitivity</h2>
+                      <p className="text-sm text-[var(--cb-text-secondary)]">
+                        {isDcfSensitivity
+                          ? 'Value per share grid by WACC and terminal growth.'
+                          : 'IRR-first grid by entry and exit multiples (MOIC shown in each cell).'}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleRefreshSensitivity}
+                      disabled={sensitivityLoading}
+                    >
+                      {sensitivityLoading ? 'Updating…' : 'Update Sensitivity'}
+                    </Button>
+                  </div>
+
+                  {sensitivityError && (
+                    <p className="mb-3 text-sm text-red-500">{sensitivityError}</p>
+                  )}
+
+                  {isDcfSensitivity ? (
+                    <div className="space-y-4">
+                      <div className="grid gap-3 md:grid-cols-4">
+                        <div className="space-y-1">
+                          <Label htmlFor="dcf-sens-wacc-range">WACC Range (+/- %)</Label>
+                          <Input
+                            id="dcf-sens-wacc-range"
+                            type="number"
+                            step={0.1}
+                            min={0.1}
+                            value={dcfSensitivityInputs.waccRangePct}
+                            onChange={(event) =>
+                              setDcfSensitivityInputs((prev) => ({ ...prev, waccRangePct: event.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="dcf-sens-wacc-step">WACC Step (%)</Label>
+                          <Input
+                            id="dcf-sens-wacc-step"
+                            type="number"
+                            step={0.05}
+                            min={0.05}
+                            value={dcfSensitivityInputs.waccStepPct}
+                            onChange={(event) =>
+                              setDcfSensitivityInputs((prev) => ({ ...prev, waccStepPct: event.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="dcf-sens-tg-range">Terminal Growth Range (+/- %)</Label>
+                          <Input
+                            id="dcf-sens-tg-range"
+                            type="number"
+                            step={0.1}
+                            min={0.1}
+                            value={dcfSensitivityInputs.terminalGrowthRangePct}
+                            onChange={(event) =>
+                              setDcfSensitivityInputs((prev) => ({ ...prev, terminalGrowthRangePct: event.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="dcf-sens-tg-step">Terminal Growth Step (%)</Label>
+                          <Input
+                            id="dcf-sens-tg-step"
+                            type="number"
+                            step={0.05}
+                            min={0.05}
+                            value={dcfSensitivityInputs.terminalGrowthStepPct}
+                            onChange={(event) =>
+                              setDcfSensitivityInputs((prev) => ({ ...prev, terminalGrowthStepPct: event.target.value }))
+                            }
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">
+                        Base case: WACC {((dcfSensitivity?.base?.wacc ?? 0) * 100).toFixed(2)}%, terminal growth{' '}
+                        {((dcfSensitivity?.base?.terminalGrowth ?? 0) * 100).toFixed(2)}%, value/share $
+                        {(dcfSensitivity?.base?.pricePerShare ?? 0).toFixed(2)}.
+                      </p>
+                      <div className="overflow-x-auto rounded-lg border border-[var(--cb-border-subtle)]">
+                        <table className="min-w-full border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-[var(--cb-surface-alt)]">
+                              <th className="border border-[var(--cb-border-subtle)] px-2 py-2 text-left font-semibold">
+                                WACC \ TG
+                              </th>
+                              {(dcfSensitivity?.cols || []).map((col: number) => (
+                                <th
+                                  key={`dcf-col-${col}`}
+                                  className="border border-[var(--cb-border-subtle)] px-2 py-2 text-right font-semibold"
+                                >
+                                  {(col * 100).toFixed(2)}%
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(dcfSensitivity?.rows || []).map((row: number, rowIndex: number) => (
+                              <tr key={`dcf-row-${row}`}>
+                                <td className="border border-[var(--cb-border-subtle)] px-2 py-2 font-semibold">
+                                  {(row * 100).toFixed(2)}%
+                                </td>
+                                {(dcfSensitivity?.values?.[rowIndex] || []).map((cell: number | null, colIndex: number) => (
+                                  <td
+                                    key={`dcf-cell-${rowIndex}-${colIndex}`}
+                                    className="border border-[var(--cb-border-subtle)] px-2 py-2 text-right font-mono"
+                                    style={{ backgroundColor: getHeatColor(cell, dcfExtents) }}
+                                  >
+                                    {typeof cell === 'number' && Number.isFinite(cell) ? `$${cell.toFixed(2)}` : '—'}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="grid gap-3 md:grid-cols-4">
+                        <div className="space-y-1">
+                          <Label htmlFor="lbo-sens-entry-range">Entry Range (+/- x)</Label>
+                          <Input
+                            id="lbo-sens-entry-range"
+                            type="number"
+                            step={0.1}
+                            min={0.1}
+                            value={lboSensitivityInputs.entryRange}
+                            onChange={(event) =>
+                              setLboSensitivityInputs((prev) => ({ ...prev, entryRange: event.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="lbo-sens-entry-step">Entry Step (x)</Label>
+                          <Input
+                            id="lbo-sens-entry-step"
+                            type="number"
+                            step={0.1}
+                            min={0.1}
+                            value={lboSensitivityInputs.entryStep}
+                            onChange={(event) =>
+                              setLboSensitivityInputs((prev) => ({ ...prev, entryStep: event.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="lbo-sens-exit-range">Exit Range (+/- x)</Label>
+                          <Input
+                            id="lbo-sens-exit-range"
+                            type="number"
+                            step={0.1}
+                            min={0.1}
+                            value={lboSensitivityInputs.exitRange}
+                            onChange={(event) =>
+                              setLboSensitivityInputs((prev) => ({ ...prev, exitRange: event.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="lbo-sens-exit-step">Exit Step (x)</Label>
+                          <Input
+                            id="lbo-sens-exit-step"
+                            type="number"
+                            step={0.1}
+                            min={0.1}
+                            value={lboSensitivityInputs.exitStep}
+                            onChange={(event) =>
+                              setLboSensitivityInputs((prev) => ({ ...prev, exitStep: event.target.value }))
+                            }
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">
+                        Base case: entry {(lboSensitivity?.base?.entryMultiple ?? 0).toFixed(1)}x, exit{' '}
+                        {(lboSensitivity?.base?.exitMultiple ?? 0).toFixed(1)}x, IRR{' '}
+                        {((lboSensitivity?.base?.irr ?? 0) * 100).toFixed(1)}%, MOIC{' '}
+                        {(lboSensitivity?.base?.moic ?? 0).toFixed(2)}x.
+                      </p>
+                      <div className="overflow-x-auto rounded-lg border border-[var(--cb-border-subtle)]">
+                        <table className="min-w-full border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-[var(--cb-surface-alt)]">
+                              <th className="border border-[var(--cb-border-subtle)] px-2 py-2 text-left font-semibold">
+                                Entry \ Exit
+                              </th>
+                              {(lboSensitivity?.cols || []).map((col: number) => (
+                                <th
+                                  key={`lbo-col-${col}`}
+                                  className="border border-[var(--cb-border-subtle)] px-2 py-2 text-right font-semibold"
+                                >
+                                  {col.toFixed(1)}x
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(lboSensitivity?.rows || []).map((row: number, rowIndex: number) => (
+                              <tr key={`lbo-row-${row}`}>
+                                <td className="border border-[var(--cb-border-subtle)] px-2 py-2 font-semibold">
+                                  {row.toFixed(1)}x
+                                </td>
+                                {(lboSensitivity?.irr?.[rowIndex] || []).map((cell: number | null, colIndex: number) => {
+                                  const moic = lboSensitivity?.moic?.[rowIndex]?.[colIndex];
+                                  return (
+                                    <td
+                                      key={`lbo-cell-${rowIndex}-${colIndex}`}
+                                      className="border border-[var(--cb-border-subtle)] px-2 py-1 text-right font-mono"
+                                      style={{ backgroundColor: getHeatColor(cell, lboExtents) }}
+                                    >
+                                      <div>{typeof cell === 'number' && Number.isFinite(cell) ? `${(cell * 100).toFixed(1)}%` : '—'}</div>
+                                      <div className="text-[10px] text-[var(--cb-text-muted)]">
+                                        {typeof moic === 'number' && Number.isFinite(moic) ? `${moic.toFixed(2)}x` : '—'}
+                                      </div>
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </section>
               );
             })()}
 

@@ -65,7 +65,11 @@ export interface TickerSnapshot {
  */
 export async function fetchTickerSnapshot(ticker: string): Promise<TickerSnapshot> {
   const warnings: string[] = [];
-  const cleanTicker = ticker.toUpperCase().trim();
+  const raw = typeof ticker === 'string' ? ticker : String(ticker ?? '');
+  const cleanTicker = raw.trim().toUpperCase();
+  if (!cleanTicker || cleanTicker === '[OBJECT OBJECT]') {
+    throw new Error('Invalid ticker symbol.');
+  }
 
   try {
     if (!isDemoMode()) {
@@ -80,7 +84,10 @@ export async function fetchTickerSnapshot(ticker: string): Promise<TickerSnapsho
       const quote = await getDemoQuote(cleanTicker);
 
       const currentPrice = quote?.price ?? null;
-      const marketCap = quote?.marketCap ?? null;
+      const sharesOutstanding = fundamentals.sharesOutstanding ?? quote?.sharesOutstanding ?? null;
+      const marketCap = quote?.marketCap ?? (
+        currentPrice && sharesOutstanding ? currentPrice * sharesOutstanding : null
+      );
 
       const totalDebt = fundamentals.totalDebt ?? 0;
       const cash = fundamentals.cash ?? 0;
@@ -90,16 +97,29 @@ export async function fetchTickerSnapshot(ticker: string): Promise<TickerSnapsho
       const baseEbitda = fundamentals.ebitdaLTM ?? baseRevenue * 0.25;
       const baseNetIncome = fundamentals.netIncomeLTM ?? baseRevenue * 0.15;
 
+      const missingRequiredFields: string[] = [];
+      if (!(baseRevenue > 0)) missingRequiredFields.push('revenue_ltm');
+      if (!(baseEbitda > 0)) missingRequiredFields.push('ebitda_ltm');
+      if (!(sharesOutstanding && sharesOutstanding > 0)) missingRequiredFields.push('shares_outstanding');
+      if (!(currentPrice && currentPrice > 0)) missingRequiredFields.push('share_price');
+      if (!(marketCap && marketCap > 0)) missingRequiredFields.push('market_cap');
+
+      if (missingRequiredFields.length > 0) {
+        throw new Error(
+          `Ticker is not scenario-ready in demo dataset (${missingRequiredFields.join(', ')}).`
+        );
+      }
+
       return {
         ticker: cleanTicker,
         companyName: fundamentals.companyName || cleanTicker,
         currentPrice,
         marketCap,
-        sharesOutstanding: fundamentals.sharesOutstanding ?? null,
-        beta: undefined,
-        betaSource: 'demo_snapshot',
-        volatility: undefined,
-        volatilitySource: 'demo_snapshot',
+        sharesOutstanding,
+        beta: 1.0,
+        betaSource: 'demo_default',
+        volatility: 0.25,
+        volatilitySource: 'demo_default',
         netDebt,
         history: [
           {
@@ -119,7 +139,7 @@ export async function fetchTickerSnapshot(ticker: string): Promise<TickerSnapsho
           operating: [],
           fcf: [],
         },
-        dataQuality: 'medium',
+        dataQuality: 'high',
         dataSource: 'demo_snapshots',
         warnings,
       };

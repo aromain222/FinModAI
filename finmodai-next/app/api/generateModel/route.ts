@@ -71,6 +71,31 @@ import { isDemoMode, isDemoModeFromRequest } from '@/lib/demo/isDemoMode';
 import { runWithDemoMode } from '@/lib/demo/demoContext';
 import { isDemoTickerAvailable } from '@/lib/data/providers/demoProvider';
 import { hasAnyOpenAIKey } from '@/lib/openaiKey';
+import {
+  assessDemoLboReadiness,
+  buildQuickLboPayload,
+  normalizeQuickLboInputs,
+} from '@/lib/models/lbo/quick';
+import {
+  assessReverseDcfDemoReadiness,
+  parseReverseDcfInputs,
+  solveReverseDcfImpliedGrowth,
+  type ReverseDcfInputs as ReverseDcfSolverInputs,
+} from '@/lib/models/dcf/reverse';
+import {
+  DEFAULT_DCF_SENSITIVITY_CONFIG,
+  DEFAULT_LBO_SENSITIVITY_CONFIG,
+  buildDcfSensitivityTable,
+  buildLboSensitivityTable,
+  parseDcfSensitivityConfig,
+  parseLboSensitivityConfig,
+} from '@/lib/models/sensitivity';
+import {
+  buildDebtCapacityLiteSummary,
+  parseDebtCapacityLiteInputs,
+  validateDebtCapacityLiteInputs,
+  type DebtCapacityLiteSummary,
+} from '@/lib/models/debtCapacityLite';
 
 const deepClone = <T,>(value: T): T => {
   if (typeof globalThis.structuredClone === 'function') {
@@ -152,6 +177,8 @@ function validateRequestBody(body: any): { ticker: string; modelType: RequestMod
   const allowedTypes: RequestModelType[] = [
     'three-statement',
     'dcf',
+    'reverse-dcf',
+    'debt-capacity-lite',
     'lbo',
     'comps',
     'merger',
@@ -990,6 +1017,23 @@ async function buildDcfModelWithAssumptions(
   // Generate years array
   const currentYear = new Date().getFullYear();
   const yearsArray = projections.map((_, i) => (currentYear + i + 1).toString());
+  const dcfSensitivity = buildDcfSensitivityTable(
+    {
+      wacc: normalizedInputs.wacc || 0.1,
+      terminalGrowth: normalizedInputs.terminalGrowth || 0.025,
+      basePricePerShare: results.pricePerShare || 0,
+      evaluatePrice: ({ wacc: evalWacc, terminalGrowth: evalTerminalGrowth }) => {
+        const scenarioInputs = {
+          ...normalizedInputs,
+          wacc: evalWacc,
+          terminalGrowth: evalTerminalGrowth,
+        };
+        const scenarioResult = computeDCFSeries(normalizeDCFInputs(scenarioInputs as any));
+        return Number.isFinite(scenarioResult.pricePerShare) ? scenarioResult.pricePerShare : null;
+      },
+    },
+    body?.sensitivity?.dcf ?? DEFAULT_DCF_SENSITIVITY_CONFIG
+  );
   
   return { 
     dcfSummary: {
@@ -1032,8 +1076,197 @@ async function buildDcfModelWithAssumptions(
         taxRate: normalizedInputs.taxRate,
         projectionHorizon: Array.isArray(normalizedInputs.years) ? normalizedInputs.years.length : projections.length || 0,
       },
+      sensitivity: dcfSensitivity,
     },
     dcfWorkbook: bankerWorkbook,
+  };
+}
+
+async function buildReverseDcfModelWithAssumptions(
+  workbook: ExcelJS.Workbook,
+  ticker: string,
+  assumptions: ThreeStatementAssumptions,
+  reverseInputs: ReverseDcfSolverInputs & { targetPrice: number; marketPrice: number },
+  normalizedFinancials?: ScaledFinancials | null
+): Promise<{ dcfSummary: any; dcfWorkbook: ExcelJS.Workbook }> {
+  const { generateBankerDCF, buildDcfWorkbook } = await import('@/lib/dcfGenerator');
+
+  const pickFinite = (...values: Array<unknown>): number | null => {
+    for (const value of values) {
+      if (typeof value === 'number' && Number.isFinite(value)) return value;
+    }
+    return null;
+  };
+
+  const firstSeriesValue = (value: unknown): number | null => {
+    if (Array.isArray(value) && value.length > 0) {
+      const first = value[0];
+      return typeof first === 'number' && Number.isFinite(first) ? first : null;
+    }
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  };
+
+  const revenueCandidate = pickFinite(
+    firstSeriesValue((assumptions as any).revenue),
+    normalizedFinancials?.revenue,
+    (normalizedFinancials as any)?.revenueM
+  );
+  const revenueM = coerceToMillions(revenueCandidate, {
+    unitHint: (assumptions as any)?.units === 'millions' ? 'millions' : 'auto',
+  });
+  if (revenueM === null || !Number.isFinite(revenueM) || revenueM <= 0) {
+    throw new Error('Reverse DCF requires positive revenue in demo dataset.');
+  }
+
+  const sharesM = pickFinite(
+    (assumptions as any).sharesOutstanding,
+    (normalizedFinancials as any)?.sharesOutstandingM
+  );
+  if (sharesM === null || !Number.isFinite(sharesM) || sharesM <= 0) {
+    throw new Error('Reverse DCF requires valid shares outstanding in demo dataset.');
+  }
+
+  const netDebtM = pickFinite(
+    (assumptions as any).netDebt,
+    (normalizedFinancials as any)?.netDebtM,
+    0
+  ) ?? 0;
+
+  const ebitdaMargin = pickFinite(
+    firstSeriesValue((assumptions as any).ebitdaMargin),
+    typeof (assumptions as any).ebitda === 'number' &&
+      typeof revenueM === 'number' &&
+      revenueM > 0
+      ? (assumptions as any).ebitda / revenueM
+      : null,
+    0.25
+  ) as number;
+  const taxRate = pickFinite((assumptions as any).taxRate, 0.25) as number;
+  const capexPctRevenue = pickFinite(firstSeriesValue((assumptions as any).capexPctRevenue), 0.04) as number;
+  const nwcPctRevenue = pickFinite(firstSeriesValue((assumptions as any).nwcPctRevenue), 0.02) as number;
+
+  const solved = solveReverseDcfImpliedGrowth({
+    ticker,
+    revenue: revenueM,
+    ebitdaMargin,
+    taxRate,
+    capexPctRevenue,
+    nwcPctRevenue,
+    netDebt: netDebtM,
+    sharesOutstanding: sharesM,
+    inputs: {
+      wacc: reverseInputs.wacc,
+      terminalGrowth: reverseInputs.terminalGrowth,
+      projectionYears: reverseInputs.projectionYears,
+      targetPrice: reverseInputs.targetPrice,
+    },
+  });
+
+  if (!solved.converged) {
+    const reasonText =
+      solved.reason === 'target_out_of_bounds'
+        ? 'target price falls outside solvable growth range'
+        : 'solver reached iteration limit';
+    throw new Error(`Reverse DCF solver could not converge: ${reasonText}.`);
+  }
+
+  const dcfInputs = {
+    ticker,
+    companyName: assumptions.companyName || ticker,
+    revenue: revenueM,
+    revenueGrowth: solved.impliedRevenueGrowth,
+    ebitdaMargin,
+    taxRate,
+    capexPctRevenue,
+    nwcPctRevenue,
+    wacc: reverseInputs.wacc,
+    terminalGrowth: reverseInputs.terminalGrowth,
+    projectionYears: reverseInputs.projectionYears,
+    netDebt: netDebtM,
+    sharesOutstanding: sharesM,
+  };
+
+  const bankerOutput = await generateBankerDCF(dcfInputs);
+  const dcfWorkbook = await buildDcfWorkbook(bankerOutput);
+  const dcfSheetNames = [
+    'Summary',
+    'Assumptions',
+    'Forecast',
+    'Valuation',
+    'Sensitivities',
+    'Checks',
+    'Sources & Notes',
+  ];
+  for (const sheetName of dcfSheetNames) {
+    const sheet = dcfWorkbook.getWorksheet(sheetName);
+    if (sheet) {
+      await copyWorksheet(sheet, workbook, sheetName);
+    }
+  }
+
+  const projections = bankerOutput.projections || [];
+  const years = projections.map((_, idx) => `${new Date().getFullYear() + idx + 1}`);
+  const reverseLabel = 'Reverse DCF (Demo assumptions)';
+  const notes = [
+    `${reverseLabel}: solved for implied revenue CAGR to match target price.`,
+    `Target price: $${reverseInputs.targetPrice.toFixed(2)} (default market price: $${reverseInputs.marketPrice.toFixed(2)}).`,
+    `Fixed assumptions: WACC ${(reverseInputs.wacc * 100).toFixed(2)}%, terminal growth ${(reverseInputs.terminalGrowth * 100).toFixed(2)}%, projection years ${reverseInputs.projectionYears}, EBITDA margin ${(ebitdaMargin * 100).toFixed(1)}%, tax rate ${(taxRate * 100).toFixed(1)}%, capex ${(capexPctRevenue * 100).toFixed(1)}% of revenue, NWC ${(nwcPctRevenue * 100).toFixed(1)}% of revenue.`,
+  ];
+
+  const dcfSummary = {
+    scenario: 'BASE',
+    modelLabel: reverseLabel,
+    valuationResults: {
+      enterpriseValue: solved.valuation.enterpriseValue,
+      equityValue: solved.valuation.equityValue,
+      pricePerShare: solved.valuation.pricePerShare,
+      pvExplicitFCF: solved.valuation.pvExplicitFCF,
+      pvTerminalValue: solved.valuation.pvTerminalValue,
+      targetPrice: reverseInputs.targetPrice,
+      pricingGap: solved.pricingGap,
+    },
+    keyAssumptions: {
+      wacc: reverseInputs.wacc,
+      terminalGrowth: reverseInputs.terminalGrowth,
+      year1RevenueGrowth: solved.impliedRevenueGrowth,
+      ebitdaMargin,
+      projectionYears: reverseInputs.projectionYears,
+    },
+    marketContext: {
+      sharePrice: reverseInputs.marketPrice,
+    },
+    results: {
+      enterpriseValue: solved.valuation.enterpriseValue,
+      equityValue: solved.valuation.equityValue,
+      pricePerShare: solved.valuation.pricePerShare,
+      pvExplicitFCF: solved.valuation.pvExplicitFCF,
+      pvTerminalValue: solved.valuation.pvTerminalValue,
+      terminalValue: bankerOutput.valuation.terminalValue,
+      netDebt: netDebtM,
+      revenueByYear: projections.map((p) => p.revenue),
+      ebitdaByYear: projections.map((p) => p.ebitda),
+      ebitByYear: projections.map((p) => p.ebit),
+      ufcfByYear: projections.map((p) => p.freeCashFlow),
+      years,
+    },
+    reverseDcf: {
+      enabled: true,
+      impliedRevenueCagr: solved.impliedRevenueGrowth,
+      targetPrice: reverseInputs.targetPrice,
+      marketPrice: reverseInputs.marketPrice,
+      pricingGap: solved.pricingGap,
+      converged: true,
+      iterations: solved.iterations,
+      notes,
+    },
+    warnings: [`${reverseLabel} mode applied.`],
+    notes,
+    formattedOutput: `${reverseLabel}: implied revenue CAGR ${(solved.impliedRevenueGrowth * 100).toFixed(2)}% to match $${reverseInputs.targetPrice.toFixed(2)} target price.`,
+  };
+
+  return {
+    dcfSummary,
+    dcfWorkbook,
   };
 }
 
@@ -1256,7 +1489,8 @@ async function buildLboModelWithAssumptions(
   ticker: string,
   assumptions: ThreeStatementAssumptions,
   normalizedFinancials?: ScaledFinancials | null,
-  requestBody?: any
+  requestBody?: any,
+  options?: { workbookNotes?: string[] }
 ): Promise<LboEngineOutput> {
   console.log(`[generateModel] Building LBO for ${ticker}`);
 
@@ -1368,7 +1602,7 @@ async function buildLboModelWithAssumptions(
 
   const lboInputs: import('@/lib/lboEngine').LboInputs = {
     ticker,
-    companyName: assumptions.assumptionNotes?.[0] || ticker,
+    companyName: assumptions.companyName || ticker,
     revenue: revenueM,
     ebitda: ebitdaM,
     netDebt: netDebtM,
@@ -1392,7 +1626,18 @@ async function buildLboModelWithAssumptions(
   };
 
   const lboSummary = runLboModel(lboInputs);
-  const lboWorkbook = await buildLboWorkbook(lboSummary);
+  const lboSensitivity = buildLboSensitivityTable(
+    lboInputs,
+    requestBody?.sensitivity?.lbo ?? DEFAULT_LBO_SENSITIVITY_CONFIG
+  );
+  (lboSummary as any).sensitivity = lboSensitivity;
+  const lboWorkbook = await buildLboWorkbook(lboSummary, {
+    ticker,
+    companyName: assumptions.companyName || ticker,
+    revenue: revenueM,
+    ebitda: ebitdaM,
+    notes: options?.workbookNotes,
+  });
 
   if (workbook.worksheets.length > 0) {
     workbook.worksheets.splice(0, workbook.worksheets.length);
@@ -2280,6 +2525,37 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
   let body: any;
   let requestSliderOverrides: Record<string, number> = {};
   let requestedLboAdvanced: LboAdvancedOptions | undefined;
+  let quickLboPayload:
+    | {
+        lboOverrides: Record<string, number>;
+        lboDealAssumptions: any;
+        appliedDefaults: any[];
+        workbookNotes: string[];
+      }
+    | undefined;
+  let reverseDcfRawInputs:
+    | {
+        waccPct: number;
+        terminalGrowthPct: number;
+        projectionYears: number;
+        targetPrice?: number;
+      }
+    | undefined;
+  let reverseDcfInputs:
+    | (ReverseDcfSolverInputs & {
+        targetPrice: number;
+        marketPrice: number;
+      })
+    | undefined;
+  let debtCapacityLiteInputs:
+    | {
+        maxLeverage: number;
+        minInterestCoverage: number;
+        interestRate: number;
+      }
+    | undefined;
+  let dcfSensitivityConfig = { ...DEFAULT_DCF_SENSITIVITY_CONFIG };
+  let lboSensitivityConfig = { ...DEFAULT_LBO_SENSITIVITY_CONFIG };
   
   try {
     body = bodyOverride ?? (await req.json());
@@ -2307,6 +2583,171 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
     };
     
     console.log('[generateModel] ✅ Request validated:', { ticker: cleanTicker, modelType });
+
+    if (modelType === 'lbo' && body?.quickLbo === true) {
+      const normalizedQuickInputs = normalizeQuickLboInputs(body?.lboQuickInputs ?? body);
+      if (!normalizedQuickInputs) {
+        return NextResponse.json(
+          {
+            ok: false,
+            status: 'failed',
+            state: 'failed',
+            code: 'quick_lbo_invalid',
+            message:
+              'Quick LBO requires entryMultiple, debtPercent, interestRatePct, revenueGrowthPct, exitMultiple, and holdingPeriodYears.',
+          },
+          { status: 400 }
+        );
+      }
+      quickLboPayload = buildQuickLboPayload(normalizedQuickInputs);
+      body.lboOverrides = {
+        ...(body?.lboOverrides && typeof body.lboOverrides === 'object' ? body.lboOverrides : {}),
+        ...quickLboPayload.lboOverrides,
+      };
+      body.lboDealAssumptions = quickLboPayload.lboDealAssumptions;
+      body.quickLboDefaults = quickLboPayload.appliedDefaults;
+      console.log('[generateModel] Quick LBO mode enabled for demo flow');
+    }
+
+    if (modelType === 'reverse-dcf') {
+      const parsedReverse = parseReverseDcfInputs(body?.reverseDcfInputs ?? body);
+      if (!parsedReverse) {
+        return NextResponse.json(
+          {
+            ok: false,
+            status: 'failed',
+            state: 'failed',
+            code: 'reverse_dcf_invalid',
+            message: 'Reverse DCF requires waccPct, terminalGrowthPct, and projectionYears.',
+          },
+          { status: 400 }
+        );
+      }
+      if (parsedReverse.waccPct <= 0 || parsedReverse.waccPct >= 60) {
+        return NextResponse.json(
+          {
+            ok: false,
+            status: 'failed',
+            state: 'failed',
+            code: 'reverse_dcf_invalid',
+            message: 'Reverse DCF WACC must be between 0% and 60%.',
+          },
+          { status: 400 }
+        );
+      }
+      if (parsedReverse.terminalGrowthPct <= -10 || parsedReverse.terminalGrowthPct >= parsedReverse.waccPct) {
+        return NextResponse.json(
+          {
+            ok: false,
+            status: 'failed',
+            state: 'failed',
+            code: 'reverse_dcf_invalid',
+            message: 'Reverse DCF terminal growth must be less than WACC.',
+          },
+          { status: 400 }
+        );
+      }
+      if (parsedReverse.projectionYears < 3 || parsedReverse.projectionYears > 10) {
+        return NextResponse.json(
+          {
+            ok: false,
+            status: 'failed',
+            state: 'failed',
+            code: 'reverse_dcf_invalid',
+            message: 'Reverse DCF projection years must be between 3 and 10.',
+          },
+          { status: 400 }
+        );
+      }
+      reverseDcfRawInputs = parsedReverse;
+      body.reverseDcfInputs = parsedReverse;
+      console.log('[generateModel] Reverse DCF mode enabled');
+    }
+
+    if (modelType === 'debt-capacity-lite') {
+      const parsedDebtCapacityLite = parseDebtCapacityLiteInputs(
+        body?.debtCapacityLiteInputs ?? body
+      );
+      if (!parsedDebtCapacityLite) {
+        return NextResponse.json(
+          {
+            ok: false,
+            status: 'failed',
+            state: 'failed',
+            code: 'debt_capacity_invalid',
+            message:
+              'Debt Capacity Lite requires maxLeverage, minInterestCoverage, and interestRate (%).',
+          },
+          { status: 400 }
+        );
+      }
+      const validatedDebtCapacityLite = validateDebtCapacityLiteInputs(parsedDebtCapacityLite);
+      if (!validatedDebtCapacityLite.ok) {
+        return NextResponse.json(
+          {
+            ok: false,
+            status: 'failed',
+            state: 'failed',
+            code: 'debt_capacity_invalid',
+            message: validatedDebtCapacityLite.message,
+          },
+          { status: 400 }
+        );
+      }
+      debtCapacityLiteInputs = validatedDebtCapacityLite.value;
+      body.debtCapacityLiteInputs = {
+        maxLeverage: debtCapacityLiteInputs.maxLeverage,
+        minInterestCoverage: debtCapacityLiteInputs.minInterestCoverage,
+        interestRatePct: parsedDebtCapacityLite.interestRatePct,
+      };
+      console.log('[generateModel] Debt Capacity Lite mode enabled');
+    }
+
+    if (modelType === 'dcf' || modelType === 'reverse-dcf') {
+      const parsedDcfSensitivity = parseDcfSensitivityConfig(
+        body?.sensitivity?.dcf ?? body?.dcfSensitivity
+      );
+      if (!parsedDcfSensitivity.ok) {
+        return NextResponse.json(
+          {
+            ok: false,
+            status: 'failed',
+            state: 'failed',
+            code: 'sensitivity_invalid',
+            message: parsedDcfSensitivity.error,
+          },
+          { status: 400 }
+        );
+      }
+      dcfSensitivityConfig = parsedDcfSensitivity.value;
+      body.sensitivity = {
+        ...(body?.sensitivity && typeof body.sensitivity === 'object' ? body.sensitivity : {}),
+        dcf: dcfSensitivityConfig,
+      };
+    }
+
+    if (modelType === 'lbo') {
+      const parsedLboSensitivity = parseLboSensitivityConfig(
+        body?.sensitivity?.lbo ?? body?.lboSensitivity
+      );
+      if (!parsedLboSensitivity.ok) {
+        return NextResponse.json(
+          {
+            ok: false,
+            status: 'failed',
+            state: 'failed',
+            code: 'sensitivity_invalid',
+            message: parsedLboSensitivity.error,
+          },
+          { status: 400 }
+        );
+      }
+      lboSensitivityConfig = parsedLboSensitivity.value;
+      body.sensitivity = {
+        ...(body?.sensitivity && typeof body.sensitivity === 'object' ? body.sensitivity : {}),
+        lbo: lboSensitivityConfig,
+      };
+    }
 
     if (isDemoMode()) {
       const demoAllowed = await isDemoTickerAvailable(cleanTicker);
@@ -2405,7 +2846,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       }
     }
 
-    if (demoMode && (modelType === 'dcf' || modelType === 'three-statement')) {
+    if (demoMode && (modelType === 'dcf' || modelType === 'reverse-dcf' || modelType === 'three-statement')) {
       const demoRevenue =
         typeof ltmFinancials?.revenue === 'number' ? ltmFinancials.revenue : null;
       if (demoRevenue === null || Number.isNaN(demoRevenue) || demoRevenue < 0) {
@@ -2416,6 +2857,26 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
             status: 'failed',
             code: 'demo_missing_revenue',
             message: 'Demo row is missing revenue. Refresh demo snapshots.',
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (demoMode && modelType === 'lbo') {
+      const readiness = assessDemoLboReadiness(ltmFinancials);
+      if (!readiness.ready) {
+        return NextResponse.json(
+          {
+            ok: false,
+            state: 'failed',
+            status: 'failed',
+            code: 'demo_lbo_not_ready',
+            message: 'Ticker is not LBO-ready in demo dataset',
+            details: {
+              revenue: readiness.revenue,
+              ebitda: readiness.ebitda,
+            },
           },
           { status: 400 }
         );
@@ -2592,6 +3053,10 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
         console.warn('[generateModel] ⚠️  Failed to apply defaults:', defaultsError);
         appliedDefaults = [];
       }
+    }
+
+    if (modelType === 'lbo' && quickLboPayload?.appliedDefaults?.length) {
+      appliedDefaults = [...appliedDefaults, ...quickLboPayload.appliedDefaults];
     }
     
     console.log('[generateModel] ✅ Partial assumptions built');
@@ -2826,6 +3291,18 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
         ? canonicalValues.sharesOutstanding.value
         : canonicalValues.sharesOutstanding.value / 1_000_000
       : null;
+  const canonicalMarketPrice =
+    canonicalValues.price.value !== null
+      ? canonicalValues.price.value
+      : canonicalValues.marketCap.value !== null &&
+          canonicalValues.sharesOutstanding.value !== null &&
+          canonicalValues.sharesOutstanding.value > 0
+        ? canonicalValues.marketCap.value / canonicalValues.sharesOutstanding.value
+        : typeof ltmFinancials?.marketCap === 'number' &&
+            typeof ltmFinancials?.sharesOutstanding === 'number' &&
+            ltmFinancials.sharesOutstanding > 0
+          ? ltmFinancials.marketCap / ltmFinancials.sharesOutstanding
+          : null;
   if (canonicalSharesMillions !== null) {
     sanitizedAssumptions.sharesOutstanding = canonicalSharesMillions;
   }
@@ -2861,6 +3338,87 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
         { status: 400 }
       );
     }
+    if (modelType === 'reverse-dcf') {
+      const reverseReadiness = assessReverseDcfDemoReadiness({
+        marketPrice: canonicalMarketPrice,
+        sharesOutstanding: canonicalSharesMillions,
+        revenue: demoRevenue,
+      });
+      if (!reverseReadiness.ready) {
+        const missingPrice = reverseReadiness.missing.includes('market_price');
+        const missingShares = reverseReadiness.missing.includes('shares_outstanding');
+        const missingRevenue = reverseReadiness.missing.includes('revenue');
+        const code = missingPrice
+          ? 'demo_reverse_dcf_missing_price'
+          : missingShares
+            ? 'demo_reverse_dcf_missing_shares'
+            : 'demo_reverse_dcf_missing_revenue';
+        const message = missingPrice
+          ? 'Reverse DCF requires a valid demo market price.'
+          : missingShares
+            ? 'Reverse DCF requires valid demo shares outstanding.'
+            : missingRevenue
+              ? 'Reverse DCF requires positive demo revenue.'
+              : 'Reverse DCF demo inputs are not usable.';
+        return NextResponse.json(
+          {
+            ok: false,
+            state: 'failed',
+            status: 'failed',
+            code,
+            message,
+            details: {
+              missing: reverseReadiness.missing,
+            },
+          },
+          { status: 400 }
+        );
+      }
+    }
+    if (modelType === 'debt-capacity-lite') {
+      const demoEbitda =
+        canonicalValues.ebitda.value ??
+        (typeof ltmFinancials?.ebitda === 'number' ? ltmFinancials.ebitda : null);
+      if (demoEbitda === null || !Number.isFinite(demoEbitda) || demoEbitda <= 0) {
+        return NextResponse.json(
+          {
+            ok: false,
+            state: 'failed',
+            status: 'failed',
+            code: 'demo_debt_capacity_not_ready',
+            message: 'Ticker is not Debt Capacity-ready in demo dataset (EBITDA must be > 0).',
+          },
+          { status: 400 }
+        );
+      }
+    }
+  }
+  if (modelType === 'reverse-dcf' && reverseDcfRawInputs) {
+    const targetPrice =
+      typeof reverseDcfRawInputs.targetPrice === 'number' &&
+      Number.isFinite(reverseDcfRawInputs.targetPrice) &&
+      reverseDcfRawInputs.targetPrice > 0
+        ? reverseDcfRawInputs.targetPrice
+        : canonicalMarketPrice;
+    if (targetPrice === null || !Number.isFinite(targetPrice) || targetPrice <= 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          state: 'failed',
+          status: 'failed',
+          code: 'demo_reverse_dcf_missing_price',
+          message: 'Reverse DCF requires targetPrice or a valid demo market price.',
+        },
+        { status: 400 }
+      );
+    }
+    reverseDcfInputs = {
+      wacc: reverseDcfRawInputs.waccPct / 100,
+      terminalGrowth: reverseDcfRawInputs.terminalGrowthPct / 100,
+      projectionYears: Math.round(reverseDcfRawInputs.projectionYears),
+      targetPrice,
+      marketPrice: canonicalMarketPrice ?? targetPrice,
+    };
   }
   if (canonicalValues.cash.value !== null) {
     sanitizedAssumptions.startingCash = canonicalValues.cash.value;
@@ -2953,7 +3511,8 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
   }
 
   // Guardrail: refuse to run DCF/three-statement without real fundamentals unless demo mode.
-  const requiresRealData = !isDemoMode() && (modelType === 'dcf' || modelType === 'three-statement');
+  const requiresRealData =
+    !isDemoMode() && (modelType === 'dcf' || modelType === 'reverse-dcf' || modelType === 'three-statement');
   if (requiresRealData) {
     const revenueM = canonicalValues.revenue.value ?? null;
     if (!revenueM || revenueM <= 0) {
@@ -3035,7 +3594,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
 
   try {
     // For DCF models, auto-estimate WACC components if missing
-    if (modelType === 'dcf') {
+    if (modelType === 'dcf' || modelType === 'reverse-dcf') {
       const sector = ltmFinancials?.sector || peerComps?.sector || 'Technology';
       const estimates = await estimateDCFInputs(
         cleanTicker,
@@ -3297,8 +3856,10 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       }
     }
     
+    const computabilityModelType =
+      modelType === 'reverse-dcf' ? 'dcf' : modelType;
     const computabilityCheck =
-      modelType === 'scorecard'
+      modelType === 'scorecard' || modelType === 'debt-capacity-lite'
         ? {
             isComputable: true,
             state: 'computable' as const,
@@ -3307,7 +3868,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
             message: undefined,
           }
         : await checkModelComputability(
-            modelType as 'comps' | 'dcf' | 'three-statement' | 'lbo' | 'merger',
+            computabilityModelType as 'comps' | 'dcf' | 'three-statement' | 'lbo' | 'merger',
             baseInputs,
             estimatedInputs
           );
@@ -3410,6 +3971,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
   let dcfWorkbook: ExcelJS.Workbook | undefined;
   let threeStatementSummary: import('@/lib/models/threeStatement/excel').ThreeStatementOutput | null = null;
   let lboSummary: LboEngineOutput | undefined;
+  let debtCapacitySummary: DebtCapacityLiteSummary | undefined;
   let compsSummary: CompsResult | null = null;
   let scorecardSummary: import('@/lib/models/scorecard/buildScorecardSummary').ScorecardSummary | null = null;
   let modelDocument: ModelDocument | null = null;
@@ -3597,6 +4159,65 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
         dcfSummary = dcfResult.dcfSummary;
         dcfWorkbook = dcfResult.dcfWorkbook;
         break;
+      case 'reverse-dcf':
+        if (!reverseDcfInputs) {
+          return NextResponse.json(
+            {
+              ok: false,
+              state: 'failed',
+              status: 'failed',
+              code: 'reverse_dcf_invalid',
+              message: 'Reverse DCF inputs are missing.',
+            },
+            { status: 400 }
+          );
+        }
+        // Defensive: ensure revenue series exists and is numeric before reverse DCF solve.
+        if (!Array.isArray(sanitizedAssumptions.revenue) || sanitizedAssumptions.revenue.length === 0) {
+          if (ltmFinancials?.revenue && ltmFinancials.revenue > 0) {
+            sanitizedAssumptions.revenue = Array(5).fill(ltmFinancials.revenue);
+          } else if (normalizedFinancials?.revenue && normalizedFinancials.revenue > 0) {
+            const fallbackRevenueM =
+              (normalizedFinancials as any)?.revenueM ??
+              coerceToMillions(normalizedFinancials.revenue, { unitHint: 'auto' }) ??
+              normalizedFinancials.revenue;
+            sanitizedAssumptions.revenue = Array(5).fill(fallbackRevenueM);
+          } else {
+            sanitizedAssumptions.revenue = [1_000];
+          }
+        } else {
+          sanitizedAssumptions.revenue = sanitizedAssumptions.revenue.map((v: any) => {
+            if (typeof v === 'number' && Number.isFinite(v)) return v;
+            if (typeof v === 'string') {
+              const parsed = Number(v.replace(/,/g, '').trim());
+              return Number.isFinite(parsed) ? parsed : v;
+            }
+            return v;
+          });
+        }
+        try {
+          const reverseResult = await buildReverseDcfModelWithAssumptions(
+            workbook,
+            cleanTicker,
+            sanitizedAssumptions,
+            reverseDcfInputs,
+            normalizedFinancials
+          );
+          dcfSummary = reverseResult.dcfSummary;
+          dcfWorkbook = reverseResult.dcfWorkbook;
+        } catch (reverseErr: any) {
+          return NextResponse.json(
+            {
+              ok: false,
+              state: 'failed',
+              status: 'failed',
+              code: 'reverse_dcf_no_convergence',
+              message: reverseErr?.message || 'Reverse DCF solver could not converge.',
+            },
+            { status: 422 }
+          );
+        }
+        break;
       case 'lbo':
         try {
           lboSummary = await buildLboModelWithAssumptions(
@@ -3604,8 +4225,17 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
             cleanTicker,
             sanitizedAssumptions,
             normalizedFinancials,
-            body
+            body,
+            { workbookNotes: quickLboPayload?.workbookNotes }
           );
+          if (body?.quickLbo === true && lboSummary) {
+            lboSummary.warnings = Array.isArray(lboSummary.warnings) ? lboSummary.warnings : [];
+            lboSummary.warnings.unshift('Quick LBO (Demo assumptions) mode applied.');
+            (lboSummary as any).quickLbo = {
+              enabled: true,
+              defaultsApplied: quickLboPayload?.appliedDefaults ?? [],
+            };
+          }
           console.log('[LBO_DEBUG] REAL workbook sheets:', workbook.worksheets.map((sheet) => sheet.name));
         } catch (lboError) {
           console.error('[LBO_ERROR] Failed to build real LBO workbook:', lboError);
@@ -3632,6 +4262,48 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
           });
         }
         break;
+      case 'debt-capacity-lite': {
+        if (!debtCapacityLiteInputs) {
+          return NextResponse.json(
+            {
+              ok: false,
+              state: 'failed',
+              status: 'failed',
+              code: 'debt_capacity_invalid',
+              message: 'Debt Capacity Lite inputs are missing.',
+            },
+            { status: 400 }
+          );
+        }
+
+        const ebitda =
+          canonicalValues.ebitda.value ??
+          (typeof ltmFinancials?.ebitda === 'number' ? ltmFinancials.ebitda : null);
+        if (ebitda === null || !Number.isFinite(ebitda) || ebitda <= 0) {
+          return NextResponse.json(
+            {
+              ok: false,
+              state: 'failed',
+              status: 'failed',
+              code: 'demo_debt_capacity_not_ready',
+              message: 'Ticker is not Debt Capacity-ready in demo dataset (EBITDA must be > 0).',
+            },
+            { status: 400 }
+          );
+        }
+        const currentNetDebt =
+          canonicalValues.netDebt.value ??
+          (typeof ltmFinancials?.totalDebt === 'number' && typeof ltmFinancials?.cash === 'number'
+            ? ltmFinancials.totalDebt - ltmFinancials.cash
+            : null);
+
+        debtCapacitySummary = buildDebtCapacityLiteSummary({
+          ebitda,
+          currentNetDebt,
+          inputs: debtCapacityLiteInputs,
+        });
+        break;
+      }
       case 'comps':
         compsSummary = await buildCompsModelWithAssumptions(
           workbook,
@@ -3677,7 +4349,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       // Extract values from DCF summary or LBO summary
       const outputs: any = {};
       
-      if (modelType === 'dcf' && dcfSummary) {
+      if ((modelType === 'dcf' || modelType === 'reverse-dcf') && dcfSummary) {
         // Extract from dcfSummary if available
         outputs.wacc = dcfSummary.wacc || dcfSummary.valuationResults?.wacc;
         outputs.terminalGrowth = dcfSummary.terminalGrowth || dcfSummary.valuationResults?.terminalGrowth;
@@ -3688,7 +4360,11 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       }
       
       const evalResult = evaluateGuardrails(
-        modelType === 'dcf' ? 'dcf' : modelType === 'lbo' ? 'lbo' : 'three-statement',
+        modelType === 'dcf' || modelType === 'reverse-dcf'
+          ? 'dcf'
+          : modelType === 'lbo'
+            ? 'lbo'
+            : 'three-statement',
         outputs,
         settings
       );
@@ -3765,6 +4441,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
     dcfSummary,
     threeStatementSummary: threeStatementSummary ?? null,
     lboSummary: lboSummary ?? null,
+    debtCapacityLiteSummary: debtCapacitySummary ?? null,
     compsSummary,
     scorecardSummary,
   });
@@ -3781,13 +4458,20 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
   // - Three-statement: use the full three-statement workbook (IS, BS, CF, etc.).
   // - Everything else: use ModelDocument mapping for consistent preview/export.
   let exportWorkbook: ExcelJS.Workbook;
-  if (modelType === 'dcf' && dcfWorkbook && dcfWorkbook.worksheets.length > 0) {
+  if ((modelType === 'dcf' || modelType === 'reverse-dcf') && dcfWorkbook && dcfWorkbook.worksheets.length > 0) {
     exportWorkbook = dcfWorkbook;
   } else if (modelType === 'three-statement' && workbook.worksheets.length > 0) {
     exportWorkbook = workbook;
   } else if (modelType === 'comps' && compsSummary) {
     const { generateCompsWorkbook } = await import('@/lib/compsExcelGenerator');
     exportWorkbook = await generateCompsWorkbook(compsSummary as Record<string, unknown>);
+  } else if (modelType === 'debt-capacity-lite' && debtCapacitySummary) {
+    const { generateDebtCapacityLiteWorkbook } = await import('@/lib/models/debtCapacityLite/excel');
+    exportWorkbook = await generateDebtCapacityLiteWorkbook({
+      ticker: cleanTicker,
+      summary: debtCapacitySummary,
+      asOfDate: (body?.asOfDate as string) || new Date().toISOString().slice(0, 10),
+    });
   } else {
     exportWorkbook = await mapDocumentToExcel(modelDocument, DEFAULT_STYLE_TOKENS);
     if (exportWorkbook.worksheets.length === 0) {
@@ -3795,7 +4479,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
     }
   }
 
-  if (modelType === 'dcf' || modelType === 'comps' || modelType === 'three-statement') {
+  if (modelType === 'dcf' || modelType === 'reverse-dcf' || modelType === 'comps' || modelType === 'three-statement') {
     const { generateModelReport, upsertModelBriefSheet } = await import('@/lib/models/modelBriefReport');
 
     const companyName =
@@ -3815,7 +4499,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       ebitdaLtm: canonicalValues?.ebitda?.value ?? null,
       netIncomeLtm: canonicalValues?.netIncome?.value ?? null,
       netDebt:
-        (modelType === 'dcf' ? dcfSummary?.results?.netDebt : null) ??
+        (modelType === 'dcf' || modelType === 'reverse-dcf' ? dcfSummary?.results?.netDebt : null) ??
         (modelType === 'comps' ? compsSummary?.subject?.netDebt : null) ??
         (modelType === 'three-statement' ? (sanitizedAssumptions as any)?.netDebt : null) ??
         canonicalValues?.netDebt?.value ??
@@ -3829,8 +4513,9 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
           : 'Unavailable',
     };
 
+    const reportModelType = modelType === 'reverse-dcf' ? 'dcf' : modelType;
     const report = await generateModelReport({
-      modelType,
+      modelType: reportModelType as 'dcf' | 'comps' | 'three-statement',
       companySnapshot,
       modelOutputs: {
         dcfSummary,
@@ -3927,10 +4612,33 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       appliedDefaults,
       warnings: [...guardrailResult.warnings, ...canonicalFinancials.warnings, ...consistencyResult.warnings],
       estimated: estimatedInputs, // Include auto-estimated inputs
+      quickLbo:
+        modelType === 'lbo' && body?.quickLbo === true
+          ? {
+              enabled: true,
+              defaultsApplied: quickLboPayload?.appliedDefaults ?? [],
+            }
+          : undefined,
+      reverseDcf:
+        modelType === 'reverse-dcf'
+          ? dcfSummary?.reverseDcf || {
+              enabled: true,
+            }
+          : undefined,
+      debtCapacityLite:
+        modelType === 'debt-capacity-lite'
+          ? debtCapacitySummary
+          : undefined,
+      sensitivity:
+        modelType === 'dcf' || modelType === 'reverse-dcf'
+          ? dcfSummary?.sensitivity
+          : modelType === 'lbo'
+            ? (lboSummary as any)?.sensitivity
+            : undefined,
     };
 
     // Include model-specific summaries for preview parsing
-    if (modelType === 'dcf' && dcfSummary) {
+    if ((modelType === 'dcf' || modelType === 'reverse-dcf') && dcfSummary) {
       response.dcfSummary = dcfSummary;
       // Dev logging
       if (process.env.NODE_ENV === 'development') {

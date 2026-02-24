@@ -7,7 +7,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ tickers: [], companies: [] });
   }
 
-  const rows = await getDemoUniverseTickers();
+  const url = new URL(req.url);
+  const scenarioReadyParam = (url.searchParams.get('scenarioReady') ?? '').toLowerCase();
+  const scenarioReady = scenarioReadyParam === '1' || scenarioReadyParam === 'true' || scenarioReadyParam === 'yes';
+
+  const rows = await getDemoUniverseTickers({ scenarioReady });
   const companies = rows.map((r) => ({
     ticker: r.ticker,
     company_name: r.company_name,

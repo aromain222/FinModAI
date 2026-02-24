@@ -13,6 +13,18 @@ export type DemoUniverseTickerRow = {
   updated_at: string | null;
 };
 
+type DemoUniverseTickerQueryRow = DemoUniverseTickerRow & {
+  revenue_ltm?: number | string | null;
+  ebitda_ltm?: number | string | null;
+  shares_outstanding?: number | string | null;
+  share_price?: number | string | null;
+  market_cap?: number | string | null;
+};
+
+type GetDemoUniverseTickersOptions = {
+  scenarioReady?: boolean;
+};
+
 function getSupabaseClient(): SupabaseClient {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -28,12 +40,19 @@ function getSupabaseClient(): SupabaseClient {
  * Returns all demo tickers from public.demo_company_snapshots (ticker, company_name, sector, updated_at),
  * ordered by ticker asc. Use for demo ticker picker; only tickers that exist in the table are returned.
  */
-export async function getDemoUniverseTickers(): Promise<DemoUniverseTickerRow[]> {
+export async function getDemoUniverseTickers(
+  options: GetDemoUniverseTickersOptions = {}
+): Promise<DemoUniverseTickerRow[]> {
+  const { scenarioReady = false } = options;
   const supabase = getSupabaseClient();
+
+  const selectColumns = scenarioReady
+    ? 'ticker, company_name, sector, updated_at, revenue_ltm, ebitda_ltm, shares_outstanding, share_price, market_cap'
+    : 'ticker, company_name, sector, updated_at';
 
   const { data, error } = await supabase
     .from('demo_company_snapshots')
-    .select('ticker, company_name, sector, updated_at')
+    .select(selectColumns)
     .not('ticker', 'is', null)
     .order('ticker', { ascending: true });
 
@@ -41,12 +60,7 @@ export async function getDemoUniverseTickers(): Promise<DemoUniverseTickerRow[]>
     throw new Error(`[demoUniverse] Query failed: ${error.message}`);
   }
 
-  const rows = (data ?? []) as Array<{
-    ticker: string;
-    company_name: string | null;
-    sector: string | null;
-    updated_at: string | null;
-  }>;
+  const rows = (data ?? []) as unknown as DemoUniverseTickerQueryRow[];
 
   const seen = new Set<string>();
   const result: DemoUniverseTickerRow[] = [];
@@ -54,6 +68,11 @@ export async function getDemoUniverseTickers(): Promise<DemoUniverseTickerRow[]>
   for (const row of rows) {
     const ticker = String(row.ticker ?? '').trim().toUpperCase();
     if (!ticker || seen.has(ticker)) continue;
+
+    if (scenarioReady && !isScenarioReadyRow(row)) {
+      continue;
+    }
+
     seen.add(ticker);
     result.push({
       ticker,
@@ -64,4 +83,25 @@ export async function getDemoUniverseTickers(): Promise<DemoUniverseTickerRow[]>
   }
 
   return result;
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function isScenarioReadyRow(row: DemoUniverseTickerQueryRow): boolean {
+  const revenue = toFiniteNumber(row.revenue_ltm);
+  const ebitda = toFiniteNumber(row.ebitda_ltm);
+  const shares = toFiniteNumber(row.shares_outstanding);
+  const price = toFiniteNumber(row.share_price);
+  const marketCap = toFiniteNumber(row.market_cap);
+
+  const hasOperatingBase = !!revenue && revenue > 0 && !!ebitda && ebitda > 0;
+  const hasPricingBase = !!shares && shares > 0 && ((!!price && price > 0) || (!!marketCap && marketCap > 0));
+  return hasOperatingBase && hasPricingBase;
 }

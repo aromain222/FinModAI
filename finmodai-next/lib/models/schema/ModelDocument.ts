@@ -9,7 +9,16 @@
  * Model Metadata
  */
 export interface ModelMeta {
-  modelType: 'comps' | 'dcf' | 'three-statement' | 'lbo' | 'merger' | 'operating' | 'scorecard';
+  modelType:
+    | 'comps'
+    | 'dcf'
+    | 'reverse-dcf'
+    | 'debt-capacity-lite'
+    | 'three-statement'
+    | 'lbo'
+    | 'merger'
+    | 'operating'
+    | 'scorecard';
   companyName: string;
   ticker: string;
   asOfDate: string; // ISO date string
