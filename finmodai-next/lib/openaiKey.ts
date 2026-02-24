@@ -5,12 +5,26 @@
 
 export type OpenAIClientType = 'service' | 'user';
 
+function normalizeRawKey(value: string | undefined | null): string | null {
+  if (typeof value !== 'string') return null;
+  let key = value.trim();
+  if (!key) return null;
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+    key = key.slice(1, -1).trim();
+  }
+  if (key.toLowerCase().startsWith('bearer ')) {
+    key = key.slice(7).trim();
+  }
+  return key || null;
+}
+
 function isUsableKey(value: string | undefined | null): value is string {
-  if (typeof value !== 'string') return false;
-  const key = value.trim();
+  const key = normalizeRawKey(value);
+  if (!key) return false;
   if (key.length < 12) return false;
   const lower = key.toLowerCase();
   if (lower.includes('redacted') || lower.includes('your_') || lower.includes('paste_')) return false;
+  if (!lower.startsWith('sk-')) return false;
   return true;
 }
 
@@ -18,13 +32,22 @@ function dedupeNonEmpty(values: Array<string | null | undefined>): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const value of values) {
-    if (!value) continue;
-    const trimmed = value.trim();
+    const trimmed = normalizeRawKey(value);
     if (!trimmed || seen.has(trimmed)) continue;
     seen.add(trimmed);
     out.push(trimmed);
   }
   return out;
+}
+
+function orderedKeys(type: OpenAIClientType): Array<string | undefined> {
+  const user = process.env.OPENAI_API_KEY;
+  const service = process.env.OPENAI_SERVICE_API_KEY;
+  const publicFallback = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+  if (type === 'user') {
+    return [user, service, publicFallback];
+  }
+  return [service, user, publicFallback];
 }
 
 /**
@@ -33,19 +56,19 @@ function dedupeNonEmpty(values: Array<string | null | undefined>): string[] {
  * - user: interactive (chat, analysis, explain). Prefers OPENAI_API_KEY, falls back to OPENAI_SERVICE_API_KEY.
  */
 export function getOpenAIKey(type: OpenAIClientType): string | null {
-  if (type === 'user') {
-    const preferred = process.env.OPENAI_API_KEY;
-    const fallback = process.env.OPENAI_SERVICE_API_KEY;
-    if (isUsableKey(preferred)) return preferred;
-    if (isUsableKey(fallback)) return fallback;
-    return null;
+  for (const candidate of orderedKeys(type)) {
+    if (isUsableKey(candidate)) {
+      return normalizeRawKey(candidate);
+    }
   }
-  // service: prefer dedicated service key so billing/limits can be split
-  const service = process.env.OPENAI_SERVICE_API_KEY;
-  const user = process.env.OPENAI_API_KEY;
-  if (isUsableKey(service)) return service;
-  if (isUsableKey(user)) return user;
   return null;
+}
+
+/**
+ * Returns all configured keys in preference order for failover retries.
+ */
+export function getOpenAIKeyCandidates(type: OpenAIClientType): string[] {
+  return dedupeNonEmpty(orderedKeys(type).filter((candidate) => isUsableKey(candidate)));
 }
 
 /**

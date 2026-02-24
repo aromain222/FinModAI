@@ -37,7 +37,7 @@ export type NormalizedNewsItem = z.infer<typeof normalizedNewsItemSchema>;
 
 export const headlinesResponseSchema = z.object({
   items: z.array(newsItemSchema),
-  provider: z.enum(['perigon', 'newsapi', 'none']),
+  provider: z.enum(['perigon', 'benzinga', 'newsapi', 'supabase', 'demo', 'none']),
   error: z.string().optional(),
 });
 export type HeadlinesResponse = z.infer<typeof headlinesResponseSchema>;
@@ -118,7 +118,7 @@ export type NewsType = z.infer<typeof newsTypeSchema>;
 
 export const apiErrorSchema = z.object({
   code: z.string(),
-  provider: z.enum(['perigon', 'newsapi']).nullable(),
+  provider: z.enum(['perigon', 'benzinga', 'newsapi', 'supabase', 'demo', 'none']).nullable(),
   message: z.string(),
   env: z.string().optional(),
   details: z.string().optional(),
@@ -128,7 +128,7 @@ export type ApiErrorPayload = z.infer<typeof apiErrorSchema>;
 export const unifiedNewsApiResponseSchema = z.object({
   items: z.array(normalizedNewsItemSchema).optional(),
   events: z.array(eventItemSchema).optional(),
-  provider: z.enum(['perigon', 'newsapi', 'none']),
+  provider: z.enum(['perigon', 'benzinga', 'newsapi', 'supabase', 'demo', 'none']),
   fallback_active: z.boolean().optional(),
   error: apiErrorSchema.optional(),
 });

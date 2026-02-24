@@ -31,7 +31,7 @@ type NewsItem = {
 type NewsSuccessResponse = {
   ok?: true;
   items: NewsItem[];
-  provider?: 'perigon' | 'benzinga' | 'newsapi' | 'supabase' | 'none';
+  provider?: 'perigon' | 'benzinga' | 'newsapi' | 'supabase' | 'demo' | 'none';
 };
 
 type NewsErrorResponse = {
@@ -49,11 +49,12 @@ type MarketImpactSections = {
   fallback: string;
 };
 
-function providerLabel(provider?: 'perigon' | 'benzinga' | 'newsapi' | 'supabase' | 'none'): string {
+function providerLabel(provider?: 'perigon' | 'benzinga' | 'newsapi' | 'supabase' | 'demo' | 'none'): string {
   if (provider === 'perigon') return 'Perigon';
   if (provider === 'benzinga') return 'Benzinga';
   if (provider === 'newsapi') return 'NewsAPI';
   if (provider === 'supabase') return 'Supabase';
+  if (provider === 'demo') return 'Demo';
   if (provider === 'none') return 'None';
   return 'Unknown';
 }
@@ -103,6 +104,7 @@ function parseResponse(payload: unknown): NewsSuccessResponse | NewsErrorRespons
     data.provider === 'benzinga' ||
     data.provider === 'newsapi' ||
     data.provider === 'supabase' ||
+    data.provider === 'demo' ||
     data.provider === 'none'
       ? data.provider
       : undefined;
@@ -265,7 +267,7 @@ export default function HeadlinesPanel({
   onTopicChange: (next: NewsTopic) => void;
 }) {
   const [items, setItems] = useState<NewsItem[]>([]);
-  const [provider, setProvider] = useState<'perigon' | 'benzinga' | 'newsapi' | 'supabase' | 'none' | undefined>(
+  const [provider, setProvider] = useState<'perigon' | 'benzinga' | 'newsapi' | 'supabase' | 'demo' | 'none' | undefined>(
     undefined
   );
   const [loading, setLoading] = useState(true);

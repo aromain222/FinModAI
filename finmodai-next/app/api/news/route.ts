@@ -10,7 +10,7 @@ export const revalidate = 300;
 
 type NewsType = 'headlines' | 'events';
 type NewsRange = '1D' | '3D' | '1W' | '1M' | '3M';
-type ProviderName = 'perigon' | 'benzinga' | 'newsapi' | 'supabase' | 'none';
+type ProviderName = 'perigon' | 'benzinga' | 'newsapi' | 'supabase' | 'demo' | 'none';
 type Direction = 'up' | 'down' | 'mixed' | 'unknown';
 type Confidence = 'high' | 'medium' | 'low';
 
@@ -48,6 +48,19 @@ type Params = {
   limit: number;
   fromIso: string;
   lookbackHours: number;
+};
+
+type DemoTopic = 'policy' | 'rates' | 'inflation' | 'energy' | 'fx' | 'equities';
+
+type DemoScenario = {
+  key: string;
+  headline: string;
+  eventTitle: string;
+  description: string;
+  source: string;
+  url: string;
+  topics: DemoTopic[];
+  eventType: RelevanceEventType;
 };
 
 type NewsResponse = {
@@ -88,6 +101,252 @@ const TOPIC_TO_QUERY: Record<string, string> = {
   fx: 'dollar OR DXY OR yen OR euro OR FX OR currency',
   equities: 'S&P 500 OR stocks OR earnings OR risk-off OR volatility OR VIX',
 };
+
+const DEMO_SCENARIOS: DemoScenario[] = [
+  {
+    key: 'fed-data-dependent',
+    headline: 'Fed speakers reiterate data-dependent policy path as cuts remain conditional',
+    eventTitle: 'Fed Policy Guidance Remains Data Dependent',
+    description:
+      'Multiple Fed officials stressed that policy can stay restrictive until inflation cools further, keeping near-term rate-cut expectations anchored.',
+    source: 'Demo Macro Feed',
+    url: 'https://www.reuters.com/world/us/fed-officials-data-dependent-rates-outlook-2026-02-20/',
+    topics: ['policy', 'rates'],
+    eventType: 'policy',
+  },
+  {
+    key: 'auction-term-premium',
+    headline: 'Treasury auction clears with mixed demand, leaving term premium elevated',
+    eventTitle: 'Treasury Auction Keeps Yields Volatile',
+    description:
+      'Front-end yields were sticky while long-end yields moved in both directions as investors balanced inflation risk against slower growth.',
+    source: 'Demo Macro Feed',
+    url: 'https://www.bloomberg.com/markets/rates-bonds',
+    topics: ['rates', 'policy'],
+    eventType: 'rates',
+  },
+  {
+    key: 'cpi-services-sticky',
+    headline: 'Core inflation remains uneven with services components still running hot',
+    eventTitle: 'Inflation Trend Looks Uneven',
+    description:
+      'Disinflation progress continued in goods, but services inflation stayed firm enough to keep markets cautious on the pace of easing.',
+    source: 'Demo Macro Feed',
+    url: 'https://www.wsj.com/economy',
+    topics: ['inflation', 'rates'],
+    eventType: 'inflation',
+  },
+  {
+    key: 'opec-supply-discipline',
+    headline: 'OPEC supply discipline supports crude as inventories tighten at the margin',
+    eventTitle: 'Energy Supply Tightness Supports Oil',
+    description:
+      'Oil prices drifted higher after disciplined producer supply and shipping frictions reinforced concerns about near-term energy balances.',
+    source: 'Demo Macro Feed',
+    url: 'https://www.ft.com/markets',
+    topics: ['energy', 'inflation'],
+    eventType: 'energy',
+  },
+  {
+    key: 'dxy-safe-haven',
+    headline: 'Dollar index firms as investors move toward safe-haven positioning',
+    eventTitle: 'Safe-Haven Demand Supports USD',
+    description:
+      'Risk-off positioning favored the USD, with FX moves tracking volatility and real-rate differentials across major markets.',
+    source: 'Demo Macro Feed',
+    url: 'https://www.marketwatch.com/investing/index/dxy',
+    topics: ['fx', 'equities'],
+    eventType: 'fx',
+  },
+  {
+    key: 'ai-multiple-compression',
+    headline: 'High-multiple AI names lead a broad technology pullback on valuation reset',
+    eventTitle: 'Equity Risk Appetite Softens in Growth Stocks',
+    description:
+      'Large-cap growth underperformed as investors demanded a higher risk premium and rotated toward defensive sectors.',
+    source: 'Demo Macro Feed',
+    url: 'https://www.cnbc.com/technology/',
+    topics: ['equities'],
+    eventType: 'equities',
+  },
+  {
+    key: 'credit-spread-widening',
+    headline: 'IG and HY spreads widen modestly as risk sentiment weakens',
+    eventTitle: 'Credit Conditions Tighten Slightly',
+    description:
+      'Credit markets turned more selective, signaling tighter financial conditions and a higher hurdle for cyclical risk assets.',
+    source: 'Demo Macro Feed',
+    url: 'https://www.bloomberg.com/markets/credit',
+    topics: ['equities', 'rates'],
+    eventType: 'credit',
+  },
+  {
+    key: 'payrolls-reacceleration',
+    headline: 'Payroll data surprises to the upside, keeping growth expectations resilient',
+    eventTitle: 'Labor Data Supports Near-Term Growth',
+    description:
+      'A firmer labor print reduced immediate recession concerns but also pushed out expectations for rapid policy easing.',
+    source: 'Demo Macro Feed',
+    url: 'https://www.reuters.com/markets/us/us-jobs-report-preview-2026-02-21/',
+    topics: ['policy', 'equities'],
+    eventType: 'growth',
+  },
+  {
+    key: 'tariff-uncertainty',
+    headline: 'Renewed tariff rhetoric raises policy uncertainty for trade-exposed sectors',
+    eventTitle: 'Tariff Uncertainty Lifts Risk Premiums',
+    description:
+      'Markets repriced margin and demand uncertainty for cyclicals, while defensive positioning strengthened in rates, FX, and staples.',
+    source: 'Demo Macro Feed',
+    url: 'https://www.wsj.com/politics/policy/trade-policy',
+    topics: ['policy', 'equities', 'fx'],
+    eventType: 'geopolitics',
+  },
+  {
+    key: 'shipping-route-stress',
+    headline: 'Shipping-route disruptions add fresh pressure to freight and commodity pricing',
+    eventTitle: 'Geopolitical Frictions Feed Into Inflation Hedges',
+    description:
+      'Transport uncertainty pushed investors toward energy and precious-metal hedges while keeping broader risk appetite cautious.',
+    source: 'Demo Macro Feed',
+    url: 'https://www.ft.com/world/middle-east',
+    topics: ['energy', 'inflation', 'fx'],
+    eventType: 'geopolitics',
+  },
+  {
+    key: 'china-stimulus-impulse',
+    headline: 'China stimulus headlines lift global cyclicals and industrial commodity expectations',
+    eventTitle: 'Global Growth Hopes Improve on Stimulus Talk',
+    description:
+      'Cyclical sectors gained as investors priced a modest pickup in external demand and better activity momentum.',
+    source: 'Demo Macro Feed',
+    url: 'https://www.reuters.com/world/china/china-policy-support-growth-2026-02-18/',
+    topics: ['equities', 'energy'],
+    eventType: 'growth',
+  },
+  {
+    key: 'bank-lending-standards',
+    headline: 'Bank lending standards stay tight, tempering credit creation momentum',
+    eventTitle: 'Loan Supply Signals Ongoing Financing Friction',
+    description:
+      'Restrictive lending conditions reinforced a cautious medium-term backdrop for capex-heavy and rate-sensitive sectors.',
+    source: 'Demo Macro Feed',
+    url: 'https://www.federalreserve.gov/data/sloos.htm',
+    topics: ['rates', 'equities'],
+    eventType: 'credit',
+  },
+];
+
+function demoScenariosForTag(tag: string): DemoScenario[] {
+  const normalized = tag.trim().toLowerCase();
+  if (normalized === 'all') return DEMO_SCENARIOS;
+  const filtered = DEMO_SCENARIOS.filter((scenario) => scenario.topics.includes(normalized as DemoTopic));
+  return filtered.length > 0 ? filtered : DEMO_SCENARIOS;
+}
+
+function demoPublishedAt(params: Params, index: number, total: number): string {
+  const now = Date.now();
+  const lookbackMs = Math.max(2, params.lookbackHours) * 60 * 60 * 1000;
+  const slot = Math.max(30 * 60 * 1000, Math.floor(lookbackMs / Math.max(total + 1, 2)));
+  const offset = Math.min(lookbackMs - 60_000, index * slot);
+  return new Date(now - offset).toISOString();
+}
+
+function biasToDirection(bias: string): Direction {
+  if (bias === 'Risk-On' || bias === 'Dovish') return 'up';
+  if (bias === 'Risk-Off' || bias === 'Hawkish') return 'down';
+  return 'mixed';
+}
+
+function buildDemoHeadlines(params: Params, limit = params.limit): HeadlineItem[] {
+  const selected = demoScenariosForTag(params.tag).slice(0, Math.min(limit, DEMO_SCENARIOS.length));
+  return selected.map((scenario, index) => {
+    const published = demoPublishedAt(params, index, selected.length);
+    return {
+      id: hashId(`demo-headline:${scenario.key}:${published}`),
+      title: scenario.headline,
+      description: scenario.description,
+      url: scenario.url,
+      source: scenario.source,
+      publishedAt: published,
+      published_at: published,
+      tags: Array.from(new Set([...scenario.topics, scenario.eventType, 'demo'])),
+    };
+  });
+}
+
+function buildDemoEvents(params: Params, limit = params.limit): EventItem[] {
+  const selected = demoScenariosForTag(params.tag).slice(0, Math.min(limit, DEMO_SCENARIOS.length));
+  return selected.map((scenario, index) => {
+    const published = demoPublishedAt(params, index, selected.length);
+    const inferred = inferEventImpact({
+      eventType: scenario.eventType,
+      title: scenario.eventTitle,
+      description: scenario.description,
+    });
+    const impactedTickers =
+      inferred.affectedTickers.length > 0
+        ? inferred.affectedTickers.map((ticker) => ({
+            ticker: ticker.ticker,
+            direction: ticker.direction as Direction,
+            rationale: ticker.rationale,
+          }))
+        : [
+            {
+              ticker: 'SPY',
+              direction: biasToDirection(inferred.bias),
+              rationale: 'Broad market proxy for demo event impact.',
+            },
+          ];
+    const event = makeDetailedEvent({
+      id: hashId(`demo-event:${scenario.key}:${published}`),
+      title: scenario.eventTitle,
+      what_happened: `${scenario.headline}. ${scenario.description}`,
+      ai_summary: toPlainNarrative(
+        ensureNarrative(scenario.description, 2, [
+          'This is generated from demo market data to keep event coverage available.',
+          'Use rates, FX, volatility, and credit as confirmation signals.',
+        ]),
+        3
+      ),
+      why_it_matters: ensureImpactPrefix(
+        buildReadableImpact(
+          ensureNarrative(inferred.whyItMatters, 2, [scenario.description]),
+          inferred.affectedSectors.map((sector) => ({
+            sector: sector.sector,
+            direction: sector.direction as Direction,
+          }))
+        )
+      ),
+      impacted_sectors:
+        inferred.affectedSectors.length > 0
+          ? inferred.affectedSectors.map((sector) => ({
+              sector: sector.sector,
+              direction: sector.direction as Direction,
+              rationale: sector.rationale,
+            }))
+          : [{ sector: 'Technology', direction: 'mixed', rationale: 'Fallback sector mapping for demo event.' }],
+      impacted_tickers: impactedTickers,
+      watch_items:
+        inferred.watchItems.length > 0
+          ? inferred.watchItems.slice(0, 6)
+          : ['Track 2Y/10Y yields, DXY, VIX, and IG/HY spreads for confirmation.'],
+      sources: [
+        {
+          source: scenario.source,
+          title: scenario.headline,
+          url: scenario.url,
+          published_at: published,
+        },
+      ],
+      confidence: inferred.confidence,
+      published_at: published,
+      tags: Array.from(new Set([...scenario.topics, scenario.eventType, 'demo'])),
+    } satisfies EventItem);
+
+    return event;
+  });
+}
 
 function json(payload: unknown, status = 200) {
   return NextResponse.json(payload, {
@@ -1200,21 +1459,28 @@ async function handleHeadlines(params: Params): Promise<NewsResponse> {
     preferred.length >= minimumTarget
       ? preferred
       : dedupeHeadlines([...preferred, ...salvage]).slice(0, params.limit);
+  const demoHeadlines = buildDemoHeadlines(params, params.limit);
+  const supplemented =
+    blended.length >= minimumTarget
+      ? blended
+      : dedupeHeadlines([...blended, ...demoHeadlines]).slice(0, params.limit);
 
-  if (blended.length > 0) {
-    const fromSupabaseCount = blended.filter((item) => finalSupabaseItems.some((cached) => cached.url === item.url)).length;
+  if (supplemented.length > 0) {
+    const fromSupabaseCount = supplemented.filter((item) => finalSupabaseItems.some((cached) => cached.url === item.url)).length;
+    const usedDemoFallback = supplemented.some((item) => (item.tags ?? []).includes('demo'));
+    const responseErrors = usedDemoFallback ? [...errors, 'fallback:demo_headlines'] : errors;
     return {
       ok: true,
-      provider: live.provider ?? (fromSupabaseCount > 0 ? 'supabase' : provider),
-      items: blended,
-      meta: { ingested, fromSupabase: fromSupabaseCount, errors },
+      provider: live.provider ?? (fromSupabaseCount > 0 ? 'supabase' : usedDemoFallback ? 'demo' : provider),
+      items: supplemented,
+      meta: { ingested, fromSupabase: fromSupabaseCount, errors: responseErrors },
     };
   }
 
   return {
     ok: true,
-    provider: salvage.length > 0 ? (live.provider ?? (supabase ? 'supabase' : 'none')) : 'none',
-    items: salvage,
+    provider: 'none',
+    items: [],
     meta: { ingested: 0, fromSupabase: 0, errors },
   };
 }
@@ -1314,15 +1580,22 @@ async function handleEvents(params: Params): Promise<EventsResponse> {
   const liveDetailed = derivedLiveEvents.map(makeDetailedEvent);
   const cachedDetailed = supabaseEvents.map(makeDetailedEvent);
   const blended = dedupeEvents([...liveDetailed, ...cachedDetailed]).slice(0, params.limit);
+  const demoEvents = buildDemoEvents(params, params.limit);
+  const supplemented =
+    blended.length >= minimumEvents
+      ? blended
+      : dedupeEvents([...blended, ...demoEvents]).slice(0, params.limit);
 
-  if (blended.length > 0) {
-    const fromSupabase = blended.filter((event) => cachedDetailed.some((cached) => cached.id === event.id)).length;
+  if (supplemented.length > 0) {
+    const fromSupabase = supplemented.filter((event) => cachedDetailed.some((cached) => cached.id === event.id)).length;
+    const usedDemoFallback = supplemented.some((event) => (event.tags ?? []).includes('demo'));
+    const responseErrors = usedDemoFallback ? [...errors, 'fallback:demo_events'] : errors;
     return {
       ok: true,
-      provider: live.provider ?? (fromSupabase > 0 ? 'supabase' : 'newsapi'),
-      items: blended,
-      events: blended,
-      meta: { ingested, fromSupabase, errors },
+      provider: live.provider ?? (fromSupabase > 0 ? 'supabase' : usedDemoFallback ? 'demo' : 'newsapi'),
+      items: supplemented,
+      events: supplemented,
+      meta: { ingested, fromSupabase, errors: responseErrors },
     };
   }
 

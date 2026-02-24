@@ -48,6 +48,7 @@ function providerLabel(provider?: string): string {
   if (provider === 'perigon') return 'Perigon';
   if (provider === 'benzinga') return 'Benzinga';
   if (provider === 'newsapi') return 'NewsAPI';
+  if (provider === 'demo') return 'Demo';
   if (provider === 'none') return 'None';
   return provider;
 }

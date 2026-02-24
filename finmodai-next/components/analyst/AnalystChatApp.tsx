@@ -74,14 +74,10 @@ export function AnalystChatApp({ models, defaultModelId }: AnalystChatAppProps) 
           : payload && typeof payload.error === 'string' && payload.error.trim().length > 0
             ? payload.error
             : 'No response generated.');
-      const withErrorDetail =
-        payload?.fallback && typeof payload?.error === 'string' && payload.error.trim().length > 0
-          ? `${replyText}\n\n[debug] ${payload.error}`
-          : replyText;
       const reply: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: withErrorDetail
+        content: replyText
       };
       setMessages((prev) => [...prev, reply]);
     } catch (error) {

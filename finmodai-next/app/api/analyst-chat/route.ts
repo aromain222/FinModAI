@@ -2,9 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getModelById } from '@/lib/modelsRepo';
 import { APP_NAME } from '@/lib/branding';
-import { getOpenAIKey, getOpenAIModelCandidates } from '@/lib/openaiKey';
+import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKey';
 
 const SYSTEM_PROMPT = `You are ${APP_NAME}, a sell-side/PE analyst. Provide concise, structured insights using the provided ticker or model context. Always cite assumptions, avoid investment advice, and reference any uploaded memo text when relevant.`;
+
+function redactSecrets(value: string): string {
+  return value.replace(/sk-[A-Za-z0-9_-]+/g, 'sk-***');
+}
+
+function isAuthError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const row = error as { status?: number; message?: string; error?: { code?: string; type?: string; message?: string } };
+  const message = String(row.message || row.error?.message || '').toLowerCase();
+  return row.status === 401 || message.includes('incorrect api key') || message.includes('invalid api key');
+}
+
+function keyFingerprint(apiKey: string): string {
+  return `${apiKey.slice(0, 10)}...${apiKey.slice(-4)}`;
+}
 
 function fmtMillions(value: number | null | undefined): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
@@ -104,8 +119,8 @@ export async function POST(req: NextRequest) {
     const lastUserMessage = safeMessages.filter((message: SafeMessage) => message.role === 'user').slice(-1)[0]?.content || '';
     fallbackUserMessage = lastUserMessage;
 
-    const openAiKey = getOpenAIKey('user') || getOpenAIKey('service');
-    if (!openAiKey) {
+    const openAiKeys = getOpenAIKeyCandidates('user');
+    if (openAiKeys.length === 0) {
       const fallback = await buildDeterministicFallbackReply({
         ticker,
         contextualSummary,
@@ -114,8 +129,6 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json({ reply: fallback, fallback: true }, { status: 200 });
     }
-
-    const client = new OpenAI({ apiKey: openAiKey });
 
     const inputMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
       { role: 'system', content: SYSTEM_PROMPT },
@@ -128,29 +141,43 @@ export async function POST(req: NextRequest) {
     }
 
     const models = getOpenAIModelCandidates(process.env.OPENAI_MODEL);
-    let response: Awaited<ReturnType<typeof client.responses.create>> | null = null;
+    let response: { output_text?: string } | null = null;
     let lastError: unknown = null;
-    for (const model of models) {
-      try {
-        response = await client.responses.create({
-          model,
-          input: inputMessages,
-        });
-        if (process.env.NODE_ENV !== 'production') {
-          console.debug('[api/analyst-chat] model selected', { model });
-        }
-        break;
-      } catch (error) {
-        lastError = error;
-        if (process.env.NODE_ENV !== 'production') {
-          console.warn('[api/analyst-chat] model failed', {
+    let sawAuthError = false;
+    for (const apiKey of openAiKeys) {
+      const client = new OpenAI({ apiKey });
+      for (const model of models) {
+        try {
+          response = await client.responses.create({
             model,
-            message: error instanceof Error ? error.message : String(error),
+            input: inputMessages,
           });
+          if (process.env.NODE_ENV !== 'production') {
+            console.debug('[api/analyst-chat] model selected', { model, key: keyFingerprint(apiKey) });
+          }
+          break;
+        } catch (error) {
+          lastError = error;
+          const authError = isAuthError(error);
+          if (authError) sawAuthError = true;
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn('[api/analyst-chat] model failed', {
+              model,
+              key: keyFingerprint(apiKey),
+              authError,
+              message: error instanceof Error ? redactSecrets(error.message) : redactSecrets(String(error)),
+            });
+          }
+          // If a key is invalid, switch to the next configured key.
+          if (authError) break;
         }
       }
+      if (response) break;
     }
     if (!response) {
+      if (sawAuthError) {
+        throw new Error('OpenAI authentication failed for configured keys. Verify OPENAI_API_KEY / OPENAI_SERVICE_API_KEY and restart the dev server.');
+      }
       throw (lastError instanceof Error ? lastError : new Error('OpenAI request failed across all model candidates'));
     }
 
@@ -159,8 +186,8 @@ export async function POST(req: NextRequest) {
       : 'I could not produce a response from the model output.';
     return NextResponse.json({ reply, fallback: false });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to generate response';
-    console.error('Analyst chat error', { message, error });
+    const message = error instanceof Error ? redactSecrets(error.message) : 'Unable to generate response';
+    console.error('Analyst chat error', { message });
     let fallbackReply = 'Unable to generate a response right now. Please retry in a moment.';
     try {
       fallbackReply = await buildDeterministicFallbackReply({
