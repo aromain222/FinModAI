@@ -17,6 +17,19 @@ function isAuthError(error: unknown): boolean {
   return row.status === 401 || message.includes('incorrect api key') || message.includes('invalid api key');
 }
 
+function isRateLimitError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const row = error as { status?: number; message?: string; error?: { code?: string; type?: string; message?: string } };
+  const message = String(row.message || row.error?.message || '').toLowerCase();
+  return row.status === 429 || message.includes('rate limit') || row.error?.code === 'rate_limit_exceeded';
+}
+
+function classifyFailureReason(error: unknown): 'missing_key' | 'auth_failed' | 'rate_limited' | 'model_unavailable' {
+  if (isAuthError(error)) return 'auth_failed';
+  if (isRateLimitError(error)) return 'rate_limited';
+  return 'model_unavailable';
+}
+
 function keyFingerprint(apiKey: string): string {
   return `${apiKey.slice(0, 10)}...${apiKey.slice(-4)}`;
 }
@@ -30,12 +43,15 @@ async function buildDeterministicFallbackReply(params: {
   ticker?: string;
   contextualSummary: string;
   userMessage: string;
-  reason: 'missing_key' | 'model_unavailable';
+  reason: 'missing_key' | 'auth_failed' | 'rate_limited' | 'model_unavailable';
 }): Promise<string> {
-  const header =
-    params.reason === 'missing_key'
-      ? 'OpenAI key is not configured. Returning deterministic demo context instead.'
-      : 'OpenAI is temporarily unavailable. Returning deterministic demo context instead.';
+  const headerByReason: Record<typeof params.reason, string> = {
+    missing_key: 'OpenAI key is not configured in this runtime. Returning deterministic demo context instead.',
+    auth_failed: 'OpenAI authentication failed (invalid/revoked key in runtime). Returning deterministic demo context instead.',
+    rate_limited: 'OpenAI rate limit is currently exceeded. Returning deterministic demo context instead.',
+    model_unavailable: 'OpenAI is temporarily unavailable. Returning deterministic demo context instead.',
+  };
+  const header = headerByReason[params.reason];
 
   if (!params.ticker) {
     return `${header}\n\n${params.contextualSummary || 'No ticker/model context selected.'}`;
@@ -188,13 +204,14 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? redactSecrets(error.message) : 'Unable to generate response';
     console.error('Analyst chat error', { message });
+    const failureReason = classifyFailureReason(error);
     let fallbackReply = 'Unable to generate a response right now. Please retry in a moment.';
     try {
       fallbackReply = await buildDeterministicFallbackReply({
         ticker: fallbackTicker,
         contextualSummary: fallbackContextSummary,
         userMessage: fallbackUserMessage,
-        reason: 'model_unavailable',
+        reason: failureReason,
       });
     } catch {
       // keep generic fallback
