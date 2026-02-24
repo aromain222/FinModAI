@@ -38,6 +38,22 @@ function keyFingerprint(apiKey: string): string {
   return `${apiKey.slice(0, 10)}...${apiKey.slice(-4)}`;
 }
 
+function extractReplyFromCompletions(response: unknown): string | null {
+  if (!response || typeof response !== 'object') return null;
+  const row = response as { choices?: Array<{ message?: { content?: unknown } }> };
+  const content = row.choices?.[0]?.message?.content;
+  if (typeof content === 'string' && content.trim().length > 0) return content.trim();
+  if (Array.isArray(content)) {
+    const text = content
+      .map((part) => (part && typeof part === 'object' && 'text' in part ? (part as { text?: unknown }).text : null))
+      .filter((part): part is string => typeof part === 'string')
+      .join('\n')
+      .trim();
+    if (text.length > 0) return text;
+  }
+  return null;
+}
+
 function fmtMillions(value: number | null | undefined): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
   return `$${value.toLocaleString('en-US')}`;
@@ -147,27 +163,32 @@ export async function POST(req: NextRequest) {
     }
 
     const models = getOpenAIModelCandidates(process.env.OPENAI_MODEL);
-    let response: { output_text?: string } | null = null;
+    let replyText: string | null = null;
     let lastError: unknown = null;
     let sawAuthError = false;
     for (const apiKey of openAiKeys) {
       const client = new OpenAI({ apiKey });
       for (const model of models) {
         try {
-          response = await client.responses.create({
+          const response = await client.responses.create({
             model,
             input: inputMessages,
           });
-          if (process.env.NODE_ENV !== 'production') {
-            console.debug('[api/analyst-chat] model selected', { model, key: keyFingerprint(apiKey) });
+          if (typeof response.output_text === 'string' && response.output_text.trim().length > 0) {
+            replyText = response.output_text.trim();
+          } else {
+            replyText = null;
           }
-          break;
+          if (process.env.NODE_ENV !== 'production') {
+            console.debug('[api/analyst-chat] responses model selected', { model, key: keyFingerprint(apiKey) });
+          }
+          if (replyText) break;
         } catch (error) {
           lastError = error;
           const authError = isAuthError(error);
           if (authError) sawAuthError = true;
           if (process.env.NODE_ENV !== 'production') {
-            console.warn('[api/analyst-chat] model failed', {
+            console.warn('[api/analyst-chat] responses model failed', {
               model,
               key: keyFingerprint(apiKey),
               authError,
@@ -177,19 +198,46 @@ export async function POST(req: NextRequest) {
           // If a key is invalid, switch to the next configured key.
           if (authError) break;
         }
+
+        if (replyText) break;
+
+        // Endpoint fallback: if Responses API path fails, retry same model via Chat Completions.
+        try {
+          const completion = await client.chat.completions.create({
+            model,
+            messages: inputMessages,
+            temperature: 0.2,
+          });
+          replyText = extractReplyFromCompletions(completion);
+          if (process.env.NODE_ENV !== 'production') {
+            console.debug('[api/analyst-chat] chat.completions model selected', { model, key: keyFingerprint(apiKey) });
+          }
+          if (replyText) break;
+        } catch (error) {
+          lastError = error;
+          const authError = isAuthError(error);
+          if (authError) sawAuthError = true;
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn('[api/analyst-chat] chat.completions model failed', {
+              model,
+              key: keyFingerprint(apiKey),
+              authError,
+              message: error instanceof Error ? redactSecrets(error.message) : redactSecrets(String(error)),
+            });
+          }
+          if (authError) break;
+        }
       }
-      if (response) break;
+      if (replyText) break;
     }
-    if (!response) {
+    if (!replyText) {
       if (sawAuthError) {
         throw new Error('OpenAI authentication failed for configured keys. Verify OPENAI_API_KEY / OPENAI_SERVICE_API_KEY and restart the dev server.');
       }
       throw (lastError instanceof Error ? lastError : new Error('OpenAI request failed across all model candidates'));
     }
 
-    const reply = typeof response.output_text === 'string' && response.output_text.trim().length > 0
-      ? response.output_text
-      : 'I could not produce a response from the model output.';
+    const reply = replyText;
     return NextResponse.json({ reply, fallback: false, mode: 'live' });
   } catch (error) {
     const message = error instanceof Error ? redactSecrets(error.message) : 'Unable to generate response';
