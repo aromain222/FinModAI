@@ -8,7 +8,15 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
-const SYSTEM_PROMPT = `You are ${APP_NAME}, a sell-side/PE analyst and ChatGPT-style research assistant. Provide concise, structured insights. Use ticker context when provided; otherwise respond generally. Always cite assumptions, avoid investment advice, and reference any uploaded memo text when relevant.`;
+const SYSTEM_PROMPT = `You are ${APP_NAME}, a sell-side/PE analyst and ChatGPT-style research assistant.
+Provide concise, structured insights. Use ticker context when provided; otherwise respond generally.
+Always cite assumptions, avoid investment advice, and reference any uploaded memo text when relevant.
+Output plain text only (no markdown markers like **, __, ##, or ---).
+Default response format unless user asks otherwise:
+1) One short summary sentence.
+2) 4-6 short bullet points.
+3) Optional "What to check next" with up to 3 bullets.
+Keep it skimmable and avoid long dense paragraphs.`;
 
 function redactSecrets(value: string): string {
   return value.replace(/sk-[A-Za-z0-9_-]+/g, 'sk-***');
@@ -173,6 +181,7 @@ export async function POST(req: NextRequest) {
           const response = await client.responses.create({
             model,
             input: inputMessages,
+            max_output_tokens: 500,
           });
           if (typeof response.output_text === 'string' && response.output_text.trim().length > 0) {
             replyText = response.output_text.trim();
@@ -207,6 +216,7 @@ export async function POST(req: NextRequest) {
             model,
             messages: inputMessages,
             temperature: 0.2,
+            max_tokens: 500,
           });
           replyText = extractReplyFromCompletions(completion);
           if (process.env.NODE_ENV !== 'production') {

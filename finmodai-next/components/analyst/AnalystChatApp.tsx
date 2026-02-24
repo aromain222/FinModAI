@@ -16,6 +16,20 @@ type Message = {
   };
 };
 
+function cleanAssistantText(content: string): string {
+  return content
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/^\s*#{1,6}\s*/gm, '')
+    .replace(/\s*---+\s*/g, '\n')
+    .replace(/\s*•\s*/g, '\n- ')
+    .replace(/\s+-\s+\*\*/g, '\n- ')
+    .replace(/\s+\d+\.\s+/g, '\n$&')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/\s+\n/g, '\n')
+    .trim();
+}
+
 export function AnalystChatApp() {
   const [ticker, setTicker] = useState('');
   const [pdfNote, setPdfNote] = useState<string | null>(null);
@@ -72,7 +86,7 @@ export function AnalystChatApp() {
       const reply: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: replyText,
+        content: cleanAssistantText(replyText),
         meta: {
           mode: payload?.mode === 'fallback' ? 'fallback' : 'live',
           reason: typeof payload?.reason === 'string' ? payload.reason : undefined,
@@ -126,7 +140,7 @@ export function AnalystChatApp() {
                 className={`inline-block rounded-2xl px-4 py-3 ${
                   message.role === 'user'
                     ? 'bg-[var(--cb-green)] text-[#041007]'
-                    : 'border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] text-[var(--cb-text-primary)]'
+                    : 'border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] text-[var(--cb-text-primary)] whitespace-pre-wrap leading-7'
                 }`}
               >
                 {message.content}
