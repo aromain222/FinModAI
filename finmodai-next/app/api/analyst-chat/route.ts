@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { getModelById } from '@/lib/modelsRepo';
 import { APP_NAME } from '@/lib/branding';
 import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKey';
 
-const SYSTEM_PROMPT = `You are ${APP_NAME}, a sell-side/PE analyst. Provide concise, structured insights using the provided ticker or model context. Always cite assumptions, avoid investment advice, and reference any uploaded memo text when relevant.`;
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
+const SYSTEM_PROMPT = `You are ${APP_NAME}, a sell-side/PE analyst and ChatGPT-style research assistant. Provide concise, structured insights. Use ticker context when provided; otherwise respond generally. Always cite assumptions, avoid investment advice, and reference any uploaded memo text when relevant.`;
 
 function redactSecrets(value: string): string {
   return value.replace(/sk-[A-Za-z0-9_-]+/g, 'sk-***');
@@ -54,7 +58,7 @@ async function buildDeterministicFallbackReply(params: {
   const header = headerByReason[params.reason];
 
   if (!params.ticker) {
-    return `${header}\n\n${params.contextualSummary || 'No ticker/model context selected.'}`;
+    return `${header}\n\n${params.contextualSummary || 'General chat context (no ticker provided).'}`;
   }
 
   try {
@@ -92,32 +96,18 @@ Interpretation: this is a deterministic data snapshot only; advanced narrative a
 export async function POST(req: NextRequest) {
   let fallbackTicker: string | undefined;
   let fallbackUserMessage = '';
-  let fallbackContextSummary = 'No ticker/model context selected.';
+  let fallbackContextSummary = 'General chat context (no ticker provided).';
   try {
     const body = await req.json();
-    const contextType = body?.contextType === 'model' ? 'model' : 'ticker';
-    const ticker = body?.ticker?.toUpperCase();
+    const ticker =
+      typeof body?.ticker === 'string' && body.ticker.trim().length > 0
+        ? body.ticker.trim().toUpperCase()
+        : undefined;
     fallbackTicker = ticker;
-    const modelId = body?.modelId;
     const pdfText = typeof body?.pdfText === 'string' ? body.pdfText : null;
     const messages = Array.isArray(body?.messages) ? body.messages : [];
 
-    let contextualSummary = '';
-    if (contextType === 'model' && modelId) {
-      try {
-        const model = await getModelById(modelId);
-        if (model) {
-          contextualSummary = `Model: ${model.ticker} (${model.model_type}), status ${model.status}, created ${model.created_at}`;
-        } else {
-          contextualSummary = 'Model context requested, but model was not found.';
-        }
-      } catch (error) {
-        console.error('Unable to load model context', error);
-        contextualSummary = 'Model context requested, but loading model details failed.';
-      }
-    } else if (ticker) {
-      contextualSummary = `Ticker focus: ${ticker}`;
-    }
+    const contextualSummary = ticker ? `Ticker focus: ${ticker}` : 'General chat context (no ticker provided).';
     fallbackContextSummary = contextualSummary || fallbackContextSummary;
 
     const safeMessages = messages
@@ -143,7 +133,7 @@ export async function POST(req: NextRequest) {
         userMessage: lastUserMessage,
         reason: 'missing_key',
       });
-      return NextResponse.json({ reply: fallback, fallback: true }, { status: 200 });
+      return NextResponse.json({ reply: fallback, fallback: true, mode: 'fallback', reason: 'missing_key' }, { status: 200 });
     }
 
     const inputMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
@@ -200,7 +190,7 @@ export async function POST(req: NextRequest) {
     const reply = typeof response.output_text === 'string' && response.output_text.trim().length > 0
       ? response.output_text
       : 'I could not produce a response from the model output.';
-    return NextResponse.json({ reply, fallback: false });
+    return NextResponse.json({ reply, fallback: false, mode: 'live' });
   } catch (error) {
     const message = error instanceof Error ? redactSecrets(error.message) : 'Unable to generate response';
     console.error('Analyst chat error', { message });
@@ -220,6 +210,8 @@ export async function POST(req: NextRequest) {
       {
         reply: fallbackReply,
         fallback: true,
+        mode: 'fallback',
+        reason: failureReason,
         error: message,
       },
       { status: 200 }

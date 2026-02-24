@@ -5,23 +5,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import type { ModelRecord } from '@/lib/modelsRepo';
 
 type Message = {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  meta?: {
+    mode?: 'live' | 'fallback';
+    reason?: string;
+  };
 };
 
-type AnalystChatAppProps = {
-  models: ModelRecord[];
-  defaultModelId?: string;
-};
-
-export function AnalystChatApp({ models, defaultModelId }: AnalystChatAppProps) {
-  const [contextType, setContextType] = useState<'ticker' | 'model'>(defaultModelId ? 'model' : 'ticker');
-  const [ticker, setTicker] = useState('AAPL');
-  const [modelId, setModelId] = useState<string | undefined>(defaultModelId);
+export function AnalystChatApp() {
+  const [ticker, setTicker] = useState('');
   const [pdfNote, setPdfNote] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -54,10 +50,9 @@ export function AnalystChatApp({ models, defaultModelId }: AnalystChatAppProps) 
       const response = await fetch('/api/analyst-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        // Optional ticker context; chat should still work without it.
         body: JSON.stringify({
-          contextType,
-          ticker: contextType === 'ticker' ? ticker : undefined,
-          modelId: contextType === 'model' ? modelId : undefined,
+          ticker: ticker.trim().length > 0 ? ticker.trim().toUpperCase() : undefined,
           pdfText: pdfNote,
           messages: [...messages, userMessage]
         })
@@ -77,7 +72,11 @@ export function AnalystChatApp({ models, defaultModelId }: AnalystChatAppProps) 
       const reply: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: replyText
+        content: replyText,
+        meta: {
+          mode: payload?.mode === 'fallback' ? 'fallback' : 'live',
+          reason: typeof payload?.reason === 'string' ? payload.reason : undefined,
+        },
       };
       setMessages((prev) => [...prev, reply]);
     } catch (error) {
@@ -99,41 +98,14 @@ export function AnalystChatApp({ models, defaultModelId }: AnalystChatAppProps) 
         <CardTitle className="text-xl font-semibold text-[var(--cb-text-primary)]">Analyst Chat</CardTitle>
         <div className="flex flex-col gap-3 text-sm text-[var(--cb-text-muted)] md:flex-row md:items-center">
           <div className="flex flex-1 flex-col gap-2 md:flex-row md:items-center">
-            <label htmlFor="context-type" className="sr-only">Context Type</label>
-            <select
-              id="context-type"
-              name="context-type"
-              value={contextType}
-              onChange={(event) => setContextType(event.target.value as 'ticker' | 'model')}
-              className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-input-bg)] px-3 py-2 text-sm text-[var(--cb-input-text)]"
-            >
-              <option value="ticker">Ticker context</option>
-              <option value="model">Model context</option>
-            </select>
-            {contextType === 'ticker' ? (
-              <>
-                <label htmlFor="ticker-input" className="sr-only">Ticker</label>
-                <Input id="ticker-input" name="ticker-input" value={ticker} onChange={(event) => setTicker(event.target.value.toUpperCase())} placeholder="Ticker" />
-              </>
-            ) : (
-              <>
-                <label htmlFor="model-select" className="sr-only">Select Model</label>
-                <select
-                  id="model-select"
-                  name="model-select"
-                  className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-input-bg)] px-3 py-2 text-sm text-[var(--cb-input-text)]"
-                  value={modelId ?? ''}
-                  onChange={(event) => setModelId(event.target.value || undefined)}
-                >
-                  <option value="">Select model</option>
-                  {models.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.ticker} ({model.model_type})
-                    </option>
-                  ))}
-                </select>
-              </>
-            )}
+            <label htmlFor="ticker-input" className="sr-only">Ticker</label>
+            <Input
+              id="ticker-input"
+              name="ticker-input"
+              value={ticker}
+              onChange={(event) => setTicker(event.target.value.toUpperCase())}
+              placeholder="Ticker (optional)"
+            />
           </div>
           <label htmlFor="pdf-upload-analyst" className="sr-only">Upload PDF</label>
           <input
@@ -158,6 +130,11 @@ export function AnalystChatApp({ models, defaultModelId }: AnalystChatAppProps) 
                 }`}
               >
                 {message.content}
+                {message.role === 'assistant' && message.meta?.mode === 'fallback' && (
+                  <div className="mt-2 text-[10px] uppercase tracking-wide text-amber-300/90">
+                    fallback mode{message.meta.reason ? ` • ${message.meta.reason}` : ''}
+                  </div>
+                )}
               </div>
             </div>
           ))}

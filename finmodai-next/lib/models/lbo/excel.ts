@@ -540,14 +540,14 @@ function createDebtScheduleSheet(
 }
 
 /**
- * Create Returns (IRR / MoM) sheet
+ * Create Returns (IRR - MoM) sheet
  */
 function createReturnsSheet(
   workbook: ExcelJS.Workbook,
   ticker: string,
   output: LboEngineOutput
 ): void {
-  const sheet = workbook.addWorksheet('Returns (IRR / MoM)');
+  const sheet = workbook.addWorksheet('Returns (IRR - MoM)');
   let row = 1;
 
   // Title
