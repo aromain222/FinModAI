@@ -3306,7 +3306,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
   if (canonicalSharesMillions !== null) {
     sanitizedAssumptions.sharesOutstanding = canonicalSharesMillions;
   }
-  if (isDemoMode()) {
+  if (isDemoMode() && modelType !== 'lbo') {
     const demoRevenue =
       canonicalValues.revenue.value ??
       (typeof ltmFinancials?.revenue === 'number' ? ltmFinancials.revenue : null);
