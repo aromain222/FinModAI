@@ -13,10 +13,173 @@ Provide concise, structured insights. Use ticker context when provided; otherwis
 Always cite assumptions, avoid investment advice, and reference any uploaded memo text when relevant.
 Output plain text only (no markdown markers like **, __, ##, or ---).
 Default response format unless user asks otherwise:
-1) One short summary sentence.
-2) 4-6 short bullet points.
-3) Optional "What to check next" with up to 3 bullets.
-Keep it skimmable and avoid long dense paragraphs.`;
+1) Direct answer paragraph in plain language (3-5 sentences, no jargon dumping).
+2) If the user asks "compare/vs/peers", add a second comparison paragraph.
+3) Optional "What to check next" with up to 3 concise bullets.
+Never output malformed inline bullets like "- item - item - item".`;
+
+type WebSnippet = {
+  title: string;
+  url: string;
+  snippet: string;
+};
+
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ');
+}
+
+function stripHtml(value: string): string {
+  return decodeHtmlEntities(value.replace(/<[^>]+>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function domainLabel(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return 'web';
+  }
+}
+
+function truncateText(value: string, max = 240): string {
+  if (value.length <= max) return value;
+  const sliced = value.slice(0, max);
+  const cut = sliced.lastIndexOf(' ');
+  return `${(cut > max * 0.6 ? sliced.slice(0, cut) : sliced).trim()}...`;
+}
+
+function parseDuckResultUrl(url: string): string {
+  if (!url.startsWith('/l/?')) return url;
+  try {
+    const searchParams = new URLSearchParams(url.slice(4));
+    const resolved = searchParams.get('uddg');
+    return resolved ? decodeURIComponent(resolved) : url;
+  } catch {
+    return url;
+  }
+}
+
+async function fetchTextWithTimeout(url: string, timeoutMs = 4500): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      cache: 'no-store',
+      signal: controller.signal,
+      headers: {
+        'user-agent': `${APP_NAME} AnalystBot/1.0`,
+      },
+    });
+    if (!response.ok) return null;
+    return await response.text();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function scrapeDuckDuckGoSnippets(query: string): Promise<WebSnippet[]> {
+  const html = await fetchTextWithTimeout(`https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`);
+  if (!html) return [];
+
+  const titleMatches = Array.from(html.matchAll(/<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g));
+  const snippetMatches = Array.from(
+    html.matchAll(/<(?:a|div)[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/(?:a|div)>/g)
+  );
+
+  const items: WebSnippet[] = [];
+  for (let i = 0; i < Math.min(titleMatches.length, 5); i += 1) {
+    const hrefRaw = titleMatches[i]?.[1] ?? '';
+    const titleRaw = titleMatches[i]?.[2] ?? '';
+    const snippetRaw = snippetMatches[i]?.[1] ?? '';
+    const url = parseDuckResultUrl(hrefRaw);
+    const title = stripHtml(titleRaw);
+    const snippet = truncateText(stripHtml(snippetRaw));
+    if (!/^https?:\/\//i.test(url) || title.length === 0 || snippet.length === 0) continue;
+    items.push({ title, url, snippet });
+  }
+  return items;
+}
+
+async function fetchWikipediaSnippet(query: string): Promise<WebSnippet[]> {
+  const searchResponse = await fetchTextWithTimeout(
+    `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=1&namespace=0&format=json`
+  );
+  if (!searchResponse) return [];
+
+  let pageTitle = '';
+  try {
+    const payload = JSON.parse(searchResponse) as unknown[];
+    const titles = Array.isArray(payload?.[1]) ? payload[1] : [];
+    pageTitle = typeof titles[0] === 'string' ? titles[0] : '';
+  } catch {
+    return [];
+  }
+  if (!pageTitle) return [];
+
+  const summaryResponse = await fetchTextWithTimeout(
+    `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(pageTitle)}`
+  );
+  if (!summaryResponse) return [];
+
+  try {
+    const payload = JSON.parse(summaryResponse) as { title?: string; extract?: string; content_urls?: { desktop?: { page?: string } } };
+    const title = (payload.title || pageTitle).trim();
+    const extract = truncateText((payload.extract || '').replace(/\s+/g, ' ').trim(), 320);
+    const url = payload.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(pageTitle.replace(/\s+/g, '_'))}`;
+    if (!title || !extract) return [];
+    return [{ title, url, snippet: extract }];
+  } catch {
+    return [];
+  }
+}
+
+function buildWebQuery(ticker: string | undefined, userMessage: string): string {
+  const base = userMessage.trim().replace(/\?+$/, '');
+  if (ticker && base.length > 0) return `${ticker} ${base}`;
+  if (ticker) return `${ticker} company profile business model`;
+  return base || 'public company business overview';
+}
+
+function dedupeWebSnippets(snippets: WebSnippet[]): WebSnippet[] {
+  const seen = new Set<string>();
+  const out: WebSnippet[] = [];
+  for (const snippet of snippets) {
+    const key = snippet.url.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(snippet);
+    if (out.length >= 3) break;
+  }
+  return out;
+}
+
+async function gatherWebContext(ticker: string | undefined, userMessage: string): Promise<{ context: string; sourceLines: string[] }> {
+  if ((process.env.ANALYST_WEB_CONTEXT ?? 'true') === 'false') {
+    return { context: '', sourceLines: [] };
+  }
+  const query = buildWebQuery(ticker, userMessage);
+  if (query.length < 3) return { context: '', sourceLines: [] };
+
+  const [wiki, ddg] = await Promise.all([fetchWikipediaSnippet(query), scrapeDuckDuckGoSnippets(query)]);
+  const snippets = dedupeWebSnippets([...wiki, ...ddg]);
+  if (snippets.length === 0) return { context: '', sourceLines: [] };
+
+  const context = snippets
+    .map((item, idx) => `[${idx + 1}] ${item.title} (${domainLabel(item.url)}): ${item.snippet}`)
+    .join('\n');
+  const sourceLines = snippets.map((item, idx) => `[${idx + 1}] ${item.title} (${domainLabel(item.url)})`);
+  return { context, sourceLines };
+}
 
 function stripMarkdownArtifacts(text: string): string {
   return text
@@ -34,6 +197,15 @@ function stripMarkdownArtifacts(text: string): string {
     .trim();
 }
 
+function normalizeInlineBullets(text: string): string {
+  return text
+    .replace(/Key points:\s*-\s*/gi, 'Key points:\n- ')
+    .replace(/What to check next:\s*-\s*/gi, 'What to check next:\n- ')
+    .replace(/\s-\s(?=[A-Z0-9])/g, '\n- ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function splitSentences(text: string): string[] {
   return text
     .split(/(?<=[.!?])\s+(?=[A-Z0-9"'(])/)
@@ -41,27 +213,37 @@ function splitSentences(text: string): string[] {
     .filter((item) => item.length > 0);
 }
 
-function formatSkimmableReply(raw: string): string {
-  const cleaned = stripMarkdownArtifacts(raw);
+function formatSkimmableReply(raw: string, userMessage: string, sourceLines: string[]): string {
+  const cleaned = normalizeInlineBullets(stripMarkdownArtifacts(raw));
   if (!cleaned) return raw.trim();
-
-  const hasBulletLines = cleaned.split('\n').filter((line) => line.trim().startsWith('- ')).length >= 3;
-  const shouldReshape = cleaned.length > 700 || /(\*\*|__|#{1,6}\s|---)/.test(raw) || !hasBulletLines;
-  if (!shouldReshape) return cleaned;
 
   const plain = cleaned.replace(/\n+/g, ' ').replace(/\s{2,}/g, ' ').trim();
   const sentences = splitSentences(plain);
-  if (sentences.length <= 1) return cleaned;
+  if (sentences.length === 0) return cleaned;
 
-  const summary = sentences[0];
-  const bulletPool = sentences.slice(1);
-  const bullets = bulletPool.slice(0, 10);
-  const hasOverflow = bulletPool.length > bullets.length;
-  const lines = [`${summary}`, '', 'Key points:', ...bullets.map((item) => `- ${item}`)];
-  if (hasOverflow) {
-    lines.push('- Ask a follow-up for the remaining details.');
+  const asksComparison = /\b(compare|comparison|vs\.?|versus|peer|competitor|landscape)\b/i.test(userMessage);
+  const asksChecklist = /\b(what to check|watch|monitor|next)\b/i.test(userMessage);
+
+  const paragraphOne = sentences.slice(0, 3).join(' ');
+  const paragraphTwo = sentences.slice(3, 6).join(' ');
+  const paragraphThree = asksComparison ? sentences.slice(6, 9).join(' ') : '';
+
+  const sections: string[] = [paragraphOne];
+  if (paragraphTwo) sections.push(paragraphTwo);
+  if (paragraphThree) sections.push(paragraphThree);
+
+  const checklist = sentences.slice(asksComparison ? 9 : 6, asksComparison ? 12 : 9);
+  if (checklist.length > 0 || asksChecklist) {
+    const bullets = checklist.length > 0 ? checklist : ['Track confirmation in rates, USD, and credit spreads before increasing conviction.'];
+    sections.push(`What to check next:\n- ${bullets.join('\n- ')}`);
   }
-  return lines.join('\n').trim();
+
+  const shouldShowSources = /\b(latest|recent|today|compare|overview|about|profile|business|how\b.*\bmake)\b/i.test(userMessage);
+  if (shouldShowSources && sourceLines.length > 0) {
+    sections.push(`Sources checked:\n- ${sourceLines.slice(0, 3).join('\n- ')}`);
+  }
+
+  return sections.join('\n\n').trim();
 }
 
 function redactSecrets(value: string): string {
@@ -194,6 +376,7 @@ export async function POST(req: NextRequest) {
     type SafeMessage = { role: 'user' | 'assistant' | 'system'; content: string };
     const lastUserMessage = safeMessages.filter((message: SafeMessage) => message.role === 'user').slice(-1)[0]?.content || '';
     fallbackUserMessage = lastUserMessage;
+    const webContext = await gatherWebContext(ticker, lastUserMessage);
 
     const openAiKeys = getOpenAIKeyCandidates('user');
     if (openAiKeys.length === 0) {
@@ -209,6 +392,14 @@ export async function POST(req: NextRequest) {
     const inputMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'system', content: contextualSummary || 'No explicit context provided.' },
+      ...(webContext.context
+        ? [
+            {
+              role: 'system' as const,
+              content: `Fresh web context (scraped snippets, use as external reference and do not invent beyond these facts):\n${webContext.context}`,
+            },
+          ]
+        : []),
       ...(pdfText ? [{ role: 'system' as const, content: `Uploaded memo excerpt: ${pdfText.slice(0, 2000)}` }] : []),
       ...safeMessages,
     ];
@@ -227,6 +418,7 @@ export async function POST(req: NextRequest) {
           const response = await client.responses.create({
             model,
             input: inputMessages,
+            temperature: 0,
             max_output_tokens: 500,
           });
           if (typeof response.output_text === 'string' && response.output_text.trim().length > 0) {
@@ -261,7 +453,7 @@ export async function POST(req: NextRequest) {
           const completion = await client.chat.completions.create({
             model,
             messages: inputMessages,
-            temperature: 0.2,
+            temperature: 0,
             max_tokens: 500,
           });
           replyText = extractReplyFromCompletions(completion);
@@ -293,8 +485,8 @@ export async function POST(req: NextRequest) {
       throw (lastError instanceof Error ? lastError : new Error('OpenAI request failed across all model candidates'));
     }
 
-    const reply = formatSkimmableReply(replyText);
-    return NextResponse.json({ reply, fallback: false, mode: 'live' });
+    const reply = formatSkimmableReply(replyText, lastUserMessage, webContext.sourceLines);
+    return NextResponse.json({ reply, fallback: false, mode: 'live', sources: webContext.sourceLines });
   } catch (error) {
     const message = error instanceof Error ? redactSecrets(error.message) : 'Unable to generate response';
     console.error('Analyst chat error', { message });
