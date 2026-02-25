@@ -236,13 +236,15 @@ export function deterministicFallback(headline: {
       ? `Headline drivers include ${specificTokens.join(', ')}.`
       : `Headline driver: ${headline.title}.`;
   const directional = directionalTriplet(impact.bias);
+  const leadSectors = impact.affectedSectors.slice(0, 2).map((item) => item.sector).join(' and ') || 'macro-sensitive sectors';
+  const catalystFocus = specificEntities[0] ?? specificTokens[0] ?? headline.title;
   const aiSummary = ensureNaturalSummary(
     `${headline.title}. ${headline.description ?? ''} ${specificPhrase} Base case over 1-5 trading days is ${impact.bias}, with first-order transmission through ${theme.channel}. Initial expression is likely ${theme.baseCase}, with sector read-through of ${sectorSummary}. Confirmation should come from ${theme.watch.join(', ')} and cross-asset breadth; invalidate if those anchors diverge from price action tied to this headline.`,
     `${headline.title}. Base case over 1-5 sessions follows ${theme.channel}. Monitor ${theme.watch.join(', ')} for confirmation versus invalidation.`,
     2
   );
   const whyItMatters = ensureMinSentences(
-    `Market impact: for this headline, base case over 1-5 sessions is equities ${directional.equities}, rates ${directional.rates}, and USD ${directional.usd}. The transmission channel is ${transmissionHint}, tied specifically to ${specificEntities[0] ?? specificTokens[0] ?? 'the reported catalyst'}, with confirmation expected in ${theme.watch.join(', ')}. Sector impact should show up first via ${sectorSummary} before broad index follow-through. Invalidate the view if rates, FX, and credit fail to confirm the move implied by this catalyst within 2-3 sessions.`,
+    `Market impact: over the next 1-5 sessions, this catalyst (${catalystFocus}) points to equities ${directional.equities}, rates ${directional.rates}, and USD ${directional.usd}, with the earliest pressure likely in ${leadSectors}. The transmission channel runs through ${transmissionHint}, where repricing around ${catalystFocus} can move discount rates, risk premium, and sector leadership before the broad index fully adjusts. Confirmation should come from ${theme.watch.join(', ')}, plus VIX and IG/HY spreads; invalidate the view if those anchors do not confirm within 2-3 sessions.`,
     4,
     [
       `If confirmation persists, positioning impact can extend into factor and sector rotation over the next week.`,

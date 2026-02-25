@@ -685,7 +685,28 @@ function buildReadableImpact(
   rawImpact: string,
   sectors: Array<{ sector: string; direction: Direction }>
 ): string {
-  const lead = toPlainNarrative(rawImpact, 1);
+  const normalizedRaw = rawImpact.replace(/^market impact:\s*/i, '').trim();
+  const baseSentences = splitSentences(normalizedRaw).map((sentence) => clampSentence(sentence, 260));
+  const sectorList = sectors.slice(0, 3).map((item) => item.sector);
+  const sectorText = sectorList.length > 0 ? sectorList.join(', ') : 'macro-sensitive sectors';
+  const coreSentences: string[] = [];
+
+  if (baseSentences.length > 0) coreSentences.push(baseSentences[0]);
+  if (baseSentences.length > 1) coreSentences.push(baseSentences[1]);
+  if (baseSentences.length > 2) coreSentences.push(baseSentences[2]);
+
+  if (coreSentences.length < 2) {
+    coreSentences.push(
+      `Primary transmission should run through rates, USD, and credit spreads, with earliest sector expression likely in ${sectorText}.`
+    );
+  }
+  if (coreSentences.length < 3) {
+    coreSentences.push(
+      'Confirmation should come from 2Y/10Y yields, DXY, VIX, and IG/HY spreads within 1-3 sessions; if those diverge, treat the move as low-conviction.'
+    );
+  }
+
+  const lead = coreSentences.slice(0, 3).join(' ');
   const winnersLosers = sectors
     .slice(0, 4)
     .map((item) => `${item.sector} ${sectorDirectionSummary(item.direction)}`)

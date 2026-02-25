@@ -307,10 +307,9 @@ export default function HeadlinesPanel({
         `Early confirmation should come from ${mentionsRates ? '2Y/10Y and Fed path pricing' : mentionsEnergy ? 'WTI/Brent and breakevens' : mentionsFx ? 'DXY and real-rate differentials' : 'rates, USD, and credit spreads'}. ` +
         `If those anchors diverge from price action tied to ${catalyst}, treat this as low-conviction.`,
       why_it_matters:
-        `Market impact: near-term direction for this catalyst (${catalyst}) is ${mentionsRates ? 'equities down / rates up / USD up' : mentionsEnergy ? 'equities mixed / rates up / USD mixed' : mentionsFx ? 'equities mixed / rates mixed / USD directional' : 'mixed across equities, rates, and USD'}. ` +
-        `The first-order channel is ${mentionsRates ? 'policy-rate repricing into discount rates and factor leadership' : mentionsEnergy ? 'commodity-to-inflation transmission into margins and rates' : mentionsFx ? 'FX translation and liquidity repricing' : 'macro risk-premium repricing'} rather than broad beta alone. ` +
-        `Sector impact should be expressed through ${sectors.map((s) => s.sector).join(' and ')} rather than broad beta alone. ` +
-        `What to watch: ${mentionsRates ? '2Y/10Y and Fed path' : mentionsEnergy ? 'WTI/Brent and breakevens' : mentionsFx ? 'DXY and real rates' : '2Y/10Y and DXY'}, plus VIX and IG/HY spreads; invalidate if those anchors diverge from equity price action on this headline.`,
+        `Market impact: over the next 1-5 sessions, catalyst focus (${catalyst}) points to ${mentionsRates ? 'equities down, rates up, and USD up' : mentionsEnergy ? 'equities mixed, rates up, and USD mixed' : mentionsFx ? 'equities mixed, rates mixed, and USD directional' : 'a mixed cross-asset response across equities, rates, and USD'}, with early sector expression in ${sectors.map((s) => s.sector).join(' and ')}. ` +
+        `The primary transmission channel is ${mentionsRates ? 'policy-rate repricing into discount rates and factor leadership' : mentionsEnergy ? 'commodity-to-inflation pass-through into margins and rates' : mentionsFx ? 'FX translation and global liquidity repricing' : 'macro risk-premium repricing through rates and credit'} rather than broad beta alone. ` +
+        `Confirmation should come from ${mentionsRates ? '2Y/10Y and Fed path pricing' : mentionsEnergy ? 'WTI/Brent and breakevens' : mentionsFx ? 'DXY and real rates' : '2Y/10Y and DXY'}, plus VIX and IG/HY spreads; invalidate if those anchors diverge from equity price action on this headline within 1-3 sessions.`,
       impacted_sectors: sectors,
       impacted_tickers: [],
       confidence: 'low',
