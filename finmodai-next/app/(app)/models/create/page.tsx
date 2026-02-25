@@ -75,8 +75,7 @@ const CREATE_MODEL_OPTIONS = MODEL_OPTIONS.filter(
     o.value === 'reverse-dcf' ||
     o.value === 'debt-capacity-lite' ||
     o.value === 'comps' ||
-    o.value === 'scorecard' ||
-    o.value === 'lbo'
+    o.value === 'scorecard'
 );
 
 type ModelType = (typeof MODEL_OPTIONS)[number]['value'];
