@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDownRight, ArrowUpRight, Loader2, Minus, RefreshCw } from 'lucide-react';
 import {
+  Area,
   Bar,
   BarChart,
+  Cell,
   CartesianGrid,
   ComposedChart,
   Line,
@@ -114,6 +116,12 @@ type CandlePoint = {
   volume: number | null;
 };
 
+type SeriesShape = {
+  stdev: number;
+  signChanges: number;
+  points: number;
+};
+
 const RANGE_OPTIONS: RangeKey[] = ['1W', '1M', '3M', '1Y', 'YTD', '5Y', 'MAX'];
 const RANGE_POINT_COUNT: Record<Exclude<RangeKey, 'YTD'>, number> = {
   '1W': 6,
@@ -206,6 +214,83 @@ function computeEma(values: number[], period: number): Array<number | null> {
     result.push(emaValue);
   }
   return result;
+}
+
+function computeSeriesShape(data: CandlePoint[]): SeriesShape {
+  if (data.length < 3) return { stdev: 0, signChanges: 0, points: data.length };
+  const rets: number[] = [];
+  for (let i = 1; i < data.length; i += 1) {
+    const prev = data[i - 1]?.close;
+    const curr = data[i]?.close;
+    if (!Number.isFinite(prev) || !Number.isFinite(curr) || !prev) continue;
+    rets.push(curr / prev - 1);
+  }
+  if (rets.length === 0) return { stdev: 0, signChanges: 0, points: data.length };
+  const mean = rets.reduce((sum, value) => sum + value, 0) / rets.length;
+  const variance = rets.reduce((sum, value) => sum + (value - mean) ** 2, 0) / rets.length;
+  const stdev = Math.sqrt(Math.max(variance, 0));
+  let signChanges = 0;
+  let prevSign = 0;
+  for (const value of rets) {
+    const sign = Math.abs(value) < 0.00015 ? 0 : value > 0 ? 1 : -1;
+    if (sign !== 0 && prevSign !== 0 && sign !== prevSign) signChanges += 1;
+    if (sign !== 0) prevSign = sign;
+  }
+  return { stdev, signChanges, points: data.length };
+}
+
+function shouldStylizeSeriesForDisplay(data: CandlePoint[]): boolean {
+  const shape = computeSeriesShape(data);
+  if (shape.points < 20) return false;
+  const minSignChanges = Math.max(2, Math.floor(shape.points * 0.05));
+  return shape.stdev < 0.0015 || shape.signChanges < minSignChanges;
+}
+
+function buildStylizedSeriesFromAnchors(seed: CandlePoint[]): CandlePoint[] {
+  if (seed.length < 3) return seed;
+  const pointCount = seed.length;
+  const startClose = Math.max(1, seed[0]?.close ?? 1);
+  const endClose = Math.max(1, seed[pointCount - 1]?.close ?? startClose);
+  const sessions = Math.max(pointCount - 1, 1);
+  const targetDrift = Math.pow(endClose / startClose, 1 / sessions) - 1;
+  const closes: number[] = [startClose];
+
+  for (let i = 1; i < pointCount; i += 1) {
+    const cyc = Math.sin(i / 7.8) * 0.0022 + Math.cos(i / 17.4) * 0.0014;
+    const micro = Math.sin(i * 0.91) * 0.001 + Math.cos(i * 1.37) * 0.0008;
+    const shock = i % 37 === 0 ? -0.0068 : i % 53 === 0 ? 0.0054 : 0;
+    const dailyRet = targetDrift + cyc + micro + shock;
+    closes.push(Math.max(1, closes[i - 1] * (1 + dailyRet)));
+  }
+
+  const generatedEnd = closes[closes.length - 1] || endClose;
+  const ratio = generatedEnd > 0 ? endClose / generatedEnd : 1;
+  const adjusted = closes.map((value, idx) => value * Math.pow(ratio, idx / sessions));
+  adjusted[0] = startClose;
+  adjusted[adjusted.length - 1] = endClose;
+
+  const stylizedRaw: Array<Omit<CandlePoint, 'ema21'>> = adjusted.map((close, idx) => {
+    const prevClose = idx > 0 ? adjusted[idx - 1] : close;
+    const gap = (close / prevClose - 1) * 0.45 + Math.sin(idx * 1.23) * 0.0011;
+    const open = Math.max(1, prevClose * (1 + gap));
+    const spread = Math.max(0.0045, Math.abs(close / prevClose - 1) * 1.35 + 0.0035);
+    const high = Math.max(open, close) * (1 + spread * 0.52);
+    const low = Math.max(1, Math.min(open, close) * (1 - spread * 0.48));
+    const seedVolume = seed[idx]?.volume ?? 42_000_000;
+    const volumeMod = 1 + Math.abs(close / prevClose - 1) * 8 + Math.sin(idx / 5.5) * 0.12;
+    const volume = Math.max(8_000_000, Math.round(seedVolume * Math.max(0.55, volumeMod)));
+    return {
+      t: seed[idx]?.t ?? Date.now() + idx * 86400000,
+      open,
+      high,
+      low,
+      close,
+      volume,
+    };
+  });
+
+  const ema = computeEma(stylizedRaw.map((point) => point.close), 21);
+  return stylizedRaw.map((point, idx) => ({ ...point, ema21: ema[idx] }));
 }
 
 function buildCandleData(points: CandleApiPoint[]): CandlePoint[] {
@@ -419,6 +504,7 @@ function CandleChart({
     close: point.close,
     ema21: point.ema21,
     volume: point.volume ?? 0,
+    up: point.close >= point.open,
   }));
 
   const maxVolume = Math.max(...chartData.map((point) => point.volume), 1);
@@ -478,6 +564,13 @@ function CandleChart({
                 syncId="spy-market-chart"
                 margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
               >
+                <defs>
+                  <linearGradient id="spyAreaFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={isDemo ? '#f59e0b' : '#93c5fd'} stopOpacity={0.28} />
+                    <stop offset="70%" stopColor={isDemo ? '#f59e0b' : '#93c5fd'} stopOpacity={0.06} />
+                    <stop offset="100%" stopColor={isDemo ? '#f59e0b' : '#93c5fd'} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid stroke="#27272a" strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="t" type="number" scale="time" domain={['dataMin', 'dataMax']} hide />
                 <YAxis
@@ -508,19 +601,21 @@ function CandleChart({
                     color: '#e4e4e7',
                   }}
                 />
+                <Area type="monotone" dataKey="close" stroke="none" fill="url(#spyAreaFill)" />
                 <Line
-                  type="linear"
+                  type="monotone"
                   dataKey="close"
-                  stroke={isDemo ? '#fbbf24' : '#e4e4e7'}
+                  stroke={isDemo ? '#fbbf24' : '#d4d4d8'}
                   strokeWidth={2.1}
                   dot={chartData.length <= 12 ? { r: 2, strokeWidth: 0, fill: isDemo ? '#fbbf24' : '#e4e4e7' } : false}
                   name="close"
                 />
                 <Line
-                  type="linear"
+                  type="monotone"
                   dataKey="ema21"
-                  stroke={isDemo ? '#fcd34d' : '#60a5fa'}
-                  strokeWidth={1.5}
+                  stroke={isDemo ? '#fde68a' : '#60a5fa'}
+                  strokeWidth={1.35}
+                  strokeDasharray="4 4"
                   dot={false}
                   connectNulls={false}
                   name="ema21"
@@ -566,7 +661,14 @@ function CandleChart({
                     color: '#e4e4e7',
                   }}
                 />
-                <Bar dataKey="volume" fill={isDemo ? '#b45309' : '#334155'} opacity={0.5} barSize={6} name="volume" />
+                <Bar dataKey="volume" opacity={0.66} barSize={6} name="volume">
+                  {chartData.map((point, index) => (
+                    <Cell
+                      key={`vol-${point.t}-${index}`}
+                      fill={point.up ? (isDemo ? '#b45309' : '#0f766e') : isDemo ? '#92400e' : '#334155'}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -749,7 +851,16 @@ export default function MarketDashboard() {
         ? `Only one live candle returned for ${rangeKey}`
         : `Live candles unavailable for ${rangeKey}`)
     : null;
-  const candleData = isDemoChart ? demoCandleData : liveCandleData;
+  const shouldStylizeDemoFeed =
+    !isDemoChart &&
+    performanceMeta?.provider === 'demo' &&
+    liveCandleData.length >= 20 &&
+    shouldStylizeSeriesForDisplay(liveCandleData);
+  const stylizedDemoFeed = useMemo(
+    () => (shouldStylizeDemoFeed ? buildStylizedSeriesFromAnchors(liveCandleData) : liveCandleData),
+    [shouldStylizeDemoFeed, liveCandleData]
+  );
+  const candleData = isDemoChart ? demoCandleData : stylizedDemoFeed;
 
   const latest = candleData[candleData.length - 1] ?? null;
   const windowStartPoint = candleData[0] ?? null;
@@ -1002,7 +1113,13 @@ export default function MarketDashboard() {
               <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-zinc-400/70">
                 <span>S&P 500 (proxy: SPY)</span>
                 <span className="normal-case tracking-normal text-zinc-500">
-                  {isDemoChart ? 'Simulated feed' : performanceMeta ? performanceMeta.provider : ''}
+                  {isDemoChart
+                    ? 'Simulated feed'
+                    : shouldStylizeDemoFeed
+                      ? 'Demo feed (refined path)'
+                      : performanceMeta
+                        ? performanceMeta.provider
+                        : ''}
                 </span>
                 {isDemoChart && (
                   <span className="rounded-full border border-amber-500/45 bg-amber-500/15 px-2 py-0.5 text-[10px] tracking-normal text-amber-200">
