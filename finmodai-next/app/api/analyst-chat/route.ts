@@ -12,6 +12,8 @@ const SYSTEM_PROMPT = `You are ${APP_NAME}, a sell-side/PE analyst and ChatGPT-s
 Provide concise, structured insights. Use ticker context when provided; otherwise respond generally.
 Always cite assumptions, avoid investment advice, and reference any uploaded memo text when relevant.
 Output plain text only (no markdown markers like **, __, ##, or ---).
+When asked for latest/current/recent facts, provide concrete numbers with period labels and source URLs.
+Never use placeholders such as XX, $XX, or "approximately $XX billion". If exact values are unavailable, state that explicitly.
 Default response format unless user asks otherwise:
 1) Direct answer paragraph in plain language (3-5 sentences, no jargon dumping).
 2) If the user asks "compare/vs/peers", add a second comparison paragraph.
@@ -23,6 +25,8 @@ type WebSnippet = {
   url: string;
   snippet: string;
 };
+
+const WEB_TOOL_CANDIDATES = [{ type: 'web_search' }, { type: 'web_search_preview' }] as const;
 
 function decodeHtmlEntities(value: string): string {
   return value
@@ -163,6 +167,25 @@ function dedupeWebSnippets(snippets: WebSnippet[]): WebSnippet[] {
   return out;
 }
 
+function needsLiveFactSourcing(userMessage: string): boolean {
+  if (!userMessage) return false;
+  return /\b(latest|most recent|current|today|as of|this quarter|last quarter|recent quarter|revenue|ebitda|earnings|guidance|market cap)\b/i.test(
+    userMessage
+  );
+}
+
+function hasPlaceholderFinanceNumbers(text: string): boolean {
+  if (!text) return false;
+  return /\b(?:\$?\s*X{2,}|\$?\s*xx|approximately\s+\$?\s*X{2,})\b/i.test(text);
+}
+
+function lacksConcreteNumbersForFactQuery(text: string, askedForFacts: boolean): boolean {
+  if (!askedForFacts) return false;
+  const hasNumbers = /\d/.test(text);
+  const tooGeneric = /\bas of the latest available data\b/i.test(text);
+  return !hasNumbers || tooGeneric;
+}
+
 async function gatherWebContext(ticker: string | undefined, userMessage: string): Promise<{ context: string; sourceLines: string[] }> {
   if ((process.env.ANALYST_WEB_CONTEXT ?? 'true') === 'false') {
     return { context: '', sourceLines: [] };
@@ -177,7 +200,7 @@ async function gatherWebContext(ticker: string | undefined, userMessage: string)
   const context = snippets
     .map((item, idx) => `[${idx + 1}] ${item.title} (${domainLabel(item.url)}): ${item.snippet}`)
     .join('\n');
-  const sourceLines = snippets.map((item, idx) => `[${idx + 1}] ${item.title} (${domainLabel(item.url)})`);
+  const sourceLines = snippets.map((item, idx) => `[${idx + 1}] ${item.title} (${domainLabel(item.url)}) - ${item.url}`);
   return { context, sourceLines };
 }
 
@@ -389,9 +412,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ reply: fallback, fallback: true, mode: 'fallback', reason: 'missing_key' }, { status: 200 });
     }
 
+    const shouldForceLiveFacts = needsLiveFactSourcing(lastUserMessage);
+
     const inputMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'system', content: contextualSummary || 'No explicit context provided.' },
+      ...(shouldForceLiveFacts
+        ? [
+            {
+              role: 'system' as const,
+              content:
+                'This user is asking for live factual data. Use concrete numerics with explicit period labels (e.g., "Q4 2025 revenue"), include URLs in citations, and avoid placeholders.',
+            },
+          ]
+        : []),
       ...(webContext.context
         ? [
             {
@@ -411,25 +445,65 @@ export async function POST(req: NextRequest) {
     let replyText: string | null = null;
     let lastError: unknown = null;
     let sawAuthError = false;
+
+    const attemptResponses = async (
+      client: OpenAI,
+      model: string,
+      messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+      withWebTools: boolean
+    ): Promise<string | null> => {
+      if (!withWebTools) {
+        const response = await client.responses.create({
+          model,
+          input: messages,
+          temperature: 0,
+          max_output_tokens: 650,
+        });
+        return typeof response.output_text === 'string' && response.output_text.trim().length > 0
+          ? response.output_text.trim()
+          : null;
+      }
+
+      let webError: unknown = null;
+      for (const tool of WEB_TOOL_CANDIDATES) {
+        try {
+          const response = await client.responses.create({
+            model,
+            input: messages,
+            temperature: 0,
+            max_output_tokens: 700,
+            tools: [tool as unknown as Record<string, unknown>],
+          } as never);
+          if (typeof response.output_text === 'string' && response.output_text.trim().length > 0) {
+            return response.output_text.trim();
+          }
+        } catch (error) {
+          webError = error;
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn('[api/analyst-chat] responses web tool attempt failed', {
+              model,
+              tool: tool.type,
+              message: error instanceof Error ? redactSecrets(error.message) : redactSecrets(String(error)),
+            });
+          }
+        }
+      }
+      if (webError) throw webError;
+      return null;
+    };
+
     for (const apiKey of openAiKeys) {
       const client = new OpenAI({ apiKey });
       for (const model of models) {
         try {
-          const response = await client.responses.create({
-            model,
-            input: inputMessages,
-            temperature: 0,
-            max_output_tokens: 500,
-          });
-          if (typeof response.output_text === 'string' && response.output_text.trim().length > 0) {
-            replyText = response.output_text.trim();
-          } else {
-            replyText = null;
-          }
+          replyText = await attemptResponses(client, model, inputMessages, shouldForceLiveFacts);
           if (process.env.NODE_ENV !== 'production') {
-            console.debug('[api/analyst-chat] responses model selected', { model, key: keyFingerprint(apiKey) });
+            console.debug('[api/analyst-chat] responses model selected', {
+              model,
+              key: keyFingerprint(apiKey),
+              usedWebTool: shouldForceLiveFacts,
+            });
           }
-          if (replyText) break;
         } catch (error) {
           lastError = error;
           const authError = isAuthError(error);
@@ -446,34 +520,67 @@ export async function POST(req: NextRequest) {
           if (authError) break;
         }
 
-        if (replyText) break;
-
         // Endpoint fallback: if Responses API path fails, retry same model via Chat Completions.
-        try {
-          const completion = await client.chat.completions.create({
-            model,
-            messages: inputMessages,
-            temperature: 0,
-            max_tokens: 500,
-          });
-          replyText = extractReplyFromCompletions(completion);
-          if (process.env.NODE_ENV !== 'production') {
-            console.debug('[api/analyst-chat] chat.completions model selected', { model, key: keyFingerprint(apiKey) });
-          }
-          if (replyText) break;
-        } catch (error) {
-          lastError = error;
-          const authError = isAuthError(error);
-          if (authError) sawAuthError = true;
-          if (process.env.NODE_ENV !== 'production') {
-            console.warn('[api/analyst-chat] chat.completions model failed', {
+        if (!replyText) {
+          try {
+            const completion = await client.chat.completions.create({
               model,
-              key: keyFingerprint(apiKey),
-              authError,
-              message: error instanceof Error ? redactSecrets(error.message) : redactSecrets(String(error)),
+              messages: inputMessages,
+              temperature: 0,
+              max_tokens: 650,
             });
+            replyText = extractReplyFromCompletions(completion);
+            if (process.env.NODE_ENV !== 'production') {
+              console.debug('[api/analyst-chat] chat.completions model selected', { model, key: keyFingerprint(apiKey) });
+            }
+          } catch (error) {
+            lastError = error;
+            const authError = isAuthError(error);
+            if (authError) sawAuthError = true;
+            if (process.env.NODE_ENV !== 'production') {
+              console.warn('[api/analyst-chat] chat.completions model failed', {
+                model,
+                key: keyFingerprint(apiKey),
+                authError,
+                message: error instanceof Error ? redactSecrets(error.message) : redactSecrets(String(error)),
+              });
+            }
+            if (authError) break;
           }
-          if (authError) break;
+        }
+
+        if (replyText) {
+          const needsRepair =
+            hasPlaceholderFinanceNumbers(replyText) ||
+            lacksConcreteNumbersForFactQuery(replyText, shouldForceLiveFacts);
+          if (needsRepair) {
+            try {
+              const repairMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+                ...inputMessages,
+                {
+                  role: 'system',
+                  content:
+                    'Your previous draft lacked concrete factual fidelity. Regenerate using exact figures when available, include period labels and source URLs, and never use placeholders.',
+                },
+                {
+                  role: 'user',
+                  content: 'Please regenerate with concrete values and explicit citations.',
+                },
+              ];
+              const repaired = await attemptResponses(client, model, repairMessages, shouldForceLiveFacts);
+              if (repaired) replyText = repaired;
+            } catch (error) {
+              lastError = error;
+              if (process.env.NODE_ENV !== 'production') {
+                console.warn('[api/analyst-chat] repair attempt failed', {
+                  model,
+                  key: keyFingerprint(apiKey),
+                  message: error instanceof Error ? redactSecrets(error.message) : redactSecrets(String(error)),
+                });
+              }
+            }
+          }
+          break;
         }
       }
       if (replyText) break;
