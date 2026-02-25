@@ -18,6 +18,52 @@ Default response format unless user asks otherwise:
 3) Optional "What to check next" with up to 3 bullets.
 Keep it skimmable and avoid long dense paragraphs.`;
 
+function stripMarkdownArtifacts(text: string): string {
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/```[\s\S]*?```/g, (block) => block.replace(/```/g, '').trim())
+    .replace(/^\s*#{1,6}\s+/gm, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^\s*\d+[.)]\s+/gm, '- ')
+    .replace(/^\s*[•*+]\s+/gm, '- ')
+    .replace(/\n\s*---+\s*\n/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function splitSentences(text: string): string[] {
+  return text
+    .split(/(?<=[.!?])\s+(?=[A-Z0-9"'(])/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function formatSkimmableReply(raw: string): string {
+  const cleaned = stripMarkdownArtifacts(raw);
+  if (!cleaned) return raw.trim();
+
+  const hasBulletLines = cleaned.split('\n').filter((line) => line.trim().startsWith('- ')).length >= 3;
+  const shouldReshape = cleaned.length > 700 || /(\*\*|__|#{1,6}\s|---)/.test(raw) || !hasBulletLines;
+  if (!shouldReshape) return cleaned;
+
+  const plain = cleaned.replace(/\n+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  const sentences = splitSentences(plain);
+  if (sentences.length <= 1) return cleaned;
+
+  const summary = sentences[0];
+  const bulletPool = sentences.slice(1);
+  const bullets = bulletPool.slice(0, 10);
+  const hasOverflow = bulletPool.length > bullets.length;
+  const lines = [`${summary}`, '', 'Key points:', ...bullets.map((item) => `- ${item}`)];
+  if (hasOverflow) {
+    lines.push('- Ask a follow-up for the remaining details.');
+  }
+  return lines.join('\n').trim();
+}
+
 function redactSecrets(value: string): string {
   return value.replace(/sk-[A-Za-z0-9_-]+/g, 'sk-***');
 }
@@ -247,7 +293,7 @@ export async function POST(req: NextRequest) {
       throw (lastError instanceof Error ? lastError : new Error('OpenAI request failed across all model candidates'));
     }
 
-    const reply = replyText;
+    const reply = formatSkimmableReply(replyText);
     return NextResponse.json({ reply, fallback: false, mode: 'live' });
   } catch (error) {
     const message = error instanceof Error ? redactSecrets(error.message) : 'Unable to generate response';

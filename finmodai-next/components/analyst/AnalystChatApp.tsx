@@ -18,13 +18,15 @@ type Message = {
 
 function cleanAssistantText(content: string): string {
   return content
+    .replace(/\r\n/g, '\n')
+    .replace(/```[\s\S]*?```/g, (block) => block.replace(/```/g, '').trim())
     .replace(/\*\*(.*?)\*\*/g, '$1')
     .replace(/__(.*?)__/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
     .replace(/^\s*#{1,6}\s*/gm, '')
-    .replace(/\s*---+\s*/g, '\n')
-    .replace(/\s*•\s*/g, '\n- ')
-    .replace(/\s+-\s+\*\*/g, '\n- ')
-    .replace(/\s+\d+\.\s+/g, '\n$&')
+    .replace(/\n\s*---+\s*\n/g, '\n')
+    .replace(/^\s*[•*+]\s+/gm, '- ')
+    .replace(/^\s*\d+[.)]\s+/gm, '- ')
     .replace(/\n{3,}/g, '\n\n')
     .replace(/\s+\n/g, '\n')
     .trim();
