@@ -27,6 +27,8 @@ If a section has no clear impact, omit it entirely.
 Never output text like "Stocks: ... Bonds: ... Dollar: ..." on one line.
 Each asset class must appear on its own line with bullets underneath.
 
+EXPLAIN THE "WHY": For every direction you give (up, down, pressure, strength), add a brief reason in the same bullet — e.g. "Yields may rise because higher policy rates push bond yields up" or "Dollar could strengthen as higher rates attract capital into USD." Do not just state the direction; give the one-line cause so readers understand why things are moving.
+
 Output must be valid JSON matching the schema.`;
 
 const dbRowSchema = z.object({
@@ -260,21 +262,33 @@ export function deterministicFallback(headline: {
     Neutral: 'unlikely to move markets much on its own',
   };
 
-  const stocksBullet = directional.equities === 'up' ? '• Stocks could move higher' : directional.equities === 'down' ? '• Stocks could come under pressure' : '• Stock reaction is likely mixed';
-  const ratesBullet = directional.rates.includes('up') || directional.rates.includes('higher') ? '• Yields may rise, pushing bond prices down' : directional.rates.includes('down') || directional.rates.includes('lower') ? '• Yields may fall, pushing bond prices up' : null;
-  const fxBullet = directional.usd === 'up' ? '• Dollar could strengthen' : directional.usd === 'down' ? '• Dollar could weaken' : null;
+  const stocksBullet = directional.equities === 'up' ? '• Stocks could move higher — risk appetite improves' : directional.equities === 'down' ? '• Stocks could come under pressure — higher discount rates or risk-off sentiment' : '• Stock reaction is likely mixed';
+  const ratesBullet = directional.rates.includes('up') || directional.rates.includes('higher') ? '• Yields may rise — higher policy rates or inflation expectations push bond yields up' : directional.rates.includes('down') || directional.rates.includes('lower') ? '• Yields may fall — rate-cut expectations or flight to safety' : null;
+  const fxBullet = directional.usd === 'up' ? '• Dollar could strengthen — higher US rates attract capital into USD' : directional.usd === 'down' ? '• Dollar could weaken — rate cuts or risk-on flows favor other currencies' : null;
 
   const leadSectors = impact.affectedSectors.slice(0, 2);
-  const winnerBullets = leadSectors.filter((s) => s.direction === 'up').map((s) => `• ${s.sector}: ${s.rationale ?? 'likely to benefit'}`);
-  const loserBullets = leadSectors.filter((s) => s.direction === 'down').map((s) => `• ${s.sector}: ${s.rationale ?? 'could face pressure'}`);
+  const winnerBullets = leadSectors.filter((s) => s.direction === 'up').map((s) => `• ${s.sector}: ${s.rationale ?? 'tends to benefit when rates or risk sentiment move this way'}`);
+  const loserBullets = leadSectors.filter((s) => s.direction === 'down').map((s) => `• ${s.sector}: ${s.rationale ?? 'duration-sensitive or hurt by higher discount rates'}`);
 
   const aiSummary = headline.description
-    ? `• ${headline.title}\n• ${headline.description}`
-    : `• ${headline.title}`;
+    ? `${headline.title}. ${headline.description}`
+    : `${headline.title}.`;
+
+  const summaryLine = biasPlain[impact.bias] ?? 'A market signal worth watching';
+  const whyLine = impact.bias === 'Hawkish'
+    ? 'Why it matters: higher rates tend to lift yields and the dollar, and pressure stocks and duration-sensitive assets.'
+    : impact.bias === 'Dovish'
+      ? 'Why it matters: rate-cut expectations tend to support stocks and pressure the dollar and bond yields.'
+      : impact.bias === 'Risk-Off'
+        ? 'Why it matters: risk-off sentiment tends to support the dollar and pressure equities.'
+        : impact.bias === 'Risk-On'
+          ? 'Why it matters: risk-on sentiment tends to support stocks and pressure the dollar.'
+          : 'Watch how rates, the dollar, and sector leadership respond.';
 
   const sections: string[] = [
     'SUMMARY',
-    `• ${biasPlain[impact.bias] ?? 'A market signal worth watching'}`,
+    `• ${summaryLine}`,
+    `• ${whyLine}`,
     '',
     'MARKET IMPACT',
     '',
@@ -578,12 +592,13 @@ Description: ${headline.description ?? 'None'}
 
 Return JSON with these fields:
 
-"ai_summary": 1-2 short bullet points explaining the event. Use "• " prefix for each bullet. Keep each bullet under 15 words.
+"ai_summary": 2-3 plain-English sentences explaining what happened and why it matters. Write as one short paragraph (no bullets, no markdown).
 
 "why_it_matters": A structured analysis using this EXACT format. Each section header is on its own line. Every content line starts with "• ". Only include sections that are relevant — omit any section with no clear impact.
 
 SUMMARY
 • 1-2 short bullets explaining the event
+• One bullet that states why this moves markets (e.g. "Why it matters: higher rates tend to lift yields and the dollar, and pressure stocks.")
 
 DRIVERS
 • key economic drivers
@@ -591,24 +606,25 @@ DRIVERS
 
 MARKET IMPACT
 Only include relevant asset classes. Each asset class gets its own sub-header.
+For each bullet: state the direction AND a brief reason why (one short phrase).
 
 Equities
-• sector or index impact
+• [direction] — [why, e.g. "higher rates tend to pressure valuations"]
 
 Rates
-• yield direction and why
+• [direction] — [why, e.g. "policy expectations push bond yields up"]
 
 FX
-• currency implications
+• [direction] — [why, e.g. "higher US rates attract flows into the dollar"]
 
 Commodities
-• energy or metals impact
+• [direction] — [why, e.g. "supply concern supports prices"]
 
 WINNERS
-• sector or asset: brief reason
+• sector or asset — brief reason why they benefit (e.g. "banks earn more when rates rise")
 
 LOSERS
-• sector or asset: brief reason
+• sector or asset — brief reason why they lose (e.g. "duration-sensitive assets hurt by higher yields")
 
 WATCH NEXT
 • upcoming catalysts
@@ -616,10 +632,12 @@ WATCH NEXT
 
 IMPORTANT:
 - Every content line MUST start with "• "
-- Each bullet is ONE short sentence, max ~12 words
+- Each bullet is ONE short sentence, max ~12 words for the main claim; you may add a short "because X" or "— X" for the why
+- For MARKET IMPACT and WINNERS/LOSERS: always include a brief "why" (e.g. "Yields may rise — higher policy rates push bond yields up" or "Financials: benefit from wider net interest margins")
 - Leave blank lines between sections
 - Omit sections with no clear impact
 - Never combine multiple ideas in one bullet
+- For "ai_summary", do NOT use bullets. Use 2-3 complete sentences in paragraph form.
 
 "impacted_tickers": array of {ticker, direction, rationale}
 "impacted_sectors": array of {sector, direction, rationale}

@@ -81,6 +81,8 @@ const CREATE_MODEL_OPTIONS = MODEL_OPTIONS.filter(
     o.value === 'scorecard'
 );
 
+const REPORTS_ENABLED = false;
+
 type ModelType = (typeof MODEL_OPTIONS)[number]['value'];
 type CompanyMode = 'public' | 'private';
 type ManualInputFieldKey =
@@ -3135,7 +3137,7 @@ function CreateModelPageInner() {
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label htmlFor="private-market-cap">Market Cap (optional)</Label>
+                        <Label htmlFor="private-market-cap">Market Cap</Label>
                         <Input
                           id="private-market-cap"
                           value={manualInputs.marketCap}
@@ -3592,7 +3594,7 @@ function CreateModelPageInner() {
                     <div className="md:col-span-2 rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
                       <div className="mb-3">
                         <h4 className="text-sm font-semibold text-[var(--cb-text-primary)]">
-                          Valuation Anchor Overrides (optional)
+                          Valuation Anchor Overrides
                         </h4>
                         <p className="mt-1 text-xs text-[var(--cb-text-secondary)]">
                           Use market cap, or provide both share price and shares outstanding when market data is incomplete.
@@ -4568,8 +4570,8 @@ function CreateModelPageInner() {
                   generatedAt={generatedModel.createdAt}
                   status={blocks.length > 0 ? 'failed' : 'success'}
                   onDownload={lastRequestBody ? handleDownload : undefined}
-                  onDownloadPdfReport={handleDownloadReportPdf}
-                  pdfReportUrl={runReportUrl || reportPdfUrl || undefined}
+                  onDownloadPdfReport={REPORTS_ENABLED ? handleDownloadReportPdf : undefined}
+                  pdfReportUrl={REPORTS_ENABLED ? (runReportUrl || reportPdfUrl || undefined) : undefined}
                   onRunAgain={resetForm}
                   preview={previewNode}
                   assumptions={
@@ -5073,52 +5075,53 @@ function CreateModelPageInner() {
               );
             })()}
 
-
-            <section className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-6">
-              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-[var(--cb-text-primary)]">CapitalBase Analyst Report</h2>
-                  <p className="text-sm text-[var(--cb-text-secondary)]">
-                    Generate a narrative that connects this valuation to macro context, upside drivers, and risks.
-                  </p>
-                </div>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                  {resolveReportPdfUrl() && (
+            {REPORTS_ENABLED && (
+              <section className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-6">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-[var(--cb-text-primary)]">CapitalBase Analyst Report</h2>
+                    <p className="text-sm text-[var(--cb-text-secondary)]">
+                      Generate a narrative that connects this valuation to macro context, upside drivers, and risks.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                    {resolveReportPdfUrl() && (
+                      <button
+                        type="button"
+                        onClick={handleDownloadReportPdf}
+                        className="inline-flex items-center justify-center rounded-lg border border-[var(--cb-border-subtle)] px-3 py-1.5 text-sm font-medium text-[var(--cb-text-primary)] hover:bg-[var(--cb-surface-alt)]"
+                      >
+                        Download PDF
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={handleDownloadReportPdf}
-                      className="inline-flex items-center justify-center rounded-lg border border-[var(--cb-border-subtle)] px-3 py-1.5 text-sm font-medium text-[var(--cb-text-primary)] hover:bg-[var(--cb-surface-alt)]"
+                      onClick={handleGenerateReport}
+                      disabled={!canGenerateReport || reportLoading}
+                      className="rounded-lg bg-cb-blue px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
                     >
-                      Download PDF
+                      {reportLoading ? 'Generating…' : reportText ? 'Regenerate report' : 'Generate report'}
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleGenerateReport}
-                    disabled={!canGenerateReport || reportLoading}
-                    className="rounded-lg bg-cb-blue px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
-                  >
-                    {reportLoading ? 'Generating…' : reportText ? 'Regenerate report' : 'Generate report'}
-                  </button>
-                </div>
-              </div>
-              {reportError && <p className="mb-3 text-sm text-red-500">{reportError}</p>}
-              {reportText ? (
-                <div className="space-y-5">
-                  <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
-                    <ReportMarkdown text={reportText} reportPayload={reportPayload} />
                   </div>
-                  {insightCards.length > 0 && <InsightCardsGrid cards={insightCards} />}
                 </div>
-              ) : (
-                !reportLoading && (
-                  <p className="text-sm text-[var(--cb-text-secondary)]">
-                    Generate a CapitalBase-ready memo once the model finishes. You&apos;ll get shareable text, insight
-                    cards, and a branded PDF download automatically.
-                  </p>
-                )
-              )}
-            </section>
+                {reportError && <p className="mb-3 text-sm text-red-500">{reportError}</p>}
+                {reportText ? (
+                  <div className="space-y-5">
+                    <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
+                      <ReportMarkdown text={reportText} reportPayload={reportPayload} />
+                    </div>
+                    {insightCards.length > 0 && <InsightCardsGrid cards={insightCards} />}
+                  </div>
+                ) : (
+                  !reportLoading && (
+                    <p className="text-sm text-[var(--cb-text-secondary)]">
+                      Generate a CapitalBase-ready memo once the model finishes. You&apos;ll get shareable text, insight
+                      cards, and a branded PDF download automatically.
+                    </p>
+                  )
+                )}
+              </section>
+            )}
 
             {/* Action Buttons */}
             <div className="flex flex-col gap-3 sm:flex-row">

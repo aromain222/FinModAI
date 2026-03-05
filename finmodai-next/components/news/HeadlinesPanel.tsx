@@ -131,14 +131,50 @@ function relativeTimeLabel(dateString: string): string {
   return `${diffDays}d ago`;
 }
 
+function formatAiSummaryText(raw: string | null | undefined): string {
+  if (!raw || typeof raw !== 'string') return 'Summary unavailable.';
+  const trimmed = raw.trim();
+  if (!trimmed) return 'Summary unavailable.';
+
+  const bulletishParts = trimmed
+    .replace(/[•·◦▪▫●]\s*/g, '\n')
+    .split(/\n+/)
+    .map((part) => part.replace(/^[-*]\s*/, '').trim())
+    .filter((part) => part.length > 0);
+
+  const normalizedParts = (bulletishParts.length > 1 ? bulletishParts : [trimmed])
+    .map((part) => part.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+
+  const paragraph = normalizedParts
+    .map((part) => (/^[a-z]/.test(part) ? `${part.charAt(0).toUpperCase()}${part.slice(1)}` : part))
+    .map((part) => (/[.!?]$/.test(part) ? part : `${part}.`))
+    .join(' ');
+
+  return paragraph.replace(/\s+/g, ' ').trim();
+}
+
 /* ---------- market impact parsing ---------- */
+
+function preprocessImpactText(raw: string): string {
+  return raw
+    .replace(/\r\n/g, '\n')
+    .replace(/\s+•\s+/g, '\n• ')
+    .replace(
+      /\s+(?=(SUMMARY|BOTTOM LINE|DRIVERS|MARKET IMPACT|WINNERS?|LOSERS?|WATCH NEXT)\b)/gi,
+      '\n'
+    )
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 
 function parseMarketImpactSections(raw: string | null | undefined): MarketImpactSections | null {
   if (!raw || typeof raw !== 'string') return null;
   const fallback = raw.replace(/\s+/g, ' ').trim();
   if (!fallback) return null;
 
-  const lines = raw.split(/\n/).map((l) => l.trim());
+  const normalized = preprocessImpactText(raw);
+  const lines = normalized.split(/\n/).map((l) => l.trim());
 
   const summary: string[] = [];
   const drivers: string[] = [];
@@ -210,6 +246,66 @@ function parseMarketImpactSections(raw: string | null | undefined): MarketImpact
   return { summary, drivers, assetImpacts, winners, losers, watchItems, fallback };
 }
 
+function normalizeSentence(text: string): string {
+  const cleaned = text
+    .replace(/^why it matters:\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return '';
+  return /[.!?]$/.test(cleaned) ? cleaned : `${cleaned}.`;
+}
+
+function buildImpactParagraph(parsed: MarketImpactSections): string | null {
+  const sentences: string[] = [];
+
+  const lead = parsed.summary[0] ?? parsed.drivers[0] ?? '';
+  const leadSentence = normalizeSentence(lead);
+  if (leadSentence) sentences.push(leadSentence);
+
+  const topAssets = parsed.assetImpacts.slice(0, 2);
+  if (topAssets.length > 0) {
+    const assetSummary = topAssets
+      .map((group) => {
+        const firstBullet = group.bullets[0] ?? 'reaction may be mixed';
+        return `${group.asset}: ${firstBullet}`;
+      })
+      .join('; ');
+    const assetSentence = normalizeSentence(assetSummary);
+    if (assetSentence) sentences.push(assetSentence);
+  }
+
+  if (parsed.winners.length > 0 || parsed.losers.length > 0) {
+    const winnersText = parsed.winners.length > 0 ? `likely beneficiaries: ${parsed.winners.slice(0, 2).join(', ')}` : '';
+    const losersText = parsed.losers.length > 0 ? `potential laggards: ${parsed.losers.slice(0, 2).join(', ')}` : '';
+    const combined = [winnersText, losersText].filter(Boolean).join('; ');
+    const winnersLosersSentence = normalizeSentence(combined);
+    if (winnersLosersSentence) sentences.push(winnersLosersSentence);
+  }
+
+  if (parsed.watchItems.length > 0) {
+    const watchSentence = normalizeSentence(
+      `watch next: ${parsed.watchItems.slice(0, 2).join('; ')}`
+    );
+    if (watchSentence) sentences.push(watchSentence);
+  }
+
+  const capped = sentences.filter(Boolean).slice(0, 5);
+  if (capped.length === 1) {
+    capped.push(
+      'Near-term moves will likely be driven by rates, sector positioning, and incoming confirmation data.'
+    );
+  }
+  if (capped.length >= 2) return capped.join(' ');
+
+  const fallbackSentences = parsed.fallback
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => normalizeSentence(part))
+    .filter(Boolean)
+    .slice(0, 3);
+
+  return fallbackSentences.length > 0 ? fallbackSentences.join(' ') : null;
+}
+
 function normalizeAssetLabel(raw: string): string {
   const lower = raw.toLowerCase().replace(/[:\s]+$/, '');
   if (lower === 'stocks' || lower === 'stock' || lower === 'equities') return 'Equities';
@@ -218,6 +314,23 @@ function normalizeAssetLabel(raw: string): string {
   if (lower === 'commodities' || lower === 'commodity' || lower === 'oil') return 'Commodities';
   if (lower === 'credit') return 'Credit';
   return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+}
+
+function sentenceCase(text: string): string {
+  const cleaned = text.replace(/\s+/g, ' ').trim();
+  if (!cleaned) return '';
+  const withFirstUpper = /^[a-z]/.test(cleaned)
+    ? `${cleaned.charAt(0).toUpperCase()}${cleaned.slice(1)}`
+    : cleaned;
+  return /[.!?]$/.test(withFirstUpper) ? withFirstUpper : `${withFirstUpper}.`;
+}
+
+function toParagraph(items: string[], maxSentences = 3): string | null {
+  const sentences = items
+    .map((item) => sentenceCase(item))
+    .filter(Boolean)
+    .slice(0, maxSentences);
+  return sentences.length > 0 ? sentences.join(' ') : null;
 }
 
 /* ---------- sub-components ---------- */
@@ -286,6 +399,17 @@ function MarketImpactBlock({ text }: { text: string }) {
   if (!parsed) {
     return <p className="text-[13px] leading-relaxed text-zinc-400">Additional context unavailable.</p>;
   }
+  const impactParagraph = buildImpactParagraph(parsed);
+  const driversParagraph = toParagraph(parsed.drivers, 2);
+  const winnersParagraph =
+    parsed.winners.length > 0
+      ? sentenceCase(`Likely beneficiaries include ${parsed.winners.slice(0, 3).join(', ')}`)
+      : null;
+  const losersParagraph =
+    parsed.losers.length > 0
+      ? sentenceCase(`Likely pressured areas include ${parsed.losers.slice(0, 3).join(', ')}`)
+      : null;
+  const watchParagraph = toParagraph(parsed.watchItems, 2);
 
   const isEmpty = parsed.summary.length === 0 && parsed.drivers.length === 0 && parsed.assetImpacts.length === 0 && parsed.winners.length === 0 && parsed.losers.length === 0 && parsed.watchItems.length === 0;
 
@@ -295,63 +419,64 @@ function MarketImpactBlock({ text }: { text: string }) {
 
   return (
     <div className="space-y-4">
-      {/* Summary */}
-      {parsed.summary.length > 0 && (
-        <BulletList items={parsed.summary} className="text-zinc-200 [&_span]:font-medium" />
-      )}
-
-      {/* Drivers */}
-      {parsed.drivers.length > 0 && (
-        <div>
-          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Drivers</div>
-          <BulletList items={parsed.drivers} />
+      {impactParagraph && (
+        <div className="rounded-md border border-zinc-800/40 bg-zinc-900/30 px-3 py-2.5">
+          <p className="text-[13px] leading-relaxed text-zinc-200">{impactParagraph}</p>
         </div>
       )}
 
-      {/* Market Impact — each asset class as its own block */}
+      {driversParagraph && (
+        <div>
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Drivers</div>
+          <p className="text-[13px] leading-relaxed text-zinc-300">{driversParagraph}</p>
+        </div>
+      )}
+
       {parsed.assetImpacts.length > 0 && (
         <div>
           <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Market Impact</div>
-          <div className="space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
             {parsed.assetImpacts.map((group, i) => (
-              <div key={`asset-${i}`} className="flex items-start gap-2.5">
-                <AssetBadge asset={group.asset} />
-                <BulletList items={group.bullets} />
+              <div key={`asset-${i}`} className="rounded-md border border-zinc-800/30 bg-zinc-900/20 px-3 py-2">
+                <div className="mb-1.5">
+                  <AssetBadge asset={group.asset} />
+                </div>
+                <p className="text-[13px] leading-relaxed text-zinc-300">
+                  {toParagraph(group.bullets, 2) ?? sentenceCase(group.bullets.join(' '))}
+                </p>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Winners & Losers */}
-      {(parsed.winners.length > 0 || parsed.losers.length > 0) && (
-        <div className="grid grid-cols-2 gap-3">
-          {parsed.winners.length > 0 && (
+      {(winnersParagraph || losersParagraph) && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {winnersParagraph && (
             <div className="rounded-md border border-emerald-500/15 bg-emerald-500/5 px-3 py-2">
               <div className="mb-1.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
                 <TrendingUp className="h-3 w-3" /> Winners
               </div>
-              <BulletList items={parsed.winners} />
+              <p className="text-[13px] leading-relaxed text-zinc-300">{winnersParagraph}</p>
             </div>
           )}
-          {parsed.losers.length > 0 && (
+          {losersParagraph && (
             <div className="rounded-md border border-rose-500/15 bg-rose-500/5 px-3 py-2">
               <div className="mb-1.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-rose-400">
                 <TrendingDown className="h-3 w-3" /> Losers
               </div>
-              <BulletList items={parsed.losers} />
+              <p className="text-[13px] leading-relaxed text-zinc-300">{losersParagraph}</p>
             </div>
           )}
         </div>
       )}
 
-      {/* Watch Next */}
-      {parsed.watchItems.length > 0 && (
+      {watchParagraph && (
         <div>
           <div className="mb-1.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             <Eye className="h-3 w-3" /> Watch Next
           </div>
-          <BulletList items={parsed.watchItems} />
+          <p className="text-[13px] leading-relaxed text-zinc-300">{watchParagraph}</p>
         </div>
       )}
     </div>
@@ -682,7 +807,7 @@ export default function HeadlinesPanel({
                             <ConfidenceBadge level={enrichment.confidence ?? 'low'} />
                           </div>
                           <p className="text-[13px] leading-relaxed text-zinc-300">
-                            {enrichment.ai_summary ?? 'Summary unavailable.'}
+                            {formatAiSummaryText(enrichment.ai_summary)}
                           </p>
                         </div>
 
