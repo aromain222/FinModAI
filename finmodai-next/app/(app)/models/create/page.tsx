@@ -767,7 +767,7 @@ function CreateModelPageInner() {
   const [lastRequestBody, setLastRequestBody] = useState<Record<string, any> | null>(null);
   const clearReverseDcfAnchorError = useCallback(() => {
     setError((prev) =>
-      prev === 'Reverse DCF requires market cap OR share price + shares outstanding.' ? null : prev
+      prev && prev.toLowerCase().includes('reverse dcf requires') ? null : prev
     );
   }, []);
   const aiSummaryText = normalizeNarrativeText(modelData?.summary);
@@ -1083,11 +1083,16 @@ function CreateModelPageInner() {
     reverseDcfManualSharePrice > 0 &&
     reverseDcfManualShares !== undefined &&
     reverseDcfManualShares > 0;
+  const reverseDcfHasTargetPriceAnchor = (() => {
+    const tp = parseAdvancedNumber(reverseDcfInputs.targetPrice);
+    return tp !== undefined && tp > 0;
+  })();
   const reverseDcfMissingPrivateAnchor =
     modelType === 'reverse-dcf' &&
     isPrivateMode &&
     !reverseDcfHasMarketCapAnchor &&
-    !reverseDcfHasShareAnchor;
+    !reverseDcfHasShareAnchor &&
+    !reverseDcfHasTargetPriceAnchor;
 
   const normalizeMissingOverrides = (overrides: Record<string, any>) => ({
     price: overrides.price,
@@ -1295,13 +1300,14 @@ function CreateModelPageInner() {
       }
       if (isPrivateMode) {
         const hasMarketCap = manualMarketCap !== undefined && manualMarketCap > 0;
+        const hasTargetPrice = targetPrice !== undefined && targetPrice > 0;
         const hasShareAnchor =
           manualSharePrice !== undefined &&
           manualSharePrice > 0 &&
           manualShares !== undefined &&
           manualShares > 0;
-        if (!hasMarketCap && !hasShareAnchor) {
-          setError('Reverse DCF requires market cap OR share price + shares outstanding.');
+        if (!hasMarketCap && !hasShareAnchor && !hasTargetPrice) {
+          setError('Reverse DCF requires market cap, target price, or share price + shares outstanding.');
           return;
         }
       }
@@ -3513,13 +3519,17 @@ function CreateModelPageInner() {
                   >
                     {isPrivateMode
                       ? reverseDcfMissingPrivateAnchor
-                        ? 'Reverse DCF requires market cap OR share price + shares outstanding.'
+                        ? 'Reverse DCF requires market cap, target price, or share price + shares outstanding.'
                         : reverseDcfHasMarketCapAnchor
                           ? 'Reverse DCF anchor detected: Market Cap.'
-                          : 'Reverse DCF anchor detected: Share Price + Shares Outstanding.'
+                          : reverseDcfHasTargetPriceAnchor
+                            ? 'Reverse DCF anchor detected: Target Price.'
+                            : 'Reverse DCF anchor detected: Share Price + Shares Outstanding.'
                       : reverseDcfHasMarketCapAnchor
                         ? 'Using market cap override as the valuation anchor.'
-                        : 'Ticker mode uses demo market data as the default valuation anchor. You can override it below with market cap.'}
+                        : reverseDcfHasShareAnchor
+                          ? 'Using share price + shares override as the valuation anchor.'
+                          : 'Ticker mode uses demo market data as the default valuation anchor. You can override it below with market cap or share price + shares.'}
                   </div>
                   {isPrivateMode && (
                     <div className="md:col-span-2 rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
@@ -3579,20 +3589,55 @@ function CreateModelPageInner() {
                     </div>
                   )}
                   {!isPrivateMode && (
-                    <div className="space-y-1">
-                      <Label htmlFor="reverse-dcf-market-cap-override">Market Cap Override (optional)</Label>
-                      <Input
-                        id="reverse-dcf-market-cap-override"
-                        value={manualInputs.marketCap}
-                        placeholder="e.g., 2500000000 or 2.5B"
-                        onChange={(event) => {
-                          clearReverseDcfAnchorError();
-                          setManualInputs((prev) => ({ ...prev, marketCap: event.target.value }));
-                        }}
-                      />
-                      <p className="text-xs text-[var(--cb-text-muted)]">
-                        If entered, this replaces the default demo market cap anchor for the reverse solve.
-                      </p>
+                    <div className="md:col-span-2 rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
+                      <div className="mb-3">
+                        <h4 className="text-sm font-semibold text-[var(--cb-text-primary)]">
+                          Valuation Anchor Overrides (optional)
+                        </h4>
+                        <p className="mt-1 text-xs text-[var(--cb-text-secondary)]">
+                          Use market cap, or provide both share price and shares outstanding when market data is incomplete.
+                        </p>
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-3">
+                        <div className="space-y-1">
+                          <Label htmlFor="reverse-dcf-market-cap-override">Market Cap</Label>
+                          <Input
+                            id="reverse-dcf-market-cap-override"
+                            value={manualInputs.marketCap}
+                            placeholder="e.g., 2500000000 or 2.5B"
+                            onChange={(event) => {
+                              clearReverseDcfAnchorError();
+                              setManualInputs((prev) => ({ ...prev, marketCap: event.target.value }));
+                            }}
+                          />
+                          <p className="text-[11px] text-[var(--cb-text-muted)]">Overrides default market cap when provided.</p>
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="reverse-dcf-share-price-override">Share Price</Label>
+                          <Input
+                            id="reverse-dcf-share-price-override"
+                            value={manualInputs.price}
+                            placeholder="e.g., 25.50"
+                            onChange={(event) => {
+                              clearReverseDcfAnchorError();
+                              setManualInputs((prev) => ({ ...prev, price: event.target.value }));
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="reverse-dcf-shares-override">Shares Outstanding</Label>
+                          <Input
+                            id="reverse-dcf-shares-override"
+                            value={manualInputs.sharesOutstanding}
+                            placeholder="e.g., 120000000"
+                            onChange={(event) => {
+                              clearReverseDcfAnchorError();
+                              setManualInputs((prev) => ({ ...prev, sharesOutstanding: event.target.value }));
+                            }}
+                          />
+                          <p className="text-[11px] text-[var(--cb-text-muted)]">Enter raw shares (not millions).</p>
+                        </div>
+                      </div>
                     </div>
                   )}
                   <div className="space-y-1">
