@@ -53,6 +53,9 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Search } from 'lucide-react';
 import { QUICK_LBO_DEFAULT_SUMMARY } from '@/lib/models/lbo/quick';
+import { useToast } from '@/hooks/use-toast';
+import { ToastEnhanced } from '@/components/ui/toast-enhanced';
+import { LIVE_DATA_FALLBACK_NOTICE } from '@/lib/modelInputs/defensive';
 
 const MODEL_OPTIONS = [
   { value: 'three-statement', label: 'Three Statement Model', description: 'Full P&L, Balance Sheet, Cash Flow' },
@@ -79,6 +82,68 @@ const CREATE_MODEL_OPTIONS = MODEL_OPTIONS.filter(
 );
 
 type ModelType = (typeof MODEL_OPTIONS)[number]['value'];
+type CompanyMode = 'public' | 'private';
+type ManualInputFieldKey =
+  | 'companyName'
+  | 'revenue'
+  | 'revenueGrowthPct'
+  | 'ebitMarginPct'
+  | 'taxRatePct'
+  | 'capexPctRevenue'
+  | 'nwcPctRevenue'
+  | 'ebitda'
+  | 'netIncome'
+  | 'sharesOutstanding'
+  | 'price'
+  | 'marketCap';
+
+const PRIVATE_REQUIRED_FIELDS_BY_MODEL: Partial<Record<ModelType, ManualInputFieldKey[]>> = {
+  'three-statement': [
+    'companyName',
+    'revenue',
+    'revenueGrowthPct',
+    'ebitMarginPct',
+    'taxRatePct',
+    'capexPctRevenue',
+    'nwcPctRevenue',
+  ],
+  dcf: [
+    'companyName',
+    'revenue',
+    'revenueGrowthPct',
+    'ebitMarginPct',
+    'taxRatePct',
+    'capexPctRevenue',
+    'nwcPctRevenue',
+  ],
+  'reverse-dcf': [
+    'companyName',
+    'revenue',
+    'revenueGrowthPct',
+    'ebitMarginPct',
+    'taxRatePct',
+    'capexPctRevenue',
+    'nwcPctRevenue',
+  ],
+  'debt-capacity-lite': ['companyName', 'revenue'],
+  comps: ['companyName', 'revenue'],
+  scorecard: ['companyName', 'revenue'],
+};
+
+const PRIVATE_FIELD_LABELS: Record<ManualInputFieldKey, string> = {
+  companyName: 'Company name',
+  revenue: 'Revenue (LTM)',
+  revenueGrowthPct: 'Revenue growth (%)',
+  ebitMarginPct: 'EBIT / EBITDA margin (%)',
+  taxRatePct: 'Tax rate (%)',
+  capexPctRevenue: 'Capex % revenue',
+  nwcPctRevenue: 'NWC % revenue',
+  ebitda: 'EBITDA (LTM)',
+  netIncome: 'Net income (LTM)',
+  sharesOutstanding: 'Shares outstanding',
+  price: 'Share price',
+  marketCap: 'Market cap',
+};
 
 type ModelData = {
   ticker: string;
@@ -504,6 +569,8 @@ function CreateModelPageInner() {
   }, [searchParams]);
   
   const [ticker, setTicker] = useState(initialTicker);
+  const [companyMode, setCompanyMode] = useState<CompanyMode>('public');
+  const isPrivateMode = companyMode === 'private';
   type DemoCompany = { ticker: string; company_name: string | null; sector: string | null };
   const [demoCompanies, setDemoCompanies] = useState<DemoCompany[]>([]);
   const [demoSearch, setDemoSearch] = useState('');
@@ -556,6 +623,7 @@ function CreateModelPageInner() {
 
   useEffect(() => {
     if (!demoDataActive) return;
+    if (isPrivateMode) return;
     if (!normalizedTicker) return;
     if (!demoTickerAllowed) return;
     if (lastScenarioSeedTickerRef.current === normalizedTicker) return;
@@ -580,7 +648,7 @@ function CreateModelPageInner() {
     return () => {
       active = false;
     };
-  }, [applyDemoScenarioDefaults, demoDataActive, demoTickerAllowed, normalizedTicker]);
+  }, [applyDemoScenarioDefaults, demoDataActive, demoTickerAllowed, isPrivateMode, normalizedTicker]);
 
   const demoUniqueSectors = useMemo(() => {
     const set = new Set<string>();
@@ -629,6 +697,15 @@ function CreateModelPageInner() {
   // Manual financial inputs (for data that can't be fetched via API/AI/web scraping)
   const [showManualInputs, setShowManualInputs] = useState(false);
   const [manualInputs, setManualInputs] = useState({
+    companyName: '',
+    currency: 'USD',
+    revenueHistory: '',
+    revenueGrowthPct: '8.0',
+    ebitMarginPct: '20.0',
+    taxRatePct: '25.0',
+    daPctRevenue: '4.0',
+    capexPctRevenue: '4.0',
+    nwcPctRevenue: '2.0',
     price: '',
     revenue: '',
     ebitda: '',
@@ -642,6 +719,18 @@ function CreateModelPageInner() {
     totalDebt: '',
     cash: '',
   });
+  const privateRequiredFields = useMemo<ManualInputFieldKey[]>(
+    () => PRIVATE_REQUIRED_FIELDS_BY_MODEL[modelType] ?? ['companyName', 'revenue'],
+    [modelType]
+  );
+  const isPrivateFieldRequired = useCallback(
+    (field: ManualInputFieldKey) => isPrivateMode && privateRequiredFields.includes(field),
+    [isPrivateMode, privateRequiredFields]
+  );
+  const privateRequirementsSummary = useMemo(
+    () => privateRequiredFields.map((field) => PRIVATE_FIELD_LABELS[field]).join(', '),
+    [privateRequiredFields]
+  );
 
   const [missingInputOverrides, setMissingInputOverrides] = useState<Record<string, any>>({});
   // Keep a ref so "Apply & Re-run" can submit immediately with the latest patch
@@ -676,6 +765,11 @@ function CreateModelPageInner() {
   const [downloadState, setDownloadState] = useState<'idle' | 'downloading' | 'error'>('idle');
   const scenarioControlsDisabled = loading;
   const [lastRequestBody, setLastRequestBody] = useState<Record<string, any> | null>(null);
+  const clearReverseDcfAnchorError = useCallback(() => {
+    setError((prev) =>
+      prev === 'Reverse DCF requires market cap OR share price + shares outstanding.' ? null : prev
+    );
+  }, []);
   const aiSummaryText = normalizeNarrativeText(modelData?.summary);
   const aiKeyAssumptions = Array.isArray(modelData?.keyAssumptions) ? modelData.keyAssumptions : [];
   const hasAiSummaryCard = Boolean(aiSummaryText) || aiKeyAssumptions.length > 0;
@@ -754,6 +848,24 @@ function CreateModelPageInner() {
   const [breakEvenLoading, setBreakEvenLoading] = useState(false);
   const [breakEvenError, setBreakEvenError] = useState<string | null>(null);
   const [breakEvenResult, setBreakEvenResult] = useState<BreakEvenResult | null>(null);
+  const { toasts, showToast, removeToast } = useToast();
+  const reverseDcfInlineError =
+    modelType === 'reverse-dcf' && error
+      ? (() => {
+          const lower = error.toLowerCase();
+          return lower.includes('reverse dcf') ||
+            lower.includes('wacc') ||
+            lower.includes('terminal growth') ||
+            lower.includes('projection years') ||
+            lower.includes('target price') ||
+            lower.includes('market cap') ||
+            lower.includes('share price') ||
+            lower.includes('shares outstanding')
+            ? error
+            : null;
+        })()
+      : null;
+  const globalFormError = error && error !== reverseDcfInlineError ? error : null;
 
   useEffect(() => {
     setModelType(initialType);
@@ -778,8 +890,13 @@ function CreateModelPageInner() {
   }, [ticker]);
 
   useEffect(() => {
-    // No-op: scenario controls remain editable across model types.
-  }, [modelType]);
+    setError(null);
+    setMissingInputs([]);
+    setMissingInputSpecsOverride([]);
+    setEstimatedInputs([]);
+    setMissingInputsModalOpen(false);
+    setMissingFields(new Set());
+  }, [modelType, companyMode]);
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
@@ -956,6 +1073,22 @@ function CreateModelPageInner() {
     return Number.isFinite(parsed) ? parsed : undefined;
   };
 
+  const reverseDcfManualMarketCap = parseManualNumber(manualInputs.marketCap);
+  const reverseDcfManualSharePrice = parseManualNumber(manualInputs.price);
+  const reverseDcfManualShares = parseManualNumber(manualInputs.sharesOutstanding);
+  const reverseDcfHasMarketCapAnchor =
+    reverseDcfManualMarketCap !== undefined && reverseDcfManualMarketCap > 0;
+  const reverseDcfHasShareAnchor =
+    reverseDcfManualSharePrice !== undefined &&
+    reverseDcfManualSharePrice > 0 &&
+    reverseDcfManualShares !== undefined &&
+    reverseDcfManualShares > 0;
+  const reverseDcfMissingPrivateAnchor =
+    modelType === 'reverse-dcf' &&
+    isPrivateMode &&
+    !reverseDcfHasMarketCapAnchor &&
+    !reverseDcfHasShareAnchor;
+
   const normalizeMissingOverrides = (overrides: Record<string, any>) => ({
     price: overrides.price,
     marketCap: overrides.market_cap ?? overrides.marketCap,
@@ -1083,12 +1216,45 @@ function CreateModelPageInner() {
     
     // For merger models, ticker validation is different (needs buyer + target)
     if (modelType !== 'merger' && modelType !== 'operating') {
-      if (!trimmedTicker) {
+      if (!isPrivateMode && !trimmedTicker) {
         setError('Please enter a ticker.');
         return;
       }
-      if (demoDataActive && demoTickers.length > 0 && !demoTickers.includes(trimmedTicker)) {
+      if (!isPrivateMode && demoDataActive && demoTickers.length > 0 && !demoTickers.includes(trimmedTicker)) {
         setError('Demo Mode is active. Choose a demo company to continue.');
+        return;
+      }
+    }
+
+    if (isPrivateMode) {
+      const manualRevenue = parseManualNumber(manualInputs.revenue);
+      const manualGrowthPct = parseAdvancedNumber(manualInputs.revenueGrowthPct);
+      const manualMarginPct = parseAdvancedNumber(manualInputs.ebitMarginPct);
+      const manualTaxPct = parseAdvancedNumber(manualInputs.taxRatePct);
+      const manualCapexPct = parseAdvancedNumber(manualInputs.capexPctRevenue);
+      const manualNwcPct = parseAdvancedNumber(manualInputs.nwcPctRevenue);
+      const manualEbitda = parseManualNumber(manualInputs.ebitda);
+      const manualNetIncome = parseManualNumber(manualInputs.netIncome);
+
+      const privateFieldValidators: Partial<Record<ManualInputFieldKey, () => boolean>> = {
+        companyName: () => manualInputs.companyName.trim().length > 0,
+        revenue: () => manualRevenue !== undefined && manualRevenue > 0,
+        revenueGrowthPct: () => manualGrowthPct !== undefined,
+        ebitMarginPct: () => manualMarginPct !== undefined,
+        taxRatePct: () => manualTaxPct !== undefined,
+        capexPctRevenue: () => manualCapexPct !== undefined,
+        nwcPctRevenue: () => manualNwcPct !== undefined,
+        ebitda: () => manualEbitda !== undefined && manualEbitda > 0,
+        netIncome: () => manualNetIncome !== undefined,
+      };
+
+      const invalidField = privateRequiredFields.find((field) => {
+        const validator = privateFieldValidators[field];
+        return validator ? !validator() : false;
+      });
+
+      if (invalidField) {
+        setError(`Private mode requires ${PRIVATE_FIELD_LABELS[invalidField]}.`);
         return;
       }
     }
@@ -1099,6 +1265,9 @@ function CreateModelPageInner() {
       const terminalGrowthPct = parseAdvancedNumber(reverseDcfInputs.terminalGrowthPct);
       const projectionYears = parseAdvancedNumber(reverseDcfInputs.projectionYears);
       const targetPrice = parseAdvancedNumber(reverseDcfInputs.targetPrice);
+      const manualMarketCap = parseManualNumber(manualInputs.marketCap);
+      const manualSharePrice = parseManualNumber(manualInputs.price);
+      const manualShares = parseManualNumber(manualInputs.sharesOutstanding);
 
       if (
         waccPct === undefined ||
@@ -1123,6 +1292,18 @@ function CreateModelPageInner() {
       if (reverseDcfInputs.targetPrice.trim().length > 0 && (targetPrice === undefined || targetPrice <= 0)) {
         setError('Target price must be a positive number when provided.');
         return;
+      }
+      if (isPrivateMode) {
+        const hasMarketCap = manualMarketCap !== undefined && manualMarketCap > 0;
+        const hasShareAnchor =
+          manualSharePrice !== undefined &&
+          manualSharePrice > 0 &&
+          manualShares !== undefined &&
+          manualShares > 0;
+        if (!hasMarketCap && !hasShareAnchor) {
+          setError('Reverse DCF requires market cap OR share price + shares outstanding.');
+          return;
+        }
       }
     }
 
@@ -1322,7 +1503,7 @@ function CreateModelPageInner() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            ticker: trimmedTicker,
+            ticker: isPrivateMode ? undefined : trimmedTicker,
             companyName: companyName || undefined,
             modelType,
             includeScenario: includeScenarioFlag,
@@ -1345,6 +1526,12 @@ function CreateModelPageInner() {
       const advancedLboPayload = normalizeAdvancedLboOptions();
       const normalizedOverrides = normalizeMissingOverrides(missingInputOverridesRef.current);
       const manualInputsPayload: Record<string, number | undefined> = {
+        revenueGrowthPct: parseManualNumber(manualInputs.revenueGrowthPct),
+        ebitMarginPct: parseManualNumber(manualInputs.ebitMarginPct),
+        taxRatePct: parseManualNumber(manualInputs.taxRatePct),
+        daPctRevenue: parseManualNumber(manualInputs.daPctRevenue),
+        capexPctRevenue: parseManualNumber(manualInputs.capexPctRevenue),
+        nwcPctRevenue: parseManualNumber(manualInputs.nwcPctRevenue),
         price: parseManualNumber(manualInputs.price),
         revenue: parseManualNumber(manualInputs.revenue),
         ebitda: parseManualNumber(manualInputs.ebitda),
@@ -1489,11 +1676,27 @@ function CreateModelPageInner() {
               }).filter(([, value]) => value !== undefined)
             )
           : undefined;
+      const privateRevenueGrowthPct = parseAdvancedNumber(manualInputs.revenueGrowthPct);
+      const privateMarginPct = parseAdvancedNumber(manualInputs.ebitMarginPct);
+      const privateTaxRatePct = parseAdvancedNumber(manualInputs.taxRatePct);
+      const privateDaPct = parseAdvancedNumber(manualInputs.daPctRevenue);
+      const privateCapexPct = parseAdvancedNumber(manualInputs.capexPctRevenue);
+      const privateNwcPct = parseAdvancedNumber(manualInputs.nwcPctRevenue);
+      const privateSliderOverrides: Record<string, number> = {};
+      if (privateRevenueGrowthPct !== undefined) privateSliderOverrides.revenueGrowth = privateRevenueGrowthPct / 100;
+      if (privateMarginPct !== undefined) privateSliderOverrides.ebitdaMargin = privateMarginPct / 100;
+      if (privateTaxRatePct !== undefined) privateSliderOverrides.taxRate = privateTaxRatePct / 100;
+      if (privateDaPct !== undefined) privateSliderOverrides.daPctRevenue = privateDaPct / 100;
+      if (privateCapexPct !== undefined) privateSliderOverrides.capexPctRevenue = privateCapexPct / 100;
+      if (privateNwcPct !== undefined) privateSliderOverrides.deltaNwcPctRevenue = privateNwcPct / 100;
 
       let requestBody: Record<string, any> = {
-        ticker: trimmedTicker,
+        ticker: isPrivateMode ? undefined : trimmedTicker,
         modelType,
-        dataSource: 'demo',
+        companyMode,
+        companyName: manualInputs.companyName.trim() || companyName || undefined,
+        currency: manualInputs.currency.trim() || 'USD',
+        dataSource: isPrivateMode ? 'manual' : 'ticker',
         includeScenarios: includeScenarioFlag || undefined,
         wacc:
           modelType === 'reverse-dcf'
@@ -1606,6 +1809,13 @@ function CreateModelPageInner() {
         operatingInputs: modelType === 'operating' ? operatingInputs : undefined,
         manualInputs: Object.keys(cleanedManualInputs).length > 0 ? cleanedManualInputs : undefined,
       };
+      if (isPrivateMode) {
+        requestBody.manualMode = true;
+        requestBody.sliderOverrides = {
+          ...(requestBody.sliderOverrides || {}),
+          ...privateSliderOverrides,
+        };
+      }
       if (normalizedOverrides.price !== undefined) requestBody.price = normalizedOverrides.price;
       if (normalizedOverrides.marketCap !== undefined) {
         requestBody.marketCap = normalizedOverrides.marketCap;
@@ -1651,9 +1861,12 @@ function CreateModelPageInner() {
 
       if (modelType === 'comps') {
         const compsPayload: Record<string, any> = {
-          ticker: trimmedTicker,
+          ticker: isPrivateMode ? undefined : trimmedTicker,
           modelType: 'comps',
           dataSource: requestBody.dataSource,
+          companyMode,
+          companyName: requestBody.companyName,
+          currency: requestBody.currency,
         };
         if (requestBody.customComps) compsPayload.customComps = requestBody.customComps;
         if (requestBody.useOnlyCustom !== undefined) compsPayload.useOnlyCustom = requestBody.useOnlyCustom;
@@ -1874,7 +2087,9 @@ function CreateModelPageInner() {
 
       const resolvedModel: EnrichedModelResponse = {
         modelId: generateData.runId || `local-${Date.now()}`,
-        ticker: trimmedTicker, // Standard models use ticker
+        ticker: isPrivateMode
+          ? (manualInputs.companyName.trim() || 'PRIVATE')
+          : trimmedTicker,
         modelType,
         createdAt: new Date().toISOString(),
         downloadUrl: generateData.downloadUrl || '',
@@ -1883,7 +2098,7 @@ function CreateModelPageInner() {
         summaryText:
           normalizeNarrativeText(latestAnalysisData?.summary) ??
           normalizeNarrativeText(modelData?.summary) ??
-          `Excel model generated for ${trimmedTicker}`,
+          `Excel model generated for ${isPrivateMode ? (manualInputs.companyName.trim() || 'private company') : trimmedTicker}`,
         // Store model-specific summaries for preview parsing
         dcfSummary: generateData.dcfSummary,
         lboSummary: generateData.lboSummary,
@@ -1895,6 +2110,11 @@ function CreateModelPageInner() {
         missingInputs: generateData.missingInputs || generateData.missing || [],
         requiredInputs: generateData.requiredInputs || [],
         estimatedInputs: generateData.estimatedInputs || generateData.estimated || [],
+        coreModelOutputs: generateData.coreModelOutputs,
+        coreInputs: generateData.coreInputs,
+        liveDataFallback: generateData.liveDataFallback === true,
+        scenarioComparison: generateData.scenarioComparison,
+        scenarioSummaries: generateData.scenarioSummaries,
       } as any;
       setMissingInputsModalOpen(false);
       setGeneratedModel(resolvedModel);
@@ -1905,7 +2125,9 @@ function CreateModelPageInner() {
       );
       setLastDurationMs(clientDuration);
       // Fetch model stats for standard models
-      fetchModelStats(trimmedTicker, metricsModelTypeParam);
+      if (!isPrivateMode && trimmedTicker) {
+        fetchModelStats(trimmedTicker, metricsModelTypeParam);
+      }
 
     } catch (err) {
       const failureDuration = Math.max(
@@ -2155,6 +2377,7 @@ function CreateModelPageInner() {
 
   const resetForm = () => {
     setTicker('');
+    setCompanyMode('public');
     setModelData(null);
     setGeneratedModel(null);
     setShowResults(false);
@@ -2202,6 +2425,15 @@ function CreateModelPageInner() {
     setBlocks([]);
     setEstimatedInputs([]);
     setManualInputs({
+      companyName: '',
+      currency: 'USD',
+      revenueHistory: '',
+      revenueGrowthPct: '8.0',
+      ebitMarginPct: '20.0',
+      taxRatePct: '25.0',
+      daPctRevenue: '4.0',
+      capexPctRevenue: '4.0',
+      nwcPctRevenue: '2.0',
       price: '',
       revenue: '',
       ebitda: '',
@@ -2294,7 +2526,7 @@ function CreateModelPageInner() {
       // generatedModel.diagnostics?.slice(0, 3).map((diag) => `${diag.title ?? 'Issue'}: ${diag.message}`) ?? [];
 
     const contextOverrides = {
-      companyName: companyName || generatedModel.ticker || 'Unknown Company',
+      companyName: manualInputs.companyName.trim() || companyName || generatedModel.ticker || 'Unknown Company',
       asOfDate: new Date().toISOString().slice(0, 10),
       keyOutputs: {
         baseValuePerShare: basePrice,
@@ -2312,6 +2544,15 @@ function CreateModelPageInner() {
               fcfMarginPct: compsData.ltm.fcfMarginPct,
             }
           : undefined,
+        debtCapacity: generatedModel.debtCapacityLite
+          ? {
+              leverageCap: generatedModel.debtCapacityLite.leverageCap,
+              coverageCap: generatedModel.debtCapacityLite.coverageCap,
+              maxDebt: generatedModel.debtCapacityLite.maxDebt,
+              bindingConstraint: generatedModel.debtCapacityLite.bindingConstraint,
+              headroomVsNetDebt: generatedModel.debtCapacityLite.headroomVsNetDebt,
+            }
+          : undefined,
       },
       highLevelNotes: [
         ...(scenarioBullets ? scenarioBullets : []),
@@ -2322,9 +2563,12 @@ function CreateModelPageInner() {
     };
 
     const modelDataPayload = {
+      canonicalFinancials: (generatedModel as any).canonicalFinancials,
       dcfSummary: generatedModel.dcfSummary,
       scenarioSummaries: generatedModel.scenarioSummaries,
       lboSummary: generatedModel.lboSummary,
+      threeStatementSummary: (generatedModel as any).threeStatementSummary,
+      debtCapacityLite: (generatedModel as any).debtCapacityLite,
       assumptions: {
         compsModel: compsData,
         revenueGrowth: (generatedModel as any)?.assumptions?.revenueGrowth,
@@ -2338,7 +2582,7 @@ function CreateModelPageInner() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ticker: generatedModel.ticker ?? ticker?.toUpperCase() ?? '',
+          ticker: isPrivateMode ? 'PRIVATE' : (generatedModel.ticker ?? ticker?.toUpperCase() ?? ''),
           companyName: contextOverrides.companyName,
           modelType: normalizedModelKind,
           asOfDate: contextOverrides.asOfDate,
@@ -2356,7 +2600,9 @@ function CreateModelPageInner() {
       setReportText(data.reportText ?? data.summaryText ?? '');
       setReportPayload(data.reportPayload || null);
       setInsightCards(Array.isArray(data.insightCards) ? data.insightCards : []);
-      if (data.pdfBase64) {
+      if (typeof generatedModel.modelId === 'string' && generatedModel.modelId.startsWith('run_')) {
+        setReportPdfUrl(`/api/model-runs/${generatedModel.modelId}/report/pdf`);
+      } else if (data.pdfBase64) {
         const bytes = Uint8Array.from(atob(data.pdfBase64), (c) => c.charCodeAt(0));
         const blob = new Blob([bytes], { type: 'application/pdf' });
         const url = URL.createObjectURL(blob);
@@ -2365,11 +2611,107 @@ function CreateModelPageInner() {
         setReportPdfUrl(data.pdfUrl);
       }
     } catch (err) {
-      setReportError(err instanceof Error ? err.message : 'Failed to generate report.');
+      const message = err instanceof Error ? err.message : 'Failed to generate report.';
+      setReportError(message);
+      showToast({
+        title: 'Report generation failed',
+        description: message,
+        variant: 'destructive',
+      });
+      console.error('[handleGenerateReport] failed', err);
     } finally {
       setReportLoading(false);
     }
   };
+
+  const resolveReportPdfUrl = useCallback(() => {
+    if (generatedModel?.modelId?.startsWith('run_')) {
+      return `/api/model-runs/${generatedModel.modelId}/report/pdf`;
+    }
+    if (reportPdfUrl) return reportPdfUrl;
+    return null;
+  }, [generatedModel?.modelId, reportPdfUrl]);
+
+  const handleDownloadReportPdf = useCallback(async () => {
+    const coreOutputs = (generatedModel as any)?.coreModelOutputs;
+    const templateId = generatedModel?.modelType;
+    const companyLabel =
+      manualInputs.companyName.trim() || ticker || generatedModel?.ticker || 'Company';
+    const safeName = companyLabel.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    if (coreOutputs && templateId) {
+      try {
+        const corePdfResponse = await fetch('/api/export/pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            templateId,
+            companyName: companyLabel,
+            modelOutputs: coreOutputs,
+            scenarioComparison: (generatedModel as any)?.scenarioComparison,
+            sensitivity: (generatedModel as any)?.dcfSummary?.sensitivity,
+          }),
+        });
+        if (!corePdfResponse.ok) {
+          const coreError = await corePdfResponse.json().catch(() => ({}));
+          throw new Error(coreError?.message || coreError?.error || 'Failed to export PDF.');
+        }
+        const blob = await corePdfResponse.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = blobUrl;
+        anchor.download = `CapitalBase_Report_${safeName}.pdf`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(blobUrl);
+        return;
+      } catch (err) {
+        console.error('[handleDownloadReportPdf] core export failed, falling back', err);
+      }
+    }
+
+    const url = resolveReportPdfUrl();
+    if (!url) {
+      showToast({
+        title: 'PDF unavailable',
+        description: 'Generate a report first to enable PDF download.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    try {
+      const response = await fetch(url, { method: 'GET' });
+      if (!response.ok) {
+        const errorData = await response.json().catch(async () => {
+          const text = await response.text().catch(() => '');
+          return { message: text };
+        });
+        throw new Error(
+          errorData?.message ||
+            errorData?.error ||
+            `PDF download failed (${response.status}).`
+        );
+      }
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = blobUrl;
+      anchor.download = `CapitalBase_Report_${safeName}.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to download PDF report.';
+      showToast({
+        title: 'PDF download failed',
+        description: message,
+        variant: 'destructive',
+      });
+      console.error('[handleDownloadReportPdf] failed', err);
+    }
+  }, [generatedModel, manualInputs.companyName, resolveReportPdfUrl, showToast, ticker]);
 
   const timerPanel = (
     <Card className="border border-dashed border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] text-[var(--cb-text-body)]">
@@ -2388,10 +2730,13 @@ function CreateModelPageInner() {
   );
 
   const canGenerateReport = Boolean(generatedModel);
+  const showLiveDataFallbackBanner =
+    warnings.includes(LIVE_DATA_FALLBACK_NOTICE) ||
+    (generatedModel as any)?.liveDataFallback === true;
 
   return (
-    <main className="min-h-screen bg-[var(--cb-bg)] px-6 py-10 text-[var(--cb-text-body)]">
-      <div className="mx-auto max-w-5xl space-y-8">
+    <div className="h-full overflow-y-auto bg-[var(--cb-bg)] px-6 py-10 text-[var(--cb-text-body)]">
+      <div className="mx-auto max-w-5xl space-y-8 pb-8">
         {/* Navigation */}
         <div className="flex items-center gap-3">
           <Button asChild variant="ghost" size="sm">
@@ -2415,6 +2760,12 @@ function CreateModelPageInner() {
             Choose a template, configure assumptions, and {APP_NAME} will generate both an Excel workbook and AI-powered analysis.
           </p>
         </header>
+
+        {showLiveDataFallbackBanner && (
+          <div className="rounded-lg border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+            {LIVE_DATA_FALLBACK_NOTICE}
+          </div>
+        )}
 
         {!showResults ? (
           <>
@@ -2447,7 +2798,32 @@ function CreateModelPageInner() {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <Label>Company Type</Label>
+              <div className="inline-flex rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-subtle)] p-1">
+                <Button
+                  type="button"
+                  variant={companyMode === 'public' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="h-8"
+                  onClick={() => setCompanyMode('public')}
+                >
+                  Public (Ticker)
+                </Button>
+                <Button
+                  type="button"
+                  variant={companyMode === 'private' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="h-8"
+                  onClick={() => setCompanyMode('private')}
+                >
+                  Private (Manual)
+                </Button>
+              </div>
+            </div>
+
             {/* Ticker Input */}
+            {!isPrivateMode && (
             <div className="space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <Label htmlFor="ticker">Ticker Symbol</Label>
@@ -2573,6 +2949,205 @@ function CreateModelPageInner() {
                 </p>
               )}
             </div>
+            )}
+
+            {isPrivateMode && (
+              <Card className="border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)]">
+                <CardHeader>
+                  <CardTitle className="text-base text-[var(--cb-text-primary)]">Private Company Inputs</CardTitle>
+                  <CardDescription>
+                    Private mode uses manual inputs; market data auto-fetch is disabled.
+                  </CardDescription>
+                  <p className="text-xs text-[var(--cb-text-muted)]">
+                    Required for {modelType.toUpperCase()}: {privateRequirementsSummary}
+                  </p>
+                </CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="private-company-name">
+                      Company Name {isPrivateFieldRequired('companyName') && <span className="text-[var(--cb-danger)]">*</span>}
+                    </Label>
+                    <Input
+                      id="private-company-name"
+                      value={manualInputs.companyName}
+                      placeholder="Acme Holdings"
+                      onChange={(event) =>
+                        setManualInputs((prev) => ({ ...prev, companyName: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="private-currency">Currency</Label>
+                    <Input
+                      id="private-currency"
+                      value={manualInputs.currency}
+                      placeholder="USD"
+                      onChange={(event) =>
+                        setManualInputs((prev) => ({ ...prev, currency: event.target.value.toUpperCase() }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="private-revenue-ltm">
+                      Revenue (LTM) {isPrivateFieldRequired('revenue') && <span className="text-[var(--cb-danger)]">*</span>}
+                    </Label>
+                    <Input
+                      id="private-revenue-ltm"
+                      value={manualInputs.revenue}
+                      placeholder="e.g., 450000000 or 450M"
+                      onChange={(event) =>
+                        setManualInputs((prev) => ({ ...prev, revenue: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="private-revenue-history">Revenue History (optional)</Label>
+                    <Input
+                      id="private-revenue-history"
+                      value={manualInputs.revenueHistory}
+                      placeholder="e.g., 320M,380M,450M"
+                      onChange={(event) =>
+                        setManualInputs((prev) => ({ ...prev, revenueHistory: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="private-revenue-growth">
+                      Revenue Growth (%) {isPrivateFieldRequired('revenueGrowthPct') && <span className="text-[var(--cb-danger)]">*</span>}
+                    </Label>
+                    <Input
+                      id="private-revenue-growth"
+                      type="number"
+                      step={0.1}
+                      value={manualInputs.revenueGrowthPct}
+                      onChange={(event) =>
+                        setManualInputs((prev) => ({ ...prev, revenueGrowthPct: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="private-ebit-margin">
+                      EBIT / EBITDA Margin (%) {isPrivateFieldRequired('ebitMarginPct') && <span className="text-[var(--cb-danger)]">*</span>}
+                    </Label>
+                    <Input
+                      id="private-ebit-margin"
+                      type="number"
+                      step={0.1}
+                      value={manualInputs.ebitMarginPct}
+                      onChange={(event) =>
+                        setManualInputs((prev) => ({ ...prev, ebitMarginPct: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="private-tax-rate">
+                      Tax Rate (%) {isPrivateFieldRequired('taxRatePct') && <span className="text-[var(--cb-danger)]">*</span>}
+                    </Label>
+                    <Input
+                      id="private-tax-rate"
+                      type="number"
+                      step={0.1}
+                      value={manualInputs.taxRatePct}
+                      onChange={(event) =>
+                        setManualInputs((prev) => ({ ...prev, taxRatePct: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="private-da">D&A % of Revenue (optional)</Label>
+                    <Input
+                      id="private-da"
+                      type="number"
+                      step={0.1}
+                      value={manualInputs.daPctRevenue}
+                      onChange={(event) =>
+                        setManualInputs((prev) => ({ ...prev, daPctRevenue: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="private-capex">
+                      Capex % of Revenue {isPrivateFieldRequired('capexPctRevenue') && <span className="text-[var(--cb-danger)]">*</span>}
+                    </Label>
+                    <Input
+                      id="private-capex"
+                      type="number"
+                      step={0.1}
+                      value={manualInputs.capexPctRevenue}
+                      onChange={(event) =>
+                        setManualInputs((prev) => ({ ...prev, capexPctRevenue: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="private-nwc">
+                      NWC % of Revenue {isPrivateFieldRequired('nwcPctRevenue') && <span className="text-[var(--cb-danger)]">*</span>}
+                    </Label>
+                    <Input
+                      id="private-nwc"
+                      type="number"
+                      step={0.1}
+                      value={manualInputs.nwcPctRevenue}
+                      onChange={(event) =>
+                        setManualInputs((prev) => ({ ...prev, nwcPctRevenue: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="private-net-debt">Net Debt / (Cash) (optional)</Label>
+                    <Input
+                      id="private-net-debt"
+                      value={manualInputs.netDebt}
+                      placeholder="e.g., 120000000 or -50000000"
+                      onChange={(event) =>
+                        setManualInputs((prev) => ({ ...prev, netDebt: event.target.value }))
+                      }
+                    />
+                  </div>
+                  {modelType !== 'reverse-dcf' ? (
+                    <>
+                      <div className="space-y-1">
+                        <Label htmlFor="private-shares">Shares Outstanding (optional)</Label>
+                        <Input
+                          id="private-shares"
+                          value={manualInputs.sharesOutstanding}
+                          placeholder="e.g., 120000000"
+                          onChange={(event) =>
+                            setManualInputs((prev) => ({ ...prev, sharesOutstanding: event.target.value }))
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="private-share-price">Share Price (optional)</Label>
+                        <Input
+                          id="private-share-price"
+                          value={manualInputs.price}
+                          placeholder="e.g., 25.50"
+                          onChange={(event) =>
+                            setManualInputs((prev) => ({ ...prev, price: event.target.value }))
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="private-market-cap">Market Cap (optional)</Label>
+                        <Input
+                          id="private-market-cap"
+                          value={manualInputs.marketCap}
+                          placeholder="e.g., 2500000000 or 2.5B"
+                          onChange={(event) =>
+                            setManualInputs((prev) => ({ ...prev, marketCap: event.target.value }))
+                          }
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded-md border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] px-3 py-2 text-xs text-[var(--cb-text-secondary)] md:col-span-2">
+                      Reverse DCF valuation anchor is set in the Reverse DCF section below.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Manual Financial Inputs (only shown when data can't be fetched) */}
             {missingFields.size > 0 && (
@@ -2695,6 +3270,15 @@ function CreateModelPageInner() {
                       size="sm"
                       onClick={() => {
                         setManualInputs({
+                          companyName: '',
+                          currency: 'USD',
+                          revenueHistory: '',
+                          revenueGrowthPct: '8.0',
+                          ebitMarginPct: '20.0',
+                          taxRatePct: '25.0',
+                          daPctRevenue: '4.0',
+                          capexPctRevenue: '4.0',
+                          nwcPctRevenue: '2.0',
                           price: '',
                           revenue: '',
                           ebitda: '',
@@ -2918,6 +3502,99 @@ function CreateModelPageInner() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2">
+                  <div
+                    className={`md:col-span-2 rounded-md border px-3 py-2 text-sm ${
+                      isPrivateMode
+                        ? reverseDcfMissingPrivateAnchor
+                          ? 'border-[var(--cb-danger)]/40 bg-[var(--cb-danger)]/10 text-[var(--cb-danger)]'
+                          : 'border-[var(--cb-green)]/30 bg-[var(--cb-green)]/10 text-[var(--cb-green)]'
+                        : 'border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] text-[var(--cb-text-secondary)]'
+                    }`}
+                  >
+                    {isPrivateMode
+                      ? reverseDcfMissingPrivateAnchor
+                        ? 'Reverse DCF requires market cap OR share price + shares outstanding.'
+                        : reverseDcfHasMarketCapAnchor
+                          ? 'Reverse DCF anchor detected: Market Cap.'
+                          : 'Reverse DCF anchor detected: Share Price + Shares Outstanding.'
+                      : reverseDcfHasMarketCapAnchor
+                        ? 'Using market cap override as the valuation anchor.'
+                        : 'Ticker mode uses demo market data as the default valuation anchor. You can override it below with market cap.'}
+                  </div>
+                  {isPrivateMode && (
+                    <div className="md:col-span-2 rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
+                      <div className="mb-3">
+                        <h4 className="text-sm font-semibold text-[var(--cb-text-primary)]">Valuation Anchor</h4>
+                        <p className="mt-1 text-xs text-[var(--cb-text-secondary)]">
+                          Required for Reverse DCF in private mode. Enter either market cap, or both share price and shares outstanding.
+                        </p>
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-3">
+                        <div className="space-y-1">
+                          <Label htmlFor="reverse-dcf-market-cap">
+                            Market Cap <span className="text-[var(--cb-danger)]">*</span>
+                          </Label>
+                          <Input
+                            id="reverse-dcf-market-cap"
+                            value={manualInputs.marketCap}
+                            placeholder="e.g., 2.5B"
+                            onChange={(event) => {
+                              clearReverseDcfAnchorError();
+                              setManualInputs((prev) => ({ ...prev, marketCap: event.target.value }));
+                            }}
+                          />
+                          <p className="text-[11px] text-[var(--cb-text-muted)]">Leave blank if using share price + shares.</p>
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="reverse-dcf-share-price">
+                            Share Price
+                            {!reverseDcfHasMarketCapAnchor && <span className="text-[var(--cb-danger)]"> *</span>}
+                          </Label>
+                          <Input
+                            id="reverse-dcf-share-price"
+                            value={manualInputs.price}
+                            placeholder="e.g., 25.50"
+                            onChange={(event) => {
+                              clearReverseDcfAnchorError();
+                              setManualInputs((prev) => ({ ...prev, price: event.target.value }));
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="reverse-dcf-shares">
+                            Shares Outstanding
+                            {!reverseDcfHasMarketCapAnchor && <span className="text-[var(--cb-danger)]"> *</span>}
+                          </Label>
+                          <Input
+                            id="reverse-dcf-shares"
+                            value={manualInputs.sharesOutstanding}
+                            placeholder="e.g., 120000000"
+                            onChange={(event) => {
+                              clearReverseDcfAnchorError();
+                              setManualInputs((prev) => ({ ...prev, sharesOutstanding: event.target.value }));
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {!isPrivateMode && (
+                    <div className="space-y-1">
+                      <Label htmlFor="reverse-dcf-market-cap-override">Market Cap Override (optional)</Label>
+                      <Input
+                        id="reverse-dcf-market-cap-override"
+                        value={manualInputs.marketCap}
+                        placeholder="e.g., 2500000000 or 2.5B"
+                        onChange={(event) => {
+                          clearReverseDcfAnchorError();
+                          setManualInputs((prev) => ({ ...prev, marketCap: event.target.value }));
+                        }}
+                      />
+                      <p className="text-xs text-[var(--cb-text-muted)]">
+                        If entered, this replaces the default demo market cap anchor for the reverse solve.
+                      </p>
+                    </div>
+                  )}
                   <div className="space-y-1">
                     <Label htmlFor="reverse-dcf-wacc">
                       WACC (%) <span className="text-[var(--cb-danger)]">*</span>
@@ -2973,7 +3650,9 @@ function CreateModelPageInner() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="reverse-dcf-target-price">Target Price (Optional)</Label>
+                    <Label htmlFor="reverse-dcf-target-price">
+                      {isPrivateMode ? 'Target Price (optional when anchor provided)' : 'Target Price (Optional)'}
+                    </Label>
                     <Input
                       id="reverse-dcf-target-price"
                       type="number"
@@ -2986,9 +3665,16 @@ function CreateModelPageInner() {
                       }
                     />
                     <p className="text-xs text-[var(--cb-text-muted)]">
-                      Leave blank to default target price to current demo market price.
+                      {isPrivateMode
+                        ? 'Provide market cap OR share price + shares outstanding in Private Company Inputs when target price is blank.'
+                        : 'Leave blank to default target price to current demo market price.'}
                     </p>
                   </div>
+                  {reverseDcfInlineError && (
+                    <div className="md:col-span-2 rounded-md border border-[var(--cb-danger)]/40 bg-[var(--cb-danger)]/10 px-3 py-2 text-sm text-[var(--cb-danger)]">
+                      {reverseDcfInlineError}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -3685,8 +4371,8 @@ function CreateModelPageInner() {
 
             {timerPanel}
 
-            {error && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+            {globalFormError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{globalFormError}</div>
             )}
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -3777,14 +4463,36 @@ function CreateModelPageInner() {
                 generatedModel.modelType.toUpperCase();
               const runReportUrl =
                 typeof generatedModel.modelId === 'string' && generatedModel.modelId.startsWith('run_')
-                  ? `/reports/${generatedModel.modelId}?print=1`
+                  ? `/api/model-runs/${generatedModel.modelId}/report/pdf`
                   : undefined;
               
               // Handle download via downloadWorkbook function
               const handleDownload = async () => {
-                if (!lastRequestBody || downloadState === 'downloading') return;
+                if (downloadState === 'downloading') return;
                 try {
                   setDownloadState('downloading');
+                  const existingDownloadUrl =
+                    typeof generatedModel.downloadUrl === 'string' && generatedModel.downloadUrl.trim().length > 0
+                      ? generatedModel.downloadUrl
+                      : null;
+
+                  if (existingDownloadUrl) {
+                    const link = document.createElement('a');
+                    link.href = existingDownloadUrl;
+                    link.download = `${generatedModel.ticker}_${generatedModel.modelType}_${new Date()
+                      .toISOString()
+                      .split('T')[0]}.xlsx`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setDownloadState('idle');
+                    return;
+                  }
+
+                  if (!lastRequestBody) {
+                    throw new Error('Workbook download is unavailable for this run.');
+                  }
+
                   await downloadWorkbook({
                     ticker: generatedModel.ticker,
                     modelType: generatedModel.modelType,
@@ -3815,7 +4523,8 @@ function CreateModelPageInner() {
                   generatedAt={generatedModel.createdAt}
                   status={blocks.length > 0 ? 'failed' : 'success'}
                   onDownload={lastRequestBody ? handleDownload : undefined}
-                  pdfReportUrl={runReportUrl}
+                  onDownloadPdfReport={handleDownloadReportPdf}
+                  pdfReportUrl={runReportUrl || reportPdfUrl || undefined}
                   onRunAgain={resetForm}
                   preview={previewNode}
                   assumptions={
@@ -4329,14 +5038,14 @@ function CreateModelPageInner() {
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                  {reportPdfUrl && (
-                    <a
-                      href={reportPdfUrl}
-                      download={`CapitalBase-${ticker || generatedModel?.ticker || 'report'}.pdf`}
+                  {resolveReportPdfUrl() && (
+                    <button
+                      type="button"
+                      onClick={handleDownloadReportPdf}
                       className="inline-flex items-center justify-center rounded-lg border border-[var(--cb-border-subtle)] px-3 py-1.5 text-sm font-medium text-[var(--cb-text-primary)] hover:bg-[var(--cb-surface-alt)]"
                     >
                       Download PDF
-                    </a>
+                    </button>
                   )}
                   <button
                     type="button"
@@ -4384,7 +5093,8 @@ function CreateModelPageInner() {
           </div>
         )}
       </div>
-    </main>
+      <ToastEnhanced toasts={toasts} onRemove={removeToast} />
+    </div>
   );
 }
 
@@ -4396,10 +5106,78 @@ export default function CreateModelPage() {
   );
 }
 
+function parseReportBodyBlocks(
+  body: string
+): Array<{ type: 'paragraph'; text: string } | { type: 'bullets'; items: string[] }> {
+  const chunks = body
+    .split(/\n\s*\n/)
+    .map((chunk) => chunk.trim())
+    .filter((chunk) => chunk.length > 0);
+
+  const blocks: Array<{ type: 'paragraph'; text: string } | { type: 'bullets'; items: string[] }> = [];
+
+  for (const chunk of chunks) {
+    const lines = chunk
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    let paragraphLines: string[] = [];
+    let bulletLines: string[] = [];
+
+    const flushParagraph = () => {
+      if (!paragraphLines.length) return;
+      blocks.push({ type: 'paragraph', text: paragraphLines.join(' ') });
+      paragraphLines = [];
+    };
+
+    const flushBullets = () => {
+      if (!bulletLines.length) return;
+      blocks.push({
+        type: 'bullets',
+        items: bulletLines.map((line) => line.replace(/^[•*-]\s+/, '').trim()),
+      });
+      bulletLines = [];
+    };
+
+    for (const line of lines) {
+      if (/^[•*-]\s+/.test(line)) {
+        flushParagraph();
+        bulletLines.push(line);
+      } else {
+        flushBullets();
+        paragraphLines.push(line);
+      }
+    }
+
+    flushParagraph();
+    flushBullets();
+  }
+
+  return blocks;
+}
+
 function ReportMarkdown({ text, reportPayload }: { text: string; reportPayload?: any }) {
   // Prefer canonical structure if available
   let sections: Array<{ title: string; body: string }> = [];
   let useFallback = false;
+  const reportTitle =
+    reportPayload?.title && typeof reportPayload.title === 'string'
+      ? reportPayload.title
+      : 'CapitalBase Analyst Report';
+  const reportSubtitle =
+    reportPayload?.subtitle && typeof reportPayload.subtitle === 'string' ? reportPayload.subtitle : null;
+  const reportSummary =
+    reportPayload?.summaryText && typeof reportPayload.summaryText === 'string'
+      ? reportPayload.summaryText.trim()
+      : text?.trim() || '';
+  const reportTakeaways = Array.isArray(reportPayload?.keyTakeaways)
+    ? reportPayload.keyTakeaways.filter((item: any) => typeof item === 'string' && item.trim().length > 0)
+    : [];
+  const generatedLabel =
+    reportPayload?.generatedAt && typeof reportPayload.generatedAt === 'string'
+      ? new Date(reportPayload.generatedAt).toLocaleString()
+      : null;
 
   if (reportPayload && reportPayload.sections && Array.isArray(reportPayload.sections)) {
     // Use canonical structure
@@ -4463,22 +5241,77 @@ function ReportMarkdown({ text, reportPayload }: { text: string; reportPayload?:
   return (
     <div className="space-y-4">
       {useFallback && (
-        <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-700 dark:text-yellow-400">
-          ⚠️ Report rendered in fallback mode due to a formatting issue.
+        <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-700 dark:text-yellow-400">
+          Report rendered in fallback mode due to a formatting issue.
         </div>
       )}
-      {sections.map((section, index) => (
-        <div key={index} className="space-y-2">
-          <h3 className="text-sm font-semibold text-[var(--cb-green)]">{section.title}</h3>
-          <div className="space-y-2 text-sm text-[var(--cb-text-primary)]">
-            {section.body.split(/\n\s*\n/).map((paragraph, idx) => (
-              <p key={idx} className="whitespace-pre-wrap">
-                {paragraph.trim()}
-              </p>
+      <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">
+              CapitalBase Analyst Memo
+            </p>
+            <h3 className="text-lg font-semibold text-[var(--cb-text-primary)]">{reportTitle}</h3>
+            {reportSubtitle && <p className="text-sm text-[var(--cb-text-secondary)]">{reportSubtitle}</p>}
+          </div>
+          {generatedLabel && (
+            <div className="rounded-full border border-[var(--cb-border-subtle)] px-3 py-1 text-xs text-[var(--cb-text-muted)]">
+              Generated {generatedLabel}
+            </div>
+          )}
+        </div>
+        {reportSummary && (
+          <div className="mt-4 rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-4">
+            <p className="text-sm leading-6 text-[var(--cb-text-primary)]">{reportSummary}</p>
+          </div>
+        )}
+        {reportTakeaways.length > 0 && (
+          <div className="mt-4 grid gap-2 md:grid-cols-3">
+            {reportTakeaways.slice(0, 3).map((takeaway: string, index: number) => (
+              <div
+                key={`${takeaway}-${index}`}
+                className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] px-4 py-3 text-sm text-[var(--cb-text-primary)]"
+              >
+                {takeaway}
+              </div>
             ))}
           </div>
-        </div>
-      ))}
+        )}
+      </div>
+      <div className="grid gap-4">
+        {sections.map((section, index) => {
+          const blocks = parseReportBodyBlocks(section.body);
+          return (
+            <div
+              key={index}
+              className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-5"
+            >
+              <div className="mb-3 flex items-center gap-3">
+                <div className="h-5 w-1 rounded-full bg-[var(--cb-green)]" />
+                <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--cb-text-primary)]">
+                  {section.title}
+                </h3>
+              </div>
+              <div className="space-y-3 text-sm leading-6 text-[var(--cb-text-primary)]">
+                {blocks.map((block, blockIndex) =>
+                  block.type === 'paragraph' ? (
+                    <p key={`${section.title}-p-${blockIndex}`}>{block.text}</p>
+                  ) : (
+                    <ul
+                      key={`${section.title}-b-${blockIndex}`}
+                      className="space-y-2 pl-5 text-[var(--cb-text-primary)]"
+                    >
+                      {block.items.map((item, itemIndex) => (
+                        <li key={`${section.title}-b-${blockIndex}-${itemIndex}`}>{item}</li>
+                      ))}
+                    </ul>
+                  )
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
       {process.env.NODE_ENV === 'development' && (
         <details className="mt-4 rounded-lg border border-gray-300 p-2 text-xs">
           <summary className="cursor-pointer font-semibold">Debug Info</summary>

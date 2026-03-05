@@ -14,8 +14,12 @@ const MODEL_TYPE_MAP: Record<string, ReportModelType> = {
   dcf: 'dcf',
   lbo: 'lbo',
   comps: 'comps',
-  'three_statement': 'three_statement',
-  'three-statement': 'three_statement',
+  scorecard: 'scorecard',
+  merger: 'merger',
+  operating: 'operating',
+  'debt-capacity-lite': 'debt-capacity-lite',
+  'three_statement': 'three-statement',
+  'three-statement': 'three-statement',
 };
 
 interface GenerateReportRequest {
@@ -37,11 +41,14 @@ interface GenerateReportRequest {
 export async function POST(req: Request) {
   try {
     const payload: GenerateReportRequest = await req.json();
-    const ticker = payload.ticker?.trim().toUpperCase();
+    const ticker =
+      payload.ticker?.trim().toUpperCase() ||
+      payload.companyName?.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_') ||
+      'PRIVATE';
     const normalizedType = normalizeModelType(payload.modelType);
 
-    if (!ticker || !normalizedType) {
-      return NextResponse.json({ error: 'ticker and modelType are required' }, { status: 400 });
+    if (!normalizedType) {
+      return NextResponse.json({ error: 'modelType is required' }, { status: 400 });
     }
 
     const context = buildReportContext({
@@ -177,7 +184,7 @@ export async function POST(req: Request) {
       stack: (error as Error)?.stack,
     });
     const message = error instanceof Error ? error.message : 'Failed to generate report';
-    const status = /required/i.test(message) ? 400 : 500;
+    const status = /required|insufficient inputs/i.test(message) ? 400 : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }
@@ -207,6 +214,7 @@ function buildReportContext({
     sector: payload.sector,
     risks: payload.risks,
     upside: payload.upside,
+    data: payload.modelData ?? {},
   };
 
   const derivedFromModel = deriveContextFromModelData(payload.modelData);
@@ -223,6 +231,7 @@ function deriveContextFromModelData(modelData: any): Partial<ReportContext> {
   const compsData = modelData.assumptions?.compsModel;
   const currentPrice = compsData?.metadata?.currentPrice;
   const scenarioSummaries = modelData.scenarioSummaries;
+  const threeStatement = modelData.threeStatementSummary;
 
   const baseValue =
     dcfSummary?.valuationResults?.pricePerShare ?? compsValuation?.blendedValuePerShare ?? undefined;
@@ -232,6 +241,41 @@ function deriveContextFromModelData(modelData: any): Partial<ReportContext> {
     scenarioSummaries?.bear?.valuationResults?.pricePerShare ?? compsValuation?.bearValuePerShare ?? undefined;
 
   const leverageEntry = modelData.lboSummary?.debtSchedule?.[0]?.leverageMultiple;
+  const revenueSeries = Array.isArray(threeStatement?.incomeStatement?.revenue) ? threeStatement.incomeStatement.revenue : [];
+  const ebitdaSeries = Array.isArray(threeStatement?.incomeStatement?.ebitda) ? threeStatement.incomeStatement.ebitda : [];
+  const endingCashSeries = Array.isArray(threeStatement?.cashFlow?.endingCash) ? threeStatement.cashFlow.endingCash : [];
+  const debtSeries = Array.isArray(threeStatement?.balanceSheet?.debt) ? threeStatement.balanceSheet.debt : [];
+  const revenueStart =
+    revenueSeries.length && typeof revenueSeries[0] === 'number' ? revenueSeries[0] : undefined;
+  const revenueEnd =
+    revenueSeries.length && typeof revenueSeries[revenueSeries.length - 1] === 'number'
+      ? revenueSeries[revenueSeries.length - 1]
+      : undefined;
+  const periods = revenueSeries.length;
+  const revenueCagrPct =
+    revenueStart && revenueEnd && revenueStart > 0 && periods > 1
+      ? (Math.pow(revenueEnd / revenueStart, 1 / (periods - 1)) - 1) * 100
+      : undefined;
+  const endingCash =
+    endingCashSeries.length && typeof endingCashSeries[endingCashSeries.length - 1] === 'number'
+      ? endingCashSeries[endingCashSeries.length - 1]
+      : undefined;
+  const endingDebt =
+    debtSeries.length && typeof debtSeries[debtSeries.length - 1] === 'number'
+      ? debtSeries[debtSeries.length - 1]
+      : undefined;
+  const endingRevenue =
+    revenueSeries.length && typeof revenueSeries[revenueSeries.length - 1] === 'number'
+      ? revenueSeries[revenueSeries.length - 1]
+      : undefined;
+  const endingEbitda =
+    ebitdaSeries.length && typeof ebitdaSeries[ebitdaSeries.length - 1] === 'number'
+      ? ebitdaSeries[ebitdaSeries.length - 1]
+      : undefined;
+  const endingEbitdaMarginPct =
+    endingRevenue && endingEbitda !== undefined && endingRevenue !== 0
+      ? (endingEbitda / endingRevenue) * 100
+      : undefined;
 
   const keyOutputs: ReportContext['keyOutputs'] = {
     baseValuePerShare: baseValue,
@@ -249,6 +293,17 @@ function deriveContextFromModelData(modelData: any): Partial<ReportContext> {
           fcfMarginPct: compsData.ltm.fcfMarginPct,
         }
       : undefined,
+    threeStatement:
+      revenueSeries.length > 0
+        ? {
+            revenueCagrPct,
+            endingRevenue,
+            endingEbitda,
+            endingEbitdaMarginPct,
+            endingCash,
+            endingDebt,
+          }
+        : undefined,
   };
 
   const notes = [];
@@ -260,6 +315,7 @@ function deriveContextFromModelData(modelData: any): Partial<ReportContext> {
   }
 
   return {
+    companyName: threeStatement?.companyName ?? undefined,
     keyOutputs,
     highLevelNotes: notes.length ? notes.join(' ') : undefined,
     macro: modelData.macroContext ?? modelData.macro ?? undefined,

@@ -21,6 +21,7 @@ import {
   NUMBER_FORMATS,
   COLORS,
 } from './formatting';
+import { toUniqueWorksheetName } from './safeSheetName';
 
 export interface TimeColumnConfig {
   baseYearLabel?: string; // e.g., "LTM" or "Base Year"
@@ -37,7 +38,7 @@ export function createSheetWithStructure(
   sheetName: string,
   freezeHeaderRows: number = 1
 ): ExcelJS.Worksheet {
-  const sheet = workbook.addWorksheet(sheetName);
+  const sheet = workbook.addWorksheet(toUniqueWorksheetName(workbook, sheetName, 'Model'));
   
   // Disable gridlines
   disableGridlines(sheet);

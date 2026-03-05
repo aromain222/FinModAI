@@ -3,6 +3,7 @@ import {
   getDemoSnapshotsBySector,
   type DemoSnapshotRow,
 } from '@/lib/data/providers/demoProvider';
+import type { ModelInputs } from '@/types/modelInputs';
 
 export type ScorecardUnit = 'money' | 'percent' | 'multiple';
 
@@ -90,7 +91,105 @@ const valuesForMetric = (
     .map((peer) => selector(deriveMetrics(peer)))
     .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
 
-export async function buildScorecardSummary(ticker: string): Promise<ScorecardSummary> {
+const buildManualScorecardSummary = (modelInputs: ModelInputs): ScorecardSummary => {
+  const revenue = Array.isArray(modelInputs.historicals?.revenue)
+    ? modelInputs.historicals.revenue[modelInputs.historicals.revenue.length - 1] ?? null
+    : null;
+  const margin =
+    typeof modelInputs.assumptions?.margin === 'number' && Number.isFinite(modelInputs.assumptions.margin)
+      ? modelInputs.assumptions.margin
+      : null;
+  const taxRate =
+    typeof modelInputs.assumptions?.taxRate === 'number' && Number.isFinite(modelInputs.assumptions.taxRate)
+      ? modelInputs.assumptions.taxRate
+      : null;
+  const netDebt =
+    typeof modelInputs.capitalStructure?.netDebt === 'number' && Number.isFinite(modelInputs.capitalStructure.netDebt)
+      ? modelInputs.capitalStructure.netDebt
+      : null;
+
+  const ebitda = revenue !== null && margin !== null ? revenue * margin : null;
+  const netIncome =
+    revenue !== null && margin !== null && taxRate !== null ? revenue * margin * (1 - taxRate) * 0.8 : null;
+
+  const inferredCashToDebt =
+    typeof netDebt === 'number' && netDebt < 0 ? null : null;
+
+  return {
+    company: {
+      ticker: modelInputs.company.ticker?.trim().toUpperCase() || 'PRIVATE',
+      companyName: modelInputs.company.name || 'Private Company',
+      sector: null,
+      asOfDate: modelInputs.metadata?.asOfDate || null,
+    },
+    metrics: [
+      {
+        label: 'EBITDA Margin',
+        value: margin,
+        unit: 'percent',
+        sectorMedian: null,
+        percentile: null,
+        notes: margin === null ? 'Margin assumption unavailable.' : 'Derived from manual margin input.',
+      },
+      {
+        label: 'Net Margin',
+        value:
+          revenue !== null && revenue > 0 && netIncome !== null
+            ? netIncome / revenue
+            : null,
+        unit: 'percent',
+        sectorMedian: null,
+        percentile: null,
+        notes:
+          revenue !== null && revenue > 0 && netIncome !== null
+            ? 'Derived from manual revenue, margin, and tax assumptions.'
+            : 'Revenue, margin, or tax input unavailable.',
+      },
+      {
+        label: 'Net Debt',
+        value: netDebt,
+        unit: 'money',
+        sectorMedian: null,
+        percentile: null,
+        notes: netDebt === null ? 'Optional net debt input not provided.' : 'Taken from manual capital structure input.',
+      },
+      {
+        label: 'Net Debt / EBITDA',
+        value:
+          typeof netDebt === 'number' && typeof ebitda === 'number' && ebitda > 0
+            ? netDebt / ebitda
+            : null,
+        unit: 'multiple',
+        sectorMedian: null,
+        percentile: null,
+        notes:
+          typeof netDebt === 'number' && typeof ebitda === 'number' && ebitda > 0
+            ? 'Computed from manual net debt and inferred EBITDA.'
+            : 'Requires manual net debt and positive EBITDA.',
+      },
+      {
+        label: 'Cash / Debt',
+        value: inferredCashToDebt,
+        unit: 'multiple',
+        sectorMedian: null,
+        percentile: null,
+        notes: 'Cash and total debt are not collected separately in private/manual mode.',
+      },
+    ],
+  };
+};
+
+export async function buildScorecardSummary(
+  ticker: string,
+  options?: {
+    modelInputs?: ModelInputs | null;
+    privateManualMode?: boolean;
+  }
+): Promise<ScorecardSummary> {
+  if (options?.privateManualMode && options.modelInputs) {
+    return buildManualScorecardSummary(options.modelInputs);
+  }
+
   const cleanTicker = ticker.trim().toUpperCase();
   const subject = await getDemoCompany(cleanTicker);
 

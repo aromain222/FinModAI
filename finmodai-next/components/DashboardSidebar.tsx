@@ -9,7 +9,8 @@ import {
   FileText, 
   Settings, 
   MessageSquare,
-  Newspaper 
+  Newspaper,
+  Radar
 } from "lucide-react";
 import { CapitalBaseLogo } from "@/components/CapitalBaseLogo";
 import { APP_CONSOLE_NAME, APP_NAME } from "@/lib/branding";
@@ -19,6 +20,7 @@ const navItems = [
   { href: '/app', label: 'Overview', icon: LayoutDashboard, section: 'Workspace' },
   { href: '/models', label: 'Models', icon: Layers, section: 'Workspace' },
   { href: '/news', label: 'News', icon: Newspaper, section: 'Tools' },
+  { href: '/events', label: 'Events', icon: Radar, section: 'Tools' },
   { href: '/market', label: 'Market', icon: LineChart, section: 'Tools' },
   { href: '/reports', label: 'Reports', icon: FileText, section: 'Tools' },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings, section: 'Settings' },

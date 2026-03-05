@@ -47,6 +47,7 @@ type RunResult = {
   dcfSummary?: unknown;
   lboSummary?: unknown;
   scorecardSummary?: unknown;
+  debtCapacityLite?: unknown;
 };
 
 const MODEL_LABELS: Record<string, string> = {
@@ -55,6 +56,7 @@ const MODEL_LABELS: Record<string, string> = {
   'three-statement': 'THREE_STATEMENT',
   scorecard: 'SCORECARD',
   lbo: 'LBO',
+  'debt-capacity-lite': 'DEBT_CAPACITY_LITE',
 };
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -285,6 +287,34 @@ function extractScorecardSnapshot(result: RunResult): SnapshotItem[] {
   return metrics;
 }
 
+function extractDebtCapacitySnapshot(result: RunResult): SnapshotItem[] {
+  const summary = isObject(result.debtCapacityLite) ? result.debtCapacityLite : {};
+  const leverageCap = toFinite(summary.leverageCap);
+  const coverageCap = toFinite(summary.coverageCap);
+  const maxDebt = toFinite(summary.maxDebt);
+  const currentNetDebt = toFinite(summary.currentNetDebt);
+  const headroom = toFinite(summary.headroomVsNetDebt);
+  const bindingRaw = toText(summary.bindingConstraint);
+
+  return [
+    { label: 'Leverage-Based Cap', value: leverageCap, format: 'money' as const },
+    { label: 'Coverage-Based Cap', value: coverageCap, format: 'money' as const },
+    { label: 'Selected Max Debt', value: maxDebt, format: 'money' as const },
+    { label: 'Current Net Debt', value: currentNetDebt, format: 'money' as const },
+    { label: 'Headroom vs Net Debt', value: headroom, format: 'money' as const },
+    {
+      label: 'Binding Constraint',
+      value:
+        bindingRaw === 'leverage'
+          ? 'Leverage'
+          : bindingRaw === 'coverage'
+            ? 'Coverage'
+            : null,
+      format: 'text' as const,
+    },
+  ].filter((item) => item.value !== null) as SnapshotItem[];
+}
+
 function extractSnapshotItems(
   modelType: string,
   doc: ModelDocument | null,
@@ -294,6 +324,7 @@ function extractSnapshotItems(
   if (modelType === 'comps') return extractCompsSnapshot(doc);
   if (modelType === 'three-statement') return extractThreeStatementSnapshot(doc);
   if (modelType === 'scorecard') return extractScorecardSnapshot(result);
+  if (modelType === 'debt-capacity-lite') return extractDebtCapacitySnapshot(result);
   return [];
 }
 
@@ -309,6 +340,9 @@ function keyTableIdsForModel(modelType: string): string[] {
   }
   if (modelType === 'scorecard') {
     return ['scorecard_company_overview', 'scorecard_metrics'];
+  }
+  if (modelType === 'debt-capacity-lite') {
+    return ['debt_capacity_lite_summary'];
   }
   return [];
 }

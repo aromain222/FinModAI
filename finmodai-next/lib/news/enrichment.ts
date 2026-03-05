@@ -6,6 +6,29 @@ import { headlineEnrichmentSchema, type HeadlineEnrichment, type SectorName } fr
 import { inferEventImpact } from '@/lib/news/eventImpact';
 import { assessHeadlineRelevance } from '@/lib/news/relevance';
 
+const EVENT_INTELLIGENCE_SYSTEM_PROMPT = `You are CapitalBase Analyst, a professional financial markets analyst.
+
+Your job is to convert financial news into clear, structured market intelligence.
+
+PRIMARY RULE: RESPONSES MUST BE EASY TO READ.
+
+Formatting rules:
+- Never write long paragraphs.
+- Each section must use bullet points (lines starting with "• ").
+- Each bullet must be one short sentence.
+- Maximum 12 words per bullet when possible.
+- Leave a blank line between sections.
+- Do not combine multiple sections in one paragraph.
+- Only include sections that are relevant.
+- Avoid dense text blocks.
+- The output should be scannable in a dashboard card.
+
+If a section has no clear impact, omit it entirely.
+Never output text like "Stocks: ... Bonds: ... Dollar: ..." on one line.
+Each asset class must appear on its own line with bullets underneath.
+
+Output must be valid JSON matching the schema.`;
+
 const dbRowSchema = z.object({
   url: z.string().url(),
   ai_summary: z.string().nullable().optional(),
@@ -33,6 +56,13 @@ function splitSentences(text: string): string[] {
     .split(/(?<=[.!?])\s+/)
     .map((sentence) => sentence.trim())
     .filter((sentence) => sentence.length > 0);
+}
+
+function simplifyDenseProse(text: string): string {
+  return text
+    .replace(/\s*;\s*/g, '. ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function ensureMinSentences(text: string, minimum: number, extras: string[]): string {
@@ -204,6 +234,7 @@ function isGenericSummary(text: string | null | undefined): boolean {
 export function deterministicFallback(headline: {
   title: string;
   description: string | null;
+  contextLines?: string[];
 }): HeadlineEnrichment {
   const relevance = assessHeadlineRelevance({
     title: headline.title,
@@ -217,39 +248,48 @@ export function deterministicFallback(headline: {
     description: headline.description,
   });
   const direction = directionFromBias(impact.bias);
-
-  const sectorSummary =
-    impact.affectedSectors.length > 0
-      ? impact.affectedSectors
-          .slice(0, 3)
-          .map((item) => `${item.sector} ${item.direction === 'up' ? 'outperforming' : item.direction === 'down' ? 'underperforming' : 'mixed'}`)
-          .join(', ')
-      : 'sector performance mixed';
-  const transmissionHint = impact.watchItems[0] ?? 'discount-rate and risk-premium repricing';
   const theme = inferHeadlineTheme(headline.title, headline.description);
-  const specificTokens = extractSpecificTokens(headline).slice(0, 3);
-  const specificEntities = extractHeadlineEntities(headline);
-  const specificPhrase =
-    specificEntities.length > 0
-      ? `Headline drivers include ${specificEntities.join(', ')}.`
-      : specificTokens.length > 0
-      ? `Headline drivers include ${specificTokens.join(', ')}.`
-      : `Headline driver: ${headline.title}.`;
+  const entities = extractHeadlineEntities(headline);
   const directional = directionalTriplet(impact.bias);
-  const leadSectors = impact.affectedSectors.slice(0, 2).map((item) => item.sector).join(' and ') || 'macro-sensitive sectors';
-  const catalystFocus = specificEntities[0] ?? specificTokens[0] ?? headline.title;
-  const aiSummary = ensureNaturalSummary(
-    `${headline.title}. ${headline.description ?? ''} ${specificPhrase} Base case over 1-5 trading days is ${impact.bias}, with first-order transmission through ${theme.channel}. Initial expression is likely ${theme.baseCase}, with sector read-through of ${sectorSummary}. Confirmation should come from ${theme.watch.join(', ')} and cross-asset breadth; invalidate if those anchors diverge from price action tied to this headline.`,
-    `${headline.title}. Base case over 1-5 sessions follows ${theme.channel}. Monitor ${theme.watch.join(', ')} for confirmation versus invalidation.`,
-    2
-  );
-  const whyItMatters = ensureMinSentences(
-    `Market impact: over the next 1-5 sessions, this catalyst (${catalystFocus}) points to equities ${directional.equities}, rates ${directional.rates}, and USD ${directional.usd}, with the earliest pressure likely in ${leadSectors}. The transmission channel runs through ${transmissionHint}, where repricing around ${catalystFocus} can move discount rates, risk premium, and sector leadership before the broad index fully adjusts. Confirmation should come from ${theme.watch.join(', ')}, plus VIX and IG/HY spreads; invalidate the view if those anchors do not confirm within 2-3 sessions.`,
-    4,
-    [
-      `If confirmation persists, positioning impact can extend into factor and sector rotation over the next week.`,
-    ]
-  );
+
+  const biasPlain: Record<string, string> = {
+    'Risk-On': 'generally positive for stocks',
+    'Risk-Off': 'a cautious signal — investors may pull back from risky assets',
+    Hawkish: 'a signal that interest rates could stay higher, which tends to pressure stocks',
+    Dovish: 'a signal that rate cuts are more likely, which tends to help stocks',
+    Neutral: 'unlikely to move markets much on its own',
+  };
+
+  const stocksBullet = directional.equities === 'up' ? '• Stocks could move higher' : directional.equities === 'down' ? '• Stocks could come under pressure' : '• Stock reaction is likely mixed';
+  const ratesBullet = directional.rates.includes('up') || directional.rates.includes('higher') ? '• Yields may rise, pushing bond prices down' : directional.rates.includes('down') || directional.rates.includes('lower') ? '• Yields may fall, pushing bond prices up' : null;
+  const fxBullet = directional.usd === 'up' ? '• Dollar could strengthen' : directional.usd === 'down' ? '• Dollar could weaken' : null;
+
+  const leadSectors = impact.affectedSectors.slice(0, 2);
+  const winnerBullets = leadSectors.filter((s) => s.direction === 'up').map((s) => `• ${s.sector}: ${s.rationale ?? 'likely to benefit'}`);
+  const loserBullets = leadSectors.filter((s) => s.direction === 'down').map((s) => `• ${s.sector}: ${s.rationale ?? 'could face pressure'}`);
+
+  const aiSummary = headline.description
+    ? `• ${headline.title}\n• ${headline.description}`
+    : `• ${headline.title}`;
+
+  const sections: string[] = [
+    'SUMMARY',
+    `• ${biasPlain[impact.bias] ?? 'A market signal worth watching'}`,
+    '',
+    'MARKET IMPACT',
+    '',
+    'Equities',
+    stocksBullet,
+    ...(ratesBullet ? ['', 'Rates', ratesBullet] : []),
+    ...(fxBullet ? ['', 'FX', fxBullet] : []),
+    ...(winnerBullets.length > 0 ? ['', 'WINNERS', ...winnerBullets] : []),
+    ...(loserBullets.length > 0 ? ['', 'LOSERS', ...loserBullets] : []),
+    '',
+    'WATCH NEXT',
+    ...theme.watch.slice(0, 3).map((w) => `• ${w}`),
+  ];
+
+  const whyItMatters = sections.join('\n');
 
   return headlineEnrichmentSchema.parse({
     ai_summary: aiSummary,
@@ -260,14 +300,14 @@ export function deterministicFallback(headline: {
           direction: sector.direction,
           rationale: sector.rationale,
         }))
-      : [{ sector: 'Financials', direction, rationale: 'Macro spillover channel.' }],
+      : [{ sector: 'Financials', direction, rationale: 'Broad market sensitivity.' }],
     impacted_tickers: impact.affectedTickers.length > 0
       ? impact.affectedTickers.map((ticker) => ({
           ticker: ticker.ticker,
           direction: ticker.direction,
           rationale: ticker.rationale,
         }))
-      : [{ ticker: 'SPY', direction, rationale: 'Broad market proxy for first-order impact.' }],
+      : [{ ticker: 'SPY', direction, rationale: 'Tracks the overall stock market.' }],
     confidence: impact.confidence,
   });
 }
@@ -391,7 +431,7 @@ function coerceToHeadlineEnrichment(payload: unknown): HeadlineEnrichment {
 
 function ensureCompleteness(
   enrichment: HeadlineEnrichment,
-  headline: { title: string; description: string | null }
+  headline: { title: string; description: string | null; contextLines?: string[] }
 ): HeadlineEnrichment {
   const fallback = deterministicFallback(headline);
   const ensureSpecificSummary = (text: string | null): string | null => {
@@ -402,48 +442,14 @@ function ensureCompleteness(
     const withSpecificity = hasArticleSpecificity(picked, headline)
       ? picked
       : `${picked} Catalyst from headline: ${headline.title}.`;
-    return ensureNaturalSummary(withSpecificity, fallback.ai_summary ?? '', 2);
+    return simplifyDenseProse(ensureNaturalSummary(withSpecificity, fallback.ai_summary ?? '', 2));
   };
   const ensureConcreteImpact = (text: string | null, fallbackText: string | null): string | null => {
-    const candidate = text ?? '';
-    const fallbackCandidate = fallbackText ?? '';
-    const pick = (value: string): string => value.trim();
-
-    const signals = /(equities|stocks|s&p|spx|rates?|yields?|2y|10y|usd|dollar|dxy|credit|spreads?|ig|hy|vix|volatility|breadth|sector)/i;
-    const directionals = /(up|down|higher|lower|tighten|widen|strengthen|weaken|risk-on|risk off|hawkish|dovish)/i;
-
-    // If the provided text isn't directional/actionable, prefer our deterministic impact template.
-    const candidateSpecific = hasArticleSpecificity(candidate, headline);
-    const base =
-      pick(candidate) &&
-      signals.test(candidate) &&
-      directionals.test(candidate) &&
-      candidateSpecific &&
-      !isGenericSummary(candidate)
-        ? pick(candidate)
-        : pick(fallbackCandidate || candidate);
-    if (!base) return null;
-
-    const withAnchors = signals.test(base)
-      ? base
-      : ensureMinSentences(
-          base,
-          4,
-          splitSentences(
-            `Market impact should be validated through rates (2Y/10Y), USD (DXY), credit spreads (IG/HY), and sector dispersion before conviction is increased.`
-          )
-        );
-
-    const entities = extractHeadlineEntities(headline);
-    const specificitySuffix =
-      entities.length > 0 ? ` Catalyst focus: ${entities.join(', ')}.` : ` Catalyst focus: ${headline.title}.`;
-    const normalized = /^Market impact:/i.test(withAnchors)
-      ? withAnchors
-      : /Market impact:/i.test(withAnchors)
-      ? `Market impact: ${withAnchors.replace(/Market impact:\\s*/i, '').trim()}`
-      : `Market impact: ${withAnchors.replace(/^[\\s.]+/, '').trim()}`;
-
-    return hasArticleSpecificity(normalized, headline) ? normalized : `${normalized}${specificitySuffix}`;
+    const candidate = (text ?? '').trim();
+    const fb = (fallbackText ?? '').trim();
+    if (candidate && candidate.length > 40) return candidate;
+    if (fb) return fb;
+    return null;
   };
   return headlineEnrichmentSchema.parse({
     ai_summary: ensureSpecificSummary(enrichment.ai_summary),
@@ -563,31 +569,68 @@ export async function getEnrichmentForHeadline(headline: {
           input: [
             {
               role: 'system',
-              content:
-                'You are an institutional buy-side macro strategist. Write neutral, finance-native analysis only. No hype, no retail language. Focus on concrete transmission channels and tradable market impact. Output valid JSON only.',
+              content: EVENT_INTELLIGENCE_SYSTEM_PROMPT,
             },
             {
               role: 'user',
-              content: `Headline title: ${headline.title}
-Description: ${headline.description ?? ''}
-Additional context: ${(headline.contextLines ?? []).join(' | ')}
-Return JSON with:
-ai_summary (natural-language summary in 2-5 sentences. Explain what happened in plain words, why it matters, and the likely near-term setup. No bullet list style, no shorthand dump),
-why_it_matters (natural-language market intelligence note in 3-6 sentences. Explain how this specific headline could move equities/rates/USD/credit, include likely sector winners/losers and monitoring/invalidation signals in normal prose. Start with 'Market impact:' but keep the rest conversational and clear),
-impacted_tickers (array of {ticker,direction,rationale?}),
-impacted_sectors (array of {sector,direction,rationale?}),
-confidence (high|medium|low)
-Directions: up|down|mixed|unknown
-Allowed sectors: Technology, Financials, Healthcare, Consumer Discretionary, Consumer Staples, Industrials, Energy, Materials, Utilities, Real Estate, Communication Services
+              content: `Headline: ${headline.title}
+Description: ${headline.description ?? 'None'}
+
+Return JSON with these fields:
+
+"ai_summary": 1-2 short bullet points explaining the event. Use "• " prefix for each bullet. Keep each bullet under 15 words.
+
+"why_it_matters": A structured analysis using this EXACT format. Each section header is on its own line. Every content line starts with "• ". Only include sections that are relevant — omit any section with no clear impact.
+
+SUMMARY
+• 1-2 short bullets explaining the event
+
+DRIVERS
+• key economic drivers
+• policy changes or supply/demand shifts
+
+MARKET IMPACT
+Only include relevant asset classes. Each asset class gets its own sub-header.
+
+Equities
+• sector or index impact
+
+Rates
+• yield direction and why
+
+FX
+• currency implications
+
+Commodities
+• energy or metals impact
+
+WINNERS
+• sector or asset: brief reason
+
+LOSERS
+• sector or asset: brief reason
+
+WATCH NEXT
+• upcoming catalysts
+• economic data releases
+
+IMPORTANT:
+- Every content line MUST start with "• "
+- Each bullet is ONE short sentence, max ~12 words
+- Leave blank lines between sections
+- Omit sections with no clear impact
+- Never combine multiple ideas in one bullet
+
+"impacted_tickers": array of {ticker, direction, rationale}
+"impacted_sectors": array of {sector, direction, rationale}
+  Allowed sectors: Technology, Financials, Healthcare, Consumer Discretionary, Consumer Staples, Industrials, Energy, Materials, Utilities, Real Estate, Communication Services
+  Directions: up, down, mixed, unknown
+"confidence": high, medium, or low
+
 Rules:
-- If the headline lacks market relevance, set confidence=low and explain limited first-order market transmission.
-- Avoid region or institution codes in tickers (e.g., EU, ECB, US). Use real tradable tickers only, or return [].
-- Include at least two concrete monitoring anchors in text: 2Y/10Y yields, DXY, VIX, IG/HY spreads, sector breadth.
-- Reuse at least two concrete terms from the title/description (names, instruments, policy body, or macro release) so the summary is article-specific.
-- Keep language plain and readable; avoid dense jargon chains and avoid semicolon-heavy run-ons.
-- Winners/losers rationales must be complete phrases (no unfinished parentheticals).
-- Do not invent facts, earnings numbers, or policy actions not present in the headline.
-- Keep language precise and institutional.`,
+- No pseudo-tickers like EU, ECB, US, APAC.
+- If this headline has weak market relevance, say so and set confidence=low.
+- Do not invent facts not in the headline.`,
             },
           ],
           text: {

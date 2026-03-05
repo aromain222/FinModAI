@@ -323,7 +323,7 @@ function createMASummarySheet(
   row += 2;
 
   // Accretion/Dilution Summary
-  sheet.getCell(row, 1).value = 'Accretion/Dilution';
+  sheet.getCell(row, 1).value = 'Accretion - Dilution';
   sheet.getCell(row, 1).style = createSubHeaderStyle();
   row++;
 
@@ -847,7 +847,7 @@ function createAccretionDilutionSheet(
   targetTicker: string,
   output: MergerOutput
 ): void {
-  const sheet = workbook.addWorksheet('Accretion/Dilution');
+  const sheet = workbook.addWorksheet('Accretion - Dilution');
   let row = 1;
 
   // Title

@@ -2,6 +2,7 @@
  * M&A Model Excel Generator
  * Accretion/Dilution + Purchase Accounting Lite
  * Banking-style pro forma with clear Standalone / Adjustments / Pro Forma columns
+ * Uses shared styleKit for consistent typography, freeze panes, and hidden unused area.
  */
 
 import ExcelJS from 'exceljs';
@@ -18,6 +19,20 @@ import {
   COLORS,
   setColumnWidths,
 } from '../../excel/formatting';
+import {
+  applyWorkbookDefaults,
+  applySheetDefaults,
+  setColumnWidths as setColWidthsKit,
+  hideUnusedArea,
+  titleBar,
+  sectionHeader as kitSectionHeader,
+  tableHeader,
+  zebraRows,
+  inputCell as styleKitInputCell,
+  outputCell as styleKitOutputCell,
+  bodyCell as styleKitBodyCell,
+  borderBox,
+} from '../../excel/styleKit';
 
 export interface MergerInputs {
   // Acquirer financials
@@ -252,6 +267,8 @@ export async function generateMergerWorkbook(
   inputs: MergerInputs
 ): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
+  applyWorkbookDefaults(workbook, { company: 'CapitalBase' });
+  workbook.calcProperties.fullCalcOnLoad = true;
   const acquirerTicker = inputs.acquirerTicker.toUpperCase();
   const targetTicker = inputs.targetTicker.toUpperCase();
   const acquirerName = inputs.acquirerName || acquirerTicker;
@@ -286,17 +303,13 @@ function createMASummarySheet(
   output: MergerOutput
 ): void {
   const sheet = workbook.addWorksheet('M&A Summary');
-  let row = 1;
+  const lastDataCol = 3;
 
-  // Title
-  sheet.getCell(row, 1).value = `${acquirerTicker} + ${targetTicker} Merger Analysis`;
-  sheet.getCell(row, 1).style = createHeaderStyle();
-  sheet.mergeCells(row, 1, row, 3);
-  row += 2;
+  let row = titleBar(sheet, `${acquirerTicker} + ${targetTicker} — Merger Analysis`, lastDataCol);
+  sheet.getCell(2, 1).value = 'All figures in USD millions unless otherwise noted.';
+  row += 1;
 
-  // Transaction Summary
-  sheet.getCell(row, 1).value = 'Transaction Summary';
-  sheet.getCell(row, 1).style = createSubHeaderStyle();
+  kitSectionHeader(sheet, row, 'Transaction Summary', lastDataCol);
   row++;
 
   const summary = [
@@ -323,7 +336,7 @@ function createMASummarySheet(
   row += 2;
 
   // Accretion/Dilution Summary
-  sheet.getCell(row, 1).value = 'Accretion/Dilution';
+  sheet.getCell(row, 1).value = 'Accretion - Dilution';
   sheet.getCell(row, 1).style = createSubHeaderStyle();
   row++;
 
@@ -354,7 +367,10 @@ function createMASummarySheet(
     font: { ...createNormalStyle().font, color: { argb: output.accretionDilution.epsAccretion >= 0 ? 'FF008000' : 'FFFF0000' } },
   };
 
-  setColumnWidths(sheet, [0, 30, 20, 15]);
+  const lastUsedRow = sheet.lastRow?.number ?? row;
+  setColWidthsKit(sheet, [30, 20, 15]);
+  applySheetDefaults(sheet, { freezeRow: 3, freezeCol: 1, headerRowCount: 3, lastCol: lastDataCol, lastRow: lastUsedRow });
+  hideUnusedArea(sheet, lastDataCol, lastUsedRow);
 }
 
 /**
@@ -367,17 +383,13 @@ function createMAAssumptionsSheet(
   inputs: MergerInputs
 ): void {
   const sheet = workbook.addWorksheet('Assumptions');
-  let row = 1;
+  const lastDataCol = 2;
 
-  // Title
-  sheet.getCell(row, 1).value = `${acquirerTicker} + ${targetTicker} - Assumptions`;
-  sheet.getCell(row, 1).style = createHeaderStyle();
-  sheet.mergeCells(row, 1, row, 2);
-  row += 2;
+  let row = titleBar(sheet, `${acquirerTicker} + ${targetTicker} — Assumptions`, lastDataCol);
+  sheet.getCell(2, 1).value = 'All figures in USD millions unless otherwise noted.';
+  row += 1;
 
-  // Acquirer Financials
-  sheet.getCell(row, 1).value = 'Acquirer Financials (TTM/FY)';
-  sheet.getCell(row, 1).style = createSubHeaderStyle();
+  kitSectionHeader(sheet, row, 'Acquirer Financials (TTM/FY)', lastDataCol);
   row++;
 
   const acquirerItems = [
@@ -414,9 +426,7 @@ function createMAAssumptionsSheet(
 
   row += 2;
 
-  // Target Financials
-  sheet.getCell(row, 1).value = 'Target Financials (TTM/FY)';
-  sheet.getCell(row, 1).style = createSubHeaderStyle();
+  kitSectionHeader(sheet, row, 'Target Financials (TTM/FY)', lastDataCol);
   row++;
 
   const targetItems = [
@@ -453,9 +463,7 @@ function createMAAssumptionsSheet(
 
   row += 2;
 
-  // Deal Assumptions
-  sheet.getCell(row, 1).value = 'Deal Assumptions';
-  sheet.getCell(row, 1).style = createSubHeaderStyle();
+  kitSectionHeader(sheet, row, 'Deal Assumptions', lastDataCol);
   row++;
 
   sheet.getCell(row, 1).value = 'Tax Rate';
@@ -472,7 +480,10 @@ function createMAAssumptionsSheet(
     row++;
   }
 
-  setColumnWidths(sheet, [0, 30, 20]);
+  const lastUsedRow = sheet.lastRow?.number ?? row;
+  setColWidthsKit(sheet, [30, 20]);
+  applySheetDefaults(sheet, { freezeRow: 3, freezeCol: 1, headerRowCount: 3, lastCol: lastDataCol, lastRow: lastUsedRow });
+  hideUnusedArea(sheet, lastDataCol, lastUsedRow);
 }
 
 /**
@@ -486,17 +497,13 @@ function createDealTermsSheet(
   output: MergerOutput
 ): void {
   const sheet = workbook.addWorksheet('Deal Terms (Consideration)');
-  let row = 1;
+  const dtLastDataCol = 3;
 
-  // Title
-  sheet.getCell(row, 1).value = `${acquirerTicker} + ${targetTicker} - Deal Terms`;
-  sheet.getCell(row, 1).style = createHeaderStyle();
-  sheet.mergeCells(row, 1, row, 2);
-  row += 2;
+  let row = titleBar(sheet, `${acquirerTicker} + ${targetTicker} — Deal Terms`, dtLastDataCol);
+  sheet.getCell(2, 1).value = 'All figures in USD millions unless otherwise noted.';
+  row += 1;
 
-  // Deal Value
-  sheet.getCell(row, 1).value = 'Deal Value';
-  sheet.getCell(row, 1).style = createSubHeaderStyle();
+  kitSectionHeader(sheet, row, 'Deal Value', dtLastDataCol);
   row++;
 
   sheet.getCell(row, 1).value = 'Total Deal Value';
@@ -505,9 +512,7 @@ function createDealTermsSheet(
   sheet.getCell(row, 2).style = createInputStyle();
   row += 2;
 
-  // Consideration Mix
-  sheet.getCell(row, 1).value = 'Consideration Mix';
-  sheet.getCell(row, 1).style = createSubHeaderStyle();
+  kitSectionHeader(sheet, row, 'Consideration Mix', dtLastDataCol);
   row++;
 
   const consideration = [
@@ -531,10 +536,8 @@ function createDealTermsSheet(
 
   row += 2;
 
-  // Stock Consideration Details
   if (output.consideration.stock > 0) {
-    sheet.getCell(row, 1).value = 'Stock Consideration Details';
-    sheet.getCell(row, 1).style = createSubHeaderStyle();
+    kitSectionHeader(sheet, row, 'Stock Consideration Details', dtLastDataCol);
     row++;
 
     const newShares = output.proForma.sharesOutstanding - (inputs.acquirerShares || 0);
@@ -553,10 +556,8 @@ function createDealTermsSheet(
 
   row += 2;
 
-  // Debt Financing
   if (output.consideration.debt > 0 || inputs.newDebt) {
-    sheet.getCell(row, 1).value = 'Debt Financing';
-    sheet.getCell(row, 1).style = createSubHeaderStyle();
+    kitSectionHeader(sheet, row, 'Debt Financing', dtLastDataCol);
     row++;
 
     sheet.getCell(row, 1).value = 'New Debt';
@@ -574,7 +575,10 @@ function createDealTermsSheet(
     applyNumberFormat(sheet.getCell(row, 2), 'CURRENCY');
   }
 
-  setColumnWidths(sheet, [0, 30, 20, 15]);
+  const dtLastUsedRow = sheet.lastRow?.number ?? row;
+  setColWidthsKit(sheet, [30, 20, 15]);
+  applySheetDefaults(sheet, { freezeRow: 3, freezeCol: 1, headerRowCount: 3, lastCol: dtLastDataCol, lastRow: dtLastUsedRow });
+  hideUnusedArea(sheet, dtLastDataCol, dtLastUsedRow);
 }
 
 /**
@@ -588,20 +592,18 @@ function createProFormaISSheet(
   output: MergerOutput
 ): void {
   const sheet = workbook.addWorksheet('Pro Forma IS');
-  let row = 1;
+  const pfLastDataCol = 5;
 
-  // Title
-  sheet.getCell(row, 1).value = `${acquirerTicker} + ${targetTicker} - Pro Forma Income Statement`;
-  sheet.getCell(row, 1).style = createHeaderStyle();
-  sheet.mergeCells(row, 1, row, 4);
-  row += 2;
+  let row = titleBar(sheet, `${acquirerTicker} + ${targetTicker} — Pro Forma Income Statement`, pfLastDataCol);
+  sheet.getCell(2, 1).value = 'All figures in USD millions unless otherwise noted.';
+  row += 1;
 
-  // Headers: Line Item | Acquirer Standalone | Target Standalone | Adjustments | Pro Forma
+  const pfHeaderRow = row;
   const headers = ['Line Item', 'Acquirer Standalone', 'Target Standalone', 'Adjustments', 'Pro Forma'];
   headers.forEach((header, idx) => {
     sheet.getCell(row, idx + 1).value = header;
-    sheet.getCell(row, idx + 1).style = createSubHeaderStyle();
   });
+  tableHeader(sheet, row, 1, pfLastDataCol);
   row++;
 
   // Revenue
@@ -715,7 +717,13 @@ function createProFormaISSheet(
     sheet.getCell(row, col).style = col === 5 ? createTotalStyle() : createFormulaStyle();
   });
 
-  setColumnWidths(sheet, [0, 25, 20, 20, 20, 20]);
+  const pfDataEndRow = sheet.lastRow?.number ?? row;
+  zebraRows(sheet, pfHeaderRow + 1, pfDataEndRow, 1, pfLastDataCol);
+  borderBox(sheet, pfHeaderRow, 1, pfDataEndRow, pfLastDataCol);
+
+  setColWidthsKit(sheet, [25, 20, 20, 20, 20]);
+  applySheetDefaults(sheet, { freezeRow: 3, freezeCol: 1, headerRowCount: 3, lastCol: pfLastDataCol, lastRow: pfDataEndRow });
+  hideUnusedArea(sheet, pfLastDataCol, pfDataEndRow);
 }
 
 /**
@@ -729,18 +737,14 @@ function createSynergiesIntegrationSheet(
   output: MergerOutput
 ): void {
   const sheet = workbook.addWorksheet('Synergies & Integration Costs');
-  let row = 1;
+  const synLastDataCol = 7;
 
-  // Title
-  sheet.getCell(row, 1).value = `${acquirerTicker} + ${targetTicker} - Synergies & Integration Costs`;
-  sheet.getCell(row, 1).style = createHeaderStyle();
-  sheet.mergeCells(row, 1, row, 3);
-  row += 2;
+  let row = titleBar(sheet, `${acquirerTicker} + ${targetTicker} — Synergies & Integration Costs`, synLastDataCol);
+  sheet.getCell(2, 1).value = 'All figures in USD millions unless otherwise noted.';
+  row += 1;
 
-  // Synergies (only if user-entered - never invent)
   if (output.synergies.total.length > 0 || inputs.synergies) {
-    sheet.getCell(row, 1).value = 'Synergies (User-Entered Only)';
-    sheet.getCell(row, 1).style = createSubHeaderStyle();
+    kitSectionHeader(sheet, row, 'Synergies (User-Entered Only)', synLastDataCol);
     row++;
 
     const maxYears = Math.max(output.synergies.revenue.length, output.synergies.cost.length, output.synergies.total.length);
@@ -801,10 +805,8 @@ function createSynergiesIntegrationSheet(
     row += 2;
   }
 
-  // Integration Costs
   if (output.integrationCosts.length > 0 || inputs.oneTimeCosts) {
-    sheet.getCell(row, 1).value = 'Integration Costs (User-Entered)';
-    sheet.getCell(row, 1).style = createSubHeaderStyle();
+    kitSectionHeader(sheet, row, 'Integration Costs (User-Entered)', synLastDataCol);
     row++;
 
     if (output.integrationCosts.length > 0) {
@@ -835,7 +837,10 @@ function createSynergiesIntegrationSheet(
     };
   }
 
-  setColumnWidths(sheet, [0, 30, 15, 15, 15, 15, 15]);
+  const synLastUsedRow = sheet.lastRow?.number ?? row;
+  setColWidthsKit(sheet, [30, 15, 15, 15, 15, 15, 15]);
+  applySheetDefaults(sheet, { freezeRow: 3, freezeCol: 1, headerRowCount: 3, lastCol: synLastDataCol, lastRow: synLastUsedRow });
+  hideUnusedArea(sheet, synLastDataCol, synLastUsedRow);
 }
 
 /**
@@ -847,18 +852,14 @@ function createAccretionDilutionSheet(
   targetTicker: string,
   output: MergerOutput
 ): void {
-  const sheet = workbook.addWorksheet('Accretion/Dilution');
-  let row = 1;
+  const sheet = workbook.addWorksheet('Accretion - Dilution');
+  const adLastDataCol = 3;
 
-  // Title
-  sheet.getCell(row, 1).value = `${acquirerTicker} + ${targetTicker} - Accretion/Dilution Analysis`;
-  sheet.getCell(row, 1).style = createHeaderStyle();
-  sheet.mergeCells(row, 1, row, 3);
-  row += 2;
+  let row = titleBar(sheet, `${acquirerTicker} + ${targetTicker} — Accretion / Dilution Analysis`, adLastDataCol);
+  sheet.getCell(2, 1).value = 'All figures in USD millions unless otherwise noted.';
+  row += 1;
 
-  // EPS Comparison
-  sheet.getCell(row, 1).value = 'EPS Analysis';
-  sheet.getCell(row, 1).style = createSubHeaderStyle();
+  kitSectionHeader(sheet, row, 'EPS Analysis', adLastDataCol);
   row++;
 
   const epsItems = [
@@ -886,11 +887,9 @@ function createAccretionDilutionSheet(
     row++;
   });
 
-  row += 2;
+  row += 1;
 
-  // Key Drivers
-  sheet.getCell(row, 1).value = 'Key Drivers';
-  sheet.getCell(row, 1).style = createSubHeaderStyle();
+  kitSectionHeader(sheet, row, 'Key Drivers', adLastDataCol);
   row++;
 
   const drivers = [
@@ -915,7 +914,10 @@ function createAccretionDilutionSheet(
     row++;
   });
 
-  setColumnWidths(sheet, [0, 35, 20]);
+  const adLastUsedRow = sheet.lastRow?.number ?? row;
+  setColWidthsKit(sheet, [35, 20, 15]);
+  applySheetDefaults(sheet, { freezeRow: 3, freezeCol: 1, headerRowCount: 3, lastCol: adLastDataCol, lastRow: adLastUsedRow });
+  hideUnusedArea(sheet, adLastDataCol, adLastUsedRow);
 }
 
 /**
@@ -929,19 +931,14 @@ function createMASensitivitiesSheet(
   output: MergerOutput
 ): void {
   const sheet = workbook.addWorksheet('Sensitivities');
-  let row = 1;
+  const sensLastDataCol = 6;
 
-  // Title
-  sheet.getCell(row, 1).value = `${acquirerTicker} + ${targetTicker} - Sensitivity Analysis`;
-  sheet.getCell(row, 1).style = createHeaderStyle();
-  sheet.mergeCells(row, 1, row, 6);
-  row += 2;
+  let row = titleBar(sheet, `${acquirerTicker} + ${targetTicker} — Sensitivity Analysis`, sensLastDataCol);
+  sheet.getCell(2, 1).value = 'All figures in USD millions unless otherwise noted.';
+  row += 1;
 
-  // Synergy Sensitivity (if synergies exist)
   if (output.synergies.total.length > 0 || inputs.synergies) {
-    sheet.getCell(row, 1).value = 'Synergy Sensitivity';
-    sheet.getCell(row, 1).style = createSubHeaderStyle();
-    sheet.mergeCells(row, 1, row, 6);
+    kitSectionHeader(sheet, row, 'Synergy Sensitivity', sensLastDataCol);
     row++;
 
     const baseSynergies = inputs.synergies || (output.synergies.total.length > 0 ? output.synergies.total[0] : 0);
@@ -977,10 +974,7 @@ function createMASensitivitiesSheet(
     row += 2;
   }
 
-  // Purchase Price Sensitivity
-  sheet.getCell(row, 1).value = 'Purchase Price Sensitivity';
-  sheet.getCell(row, 1).style = createSubHeaderStyle();
-  sheet.mergeCells(row, 1, row, 6);
+  kitSectionHeader(sheet, row, 'Purchase Price Sensitivity', sensLastDataCol);
   row++;
 
   const basePrice = output.dealValue;
@@ -1012,7 +1006,10 @@ function createMASensitivitiesSheet(
     row++;
   });
 
-  setColumnWidths(sheet, [0, 20, 15, 15, 15, 15, 15]);
+  const sensLastUsedRow = sheet.lastRow?.number ?? row;
+  setColWidthsKit(sheet, [20, 15, 15, 15, 15, 15]);
+  applySheetDefaults(sheet, { freezeRow: 3, freezeCol: 1, headerRowCount: 3, lastCol: sensLastDataCol, lastRow: sensLastUsedRow });
+  hideUnusedArea(sheet, sensLastDataCol, sensLastUsedRow);
 }
 
 /**
@@ -1025,17 +1022,13 @@ function createMAChecksSheet(
   output: MergerOutput
 ): void {
   const sheet = workbook.addWorksheet('Checks');
-  let row = 1;
+  const chkLastDataCol = 3;
 
-  // Title
-  sheet.getCell(row, 1).value = `${acquirerTicker} + ${targetTicker} - Model Checks`;
-  sheet.getCell(row, 1).style = createHeaderStyle();
-  sheet.mergeCells(row, 1, row, 3);
-  row += 2;
+  let row = titleBar(sheet, `${acquirerTicker} + ${targetTicker} — Model Checks`, chkLastDataCol);
+  sheet.getCell(2, 1).value = 'All figures in USD millions unless otherwise noted.';
+  row += 1;
 
-  // Consideration Check
-  sheet.getCell(row, 1).value = 'Consideration Balance';
-  sheet.getCell(row, 1).style = createSubHeaderStyle();
+  kitSectionHeader(sheet, row, 'Consideration Balance', chkLastDataCol);
   row++;
 
   const considerationTotal = output.consideration.cash + output.consideration.stock + output.consideration.debt;
@@ -1050,9 +1043,7 @@ function createMAChecksSheet(
   };
   row += 2;
 
-  // Pro Forma Check
-  sheet.getCell(row, 1).value = 'Pro Forma Reconciliation';
-  sheet.getCell(row, 1).style = createSubHeaderStyle();
+  kitSectionHeader(sheet, row, 'Pro Forma Reconciliation', chkLastDataCol);
   row++;
 
   const calculatedProFormaRevenue = output.standalone.acquirer.revenue + output.standalone.target.revenue + 
@@ -1082,7 +1073,10 @@ function createMAChecksSheet(
     font: { ...createNormalStyle().font, color: { argb: netIncomeDiff < 0.01 ? 'FF008000' : 'FFFF0000' } },
   };
 
-  setColumnWidths(sheet, [0, 25, 20, 15]);
+  const chkLastUsedRow = sheet.lastRow?.number ?? row;
+  setColWidthsKit(sheet, [25, 20, 15]);
+  applySheetDefaults(sheet, { freezeRow: 3, freezeCol: 1, headerRowCount: 3, lastCol: chkLastDataCol, lastRow: chkLastUsedRow });
+  hideUnusedArea(sheet, chkLastDataCol, chkLastUsedRow);
 }
 
 /**
@@ -1095,18 +1089,14 @@ function createMASourcesNotesSheet(
   inputs: MergerInputs
 ): void {
   const sheet = workbook.addWorksheet('Sources & Notes');
-  let row = 1;
+  const snLastDataCol = 2;
 
-  // Title
-  sheet.getCell(row, 1).value = `${acquirerTicker} + ${targetTicker} - Data Sources & Notes`;
-  sheet.getCell(row, 1).style = createHeaderStyle();
-  sheet.mergeCells(row, 1, row, 2);
-  row += 2;
+  let row = titleBar(sheet, `${acquirerTicker} + ${targetTicker} — Data Sources & Notes`, snLastDataCol);
+  sheet.getCell(2, 1).value = 'All figures in USD millions unless otherwise noted.';
+  row += 1;
 
-  // Data Sources
   if (inputs.dataSources) {
-    sheet.getCell(row, 1).value = 'Data Sources';
-    sheet.getCell(row, 1).style = createSubHeaderStyle();
+    kitSectionHeader(sheet, row, 'Data Sources', snLastDataCol);
     row++;
 
     const dataSources = inputs.dataSources;
@@ -1131,9 +1121,7 @@ function createMASourcesNotesSheet(
     row += 2;
   }
 
-  // Shares Sources
-  sheet.getCell(row, 1).value = 'Shares Sources';
-  sheet.getCell(row, 1).style = createSubHeaderStyle();
+  kitSectionHeader(sheet, row, 'Shares Sources', snLastDataCol);
   row++;
 
   sheet.getCell(row, 1).value = 'Acquirer Shares Source';
@@ -1154,9 +1142,7 @@ function createMASourcesNotesSheet(
   };
   row += 2;
 
-  // Notes
-  sheet.getCell(row, 1).value = 'Notes';
-  sheet.getCell(row, 1).style = createSubHeaderStyle();
+  kitSectionHeader(sheet, row, 'Notes', snLastDataCol);
   row++;
 
   const notes = [
@@ -1173,5 +1159,8 @@ function createMASourcesNotesSheet(
     row++;
   });
 
-  setColumnWidths(sheet, [0, 50, 20]);
+  const snLastUsedRow = sheet.lastRow?.number ?? row;
+  setColWidthsKit(sheet, [50, 20]);
+  applySheetDefaults(sheet, { freezeRow: 3, freezeCol: 1, headerRowCount: 3, lastCol: snLastDataCol, lastRow: snLastUsedRow });
+  hideUnusedArea(sheet, snLastDataCol, snLastUsedRow);
 }

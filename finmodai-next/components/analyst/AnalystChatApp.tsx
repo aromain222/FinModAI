@@ -13,6 +13,8 @@ type Message = {
   meta?: {
     mode?: 'live' | 'fallback';
     reason?: string;
+    sources?: string[];
+    retrievalWarnings?: string[];
   };
 };
 
@@ -92,6 +94,12 @@ export function AnalystChatApp() {
         meta: {
           mode: payload?.mode === 'fallback' ? 'fallback' : 'live',
           reason: typeof payload?.reason === 'string' ? payload.reason : undefined,
+          sources: Array.isArray(payload?.sources)
+            ? payload.sources.filter((item: unknown): item is string => typeof item === 'string').slice(0, 5)
+            : [],
+          retrievalWarnings: Array.isArray(payload?.retrievalWarnings)
+            ? payload.retrievalWarnings.filter((item: unknown): item is string => typeof item === 'string').slice(0, 3)
+            : [],
         },
       };
       setMessages((prev) => [...prev, reply]);
@@ -151,6 +159,25 @@ export function AnalystChatApp() {
                     fallback mode{message.meta.reason ? ` • ${message.meta.reason}` : ''}
                   </div>
                 )}
+                {message.role === 'assistant' && message.meta?.sources && message.meta.sources.length > 0 && (
+                  <div className="mt-3 border-t border-[var(--cb-border-subtle)] pt-2 text-[11px] text-[var(--cb-text-muted)]">
+                    <div className="mb-1 uppercase tracking-wide">Sources</div>
+                    <div className="space-y-1">
+                      {message.meta.sources.map((source) => (
+                        <div key={source} className="truncate">
+                          {source}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {message.role === 'assistant' &&
+                  message.meta?.retrievalWarnings &&
+                  message.meta.retrievalWarnings.length > 0 && (
+                    <div className="mt-2 text-[11px] text-amber-300/90">
+                      {message.meta.retrievalWarnings.join(' • ')}
+                    </div>
+                  )}
               </div>
             </div>
           ))}

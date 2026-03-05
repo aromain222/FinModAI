@@ -1,11 +1,13 @@
 import ExcelJS from 'exceljs';
+import { toUniqueWorksheetName } from './safeSheetName';
 
 export async function copyWorksheet(
   source: ExcelJS.Worksheet,
   target: ExcelJS.Workbook,
   newName?: string
 ): Promise<ExcelJS.Worksheet> {
-  const newSheet = target.addWorksheet(newName || source.name);
+  const safeName = toUniqueWorksheetName(target, newName || source.name, 'Sheet');
+  const newSheet = target.addWorksheet(safeName);
   
   // Copy column definitions (handle null columns)
   if (source.columns && Array.isArray(source.columns) && source.columns.length > 0) {

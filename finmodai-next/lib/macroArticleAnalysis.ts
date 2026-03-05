@@ -6,6 +6,7 @@
  */
 
 import OpenAI from 'openai';
+import { EVENT_NARRATIVE_JSON_PROMPT } from '@/lib/analyst/prompts';
 
 export interface MacroArticleAnalysis {
   what_happened_sentences: string[]; // 2-3 sentences
@@ -101,49 +102,23 @@ export async function generateMacroArticleAnalysis(
       messages: [
         {
           role: 'system',
-          content: `You are a senior macro strategist writing concise, decisive market intelligence for professional investors (PMs, analysts, strategists).
+          content: `${EVENT_NARRATIVE_JSON_PROMPT}
 
-For each article, generate a structured analysis with clear asset-level implications, not generic commentary. This must read like a sell-side macro note.
+ADDITIONAL OUTPUT REQUIREMENTS FOR THIS PIPELINE:
 
-Output requirements (MANDATORY):
-1. WHAT HAPPENED (2–3 sentences)
-- Summarize only the new information.
-- Do not restate the headline verbatim.
-- Focus on facts, actions, or surprises.
-- Each sentence must be 8–24 words.
+You must return JSON with EXACTLY these keys (no others):
 
-2. MARKET IMPACT (5–6 sentences, REQUIRED)
-- Each sentence must be 12–28 words.
-- Explicitly name affected asset classes (equities, rates, FX, commodities, credit, volatility, capital flows).
-- Explicitly name affected regions (US, Europe, EM, Asia, etc.).
-- Explicitly name affected sectors or instruments (e.g. tech, banks, energy, USD, Treasuries).
-- Explain the transmission mechanism (why this flows through to markets).
-- Be directional when possible (risk-on / risk-off, upward/downward pressure).
-- Avoid vague hedging unless uncertainty is the key signal.
-- If impact is limited or contained, say so clearly using this exact sentence:
-  "Market impact likely limited unless further escalation occurs."
+what_happened_sentences: array of 2-3 sentences (8-24 words each). Summarize only the new information. Do not restate the headline.
+market_impact_sentences: array of 5-6 sentences (12-28 words each). Name affected asset classes, regions, sectors. Explain transmission mechanism. Be directional.
+second_order_effects: array of 2-3 bullet points. Focus on spillovers, sentiment shifts, positioning changes, policy reactions.
+affected_channels: array, select only from: equities, rates, FX, commodities, credit, volatility, capital flows.
+sentiment_by_asset: object with up/down/mixed for relevant assets (equities, rates, usd, oil, credit, commodities, fx).
+confidence: low/medium/high.
+key_numbers: array of {label, value} if numbers are present in the text (optional).
+reasoning_short: one sentence explaining confidence level.
 
-3. SECOND-ORDER EFFECTS (2–3 bullet points)
-- Focus on spillovers, sentiment shifts, positioning changes, or policy reactions.
-- Conditional but realistic, not speculative.
-
-4. AFFECTED CHANNELS
-- Select only from: equities, rates, FX, commodities, credit, volatility, capital flows.
-
-Style rules:
-- Write like an institutional research note, not a news summary.
-- Prefer clarity over completeness.
-- Avoid filler phrases unless adding insight.
-- Assume the reader has 30 seconds. Every sentence must add incremental information.
-
-Additional fields (for internal diagnostics):
-- sentiment_by_asset: up/down/mixed for relevant assets
-- confidence: low/medium/high based on specificity + source + clarity
-- key_numbers if explicitly present in the article text
-- reasoning_short: one sentence explaining confidence
-
-Return valid JSON with keys:
-what_happened_sentences, market_impact_sentences, second_order_effects, affected_channels, sentiment_by_asset, confidence, key_numbers (optional), reasoning_short.
+Style: institutional research note, not news summary. Every sentence must add incremental information.
+If impact is limited, use: "Market impact likely limited unless further escalation occurs."
 No markdown, JSON only.`,
         },
         {
@@ -160,7 +135,7 @@ ${article.snippet ? `Snippet: ${article.snippet}` : ''}
 Return JSON only, no markdown.`,
         },
       ],
-      temperature: 0.3, // Lower temperature for more factual output
+      temperature: 0.3,
       max_tokens: 900,
       response_format: { type: 'json_object' },
     });

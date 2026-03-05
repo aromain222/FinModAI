@@ -96,6 +96,9 @@ import {
   validateDebtCapacityLiteInputs,
   type DebtCapacityLiteSummary,
 } from '@/lib/models/debtCapacityLite';
+import type { ModelInputs } from '@/types/modelInputs';
+import { fromManual, fromTicker, manualPayloadFromRequest } from '@/lib/modelInputs/adapters';
+import { LIVE_DATA_FALLBACK_NOTICE, normalizeModelInputs } from '@/lib/modelInputs/defensive';
 
 const deepClone = <T,>(value: T): T => {
   if (typeof globalThis.structuredClone === 'function') {
@@ -134,9 +137,10 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+  const privateManualMode = isPrivateManualMode(body);
   const requestedTicker =
     typeof body?.ticker === 'string' ? body.ticker.trim().toUpperCase() : null;
-  if (requestedTicker) {
+  if (requestedTicker && !privateManualMode) {
     const demoAllowed = await isDemoTickerAvailable(requestedTicker);
     if (!demoAllowed) {
       return NextResponse.json(
@@ -163,16 +167,30 @@ const fmtPct = (val: number | null | undefined, decimals: number = 1): string =>
 /**
  * Validate request body
  */
+function isPrivateManualMode(body: any): boolean {
+  if (!body || typeof body !== 'object') return false;
+  const requestedDataSource = String(body.dataSource || body.source || '').toLowerCase();
+  if (requestedDataSource === 'manual') return true;
+  const companyMode = String(body.companyMode || body.mode || '').toLowerCase();
+  if (companyMode === 'private') return true;
+  if (body.manualMode === true) return true;
+  const manualInputs = body.manualInputs;
+  if (manualInputs && typeof manualInputs === 'object') {
+    const hasRevenue =
+      typeof manualInputs.revenue === 'number' && Number.isFinite(manualInputs.revenue) && manualInputs.revenue > 0;
+    const hasCompanyName =
+      typeof body.companyName === 'string' && body.companyName.trim().length > 0;
+    return hasRevenue || hasCompanyName;
+  }
+  return false;
+}
+
 function validateRequestBody(body: any): { ticker: string; modelType: RequestModelType; rest: any } {
   if (!body || typeof body !== 'object') {
     throw new Error('Missing or invalid JSON body');
   }
 
   const { ticker, modelType, ...rest } = body;
-
-  if (!ticker || typeof ticker !== 'string' || ticker.trim().length === 0) {
-    throw new Error('Ticker is required and must be a non-empty string');
-  }
 
   const allowedTypes: RequestModelType[] = [
     'three-statement',
@@ -189,8 +207,19 @@ function validateRequestBody(body: any): { ticker: string; modelType: RequestMod
     throw new Error(`Invalid modelType "${modelType}". Must be one of: ${allowedTypes.join(', ')}`);
   }
 
+  const privateManualMode = isPrivateManualMode(body);
+  if ((!ticker || typeof ticker !== 'string' || ticker.trim().length === 0) && !privateManualMode) {
+    throw new Error('Ticker is required and must be a non-empty string');
+  }
+  const normalizedTicker =
+    ticker && typeof ticker === 'string' && ticker.trim().length > 0
+      ? ticker.trim().toUpperCase()
+      : (typeof body.companyName === 'string' && body.companyName.trim()
+          ? body.companyName.trim().replace(/[^A-Za-z0-9]/g, '').slice(0, 8).toUpperCase() || 'PRIVATE'
+          : 'PRIVATE');
+
   return {
-    ticker: ticker.trim().toUpperCase(),
+    ticker: normalizedTicker,
     modelType,
     rest,
   };
@@ -216,6 +245,64 @@ async function getOrFetchFinancialsSafe(ticker: string): Promise<any> {
     // Return null instead of throwing - we'll use AI fallback
     return null;
   }
+}
+
+function buildLtmFinancialsFromModelInputs(ticker: string, modelInputs: ModelInputs) {
+  const latestRevenue =
+    Array.isArray(modelInputs.historicals?.revenue) && modelInputs.historicals.revenue.length > 0
+      ? modelInputs.historicals.revenue[modelInputs.historicals.revenue.length - 1]
+      : null;
+  const revenue = typeof latestRevenue === 'number' && Number.isFinite(latestRevenue) ? latestRevenue : 0;
+  const margin =
+    typeof modelInputs.assumptions?.margin === 'number' && Number.isFinite(modelInputs.assumptions.margin)
+      ? modelInputs.assumptions.margin
+      : 0.2;
+  const ebitda = revenue > 0 ? revenue * margin : 0;
+  const taxRate =
+    typeof modelInputs.assumptions?.taxRate === 'number' && Number.isFinite(modelInputs.assumptions.taxRate)
+      ? modelInputs.assumptions.taxRate
+      : 0.25;
+  const netIncome = revenue > 0 ? ebitda * (1 - taxRate) * 0.8 : 0;
+  const netDebt =
+    typeof modelInputs.capitalStructure?.netDebt === 'number' && Number.isFinite(modelInputs.capitalStructure.netDebt)
+      ? modelInputs.capitalStructure.netDebt
+      : 0;
+  const marketCap =
+    typeof modelInputs.pricingAnchor?.marketCap === 'number' && Number.isFinite(modelInputs.pricingAnchor.marketCap)
+      ? modelInputs.pricingAnchor.marketCap
+      : typeof modelInputs.pricingAnchor?.sharePrice === 'number' &&
+          Number.isFinite(modelInputs.pricingAnchor.sharePrice) &&
+          typeof modelInputs.pricingAnchor?.sharesOutstanding === 'number' &&
+          Number.isFinite(modelInputs.pricingAnchor.sharesOutstanding) &&
+          modelInputs.pricingAnchor.sharesOutstanding > 0
+        ? modelInputs.pricingAnchor.sharePrice * modelInputs.pricingAnchor.sharesOutstanding
+        : null;
+  const sharesOutstanding =
+    typeof modelInputs.pricingAnchor?.sharesOutstanding === 'number' && Number.isFinite(modelInputs.pricingAnchor.sharesOutstanding)
+      ? modelInputs.pricingAnchor.sharesOutstanding
+      : typeof modelInputs.capitalStructure?.sharesOutstanding === 'number' &&
+          Number.isFinite(modelInputs.capitalStructure.sharesOutstanding)
+        ? modelInputs.capitalStructure.sharesOutstanding
+        : null;
+  const cash = netDebt < 0 ? Math.abs(netDebt) : 0;
+  const totalDebt = netDebt > 0 ? netDebt : 0;
+
+  return {
+    ticker,
+    companyName: modelInputs.company?.name || ticker,
+    sector: null,
+    revenue,
+    ebitda,
+    netIncome,
+    cash,
+    totalDebt,
+    sharesOutstanding,
+    marketCap,
+    ebitdaMargin: revenue > 0 ? ebitda / revenue : null,
+    dataSource: modelInputs.metadata?.liveDataFallback ? 'demo_seed_fallback' : 'model_inputs',
+    fiscalPeriod: 'LTM',
+    lastUpdated: new Date().toISOString(),
+  };
 }
 
 /**
@@ -1669,9 +1756,14 @@ async function buildCompsModelWithAssumptions(
   ticker: string,
   assumptions: ThreeStatementAssumptions,
   normalizedFinancials?: ScaledFinancials | null,
-  diagnostics?: DataDiagnostics[]
+  diagnostics?: DataDiagnostics[],
+  options?: {
+    privateManualMode?: boolean;
+    modelInputs?: ModelInputs | null;
+  }
 ): Promise<import('@/lib/compsCalculator').CompsResult | null> {
   console.log(`[generateModel] Building Comps for ${ticker}`);
+  const privateManualMode = options?.privateManualMode === true;
 
   const buildDemoRelativeCompsFallback = async (
     reason: string,
@@ -1880,6 +1972,205 @@ async function buildCompsModelWithAssumptions(
     } as any;
   };
 
+  const buildPrivateManualCompsFallback = (
+    reason: string
+  ): import('@/lib/compsCalculator').CompsResult => {
+    const toNum = (value: unknown): number | null => {
+      if (typeof value === 'number' && isFinite(value)) return value;
+      if (typeof value === 'string' && value.trim().length > 0) {
+        const parsed = Number(value.replace(/[$,\s]/g, ''));
+        return isFinite(parsed) ? parsed : null;
+      }
+      return null;
+    };
+    const computeMedian = (values: number[]): number | null => {
+      if (!values.length) return null;
+      const sorted = [...values].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+    };
+
+    const companyName =
+      (typeof options?.modelInputs?.company?.name === 'string' && options.modelInputs.company.name.trim()) ||
+      assumptions.companyName ||
+      ticker;
+    const targetRevenue = toNum(normalizedFinancials?.revenueM ?? assumptions.revenue) ?? 1000;
+    const targetEbitda =
+      toNum(normalizedFinancials?.ebitdaM ?? assumptions.ebitda) ??
+      (targetRevenue > 0
+        ? targetRevenue *
+          (typeof assumptions.ebitdaMargin === 'number' && isFinite(assumptions.ebitdaMargin)
+            ? assumptions.ebitdaMargin
+            : 0.2)
+        : 200);
+    const targetNetIncome =
+      toNum(assumptions.netIncome) ??
+      (targetRevenue > 0
+        ? targetRevenue *
+          (typeof assumptions.netMargin === 'number' && isFinite(assumptions.netMargin) ? assumptions.netMargin : 0.1)
+        : 100);
+    const targetNetDebt =
+      toNum(normalizedFinancials?.netDebtM ?? assumptions.netDebt) ??
+      (toNum((assumptions as any)?.totalDebt) ?? 0) - (toNum((assumptions as any)?.cash) ?? 0);
+    const targetShares = toNum(normalizedFinancials?.sharesOutstandingM ?? assumptions.sharesOutstanding) ?? 100;
+    const targetMarketCap =
+      toNum(assumptions.marketCap) ??
+      (toNum(assumptions.price) !== null && targetShares > 0 ? (toNum(assumptions.price) as number) * targetShares : null);
+
+    const sectorLabel =
+      (typeof options?.modelInputs?.company?.name === 'string' &&
+      options.modelInputs.company.name.toLowerCase().includes('bank')
+        ? 'Financials'
+        : assumptions.sector) || 'Private / Manual';
+
+    const peerMultiples = [
+      { ticker: 'PEER_A', evToRevenue: 2.8, evToEbitda: 12.0, peRatio: 16.5 },
+      { ticker: 'PEER_B', evToRevenue: 3.4, evToEbitda: 14.0, peRatio: 19.0 },
+      { ticker: 'PEER_C', evToRevenue: 2.3, evToEbitda: 10.5, peRatio: 14.0 },
+      { ticker: 'PEER_D', evToRevenue: 4.1, evToEbitda: 15.5, peRatio: 22.0 },
+      { ticker: 'PEER_E', evToRevenue: 3.0, evToEbitda: 13.0, peRatio: 17.5 },
+    ];
+
+    const peers = peerMultiples.map((peer) => {
+      const evFromRevenue = targetRevenue > 0 ? peer.evToRevenue * targetRevenue : null;
+      const evFromEbitda = targetEbitda > 0 ? peer.evToEbitda * targetEbitda : null;
+      const ev =
+        typeof evFromRevenue === 'number' && typeof evFromEbitda === 'number'
+          ? (evFromRevenue + evFromEbitda) / 2
+          : evFromRevenue ?? evFromEbitda;
+      const marketCap = typeof ev === 'number' ? ev - targetNetDebt : null;
+      return {
+        ticker: peer.ticker,
+        name: `Comparable ${peer.ticker.slice(-1)}`,
+        sector: sectorLabel,
+        marketCap,
+        price: marketCap !== null && targetShares > 0 ? marketCap / targetShares : null,
+        sharesOutstanding: targetShares,
+        shares: targetShares,
+        cash: null,
+        debt: null,
+        totalDebt: null,
+        netDebt: targetNetDebt,
+        ev,
+        enterpriseValue: ev,
+        revenue: targetRevenue,
+        ebitda: targetEbitda,
+        netIncome: targetNetIncome,
+        evToRevenue: peer.evToRevenue,
+        evToEbitda: peer.evToEbitda,
+        peRatio: peer.peRatio,
+        userInputs: {},
+      };
+    });
+
+    const evRevVals = peers.map((p) => p.evToRevenue).filter((v): v is number => typeof v === 'number' && v > 0);
+    const evEbitdaVals = peers.map((p) => p.evToEbitda).filter((v): v is number => typeof v === 'number' && v > 0);
+    const peVals = peers.map((p) => p.peRatio).filter((v): v is number => typeof v === 'number' && v > 0);
+
+    const medianMultiples = {
+      evToRevenue: computeMedian(evRevVals),
+      evToEbitda: computeMedian(evEbitdaVals),
+      peRatio: computeMedian(peVals),
+    };
+
+    const byEvRevenue =
+      medianMultiples.evToRevenue !== null && targetRevenue > 0 ? medianMultiples.evToRevenue * targetRevenue : null;
+    const byEvEbitda =
+      medianMultiples.evToEbitda !== null && targetEbitda > 0 ? medianMultiples.evToEbitda * targetEbitda : null;
+    const byPe = medianMultiples.peRatio !== null && targetNetIncome > 0 ? medianMultiples.peRatio * targetNetIncome : null;
+
+    const equityValueByEvRevenue = byEvRevenue !== null ? byEvRevenue - targetNetDebt : null;
+    const equityValueByEvEbitda = byEvEbitda !== null ? byEvEbitda - targetNetDebt : null;
+    const equityValueByPe = byPe;
+    const pricePerShareByEvRevenue =
+      equityValueByEvRevenue !== null && targetShares > 0 ? equityValueByEvRevenue / targetShares : null;
+    const pricePerShareByEvEbitda =
+      equityValueByEvEbitda !== null && targetShares > 0 ? equityValueByEvEbitda / targetShares : null;
+    const pricePerShareByPe = equityValueByPe !== null && targetShares > 0 ? equityValueByPe / targetShares : null;
+
+    const weighted = [
+      { value: pricePerShareByEvRevenue, weight: 0.4 },
+      { value: pricePerShareByEvEbitda, weight: 0.4 },
+      { value: pricePerShareByPe, weight: 0.2 },
+    ].filter((item) => typeof item.value === 'number' && isFinite(item.value as number) && (item.value as number) > 0);
+    const totalWeight = weighted.reduce((sum, item) => sum + item.weight, 0);
+    const blendedPricePerShare =
+      totalWeight > 0 ? weighted.reduce((sum, item) => sum + (item.value as number) * item.weight, 0) / totalWeight : null;
+    const blendedEquityValue = blendedPricePerShare !== null && targetShares > 0 ? blendedPricePerShare * targetShares : null;
+
+    return {
+      subject: {
+        ticker: ticker || 'PRIVATE',
+        name: companyName,
+        sector: sectorLabel,
+        marketCap: targetMarketCap,
+        price: targetMarketCap !== null && targetShares > 0 ? targetMarketCap / targetShares : null,
+        sharesOutstanding: targetShares,
+        shares: targetShares,
+        cash: toNum((assumptions as any)?.cash),
+        debt: toNum((assumptions as any)?.totalDebt),
+        totalDebt: toNum((assumptions as any)?.totalDebt),
+        netDebt: targetNetDebt,
+        ev:
+          targetMarketCap !== null && typeof targetNetDebt === 'number'
+            ? targetMarketCap + targetNetDebt
+            : byEvRevenue ?? byEvEbitda,
+        enterpriseValue:
+          targetMarketCap !== null && typeof targetNetDebt === 'number'
+            ? targetMarketCap + targetNetDebt
+            : byEvRevenue ?? byEvEbitda,
+        revenue: targetRevenue,
+        ebitda: targetEbitda,
+        netIncome: targetNetIncome,
+        evToRevenue:
+          targetRevenue > 0 && targetMarketCap !== null && typeof targetNetDebt === 'number'
+            ? (targetMarketCap + targetNetDebt) / targetRevenue
+            : null,
+        evToEbitda:
+          targetEbitda > 0 && targetMarketCap !== null && typeof targetNetDebt === 'number'
+            ? (targetMarketCap + targetNetDebt) / targetEbitda
+            : null,
+        peRatio: targetNetIncome > 0 && targetMarketCap !== null ? targetMarketCap / targetNetIncome : null,
+        userInputs: {},
+      },
+      peers,
+      medianMultiples,
+      meanMultiples: {
+        evToRevenue: evRevVals.length ? evRevVals.reduce((sum, v) => sum + v, 0) / evRevVals.length : null,
+        evToEbitda: evEbitdaVals.length ? evEbitdaVals.reduce((sum, v) => sum + v, 0) / evEbitdaVals.length : null,
+        peRatio: peVals.length ? peVals.reduce((sum, v) => sum + v, 0) / peVals.length : null,
+      },
+      minMaxMultiples: {
+        evToRevenue: evRevVals.length ? { min: Math.min(...evRevVals), max: Math.max(...evRevVals) } : { min: null, max: null },
+        evToEbitda: evEbitdaVals.length
+          ? { min: Math.min(...evEbitdaVals), max: Math.max(...evEbitdaVals) }
+          : { min: null, max: null },
+        peRatio: peVals.length ? { min: Math.min(...peVals), max: Math.max(...peVals) } : { min: null, max: null },
+      },
+      impliedValuation: {
+        byEvEbitda,
+        byEvRevenue,
+        byPe,
+        equityValueByEvEbitda,
+        equityValueByEvRevenue,
+        equityValueByPe,
+        pricePerShareByEvEbitda,
+        pricePerShareByEvRevenue,
+        pricePerShareByPe,
+        blendedPricePerShare,
+        blendedEquityValue,
+      },
+      warnings: [
+        `Private/manual comps fallback applied: ${reason}`,
+        'Peer set is deterministic demo comparables; replace with custom peers for production-grade comps.',
+      ],
+      metadata: {
+        sector: sectorLabel,
+        modelMode: 'private_manual_comps',
+      },
+    } as any;
+  };
+
   const { identifyPeers, mergePeerSets, cleanTickerArray } = await import('@/lib/identifyPeers');
   const { fetchAndEnrichBatch } = await import('@/lib/financialDataFetcher');
 
@@ -1891,7 +2182,15 @@ async function buildCompsModelWithAssumptions(
   let peerSelectionDiagnostics: { warnings?: string[]; candidateCount?: number; finalCount?: number; targetSector?: string; targetIndustry?: string } | undefined;
   let peerMetadata: Record<string, any> | undefined;
 
-  if (isDemoMode() && !useOnlyCustom) {
+  if (privateManualMode && !useOnlyCustom) {
+    autoPeers = [];
+    peerSelectionDiagnostics = {
+      targetSector: assumptions.sector || 'Private / Manual',
+      candidateCount: 0,
+      finalCount: 0,
+      warnings: ['Private/manual mode: auto peer discovery disabled; using custom peers or deterministic fallback.'],
+    };
+  } else if (isDemoMode() && !useOnlyCustom) {
     const { getDemoCompany, getDemoSnapshotsBySector, getDemoUniverse } = await import('@/lib/data/providers/demoProvider');
     const subject = await getDemoCompany(ticker);
     if (!subject) {
@@ -1946,6 +2245,10 @@ async function buildCompsModelWithAssumptions(
   const finalPeers = mergedPeers;
 
   if (finalPeers.length === 0) {
+    if (privateManualMode) {
+      console.warn('[generateModel] ⚠️  No peers in private/manual mode. Using deterministic private comps fallback.');
+      return buildPrivateManualCompsFallback('no custom peers provided');
+    }
     if (isDemoMode()) {
       console.warn('[generateModel] ⚠️  No auto/custom peers. Using demo relative comps fallback.');
       return buildDemoRelativeCompsFallback('no auto/custom peers available');
@@ -2377,6 +2680,10 @@ async function buildCompsModelWithAssumptions(
   }
 
   if (peers.length === 0) {
+    if (privateManualMode) {
+      console.warn('[generateModel] ⚠️  All peers filtered in private/manual mode. Using deterministic private comps fallback.');
+      return buildPrivateManualCompsFallback('all peers filtered out');
+    }
     if (isDemoMode()) {
       console.warn('[generateModel] ⚠️  No valid peers after filtering. Using demo relative comps fallback.');
       return buildDemoRelativeCompsFallback('all peers filtered out', finalPeers);
@@ -2405,6 +2712,10 @@ async function buildCompsModelWithAssumptions(
     compsModel.medianMultiples.evToRevenue === null &&
     compsModel.medianMultiples.peRatio === null
   ) {
+    if (privateManualMode) {
+      console.warn('[generateModel] ⚠️  No valid multiples in private/manual mode. Using deterministic private comps fallback.');
+      return buildPrivateManualCompsFallback('no valid multiples computed');
+    }
     if (isDemoMode()) {
       console.warn('[generateModel] ⚠️  No valid peer multiples. Using demo relative comps fallback.');
       return buildDemoRelativeCompsFallback('no valid multiples computed', finalPeers);
@@ -2508,6 +2819,9 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
 
   const metricsStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
   const requestId = crypto.randomUUID();
+  const wantsJson =
+    req.headers.get('accept')?.includes('application/json') ||
+    req.nextUrl.searchParams.get('format') === 'json';
   let metricsTicker: string | null = null;
   let metricsModelType: MetricsModelType | null = null;
   let metricsSuccess = false;
@@ -2523,6 +2837,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
   let cleanTicker: string;
   let modelType: RequestModelType;
   let body: any;
+  let privateManualMode = false;
   let requestSliderOverrides: Record<string, number> = {};
   let requestedLboAdvanced: LboAdvancedOptions | undefined;
   let quickLboPayload:
@@ -2539,6 +2854,9 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
         terminalGrowthPct: number;
         projectionYears: number;
         targetPrice?: number;
+        marketCap?: number;
+        sharePrice?: number;
+        sharesOutstanding?: number;
       }
     | undefined;
   let reverseDcfInputs:
@@ -2547,6 +2865,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
         marketPrice: number;
       })
     | undefined;
+  let normalizedModelInputs: ModelInputs | null = null;
   let debtCapacityLiteInputs:
     | {
         maxLeverage: number;
@@ -2559,6 +2878,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
   
   try {
     body = bodyOverride ?? (await req.json());
+    privateManualMode = isPrivateManualMode(body);
     requestSliderOverrides =
       body?.sliderOverrides && typeof body.sliderOverrides === 'object'
         ? body.sliderOverrides
@@ -2583,6 +2903,201 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
     };
     
     console.log('[generateModel] ✅ Request validated:', { ticker: cleanTicker, modelType });
+
+    try {
+      const providedModelInputs =
+        body?.modelInputs && typeof body.modelInputs === 'object' ? (body.modelInputs as ModelInputs) : null;
+      if (
+        providedModelInputs &&
+        providedModelInputs.company &&
+        providedModelInputs.historicals &&
+        Array.isArray(providedModelInputs.historicals.revenue)
+      ) {
+        normalizedModelInputs = providedModelInputs;
+      } else if (privateManualMode) {
+        const manualPayload = manualPayloadFromRequest({
+          ...body,
+          ticker: cleanTicker,
+        });
+        normalizedModelInputs = fromManual(manualPayload as any);
+      } else {
+        normalizedModelInputs = await fromTicker(cleanTicker);
+      }
+
+      // Apply explicit pricing anchor overrides from the request before validation.
+      // Reverse DCF needs these anchors to be visible to the normalization layer,
+      // including ticker mode where the user can override demo market context.
+      const requestManualInputs =
+        body?.manualInputs && typeof body.manualInputs === 'object' ? body.manualInputs : {};
+      const coerceFiniteInput = (value: unknown): number | null => {
+        if (typeof value === 'number' && Number.isFinite(value)) return value;
+        if (typeof value === 'string' && value.trim().length > 0) {
+          const parsed = Number(value);
+          return Number.isFinite(parsed) ? parsed : null;
+        }
+        return null;
+      };
+      const requestMarketCap = coerceFiniteInput(
+        body?.marketCap ?? body?.market_cap ?? requestManualInputs?.marketCap
+      );
+      const requestSharePrice = coerceFiniteInput(
+        body?.sharePrice ?? body?.price ?? requestManualInputs?.price
+      );
+      const requestSharesOutstanding = coerceFiniteInput(
+        body?.sharesOutstanding ??
+          body?.shares_outstanding ??
+          body?.shares_out_basic ??
+          requestManualInputs?.sharesOutstanding
+      );
+
+      if (
+        (requestMarketCap !== null && requestMarketCap > 0) ||
+        (requestSharePrice !== null && requestSharePrice > 0) ||
+        (requestSharesOutstanding !== null && requestSharesOutstanding > 0)
+      ) {
+        normalizedModelInputs = {
+          ...normalizedModelInputs,
+          pricingAnchor: {
+            ...(normalizedModelInputs.pricingAnchor || {}),
+            ...(requestMarketCap !== null && requestMarketCap > 0 ? { marketCap: requestMarketCap } : {}),
+            ...(requestSharePrice !== null && requestSharePrice > 0 ? { sharePrice: requestSharePrice } : {}),
+            ...(requestSharesOutstanding !== null && requestSharesOutstanding > 0
+              ? { sharesOutstanding: requestSharesOutstanding }
+              : {}),
+          },
+          capitalStructure: {
+            ...(normalizedModelInputs.capitalStructure || {}),
+            ...(requestSharesOutstanding !== null && requestSharesOutstanding > 0
+              ? { sharesOutstanding: requestSharesOutstanding }
+              : {}),
+          },
+        };
+      }
+
+      const normalizedResult = normalizeModelInputs(normalizedModelInputs, { modelType });
+      if (!normalizedResult.ok || !normalizedResult.value) {
+        return NextResponse.json(
+          {
+            ok: false,
+            status: 'failed',
+            state: 'failed',
+            code: 'model_inputs_invalid',
+            message:
+              normalizedResult.issues.map((issue) => issue.message).join(' ') ||
+              'Model inputs are incomplete or invalid.',
+            validationErrors: normalizedResult.issues,
+          },
+          { status: 400 }
+        );
+      }
+      normalizedModelInputs = normalizedResult.value;
+      body.modelInputs = normalizedModelInputs;
+
+      if (normalizedModelInputs) {
+        body.companyName = body.companyName || normalizedModelInputs.company.name;
+        body.currency = body.currency || normalizedModelInputs.company.currency || 'USD';
+        const latestRevenue =
+          normalizedModelInputs.historicals.revenue[normalizedModelInputs.historicals.revenue.length - 1];
+        const taxRate = normalizedModelInputs.assumptions.taxRate;
+        const growth =
+          typeof normalizedModelInputs.assumptions.growth === 'number'
+            ? normalizedModelInputs.assumptions.growth
+            : Array.isArray((normalizedModelInputs.assumptions as any).growthSeries)
+              ? (normalizedModelInputs.assumptions as any).growthSeries[0]
+              : undefined;
+        const normalizedMargin =
+          typeof normalizedModelInputs.assumptions.margin === 'number'
+            ? normalizedModelInputs.assumptions.margin
+            : undefined;
+        const sharesFromCapitalStructure =
+          typeof normalizedModelInputs.capitalStructure?.sharesOutstanding === 'number'
+            ? normalizedModelInputs.capitalStructure.sharesOutstanding
+            : undefined;
+
+        body.manualInputs = {
+          ...(body.manualInputs && typeof body.manualInputs === 'object' ? body.manualInputs : {}),
+          revenue:
+            typeof body?.manualInputs?.revenue === 'number'
+              ? body.manualInputs.revenue
+              : latestRevenue,
+          netDebt:
+            typeof body?.manualInputs?.netDebt === 'number'
+              ? body.manualInputs.netDebt
+              : normalizedModelInputs.capitalStructure?.netDebt,
+          sharesOutstanding:
+            typeof body?.manualInputs?.sharesOutstanding === 'number'
+              ? body.manualInputs.sharesOutstanding
+              : normalizedModelInputs.pricingAnchor?.sharesOutstanding ?? sharesFromCapitalStructure,
+          marketCap:
+            typeof body?.manualInputs?.marketCap === 'number'
+              ? body.manualInputs.marketCap
+              : normalizedModelInputs.pricingAnchor?.marketCap,
+          price:
+            typeof body?.manualInputs?.price === 'number'
+              ? body.manualInputs.price
+              : normalizedModelInputs.pricingAnchor?.sharePrice,
+          taxRatePct:
+            typeof body?.manualInputs?.taxRatePct === 'number'
+              ? body.manualInputs.taxRatePct
+              : taxRate !== undefined
+                ? taxRate * 100
+                : undefined,
+          revenueGrowthPct:
+            typeof body?.manualInputs?.revenueGrowthPct === 'number'
+              ? body.manualInputs.revenueGrowthPct
+              : growth !== undefined
+                ? growth * 100
+                : undefined,
+          ebitMarginPct:
+            typeof body?.manualInputs?.ebitMarginPct === 'number'
+              ? body.manualInputs.ebitMarginPct
+              : normalizedMargin !== undefined
+                ? normalizedMargin * 100
+                : undefined,
+          capexPctRevenue:
+            typeof body?.manualInputs?.capexPctRevenue === 'number'
+              ? body.manualInputs.capexPctRevenue
+              : normalizedModelInputs.assumptions.capexPctRevenue * 100,
+          nwcPctRevenue:
+            typeof body?.manualInputs?.nwcPctRevenue === 'number'
+              ? body.manualInputs.nwcPctRevenue
+              : normalizedModelInputs.assumptions.nwcPctRevenue * 100,
+          daPctRevenue:
+            typeof body?.manualInputs?.daPctRevenue === 'number'
+              ? body.manualInputs.daPctRevenue
+              : normalizedModelInputs.assumptions.daPctRevenue !== undefined
+                ? normalizedModelInputs.assumptions.daPctRevenue * 100
+                : undefined,
+        };
+
+        body.sliderOverrides = {
+          ...(body.sliderOverrides && typeof body.sliderOverrides === 'object' ? body.sliderOverrides : {}),
+          ...(growth !== undefined ? { revenueGrowth: growth } : {}),
+          ...(normalizedMargin !== undefined ? { ebitdaMargin: normalizedMargin } : {}),
+          ...(taxRate !== undefined ? { taxRate } : {}),
+          capexPctRevenue: normalizedModelInputs.assumptions.capexPctRevenue,
+          deltaNwcPctRevenue: normalizedModelInputs.assumptions.nwcPctRevenue,
+          ...(normalizedModelInputs.assumptions.daPctRevenue !== undefined
+            ? { daPctRevenue: normalizedModelInputs.assumptions.daPctRevenue }
+            : {}),
+        };
+      }
+    } catch (normalizedInputError: any) {
+      return NextResponse.json(
+        {
+          ok: false,
+          status: 'failed',
+          state: 'failed',
+          code: privateManualMode ? 'manual_inputs_invalid' : 'ticker_inputs_invalid',
+          message:
+            normalizedInputError?.message ||
+            (privateManualMode
+              ? 'Manual inputs are incomplete or invalid.'
+              : `Unable to normalize ticker inputs for ${cleanTicker}.`),
+        },
+        { status: 400 }
+      );
+    }
 
     if (modelType === 'lbo' && body?.quickLbo === true) {
       const normalizedQuickInputs = normalizeQuickLboInputs(body?.lboQuickInputs ?? body);
@@ -2659,6 +3174,65 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
           { status: 400 }
         );
       }
+      const manualInputs = body?.manualInputs && typeof body.manualInputs === 'object' ? body.manualInputs : {};
+      const parsedMarketCap =
+        typeof body?.marketCap === 'number'
+          ? body.marketCap
+          : typeof body?.market_cap === 'number'
+            ? body.market_cap
+            : typeof manualInputs?.marketCap === 'number'
+              ? manualInputs.marketCap
+              : typeof normalizedModelInputs?.pricingAnchor?.marketCap === 'number'
+                ? normalizedModelInputs.pricingAnchor.marketCap
+              : undefined;
+      const parsedSharePrice =
+        typeof body?.sharePrice === 'number'
+          ? body.sharePrice
+          : typeof body?.price === 'number'
+            ? body.price
+            : typeof manualInputs?.price === 'number'
+              ? manualInputs.price
+              : typeof normalizedModelInputs?.pricingAnchor?.sharePrice === 'number'
+                ? normalizedModelInputs.pricingAnchor.sharePrice
+              : undefined;
+      const parsedSharesOutstanding =
+        typeof body?.sharesOutstanding === 'number'
+          ? body.sharesOutstanding
+          : typeof body?.shares_outstanding === 'number'
+            ? body.shares_outstanding
+            : typeof body?.shares_out_basic === 'number'
+              ? body.shares_out_basic
+              : typeof manualInputs?.sharesOutstanding === 'number'
+                ? manualInputs.sharesOutstanding
+                : typeof normalizedModelInputs?.pricingAnchor?.sharesOutstanding === 'number'
+                  ? normalizedModelInputs.pricingAnchor.sharesOutstanding
+                : undefined;
+      if (
+        !privateManualMode &&
+        parsedReverse.targetPrice === undefined &&
+        parsedMarketCap === undefined &&
+        !(parsedSharePrice !== undefined && parsedSharesOutstanding !== undefined)
+      ) {
+        // Public/ticker mode can still use fetched market price later.
+      } else if (
+        privateManualMode &&
+        parsedMarketCap === undefined &&
+        !(parsedSharePrice !== undefined && parsedSharesOutstanding !== undefined)
+      ) {
+        return NextResponse.json(
+          {
+            ok: false,
+            status: 'failed',
+            state: 'failed',
+            code: 'reverse_dcf_missing_anchor',
+            message: 'Reverse DCF requires market cap OR share price + shares outstanding.',
+          },
+          { status: 400 }
+        );
+      }
+      parsedReverse.marketCap = parsedMarketCap;
+      parsedReverse.sharePrice = parsedSharePrice;
+      parsedReverse.sharesOutstanding = parsedSharesOutstanding;
       reverseDcfRawInputs = parsedReverse;
       body.reverseDcfInputs = parsedReverse;
       console.log('[generateModel] Reverse DCF mode enabled');
@@ -2749,7 +3323,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       };
     }
 
-    if (isDemoMode()) {
+    if (isDemoMode() && !privateManualMode) {
       const demoAllowed = await isDemoTickerAvailable(cleanTicker);
       if (!demoAllowed) {
       return NextResponse.json(
@@ -2787,66 +3361,94 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
   let peerComps: any = null;
   let workingCapitalDetails: any = null;
   let lboIngestion: any = null;
+  const runtimeFallbackWarnings: string[] = [];
   
   const fetchDiag = createDiagnostic(cleanTicker, modelType as any, 'Unknown', 'fetch', true);
   const fetchStartTime = Date.now();
   
   try {
     const demoMode = isDemoMode();
+    let historicalResult: PromiseSettledResult<any> = { status: 'fulfilled', value: null };
+    let consensusResult: PromiseSettledResult<any> = { status: 'fulfilled', value: null };
+    let peerResult: PromiseSettledResult<any> = { status: 'fulfilled', value: null };
+    let wcResult: PromiseSettledResult<any> = { status: 'fulfilled', value: null };
 
-    // Fetch all data sources in parallel (skip live providers in demo mode)
-    const ltmPromise = modelType === 'lbo' && !demoMode
-      ? fetchLboIngestion(cleanTicker)
-      : getOrFetchFinancialsSafe(cleanTicker);
+    if (privateManualMode && normalizedModelInputs) {
+      ltmFinancials = buildLtmFinancialsFromModelInputs(cleanTicker, normalizedModelInputs);
+      fetchDiag.dataSource = 'Manual' as any;
+      fetchDiag.warnings.push('Manual mode active: using provided financial inputs only.');
+      console.log('[generateModel] Private/manual mode active, skipping external financial fetch.');
+    } else {
+      // Fetch all data sources in parallel (skip live providers in demo mode)
+      const ltmPromise = modelType === 'lbo' && !demoMode
+        ? fetchLboIngestion(cleanTicker)
+        : getOrFetchFinancialsSafe(cleanTicker);
 
-    const [
-      ltmResult,
-      historicalResult,
-      consensusResult,
-      peerResult,
-      wcResult
-    ] = demoMode
-      ? [
-          { status: 'fulfilled', value: await ltmPromise },
-          { status: 'fulfilled', value: null },
-          { status: 'fulfilled', value: null },
-          { status: 'fulfilled', value: null },
-          { status: 'fulfilled', value: null },
-        ]
-      : await Promise.allSettled([
-          ltmPromise,
-          import('@/lib/data/historicalFinancials').then(m => m.fetchHistoricalFinancials(cleanTicker, 5)),
-          import('@/lib/data/consensusEstimates').then(m => m.fetchConsensusEstimates(cleanTicker)),
-          import('@/lib/data/peerComps').then(m => m.fetchPeerComps(cleanTicker, undefined)),
-          import('@/lib/data/workingCapitalDetails').then(m => m.fetchWorkingCapitalDetails(cleanTicker)),
-        ]);
-    
-    fetchDiag.durationMs = Date.now() - fetchStartTime;
-    
-    // Process LTM financials
-    if (ltmResult.status === 'fulfilled') {
-      if (modelType === 'lbo') {
-        lboIngestion = ltmResult.value;
-        if (lboIngestion && hasLboIngestionData(lboIngestion)) {
-          ltmFinancials = mapLboIngestionToLtmFinancials(lboIngestion);
-          fetchDiag.dataSource = ltmFinancials.dataSource as any;
-          console.log(`[generateModel] ✅ LBO ingestion fetched (${fetchDiag.dataSource})`);
+      const settled = demoMode
+        ? [
+            { status: 'fulfilled', value: await ltmPromise } as PromiseFulfilledResult<any>,
+            { status: 'fulfilled', value: null } as PromiseFulfilledResult<any>,
+            { status: 'fulfilled', value: null } as PromiseFulfilledResult<any>,
+            { status: 'fulfilled', value: null } as PromiseFulfilledResult<any>,
+            { status: 'fulfilled', value: null } as PromiseFulfilledResult<any>,
+          ]
+        : await Promise.allSettled([
+            ltmPromise,
+            import('@/lib/data/historicalFinancials').then((m) => m.fetchHistoricalFinancials(cleanTicker, 5)),
+            import('@/lib/data/consensusEstimates').then((m) => m.fetchConsensusEstimates(cleanTicker)),
+            import('@/lib/data/peerComps').then((m) => m.fetchPeerComps(cleanTicker, undefined)),
+            import('@/lib/data/workingCapitalDetails').then((m) => m.fetchWorkingCapitalDetails(cleanTicker)),
+          ]);
+
+      const [ltmResult, histResult, consResult, peersResult, workingCapitalResult] = settled;
+      historicalResult = histResult;
+      consensusResult = consResult;
+      peerResult = peersResult;
+      wcResult = workingCapitalResult;
+
+      // Process LTM financials
+      if (ltmResult.status === 'fulfilled') {
+        if (modelType === 'lbo') {
+          lboIngestion = ltmResult.value;
+          if (lboIngestion && hasLboIngestionData(lboIngestion)) {
+            ltmFinancials = mapLboIngestionToLtmFinancials(lboIngestion);
+            fetchDiag.dataSource = ltmFinancials.dataSource as any;
+            console.log(`[generateModel] ✅ LBO ingestion fetched (${fetchDiag.dataSource})`);
+          } else {
+            ltmFinancials = null;
+            fetchDiag.ok = false;
+            fetchDiag.warnings.push('No LBO ingestion data returned from free APIs');
+            console.log('[generateModel] ⚠️  No LBO ingestion data available');
+          }
         } else {
-          ltmFinancials = null;
-          fetchDiag.ok = false;
-          fetchDiag.warnings.push('No LBO ingestion data returned from free APIs');
-          console.log(`[generateModel] ⚠️  No LBO ingestion data available`);
-        }
-      } else {
-        ltmFinancials = ltmResult.value;
-        if (ltmFinancials) {
-          fetchDiag.dataSource = ltmFinancials.dataSource as any;
-          console.log(`[generateModel] ✅ LTM financial data fetched successfully`);
+          ltmFinancials = ltmResult.value;
+          if (ltmFinancials) {
+            fetchDiag.dataSource = ltmFinancials.dataSource as any;
+            console.log('[generateModel] ✅ LTM financial data fetched successfully');
+          }
         }
       }
     }
 
-    if (demoMode && (modelType === 'dcf' || modelType === 'reverse-dcf' || modelType === 'three-statement')) {
+    if (!ltmFinancials && normalizedModelInputs) {
+      ltmFinancials = buildLtmFinancialsFromModelInputs(cleanTicker, normalizedModelInputs);
+      runtimeFallbackWarnings.push(LIVE_DATA_FALLBACK_NOTICE);
+      fetchDiag.warnings.push(LIVE_DATA_FALLBACK_NOTICE);
+      fetchDiag.dataSource = 'Demo-Fallback' as any;
+      console.warn('[generateModel] Live data unavailable, using normalized ModelInputs fallback.');
+    }
+
+    if (normalizedModelInputs?.metadata?.liveDataFallback) {
+      runtimeFallbackWarnings.push(LIVE_DATA_FALLBACK_NOTICE);
+    }
+
+    fetchDiag.durationMs = Date.now() - fetchStartTime;
+
+    if (
+      demoMode &&
+      !privateManualMode &&
+      (modelType === 'dcf' || modelType === 'reverse-dcf' || modelType === 'three-statement')
+    ) {
       const demoRevenue =
         typeof ltmFinancials?.revenue === 'number' ? ltmFinancials.revenue : null;
       if (demoRevenue === null || Number.isNaN(demoRevenue) || demoRevenue < 0) {
@@ -3306,7 +3908,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
   if (canonicalSharesMillions !== null) {
     sanitizedAssumptions.sharesOutstanding = canonicalSharesMillions;
   }
-  if (isDemoMode() && modelType !== 'lbo') {
+  if (isDemoMode() && !privateManualMode && modelType !== 'lbo') {
     const demoRevenue =
       canonicalValues.revenue.value ??
       (typeof ltmFinancials?.revenue === 'number' ? ltmFinancials.revenue : null);
@@ -3339,34 +3941,68 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       );
     }
     if (modelType === 'reverse-dcf') {
-      const reverseReadiness = assessReverseDcfDemoReadiness({
-        marketPrice: canonicalMarketPrice,
-        sharesOutstanding: canonicalSharesMillions,
-        revenue: demoRevenue,
-      });
-      if (!reverseReadiness.ready) {
-        const missingPrice = reverseReadiness.missing.includes('market_price');
-        const missingShares = reverseReadiness.missing.includes('shares_outstanding');
-        const missingRevenue = reverseReadiness.missing.includes('revenue');
-        const code = missingPrice
-          ? 'demo_reverse_dcf_missing_price'
-          : missingShares
-            ? 'demo_reverse_dcf_missing_shares'
-            : 'demo_reverse_dcf_missing_revenue';
-        const message = missingPrice
-          ? 'Reverse DCF requires a valid demo market price.'
-          : missingShares
-            ? 'Reverse DCF requires valid demo shares outstanding.'
-            : missingRevenue
-              ? 'Reverse DCF requires positive demo revenue.'
-              : 'Reverse DCF demo inputs are not usable.';
+      const reverseSharesAnchor =
+        typeof reverseDcfRawInputs?.sharesOutstanding === 'number' &&
+        Number.isFinite(reverseDcfRawInputs.sharesOutstanding) &&
+        reverseDcfRawInputs.sharesOutstanding > 0
+          ? reverseDcfRawInputs.sharesOutstanding
+          : canonicalSharesMillions;
+      const reverseMarketCapAnchor =
+        typeof reverseDcfRawInputs?.marketCap === 'number' &&
+        Number.isFinite(reverseDcfRawInputs.marketCap) &&
+        reverseDcfRawInputs.marketCap > 0
+          ? reverseDcfRawInputs.marketCap
+          : typeof canonicalValues.marketCap.value === 'number' &&
+              Number.isFinite(canonicalValues.marketCap.value) &&
+              canonicalValues.marketCap.value > 0
+            ? canonicalValues.marketCap.value
+            : null;
+      const reverseSharePriceAnchor =
+        typeof reverseDcfRawInputs?.sharePrice === 'number' &&
+        Number.isFinite(reverseDcfRawInputs.sharePrice) &&
+        reverseDcfRawInputs.sharePrice > 0
+          ? reverseDcfRawInputs.sharePrice
+          : canonicalMarketPrice;
+      const reverseImpliedPrice =
+        reverseMarketCapAnchor !== null &&
+        reverseSharesAnchor !== null &&
+        Number.isFinite(reverseSharesAnchor) &&
+        reverseSharesAnchor > 0
+          ? reverseMarketCapAnchor / reverseSharesAnchor
+          : null;
+      const hasMarketCapAnchor = reverseMarketCapAnchor !== null && reverseMarketCapAnchor > 0;
+      const hasSharePairAnchor =
+        reverseSharePriceAnchor !== null &&
+        Number.isFinite(reverseSharePriceAnchor) &&
+        reverseSharePriceAnchor > 0 &&
+        reverseSharesAnchor !== null &&
+        Number.isFinite(reverseSharesAnchor) &&
+        reverseSharesAnchor > 0;
+      if (!hasMarketCapAnchor && !hasSharePairAnchor) {
         return NextResponse.json(
           {
             ok: false,
             state: 'failed',
             status: 'failed',
-            code,
-            message,
+            code: 'reverse_dcf_missing_anchor',
+            message: 'Reverse DCF requires market cap OR share price + shares outstanding.',
+          },
+          { status: 400 }
+        );
+      }
+      const reverseReadiness = assessReverseDcfDemoReadiness({
+        marketPrice: reverseSharePriceAnchor ?? reverseImpliedPrice,
+        sharesOutstanding: reverseSharesAnchor,
+        revenue: demoRevenue,
+      });
+      if (!reverseReadiness.ready && reverseReadiness.missing.includes('revenue')) {
+        return NextResponse.json(
+          {
+            ok: false,
+            state: 'failed',
+            status: 'failed',
+            code: 'demo_reverse_dcf_missing_revenue',
+            message: 'Reverse DCF requires positive demo revenue.',
             details: {
               missing: reverseReadiness.missing,
             },
@@ -3394,20 +4030,46 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
     }
   }
   if (modelType === 'reverse-dcf' && reverseDcfRawInputs) {
+    const marketCapAnchor =
+      typeof canonicalValues.marketCap.value === 'number' && Number.isFinite(canonicalValues.marketCap.value)
+        ? canonicalValues.marketCap.value
+        : typeof reverseDcfRawInputs.marketCap === 'number' && Number.isFinite(reverseDcfRawInputs.marketCap)
+          ? reverseDcfRawInputs.marketCap
+          : null;
+    const sharesAnchor =
+      typeof reverseDcfRawInputs.sharesOutstanding === 'number' &&
+      Number.isFinite(reverseDcfRawInputs.sharesOutstanding) &&
+      reverseDcfRawInputs.sharesOutstanding > 0
+        ? reverseDcfRawInputs.sharesOutstanding
+        : canonicalSharesMillions;
+    const impliedPriceFromMarketCap =
+      marketCapAnchor !== null &&
+      sharesAnchor !== null &&
+      Number.isFinite(marketCapAnchor) &&
+      Number.isFinite(sharesAnchor) &&
+      sharesAnchor > 0
+        ? marketCapAnchor / sharesAnchor
+        : null;
+    const sharePriceAnchor =
+      typeof reverseDcfRawInputs.sharePrice === 'number' &&
+      Number.isFinite(reverseDcfRawInputs.sharePrice) &&
+      reverseDcfRawInputs.sharePrice > 0
+        ? reverseDcfRawInputs.sharePrice
+        : null;
     const targetPrice =
       typeof reverseDcfRawInputs.targetPrice === 'number' &&
       Number.isFinite(reverseDcfRawInputs.targetPrice) &&
       reverseDcfRawInputs.targetPrice > 0
         ? reverseDcfRawInputs.targetPrice
-        : canonicalMarketPrice;
+        : canonicalMarketPrice ?? sharePriceAnchor ?? impliedPriceFromMarketCap;
     if (targetPrice === null || !Number.isFinite(targetPrice) || targetPrice <= 0) {
       return NextResponse.json(
         {
           ok: false,
           state: 'failed',
           status: 'failed',
-          code: 'demo_reverse_dcf_missing_price',
-          message: 'Reverse DCF requires targetPrice or a valid demo market price.',
+          code: 'reverse_dcf_missing_anchor',
+          message: 'Reverse DCF requires market cap OR share price + shares outstanding.',
         },
         { status: 400 }
       );
@@ -3417,7 +4079,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       terminalGrowth: reverseDcfRawInputs.terminalGrowthPct / 100,
       projectionYears: Math.round(reverseDcfRawInputs.projectionYears),
       targetPrice,
-      marketPrice: canonicalMarketPrice ?? targetPrice,
+      marketPrice: canonicalMarketPrice ?? sharePriceAnchor ?? impliedPriceFromMarketCap ?? targetPrice,
     };
   }
   if (canonicalValues.cash.value !== null) {
@@ -3856,10 +4518,19 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       }
     }
     
+    if (modelType === 'reverse-dcf' && reverseDcfRawInputs) {
+      if (!baseInputs.terminal_growth && reverseDcfRawInputs.terminalGrowthPct) {
+        baseInputs.terminal_growth = reverseDcfRawInputs.terminalGrowthPct / 100;
+      }
+      if (!baseInputs.wacc && reverseDcfRawInputs.waccPct) {
+        baseInputs.wacc = reverseDcfRawInputs.waccPct / 100;
+      }
+    }
+
     const computabilityModelType =
       modelType === 'reverse-dcf' ? 'dcf' : modelType;
     const computabilityCheck =
-      modelType === 'scorecard' || modelType === 'debt-capacity-lite'
+      modelType === 'scorecard' || modelType === 'debt-capacity-lite' || modelType === 'reverse-dcf'
         ? {
             isComputable: true,
             state: 'computable' as const,
@@ -4310,12 +4981,19 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
           cleanTicker,
           sanitizedAssumptions,
           normalizedFinancials,
-          diagnostics
+          diagnostics,
+          {
+            privateManualMode,
+            modelInputs: normalizedModelInputs,
+          }
         );
         break;
       case 'scorecard': {
         const { buildScorecardSummary } = await import('@/lib/models/scorecard/buildScorecardSummary');
-        scorecardSummary = await buildScorecardSummary(cleanTicker);
+        scorecardSummary = await buildScorecardSummary(cleanTicker, {
+          privateManualMode,
+          modelInputs: normalizedModelInputs,
+        });
         break;
       }
       case 'merger':
@@ -4479,7 +5157,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
     }
   }
 
-  if (modelType === 'dcf' || modelType === 'reverse-dcf' || modelType === 'comps' || modelType === 'three-statement') {
+  if (!wantsJson && (modelType === 'dcf' || modelType === 'reverse-dcf' || modelType === 'comps' || modelType === 'three-statement')) {
     const { generateModelReport, upsertModelBriefSheet } = await import('@/lib/models/modelBriefReport');
 
     const companyName =
@@ -4554,7 +5232,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
 
   // Optional: offload to object storage (R2/S3) for reliable downloads
   let signedDownloadUrl: string | undefined;
-  if (isObjectStoreConfigured()) {
+  if (!wantsJson && isObjectStoreConfigured()) {
     try {
       // Ensure key always ends with .xlsx to prevent folder paths
       const safeRequestId = (requestId || crypto.randomUUID()).replace(/[^a-zA-Z0-9-_]/g, '_');
@@ -4584,10 +5262,6 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
     }
   }
   
-  // Check if client wants JSON response with preview (via query param or header)
-  const wantsJson = req.headers.get('accept')?.includes('application/json') || 
-                    req.nextUrl.searchParams.get('format') === 'json';
-  
   if (wantsJson) {
     const dataUri = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${workbookBuffer.toString('base64')}`;
 
@@ -4610,7 +5284,17 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       sheets: exportWorkbook.worksheets.map(s => s.name),
       bufferSize: workbookBuffer.length,
       appliedDefaults,
-      warnings: [...guardrailResult.warnings, ...canonicalFinancials.warnings, ...consistencyResult.warnings],
+      warnings: Array.from(
+        new Set([
+          ...runtimeFallbackWarnings,
+          ...guardrailResult.warnings,
+          ...canonicalFinancials.warnings,
+          ...consistencyResult.warnings,
+        ])
+      ),
+      liveDataFallback:
+        runtimeFallbackWarnings.includes(LIVE_DATA_FALLBACK_NOTICE) ||
+        normalizedModelInputs?.metadata?.liveDataFallback === true,
       estimated: estimatedInputs, // Include auto-estimated inputs
       quickLbo:
         modelType === 'lbo' && body?.quickLbo === true

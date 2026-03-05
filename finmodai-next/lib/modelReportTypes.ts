@@ -9,4 +9,5 @@ export type ModelKind =
   | 'merger'
   | 'operating'
   | 'three-statement'
-  | 'scorecard';
+  | 'scorecard'
+  | 'debt-capacity-lite';

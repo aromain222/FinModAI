@@ -1,0 +1,27 @@
+import Link from 'next/link';
+import { ModelBuilder } from '@/components/ModelBuilder';
+import { Button } from '@/components/ui/button';
+import { APP_NAME } from '@/lib/branding';
+
+export default function ModelBuilderPage() {
+  return (
+    <main className="min-h-screen bg-[var(--cb-bg)] px-6 py-10 text-[var(--cb-text-body)]">
+      <div className="mx-auto max-w-5xl space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <header className="space-y-2">
+            <p className="text-sm font-semibold uppercase tracking-wide text-[var(--cb-green)]">{APP_NAME}</p>
+            <h1 className="text-3xl font-semibold text-[var(--cb-text-primary)]">Model Builder</h1>
+            <p className="text-sm text-[var(--cb-text-secondary)]">
+              Generate an investor-grade DCF workbook from a natural language prompt.
+            </p>
+          </header>
+          <Button asChild variant="outline">
+            <Link href="/app">Back to Dashboard</Link>
+          </Button>
+        </div>
+
+        <ModelBuilder />
+      </div>
+    </main>
+  );
+}

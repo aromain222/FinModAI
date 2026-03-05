@@ -7,6 +7,7 @@
 
 import OpenAI from 'openai';
 import type { MacroNewsItem } from './fetchMacroNews';
+import { filterHeadlines, type CuratedHeadline } from './headlineFilter';
 
 export type NewsLane = 'market' | 'world' | 'drop';
 
@@ -475,4 +476,84 @@ function calculateSimilarity(str1: string, str2: string): number {
   const union = new Set([...words1, ...words2]);
 
   return union.size > 0 ? intersection.size / union.size : 0;
+}
+
+/**
+ * Batch route articles with AI headline pre-curation.
+ *
+ * 1. Deduplicates input articles.
+ * 2. Runs the headline filter to identify the top market-moving headlines.
+ * 3. Fast-tracks curated headlines to `market` lane; remaining articles go
+ *    through the standard two-stage (quality + LLM) routing.
+ *
+ * Returns a Map<url, NewsRouting> for every input article.
+ */
+export async function routeArticlesBatch(
+  articles: MacroNewsItem[],
+  openai: OpenAI | null
+): Promise<{ routings: Map<string, NewsRouting>; curated: CuratedHeadline[] }> {
+  const deduped = deduplicateArticles(articles);
+  const routings = new Map<string, NewsRouting>();
+
+  const curated = await filterHeadlines(
+    deduped.map((a) => ({
+      title: a.title,
+      source: a.source,
+      publishedAt: a.publishedAt,
+      summary: a.summary,
+    })),
+    { openai: openai ?? undefined, maxResults: 10 }
+  );
+
+  const curatedTitles = new Set(
+    curated.map((c) => c.headline.toLowerCase().replace(/\s+/g, ' ').trim())
+  );
+
+  const remaining: MacroNewsItem[] = [];
+
+  for (const article of deduped) {
+    const normalizedTitle = article.title.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (curatedTitles.has(normalizedTitle)) {
+      routings.set(article.url, {
+        lane: 'market',
+        market_relevance_score: 85,
+        world_relevance_score: 70,
+        market_reason: 'Pre-curated by headline filter as market-moving',
+        world_reason: 'Pre-curated by headline filter',
+        topics: ['other'],
+        confidence: 'high',
+        classification_key: `news-routing:curated:${article.url}`,
+      });
+    } else {
+      remaining.push(article);
+    }
+  }
+
+  const BATCH_SIZE = 5;
+  for (let i = 0; i < remaining.length; i += BATCH_SIZE) {
+    const batch = remaining.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map((article) => routeArticle(article, openai))
+    );
+    results.forEach((result, idx) => {
+      const article = batch[idx];
+      routings.set(
+        article.url,
+        result.status === 'fulfilled'
+          ? result.value
+          : {
+              lane: 'drop',
+              market_relevance_score: 0,
+              world_relevance_score: 0,
+              market_reason: 'Routing failed',
+              world_reason: 'Routing failed',
+              topics: ['other'],
+              confidence: 'low',
+              classification_key: `news-routing:${article.url}`,
+            }
+      );
+    });
+  }
+
+  return { routings, curated };
 }

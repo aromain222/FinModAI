@@ -138,6 +138,31 @@ export function ModelResultsShell({
     }
   };
 
+  const downloadPdfFromUrl = async (url: string) => {
+    const response = await fetch(url, { method: 'GET' });
+    if (!response.ok) {
+      let message = `PDF download failed (${response.status}).`;
+      try {
+        const errorData = await response.json();
+        message = errorData?.message || errorData?.error || message;
+      } catch {
+        const text = await response.text().catch(() => '');
+        if (text) message = text;
+      }
+      throw new Error(message);
+    }
+
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = blobUrl;
+    anchor.download = 'CapitalBase_Report.pdf';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(blobUrl);
+  };
+
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
@@ -195,13 +220,22 @@ export function ModelResultsShell({
         )}
         {(pdfReportUrl || onDownloadPdfReport) && state === 'generated' && (
           <Button
-            onClick={() => {
-              if (onDownloadPdfReport) {
-                onDownloadPdfReport();
-                return;
-              }
-              if (pdfReportUrl) {
-                window.open(pdfReportUrl, '_blank', 'noopener,noreferrer');
+            onClick={async () => {
+              try {
+                if (onDownloadPdfReport) {
+                  onDownloadPdfReport();
+                  return;
+                }
+                if (pdfReportUrl) {
+                  await downloadPdfFromUrl(pdfReportUrl);
+                }
+              } catch (err) {
+                showToast({
+                  title: 'PDF download failed',
+                  description: err instanceof Error ? err.message : 'Please retry in a moment.',
+                  variant: 'destructive',
+                });
+                console.error('[ModelResultsShell] PDF download failed', err);
               }
             }}
             size="sm"

@@ -125,7 +125,8 @@ function normalizeDemoCandles(rows: DemoCandleRow[] | null): Array<Record<string
 }
 
 export async function GET(req: NextRequest) {
-  const isDemoMode = process.env.DEMO_MODE === 'true';
+  const providerParam = req.nextUrl.searchParams.get('provider');
+  const isDemoMode = providerParam === 'demo';
 
   if (isDemoMode) {
     try {

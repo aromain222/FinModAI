@@ -88,6 +88,35 @@ export async function estimateBeta(
   ticker: string,
   sector?: string
 ): Promise<EstimatedInput> {
+  const { isDemoMode } = await import('@/lib/demo/isDemoMode');
+
+  // Demo mode should never block on live market data.
+  if (isDemoMode()) {
+    const sectorBetas: Record<string, number> = {
+      Technology: 1.2,
+      Financials: 1.1,
+      Healthcare: 0.9,
+      Consumer: 1.0,
+      Industrials: 1.1,
+      Energy: 1.3,
+      Materials: 1.2,
+      Utilities: 0.7,
+      RealEstate: 0.8,
+      Communication: 1.0,
+    };
+
+    const sectorBeta = sector ? sectorBetas[sector] || 1.0 : 1.0;
+
+    return {
+      key: 'beta',
+      value: sectorBeta,
+      source: sector ? `Demo sector default (${sector})` : 'Demo market default (1.0)',
+      confidence: sector ? 'medium' : 'low',
+      label: 'Beta',
+      unit: 'x',
+    };
+  }
+
   // Try to fetch beta from market data
   try {
     const { fetchTickerSnapshot } = await import('@/lib/tickerDataService');
@@ -213,6 +242,39 @@ export async function estimateDCFInputs(
     preTaxIncome?: number | null;
   }
 ): Promise<EstimatedInput[]> {
+  const { isDemoMode } = await import('@/lib/demo/isDemoMode');
+
+  if (isDemoMode()) {
+    return [
+      {
+        key: 'rf_rate',
+        value: 0.045,
+        source: 'Demo default (4.5%)',
+        confidence: 'medium',
+        label: 'Risk-Free Rate',
+        unit: '%',
+      },
+      estimateERP(),
+      await estimateBeta(ticker, sector),
+      {
+        key: 'cost_of_debt',
+        value: 0.065,
+        source: 'Demo default (6.5%)',
+        confidence: 'medium',
+        label: 'Cost of Debt',
+        unit: '%',
+      },
+      {
+        key: 'tax_rate_assumption',
+        value: 0.25,
+        source: 'Demo default (25%)',
+        confidence: 'medium',
+        label: 'Tax Rate',
+        unit: '%',
+      },
+    ];
+  }
+
   const estimates = await Promise.all([
     estimateRiskFreeRate(),
     Promise.resolve(estimateERP()),

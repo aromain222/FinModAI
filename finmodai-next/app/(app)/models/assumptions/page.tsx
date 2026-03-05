@@ -23,8 +23,8 @@ export default function AssumptionsPage() {
         </header>
 
         <section className="rounded-2xl border border-dashed border-border bg-white/80 p-6 text-sm text-muted-foreground">
-          This section will list reusable assumptions soon. For now, keep building models via the wizard and we will
-          capture those inputs automatically.
+          This section will list reusable assumptions soon. For now, keep building models through the model flow and
+          we will capture those inputs automatically.
         </section>
       </div>
     </main>

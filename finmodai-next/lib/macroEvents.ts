@@ -27,6 +27,7 @@ export type MacroEventSource = {
   source: string;
   title: string;
   publishedAt: string;
+  imageUrl?: string;
 };
 
 export type MacroEvent = {
@@ -43,6 +44,12 @@ export type MacroEvent = {
   entities: string[];
   publishedAt: string;
   updatedAt: string;
+  imageUrl?: string;
+  imageThumbUrl?: string;
+  imageProvider?: string;
+  imageSourceUrl?: string;
+  imageAuthor?: string;
+  imageAuthorUrl?: string;
 };
 
 const STOPWORDS = new Set([

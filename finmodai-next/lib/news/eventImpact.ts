@@ -12,6 +12,107 @@ export type EventImpact = {
   whyItMatters: string;
 };
 
+function biasToDirection(bias: BiasDirection): ImpactDirection {
+  if (bias === 'Risk-On' || bias === 'Dovish') return 'up';
+  if (bias === 'Risk-Off' || bias === 'Hawkish') return 'down';
+  return 'mixed';
+}
+
+function dedupeSectors(
+  sectors: Array<{ sector: string; direction: ImpactDirection; rationale: string }>
+): Array<{ sector: string; direction: ImpactDirection; rationale: string }> {
+  const seen = new Set<string>();
+  const out: Array<{ sector: string; direction: ImpactDirection; rationale: string }> = [];
+  for (const item of sectors) {
+    const key = `${item.sector.toLowerCase()}:${item.direction}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
+function dedupeTickers(
+  tickers: Array<{ ticker: string; direction: ImpactDirection; rationale: string }>
+): Array<{ ticker: string; direction: ImpactDirection; rationale: string }> {
+  const byTicker = new Map<string, { ticker: string; direction: ImpactDirection; rationale: string }>();
+  for (const item of tickers) {
+    const key = item.ticker.toUpperCase();
+    if (!byTicker.has(key)) byTicker.set(key, { ...item, ticker: key });
+  }
+  return Array.from(byTicker.values());
+}
+
+function mergeWatchItems(existing: string[], additions: string[]): string[] {
+  return Array.from(new Set([...existing, ...additions])).slice(0, 6);
+}
+
+function applyMexicoAirlineOverlay(impact: EventImpact, text: string): EventImpact {
+  const lower = text.toLowerCase();
+  const hasMexico = /\b(mexico|mexican|mxn|cdmx|cancun|guadalajara|monterrey)\b/.test(lower);
+  if (!hasMexico) return impact;
+
+  const hasTravelChannel = /\b(airline|airlines|flight|flights|airport|tourism|travel|passenger|border|visa|hotel|booking)\b/.test(
+    lower
+  );
+  if (!hasTravelChannel) return impact;
+
+  const positiveTravel = /\b(reopen|reopening|normalization|record tourism|strong bookings?|visa easing|de-escalation|improvement)\b/.test(
+    lower
+  );
+  const negativeTravel = /\b(violence|security|cartel|disruption|shutdown|outage|storm|hurricane|ban|restriction|strike|warning)\b/.test(
+    lower
+  );
+
+  const directional: ImpactDirection = positiveTravel ? 'up' : negativeTravel ? 'down' : biasToDirection(impact.bias);
+  const directionalBias: BiasDirection = positiveTravel ? 'Risk-On' : negativeTravel ? 'Risk-Off' : impact.bias;
+
+  const travelSectors: Array<{ sector: string; direction: ImpactDirection; rationale: string }> = [
+    {
+      sector: 'Industrials',
+      direction: directional,
+      rationale: 'Airline and airport-exposed names react to Mexico route demand, load factors, and operational risk.',
+    },
+    {
+      sector: 'Consumer Discretionary',
+      direction: directional,
+      rationale: 'Leisure travel demand and booking trends can reprice travel platform and hospitality expectations.',
+    },
+    {
+      sector: 'Energy',
+      direction: 'mixed',
+      rationale: 'Jet fuel and crude moves can amplify or offset route-demand effects on airline margins.',
+    },
+  ];
+
+  const airlineTickers = ['UAL', 'AAL', 'DAL', 'LUV', 'JBLU', 'ALGT'];
+  const travelTickers = ['BKNG', 'EXPE', 'ABNB'];
+  const tickerDirection = directional === 'unknown' ? 'mixed' : directional;
+  const overlayTickers = [...airlineTickers, ...travelTickers].map((ticker) => ({
+    ticker,
+    direction: tickerDirection,
+    rationale: 'Material sensitivity to Mexico-related travel demand, route economics, and cross-border risk sentiment.',
+  }));
+
+  const watchItems = [
+    'USD/MXN and broad USD direction',
+    'Airline booking/capacity commentary for Mexico routes',
+    'Jet fuel versus crude spread',
+    'Travel advisories and border policy updates',
+  ];
+
+  return {
+    ...impact,
+    bias: directionalBias,
+    confidence: impact.confidence === 'low' ? 'medium' : impact.confidence,
+    affectedSectors: dedupeSectors([...travelSectors, ...impact.affectedSectors]),
+    affectedTickers: dedupeTickers([...overlayTickers, ...impact.affectedTickers]),
+    watchItems: mergeWatchItems(impact.watchItems, watchItems),
+    whyItMatters:
+      `${impact.whyItMatters} Mexico-linked headlines can transmit into airline and travel equities through route demand, pricing power, and operational risk on cross-border corridors.`,
+  };
+}
+
 function parseTickers(text: string): string[] {
   const explicitSymbols = text.match(/\$[A-Z]{1,5}\b/g)?.map((token) => token.slice(1)) ?? [];
   const tokens = text.match(/\b[A-Z]{2,5}\b/g) ?? [];
@@ -210,7 +311,7 @@ export function inferEventImpact(params: {
   if (tickers.length > 0) {
     impact.affectedTickers = tickers.map((ticker) => ({
       ticker,
-      direction: impact.bias === 'Risk-On' || impact.bias === 'Dovish' ? 'up' : impact.bias === 'Risk-Off' || impact.bias === 'Hawkish' ? 'down' : 'mixed',
+      direction: biasToDirection(impact.bias),
       rationale: 'Ticker appears in headline context and is likely part of first-order reaction.',
     }));
   }
@@ -236,5 +337,11 @@ export function inferEventImpact(params: {
       'Tariff shocks raise effective input costs and can tighten financial conditions via inflation and growth channels, pressuring equity multiples and earnings expectations.';
   }
 
-  return impact;
+  const geoAdjusted = applyMexicoAirlineOverlay(impact, text);
+  return {
+    ...geoAdjusted,
+    affectedTickers: dedupeTickers(geoAdjusted.affectedTickers),
+    affectedSectors: dedupeSectors(geoAdjusted.affectedSectors),
+    watchItems: mergeWatchItems([], geoAdjusted.watchItems),
+  };
 }

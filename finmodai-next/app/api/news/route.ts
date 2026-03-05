@@ -1,9 +1,13 @@
 import { createHash } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { buildHeadlineImageQuery } from '@/lib/headlineQuery';
+import { getMacroEventFallbackImage } from '@/lib/macroEventImageQueries';
+import { resolveMacroEventImageById } from '@/lib/macroEventImages';
 import { getEnrichmentForHeadline } from '@/lib/news/enrichment';
 import { inferEventImpact } from '@/lib/news/eventImpact';
 import { assessHeadlineRelevance, type RelevanceEventType } from '@/lib/news/relevance';
+import { searchPexelsPhotos } from '@/lib/pexels';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 300;
@@ -38,8 +42,27 @@ type EventItem = {
   sources: Array<{ source: string; title: string; url: string; published_at: string }>;
   confidence: Confidence;
   published_at: string;
+  image_url?: string;
+  image_thumb_url?: string;
+  image_provider?: string;
+  image_source_url?: string;
+  image_author?: string;
+  image_author_url?: string;
+  image_query?: string;
+  image_cached_at?: string;
   tags?: string[];
 };
+
+function withEventImageFallback<T extends EventItem>(event: T, categoryHint?: string | null): T {
+  const category = categoryHint || event.tags?.[0] || event.title;
+  const fallbackThumb = getMacroEventFallbackImage(category, 'thumb');
+  const fallbackHero = getMacroEventFallbackImage(category, 'hero');
+  return {
+    ...event,
+    image_url: event.image_url || fallbackHero,
+    image_thumb_url: event.image_thumb_url || event.image_url || fallbackThumb,
+  };
+}
 
 type Params = {
   type: NewsType;
@@ -262,6 +285,7 @@ function buildDemoHeadlines(params: Params, limit = params.limit): HeadlineItem[
   const selected = demoScenariosForTag(params.tag).slice(0, Math.min(limit, DEMO_SCENARIOS.length));
   return selected.map((scenario, index) => {
     const published = demoPublishedAt(params, index, selected.length);
+    const tags = Array.from(new Set([...scenario.topics, scenario.eventType, 'demo']));
     return {
       id: hashId(`demo-headline:${scenario.key}:${published}`),
       title: scenario.headline,
@@ -270,7 +294,11 @@ function buildDemoHeadlines(params: Params, limit = params.limit): HeadlineItem[
       source: scenario.source,
       publishedAt: published,
       published_at: published,
-      tags: Array.from(new Set([...scenario.topics, scenario.eventType, 'demo'])),
+      tags,
+      imageUrl: buildHeadlineFallbackImage({
+        title: scenario.headline,
+        tags,
+      }),
     };
   });
 }
@@ -344,7 +372,7 @@ function buildDemoEvents(params: Params, limit = params.limit): EventItem[] {
       tags: Array.from(new Set([...scenario.topics, scenario.eventType, 'demo'])),
     } satisfies EventItem);
 
-    return event;
+    return withEventImageFallback(event, scenario.eventType);
   });
 }
 
@@ -459,7 +487,12 @@ function normalizeHeadline(raw: Record<string, unknown>, provider: ProviderName)
   const description = raw.description ?? raw.summary ?? raw.content;
   const publishedIso = normalizeIso(raw.publishedAt ?? raw.published_at ?? raw.pubDate ?? raw.date);
   const tags = Array.isArray(raw.tags) ? raw.tags.filter((t): t is string => typeof t === 'string') : [];
-  const imageCandidate = raw.imageUrl ?? raw.image_url ?? raw.image ?? raw.thumbnail;
+  const imageCandidate =
+    raw.imageUrl ??
+    raw.image_url ??
+    raw.urlToImage ??
+    raw.image ??
+    raw.thumbnail;
 
   return {
     id: typeof raw.id === 'string' && raw.id.trim().length > 0 ? raw.id : hashId(url),
@@ -472,6 +505,165 @@ function normalizeHeadline(raw: Record<string, unknown>, provider: ProviderName)
     imageUrl: typeof imageCandidate === 'string' && imageCandidate.trim().length > 0 ? imageCandidate : undefined,
     tags: tags.length > 0 ? tags : undefined,
   };
+}
+
+function absolutizeImageUrl(candidate: string, pageUrl: string): string | null {
+  const value = candidate.trim();
+  if (!value) return null;
+  try {
+    const resolved = new URL(value, pageUrl);
+    if (resolved.protocol !== 'http:' && resolved.protocol !== 'https:') return null;
+    return resolved.toString();
+  } catch {
+    return null;
+  }
+}
+
+function extractMetaContent(html: string, property: string): string | null {
+  const escaped = property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const patterns = [
+    new RegExp(
+      `<meta[^>]+(?:property|name)=["']${escaped}["'][^>]+content=["']([^"']+)["'][^>]*>`,
+      'i'
+    ),
+    new RegExp(
+      `<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${escaped}["'][^>]*>`,
+      'i'
+    ),
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    const content = match?.[1]?.trim();
+    if (content) return content;
+  }
+  return null;
+}
+
+function parseOpenGraphImage(html: string, pageUrl: string): string | undefined {
+  const candidate =
+    extractMetaContent(html, 'og:image') ??
+    extractMetaContent(html, 'twitter:image') ??
+    extractMetaContent(html, 'og:image:url');
+  if (!candidate) return undefined;
+  return absolutizeImageUrl(candidate, pageUrl) ?? undefined;
+}
+
+function escapeSvgText(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildHeadlineFallbackImage(item: Pick<HeadlineItem, 'title' | 'tags'>, variant: 'thumb' | 'hero' = 'thumb'): string {
+  const query = buildHeadlineImageQuery({
+    headline: item.title,
+    category: item.tags?.[0] ?? null,
+  });
+  const headlineWords = query
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1));
+  const width = variant === 'hero' ? 1280 : 640;
+  const height = variant === 'hero' ? 720 : 360;
+  const title = escapeSvgText(headlineWords.join(' • ') || 'Macro Headline');
+  const subtitle = escapeSvgText((item.tags?.[0] ?? 'macro').toUpperCase());
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#0f172a" />
+          <stop offset="100%" stop-color="#030712" />
+        </linearGradient>
+        <radialGradient id="glowA" cx="82%" cy="20%" r="48%">
+          <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.35" />
+          <stop offset="100%" stop-color="#3b82f6" stop-opacity="0" />
+        </radialGradient>
+        <radialGradient id="glowB" cx="22%" cy="82%" r="40%">
+          <stop offset="0%" stop-color="#10b981" stop-opacity="0.18" />
+          <stop offset="100%" stop-color="#10b981" stop-opacity="0" />
+        </radialGradient>
+      </defs>
+      <rect width="${width}" height="${height}" fill="url(#bg)" />
+      <rect width="${width}" height="${height}" fill="url(#glowA)" />
+      <rect width="${width}" height="${height}" fill="url(#glowB)" />
+      <rect x="${Math.round(width * 0.07)}" y="${Math.round(height * 0.16)}" width="${Math.round(width * 0.2)}" height="${Math.round(height * 0.02)}" rx="999" fill="rgba(255,255,255,0.08)" />
+      <rect x="${Math.round(width * 0.07)}" y="${Math.round(height * 0.22)}" width="${Math.round(width * 0.12)}" height="${Math.round(height * 0.02)}" rx="999" fill="rgba(255,255,255,0.06)" />
+      <text x="${Math.round(width * 0.07)}" y="${Math.round(height * 0.7)}" fill="#f8fafc" font-family="Arial, Helvetica, sans-serif" font-size="${variant === 'hero' ? 40 : 24}" font-weight="700">${title}</text>
+      <text x="${Math.round(width * 0.07)}" y="${Math.round(height * 0.8)}" fill="rgba(248,250,252,0.72)" font-family="Arial, Helvetica, sans-serif" font-size="${variant === 'hero' ? 20 : 14}" font-weight="600" letter-spacing="3">${subtitle}</text>
+    </svg>
+  `;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+async function resolveHeadlineImageUrl(item: HeadlineItem): Promise<string | undefined> {
+  if (item.imageUrl) return item.imageUrl;
+  if (!isRealNewsUrl(item.url)) return buildHeadlineFallbackImage(item);
+
+  const timeout = withTimeoutSignal(4_000);
+  try {
+    const response = await fetch(item.url, {
+      cache: 'no-store',
+      signal: timeout.signal,
+      headers: {
+        Accept: 'text/html,application/xhtml+xml',
+        'User-Agent': 'CapitalBaseBot/1.0 (+https://capitalbase.app)',
+      },
+    });
+    if (!response.ok) return undefined;
+
+    const contentType = response.headers.get('content-type') ?? '';
+    if (!contentType.toLowerCase().includes('text/html')) return undefined;
+
+    const html = await response.text();
+    const openGraphImage = parseOpenGraphImage(html, item.url);
+    if (openGraphImage) return openGraphImage;
+  } catch {
+  } finally {
+    timeout.cleanup();
+  }
+
+  try {
+    const query = buildHeadlineImageQuery({
+      headline: item.title,
+      category: item.tags?.[0] ?? null,
+    });
+    const photos = await searchPexelsPhotos(query);
+    const photo = photos.find(
+      (candidate) =>
+        typeof candidate.src.landscape === 'string' ||
+        typeof candidate.src.large === 'string' ||
+        typeof candidate.src.medium === 'string'
+    );
+    const imageUrl = photo?.src.landscape || photo?.src.large || photo?.src.medium;
+    if (typeof imageUrl === 'string' && imageUrl.trim()) return imageUrl;
+  } catch {
+    // Fall through to deterministic headline-specific art.
+  }
+
+  return buildHeadlineFallbackImage(item);
+}
+
+async function hydrateHeadlineImages(items: HeadlineItem[], maxResolves: number): Promise<HeadlineItem[]> {
+  let remaining = Math.max(0, maxResolves);
+  const output: HeadlineItem[] = [];
+
+  for (const item of items) {
+    if (item.imageUrl || remaining <= 0) {
+      output.push(item);
+      continue;
+    }
+
+    const resolved = await resolveHeadlineImageUrl(item);
+    output.push(resolved ? { ...item, imageUrl: resolved } : item);
+    remaining -= 1;
+  }
+
+  return output;
 }
 
 function dedupeHeadlines(items: HeadlineItem[]): HeadlineItem[] {
@@ -643,6 +835,68 @@ function clusterRelevantHeadlines(relevant: RelevantHeadline[], limit: number): 
   });
   const selected = multiSource.length > 0 ? multiSource : clusters;
   return selected.slice(0, limit);
+}
+
+function toEventTypeLabel(eventType: RelevanceEventType): string {
+  const labels: Record<RelevanceEventType, string> = {
+    policy: 'policy',
+    rates: 'rates',
+    inflation: 'inflation',
+    growth: 'growth',
+    energy: 'energy',
+    fx: 'FX',
+    credit: 'credit',
+    geopolitics: 'geopolitics',
+    equities: 'equities',
+    other: 'macro',
+  };
+  return labels[eventType];
+}
+
+function buildMarketContextSnapshot(
+  relevant: RelevantHeadline[],
+  params: Params
+): {
+  summaryLine: string;
+  themeLine: string;
+  headlineLines: string[];
+} {
+  if (relevant.length === 0) {
+    return {
+      summaryLine:
+        `Current market context (${params.range}, topic=${params.tag}): limited high-confidence headlines, so treat event impact as low conviction until confirmed by rates, USD, credit, and breadth.`,
+      themeLine: 'Current driver mix: macro (1).',
+      headlineLines: [],
+    };
+  }
+
+  const eventTypeCounts = new Map<RelevanceEventType, number>();
+  const themeCounts = new Map<string, number>();
+  for (const item of relevant) {
+    const eventType = item.relevance.eventType;
+    const theme = detectThemeToken(item);
+    eventTypeCounts.set(eventType, (eventTypeCounts.get(eventType) ?? 0) + 1);
+    themeCounts.set(theme, (themeCounts.get(theme) ?? 0) + 1);
+  }
+
+  const topEventTypes = Array.from(eventTypeCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([eventType, count]) => `${toEventTypeLabel(eventType)} (${count})`);
+
+  const topThemes = Array.from(themeCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([theme, count]) => `${toThemeLabel(theme)} (${count})`);
+
+  const headlineLines = relevant.slice(0, 8).map((item) => `${item.source}: ${item.title}`);
+
+  return {
+    summaryLine:
+      `Current market context (${params.range}, topic=${params.tag}): dominant drivers are ${topEventTypes.join(', ') || 'macro'}. Focus on what changed now and what confirms it in 1-5 sessions.`,
+    themeLine: `Current driver mix: ${topThemes.join(', ') || 'Macro Regime (1)'}.`,
+    headlineLines,
+  };
 }
 
 function topicQuery(tag: string): string {
@@ -896,6 +1150,7 @@ async function upsertHeadlines(supabase: SupabaseClient, items: HeadlineItem[], 
     title: item.title,
     description: item.description,
     url: item.url,
+    image_url: item.imageUrl ?? null,
     tags: item.tags ?? [],
   }));
   const { error } = await supabase.from('news_headlines').upsert(rows, { onConflict: 'url' });
@@ -1139,11 +1394,41 @@ async function upsertEvents(supabase: SupabaseClient, events: EventItem[], param
     affected_sectors: event.impacted_sectors.map((s) => s.sector),
     importance: event.confidence === 'high' ? 5 : event.confidence === 'medium' ? 3 : 2,
   }));
-  const modernResult = await supabase.from('macro_events').upsert(modernRows, { onConflict: 'provider,title,published_at' });
-  if (!modernResult.error) return modernRows.length;
+  const modernResult = await supabase
+    .from('macro_events')
+    .upsert(modernRows, { onConflict: 'provider,title,published_at' })
+    .select('id');
+  if (!modernResult.error) {
+    const rows = Array.isArray(modernResult.data)
+      ? modernResult.data.filter((row): row is { id: string } => Boolean(row && typeof (row as { id?: unknown }).id === 'string'))
+      : [];
+    for (const row of rows) {
+      try {
+        await resolveMacroEventImageById(supabase, row.id);
+      } catch (imageError) {
+        const message = imageError instanceof Error ? imageError.message : 'resolve_failed';
+        errors.push(`macro_event_image_resolve:${message}`);
+        if (isDev()) console.error('[api/news] macro event image resolve failed', { id: row.id, message });
+      }
+    }
+    return modernRows.length;
+  }
 
-  const insertResult = await supabase.from('macro_events').insert(modernRows);
-  if (!insertResult.error) return modernRows.length;
+  const insertResult = await supabase.from('macro_events').insert(modernRows).select('id');
+  if (!insertResult.error) {
+    const rows = Array.isArray(insertResult.data)
+      ? insertResult.data.filter((row): row is { id: string } => Boolean(row && typeof (row as { id?: unknown }).id === 'string'))
+      : [];
+    for (const row of rows) {
+      try {
+        await resolveMacroEventImageById(supabase, row.id);
+      } catch (imageError) {
+        const message = imageError instanceof Error ? imageError.message : 'resolve_failed';
+        errors.push(`macro_event_image_resolve:${message}`);
+      }
+    }
+    return modernRows.length;
+  }
 
   errors.push(`supabase_upsert_events:${insertResult.error.message}`);
   if (isDev()) {
@@ -1249,43 +1534,54 @@ async function readEventsFromSupabase(supabase: SupabaseClient, params: Params, 
             : [],
         confidence,
         published_at: published,
+        image_url: typeof row.image_url === 'string' ? row.image_url : undefined,
+        image_thumb_url: typeof row.image_thumb_url === 'string' ? row.image_thumb_url : undefined,
+        image_provider: typeof row.image_provider === 'string' ? row.image_provider : undefined,
+        image_source_url: typeof row.image_source_url === 'string' ? row.image_source_url : undefined,
+        image_author: typeof row.image_author === 'string' ? row.image_author : undefined,
+        image_author_url: typeof row.image_author_url === 'string' ? row.image_author_url : undefined,
+        image_query: typeof row.image_query === 'string' ? row.image_query : undefined,
+        image_cached_at: typeof row.image_cached_at === 'string' ? row.image_cached_at : undefined,
         tags,
       };
 
-      return makeDetailedEvent({
-        ...normalizedEvent,
-        ai_summary: normalizedEvent.ai_summary || inferredImpact.whyItMatters,
-        why_it_matters: normalizedEvent.why_it_matters || inferredImpact.whyItMatters,
-        impacted_sectors:
-          normalizedEvent.impacted_sectors.length > 0
-            ? normalizedEvent.impacted_sectors
-            : inferredImpact.affectedSectors.map((sector) => ({
-                sector: sector.sector,
-                direction: sector.direction as Direction,
-                rationale: sector.rationale,
-              })),
-        impacted_tickers:
-          normalizedEvent.impacted_tickers.length > 0
-            ? normalizedEvent.impacted_tickers
-            : inferredImpact.affectedTickers.length > 0
-              ? inferredImpact.affectedTickers.map((ticker) => ({
-                  ticker: ticker.ticker,
-                  direction: ticker.direction as Direction,
-                  rationale: ticker.rationale,
-                }))
-              : [
-                  {
-                    ticker: 'SPY',
-                    direction:
-                      inferredImpact.bias === 'Risk-On' || inferredImpact.bias === 'Dovish'
-                        ? 'up'
-                        : inferredImpact.bias === 'Risk-Off' || inferredImpact.bias === 'Hawkish'
-                          ? 'down'
-                          : 'mixed',
-                    rationale: 'Broad market proxy for first-order event impact.',
-                  },
-                ],
-      } satisfies EventItem);
+      return withEventImageFallback(
+        makeDetailedEvent({
+          ...normalizedEvent,
+          ai_summary: normalizedEvent.ai_summary || inferredImpact.whyItMatters,
+          why_it_matters: normalizedEvent.why_it_matters || inferredImpact.whyItMatters,
+          impacted_sectors:
+            normalizedEvent.impacted_sectors.length > 0
+              ? normalizedEvent.impacted_sectors
+              : inferredImpact.affectedSectors.map((sector) => ({
+                  sector: sector.sector,
+                  direction: sector.direction as Direction,
+                  rationale: sector.rationale,
+                })),
+          impacted_tickers:
+            normalizedEvent.impacted_tickers.length > 0
+              ? normalizedEvent.impacted_tickers
+              : inferredImpact.affectedTickers.length > 0
+                ? inferredImpact.affectedTickers.map((ticker) => ({
+                    ticker: ticker.ticker,
+                    direction: ticker.direction as Direction,
+                    rationale: ticker.rationale,
+                  }))
+                : [
+                    {
+                      ticker: 'SPY',
+                      direction:
+                        inferredImpact.bias === 'Risk-On' || inferredImpact.bias === 'Dovish'
+                          ? 'up'
+                          : inferredImpact.bias === 'Risk-Off' || inferredImpact.bias === 'Hawkish'
+                            ? 'down'
+                            : 'mixed',
+                      rationale: 'Broad market proxy for first-order event impact.',
+                    },
+                  ],
+        } satisfies EventItem),
+        typeof row.event_type === 'string' ? row.event_type : typeof row.title === 'string' ? row.title : null
+      );
     });
     return mapped
       .map((event) => ({
@@ -1333,48 +1629,59 @@ async function readEventsFromSupabase(supabase: SupabaseClient, params: Params, 
           .filter((src) => isRealNewsUrl(src.url))
       : [];
 
-    return makeDetailedEvent({
-      id: typeof row.id === 'string' ? row.id : hashId(`${title}-${published}`),
-      title,
-      what_happened: oneLine,
-      ai_summary: oneLine || inferredImpact.whyItMatters,
-      why_it_matters: typeof row.why_it_matters === 'string' ? row.why_it_matters : inferredImpact.whyItMatters,
-      impacted_sectors:
-        impactedSectors.length > 0
-          ? impactedSectors.map((sector) => ({
-              sector: typeof sector.sector === 'string' ? sector.sector : 'Unknown',
-              direction:
-                sector.direction === 'up' || sector.direction === 'down' || sector.direction === 'mixed' || sector.direction === 'unknown'
-                  ? sector.direction
-                  : 'unknown',
-              rationale: typeof sector.rationale === 'string' ? sector.rationale : undefined,
-            }))
-          : inferredImpact.affectedSectors.map((sector) => ({
-              sector: sector.sector,
-              direction: sector.direction as Direction,
-              rationale: sector.rationale,
-            })),
-      impacted_tickers:
-        impactedAssets.length > 0
-          ? impactedAssets.map((asset) => ({
-              ticker: typeof asset.label === 'string' ? asset.label : 'SPY',
-              direction:
-                asset.dir === 'up' || asset.dir === 'down' || asset.dir === 'mixed' || asset.dir === 'unknown'
-                  ? asset.dir
-                  : 'unknown',
-              rationale: typeof asset.rationale === 'string' ? asset.rationale : undefined,
-            }))
-          : inferredImpact.affectedTickers.map((ticker) => ({
-              ticker: ticker.ticker,
-              direction: ticker.direction as Direction,
-              rationale: ticker.rationale,
-            })),
-      watch_items: inferredImpact.watchItems,
-      sources,
-      confidence,
-      published_at: published,
-      tags: Array.from(new Set([relevance.eventType])),
-    } satisfies EventItem);
+    return withEventImageFallback(
+      makeDetailedEvent({
+        id: typeof row.id === 'string' ? row.id : hashId(`${title}-${published}`),
+        title,
+        what_happened: oneLine,
+        ai_summary: oneLine || inferredImpact.whyItMatters,
+        why_it_matters: typeof row.why_it_matters === 'string' ? row.why_it_matters : inferredImpact.whyItMatters,
+        impacted_sectors:
+          impactedSectors.length > 0
+            ? impactedSectors.map((sector) => ({
+                sector: typeof sector.sector === 'string' ? sector.sector : 'Unknown',
+                direction:
+                  sector.direction === 'up' || sector.direction === 'down' || sector.direction === 'mixed' || sector.direction === 'unknown'
+                    ? sector.direction
+                    : 'unknown',
+                rationale: typeof sector.rationale === 'string' ? sector.rationale : undefined,
+              }))
+            : inferredImpact.affectedSectors.map((sector) => ({
+                sector: sector.sector,
+                direction: sector.direction as Direction,
+                rationale: sector.rationale,
+              })),
+        impacted_tickers:
+          impactedAssets.length > 0
+            ? impactedAssets.map((asset) => ({
+                ticker: typeof asset.label === 'string' ? asset.label : 'SPY',
+                direction:
+                  asset.dir === 'up' || asset.dir === 'down' || asset.dir === 'mixed' || asset.dir === 'unknown'
+                    ? asset.dir
+                    : 'unknown',
+                rationale: typeof asset.rationale === 'string' ? asset.rationale : undefined,
+              }))
+            : inferredImpact.affectedTickers.map((ticker) => ({
+                ticker: ticker.ticker,
+                direction: ticker.direction as Direction,
+                rationale: ticker.rationale,
+              })),
+        watch_items: inferredImpact.watchItems,
+        sources,
+        confidence,
+        published_at: published,
+        image_url: typeof row.image_url === 'string' ? row.image_url : undefined,
+        image_thumb_url: typeof row.image_thumb_url === 'string' ? row.image_thumb_url : undefined,
+        image_provider: typeof row.image_provider === 'string' ? row.image_provider : undefined,
+        image_source_url: typeof row.image_source_url === 'string' ? row.image_source_url : undefined,
+        image_author: typeof row.image_author === 'string' ? row.image_author : undefined,
+        image_author_url: typeof row.image_author_url === 'string' ? row.image_author_url : undefined,
+        image_query: typeof row.image_query === 'string' ? row.image_query : undefined,
+        image_cached_at: typeof row.image_cached_at === 'string' ? row.image_cached_at : undefined,
+        tags: Array.from(new Set([relevance.eventType])),
+      } satisfies EventItem),
+      typeof row.event_type === 'string' ? row.event_type : typeof row.title === 'string' ? row.title : null
+    );
   });
 
   return mappedDemo.slice(0, params.limit);
@@ -1397,7 +1704,7 @@ async function handleHeadlines(params: Params): Promise<NewsResponse> {
       : softLive.accepted.length >= Math.min(params.limit, 5)
       ? softLive.accepted
       : looseLive.accepted;
-  const finalLiveItems = livePicked.map(addRelevanceTags);
+  const finalLiveItems = await hydrateHeadlineImages(livePicked.map(addRelevanceTags), 6);
 
   if (isDev()) {
     console.debug('[api/news][headlines][live]', {
@@ -1474,7 +1781,7 @@ async function handleHeadlines(params: Params): Promise<NewsResponse> {
     )
     .slice(0, params.limit);
 
-  const preferred = dedupeHeadlines([...finalSupabaseItems, ...finalLiveItems]).slice(0, params.limit);
+  const preferred = dedupeHeadlines([...finalLiveItems, ...finalSupabaseItems]).slice(0, params.limit);
   const minimumTarget = Math.min(params.limit, 6);
   const blended =
     preferred.length >= minimumTarget
@@ -1520,6 +1827,7 @@ async function handleEvents(params: Params): Promise<EventsResponse> {
       : softLive.accepted.length >= 6
       ? softLive.accepted
       : looseLive.accepted;
+  const contextSnapshot = buildMarketContextSnapshot(selectedForEvents, params);
   const eventClusters = clusterRelevantHeadlines(selectedForEvents, Math.max(params.limit * 2, 24));
   const baseEvents = dedupeEvents(eventClusters.map(toEventFromCluster)).slice(0, params.limit);
   const secondaryEvents = dedupeEvents(
@@ -1557,6 +1865,12 @@ async function handleEvents(params: Params): Promise<EventsResponse> {
             .slice(0, 4)
             .map((source) => `${source.source}: ${source.title}`)
             .join(' | ')}`,
+          contextLines: [
+            contextSnapshot.summaryLine,
+            contextSnapshot.themeLine,
+            ...contextSnapshot.headlineLines,
+            `Current event to analyze: ${event.title}`,
+          ],
           // cache key should be cluster-specific, not just primary source url
           url: `event://${hashId(`${event.id}|${event.title}|${event.sources.map((source) => source.url).join('|')}`)}`,
         });
@@ -1594,7 +1908,7 @@ async function handleEvents(params: Params): Promise<EventsResponse> {
 
   let supabaseEvents: EventItem[] = [];
   const minimumEvents = Math.min(params.limit, params.range === '1D' ? 4 : params.range === '3D' ? 7 : 9);
-  if (supabase && derivedLiveEvents.length < minimumEvents) {
+  if (supabase && (ingested > 0 || derivedLiveEvents.length < minimumEvents)) {
     supabaseEvents = await readEventsFromSupabase(supabase, params, errors);
   }
 

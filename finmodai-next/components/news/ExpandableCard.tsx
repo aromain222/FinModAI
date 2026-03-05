@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { type ReactNode } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function ExpandableCard({
@@ -17,53 +17,37 @@ export default function ExpandableCard({
   children: ReactNode;
   rightAccessory?: ReactNode;
 }) {
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [maxHeightPx, setMaxHeightPx] = useState(0);
-
-  useEffect(() => {
-    const node = contentRef.current;
-    if (!node) return;
-
-    if (!isOpen) {
-      setMaxHeightPx(0);
-      return;
-    }
-
-    const measure = () => setMaxHeightPx(node.scrollHeight);
-    measure();
-
-    const observer = new ResizeObserver(() => measure());
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [isOpen, children]);
-
   return (
-    <div className="rounded-lg border border-zinc-800/40 bg-zinc-900/20">
+    <div
+      className={cn(
+        'group rounded-lg border transition-colors duration-150',
+        isOpen
+          ? 'border-zinc-700/60 bg-zinc-900/50'
+          : 'border-zinc-800/40 bg-zinc-900/20 hover:border-zinc-700/50 hover:bg-zinc-900/30'
+      )}
+    >
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-start justify-between gap-3 px-3 py-2.5 text-left transition-colors duration-200 hover:bg-zinc-800/20"
+        className="flex w-full items-start gap-3 px-4 py-3 text-left"
       >
+        <ChevronRight
+          className={cn(
+            'mt-1 h-3.5 w-3.5 shrink-0 text-zinc-500 transition-transform duration-200',
+            isOpen && 'rotate-90 text-zinc-300'
+          )}
+        />
         <div className="min-w-0 flex-1">{header}</div>
-        <div className="flex items-center gap-2 pt-0.5">
-          {rightAccessory}
-          <ChevronDown
-            className={cn(
-              'h-4 w-4 text-zinc-400 transition-transform duration-200',
-              isOpen && 'rotate-180'
-            )}
-          />
-        </div>
-      </button>
-      <div
-        className={cn(
-          'overflow-hidden border-t border-zinc-800/40 transition-[max-height,opacity] duration-300 ease-out',
-          isOpen ? 'opacity-100' : 'opacity-0'
+        {rightAccessory && (
+          <div className="flex shrink-0 items-center gap-2 pt-0.5">{rightAccessory}</div>
         )}
-        style={{ maxHeight: `${maxHeightPx}px` }}
-      >
-        <div ref={contentRef} className="space-y-3 px-3 py-3">{children}</div>
-      </div>
+      </button>
+
+      {isOpen && (
+        <div className="border-t border-zinc-800/30 px-4 pb-4 pt-3">
+          <div className="space-y-4">{children}</div>
+        </div>
+      )}
     </div>
   );
 }
