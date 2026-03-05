@@ -225,6 +225,36 @@ function validateRequestBody(body: any): { ticker: string; modelType: RequestMod
   };
 }
 
+function parseLooseNumericInput(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const cleaned = trimmed.replace(/[$,%\s,_]/g, '').replace(/,/g, '');
+    const suffixMatch = cleaned.match(/^(-?\d*\.?\d+)([kmbt])?$/i);
+    if (suffixMatch) {
+      const base = Number(suffixMatch[1]);
+      if (!Number.isFinite(base)) return null;
+      const suffix = suffixMatch[2]?.toLowerCase();
+      const multiplier =
+        suffix === 'k' ? 1e3 :
+        suffix === 'm' ? 1e6 :
+        suffix === 'b' ? 1e9 :
+        suffix === 't' ? 1e12 :
+        1;
+      return base * multiplier;
+    }
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function normalizeSharesToMillions(value: number | null): number | null {
+  if (value === null || !Number.isFinite(value) || value <= 0) return null;
+  return value > 1_000_000 ? value / 1_000_000 : value;
+}
+
 /**
  * Safely fetch financial data with error handling
  */
@@ -2929,26 +2959,38 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       // including ticker mode where the user can override demo market context.
       const requestManualInputs =
         body?.manualInputs && typeof body.manualInputs === 'object' ? body.manualInputs : {};
-      const coerceFiniteInput = (value: unknown): number | null => {
-        if (typeof value === 'number' && Number.isFinite(value)) return value;
-        if (typeof value === 'string' && value.trim().length > 0) {
-          const parsed = Number(value);
-          return Number.isFinite(parsed) ? parsed : null;
-        }
-        return null;
-      };
-      const requestMarketCap = coerceFiniteInput(
-        body?.marketCap ?? body?.market_cap ?? requestManualInputs?.marketCap
+      const requestReverseInputs =
+        body?.reverseDcfInputs && typeof body.reverseDcfInputs === 'object' ? body.reverseDcfInputs : {};
+      const requestMarketCap = parseLooseNumericInput(
+        body?.marketCap ??
+          body?.market_cap ??
+          requestReverseInputs?.marketCap ??
+          requestReverseInputs?.market_cap ??
+          requestManualInputs?.marketCap ??
+          requestManualInputs?.market_cap
       );
-      const requestSharePrice = coerceFiniteInput(
-        body?.sharePrice ?? body?.price ?? requestManualInputs?.price
+      const requestSharePrice = parseLooseNumericInput(
+        body?.sharePrice ??
+          body?.price ??
+          requestReverseInputs?.sharePrice ??
+          requestReverseInputs?.share_price ??
+          requestManualInputs?.price
       );
-      const requestSharesOutstanding = coerceFiniteInput(
+      const requestSharesRaw = parseLooseNumericInput(
         body?.sharesOutstanding ??
           body?.shares_outstanding ??
           body?.shares_out_basic ??
-          requestManualInputs?.sharesOutstanding
+          requestReverseInputs?.sharesOutstanding ??
+          requestReverseInputs?.shares_outstanding ??
+          requestReverseInputs?.shares_out_basic ??
+          requestManualInputs?.sharesOutstanding ??
+          requestManualInputs?.shares_outstanding ??
+          requestManualInputs?.shares_out_basic
       );
+      const requestSharesOutstanding =
+        modelType === 'reverse-dcf'
+          ? normalizeSharesToMillions(requestSharesRaw)
+          : requestSharesRaw;
 
       if (
         (requestMarketCap !== null && requestMarketCap > 0) ||
@@ -3013,58 +3055,81 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
           typeof normalizedModelInputs.capitalStructure?.sharesOutstanding === 'number'
             ? normalizedModelInputs.capitalStructure.sharesOutstanding
             : undefined;
+        const parsedManualRevenue = parseLooseNumericInput(body?.manualInputs?.revenue);
+        const parsedManualNetDebt = parseLooseNumericInput(
+          body?.manualInputs?.netDebt ?? body?.manualInputs?.net_debt
+        );
+        const parsedManualSharesRaw = parseLooseNumericInput(
+          body?.manualInputs?.sharesOutstanding ??
+            body?.manualInputs?.shares_outstanding ??
+            body?.manualInputs?.shares_out_basic
+        );
+        const parsedManualShares =
+          modelType === 'reverse-dcf'
+            ? normalizeSharesToMillions(parsedManualSharesRaw)
+            : parsedManualSharesRaw;
+        const parsedManualMarketCap = parseLooseNumericInput(
+          body?.manualInputs?.marketCap ?? body?.manualInputs?.market_cap
+        );
+        const parsedManualPrice = parseLooseNumericInput(body?.manualInputs?.price);
+        const parsedManualTaxRatePct = parseLooseNumericInput(body?.manualInputs?.taxRatePct);
+        const parsedManualRevenueGrowthPct = parseLooseNumericInput(body?.manualInputs?.revenueGrowthPct);
+        const parsedManualEbitMarginPct = parseLooseNumericInput(body?.manualInputs?.ebitMarginPct);
+        const parsedManualCapexPctRevenue = parseLooseNumericInput(body?.manualInputs?.capexPctRevenue);
+        const parsedManualNwcPctRevenue = parseLooseNumericInput(body?.manualInputs?.nwcPctRevenue);
+        const parsedManualDaPctRevenue = parseLooseNumericInput(body?.manualInputs?.daPctRevenue);
 
         body.manualInputs = {
           ...(body.manualInputs && typeof body.manualInputs === 'object' ? body.manualInputs : {}),
           revenue:
-            typeof body?.manualInputs?.revenue === 'number'
-              ? body.manualInputs.revenue
+            typeof parsedManualRevenue === 'number'
+              ? parsedManualRevenue
               : latestRevenue,
           netDebt:
-            typeof body?.manualInputs?.netDebt === 'number'
-              ? body.manualInputs.netDebt
+            typeof parsedManualNetDebt === 'number'
+              ? parsedManualNetDebt
               : normalizedModelInputs.capitalStructure?.netDebt,
           sharesOutstanding:
-            typeof body?.manualInputs?.sharesOutstanding === 'number'
-              ? body.manualInputs.sharesOutstanding
+            typeof parsedManualShares === 'number'
+              ? parsedManualShares
               : normalizedModelInputs.pricingAnchor?.sharesOutstanding ?? sharesFromCapitalStructure,
           marketCap:
-            typeof body?.manualInputs?.marketCap === 'number'
-              ? body.manualInputs.marketCap
+            typeof parsedManualMarketCap === 'number'
+              ? parsedManualMarketCap
               : normalizedModelInputs.pricingAnchor?.marketCap,
           price:
-            typeof body?.manualInputs?.price === 'number'
-              ? body.manualInputs.price
+            typeof parsedManualPrice === 'number'
+              ? parsedManualPrice
               : normalizedModelInputs.pricingAnchor?.sharePrice,
           taxRatePct:
-            typeof body?.manualInputs?.taxRatePct === 'number'
-              ? body.manualInputs.taxRatePct
+            typeof parsedManualTaxRatePct === 'number'
+              ? parsedManualTaxRatePct
               : taxRate !== undefined
                 ? taxRate * 100
                 : undefined,
           revenueGrowthPct:
-            typeof body?.manualInputs?.revenueGrowthPct === 'number'
-              ? body.manualInputs.revenueGrowthPct
+            typeof parsedManualRevenueGrowthPct === 'number'
+              ? parsedManualRevenueGrowthPct
               : growth !== undefined
                 ? growth * 100
                 : undefined,
           ebitMarginPct:
-            typeof body?.manualInputs?.ebitMarginPct === 'number'
-              ? body.manualInputs.ebitMarginPct
+            typeof parsedManualEbitMarginPct === 'number'
+              ? parsedManualEbitMarginPct
               : normalizedMargin !== undefined
                 ? normalizedMargin * 100
                 : undefined,
           capexPctRevenue:
-            typeof body?.manualInputs?.capexPctRevenue === 'number'
-              ? body.manualInputs.capexPctRevenue
+            typeof parsedManualCapexPctRevenue === 'number'
+              ? parsedManualCapexPctRevenue
               : normalizedModelInputs.assumptions.capexPctRevenue * 100,
           nwcPctRevenue:
-            typeof body?.manualInputs?.nwcPctRevenue === 'number'
-              ? body.manualInputs.nwcPctRevenue
+            typeof parsedManualNwcPctRevenue === 'number'
+              ? parsedManualNwcPctRevenue
               : normalizedModelInputs.assumptions.nwcPctRevenue * 100,
           daPctRevenue:
-            typeof body?.manualInputs?.daPctRevenue === 'number'
-              ? body.manualInputs.daPctRevenue
+            typeof parsedManualDaPctRevenue === 'number'
+              ? parsedManualDaPctRevenue
               : normalizedModelInputs.assumptions.daPctRevenue !== undefined
                 ? normalizedModelInputs.assumptions.daPctRevenue * 100
                 : undefined,
@@ -3175,57 +3240,65 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
         );
       }
       const manualInputs = body?.manualInputs && typeof body.manualInputs === 'object' ? body.manualInputs : {};
+      const reverseInputsBody =
+        body?.reverseDcfInputs && typeof body.reverseDcfInputs === 'object' ? body.reverseDcfInputs : {};
+      const parsedMarketCapValue = parseLooseNumericInput(
+        body?.marketCap ??
+          body?.market_cap ??
+          reverseInputsBody?.marketCap ??
+          reverseInputsBody?.market_cap ??
+          manualInputs?.marketCap ??
+          manualInputs?.market_cap ??
+          normalizedModelInputs?.pricingAnchor?.marketCap
+      );
+      const parsedSharePriceValue = parseLooseNumericInput(
+        body?.sharePrice ??
+          body?.price ??
+          reverseInputsBody?.sharePrice ??
+          reverseInputsBody?.share_price ??
+          manualInputs?.price ??
+          normalizedModelInputs?.pricingAnchor?.sharePrice
+      );
+      const parsedSharesRaw = parseLooseNumericInput(
+        body?.sharesOutstanding ??
+          body?.shares_outstanding ??
+          body?.shares_out_basic ??
+          reverseInputsBody?.sharesOutstanding ??
+          reverseInputsBody?.shares_outstanding ??
+          reverseInputsBody?.shares_out_basic ??
+          manualInputs?.sharesOutstanding ??
+          manualInputs?.shares_outstanding ??
+          manualInputs?.shares_out_basic ??
+          normalizedModelInputs?.pricingAnchor?.sharesOutstanding
+      );
       const parsedMarketCap =
-        typeof body?.marketCap === 'number'
-          ? body.marketCap
-          : typeof body?.market_cap === 'number'
-            ? body.market_cap
-            : typeof manualInputs?.marketCap === 'number'
-              ? manualInputs.marketCap
-              : typeof normalizedModelInputs?.pricingAnchor?.marketCap === 'number'
-                ? normalizedModelInputs.pricingAnchor.marketCap
-              : undefined;
+        typeof parsedMarketCapValue === 'number' && parsedMarketCapValue > 0
+          ? parsedMarketCapValue
+          : undefined;
       const parsedSharePrice =
-        typeof body?.sharePrice === 'number'
-          ? body.sharePrice
-          : typeof body?.price === 'number'
-            ? body.price
-            : typeof manualInputs?.price === 'number'
-              ? manualInputs.price
-              : typeof normalizedModelInputs?.pricingAnchor?.sharePrice === 'number'
-                ? normalizedModelInputs.pricingAnchor.sharePrice
-              : undefined;
+        typeof parsedSharePriceValue === 'number' && parsedSharePriceValue > 0
+          ? parsedSharePriceValue
+          : undefined;
+      const parsedSharesOutstandingValue = normalizeSharesToMillions(parsedSharesRaw);
       const parsedSharesOutstanding =
-        typeof body?.sharesOutstanding === 'number'
-          ? body.sharesOutstanding
-          : typeof body?.shares_outstanding === 'number'
-            ? body.shares_outstanding
-            : typeof body?.shares_out_basic === 'number'
-              ? body.shares_out_basic
-              : typeof manualInputs?.sharesOutstanding === 'number'
-                ? manualInputs.sharesOutstanding
-                : typeof normalizedModelInputs?.pricingAnchor?.sharesOutstanding === 'number'
-                  ? normalizedModelInputs.pricingAnchor.sharesOutstanding
-                : undefined;
-      if (
-        !privateManualMode &&
-        parsedReverse.targetPrice === undefined &&
-        parsedMarketCap === undefined &&
-        !(parsedSharePrice !== undefined && parsedSharesOutstanding !== undefined)
-      ) {
-        // Public/ticker mode can still use fetched market price later.
-      } else if (
-        privateManualMode &&
-        parsedMarketCap === undefined &&
-        !(parsedSharePrice !== undefined && parsedSharesOutstanding !== undefined)
-      ) {
+        typeof parsedSharesOutstandingValue === 'number' && parsedSharesOutstandingValue > 0
+          ? parsedSharesOutstandingValue
+          : undefined;
+      const hasAnyAnchor =
+        (typeof parsedReverse.targetPrice === 'number' && parsedReverse.targetPrice > 0) ||
+        (typeof parsedMarketCap === 'number' && parsedMarketCap > 0) ||
+        (typeof parsedSharePrice === 'number' &&
+          parsedSharePrice > 0 &&
+          typeof parsedSharesOutstanding === 'number' &&
+          parsedSharesOutstanding > 0);
+      if (privateManualMode && !hasAnyAnchor) {
         return NextResponse.json(
           {
             ok: false,
             status: 'failed',
             state: 'failed',
             code: 'reverse_dcf_missing_anchor',
-            message: 'Reverse DCF requires market cap OR share price + shares outstanding.',
+            message: 'Reverse DCF requires market cap, target price, or share price + shares outstanding.',
           },
           { status: 400 }
         );
@@ -3905,8 +3978,19 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
             ltmFinancials.sharesOutstanding > 0
           ? ltmFinancials.marketCap / ltmFinancials.sharesOutstanding
           : null;
-  if (canonicalSharesMillions !== null) {
-    sanitizedAssumptions.sharesOutstanding = canonicalSharesMillions;
+  const reverseSharesOverrideMillions =
+    modelType === 'reverse-dcf' &&
+    typeof reverseDcfRawInputs?.sharesOutstanding === 'number' &&
+    Number.isFinite(reverseDcfRawInputs.sharesOutstanding) &&
+    reverseDcfRawInputs.sharesOutstanding > 0
+      ? reverseDcfRawInputs.sharesOutstanding
+      : null;
+  const effectiveSharesMillions =
+    reverseSharesOverrideMillions !== null
+      ? reverseSharesOverrideMillions
+      : canonicalSharesMillions;
+  if (effectiveSharesMillions !== null) {
+    sanitizedAssumptions.sharesOutstanding = effectiveSharesMillions;
   }
   if (isDemoMode() && !privateManualMode && modelType !== 'lbo') {
     const demoRevenue =
@@ -3925,9 +4009,10 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       );
     }
     if (
-      canonicalSharesMillions === null ||
-      !Number.isFinite(canonicalSharesMillions) ||
-      canonicalSharesMillions <= 0
+      (effectiveSharesMillions === null ||
+        !Number.isFinite(effectiveSharesMillions) ||
+        effectiveSharesMillions <= 0) &&
+      modelType !== 'reverse-dcf'
     ) {
       return NextResponse.json(
         {
@@ -3941,12 +4026,12 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       );
     }
     if (modelType === 'reverse-dcf') {
-      const reverseSharesAnchor =
+      const reverseSharesInput =
         typeof reverseDcfRawInputs?.sharesOutstanding === 'number' &&
         Number.isFinite(reverseDcfRawInputs.sharesOutstanding) &&
         reverseDcfRawInputs.sharesOutstanding > 0
           ? reverseDcfRawInputs.sharesOutstanding
-          : canonicalSharesMillions;
+          : effectiveSharesMillions;
       const reverseMarketCapAnchor =
         typeof reverseDcfRawInputs?.marketCap === 'number' &&
         Number.isFinite(reverseDcfRawInputs.marketCap) &&
@@ -3963,6 +4048,17 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
         reverseDcfRawInputs.sharePrice > 0
           ? reverseDcfRawInputs.sharePrice
           : canonicalMarketPrice;
+      const reverseSharesAnchor =
+        reverseSharesInput !== null && Number.isFinite(reverseSharesInput) && reverseSharesInput > 0
+          ? reverseSharesInput
+          : reverseMarketCapAnchor !== null &&
+              Number.isFinite(reverseMarketCapAnchor) &&
+              reverseMarketCapAnchor > 0 &&
+              reverseSharePriceAnchor !== null &&
+              Number.isFinite(reverseSharePriceAnchor) &&
+              reverseSharePriceAnchor > 0
+            ? reverseMarketCapAnchor / reverseSharePriceAnchor
+            : null;
       const reverseImpliedPrice =
         reverseMarketCapAnchor !== null &&
         reverseSharesAnchor !== null &&
@@ -3971,6 +4067,10 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
           ? reverseMarketCapAnchor / reverseSharesAnchor
           : null;
       const hasMarketCapAnchor = reverseMarketCapAnchor !== null && reverseMarketCapAnchor > 0;
+      const hasTargetPriceAnchor =
+        typeof reverseDcfRawInputs?.targetPrice === 'number' &&
+        Number.isFinite(reverseDcfRawInputs.targetPrice) &&
+        reverseDcfRawInputs.targetPrice > 0;
       const hasSharePairAnchor =
         reverseSharePriceAnchor !== null &&
         Number.isFinite(reverseSharePriceAnchor) &&
@@ -3978,14 +4078,14 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
         reverseSharesAnchor !== null &&
         Number.isFinite(reverseSharesAnchor) &&
         reverseSharesAnchor > 0;
-      if (!hasMarketCapAnchor && !hasSharePairAnchor) {
+      if (!hasMarketCapAnchor && !hasSharePairAnchor && !hasTargetPriceAnchor) {
         return NextResponse.json(
           {
             ok: false,
             state: 'failed',
             status: 'failed',
             code: 'reverse_dcf_missing_anchor',
-            message: 'Reverse DCF requires market cap OR share price + shares outstanding.',
+            message: 'Reverse DCF requires market cap, target price, or share price + shares outstanding.',
           },
           { status: 400 }
         );
@@ -4030,25 +4130,29 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
     }
   }
   if (modelType === 'reverse-dcf' && reverseDcfRawInputs) {
+    const rawMarketCap =
+      typeof reverseDcfRawInputs.marketCap === 'number' && Number.isFinite(reverseDcfRawInputs.marketCap)
+        ? reverseDcfRawInputs.marketCap
+        : null;
     const marketCapAnchor =
-      typeof canonicalValues.marketCap.value === 'number' && Number.isFinite(canonicalValues.marketCap.value)
-        ? canonicalValues.marketCap.value
-        : typeof reverseDcfRawInputs.marketCap === 'number' && Number.isFinite(reverseDcfRawInputs.marketCap)
-          ? reverseDcfRawInputs.marketCap
+      rawMarketCap !== null && rawMarketCap > 0
+        ? rawMarketCap
+        : typeof canonicalValues.marketCap.value === 'number' && Number.isFinite(canonicalValues.marketCap.value)
+          ? canonicalValues.marketCap.value
           : null;
-    const sharesAnchor =
+    const sharesInputAnchor =
       typeof reverseDcfRawInputs.sharesOutstanding === 'number' &&
       Number.isFinite(reverseDcfRawInputs.sharesOutstanding) &&
       reverseDcfRawInputs.sharesOutstanding > 0
         ? reverseDcfRawInputs.sharesOutstanding
-        : canonicalSharesMillions;
+        : effectiveSharesMillions;
     const impliedPriceFromMarketCap =
       marketCapAnchor !== null &&
-      sharesAnchor !== null &&
+      sharesInputAnchor !== null &&
       Number.isFinite(marketCapAnchor) &&
-      Number.isFinite(sharesAnchor) &&
-      sharesAnchor > 0
-        ? marketCapAnchor / sharesAnchor
+      Number.isFinite(sharesInputAnchor) &&
+      sharesInputAnchor > 0
+        ? marketCapAnchor / sharesInputAnchor
         : null;
     const sharePriceAnchor =
       typeof reverseDcfRawInputs.sharePrice === 'number' &&
@@ -4056,31 +4160,50 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       reverseDcfRawInputs.sharePrice > 0
         ? reverseDcfRawInputs.sharePrice
         : null;
+    const sharesAnchor =
+      sharesInputAnchor !== null && Number.isFinite(sharesInputAnchor) && sharesInputAnchor > 0
+        ? sharesInputAnchor
+        : marketCapAnchor !== null &&
+            Number.isFinite(marketCapAnchor) &&
+            marketCapAnchor > 0 &&
+            sharePriceAnchor !== null &&
+            Number.isFinite(sharePriceAnchor) &&
+            sharePriceAnchor > 0
+          ? marketCapAnchor / sharePriceAnchor
+          : canonicalSharesMillions;
     const targetPrice =
       typeof reverseDcfRawInputs.targetPrice === 'number' &&
       Number.isFinite(reverseDcfRawInputs.targetPrice) &&
       reverseDcfRawInputs.targetPrice > 0
         ? reverseDcfRawInputs.targetPrice
-        : canonicalMarketPrice ?? sharePriceAnchor ?? impliedPriceFromMarketCap;
+        : sharePriceAnchor ?? impliedPriceFromMarketCap ?? canonicalMarketPrice;
     if (targetPrice === null || !Number.isFinite(targetPrice) || targetPrice <= 0) {
-      return NextResponse.json(
-        {
-          ok: false,
-          state: 'failed',
-          status: 'failed',
-          code: 'reverse_dcf_missing_anchor',
-          message: 'Reverse DCF requires market cap OR share price + shares outstanding.',
-        },
-        { status: 400 }
-      );
+      if (marketCapAnchor !== null && marketCapAnchor > 0) {
+        console.log('[generateModel] Reverse DCF: no target price resolved, but market cap available — using $1 placeholder for solver target and relying on market-cap anchor.');
+      } else {
+        return NextResponse.json(
+          {
+            ok: false,
+            state: 'failed',
+            status: 'failed',
+            code: 'reverse_dcf_missing_anchor',
+            message: 'Reverse DCF requires a target price, market cap, or share price + shares outstanding.',
+          },
+          { status: 400 }
+        );
+      }
     }
+    const resolvedTargetPrice = targetPrice ?? impliedPriceFromMarketCap ?? 1;
     reverseDcfInputs = {
       wacc: reverseDcfRawInputs.waccPct / 100,
       terminalGrowth: reverseDcfRawInputs.terminalGrowthPct / 100,
       projectionYears: Math.round(reverseDcfRawInputs.projectionYears),
-      targetPrice,
-      marketPrice: canonicalMarketPrice ?? sharePriceAnchor ?? impliedPriceFromMarketCap ?? targetPrice,
+      targetPrice: resolvedTargetPrice,
+      marketPrice: sharePriceAnchor ?? canonicalMarketPrice ?? impliedPriceFromMarketCap ?? resolvedTargetPrice,
     };
+    if (sharesAnchor !== null && Number.isFinite(sharesAnchor) && sharesAnchor > 0) {
+      sanitizedAssumptions.sharesOutstanding = sharesAnchor;
+    }
   }
   if (canonicalValues.cash.value !== null) {
     sanitizedAssumptions.startingCash = canonicalValues.cash.value;
@@ -5191,9 +5314,9 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
           : 'Unavailable',
     };
 
-    const reportModelType = modelType === 'reverse-dcf' ? 'dcf' : modelType;
+    const reportModelType = modelType;
     const report = await generateModelReport({
-      modelType: reportModelType as 'dcf' | 'comps' | 'three-statement',
+      modelType: reportModelType as 'dcf' | 'reverse-dcf' | 'comps' | 'three-statement',
       companySnapshot,
       modelOutputs: {
         dcfSummary,
