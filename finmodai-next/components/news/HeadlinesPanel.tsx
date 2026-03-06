@@ -138,7 +138,7 @@ function formatAiSummaryText(raw: string | null | undefined): string {
 
   const cleaned = trimmed
     .replace(/[•·◦▪▫●∙]/g, ' ')
-    .replace(/\b(SUMMARY|BOTTOM LINE|DRIVERS|MARKET IMPACT|WINNERS?|LOSERS?|WATCH NEXT)\b:?/gi, ' ')
+    .replace(/\b(SUMMARY|BOTTOM LINE|DRIVERS|MARKET IMPACT|WINNERS?|LOSERS?|WATCH NEXT|MACRO EVENT|WHAT HAPPENED|WHY MARKETS CARE|TICKERS\s*\/\s*ASSETS TO WATCH)\b:?/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -162,7 +162,7 @@ function formatPlainNarrative(raw: string | null | undefined, maxSentences = 5):
   const cleaned = raw
     .replace(/\r\n/g, '\n')
     .replace(/[•·◦▪▫●∙]/g, ' ')
-    .replace(/\b(SUMMARY|BOTTOM LINE|DRIVERS|MARKET IMPACT|WINNERS?|LOSERS?|WATCH NEXT|EQUITIES|RATES|FX|COMMODITIES|CREDIT)\b:?/gi, ' ')
+    .replace(/\b(SUMMARY|BOTTOM LINE|DRIVERS|MARKET IMPACT|WINNERS?|LOSERS?|WATCH NEXT|MACRO EVENT|WHAT HAPPENED|WHY MARKETS CARE|TICKERS\s*\/\s*ASSETS TO WATCH|EQUITIES|RATES|FX|COMMODITIES|CREDIT)\b:?/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   if (!cleaned) return 'Additional context unavailable.';
@@ -212,7 +212,7 @@ function parseMarketImpactSections(raw: string | null | undefined): MarketImpact
   const losers: string[] = [];
   const watchItems: string[] = [];
 
-  type Section = 'none' | 'summary' | 'drivers' | 'impact' | 'impact_asset' | 'winners' | 'losers' | 'watch' | 'skip';
+type Section = 'none' | 'summary' | 'drivers' | 'impact' | 'impact_asset' | 'winners' | 'losers' | 'watch' | 'skip';
   let section: Section = 'none';
   let currentAsset: string | null = null;
 
@@ -273,6 +273,59 @@ function parseMarketImpactSections(raw: string | null | undefined): MarketImpact
   }
 
   return { summary, drivers, assetImpacts, winners, losers, watchItems, fallback };
+}
+
+type MacroStructuredSection = {
+  label: string;
+  content: string;
+};
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function parseMacroStructuredAnalysis(raw: string | null | undefined): MacroStructuredSection[] | null {
+  if (!raw || typeof raw !== 'string') return null;
+  const text = raw.replace(/\r\n/g, '\n').trim();
+  if (!text) return null;
+
+  const labels = [
+    { label: 'MACRO EVENT', aliases: ['MACRO EVENT'] },
+    { label: 'WHAT HAPPENED', aliases: ['WHAT HAPPENED'] },
+    { label: 'WHY MARKETS CARE', aliases: ['WHY MARKETS CARE'] },
+    { label: 'MARKET IMPACT', aliases: ['MARKET IMPACT'] },
+    {
+      label: 'TICKERS / ASSETS TO WATCH',
+      aliases: ['TICKERS / ASSETS TO WATCH', 'TICKERS/ASSETS TO WATCH', 'TICKERS TO WATCH', 'ASSETS TO WATCH'],
+    },
+  ] as const;
+
+  const allAliases = labels.flatMap((item) => item.aliases);
+  const allPattern = allAliases.map((alias) => escapeRegExp(alias)).join('|');
+  const sections: MacroStructuredSection[] = [];
+
+  for (const item of labels) {
+    let sectionText: string | null = null;
+    for (const alias of item.aliases) {
+      const regex = new RegExp(
+        `(?:^|\\n)\\s*${escapeRegExp(alias)}\\s*:?\\s*([\\s\\S]*?)(?=(?:\\n\\s*(?:${allPattern})\\s*:?)|$)`,
+        'i'
+      );
+      const captured = text.match(regex)?.[1]?.trim();
+      if (captured) {
+        sectionText = captured;
+        break;
+      }
+    }
+    if (sectionText) {
+      sections.push({
+        label: item.label,
+        content: sectionText.replace(/\s+/g, ' ').trim(),
+      });
+    }
+  }
+
+  return sections.length >= 3 ? sections : null;
 }
 
 function normalizeSentence(text: string): string {
@@ -373,6 +426,20 @@ function BulletList({ items, className }: { items: string[]; className?: string 
 }
 
 function MarketImpactBlock({ text }: { text: string }) {
+  const structured = parseMacroStructuredAnalysis(text);
+  if (structured) {
+    return (
+      <div className="space-y-3">
+        {structured.map((section) => (
+          <div key={section.label}>
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{section.label}</div>
+            <p className="text-[13px] leading-relaxed text-zinc-300">{sentenceCase(section.content)}</p>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   const parsed = parseMarketImpactSections(text);
   if (!parsed) {
     return <p className="text-[13px] leading-relaxed text-zinc-400">Additional context unavailable.</p>;
@@ -510,31 +577,37 @@ export default function HeadlinesPanel({
       const summary = headline.description
         ? `${headline.title}. ${headline.description}`
         : headline.title;
+      const macroEvent = sentenceCase(headline.title);
+      const whatHappened = sentenceCase(headline.description ?? 'The headline points to a potential macro catalyst.');
+      const whyMarketsCare = mentionsRates
+        ? 'Rate expectations can quickly reprice bond yields, valuation multiples, and dollar demand.'
+        : mentionsEnergy
+          ? 'Energy shocks can flow into inflation expectations, margins, and policy-rate assumptions.'
+          : mentionsFx
+            ? 'Currency moves affect imported inflation and multinational earnings translation.'
+            : 'Market reaction depends on whether follow-up data confirms the initial signal.';
+      const marketImpact = mentionsRates
+        ? 'Rate-sensitive equities and long-duration bonds are the first areas likely to move.'
+        : mentionsEnergy
+          ? 'Energy producers may benefit while input-cost-sensitive sectors could face pressure.'
+          : mentionsFx
+            ? 'Exporters/importers and global risk assets may diverge as FX expectations adjust.'
+            : 'Cross-asset moves may stay muted until the catalyst is validated.';
+      const watch = mentionsRates
+        ? 'TLT, XLF, SPY, DXY'
+        : mentionsEnergy
+          ? 'XLE, USO, SPY, TLT'
+          : mentionsFx
+            ? 'UUP, FXE, EFA, SPY'
+            : 'SPY, QQQ, TLT, DXY';
 
-      const sections: string[] = ['SUMMARY'];
-
-      if (mentionsRates) {
-        sections.push('• Could affect when the Fed cuts rates');
-        sections.push('', 'MARKET IMPACT', '', 'Equities', '• Stocks could come under pressure');
-        sections.push('', 'Rates', '• Yields may rise, bond prices fall');
-        sections.push('', 'FX', '• Dollar could strengthen');
-      } else if (mentionsEnergy) {
-        sections.push('• Energy prices shifting, affects costs and inflation');
-        sections.push('', 'MARKET IMPACT', '', 'Equities', '• Energy stocks benefit, others may not');
-        sections.push('', 'Rates', '• Yields may drift higher on inflation');
-        sections.push('', 'Commodities', '• Oil prices in focus');
-      } else if (mentionsFx) {
-        sections.push('• Currency move affects international earnings');
-        sections.push('', 'MARKET IMPACT', '', 'Equities', '• Multinationals could see earnings impacted');
-        sections.push('', 'FX', '• Dollar may move meaningfully');
-      } else {
-        sections.push('• Worth watching, limited impact on its own');
-        sections.push('', 'MARKET IMPACT', '', 'Equities', '• Reaction likely muted unless confirmed');
-      }
-
-      sections.push('', 'WATCH NEXT', '• Follow-up data confirming this headline', '• Stock market reaction in next 1-2 days');
-
-      const whyItMatters = sections.join('\n');
+      const whyItMatters = [
+        `MACRO EVENT: ${macroEvent}`,
+        `WHAT HAPPENED: ${whatHappened}`,
+        `WHY MARKETS CARE: ${sentenceCase(whyMarketsCare)}`,
+        `MARKET IMPACT: ${sentenceCase(marketImpact)}`,
+        `TICKERS / ASSETS TO WATCH: ${sentenceCase(watch)}`,
+      ].join('\n\n');
 
       return headlineEnrichmentSchema.parse({
         ai_summary: summary,
