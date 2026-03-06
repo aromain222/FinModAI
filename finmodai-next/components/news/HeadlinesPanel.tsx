@@ -136,22 +136,51 @@ function formatAiSummaryText(raw: string | null | undefined): string {
   const trimmed = raw.trim();
   if (!trimmed) return 'Summary unavailable.';
 
-  const bulletishParts = trimmed
-    .replace(/[•·◦▪▫●]\s*/g, '\n')
-    .split(/\n+/)
-    .map((part) => part.replace(/^[-*]\s*/, '').trim())
-    .filter((part) => part.length > 0);
+  const cleaned = trimmed
+    .replace(/[•·◦▪▫●∙]/g, ' ')
+    .replace(/\b(SUMMARY|BOTTOM LINE|DRIVERS|MARKET IMPACT|WINNERS?|LOSERS?|WATCH NEXT)\b:?/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
-  const normalizedParts = (bulletishParts.length > 1 ? bulletishParts : [trimmed])
-    .map((part) => part.replace(/\s+/g, ' ').trim())
+  const parts = cleaned
+    .split(/(?<=[.!?])\s+|;\s+/)
+    .map((part) => part.trim())
     .filter(Boolean);
 
-  const paragraph = normalizedParts
+  const normalized = parts
     .map((part) => (/^[a-z]/.test(part) ? `${part.charAt(0).toUpperCase()}${part.slice(1)}` : part))
     .map((part) => (/[.!?]$/.test(part) ? part : `${part}.`))
-    .join(' ');
+    .filter(Boolean)
+    .slice(0, 2);
 
-  return paragraph.replace(/\s+/g, ' ').trim();
+  if (normalized.length === 0) return 'Summary unavailable.';
+  return normalized.join(' ');
+}
+
+function formatPlainNarrative(raw: string | null | undefined, maxSentences = 5): string {
+  if (!raw || typeof raw !== 'string') return 'Additional context unavailable.';
+  const cleaned = raw
+    .replace(/\r\n/g, '\n')
+    .replace(/[•·◦▪▫●∙]/g, ' ')
+    .replace(/\b(SUMMARY|BOTTOM LINE|DRIVERS|MARKET IMPACT|WINNERS?|LOSERS?|WATCH NEXT|EQUITIES|RATES|FX|COMMODITIES|CREDIT)\b:?/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return 'Additional context unavailable.';
+
+  const pieces = cleaned
+    .split(/(?<=[.!?])\s+|;\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const normalized = pieces
+    .map((part) => (/^[a-z]/.test(part) ? `${part.charAt(0).toUpperCase()}${part.slice(1)}` : part))
+    .map((part) => (/[.!?]$/.test(part) ? part : `${part}.`))
+    .slice(0, maxSentences);
+
+  if (normalized.length === 0) return 'Additional context unavailable.';
+  if (normalized.length === 1) {
+    normalized.push('Near-term moves will depend on rates, sector positioning, and follow-up policy signals.');
+  }
+  return normalized.join(' ');
 }
 
 /* ---------- market impact parsing ---------- */
@@ -255,57 +284,6 @@ function normalizeSentence(text: string): string {
   return /[.!?]$/.test(cleaned) ? cleaned : `${cleaned}.`;
 }
 
-function buildImpactParagraph(parsed: MarketImpactSections): string | null {
-  const sentences: string[] = [];
-
-  const lead = parsed.summary[0] ?? parsed.drivers[0] ?? '';
-  const leadSentence = normalizeSentence(lead);
-  if (leadSentence) sentences.push(leadSentence);
-
-  const topAssets = parsed.assetImpacts.slice(0, 2);
-  if (topAssets.length > 0) {
-    const assetSummary = topAssets
-      .map((group) => {
-        const firstBullet = group.bullets[0] ?? 'reaction may be mixed';
-        return `${group.asset}: ${firstBullet}`;
-      })
-      .join('; ');
-    const assetSentence = normalizeSentence(assetSummary);
-    if (assetSentence) sentences.push(assetSentence);
-  }
-
-  if (parsed.winners.length > 0 || parsed.losers.length > 0) {
-    const winnersText = parsed.winners.length > 0 ? `likely beneficiaries: ${parsed.winners.slice(0, 2).join(', ')}` : '';
-    const losersText = parsed.losers.length > 0 ? `potential laggards: ${parsed.losers.slice(0, 2).join(', ')}` : '';
-    const combined = [winnersText, losersText].filter(Boolean).join('; ');
-    const winnersLosersSentence = normalizeSentence(combined);
-    if (winnersLosersSentence) sentences.push(winnersLosersSentence);
-  }
-
-  if (parsed.watchItems.length > 0) {
-    const watchSentence = normalizeSentence(
-      `watch next: ${parsed.watchItems.slice(0, 2).join('; ')}`
-    );
-    if (watchSentence) sentences.push(watchSentence);
-  }
-
-  const capped = sentences.filter(Boolean).slice(0, 5);
-  if (capped.length === 1) {
-    capped.push(
-      'Near-term moves will likely be driven by rates, sector positioning, and incoming confirmation data.'
-    );
-  }
-  if (capped.length >= 2) return capped.join(' ');
-
-  const fallbackSentences = parsed.fallback
-    .split(/(?<=[.!?])\s+/)
-    .map((part) => normalizeSentence(part))
-    .filter(Boolean)
-    .slice(0, 3);
-
-  return fallbackSentences.length > 0 ? fallbackSentences.join(' ') : null;
-}
-
 function normalizeAssetLabel(raw: string): string {
   const lower = raw.toLowerCase().replace(/[:\s]+$/, '');
   if (lower === 'stocks' || lower === 'stock' || lower === 'equities') return 'Equities';
@@ -399,7 +377,7 @@ function MarketImpactBlock({ text }: { text: string }) {
   if (!parsed) {
     return <p className="text-[13px] leading-relaxed text-zinc-400">Additional context unavailable.</p>;
   }
-  const impactParagraph = buildImpactParagraph(parsed);
+  const impactParagraph = formatPlainNarrative(parsed.fallback, 5);
   const driversParagraph = toParagraph(parsed.drivers, 2);
   const winnersParagraph =
     parsed.winners.length > 0

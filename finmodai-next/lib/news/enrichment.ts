@@ -270,10 +270,6 @@ export function deterministicFallback(headline: {
   const winnerBullets = leadSectors.filter((s) => s.direction === 'up').map((s) => `• ${s.sector}: ${s.rationale ?? 'tends to benefit when rates or risk sentiment move this way'}`);
   const loserBullets = leadSectors.filter((s) => s.direction === 'down').map((s) => `• ${s.sector}: ${s.rationale ?? 'duration-sensitive or hurt by higher discount rates'}`);
 
-  const aiSummary = headline.description
-    ? `${headline.title}. ${headline.description}`
-    : `${headline.title}.`;
-
   const summaryLine = biasPlain[impact.bias] ?? 'A market signal worth watching';
   const whyLine = impact.bias === 'Hawkish'
     ? 'Why it matters: higher rates tend to lift yields and the dollar, and pressure stocks and duration-sensitive assets.'
@@ -284,26 +280,55 @@ export function deterministicFallback(headline: {
         : impact.bias === 'Risk-On'
           ? 'Why it matters: risk-on sentiment tends to support stocks and pressure the dollar.'
           : 'Watch how rates, the dollar, and sector leadership respond.';
+  const toSentence = (text: string) => {
+    const compact = text.replace(/\s+/g, ' ').trim();
+    if (!compact) return '';
+    const capped = /^[a-z]/.test(compact) ? `${compact.charAt(0).toUpperCase()}${compact.slice(1)}` : compact;
+    return /[.!?]$/.test(capped) ? capped : `${capped}.`;
+  };
+  const aiSummarySentences = [
+    toSentence(headline.title),
+    toSentence(headline.description && headline.description.trim().length > 0 ? headline.description : summaryLine),
+  ].filter(Boolean);
+  const aiSummary = aiSummarySentences.slice(0, 2).join(' ');
 
-  const sections: string[] = [
-    'SUMMARY',
-    `• ${summaryLine}`,
-    `• ${whyLine}`,
-    '',
-    'MARKET IMPACT',
-    '',
-    'Equities',
-    stocksBullet,
-    ...(ratesBullet ? ['', 'Rates', ratesBullet] : []),
-    ...(fxBullet ? ['', 'FX', fxBullet] : []),
-    ...(winnerBullets.length > 0 ? ['', 'WINNERS', ...winnerBullets] : []),
-    ...(loserBullets.length > 0 ? ['', 'LOSERS', ...loserBullets] : []),
-    '',
-    'WATCH NEXT',
-    ...theme.watch.slice(0, 3).map((w) => `• ${w}`),
-  ];
+  const marketImpactDetails = [
+    stocksBullet.replace(/^•\s*/, ''),
+    ratesBullet ? ratesBullet.replace(/^•\s*/, '') : null,
+    fxBullet ? fxBullet.replace(/^•\s*/, '') : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
-  const whyItMatters = sections.join('\n');
+  const winnerText =
+    winnerBullets.length > 0
+      ? `Likely beneficiaries include ${winnerBullets
+          .map((item) => item.replace(/^•\s*/, '').replace(/: /, ' (').replace(/\.$/, '.)'))
+          .join(', ')}.`
+      : '';
+  const loserText =
+    loserBullets.length > 0
+      ? `Likely pressured groups include ${loserBullets
+          .map((item) => item.replace(/^•\s*/, '').replace(/: /, ' (').replace(/\.$/, '.)'))
+          .join(', ')}.`
+      : '';
+  const watchText =
+    theme.watch.length > 0
+      ? `Watch next: ${theme.watch.slice(0, 2).join('; ')}.`
+      : '';
+
+  const whyItMatters = [
+    summaryLine,
+    whyLine.replace(/^Why it matters:\s*/i, 'This matters because '),
+    marketImpactDetails,
+    winnerText,
+    loserText,
+    watchText,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
   return headlineEnrichmentSchema.parse({
     ai_summary: aiSummary,
@@ -592,52 +617,19 @@ Description: ${headline.description ?? 'None'}
 
 Return JSON with these fields:
 
-"ai_summary": 2-3 plain-English sentences explaining what happened and why it matters. Write as one short paragraph (no bullets, no markdown).
+"ai_summary": A concise plain-English paragraph explaining what happened and why it matters (no bullets, no markdown). Keep it brief and scannable.
 
-"why_it_matters": A structured analysis using this EXACT format. Each section header is on its own line. Every content line starts with "• ". Only include sections that are relevant — omit any section with no clear impact.
-
-SUMMARY
-• 1-2 short bullets explaining the event
-• One bullet that states why this moves markets (e.g. "Why it matters: higher rates tend to lift yields and the dollar, and pressure stocks.")
-
-DRIVERS
-• key economic drivers
-• policy changes or supply/demand shifts
-
-MARKET IMPACT
-Only include relevant asset classes. Each asset class gets its own sub-header.
-For each bullet: state the direction AND a brief reason why (one short phrase).
-
-Equities
-• [direction] — [why, e.g. "higher rates tend to pressure valuations"]
-
-Rates
-• [direction] — [why, e.g. "policy expectations push bond yields up"]
-
-FX
-• [direction] — [why, e.g. "higher US rates attract flows into the dollar"]
-
-Commodities
-• [direction] — [why, e.g. "supply concern supports prices"]
-
-WINNERS
-• sector or asset — brief reason why they benefit (e.g. "banks earn more when rates rise")
-
-LOSERS
-• sector or asset — brief reason why they lose (e.g. "duration-sensitive assets hurt by higher yields")
-
-WATCH NEXT
-• upcoming catalysts
-• economic data releases
+"why_it_matters": 3-5 complete sentences in plain English as one coherent paragraph (no bullets, no section headers, no markdown). Include:
+1) what changed,
+2) why it matters for markets,
+3) which assets/sectors are most exposed,
+4) likely near-term winners/losers or risk direction,
+5) what to watch next.
 
 IMPORTANT:
-- Every content line MUST start with "• "
-- Each bullet is ONE short sentence, max ~12 words for the main claim; you may add a short "because X" or "— X" for the why
-- For MARKET IMPACT and WINNERS/LOSERS: always include a brief "why" (e.g. "Yields may rise — higher policy rates push bond yields up" or "Financials: benefit from wider net interest margins")
-- Leave blank lines between sections
-- Omit sections with no clear impact
-- Never combine multiple ideas in one bullet
-- For "ai_summary", do NOT use bullets. Use 2-3 complete sentences in paragraph form.
+- Do NOT use bullets.
+- Do NOT output section labels like DRIVERS, MARKET IMPACT, WINNERS, LOSERS, WATCH NEXT.
+- Keep language concise and concrete with explicit causal links.
 
 "impacted_tickers": array of {ticker, direction, rationale}
 "impacted_sectors": array of {sector, direction, rationale}
