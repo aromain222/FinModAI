@@ -1,12 +1,18 @@
+const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || process.env.ROOT_DOMAIN || '';
+const allowedOrigins = ['localhost:3000', '127.0.0.1:3000'];
+
+if (rootDomain) {
+  allowedOrigins.push(rootDomain, `*.${rootDomain}`);
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
     serverActions: {
-      allowedOrigins: ['localhost:3000']
+      allowedOrigins
     }
   },
 };
 
 export default nextConfig;
-

@@ -4,11 +4,28 @@ import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabaseClient';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function WaitlistForm() {
+type WaitlistFormProps = {
+  idPrefix?: string;
+  buttonText?: string;
+  successText?: string;
+  helperText?: string;
+  className?: string;
+  cardClassName?: string;
+};
+
+export function WaitlistForm({
+  idPrefix = 'waitlist',
+  buttonText = 'Join the Waitlist',
+  successText = 'You’re on the list. We’ll email you about demo access once approved.',
+  helperText = 'Waitlist members receive access to the CapitalBase demo.',
+  className,
+  cardClassName,
+}: WaitlistFormProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -64,43 +81,51 @@ export function WaitlistForm() {
 
   if (success) {
     return (
-      <div className="rounded-xl border border-[var(--cb-green)]/20 bg-[var(--cb-green)]/5 px-6 py-5 text-center">
+      <div className={cn('rounded-[28px] border border-[var(--cb-green)]/20 bg-[var(--cb-green)]/5 px-6 py-5 text-center shadow-[0_24px_80px_rgba(0,227,135,0.08)]', cardClassName)}>
         <p className="text-sm font-medium text-[var(--cb-green)]">
-          You’re on the list. We’ll email you the demo link.
+          {successText}
         </p>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mx-auto flex max-w-md flex-col gap-5">
-      <div className="space-y-2">
-        <Label htmlFor="waitlist-name" className="text-[var(--cb-text-muted)]">Name</Label>
-        <Input
-          id="waitlist-name"
-          type="text"
-          placeholder="Your name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          disabled={loading}
-          required
-          autoComplete="name"
-          className="border-white/10 bg-white/5 focus-visible:ring-[var(--cb-green)]/50"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="waitlist-email" className="text-[var(--cb-text-muted)]">Email</Label>
-        <Input
-          id="waitlist-email"
-          type="email"
-          placeholder="you@company.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          disabled={loading}
-          required
-          autoComplete="email"
-          className="border-white/10 bg-white/5 focus-visible:ring-[var(--cb-green)]/50"
-        />
+    <form
+      onSubmit={handleSubmit}
+      className={cn(
+        'mx-auto flex w-full max-w-md flex-col gap-5 rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,22,29,0.92),rgba(10,13,18,0.92))] p-6 shadow-[0_28px_90px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:p-7',
+        className
+      )}
+    >
+      <div className="grid gap-4">
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}-name`} className="text-[var(--cb-text-muted)]">Name</Label>
+          <Input
+            id={`${idPrefix}-name`}
+            type="text"
+            placeholder="Your name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={loading}
+            required
+            autoComplete="name"
+            className="h-12 rounded-2xl border-white/10 bg-white/[0.04] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus-visible:ring-[var(--cb-green)]/50"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}-email`} className="text-[var(--cb-text-muted)]">Email</Label>
+          <Input
+            id={`${idPrefix}-email`}
+            type="email"
+            placeholder="you@company.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={loading}
+            required
+            autoComplete="email"
+            className="h-12 rounded-2xl border-white/10 bg-white/[0.04] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus-visible:ring-[var(--cb-green)]/50"
+          />
+        </div>
       </div>
       {error && (
         <p className="text-sm text-red-400" role="alert">
@@ -111,10 +136,13 @@ export function WaitlistForm() {
         type="submit"
         disabled={loading}
         size="lg"
-        className="w-full rounded-lg shadow-[0_0_20px_rgba(0,227,135,0.2)] hover:shadow-[0_0_24px_rgba(0,227,135,0.3)]"
+        className="h-12 w-full rounded-2xl bg-[linear-gradient(135deg,#00e387,#00c06f)] text-[#04120b] shadow-[0_18px_40px_rgba(0,227,135,0.22)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(0,227,135,0.28)]"
       >
-        {loading ? 'Submitting…' : 'Join Early Access'}
+        {loading ? 'Submitting…' : buttonText}
       </Button>
+      <p className="text-center text-xs text-[var(--cb-text-muted)]">
+        {helperText}
+      </p>
     </form>
   );
 }
