@@ -16,6 +16,7 @@ type WaitlistFormProps = {
   helperText?: string;
   className?: string;
   cardClassName?: string;
+  layout?: 'stacked' | 'inline';
 };
 
 export function WaitlistForm({
@@ -25,6 +26,7 @@ export function WaitlistForm({
   helperText = 'Waitlist members receive access to the CapitalBase demo.',
   className,
   cardClassName,
+  layout = 'stacked',
 }: WaitlistFormProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -93,11 +95,12 @@ export function WaitlistForm({
     <form
       onSubmit={handleSubmit}
       className={cn(
-        'mx-auto flex w-full max-w-md flex-col gap-5 rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,22,29,0.92),rgba(10,13,18,0.92))] p-6 shadow-[0_28px_90px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:p-7',
+        'mx-auto flex w-full max-w-md flex-col rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,22,29,0.92),rgba(10,13,18,0.92))] shadow-[0_28px_90px_rgba(0,0,0,0.35)] backdrop-blur-xl',
+        layout === 'inline' ? 'gap-4 p-5 sm:max-w-xl sm:p-6' : 'gap-5 p-6 sm:p-7',
         className
       )}
     >
-      <div className="grid gap-4">
+      <div className={cn('grid gap-4', layout === 'inline' && 'sm:grid-cols-2')}>
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-name`} className="text-[var(--cb-text-muted)]">Name</Label>
           <Input
@@ -109,7 +112,10 @@ export function WaitlistForm({
             disabled={loading}
             required
             autoComplete="name"
-            className="h-12 rounded-2xl border-white/10 bg-white/[0.04] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus-visible:ring-[var(--cb-green)]/50"
+            className={cn(
+              'rounded-2xl border-white/10 bg-white/[0.04] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus-visible:ring-[var(--cb-green)]/50',
+              layout === 'inline' ? 'h-11' : 'h-12'
+            )}
           />
         </div>
         <div className="space-y-2">
@@ -123,7 +129,10 @@ export function WaitlistForm({
             disabled={loading}
             required
             autoComplete="email"
-            className="h-12 rounded-2xl border-white/10 bg-white/[0.04] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus-visible:ring-[var(--cb-green)]/50"
+            className={cn(
+              'rounded-2xl border-white/10 bg-white/[0.04] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus-visible:ring-[var(--cb-green)]/50',
+              layout === 'inline' ? 'h-11' : 'h-12'
+            )}
           />
         </div>
       </div>
@@ -136,7 +145,10 @@ export function WaitlistForm({
         type="submit"
         disabled={loading}
         size="lg"
-        className="h-12 w-full rounded-2xl bg-[linear-gradient(135deg,#00e387,#00c06f)] text-[#04120b] shadow-[0_18px_40px_rgba(0,227,135,0.22)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(0,227,135,0.28)]"
+        className={cn(
+          'w-full rounded-2xl bg-[linear-gradient(135deg,#00e387,#00c06f)] text-[#04120b] shadow-[0_18px_40px_rgba(0,227,135,0.22)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(0,227,135,0.28)]',
+          layout === 'inline' ? 'h-11' : 'h-12'
+        )}
       >
         {loading ? 'Submitting…' : buttonText}
       </Button>

@@ -1,8 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import {
-  ArrowRight,
-  Bot,
   BriefcaseBusiness,
   CandlestickChart,
   ChartColumnBig,
@@ -13,10 +11,9 @@ import {
   Layers3,
   Newspaper,
   Radar,
-  Sparkles,
-  WandSparkles,
 } from 'lucide-react';
 import { WaitlistForm } from '@/components/MarketingLanding';
+import { FeatureWalkthrough } from '@/components/marketing/FeatureWalkthrough';
 import { Button } from '@/components/ui/button';
 import { APP_NAME } from '@/lib/branding';
 import { getSubdomainHref } from '@/lib/subdomains';
@@ -27,30 +24,19 @@ export const metadata: Metadata = {
     'CapitalBase is an AI-powered analyst that generates financial models, surfaces market intelligence, and automates investment research.',
 };
 
-const HOW_IT_WORKS = [
+const FEATURE_HIGHLIGHTS = [
   {
-    title: 'Prompt the Analyst',
-    body: 'Describe the company, model, or analysis you want. CapitalBase interprets the request and frames the right workflow automatically.',
-    icon: Bot,
+    title: 'Financial modeling',
+    body: 'Generate DCFs, operating models, and valuation outputs with editable assumptions and linked workbook logic.',
   },
   {
-    title: 'CapitalBase Builds the Model',
-    body: 'The platform generates a structured model with assumptions, schedules, outputs, and finance-native logic without manual spreadsheet setup.',
-    icon: WandSparkles,
+    title: 'Market intelligence',
+    body: 'Surface macro events, headlines, M&A activity, and capital markets updates in one analyst-facing feed.',
   },
   {
-    title: 'Analyze and Customize',
-    body: 'Review outputs, adjust assumptions, and refine projections as the model updates through the linked workbook.',
-    icon: Sparkles,
+    title: 'Research workflow',
+    body: 'Move from new information to a structured investment view without rebuilding context across separate tools.',
   },
-];
-
-const MODELING_FEATURES = [
-  'Revenue forecasts',
-  'EBITDA projections',
-  'Valuation outputs',
-  'Financial charts',
-  'Assumptions panels',
 ];
 
 const TEMPLATE_CARDS = [
@@ -94,17 +80,15 @@ const MARKET_FEED = [
   },
 ];
 
-const workflowSteps = ['Market Events', 'Prompt', 'Model Generation', 'Investment Insight'];
-
 function ProductPreview() {
   return (
     <div className="relative">
       <div className="absolute inset-0 rounded-[32px] bg-[radial-gradient(circle_at_top,rgba(0,227,135,0.18),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(31,91,255,0.16),transparent_36%)] blur-2xl" />
-      <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(14,18,24,0.96),rgba(8,11,15,0.96))] p-5 shadow-[0_36px_120px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+      <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(14,18,24,0.96),rgba(8,11,15,0.96))] p-4 shadow-[0_36px_120px_rgba(0,0,0,0.45)] backdrop-blur-xl xl:p-5">
         <div className="flex items-center justify-between border-b border-white/8 pb-4">
           <div>
             <p className="text-xs uppercase tracking-[0.28em] text-[var(--cb-green)]/90">Analyst Workspace</p>
-            <h3 className="mt-2 text-lg font-semibold text-white">Prompt-to-model interface</h3>
+            <h3 className="mt-2 text-base font-semibold text-white xl:text-lg">Prompt-to-model interface</h3>
           </div>
           <div className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-[var(--cb-text-muted)]">
             Live model preview
@@ -118,7 +102,7 @@ function ProductPreview() {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-4 lg:grid-cols-[1.25fr_0.85fr]">
+        <div className="mt-4 grid gap-4 lg:grid-cols-[1.22fr_0.86fr]">
           <div className="space-y-4">
             <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-4">
               <div className="flex items-center justify-between">
@@ -133,7 +117,7 @@ function ProductPreview() {
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-2xl border border-white/8 bg-[#0d1117] p-3">
                     <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">{label}</p>
-                    <p className="mt-2 text-xl font-semibold text-white">{value}</p>
+                    <p className="mt-2 text-lg font-semibold text-white xl:text-xl">{value}</p>
                   </div>
                 ))}
               </div>
@@ -142,7 +126,7 @@ function ProductPreview() {
                   <span>Revenue forecast</span>
                   <span>FCFF trend</span>
                 </div>
-                <div className="mt-4 grid h-40 grid-cols-6 items-end gap-2">
+                <div className="mt-4 grid h-36 grid-cols-6 items-end gap-2 xl:h-40">
                   {[42, 54, 63, 74, 86, 98].map((value, index) => (
                     <div key={value} className="flex h-full flex-col items-center justify-end gap-2">
                       <div
@@ -179,7 +163,7 @@ function ProductPreview() {
             </div>
             <div className="rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(10,14,19,0.95),rgba(10,14,19,0.8))] p-4">
               <p className="text-sm font-medium text-white">Scenario intelligence</p>
-              <div className="mt-4 space-y-3 text-sm text-[var(--cb-text-secondary)]">
+              <div className="mt-4 space-y-3 text-sm leading-6 text-[var(--cb-text-secondary)]">
                 <p>Base case assumes AI infrastructure spend normalizes into a durable large-cap growth profile.</p>
                 <p>Bear case compresses terminal assumptions and lowers operating leverage.</p>
                 <p>Bull case sustains elevated margins and a stronger long-run demand curve.</p>
@@ -218,11 +202,18 @@ export default function MarketingPage() {
     <main className="min-h-screen overflow-x-hidden bg-[#06080c] text-[var(--cb-text-body)]">
       <div className="absolute inset-x-0 top-0 h-[760px] bg-[radial-gradient(circle_at_top,rgba(31,91,255,0.18),transparent_32%),radial-gradient(circle_at_25%_20%,rgba(0,227,135,0.14),transparent_26%),linear-gradient(180deg,#06080c_0%,#090d12_40%,#06080c_100%)]" />
 
-      <section className="relative border-b border-white/6 px-6 py-24 sm:px-8 lg:px-12 lg:py-28">
+      <section className="relative border-b border-white/6 px-6 pb-20 pt-10 sm:px-8 sm:pt-12 lg:px-12 lg:pb-24 lg:pt-14">
         <div className="mx-auto max-w-7xl">
           <div className="flex items-center justify-between gap-6">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.45em] text-[var(--cb-green)]/90">{APP_NAME}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.45em] text-white/70">{APP_NAME}</p>
+            </div>
+            <div className="hidden items-center gap-6 lg:flex">
+              <div className="flex items-center gap-5 text-sm text-white/55">
+                <Link href="#how-it-works" className="transition hover:text-white">Workflow</Link>
+                <Link href="#templates" className="transition hover:text-white">Templates</Link>
+                <Link href="#intelligence" className="transition hover:text-white">Intelligence</Link>
+              </div>
             </div>
             <div className="hidden items-center gap-3 sm:flex">
               <Button asChild variant="outline" className="rounded-full border-white/12 bg-white/[0.02] text-white hover:bg-white/[0.06]">
@@ -234,26 +225,42 @@ export default function MarketingPage() {
             </div>
           </div>
 
-          <div className="mt-16 grid gap-14 lg:grid-cols-[1.05fr_1fr] lg:items-center">
-            <div className="space-y-8">
+          <div className="mt-12 grid gap-10 xl:grid-cols-[0.92fr_1.08fr] xl:items-start">
+            <div className="space-y-7 pt-4">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs text-[var(--cb-text-secondary)] backdrop-blur">
                 <span className="h-2 w-2 rounded-full bg-[var(--cb-green)]" />
                 AI analyst for modeling, market intelligence, and investment research
               </div>
-              <div className="space-y-5">
-                <h1 className="max-w-3xl text-5xl font-semibold tracking-tight text-white sm:text-6xl lg:text-7xl lg:leading-[1.02]">
+              <div className="space-y-4">
+                <h1 className="max-w-2xl text-5xl font-semibold tracking-[-0.04em] text-white sm:text-6xl xl:text-[6rem] xl:leading-[0.94]">
                   Build a full financial model in seconds.
                 </h1>
-                <p className="max-w-2xl text-lg leading-8 text-[var(--cb-text-secondary)] sm:text-xl">
+                <p className="max-w-xl text-base leading-7 text-[var(--cb-text-secondary)] sm:text-lg">
                   CapitalBase is an AI-powered analyst that generates financial models, surfaces market intelligence, and automates investment research.
                 </p>
               </div>
 
-              <div className="max-w-lg">
+              <div className="grid max-w-xl gap-4">
+                <div className="grid gap-3 text-sm text-[var(--cb-text-muted)] sm:grid-cols-3">
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.24em] text-white/45">Models</p>
+                    <p className="mt-2 font-medium text-white">DCF, comps, LBO</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.24em] text-white/45">Intelligence</p>
+                    <p className="mt-2 font-medium text-white">Macro, events, M&A</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.24em] text-white/45">Access</p>
+                    <p className="mt-2 font-medium text-white">Private demo only</p>
+                  </div>
+                </div>
                 <WaitlistForm
                   idPrefix="hero-waitlist"
                   buttonText="Join the Waitlist"
                   helperText="Waitlist members receive access to the CapitalBase demo."
+                  layout="inline"
+                  className="max-w-xl"
                 />
               </div>
 
@@ -269,110 +276,32 @@ export default function MarketingPage() {
         </div>
       </section>
 
-      <section className="relative px-6 py-24 sm:px-8 lg:px-12">
+      <section id="how-it-works" className="relative px-6 py-24 sm:px-8 lg:px-12">
         <div className="mx-auto max-w-7xl">
           <SectionHeader
-            eyebrow="How It Works"
-            title="From prompt to analyst-ready output"
-            body="CapitalBase gives analysts a direct way to move from idea to model without losing the structure, control, and rigor expected in a real finance workflow."
+            eyebrow="Platform Walkthrough"
+            title="Show the product in the order a visitor can understand it"
+            body="Lead with the core workflow, show a concrete market example, then bring the user back to the template and model-generation layer that makes the platform actionable."
           />
-          <div className="mt-14 grid gap-6 md:grid-cols-3">
-            {HOW_IT_WORKS.map((item, index) => {
-              const Icon = item.icon;
-              return (
-                <div
-                  key={item.title}
-                  className="group rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(15,18,24,0.95),rgba(8,11,15,0.95))] p-7 shadow-[0_18px_60px_rgba(0,0,0,0.25)] transition duration-300 hover:-translate-y-1 hover:border-[var(--cb-green)]/20"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--cb-green)]/20 bg-[var(--cb-green)]/8 text-[var(--cb-green)]">
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <span className="text-xs uppercase tracking-[0.28em] text-[var(--cb-text-muted)]">0{index + 1}</span>
-                  </div>
-                  <h3 className="mt-6 text-xl font-semibold text-white">{item.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-[var(--cb-text-secondary)]">{item.body}</p>
-                </div>
-              );
-            })}
+          <div className="mt-14">
+            <FeatureWalkthrough />
           </div>
-        </div>
-      </section>
-
-      <section className="relative border-t border-white/6 px-6 py-24 sm:px-8 lg:px-12">
-        <div className="mx-auto grid max-w-7xl gap-14 lg:grid-cols-[0.92fr_1.08fr] lg:items-start">
-          <SectionHeader
-            eyebrow="AI Financial Modeling"
-            title="Generate forecasts, valuation outputs, and editable assumptions"
-            body="CapitalBase builds structured finance-native models with assumptions that remain fully customizable. Analysts can adjust growth rates, margins, discount rates, and other inputs without rebuilding the workbook."
-          />
-          <div className="grid gap-4 sm:grid-cols-2">
-            {MODELING_FEATURES.map((feature, index) => (
+          <div className="mt-10 grid gap-5 md:grid-cols-3">
+            {FEATURE_HIGHLIGHTS.map((item) => (
               <div
-                key={feature}
-                className={index === 0 ? 'sm:col-span-2' : ''}
+                key={item.title}
+                className="rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(13,17,23,0.92),rgba(8,11,15,0.92))] p-5"
               >
-                <div className="rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(13,17,23,0.95),rgba(8,11,15,0.95))] p-5">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-white">{feature}</p>
-                    <ChartSpline className="h-4 w-4 text-[var(--cb-green)]" />
-                  </div>
-                  <div className="mt-4 rounded-[20px] border border-white/8 bg-[#0c1015] p-4">
-                    {feature === 'Revenue forecasts' && (
-                      <div className="grid h-32 grid-cols-6 items-end gap-2">
-                        {[26, 38, 46, 55, 66, 73].map((value) => (
-                          <div key={value} className="rounded-t-xl bg-[linear-gradient(180deg,rgba(31,91,255,0.96),rgba(31,91,255,0.32))]" style={{ height: `${value}%` }} />
-                        ))}
-                      </div>
-                    )}
-                    {feature === 'EBITDA projections' && (
-                      <div className="space-y-3">
-                        {[['2027E', '28%'], ['2028E', '30%'], ['2029E', '31%']].map(([year, margin]) => (
-                          <div key={year} className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.02] px-3 py-2 text-sm">
-                            <span className="text-[var(--cb-text-secondary)]">{year}</span>
-                            <span className="font-medium text-white">{margin}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {feature === 'Valuation outputs' && (
-                      <div className="grid gap-3">
-                        {['EV / EBITDA', 'Terminal value mix', 'Implied upside'].map((line, row) => (
-                          <div key={line} className="flex items-center justify-between text-sm">
-                            <span className="text-[var(--cb-text-secondary)]">{line}</span>
-                            <span className="text-white">{['21.4x', '68%', '+18%'][row]}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {feature === 'Financial charts' && (
-                      <div className="h-32 rounded-2xl bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01))] p-3">
-                        <div className="relative h-full overflow-hidden rounded-xl border border-white/6">
-                          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:24px_24px]" />
-                          <svg viewBox="0 0 260 100" className="absolute inset-0 h-full w-full">
-                            <path d="M0,74 C30,68 46,52 68,48 C88,45 110,52 138,40 C168,27 194,18 260,12" fill="none" stroke="#00e387" strokeWidth="3" />
-                          </svg>
-                        </div>
-                      </div>
-                    )}
-                    {feature === 'Assumptions panels' && (
-                      <div className="space-y-2">
-                        {['Growth', 'Margins', 'Discount Rate'].map((line, row) => (
-                          <div key={line} className="rounded-2xl border border-white/8 bg-white/[0.02] px-3 py-2 text-sm text-[var(--cb-text-secondary)]">
-                            {line}: <span className="text-white">{['12.0%', '31.0%', '9.0%'][row]}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cb-green)]/80">Core workflow</p>
+                <h3 className="mt-3 text-lg font-semibold text-white">{item.title}</h3>
+                <p className="mt-3 text-sm leading-7 text-[var(--cb-text-secondary)]">{item.body}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="relative border-t border-white/6 px-6 py-24 sm:px-8 lg:px-12">
+      <section id="templates" className="relative border-t border-white/6 px-6 py-24 sm:px-8 lg:px-12">
         <div className="mx-auto max-w-7xl">
           <SectionHeader
             eyebrow="Model Template Wizards"
@@ -404,7 +333,7 @@ export default function MarketingPage() {
         </div>
       </section>
 
-      <section className="relative border-t border-white/6 px-6 py-24 sm:px-8 lg:px-12">
+      <section id="intelligence" className="relative border-t border-white/6 px-6 py-24 sm:px-8 lg:px-12">
         <div className="mx-auto max-w-7xl">
           <SectionHeader
             eyebrow="Market and Event Intelligence"
@@ -435,37 +364,6 @@ export default function MarketingPage() {
                 </div>
               );
             })}
-          </div>
-        </div>
-      </section>
-
-      <section className="relative border-t border-white/6 px-6 py-24 sm:px-8 lg:px-12">
-        <div className="mx-auto max-w-7xl">
-          <SectionHeader
-            eyebrow="Analyst Workflow"
-            title="One workflow for market context, model generation, and investment insight"
-            body="CapitalBase combines financial modeling, market intelligence, and AI analysis into a single workflow so the user moves from new information to a decision-ready model without switching systems."
-          />
-          <div className="mt-14 rounded-[32px] border border-white/8 bg-[linear-gradient(180deg,rgba(15,18,24,0.96),rgba(8,11,15,0.96))] p-8 shadow-[0_30px_100px_rgba(0,0,0,0.28)]">
-            <div className="grid gap-5 lg:grid-cols-4">
-              {workflowSteps.map((step, index) => (
-                <div key={step} className="relative rounded-[24px] border border-white/8 bg-white/[0.02] p-5">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-white">{step}</p>
-                    <span className="text-[11px] uppercase tracking-[0.24em] text-[var(--cb-text-muted)]">0{index + 1}</span>
-                  </div>
-                  <p className="mt-4 text-sm leading-7 text-[var(--cb-text-secondary)]">
-                    {index === 0 && 'Surface the events, headlines, and capital markets developments that actually matter.'}
-                    {index === 1 && 'Turn a plain-English request into a structured analytical workflow with explicit assumptions.'}
-                    {index === 2 && 'Generate the model, outputs, and valuation logic with finance-native structure.'}
-                    {index === 3 && 'Translate the output into a clear view on valuation, risk, and what to watch next.'}
-                  </p>
-                  {index < workflowSteps.length - 1 && (
-                    <ArrowRight className="absolute -right-3 top-1/2 hidden h-6 w-6 -translate-y-1/2 text-white/20 lg:block" />
-                  )}
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       </section>
