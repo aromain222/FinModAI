@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { ArrowDown, FileSpreadsheet, Newspaper, ShieldCheck } from 'lucide-react';
+import { ArrowDown, FileSpreadsheet, Newspaper, ShieldCheck, Sparkles } from 'lucide-react';
 import { WaitlistForm } from '@/components/MarketingLanding';
 import { HeroShowcase } from '@/components/marketing/HeroShowcase';
 import { Button } from '@/components/ui/button';
@@ -54,25 +54,32 @@ export default function MarketingPage() {
           </div>
 
           <div className="mt-8 grid flex-1 gap-8 xl:grid-cols-[0.84fr_1.16fr] xl:items-center">
-            <div className="space-y-5">
+            <div className="max-w-[36rem] space-y-5">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs text-[var(--cb-text-secondary)] backdrop-blur">
                 <span className="h-2 w-2 rounded-full bg-[var(--cb-green)]" />
                 AI analyst for modeling, headlines, and investment workflow
               </div>
 
-              <div className="space-y-3">
-                <h1 className="max-w-2xl text-5xl font-semibold tracking-[-0.05em] text-white sm:text-[4.25rem] sm:leading-[0.92] xl:text-[5rem]">
+              <div className="space-y-4">
+                <h1 className="max-w-xl text-5xl font-semibold tracking-[-0.055em] text-white sm:text-[4rem] sm:leading-[0.92] xl:text-[4.5rem]">
                   Build a full financial model in seconds.
                 </h1>
-                <p className="max-w-xl text-[15px] leading-7 text-[var(--cb-text-secondary)] sm:text-[17px]">
+                <p className="max-w-lg text-[15px] leading-7 text-[var(--cb-text-secondary)] sm:text-[17px]">
                   CapitalBase is an AI-powered analyst that generates financial models, surfaces market intelligence, and automates investment research.
                 </p>
               </div>
 
-              <div className="flex flex-wrap gap-2.5 text-sm text-[var(--cb-text-muted)]">
-                <span className="rounded-full border border-white/8 bg-white/[0.02] px-4 py-2">Financial models</span>
-                <span className="rounded-full border border-white/8 bg-white/[0.02] px-4 py-2">Headlines and events</span>
-                <span className="rounded-full border border-white/8 bg-white/[0.02] px-4 py-2">Private demo access</span>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {[
+                  ['Financial models', 'DCF, reverse DCF, operating models'],
+                  ['Market context', 'Headlines, events, ticker impact'],
+                  ['Private access', 'Demo access after approval'],
+                ].map(([title, body]) => (
+                  <div key={title} className="rounded-[22px] border border-white/8 bg-white/[0.02] px-4 py-3">
+                    <p className="text-sm font-medium text-white">{title}</p>
+                    <p className="mt-1 text-xs leading-5 text-[var(--cb-text-muted)]">{body}</p>
+                  </div>
+                ))}
               </div>
 
               <WaitlistForm
@@ -80,10 +87,15 @@ export default function MarketingPage() {
                 buttonText="Join the Waitlist"
                 helperText=""
                 layout="inline"
-                className="max-w-xl"
+                showLabels={false}
+                className="max-w-[42rem]"
               />
 
-              <div className="flex items-center justify-start">
+              <div className="flex items-center justify-between gap-4">
+                <div className="inline-flex items-center gap-2 text-sm text-[var(--cb-text-muted)]">
+                  <Sparkles className="h-4 w-4 text-[var(--cb-green)]" />
+                  Waitlist members receive private demo access once approved.
+                </div>
                 <Link
                   href="#overview"
                   className="group inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.02] px-4 py-2.5 text-sm text-white/75 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white"

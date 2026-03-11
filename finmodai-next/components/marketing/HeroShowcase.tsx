@@ -183,9 +183,9 @@ export function HeroShowcase() {
         <div className="flex items-center justify-between border-b border-white/8 pb-4">
           <div>
             <p className="text-xs uppercase tracking-[0.28em] text-[var(--cb-green)]/90">Analyst Workspace</p>
-            <h3 className="mt-2 text-base font-semibold text-white xl:text-lg">{step.title}</h3>
+            <h3 className="mt-2 text-lg font-semibold text-white">{step.title}</h3>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <div className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-[var(--cb-text-muted)]">
               {step.badge}
             </div>
@@ -193,7 +193,7 @@ export function HeroShowcase() {
               <button
                 type="button"
                 onClick={() => setIndex((current) => (current - 1 + STEPS.length) % STEPS.length)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white/80 transition hover:bg-white/[0.07]"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white/80 transition hover:bg-white/[0.07]"
                 aria-label="Previous preview"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -201,7 +201,7 @@ export function HeroShowcase() {
               <button
                 type="button"
                 onClick={() => setIndex((current) => (current + 1) % STEPS.length)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white/80 transition hover:bg-white/[0.07]"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white/80 transition hover:bg-white/[0.07]"
                 aria-label="Next preview"
               >
                 <ChevronRight className="h-4 w-4" />

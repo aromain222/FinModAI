@@ -17,6 +17,7 @@ type WaitlistFormProps = {
   className?: string;
   cardClassName?: string;
   layout?: 'stacked' | 'inline';
+  showLabels?: boolean;
 };
 
 export function WaitlistForm({
@@ -27,6 +28,7 @@ export function WaitlistForm({
   className,
   cardClassName,
   layout = 'stacked',
+  showLabels = true,
 }: WaitlistFormProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -96,13 +98,15 @@ export function WaitlistForm({
       onSubmit={handleSubmit}
       className={cn(
         'mx-auto flex w-full max-w-md flex-col rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,22,29,0.92),rgba(10,13,18,0.92))] shadow-[0_28px_90px_rgba(0,0,0,0.35)] backdrop-blur-xl',
-        layout === 'inline' ? 'gap-4 p-5 sm:max-w-xl sm:p-6' : 'gap-5 p-6 sm:p-7',
+        layout === 'inline' ? 'gap-3 p-4 sm:max-w-xl sm:p-4' : 'gap-5 p-6 sm:p-7',
         className
       )}
     >
-      <div className={cn('grid gap-4', layout === 'inline' && 'sm:grid-cols-2')}>
+      <div className={cn('grid gap-3', layout === 'inline' && 'lg:grid-cols-[1fr_1fr_auto] lg:items-end')}>
         <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-name`} className="text-[var(--cb-text-muted)]">Name</Label>
+          {showLabels ? (
+            <Label htmlFor={`${idPrefix}-name`} className="text-[var(--cb-text-muted)]">Name</Label>
+          ) : null}
           <Input
             id={`${idPrefix}-name`}
             type="text"
@@ -119,7 +123,9 @@ export function WaitlistForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-email`} className="text-[var(--cb-text-muted)]">Email</Label>
+          {showLabels ? (
+            <Label htmlFor={`${idPrefix}-email`} className="text-[var(--cb-text-muted)]">Email</Label>
+          ) : null}
           <Input
             id={`${idPrefix}-email`}
             type="email"
@@ -135,23 +141,23 @@ export function WaitlistForm({
             )}
           />
         </div>
+        <Button
+          type="submit"
+          disabled={loading}
+          size="lg"
+          className={cn(
+            'w-full rounded-2xl bg-[linear-gradient(135deg,#00e387,#00c06f)] text-[#04120b] shadow-[0_18px_40px_rgba(0,227,135,0.22)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(0,227,135,0.28)]',
+            layout === 'inline' ? 'h-11 px-5 lg:w-auto' : 'h-12'
+          )}
+        >
+          {loading ? 'Submitting…' : buttonText}
+        </Button>
       </div>
       {error && (
         <p className="text-sm text-red-400" role="alert">
           {error}
         </p>
       )}
-      <Button
-        type="submit"
-        disabled={loading}
-        size="lg"
-        className={cn(
-          'w-full rounded-2xl bg-[linear-gradient(135deg,#00e387,#00c06f)] text-[#04120b] shadow-[0_18px_40px_rgba(0,227,135,0.22)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(0,227,135,0.28)]',
-          layout === 'inline' ? 'h-11' : 'h-12'
-        )}
-      >
-        {loading ? 'Submitting…' : buttonText}
-      </Button>
       {helperText ? (
         <p className="text-center text-xs text-[var(--cb-text-muted)]">
           {helperText}
