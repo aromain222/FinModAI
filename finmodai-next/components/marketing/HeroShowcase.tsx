@@ -1,14 +1,14 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ArrowRight, ChevronLeft, ChevronRight, FileSpreadsheet, Newspaper, Sparkles } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight, Download, FileSpreadsheet, Newspaper, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const STEPS = [
   {
     id: 'workflow',
     label: 'Workflow 01',
-    title: 'Prompt-to-model interface',
+    title: 'One prompt to a downloadable model',
     badge: 'Model workflow',
     content: (
       <div className="space-y-4">
@@ -20,7 +20,7 @@ const STEPS = [
               </div>
               <div>
                 <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Prompt</p>
-                <p className="mt-1 text-xs text-white/50">Structured model generation</p>
+                <p className="mt-1 text-xs text-white/50">Analyst request translated into a finance workflow</p>
               </div>
             </div>
             <div className="rounded-full border border-[var(--cb-green)]/16 bg-[var(--cb-green)]/8 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--cb-green)]">
@@ -34,51 +34,76 @@ const STEPS = [
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[1.08fr_0.92fr]">
+        <div className="grid gap-4 lg:grid-cols-[1.04fr_0.96fr]">
           <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-[1.18fr_0.82fr_0.82fr]">
-              <div className="rounded-[28px] bg-[linear-gradient(135deg,rgba(26,54,138,0.22),rgba(8,13,18,0.98)_58%)] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.03)]">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Enterprise Value</p>
-                <p className="mt-3 text-[2.25rem] font-semibold tracking-[-0.05em] text-white">$1,174B</p>
-                <p className="mt-4 text-xs text-white/55">10-year discounted cash flow model</p>
-              </div>
-              {[
-                ['Equity Value', '$1,224B'],
-                ['Implied Price', '$50.36'],
-              ].map(([label, value]) => (
-                <div
-                  key={label}
-                  className="rounded-[28px] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.03)]"
-                >
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">{label}</p>
-                  <p className="mt-3 text-[1.7rem] font-semibold tracking-[-0.04em] text-white">{value}</p>
+            <div className="rounded-[30px] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.03)]">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white">Workflow output</p>
+                  <p className="mt-1 text-xs text-[var(--cb-text-muted)]">The prompt becomes a structured model package</p>
                 </div>
-              ))}
+                <div className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] text-white/60">
+                  Downloadable
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                {[
+                  ['Detect company', 'Ticker, sector, and relevant model type'],
+                  ['Build model', 'Forecast logic, assumptions, and outputs'],
+                  ['Export workbook', '.xlsx ready for analyst review'],
+                ].map(([title, body], index) => (
+                  <div
+                    key={title}
+                    className={cn(
+                      'rounded-[24px] p-[1px]',
+                      index === 1
+                        ? 'bg-[linear-gradient(180deg,rgba(0,227,135,0.22),rgba(255,255,255,0.05))]'
+                        : 'bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))]'
+                    )}
+                  >
+                    <div className="h-full rounded-[23px] bg-[linear-gradient(180deg,rgba(8,13,18,0.98),rgba(9,14,19,0.98))] px-4 py-4">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Step 0{index + 1}</p>
+                      <p className="mt-3 text-base font-semibold tracking-[-0.02em] text-white">{title}</p>
+                      <p className="mt-2 text-sm leading-6 text-white/58">{body}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="rounded-[30px] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.03)]">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-white">Forecast trend</p>
-                  <p className="mt-1 text-xs text-[var(--cb-text-muted)]">Revenue forecast and FCFF direction</p>
+                  <p className="text-sm font-medium text-white">What the analyst receives</p>
+                  <p className="mt-1 text-xs text-[var(--cb-text-muted)]">Outputs that can be reviewed, adjusted, and shared</p>
                 </div>
                 <div className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] text-white/60">
-                  Base case
+                  Model package
                 </div>
               </div>
+              <div className="mt-5 flex items-center gap-3 text-sm text-white/70">
+                <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5">Linked forecast</span>
+                <ArrowRight className="h-4 w-4 text-white/30" />
+                <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5">Valuation summary</span>
+                <ArrowRight className="h-4 w-4 text-white/30" />
+                <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5">Excel export</span>
+              </div>
               <div className="mt-5 rounded-[24px] bg-[linear-gradient(180deg,rgba(8,13,18,0.98),rgba(9,14,19,0.98))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                <div className="flex items-end justify-between text-xs text-[var(--cb-text-muted)]">
-                  <span>Revenue forecast</span>
-                  <span>FCFF trend</span>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-white">capitalbase_nvidia_dcf.xlsx</p>
+                    <p className="mt-1 text-xs text-[var(--cb-text-muted)]">Inputs, forecast, valuation, sensitivity</p>
+                  </div>
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--cb-green)]/16 bg-[var(--cb-green)]/10 text-[var(--cb-green)]">
+                    <Download className="h-5 w-5" />
+                  </div>
                 </div>
-                <div className="mt-5 grid h-36 grid-cols-6 items-end gap-3">
-                  {[42, 54, 63, 74, 86, 98].map((value, index) => (
-                    <div key={value} className="flex h-full flex-col items-center justify-end gap-2">
-                      <div
-                        className="w-full rounded-t-[16px] bg-[linear-gradient(180deg,#5f8dff_0%,#2e67ff_52%,rgba(46,103,255,0.32)_100%)] shadow-[0_14px_24px_rgba(46,103,255,0.16)]"
-                        style={{ height: `${value}%` }}
-                      />
-                      <span className="text-[10px] text-[var(--cb-text-muted)]">{2026 + index}</span>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  {['Assumptions', 'Forecast', 'DCF'].map((sheet) => (
+                    <div key={sheet} className="rounded-[18px] border border-white/7 bg-black/20 px-3 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--cb-text-muted)]">Sheet</p>
+                      <p className="mt-2 text-sm font-medium text-white">{sheet}</p>
                     </div>
                   ))}
                 </div>
@@ -89,28 +114,31 @@ const STEPS = [
           <div className="rounded-[30px] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.03)]">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-white">Assumptions</p>
-                <p className="mt-1 text-xs text-[var(--cb-text-muted)]">Editable model drivers</p>
+                <p className="text-sm font-medium text-white">What CapitalBase handles</p>
+                <p className="mt-1 text-xs text-[var(--cb-text-muted)]">From natural language request to a finance-native deliverable</p>
               </div>
               <Sparkles className="h-4 w-4 text-[var(--cb-green)]" />
             </div>
             <div className="mt-5 divide-y divide-white/6 overflow-hidden rounded-[24px] bg-[linear-gradient(180deg,rgba(8,13,18,0.98),rgba(9,14,19,0.98))] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
               {[
-                ['Revenue growth', '14% -> 6%'],
-                ['EBIT margin', '34%'],
-                ['WACC', '9.0%'],
-                ['Terminal growth', '2.5%'],
-              ].map(([label, value]) => (
+                ['Understands the prompt', 'Identifies company, model type, and time horizon'],
+                ['Builds assumptions', 'Sets growth, margins, discount rate, and structure'],
+                ['Produces outputs', 'Returns forecast tables, valuation, and scenario context'],
+                ['Exports the file', 'Packages everything into a downloadable workbook'],
+              ].map(([label, value], index) => (
                 <div key={label} className="flex items-center justify-between px-5 py-4">
-                  <span className="text-sm text-[var(--cb-text-secondary)]">{label}</span>
-                  <span className="text-[1.02rem] font-semibold tracking-[-0.02em] text-white">{value}</span>
+                  <div className="max-w-[78%]">
+                    <p className="text-sm font-medium text-white">{label}</p>
+                    <p className="mt-1 text-xs leading-5 text-[var(--cb-text-muted)]">{value}</p>
+                  </div>
+                  <div className="text-sm font-semibold text-white/45">0{index + 1}</div>
                 </div>
               ))}
             </div>
             <div className="mt-4 rounded-[24px] bg-[linear-gradient(135deg,rgba(0,227,135,0.12),rgba(0,227,135,0.04),rgba(255,255,255,0.01))] px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--cb-green)]/80">Scenario signal</p>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--cb-green)]/80">Core promise</p>
               <p className="mt-2 text-sm leading-6 text-white/82">
-                Base case assumes AI infrastructure spend normalizes into a durable large-cap growth profile.
+                One prompt gives the analyst a company-specific model package that can be opened, reviewed, and refined in Excel.
               </p>
             </div>
           </div>
