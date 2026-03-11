@@ -152,9 +152,11 @@ export function WaitlistForm({
       >
         {loading ? 'Submitting…' : buttonText}
       </Button>
-      <p className="text-center text-xs text-[var(--cb-text-muted)]">
-        {helperText}
-      </p>
+      {helperText ? (
+        <p className="text-center text-xs text-[var(--cb-text-muted)]">
+          {helperText}
+        </p>
+      ) : null}
     </form>
   );
 }
