@@ -55,9 +55,9 @@ export default function MarketingPage() {
 
           <div className="mt-8 grid flex-1 gap-8 xl:grid-cols-[0.84fr_1.16fr] xl:items-center">
             <div className="max-w-[36rem] space-y-5">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs text-[var(--cb-text-secondary)] backdrop-blur">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs text-[var(--cb-text-secondary)] backdrop-blur">
                 <span className="h-2 w-2 rounded-full bg-[var(--cb-green)]" />
-                AI analyst for modeling, headlines, and investment workflow
+                AI analyst for models, headlines, and investment workflow
               </div>
 
               <div className="space-y-4">
@@ -69,17 +69,19 @@ export default function MarketingPage() {
                 </p>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-[26px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] p-3">
+                <div className="grid gap-3 sm:grid-cols-3">
                 {[
                   ['Financial models', 'DCF, reverse DCF, operating models'],
                   ['Market context', 'Headlines, events, ticker impact'],
                   ['Private access', 'Demo access after approval'],
                 ].map(([title, body]) => (
-                  <div key={title} className="rounded-[22px] border border-white/8 bg-white/[0.02] px-4 py-3">
-                    <p className="text-sm font-medium text-white">{title}</p>
-                    <p className="mt-1 text-xs leading-5 text-[var(--cb-text-muted)]">{body}</p>
+                  <div key={title} className="rounded-[20px] border border-white/8 bg-[#0b1015]/80 px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">{title}</p>
+                    <p className="mt-2 text-sm leading-6 text-white/85">{body}</p>
                   </div>
                 ))}
+                </div>
               </div>
 
               <WaitlistForm
@@ -88,20 +90,20 @@ export default function MarketingPage() {
                 helperText=""
                 layout="inline"
                 showLabels={false}
-                className="max-w-[42rem]"
+                className="max-w-[42rem] rounded-[30px] border-white/8 bg-[linear-gradient(180deg,rgba(15,20,26,0.9),rgba(8,11,15,0.92))]"
               />
 
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col gap-3 border-t border-white/6 pt-1 sm:flex-row sm:items-center sm:justify-between">
                 <div className="inline-flex items-center gap-2 text-sm text-[var(--cb-text-muted)]">
                   <Sparkles className="h-4 w-4 text-[var(--cb-green)]" />
                   Waitlist members receive private demo access once approved.
                 </div>
                 <Link
                   href="#overview"
-                  className="group inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.02] px-4 py-2.5 text-sm text-white/75 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white"
+                  className="group inline-flex items-center gap-2 text-sm font-medium text-white/75 transition hover:text-white"
                 >
                   <span>See what’s inside</span>
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/12 bg-white/[0.03] transition group-hover:translate-y-0.5">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/12 bg-white/[0.03] transition group-hover:translate-y-0.5 group-hover:border-white/20 group-hover:bg-white/[0.06]">
                     <ArrowDown className="h-4 w-4" />
                   </span>
                 </Link>
