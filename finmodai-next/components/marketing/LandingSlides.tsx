@@ -13,6 +13,7 @@ import {
   Layers3,
   LineChart,
   Newspaper,
+  Sparkles,
   TrendingUp,
 } from 'lucide-react';
 import { WaitlistForm } from '@/components/MarketingLanding';
