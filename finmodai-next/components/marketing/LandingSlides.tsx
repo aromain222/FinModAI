@@ -96,8 +96,6 @@ function Frame({
 }
 
 function HeroSlide(props: SlideProps) {
-  const waitlistHref = getSubdomainHref('waitlist');
-
   return (
     <Frame {...props}>
       <div className="grid items-center gap-10 lg:grid-cols-[0.95fr_1.05fr]">
@@ -124,16 +122,6 @@ function HeroSlide(props: SlideProps) {
               showLabels={false}
               className="max-w-[34rem] rounded-[28px] border-white/[0.05] bg-[linear-gradient(180deg,rgba(15,20,26,0.9),rgba(8,11,15,0.95))] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
             />
-          </div>
-
-          <div className="mt-6 flex items-center gap-4">
-            <Button asChild className="rounded-full px-6">
-              <Link href={waitlistHref}>
-                Join the Waitlist
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-            <p className="text-sm text-[var(--cb-text-muted)]">Waitlist members receive early demo access.</p>
           </div>
         </div>
 
