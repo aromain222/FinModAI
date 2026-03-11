@@ -3,14 +3,13 @@ import type { Metadata } from 'next';
 import {
   ArrowRight,
   BarChart3,
-  Download,
   FileSpreadsheet,
   Landmark,
   Newspaper,
-  Sparkles,
   TrendingUp,
 } from 'lucide-react';
 import { WaitlistForm } from '@/components/MarketingLanding';
+import { HeroShowcase } from '@/components/marketing/HeroShowcase';
 import { Button } from '@/components/ui/button';
 import { APP_NAME } from '@/lib/branding';
 import { getSubdomainHref } from '@/lib/subdomains';
@@ -99,111 +98,6 @@ function SectionHeader({
   );
 }
 
-function HeroFragments() {
-  return (
-    <div className="relative mx-auto w-full max-w-[42rem]">
-      <div className="absolute inset-0 rounded-[42px] bg-[radial-gradient(circle_at_20%_20%,rgba(61,112,255,0.22),transparent_28%),radial-gradient(circle_at_80%_30%,rgba(0,227,135,0.16),transparent_24%),radial-gradient(circle_at_55%_88%,rgba(255,255,255,0.08),transparent_20%)] blur-3xl" />
-      <div className="relative min-h-[32rem] rounded-[42px] border border-white/8 bg-[linear-gradient(180deg,rgba(13,18,24,0.94),rgba(7,10,15,0.98))] shadow-[0_50px_140px_rgba(0,0,0,0.42)] backdrop-blur-xl">
-        <div className="absolute left-7 top-8 w-[48%] rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.01))] p-5 shadow-[0_20px_70px_rgba(0,0,0,0.22)]">
-          <div className="flex items-center justify-between">
-            <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Revenue forecast</p>
-            <TrendingUp className="h-4 w-4 text-[var(--cb-green)]" />
-          </div>
-          <div className="mt-4 overflow-hidden rounded-[18px] border border-white/6 bg-[#070b10]">
-            <div className="grid grid-cols-[1.2fr_1fr_1fr_1fr] border-b border-white/6 px-4 py-3 text-[10px] uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">
-              <span>Driver</span>
-              <span>2026E</span>
-              <span>2027E</span>
-              <span>2028E</span>
-            </div>
-            {[
-              ['Revenue', '$8.4B', '$9.8B', '$11.3B'],
-              ['Growth', '18%', '16%', '14%'],
-              ['EBITDA', '$2.0B', '$2.5B', '$3.0B'],
-            ].map((row) => (
-              <div
-                key={row[0]}
-                className="grid grid-cols-[1.2fr_1fr_1fr_1fr] px-4 py-3 text-sm text-white/85 odd:bg-white/[0.02]"
-              >
-                <span>{row[0]}</span>
-                <span>{row[1]}</span>
-                <span>{row[2]}</span>
-                <span>{row[3]}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="absolute right-8 top-10 w-[36%] rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.012))] p-5 shadow-[0_20px_70px_rgba(0,0,0,0.24)]">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Valuation summary</p>
-          <div className="mt-4 grid gap-3">
-            {[
-              ['Enterprise value', '$1,174B'],
-              ['Equity value', '$1,224B'],
-              ['Implied price', '$50.36'],
-            ].map(([label, value], index) => (
-              <div
-                key={label}
-                className={`rounded-[18px] px-4 py-4 ${
-                  index === 2
-                    ? 'bg-[linear-gradient(135deg,rgba(0,227,135,0.14),rgba(0,227,135,0.04))]'
-                    : 'bg-white/[0.03]'
-                }`}
-              >
-                <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">{label}</p>
-                <p className="mt-2 text-[1.45rem] font-semibold tracking-[-0.04em] text-white">{value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="absolute left-[14%] top-[48%] w-[44%] rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(14,19,26,0.96),rgba(8,11,15,0.96))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.3)]">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-white">Financial chart</p>
-              <p className="mt-1 text-xs text-[var(--cb-text-muted)]">Revenue and FCFF direction</p>
-            </div>
-            <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-white/60">
-              Base case
-            </span>
-          </div>
-          <div className="mt-5 grid h-36 grid-cols-5 items-end gap-3">
-            {[34, 51, 63, 78, 92].map((value, index) => (
-              <div key={`${value}-${index}`} className="flex h-full flex-col items-center justify-end gap-2">
-                <div
-                  className="w-full rounded-t-[16px] bg-[linear-gradient(180deg,#7aa3ff_0%,#3b73ff_60%,rgba(59,115,255,0.22)_100%)] shadow-[0_14px_24px_rgba(59,115,255,0.16)]"
-                  style={{ height: `${value}%` }}
-                />
-                <span className="text-[10px] text-[var(--cb-text-muted)]">{2027 + index}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="absolute bottom-8 right-10 w-[34%] rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.012))] p-5 shadow-[0_20px_70px_rgba(0,0,0,0.22)]">
-          <div className="flex items-center justify-between">
-            <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Assumptions</p>
-            <Sparkles className="h-4 w-4 text-[var(--cb-green)]" />
-          </div>
-          <div className="mt-4 space-y-3">
-            {[
-              ['Revenue growth', '14% -> 6%'],
-              ['EBIT margin', '34%'],
-              ['WACC', '9.0%'],
-              ['Terminal growth', '2.5%'],
-            ].map(([label, value]) => (
-              <div key={label} className="flex items-center justify-between rounded-[16px] bg-white/[0.03] px-4 py-3">
-                <span className="text-sm text-[var(--cb-text-secondary)]">{label}</span>
-                <span className="text-sm font-semibold text-white">{value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function MarketingPage() {
   const waitlistHref = getSubdomainHref('waitlist');
   const demoHref = getSubdomainHref('demo');
@@ -271,7 +165,7 @@ export default function MarketingPage() {
               </div>
             </div>
 
-            <HeroFragments />
+            <HeroShowcase />
           </div>
         </div>
       </section>

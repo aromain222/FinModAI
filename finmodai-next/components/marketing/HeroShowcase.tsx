@@ -1,10 +1,82 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ArrowRight, ChevronLeft, ChevronRight, Download, FileSpreadsheet, Newspaper, Sparkles } from 'lucide-react';
+import {
+  ArrowRight,
+  BarChart3,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  FileSpreadsheet,
+  Newspaper,
+  Sparkles,
+  TrendingUp,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const STEPS = [
+  {
+    id: 'overview',
+    label: 'Overview 00',
+    title: 'CapitalBase, at a glance',
+    badge: 'Platform overview',
+    content: (
+      <div className="grid gap-4 lg:grid-cols-[1.02fr_0.98fr]">
+        <div className="rounded-[30px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.03)]">
+          <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">What the platform does</p>
+          <div className="mt-5 grid gap-3">
+            {[
+              ['Generate financial models', 'Turn one request into a structured, downloadable model package.'],
+              ['Surface market intelligence', 'Translate headlines and events into what matters for sectors, assets, and tickers.'],
+              ['Produce analyst-ready outputs', 'Deliver summaries, scenarios, and exports that can be reviewed immediately.'],
+            ].map(([title, body]) => (
+              <div key={title} className="rounded-[22px] border border-white/6 bg-white/[0.02] px-4 py-4">
+                <p className="text-base font-semibold tracking-[-0.02em] text-white">{title}</p>
+                <p className="mt-2 text-sm leading-6 text-[var(--cb-text-secondary)]">{body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[30px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.03)]">
+          <div className="rounded-[24px] bg-[linear-gradient(135deg,rgba(61,112,255,0.18),rgba(0,227,135,0.1),rgba(255,255,255,0.03))] p-5">
+            <p className="text-[11px] uppercase tracking-[0.22em] text-white/60">Workflow</p>
+            <div className="mt-6 flex items-center gap-3 text-sm text-white/85">
+              <span className="rounded-full border border-white/12 bg-black/15 px-3 py-1.5">Prompt</span>
+              <ArrowRight className="h-4 w-4 text-white/30" />
+              <span className="rounded-full border border-white/12 bg-black/15 px-3 py-1.5">Model</span>
+              <ArrowRight className="h-4 w-4 text-white/30" />
+              <span className="rounded-full border border-white/12 bg-black/15 px-3 py-1.5">Insight</span>
+            </div>
+            <p className="mt-6 text-lg font-semibold tracking-[-0.03em] text-white">
+              The hero stays simple. Use the arrows to preview what the platform actually generates.
+            </p>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {[
+              ['Models', FileSpreadsheet],
+              ['Intelligence', Newspaper],
+              ['Forecasts', TrendingUp],
+              ['Charts', BarChart3],
+            ].map(([label, Icon]) => (
+              <div key={label} className="rounded-[20px] border border-white/6 bg-[#0d1117] px-4 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/[0.04]">
+                    <Icon className="h-4 w-4 text-[var(--cb-green)]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">{label}</p>
+                    <p className="mt-1 text-xs text-[var(--cb-text-muted)]">Preview on next slides</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    ),
+  },
   {
     id: 'workflow',
     label: 'Workflow 01',
