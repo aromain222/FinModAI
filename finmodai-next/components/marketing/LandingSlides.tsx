@@ -65,12 +65,12 @@ function Frame({
           </div>
         </div>
 
-        <div className="relative mt-6 flex-1 overflow-hidden rounded-[36px] border border-white/8 bg-[linear-gradient(180deg,rgba(12,16,22,0.9),rgba(7,10,15,0.94))] shadow-[0_40px_120px_rgba(0,0,0,0.34)]">
+        <div className="relative mt-6 flex-1 overflow-hidden rounded-[36px] border border-white/[0.05] bg-[linear-gradient(180deg,rgba(12,16,22,0.88),rgba(7,10,15,0.96))] shadow-[inset_0_1px_0_rgba(255,255,255,0.025),0_40px_120px_rgba(0,0,0,0.34)]">
           {index > 0 ? (
             <button
               type="button"
               onClick={goPrev}
-              className="absolute left-4 top-1/2 z-20 -translate-y-1/2 rounded-full border border-white/10 bg-black/25 p-4 text-white/85 backdrop-blur transition hover:bg-white/[0.08]"
+              className="absolute left-4 top-1/2 z-20 -translate-y-1/2 rounded-full border border-white/[0.05] bg-black/30 p-4 text-white/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] backdrop-blur transition hover:bg-white/[0.06]"
               aria-label="Previous slide"
             >
               <ChevronLeft className="h-7 w-7" />
@@ -81,7 +81,7 @@ function Frame({
             <button
               type="button"
               onClick={goNext}
-              className="absolute right-4 top-1/2 z-20 -translate-y-1/2 rounded-full border border-white/10 bg-black/25 p-4 text-white/85 backdrop-blur transition hover:bg-white/[0.08]"
+              className="absolute right-4 top-1/2 z-20 -translate-y-1/2 rounded-full border border-white/[0.05] bg-black/30 p-4 text-white/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] backdrop-blur transition hover:bg-white/[0.06]"
               aria-label="Next slide"
             >
               <ChevronRight className="h-7 w-7" />
@@ -122,7 +122,7 @@ function HeroSlide(props: SlideProps) {
               helperText="Waitlist members receive early demo access."
               layout="inline"
               showLabels={false}
-              className="max-w-[34rem] rounded-[28px] border-white/8 bg-[linear-gradient(180deg,rgba(15,20,26,0.84),rgba(8,11,15,0.92))]"
+              className="max-w-[34rem] rounded-[28px] border-white/[0.05] bg-[linear-gradient(180deg,rgba(15,20,26,0.9),rgba(8,11,15,0.95))] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
             />
           </div>
 
@@ -139,8 +139,8 @@ function HeroSlide(props: SlideProps) {
 
         <div className="relative mx-auto w-full max-w-[34rem]">
           <div className="absolute inset-0 rounded-[40px] bg-[radial-gradient(circle_at_30%_28%,rgba(59,115,255,0.22),transparent_32%),radial-gradient(circle_at_75%_38%,rgba(0,227,135,0.14),transparent_24%)] blur-3xl" />
-          <div className="relative rounded-[40px] border border-white/8 bg-[linear-gradient(180deg,rgba(13,18,24,0.86),rgba(8,11,15,0.96))] p-6">
-            <div className="rounded-[26px] border border-white/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))] p-6">
+          <div className="relative rounded-[40px] border border-white/[0.05] bg-[linear-gradient(180deg,rgba(13,18,24,0.9),rgba(8,11,15,0.98))] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.025),0_24px_70px_rgba(0,0,0,0.32)]">
+            <div className="rounded-[26px] border border-white/[0.04] bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.01))] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
               <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">CapitalBase</p>
               <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-white">
                 AI-powered modeling and market context
@@ -151,7 +151,7 @@ function HeroSlide(props: SlideProps) {
             </div>
 
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div className="rounded-[22px] border border-white/6 bg-white/[0.02] p-5">
+              <div className="rounded-[22px] border border-white/[0.04] bg-white/[0.02] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/[0.04] text-[var(--cb-green)]">
                   <FileSpreadsheet className="h-5 w-5" />
                 </div>
@@ -160,7 +160,7 @@ function HeroSlide(props: SlideProps) {
                   Structured forecasts, valuation outputs, and reusable templates.
                 </p>
               </div>
-              <div className="rounded-[22px] border border-white/6 bg-white/[0.02] p-5">
+              <div className="rounded-[22px] border border-white/[0.04] bg-white/[0.02] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/[0.04] text-[var(--cb-green)]">
                   <Newspaper className="h-5 w-5" />
                 </div>
@@ -171,12 +171,12 @@ function HeroSlide(props: SlideProps) {
               </div>
             </div>
 
-            <div className="mt-4 rounded-[22px] border border-white/6 bg-[#070b10] px-5 py-4">
+            <div className="mt-4 rounded-[22px] border border-white/[0.04] bg-[#070b10] px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
               <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Guided walkthrough</p>
               <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-white/75">
-                <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5">Models</span>
-                <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5">Intelligence</span>
-                <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5">Templates</span>
+                <span className="rounded-full border border-white/[0.05] bg-white/[0.03] px-3 py-1.5">Models</span>
+                <span className="rounded-full border border-white/[0.05] bg-white/[0.03] px-3 py-1.5">Intelligence</span>
+                <span className="rounded-full border border-white/[0.05] bg-white/[0.03] px-3 py-1.5">Templates</span>
               </div>
             </div>
           </div>
@@ -215,7 +215,7 @@ function ModelingSlide(props: SlideProps) {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[0.96fr_1.04fr]">
-          <div className="rounded-[30px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.012))] p-6">
+          <div className="rounded-[30px] border border-white/[0.05] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--cb-green)]/10 text-[var(--cb-green)]">
               <Layers3 className="h-5 w-5" />
             </div>
@@ -227,7 +227,7 @@ function ModelingSlide(props: SlideProps) {
                 'Populate valuation outputs',
                 'Export analyst-ready file',
               ].map((step, index) => (
-                <div key={step} className="grid grid-cols-[auto_1fr] gap-3 rounded-[18px] bg-white/[0.02] px-4 py-4">
+                <div key={step} className="grid grid-cols-[auto_1fr] gap-3 rounded-[18px] bg-white/[0.02] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.015)]">
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.05] text-xs font-semibold text-white/70">
                     0{index + 1}
                   </div>
@@ -238,7 +238,7 @@ function ModelingSlide(props: SlideProps) {
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-[30px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.012))] p-6">
+            <div className="rounded-[30px] border border-white/[0.05] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/[0.04] text-[#7aa3ff]">
                   <LineChart className="h-5 w-5" />
@@ -262,12 +262,12 @@ function ModelingSlide(props: SlideProps) {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-[24px] border border-white/8 bg-white/[0.02] p-5">
+              <div className="rounded-[24px] border border-white/[0.05] bg-white/[0.02] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
                 <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Valuation</p>
                 <p className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-white">$1.22B</p>
                 <p className="mt-2 text-sm text-[var(--cb-text-secondary)]">Enterprise value summary</p>
               </div>
-              <div className="rounded-[24px] border border-white/8 bg-white/[0.02] p-5">
+              <div className="rounded-[24px] border border-white/[0.05] bg-white/[0.02] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
                 <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Assumptions</p>
                 <p className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-white">Editable</p>
                 <p className="mt-2 text-sm text-[var(--cb-text-secondary)]">
@@ -302,11 +302,11 @@ function IntelligenceSlide(props: SlideProps) {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="rounded-[30px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.012))] p-6">
+          <div className="rounded-[30px] border border-white/[0.05] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
             <p className="text-sm font-medium text-white">Feed categories</p>
             <div className="mt-5 space-y-3">
               {INTELLIGENCE_FEED_ITEMS.map(({ label, icon: Icon }) => (
-                <div key={label} className="flex items-center gap-3 rounded-[18px] bg-white/[0.02] px-4 py-4">
+                <div key={label} className="flex items-center gap-3 rounded-[18px] bg-white/[0.02] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.015)]">
                   <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/[0.04]">
                     <Icon className="h-4 w-4 text-[var(--cb-green)]" />
                   </div>
@@ -334,7 +334,7 @@ function IntelligenceSlide(props: SlideProps) {
                 summary: 'The feed connects headlines to likely sector effects and names to watch.',
               },
             ].map((item) => (
-              <div key={item.headline} className="rounded-[24px] border border-white/8 bg-white/[0.02] p-5">
+              <div key={item.headline} className="rounded-[24px] border border-white/[0.05] bg-white/[0.02] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
                 <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">{item.title}</p>
                 <h3 className="mt-3 text-lg font-semibold tracking-[-0.03em] text-white">{item.headline}</h3>
                 <p className="mt-3 text-sm leading-7 text-[var(--cb-text-secondary)]">{item.summary}</p>
@@ -376,10 +376,10 @@ function TemplatesSlide(props: SlideProps) {
             <div
               key={title}
               className={cn(
-                'rounded-[30px] border p-6',
+                'rounded-[30px] border p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]',
                 index === 0
-                  ? 'border-[var(--cb-green)]/20 bg-[linear-gradient(180deg,rgba(0,227,135,0.08),rgba(10,13,18,0.95))]'
-                  : 'border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))]'
+                  ? 'border-[var(--cb-green)]/12 bg-[linear-gradient(180deg,rgba(0,227,135,0.06),rgba(10,13,18,0.95))]'
+                  : 'border-white/[0.05] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))]'
               )}
             >
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/[0.04] text-[var(--cb-green)]">
