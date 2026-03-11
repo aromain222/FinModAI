@@ -12,83 +12,81 @@ const STEPS = [
     badge: 'Model workflow',
     content: (
       <div className="space-y-4">
-        <div className="rounded-[28px] border border-white/7 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.012))] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.03)]">
+        <div className="rounded-[30px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] p-5 shadow-[0_24px_60px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.03)]">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--cb-green)]/12 text-[var(--cb-green)]">
+              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--cb-green)]/10 text-[var(--cb-green)]">
                 <Sparkles className="h-4 w-4" />
               </div>
               <div>
                 <p className="text-[11px] uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Prompt</p>
-                <p className="mt-0.5 text-xs text-white/55">Structured model generation</p>
+                <p className="mt-1 text-xs text-white/50">Structured model generation</p>
               </div>
             </div>
-            <div className="rounded-full border border-[var(--cb-green)]/16 bg-[linear-gradient(180deg,rgba(0,227,135,0.12),rgba(0,227,135,0.05))] px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--cb-green)]">
+            <div className="rounded-full border border-[var(--cb-green)]/16 bg-[var(--cb-green)]/8 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--cb-green)]">
               Live generation
             </div>
           </div>
-          <div className="mt-4 rounded-[22px] border border-white/7 bg-[linear-gradient(180deg,rgba(9,15,20,0.98),rgba(6,12,17,0.98))] px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-            <p className="text-[1.12rem] font-medium tracking-[-0.02em] text-white">
+          <div className="mt-4 rounded-[22px] bg-[linear-gradient(180deg,rgba(8,13,18,0.98),rgba(7,11,16,0.98))] px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+            <p className="text-[1.1rem] font-medium tracking-[-0.02em] text-white">
               Build a DCF model for NVIDIA with a 10-year forecast.
             </p>
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[1.04fr_0.96fr]">
-          <div className="rounded-[28px] border border-white/7 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.012))] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.03)]">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-white">Generated outputs</p>
-                <p className="mt-1 text-xs text-[var(--cb-text-muted)]">10-year discounted cash flow model</p>
+        <div className="grid gap-4 lg:grid-cols-[1.08fr_0.92fr]">
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-[1.18fr_0.82fr_0.82fr]">
+              <div className="rounded-[28px] bg-[linear-gradient(135deg,rgba(26,54,138,0.22),rgba(8,13,18,0.98)_58%)] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.03)]">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Enterprise Value</p>
+                <p className="mt-3 text-[2.25rem] font-semibold tracking-[-0.05em] text-white">$1,174B</p>
+                <p className="mt-4 text-xs text-white/55">10-year discounted cash flow model</p>
               </div>
-              <div className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] text-white/60">
-                Base case
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-3 gap-3">
               {[
-                ['Enterprise Value', '$1,174B'],
                 ['Equity Value', '$1,224B'],
                 ['Implied Price', '$50.36'],
-              ].map(([label, value], index) => (
+              ].map(([label, value]) => (
                 <div
                   key={label}
-                  className={cn(
-                    'rounded-[22px] p-[1px]',
-                    index === 1
-                      ? 'bg-[linear-gradient(180deg,rgba(0,227,135,0.2),rgba(255,255,255,0.05))]'
-                      : 'bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))]'
-                  )}
+                  className="rounded-[28px] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.03)]"
                 >
-                  <div className="rounded-[21px] bg-[linear-gradient(180deg,rgba(8,13,18,0.98),rgba(9,14,19,0.98))] px-4 py-4">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">{label}</p>
-                    <p className="mt-3 text-[1.9rem] font-semibold tracking-[-0.045em] text-white">{value}</p>
-                  </div>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">{label}</p>
+                  <p className="mt-3 text-[1.7rem] font-semibold tracking-[-0.04em] text-white">{value}</p>
                 </div>
               ))}
             </div>
 
-            <div className="mt-4 rounded-[24px] bg-[linear-gradient(180deg,rgba(7,12,18,0.98),rgba(8,13,18,0.98))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-              <div className="flex items-end justify-between text-xs text-[var(--cb-text-muted)]">
-                <span>Revenue forecast</span>
-                <span>FCFF trend</span>
+            <div className="rounded-[30px] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.03)]">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white">Forecast trend</p>
+                  <p className="mt-1 text-xs text-[var(--cb-text-muted)]">Revenue forecast and FCFF direction</p>
+                </div>
+                <div className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] text-white/60">
+                  Base case
+                </div>
               </div>
-              <div className="mt-5 grid h-36 grid-cols-6 items-end gap-3">
-                {[42, 54, 63, 74, 86, 98].map((value, index) => (
-                  <div key={value} className="flex h-full flex-col items-center justify-end gap-2">
-                    <div
-                      className="w-full rounded-t-[16px] bg-[linear-gradient(180deg,#5f8dff_0%,#2e67ff_52%,rgba(46,103,255,0.3)_100%)] shadow-[0_14px_24px_rgba(46,103,255,0.16)]"
-                      style={{ height: `${value}%` }}
-                    />
-                    <span className="text-[10px] text-[var(--cb-text-muted)]">{2026 + index}</span>
-                  </div>
-                ))}
+              <div className="mt-5 rounded-[24px] bg-[linear-gradient(180deg,rgba(8,13,18,0.98),rgba(9,14,19,0.98))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                <div className="flex items-end justify-between text-xs text-[var(--cb-text-muted)]">
+                  <span>Revenue forecast</span>
+                  <span>FCFF trend</span>
+                </div>
+                <div className="mt-5 grid h-36 grid-cols-6 items-end gap-3">
+                  {[42, 54, 63, 74, 86, 98].map((value, index) => (
+                    <div key={value} className="flex h-full flex-col items-center justify-end gap-2">
+                      <div
+                        className="w-full rounded-t-[16px] bg-[linear-gradient(180deg,#5f8dff_0%,#2e67ff_52%,rgba(46,103,255,0.32)_100%)] shadow-[0_14px_24px_rgba(46,103,255,0.16)]"
+                        style={{ height: `${value}%` }}
+                      />
+                      <span className="text-[10px] text-[var(--cb-text-muted)]">{2026 + index}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-white/7 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.012))] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.03)]">
+          <div className="rounded-[30px] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.03)]">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-white">Assumptions</p>
@@ -96,23 +94,20 @@ const STEPS = [
               </div>
               <Sparkles className="h-4 w-4 text-[var(--cb-green)]" />
             </div>
-            <div className="mt-4 space-y-3">
+            <div className="mt-5 divide-y divide-white/6 overflow-hidden rounded-[24px] bg-[linear-gradient(180deg,rgba(8,13,18,0.98),rgba(9,14,19,0.98))] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
               {[
                 ['Revenue growth', '14% -> 6%'],
                 ['EBIT margin', '34%'],
                 ['WACC', '9.0%'],
                 ['Terminal growth', '2.5%'],
               ].map(([label, value]) => (
-                <div
-                  key={label}
-                  className="flex items-center justify-between rounded-[22px] bg-[linear-gradient(180deg,rgba(8,13,18,0.98),rgba(9,14,19,0.98))] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-                >
+                <div key={label} className="flex items-center justify-between px-5 py-4">
                   <span className="text-sm text-[var(--cb-text-secondary)]">{label}</span>
-                  <span className="text-[1.05rem] font-semibold tracking-[-0.02em] text-white">{value}</span>
+                  <span className="text-[1.02rem] font-semibold tracking-[-0.02em] text-white">{value}</span>
                 </div>
               ))}
             </div>
-            <div className="mt-4 rounded-[24px] bg-[linear-gradient(135deg,rgba(0,227,135,0.12),rgba(0,227,135,0.03),rgba(255,255,255,0.01))] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+            <div className="mt-4 rounded-[24px] bg-[linear-gradient(135deg,rgba(0,227,135,0.12),rgba(0,227,135,0.04),rgba(255,255,255,0.01))] px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
               <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--cb-green)]/80">Scenario signal</p>
               <p className="mt-2 text-sm leading-6 text-white/82">
                 Base case assumes AI infrastructure spend normalizes into a durable large-cap growth profile.
