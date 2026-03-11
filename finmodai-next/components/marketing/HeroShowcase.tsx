@@ -8,11 +8,19 @@ import {
   ChevronRight,
   Download,
   FileSpreadsheet,
+  type LucideIcon,
   Newspaper,
   Sparkles,
   TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+const OVERVIEW_ITEMS: Array<{ label: string; icon: LucideIcon }> = [
+  { label: 'Models', icon: FileSpreadsheet },
+  { label: 'Intelligence', icon: Newspaper },
+  { label: 'Forecasts', icon: TrendingUp },
+  { label: 'Charts', icon: BarChart3 },
+];
 
 const STEPS = [
   {
@@ -54,12 +62,7 @@ const STEPS = [
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {[
-              ['Models', FileSpreadsheet],
-              ['Intelligence', Newspaper],
-              ['Forecasts', TrendingUp],
-              ['Charts', BarChart3],
-            ].map(([label, Icon]) => (
+            {OVERVIEW_ITEMS.map(({ label, icon: Icon }) => (
               <div key={label} className="rounded-[20px] border border-white/6 bg-[#0d1117] px-4 py-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/[0.04]">
