@@ -87,10 +87,22 @@ const STEPS = [
     content: (
       <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
         <div className="overflow-hidden rounded-[22px] border border-white/8 bg-[#0d1117]">
-          <div className="h-44 bg-[linear-gradient(135deg,rgba(8,18,28,1),rgba(24,58,112,0.95),rgba(0,227,135,0.18))]" />
+          <div
+            className="relative h-44 overflow-hidden border-b border-white/8 bg-cover bg-center"
+            style={{
+              backgroundImage:
+                "url('https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1400&q=80')",
+            }}
+          >
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,9,14,0.08),rgba(5,9,14,0.68)_72%,rgba(5,9,14,0.9))]" />
+            <div className="absolute inset-x-0 bottom-0 p-4">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/14 bg-black/30 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-white/75 backdrop-blur">
+                Example event
+              </div>
+            </div>
+          </div>
           <div className="p-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-[var(--cb-text-muted)]">Example event</p>
-            <h3 className="mt-2 text-lg font-semibold text-white">NVIDIA supplier capex acceleration points to AI infrastructure spend durability</h3>
+            <h3 className="text-lg font-semibold text-white">NVIDIA supplier capex acceleration points to AI infrastructure spend durability</h3>
             <p className="mt-2 text-sm leading-6 text-[var(--cb-text-secondary)]">
               CapitalBase converts the headline into a market view with likely impacts on semis, networking, power, and hyperscale infrastructure names.
             </p>
