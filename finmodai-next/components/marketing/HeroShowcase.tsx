@@ -12,15 +12,20 @@ const STEPS = [
     badge: 'Model workflow',
     content: (
       <div className="space-y-4">
-        <div className="rounded-[22px] border border-white/8 bg-white/[0.03] p-4">
-          <p className="text-xs uppercase tracking-[0.24em] text-[var(--cb-text-muted)]">Prompt</p>
-          <div className="mt-3 rounded-2xl border border-[var(--cb-green)]/30 bg-[#0c1318] px-4 py-3 text-sm text-white">
+        <div className="rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.015))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+          <div className="flex items-center justify-between">
+            <p className="text-xs uppercase tracking-[0.24em] text-[var(--cb-text-muted)]">Prompt</p>
+            <div className="rounded-full border border-[var(--cb-green)]/20 bg-[var(--cb-green)]/8 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[var(--cb-green)]">
+              Live generation
+            </div>
+          </div>
+          <div className="mt-3 rounded-[20px] border border-[var(--cb-green)]/18 bg-[linear-gradient(180deg,rgba(10,19,24,0.96),rgba(8,14,19,0.96))] px-4 py-4 text-sm text-white shadow-[0_10px_30px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.03)]">
             Build a DCF model for NVIDIA with a 10-year forecast.
           </div>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[1.08fr_0.92fr]">
-          <div className="rounded-[22px] border border-white/8 bg-white/[0.03] p-4">
+          <div className="rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.015))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-white">Generated outputs</p>
               <span className="text-xs text-[var(--cb-text-muted)]">10-year model</span>
@@ -31,13 +36,16 @@ const STEPS = [
                 ['Equity Value', '$1,224B'],
                 ['Implied Price', '$50.36'],
               ].map(([label, value]) => (
-                <div key={label} className="rounded-2xl border border-white/8 bg-[#0d1117] p-3">
+                <div
+                  key={label}
+                  className="rounded-[20px] border border-white/7 bg-[linear-gradient(180deg,rgba(8,13,18,0.96),rgba(10,15,20,0.96))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                >
                   <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">{label}</p>
-                  <p className="mt-2 text-lg font-semibold text-white">{value}</p>
+                  <p className="mt-3 text-[1.85rem] font-semibold tracking-[-0.04em] text-white">{value}</p>
                 </div>
               ))}
             </div>
-            <div className="mt-4 rounded-2xl border border-white/8 bg-[#0d1117] p-4">
+            <div className="mt-4 rounded-[22px] border border-white/7 bg-[linear-gradient(180deg,rgba(8,13,18,0.98),rgba(10,15,20,0.98))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
               <div className="flex items-end justify-between text-xs text-[var(--cb-text-muted)]">
                 <span>Revenue forecast</span>
                 <span>FCFF trend</span>
@@ -46,7 +54,7 @@ const STEPS = [
                 {[42, 54, 63, 74, 86, 98].map((value, index) => (
                   <div key={value} className="flex h-full flex-col items-center justify-end gap-2">
                     <div
-                      className="w-full rounded-t-xl bg-[linear-gradient(180deg,rgba(31,91,255,0.95),rgba(31,91,255,0.35))]"
+                      className="w-full rounded-t-[14px] bg-[linear-gradient(180deg,rgba(73,124,255,1),rgba(31,91,255,0.68)_55%,rgba(26,54,138,0.5))] shadow-[0_8px_18px_rgba(31,91,255,0.18)]"
                       style={{ height: `${value}%` }}
                     />
                     <span className="text-[10px] text-[var(--cb-text-muted)]">{2026 + index}</span>
@@ -56,7 +64,7 @@ const STEPS = [
             </div>
           </div>
 
-          <div className="rounded-[22px] border border-white/8 bg-white/[0.03] p-4">
+          <div className="rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.015))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-white">Assumptions</p>
               <Sparkles className="h-4 w-4 text-[var(--cb-green)]" />
@@ -68,11 +76,20 @@ const STEPS = [
                 ['WACC', '9.0%'],
                 ['Terminal growth', '2.5%'],
               ].map(([label, value]) => (
-                <div key={label} className="flex items-center justify-between rounded-2xl border border-white/8 bg-[#0d1117] px-3 py-3">
+                <div
+                  key={label}
+                  className="flex items-center justify-between rounded-[20px] border border-white/7 bg-[linear-gradient(180deg,rgba(8,13,18,0.98),rgba(10,15,20,0.98))] px-4 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                >
                   <span className="text-sm text-[var(--cb-text-secondary)]">{label}</span>
-                  <span className="text-sm font-medium text-white">{value}</span>
+                  <span className="text-base font-semibold text-white">{value}</span>
                 </div>
               ))}
+            </div>
+            <div className="mt-4 rounded-[20px] border border-[var(--cb-green)]/12 bg-[linear-gradient(180deg,rgba(0,227,135,0.08),rgba(0,227,135,0.03))] px-4 py-4">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--cb-green)]/80">Scenario signal</p>
+              <p className="mt-2 text-sm leading-6 text-white/82">
+                Base case assumes AI infrastructure spend normalizes into a durable large-cap growth profile.
+              </p>
             </div>
           </div>
         </div>
@@ -102,9 +119,9 @@ const STEPS = [
             </div>
           </div>
           <div className="p-4">
-            <h3 className="text-lg font-semibold text-white">NVIDIA supplier capex acceleration points to AI infrastructure spend durability</h3>
+            <h3 className="text-lg font-semibold text-white">Hyperscalers signal slower AI capacity additions after a year of elevated infrastructure spend</h3>
             <p className="mt-2 text-sm leading-6 text-[var(--cb-text-secondary)]">
-              CapitalBase converts the headline into a market view with likely impacts on semis, networking, power, and hyperscale infrastructure names.
+              CapitalBase converts the headline into a market view where near-term digestion risk for AI infrastructure competes with a healthier read on capex discipline and margins.
             </p>
           </div>
         </div>
@@ -116,9 +133,9 @@ const STEPS = [
               Potential impact
             </div>
             <div className="mt-3 space-y-3 text-sm leading-6 text-[var(--cb-text-secondary)]">
-              <p>Event - supplier capex acceleration suggests demand visibility is extending beyond a near-term inventory cycle.</p>
-              <p>Economic effect - supports AI server, networking, power, and memory spending expectations.</p>
-              <p>Market reaction - positive read-through for infrastructure beneficiaries and upward pressure on consensus capex assumptions.</p>
+              <p>Event - hyperscalers guide to a more selective AI infrastructure buildout after a year of aggressive ordering.</p>
+              <p>Economic effect - could pressure near-term server, networking, and foundry demand, but may also ease fears of overinvestment and support future returns on capital.</p>
+              <p>Market reaction - negative for the most crowded AI capacity beneficiaries in the near term, but potentially constructive for software and internet names if spend normalizes without collapsing demand.</p>
             </div>
           </div>
 
@@ -128,7 +145,7 @@ const STEPS = [
               Tickers to watch
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              {['NVDA', 'AVGO', 'SMCI', 'ANET', 'TSM'].map((ticker) => (
+              {['NVDA', 'AVGO', 'MSFT', 'AMZN', 'META'].map((ticker) => (
                 <span key={ticker} className="rounded-full border border-white/8 bg-[#0d1117] px-3 py-1.5 text-sm text-white">
                   {ticker}
                 </span>
@@ -179,21 +196,21 @@ export function HeroShowcase() {
   return (
     <div className="relative">
       <div className="absolute inset-0 rounded-[32px] bg-[radial-gradient(circle_at_top,rgba(0,227,135,0.18),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(31,91,255,0.16),transparent_36%)] blur-2xl" />
-      <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(14,18,24,0.96),rgba(8,11,15,0.96))] p-4 shadow-[0_36px_120px_rgba(0,0,0,0.45)] backdrop-blur-xl xl:p-5">
-        <div className="flex items-center justify-between border-b border-white/8 pb-4">
+      <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(13,17,23,0.98),rgba(8,11,15,0.98))] p-5 shadow-[0_40px_120px_rgba(0,0,0,0.48),inset_0_1px_0_rgba(255,255,255,0.03)] backdrop-blur-xl xl:p-6">
+        <div className="flex items-center justify-between border-b border-white/8 pb-5">
           <div>
-            <p className="text-xs uppercase tracking-[0.28em] text-[var(--cb-green)]/90">Analyst Workspace</p>
-            <h3 className="mt-2 text-lg font-semibold text-white">{step.title}</h3>
+            <p className="text-xs uppercase tracking-[0.28em] text-[var(--cb-text-muted)]">Analyst Workspace</p>
+            <h3 className="mt-2 text-[1.9rem] font-semibold tracking-[-0.03em] text-white">{step.title}</h3>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-[var(--cb-text-muted)]">
+          <div className="flex items-center gap-3">
+            <div className="rounded-full border border-white/8 bg-white/[0.035] px-4 py-1.5 text-xs text-[var(--cb-text-muted)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
               {step.badge}
             </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setIndex((current) => (current - 1 + STEPS.length) % STEPS.length)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white/80 transition hover:bg-white/[0.07]"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/8 bg-white/[0.035] text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition hover:bg-white/[0.07]"
                 aria-label="Previous preview"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -201,7 +218,7 @@ export function HeroShowcase() {
               <button
                 type="button"
                 onClick={() => setIndex((current) => (current + 1) % STEPS.length)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white/80 transition hover:bg-white/[0.07]"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/8 bg-white/[0.035] text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition hover:bg-white/[0.07]"
                 aria-label="Next preview"
               >
                 <ChevronRight className="h-4 w-4" />
@@ -210,9 +227,9 @@ export function HeroShowcase() {
           </div>
         </div>
 
-        <div className="mt-5">{step.content}</div>
+        <div className="mt-6">{step.content}</div>
 
-        <div className="mt-5 flex items-center justify-between">
+        <div className="mt-6 flex items-center justify-between">
           <div className="text-xs uppercase tracking-[0.2em] text-[var(--cb-text-muted)]">{step.label}</div>
           <div className="flex gap-2">
             {STEPS.map((item, itemIndex) => (
