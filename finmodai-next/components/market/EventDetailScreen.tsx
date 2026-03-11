@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, ExternalLink, RefreshCcw } from 'lucide-react';
@@ -32,6 +33,8 @@ const MARKET_IMPACT_ORDER: Array<keyof MarketEvent['marketImpact']> = [
   'credit',
   'sectors',
 ];
+
+const imageLoader = ({ src }: { src: string }) => src;
 
 function severityBadgeClass(severity: number): string {
   if (severity >= 85) return 'border-red-500/30 bg-red-500/10 text-red-200';
@@ -270,21 +273,33 @@ function EventImage({
 
   if (!src || hidden) {
     return (
-      <img
-        src={fallbackSrc}
-        alt={alt}
-        className={`rounded-2xl border border-zinc-800/70 object-cover ${className ?? ''}`}
-      />
+      <div className={`relative overflow-hidden rounded-2xl border border-zinc-800/70 ${className ?? ''}`}>
+        <Image
+          loader={imageLoader}
+          unoptimized
+          fill
+          sizes="(max-width: 1024px) 100vw, 1200px"
+          src={fallbackSrc}
+          alt={alt}
+          className="object-cover"
+        />
+      </div>
     );
   }
 
   return (
-    <img
-      src={src}
-      alt={alt}
-      className={`rounded-2xl object-cover ${className ?? ''}`}
-      onError={() => setHidden(true)}
-    />
+    <div className={`relative overflow-hidden rounded-2xl ${className ?? ''}`}>
+      <Image
+        loader={imageLoader}
+        unoptimized
+        fill
+        sizes="(max-width: 1024px) 100vw, 1200px"
+        src={src}
+        alt={alt}
+        className="object-cover"
+        onError={() => setHidden(true)}
+      />
+    </div>
   );
 }
 

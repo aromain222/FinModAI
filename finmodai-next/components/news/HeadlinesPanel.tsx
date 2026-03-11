@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ExternalLink, RefreshCw, Clock, Zap, AlertTriangle, TrendingUp, TrendingDown, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,8 @@ import ImpactChips from '@/components/news/ImpactChips';
 import { getMacroEventFallbackImage } from '@/lib/macroEventImageQueries';
 import { headlineEnrichmentSchema, type HeadlineEnrichment, type NewsRange, type NewsTopic } from '@/lib/news/types';
 import { cn } from '@/lib/utils';
+
+const imageLoader = ({ src }: { src: string }) => src;
 
 /* ---------- constants ---------- */
 
@@ -138,7 +141,7 @@ function formatAiSummaryText(raw: string | null | undefined): string {
 
   const cleaned = trimmed
     .replace(/[•·◦▪▫●∙]/g, ' ')
-    .replace(/\b(SUMMARY|BOTTOM LINE|DRIVERS|MARKET IMPACT|WINNERS?|LOSERS?|WATCH NEXT|MACRO EVENT|WHAT HAPPENED|WHY MARKETS CARE|TICKERS\s*\/\s*ASSETS TO WATCH)\b:?/gi, ' ')
+    .replace(/\b(EVENT|SUMMARY|BOTTOM LINE|KEY FACTS|DRIVERS|TRANSMISSION PATH|MARKET IMPACT|WINNERS?|LOSERS?|HORIZON|WATCH NEXT|ASSETS TO WATCH|MACRO EVENT|INVESTOR TAKEAWAY|WHAT HAPPENED|WHAT ACTUALLY CHANGED|WHY MARKETS CARE|MARKET LOGIC|DIRECTIONAL SIGNAL|MARKET REACTION FRAMEWORK|MACRO SIGNAL|TICKERS\s*\/\s*ASSETS TO WATCH)\b:?/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -162,7 +165,7 @@ function formatPlainNarrative(raw: string | null | undefined, maxSentences = 5):
   const cleaned = raw
     .replace(/\r\n/g, '\n')
     .replace(/[•·◦▪▫●∙]/g, ' ')
-    .replace(/\b(SUMMARY|BOTTOM LINE|DRIVERS|MARKET IMPACT|WINNERS?|LOSERS?|WATCH NEXT|MACRO EVENT|WHAT HAPPENED|WHY MARKETS CARE|TICKERS\s*\/\s*ASSETS TO WATCH|EQUITIES|RATES|FX|COMMODITIES|CREDIT)\b:?/gi, ' ')
+    .replace(/\b(EVENT|SUMMARY|BOTTOM LINE|KEY FACTS|DRIVERS|TRANSMISSION PATH|MARKET IMPACT|WINNERS?|LOSERS?|HORIZON|WATCH NEXT|ASSETS TO WATCH|MACRO EVENT|INVESTOR TAKEAWAY|WHAT HAPPENED|WHAT ACTUALLY CHANGED|WHY MARKETS CARE|MARKET LOGIC|DIRECTIONAL SIGNAL|MARKET REACTION FRAMEWORK|MACRO SIGNAL|TICKERS\s*\/\s*ASSETS TO WATCH|EQUITIES|RATES|FX|COMMODITIES|CREDIT)\b:?/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   if (!cleaned) return 'Additional context unavailable.';
@@ -190,7 +193,7 @@ function preprocessImpactText(raw: string): string {
     .replace(/\r\n/g, '\n')
     .replace(/\s+•\s+/g, '\n• ')
     .replace(
-      /\s+(?=(SUMMARY|BOTTOM LINE|DRIVERS|MARKET IMPACT|WINNERS?|LOSERS?|WATCH NEXT)\b)/gi,
+      /\s+(?=(EVENT|SUMMARY|BOTTOM LINE|KEY FACTS|DRIVERS|TRANSMISSION PATH|MARKET IMPACT|WINNERS?|LOSERS?|HORIZON|WATCH NEXT|ASSETS TO WATCH)\b)/gi,
       '\n'
     )
     .replace(/\n{3,}/g, '\n\n')
@@ -290,14 +293,16 @@ function parseMacroStructuredAnalysis(raw: string | null | undefined): MacroStru
   if (!text) return null;
 
   const labels = [
-    { label: 'MACRO EVENT', aliases: ['MACRO EVENT'] },
-    { label: 'WHAT HAPPENED', aliases: ['WHAT HAPPENED'] },
-    { label: 'WHY MARKETS CARE', aliases: ['WHY MARKETS CARE'] },
-    { label: 'MARKET IMPACT', aliases: ['MARKET IMPACT'] },
-    {
-      label: 'TICKERS / ASSETS TO WATCH',
-      aliases: ['TICKERS / ASSETS TO WATCH', 'TICKERS/ASSETS TO WATCH', 'TICKERS TO WATCH', 'ASSETS TO WATCH'],
-    },
+    { label: 'EVENT', aliases: ['EVENT', 'INVESTOR TAKEAWAY', 'MACRO EVENT'] },
+    { label: 'SUMMARY', aliases: ['SUMMARY'] },
+    { label: 'KEY FACTS', aliases: ['KEY FACTS'] },
+    { label: 'DRIVERS', aliases: ['DRIVERS'] },
+    { label: 'TRANSMISSION PATH', aliases: ['TRANSMISSION PATH', 'MARKET LOGIC', 'WHY MARKETS CARE'] },
+    { label: 'MARKET IMPACT', aliases: ['MARKET IMPACT', 'MARKET REACTION FRAMEWORK'] },
+    { label: 'WINNERS', aliases: ['WINNERS'] },
+    { label: 'LOSERS', aliases: ['LOSERS'] },
+    { label: 'HORIZON', aliases: ['HORIZON'] },
+    { label: 'WATCH NEXT', aliases: ['WATCH NEXT', 'ASSETS TO WATCH', 'TICKERS / ASSETS TO WATCH', 'TICKERS/ASSETS TO WATCH', 'TICKERS TO WATCH'] },
   ] as const;
 
   const allAliases = labels.flatMap((item) => item.aliases);
@@ -320,7 +325,7 @@ function parseMacroStructuredAnalysis(raw: string | null | undefined): MacroStru
     if (sectionText) {
       sections.push({
         label: item.label,
-        content: sectionText.replace(/\s+/g, ' ').trim(),
+        content: sectionText.replace(/\n{3,}/g, '\n\n').trim(),
       });
     }
   }
@@ -370,12 +375,24 @@ function NewsImage({ src, alt, fallbackSrc, className }: { src?: string; alt: st
   const [hidden, setHidden] = useState(false);
   const imgSrc = !src || hidden ? fallbackSrc : src;
   return (
-    <img
-      src={imgSrc}
-      alt={alt}
-      className={cn('rounded-lg object-cover', !src || hidden ? 'border border-zinc-800/50' : '', className)}
-      onError={() => setHidden(true)}
-    />
+    <div
+      className={cn(
+        'relative overflow-hidden rounded-lg',
+        !src || hidden ? 'border border-zinc-800/50' : '',
+        className
+      )}
+    >
+      <Image
+        loader={imageLoader}
+        unoptimized
+        fill
+        sizes="(max-width: 768px) 100vw, 320px"
+        src={imgSrc}
+        alt={alt}
+        className="object-cover"
+        onError={() => setHidden(true)}
+      />
+    </div>
   );
 }
 
@@ -430,12 +447,29 @@ function MarketImpactBlock({ text }: { text: string }) {
   if (structured) {
     return (
       <div className="space-y-3">
-        {structured.map((section) => (
-          <div key={section.label}>
-            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{section.label}</div>
-            <p className="text-[13px] leading-relaxed text-zinc-300">{sentenceCase(section.content)}</p>
-          </div>
-        ))}
+        {structured.map((section) => {
+          const lines = section.content
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean);
+          const bullets = (lines.length > 0 ? lines : [section.content])
+            .map((line) => line.replace(/^[-•*]\s*/, '').trim())
+            .filter(Boolean);
+
+          return (
+            <div key={section.label}>
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{section.label}</div>
+              <ul className="space-y-1">
+                {bullets.map((bullet, index) => (
+                  <li key={`${section.label}-${index}`} className="flex items-start gap-2 text-[13px] leading-relaxed text-zinc-300">
+                    <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-zinc-500" />
+                    <span>{sentenceCase(bullet)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
       </div>
     );
   }
@@ -577,22 +611,22 @@ export default function HeadlinesPanel({
       const summary = headline.description
         ? `${headline.title}. ${headline.description}`
         : headline.title;
-      const macroEvent = sentenceCase(headline.title);
-      const whatHappened = sentenceCase(headline.description ?? 'The headline points to a potential macro catalyst.');
+      const eventTitle = sentenceCase(headline.title || 'Macro development');
+      const whatHappened = sentenceCase(headline.description ?? 'A potentially market-relevant development was reported.');
       const whyMarketsCare = mentionsRates
-        ? 'Rate expectations can quickly reprice bond yields, valuation multiples, and dollar demand.'
+        ? 'Policy-rate expectations can quickly reprice yields, discount rates, and USD demand.'
         : mentionsEnergy
-          ? 'Energy shocks can flow into inflation expectations, margins, and policy-rate assumptions.'
+          ? 'Energy shocks can feed inflation expectations and shift margin and policy assumptions.'
           : mentionsFx
-            ? 'Currency moves affect imported inflation and multinational earnings translation.'
-            : 'Market reaction depends on whether follow-up data confirms the initial signal.';
+            ? 'FX shifts can change imported inflation and multinational earnings translation.'
+            : 'The reaction depends on whether follow-up data confirms a material macro shift.';
       const marketImpact = mentionsRates
-        ? 'Rate-sensitive equities and long-duration bonds are the first areas likely to move.'
+        ? ['Equities: Rate-sensitive sectors may face valuation pressure.', 'Rates: Front-end yields likely react first.', 'FX: USD can strengthen with higher policy expectations.']
         : mentionsEnergy
-          ? 'Energy producers may benefit while input-cost-sensitive sectors could face pressure.'
+          ? ['Commodities: Energy benchmarks may remain bid.', 'Equities: Energy may outperform while input-cost-sensitive sectors lag.', 'Rates: Inflation pass-through can keep yields firmer.']
           : mentionsFx
-            ? 'Exporters/importers and global risk assets may diverge as FX expectations adjust.'
-            : 'Cross-asset moves may stay muted until the catalyst is validated.';
+            ? ['FX: Dollar and major crosses can reprice quickly.', 'Equities: Exporters/importers may diverge on translation effects.', 'Credit: External funding conditions may tighten for weaker borrowers.']
+            : ['Equities: Reaction likely selective until confirmation.', 'Rates: Moves may fade without policy implications.'];
       const watch = mentionsRates
         ? 'TLT, XLF, SPY, DXY'
         : mentionsEnergy
@@ -600,14 +634,42 @@ export default function HeadlinesPanel({
           : mentionsFx
             ? 'UUP, FXE, EFA, SPY'
             : 'SPY, QQQ, TLT, DXY';
+      const winners = mentionsRates ? ['Financials', 'Cash-yield alternatives'] : mentionsEnergy ? ['Energy producers', 'Commodity-linked cyclicals'] : mentionsFx ? ['Domestic earners with limited FX exposure'] : ['Defensive sectors'];
+      const losers = mentionsRates ? ['Long-duration growth', 'Rate-sensitive real assets'] : mentionsEnergy ? ['Input-cost-sensitive consumer sectors'] : mentionsFx ? ['USD-sensitive multinationals'] : ['High-beta momentum trades'];
+      const horizon = mentionsRates ? 'Immediate' : mentionsEnergy || mentionsFx ? 'NearTerm' : 'NearTerm';
 
       const whyItMatters = [
-        `MACRO EVENT: ${macroEvent}`,
-        `WHAT HAPPENED: ${whatHappened}`,
-        `WHY MARKETS CARE: ${sentenceCase(whyMarketsCare)}`,
-        `MARKET IMPACT: ${sentenceCase(marketImpact)}`,
-        `TICKERS / ASSETS TO WATCH: ${sentenceCase(watch)}`,
-      ].join('\n\n');
+        'EVENT',
+        `- ${eventTitle}`,
+        '',
+        'SUMMARY',
+        `- ${whatHappened}`,
+        '- This matters if it shifts policy, inflation, or risk-pricing expectations.',
+        '',
+        'KEY FACTS',
+        `- ${whatHappened}`,
+        '',
+        'DRIVERS',
+        `- ${sentenceCase(whyMarketsCare)}`,
+        '',
+        'TRANSMISSION PATH',
+        '- Event -> macro expectations -> cross-asset repricing.',
+        '',
+        'MARKET IMPACT',
+        ...marketImpact.map((item) => `- ${item}`),
+        '',
+        'WINNERS',
+        ...winners.map((item) => `- ${item}`),
+        '',
+        'LOSERS',
+        ...losers.map((item) => `- ${item}`),
+        '',
+        'HORIZON',
+        `- ${horizon}`,
+        '',
+        'WATCH NEXT',
+        `- ${watch}`,
+      ].join('\n');
 
       return headlineEnrichmentSchema.parse({
         ai_summary: summary,
@@ -783,6 +845,9 @@ export default function HeadlinesPanel({
               const isOpen = expandedId === item.id;
               const enrichment = enrichMap[item.id];
               const fallbackImg = getMacroEventFallbackImage(inferHeadlineImageCategory(item), 'thumb');
+              const risingSectors = (enrichment?.impacted_sectors ?? []).filter((sector) => sector.direction === 'up');
+              const fallingSectors = (enrichment?.impacted_sectors ?? []).filter((sector) => sector.direction === 'down');
+              const mixedSectors = (enrichment?.impacted_sectors ?? []).filter((sector) => sector.direction === 'mixed');
 
               return (
                 <div
@@ -863,8 +928,12 @@ export default function HeadlinesPanel({
                         </div>
 
                         {/* impact chips */}
-                        <div className="flex flex-wrap gap-6">
-                          <ImpactChips title="Sectors" items={enrichment.impacted_sectors} />
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap gap-6">
+                            <ImpactChips title="Rising Sectors" items={risingSectors} />
+                            <ImpactChips title="Falling Sectors" items={fallingSectors} />
+                            <ImpactChips title="Mixed Sectors" items={mixedSectors} />
+                          </div>
                           <ImpactChips title="Tickers" items={enrichment.impacted_tickers} />
                         </div>
 

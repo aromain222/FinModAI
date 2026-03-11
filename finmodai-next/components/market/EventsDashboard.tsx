@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Activity, ArrowRight, RefreshCcw } from 'lucide-react';
@@ -44,6 +45,8 @@ const MARKET_IMPACT_ORDER: Array<keyof MarketEvent['marketImpact']> = [
   'credit',
   'sectors',
 ];
+
+const imageLoader = ({ src }: { src: string }) => src;
 
 function tabButtonClass(active: boolean): string {
   return active
@@ -107,21 +110,33 @@ function EventImage({
 
   if (!src || hidden) {
     return (
-      <img
-        src={fallbackSrc}
-        alt={alt}
-        className={`rounded-2xl border border-zinc-800/70 object-cover ${className ?? ''}`}
-      />
+      <div className={`relative overflow-hidden rounded-2xl border border-zinc-800/70 ${className ?? ''}`}>
+        <Image
+          loader={imageLoader}
+          unoptimized
+          fill
+          sizes="160px"
+          src={fallbackSrc}
+          alt={alt}
+          className="object-cover"
+        />
+      </div>
     );
   }
 
   return (
-    <img
-      src={src}
-      alt={alt}
-      className={`rounded-2xl object-cover ${className ?? ''}`}
-      onError={() => setHidden(true)}
-    />
+    <div className={`relative overflow-hidden rounded-2xl ${className ?? ''}`}>
+      <Image
+        loader={imageLoader}
+        unoptimized
+        fill
+        sizes="160px"
+        src={src}
+        alt={alt}
+        className="object-cover"
+        onError={() => setHidden(true)}
+      />
+    </div>
   );
 }
 
