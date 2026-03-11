@@ -10,6 +10,7 @@ import {
   ChevronRight,
   FileSpreadsheet,
   Landmark,
+  type LucideIcon,
   Layers3,
   LineChart,
   Newspaper,
@@ -29,6 +30,13 @@ type SlideProps = {
   goPrev: () => void;
   goNext: () => void;
 };
+
+const INTELLIGENCE_FEED_ITEMS: Array<{ label: string; icon: LucideIcon }> = [
+  { label: 'Macro events', icon: Landmark },
+  { label: 'Market headlines', icon: Newspaper },
+  { label: 'Deal activity', icon: TrendingUp },
+  { label: 'Industry updates', icon: Sparkles },
+];
 
 function Frame({
   children,
@@ -297,12 +305,7 @@ function IntelligenceSlide(props: SlideProps) {
           <div className="rounded-[30px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.012))] p-6">
             <p className="text-sm font-medium text-white">Feed categories</p>
             <div className="mt-5 space-y-3">
-              {[
-                ['Macro events', Landmark],
-                ['Market headlines', Newspaper],
-                ['Deal activity', TrendingUp],
-                ['Industry updates', Sparkles],
-              ].map(([label, Icon]) => (
+              {INTELLIGENCE_FEED_ITEMS.map(({ label, icon: Icon }) => (
                 <div key={label} className="flex items-center gap-3 rounded-[18px] bg-white/[0.02] px-4 py-4">
                   <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/[0.04]">
                     <Icon className="h-4 w-4 text-[var(--cb-green)]" />

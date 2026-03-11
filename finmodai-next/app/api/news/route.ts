@@ -73,7 +73,7 @@ type Params = {
   lookbackHours: number;
 };
 
-type DemoTopic = 'policy' | 'rates' | 'inflation' | 'energy' | 'fx' | 'equities';
+type DemoTopic = 'policy' | 'rates' | 'inflation' | 'energy' | 'fx' | 'equities' | 'growth';
 
 type DemoScenario = {
   key: string;
@@ -123,6 +123,7 @@ const TOPIC_TO_QUERY: Record<string, string> = {
   energy: 'oil OR WTI OR Brent OR OPEC OR crude inventories',
   fx: 'dollar OR DXY OR yen OR euro OR FX OR currency',
   equities: 'S&P 500 OR stocks OR earnings OR risk-off OR volatility OR VIX',
+  growth: 'AI infrastructure OR hyperscaler capex OR growth stocks OR software multiples OR semiconductor demand',
 };
 
 const DEMO_SCENARIOS: DemoScenario[] = [
