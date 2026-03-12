@@ -11,6 +11,10 @@ type SecFundamentals = {
 
 export type SecAnnualFundamentals = {
   revenueFY: number | null;
+  grossProfitFY: number | null;
+  ebitFY: number | null;
+  depreciationAmortizationFY: number | null;
+  ebitdaFY: number | null;
   netIncomeFY: number | null;
   cash: number | null;
   totalDebt: number | null;
@@ -176,6 +180,27 @@ export async function fetchSecEdgarAnnualFundamentals(
   const netIncomeEntry =
     pickLatestUsdEntry(facts, ['NetIncomeLoss'], isAnnualEntry) ||
     pickLatestUsdEntry(facts, ['NetIncomeLoss']);
+  const grossProfitEntry =
+    pickLatestUsdEntry(facts, ['GrossProfit'], isAnnualEntry) ||
+    pickLatestUsdEntry(facts, ['GrossProfit']);
+  const ebitEntry =
+    pickLatestUsdEntry(facts, ['OperatingIncomeLoss'], isAnnualEntry) ||
+    pickLatestUsdEntry(facts, ['OperatingIncomeLoss']);
+  const depreciationAmortizationEntry =
+    pickLatestUsdEntry(
+      facts,
+      [
+        'DepreciationDepletionAndAmortization',
+        'DepreciationAmortizationAndAccretionNet',
+        'Depreciation',
+      ],
+      isAnnualEntry
+    ) ||
+    pickLatestUsdEntry(facts, [
+      'DepreciationDepletionAndAmortization',
+      'DepreciationAmortizationAndAccretionNet',
+      'Depreciation',
+    ]);
   const cashEntry =
     pickLatestUsdEntry(facts, [
       'CashAndCashEquivalentsAtCarryingValue',
@@ -193,19 +218,54 @@ export async function fetchSecEdgarAnnualFundamentals(
     pickLatestUsdEntry(facts, ['LongTermDebtNoncurrent', 'LongTermDebt']);
 
   const revenueFY = revenueEntry?.val !== undefined ? Number(revenueEntry.val) : null;
+  const grossProfitFY = grossProfitEntry?.val !== undefined ? Number(grossProfitEntry.val) : null;
+  const ebitFY = ebitEntry?.val !== undefined ? Number(ebitEntry.val) : null;
+  const depreciationAmortizationFY =
+    depreciationAmortizationEntry?.val !== undefined
+      ? Number(depreciationAmortizationEntry.val)
+      : null;
+  const ebitdaFY =
+    Number.isFinite(ebitFY) || Number.isFinite(depreciationAmortizationFY)
+      ? Number(ebitFY || 0) + Number(depreciationAmortizationFY || 0)
+      : null;
   const netIncomeFY = netIncomeEntry?.val !== undefined ? Number(netIncomeEntry.val) : null;
   const cash = cashEntry?.val !== undefined ? Number(cashEntry.val) : null;
   const totalDebt = Number.isFinite(shortDebtEntry?.val) || Number.isFinite(longDebtEntry?.val)
     ? (Number(shortDebtEntry?.val || 0) + Number(longDebtEntry?.val || 0))
     : null;
 
-  const fiscalYear = deriveFiscalYear(revenueEntry ?? netIncomeEntry ?? cashEntry ?? shortDebtEntry ?? longDebtEntry);
-  const period = (revenueEntry?.fp || netIncomeEntry?.fp || cashEntry?.fp || shortDebtEntry?.fp || longDebtEntry?.fp || null) as string | null;
+  const fiscalYear = deriveFiscalYear(
+    revenueEntry ??
+      grossProfitEntry ??
+      ebitEntry ??
+      depreciationAmortizationEntry ??
+      netIncomeEntry ??
+      cashEntry ??
+      shortDebtEntry ??
+      longDebtEntry
+  );
+  const period = (
+    revenueEntry?.fp ||
+    grossProfitEntry?.fp ||
+    ebitEntry?.fp ||
+    depreciationAmortizationEntry?.fp ||
+    netIncomeEntry?.fp ||
+    cashEntry?.fp ||
+    shortDebtEntry?.fp ||
+    longDebtEntry?.fp ||
+    null
+  ) as string | null;
 
   return {
     ok: true,
     data: {
       revenueFY: Number.isFinite(revenueFY) ? revenueFY : null,
+      grossProfitFY: Number.isFinite(grossProfitFY) ? grossProfitFY : null,
+      ebitFY: Number.isFinite(ebitFY) ? ebitFY : null,
+      depreciationAmortizationFY: Number.isFinite(depreciationAmortizationFY)
+        ? depreciationAmortizationFY
+        : null,
+      ebitdaFY: Number.isFinite(ebitdaFY) ? ebitdaFY : null,
       netIncomeFY: Number.isFinite(netIncomeFY) ? netIncomeFY : null,
       cash: Number.isFinite(cash) ? cash : null,
       totalDebt: Number.isFinite(totalDebt) ? totalDebt : null,

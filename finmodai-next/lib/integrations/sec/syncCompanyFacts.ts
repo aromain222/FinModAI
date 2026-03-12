@@ -104,9 +104,15 @@ export async function syncCompanyFactsFromSec(ticker: string): Promise<SecSyncSu
     period_type: 'FY',
     currency: 'USD',
     revenue_ltm: pickNumber(toMillions(fundamentals.data.revenueFY), existingSnapshot.data?.revenue_ltm),
-    gross_profit_ltm: existingSnapshot.data?.gross_profit_ltm ?? null,
-    ebitda_ltm: existingSnapshot.data?.ebitda_ltm ?? null,
-    ebit_ltm: existingSnapshot.data?.ebit_ltm ?? null,
+    gross_profit_ltm: pickNumber(
+      toMillions(fundamentals.data.grossProfitFY),
+      existingSnapshot.data?.gross_profit_ltm
+    ),
+    ebitda_ltm: pickNumber(
+      toMillions(fundamentals.data.ebitdaFY),
+      existingSnapshot.data?.ebitda_ltm
+    ),
+    ebit_ltm: pickNumber(toMillions(fundamentals.data.ebitFY), existingSnapshot.data?.ebit_ltm),
     net_income_ltm: pickNumber(toMillions(fundamentals.data.netIncomeFY), existingSnapshot.data?.net_income_ltm),
     cash: pickNumber(toMillions(fundamentals.data.cash), existingSnapshot.data?.cash),
     total_debt: pickNumber(toMillions(fundamentals.data.totalDebt), existingSnapshot.data?.total_debt),
