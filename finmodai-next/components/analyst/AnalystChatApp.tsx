@@ -1,10 +1,16 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { AnalystDcfCard } from '@/components/analyst/AnalystDcfCard';
+import { AnalystModelCard } from '@/components/analyst/AnalystModelCard';
+import { AnalystStockCard } from '@/components/analyst/AnalystStockCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import type { AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
+import type { AnalystGeneratedModelPayload } from '@/lib/analyst/modelChat';
+import type { StockLookupResult } from '@/lib/data/company/lookupStock';
 
 type Message = {
   id: string;
@@ -15,6 +21,9 @@ type Message = {
     reason?: string;
     sources?: string[];
     retrievalWarnings?: string[];
+    dcfDemo?: AnalystDcfDemoPayload;
+    generatedModel?: AnalystGeneratedModelPayload;
+    stockLookup?: StockLookupResult;
   };
 };
 
@@ -34,12 +43,43 @@ function cleanAssistantText(content: string): string {
     .trim();
 }
 
+function getLoadingMessage(prompt: string): { title: string; detail: string } {
+  const text = prompt.toLowerCase();
+
+  if (/\bdcf\b|\bthree[-\s]?statement\b|\b3[-\s]?statement\b|\bcap\s?table\b|\bsaas\b|\barr\b|\boperating model\b/.test(text)) {
+    return {
+      title: 'Building model',
+      detail: 'Parsing assumptions, applying defaults, and preparing the workbook output.',
+    };
+  }
+
+  if (/\bearnings?\b|\bguidance\b|\bmargin\b|\brevenue\b|\bvaluation\b|\bticker\b/.test(text)) {
+    return {
+      title: 'Analyzing company',
+      detail: 'Pulling company context and structuring the analyst response.',
+    };
+  }
+
+  if (/\bmarket\b|\brates?\b|\byield\b|\bcpi\b|\bpce\b|\bgdp\b|\bpayrolls\b|\binflation\b|\boil\b|\bfx\b/.test(text)) {
+    return {
+      title: 'Analyzing market',
+      detail: 'Gathering market context and organizing the key transmission paths.',
+    };
+  }
+
+  return {
+    title: 'Working',
+    detail: 'Routing the request and preparing the response.',
+  };
+}
+
 export function AnalystChatApp() {
   const [ticker, setTicker] = useState('');
   const [pdfNote, setPdfNote] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingState, setLoadingState] = useState<{ title: string; detail: string } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -63,6 +103,7 @@ export function AnalystChatApp() {
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+    setLoadingState(getLoadingMessage(prompt));
 
     try {
       const response = await fetch('/api/analyst-chat', {
@@ -100,6 +141,18 @@ export function AnalystChatApp() {
           retrievalWarnings: Array.isArray(payload?.retrievalWarnings)
             ? payload.retrievalWarnings.filter((item: unknown): item is string => typeof item === 'string').slice(0, 3)
             : [],
+          dcfDemo:
+            payload?.dcfDemo && typeof payload.dcfDemo === 'object'
+              ? (payload.dcfDemo as AnalystDcfDemoPayload)
+              : undefined,
+          generatedModel:
+            payload?.generatedModel && typeof payload.generatedModel === 'object'
+              ? (payload.generatedModel as AnalystGeneratedModelPayload)
+              : undefined,
+          stockLookup:
+            payload?.stockLookup && typeof payload.stockLookup === 'object'
+              ? (payload.stockLookup as StockLookupResult)
+              : undefined,
         },
       };
       setMessages((prev) => [...prev, reply]);
@@ -113,6 +166,7 @@ export function AnalystChatApp() {
       setMessages((prev) => [...prev, reply]);
     } finally {
       setIsLoading(false);
+      setLoadingState(null);
     }
   };
 
@@ -150,7 +204,7 @@ export function AnalystChatApp() {
                 className={`inline-block rounded-2xl px-4 py-3 ${
                   message.role === 'user'
                     ? 'bg-[var(--cb-green)] text-[#041007]'
-                    : 'border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] text-[var(--cb-text-primary)] whitespace-pre-wrap leading-7'
+                    : 'block max-w-full border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] text-[var(--cb-text-primary)] whitespace-pre-wrap leading-7'
                 }`}
               >
                 {message.content}
@@ -178,9 +232,35 @@ export function AnalystChatApp() {
                       {message.meta.retrievalWarnings.join(' • ')}
                     </div>
                   )}
+                {message.role === 'assistant' && message.meta?.dcfDemo && (
+                  <AnalystDcfCard payload={message.meta.dcfDemo} />
+                )}
+                {message.role === 'assistant' && message.meta?.generatedModel && (
+                  <AnalystModelCard payload={message.meta.generatedModel} />
+                )}
+                {message.role === 'assistant' && message.meta?.stockLookup && (
+                  <AnalystStockCard payload={message.meta.stockLookup} />
+                )}
               </div>
             </div>
           ))}
+          {isLoading && loadingState && (
+            <div className="text-left">
+              <div className="block max-w-full rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] px-4 py-3 text-[var(--cb-text-primary)]">
+                <div className="flex items-center gap-3">
+                  <div className="flex gap-1">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--cb-green)] [animation-delay:0ms]" />
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--cb-green)] [animation-delay:150ms]" />
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--cb-green)] [animation-delay:300ms]" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium">{loadingState.title}</div>
+                    <div className="text-xs text-[var(--cb-text-muted)]">{loadingState.detail}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           <div ref={bottomRef} />
         </div>
         <form onSubmit={handleSubmit} className="border-t border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-4">

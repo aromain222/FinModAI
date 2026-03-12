@@ -21,8 +21,12 @@ import { routeAnalystQuery, type AnalystRoute } from '@/lib/analyst/router';
 import { retrieveDataForRoute } from '@/lib/analyst/dataRetrieval';
 import { extractVerifiedFacts, serializeFactsForContext, type VerifiedFacts } from '@/lib/analyst/factsExtractor';
 import { gatherAnalystRetrievalContext, inferTickerFromPrompt } from '@/lib/analyst/retrieval';
-import { ANALYST_SYSTEM_PROMPT, getIntentPrompt } from '@/lib/analyst/prompts';
+import { generateAnalystDcfDemo } from '@/lib/analyst/dcfDemo';
+import { generateAnalystStructuredModel } from '@/lib/analyst/modelChat';
+import { classifyPrompt } from '@/lib/model-generator/classifyPrompt';
+import { getIntentPrompt } from '@/lib/analyst/prompts';
 import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKey';
+import { lookupStock } from '@/lib/data/company/lookupStock';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -32,6 +36,87 @@ export const fetchCache = 'force-no-store';
 /* ────────── Utility Functions ────────── */
 
 const WEB_TOOL_CANDIDATES = [{ type: 'web_search' }, { type: 'web_search_preview' }] as const;
+const ANALYST_SYSTEM_PROMPT = `You are CapitalBase Analyst, a professional financial analyst similar to a buy-side research analyst or macro strategist.
+
+Your job is to interpret market events, economic data, and company information and translate them into investor-grade financial analysis.
+
+Always reason through the chain:
+Event -> Economic Drivers -> Market Transmission -> Sector Impact -> Company Impact
+
+Focus on:
+- macroeconomic forces
+- market structure
+- sector implications
+- company-level impact
+- financial modeling implications
+
+Write in clear sections using bullet points and short, dense paragraphs when needed.
+Do not summarize mechanically. Prioritize the few drivers that actually matter.
+Every answer should make the causal link explicit: what changed, why it matters economically, how markets reprice, and who is exposed.
+When data is provided, use it directly. Do not generalize away from the numbers.
+When the evidence is incomplete, narrow the claim rather than becoming vague.
+Avoid filler phrases like "investors will watch closely" unless you say exactly what they should watch and why.
+
+When analyzing a market event, use this exact format:
+EVENT
+SUMMARY
+KEY FACTS
+DRIVERS
+TRANSMISSION PATH
+MARKET IMPACT
+WINNERS
+LOSERS
+WATCH NEXT
+
+For MARKET IMPACT, only include relevant sections from:
+- Equities
+- Rates
+- FX
+- Commodities
+- Credit
+
+In TRANSMISSION PATH, explicitly show:
+Event -> economic effect -> market reaction
+
+When analyzing a company or earnings event, use this exact format:
+COMPANY OVERVIEW
+KEY METRICS
+DRIVERS
+COMPETITIVE POSITION
+MARKET IMPLICATIONS
+VALUATION CONTEXT
+WATCH NEXT
+
+For KEY METRICS, explicitly cover:
+- Revenue
+- Margins
+- Growth
+- Guidance
+
+When generating a financial model framework, use this exact format:
+ASSUMPTIONS
+MODEL STRUCTURE
+
+Under ASSUMPTIONS, explicitly cover:
+- Revenue growth
+- Margins
+- Tax rate
+- Capex
+- Working capital
+
+Under MODEL STRUCTURE, explicitly cover:
+- Income Statement
+- Balance Sheet
+- Cash Flow
+
+Ensure:
+- Statements are linked logically
+- Cash flow reconciles with balance sheet cash movement
+- Assumptions are clearly labeled and traceable
+- Use formulas and financial logic where applicable
+
+Avoid generic explanations.
+Think like an investor or analyst writing a research note.`;
 
 function redactSecrets(value: string): string {
   return value.replace(/sk-[A-Za-z0-9_-]+/g, 'sk-***');
@@ -147,6 +232,7 @@ export async function POST(req: NextRequest) {
   let fallbackTicker: string | undefined;
   let fallbackUserMessage = '';
   let verifiedFacts: VerifiedFacts | undefined;
+  let stockLookupPayload: Awaited<ReturnType<typeof lookupStock>> | null = null;
 
   try {
     const body = await req.json();
@@ -179,6 +265,9 @@ export async function POST(req: NextRequest) {
 
     /* ── Step 1: Route the question ── */
     const route: AnalystRoute = routeAnalystQuery(lastUserMessage, resolvedTicker);
+    if (route.intent === 'company_question' && resolvedTicker) {
+      stockLookupPayload = await lookupStock({ prompt: lastUserMessage, ticker: resolvedTicker });
+    }
 
     if (process.env.NODE_ENV !== 'production') {
       console.debug('[analyst-chat] route:', {
@@ -187,6 +276,42 @@ export async function POST(req: NextRequest) {
         requiresNews: route.requiresNews,
         requiresFinancials: route.requiresFinancials,
         requiresLiveData: route.requiresLiveData,
+      });
+    }
+
+    if (route.intent === 'financial_model') {
+      const modelType = classifyPrompt(lastUserMessage);
+      if (modelType && modelType !== 'DCF') {
+        const generatedModel = await generateAnalystStructuredModel(lastUserMessage);
+        if (generatedModel) {
+          return NextResponse.json({
+            reply: generatedModel.reply,
+            fallback: false,
+            mode: 'live',
+            route: route.intent,
+            generatedModel: generatedModel.payload,
+            sources: ['CapitalBase local model templates', 'Deterministic prompt extraction and defaults'],
+            factsCount: 0,
+          });
+        }
+      }
+
+      const demo = await generateAnalystDcfDemo({
+        prompt: lastUserMessage,
+        explicitTicker: resolvedTicker,
+      });
+
+      return NextResponse.json({
+        reply: demo.reply,
+        fallback: false,
+        mode: 'live',
+        route: route.intent,
+        dcfDemo: demo.payload,
+        sources: [
+          `Demo snapshot cache — ${demo.payload.source}`,
+          ...(demo.payload.asOfDate ? [`Snapshot updated ${demo.payload.asOfDate}`] : []),
+        ],
+        factsCount: 0,
       });
     }
 
@@ -224,6 +349,7 @@ export async function POST(req: NextRequest) {
         reason: 'missing_key',
         route: route.intent,
         factsCount: facts.numbers.length + facts.events.length,
+        stockLookup: stockLookupPayload,
       }, { status: 200 });
     }
 
@@ -373,6 +499,7 @@ export async function POST(req: NextRequest) {
       factsCount: facts.numbers.length + facts.events.length,
       dataGaps: facts.dataGaps.length > 0 ? facts.dataGaps : undefined,
       retrievalWarnings: retrievedData.warnings.length > 0 ? retrievedData.warnings : undefined,
+      stockLookup: stockLookupPayload,
     });
   } catch (error) {
     const message = error instanceof Error ? redactSecrets(error.message) : 'Unable to generate response';
@@ -397,6 +524,7 @@ export async function POST(req: NextRequest) {
       mode: 'fallback',
       reason: failureReason,
       error: message,
+      stockLookup: stockLookupPayload,
     }, { status: 200 });
   }
 }
