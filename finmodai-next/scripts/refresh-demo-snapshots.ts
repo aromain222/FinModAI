@@ -59,6 +59,16 @@ function parseNumber(value: unknown): number | null {
   return null;
 }
 
+function pickFirstNumber(rows: SnapshotRow[], key: keyof SnapshotRow): { value: number | null; source: string | null } {
+  for (const row of rows) {
+    const value = parseNumber(row[key]);
+    if (value !== null) {
+      return { value, source: row.source ?? null };
+    }
+  }
+  return { value: null, source: null };
+}
+
 async function sleep(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -98,8 +108,7 @@ async function buildDemoSnapshotRow(
       .eq('company_id', company.id)
       .order('as_of_date', { ascending: false })
       .order('source_priority', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .limit(8),
     supabase
       .from('company_prices')
       .select('date, close, source')
@@ -109,25 +118,37 @@ async function buildDemoSnapshotRow(
       .maybeSingle(),
   ]);
 
-  const snapshot = (snapshotResult.data as SnapshotRow | null) ?? null;
+  const snapshots = (Array.isArray(snapshotResult.data) ? snapshotResult.data : []) as SnapshotRow[];
   const price = (priceResult.data as PriceRow | null) ?? null;
+  const snapshot = snapshots[0] ?? null;
   if (!snapshot && !price) {
     throw new Error(`No cached snapshot or price found for ${normalizedTicker}`);
   }
 
-  const revenueLtm = parseNumber(snapshot?.revenue_ltm);
-  const ebitdaLtm = parseNumber(snapshot?.ebitda_ltm);
-  const netIncomeLtm = parseNumber(snapshot?.net_income_ltm);
-  const cash = parseNumber(snapshot?.cash);
-  const totalDebt = parseNumber(snapshot?.total_debt);
-  const sharesOutstanding = parseNumber(snapshot?.shares_outstanding);
-  const marketCap = parseNumber(snapshot?.market_cap);
-  const sharePrice = parseNumber(price?.close);
+  const revenueField = pickFirstNumber(snapshots, 'revenue_ltm');
+  const ebitdaField = pickFirstNumber(snapshots, 'ebitda_ltm');
+  const netIncomeField = pickFirstNumber(snapshots, 'net_income_ltm');
+  const cashField = pickFirstNumber(snapshots, 'cash');
+  const debtField = pickFirstNumber(snapshots, 'total_debt');
+  const sharesField = pickFirstNumber(snapshots, 'shares_outstanding');
+  const marketCapField = pickFirstNumber(snapshots, 'market_cap');
+
+  const revenueLtm = revenueField.value;
+  const ebitdaLtm = ebitdaField.value;
+  const netIncomeLtm = netIncomeField.value;
+  const cash = cashField.value;
+  const totalDebt = debtField.value;
+  const sharesOutstanding = sharesField.value;
+  const marketCap = marketCapField.value;
+  const sharePrice =
+    parseNumber(price?.close) ??
+    (marketCap !== null && sharesOutstanding !== null && sharesOutstanding > 0 ? marketCap / sharesOutstanding : null);
   const enterpriseValue =
     marketCap !== null && totalDebt !== null && cash !== null ? marketCap + totalDebt - cash : null;
 
-  const snapshotSource = snapshot?.source ?? 'company_snapshots';
-  const priceSource = price?.source ?? 'company_prices';
+  const priceSource =
+    price?.source ??
+    (marketCap !== null && sharesOutstanding !== null && sharesOutstanding > 0 ? 'derived_from_market_cap_and_shares' : 'company_prices');
 
   return {
     ticker: normalizedTicker,
@@ -149,13 +170,13 @@ async function buildDemoSnapshotRow(
     source_map: {
       companyName: 'companies',
       sector: 'companies',
-      ...(revenueLtm !== null ? { revenueLTM: snapshotSource } : {}),
-      ...(ebitdaLtm !== null ? { ebitdaLTM: snapshotSource } : {}),
-      ...(netIncomeLtm !== null ? { netIncomeLTM: snapshotSource } : {}),
-      ...(cash !== null ? { cash: snapshotSource } : {}),
-      ...(totalDebt !== null ? { totalDebt: snapshotSource } : {}),
-      ...(sharesOutstanding !== null ? { sharesOutstanding: snapshotSource } : {}),
-      ...(marketCap !== null ? { marketCap: snapshotSource } : {}),
+      ...(revenueLtm !== null ? { revenueLTM: revenueField.source ?? 'company_snapshots' } : {}),
+      ...(ebitdaLtm !== null ? { ebitdaLTM: ebitdaField.source ?? 'company_snapshots' } : {}),
+      ...(netIncomeLtm !== null ? { netIncomeLTM: netIncomeField.source ?? 'company_snapshots' } : {}),
+      ...(cash !== null ? { cash: cashField.source ?? 'company_snapshots' } : {}),
+      ...(totalDebt !== null ? { totalDebt: debtField.source ?? 'company_snapshots' } : {}),
+      ...(sharesOutstanding !== null ? { sharesOutstanding: sharesField.source ?? 'company_snapshots' } : {}),
+      ...(marketCap !== null ? { marketCap: marketCapField.source ?? 'company_snapshots' } : {}),
       ...(sharePrice !== null ? { sharePrice: priceSource } : {}),
     },
   };

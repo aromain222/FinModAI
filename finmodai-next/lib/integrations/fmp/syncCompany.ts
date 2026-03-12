@@ -75,6 +75,14 @@ function sumLtm(rows: FmpIncomeRow[], key: keyof FmpIncomeRow): number | null {
   return values.reduce((sum, value) => sum + value, 0);
 }
 
+function pickLatest(rows: FmpIncomeRow[], key: keyof FmpIncomeRow): number | null {
+  for (const row of rows) {
+    const value = row[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
 function inferCompanyType(profile: FmpProfileRow): string | null {
   const combined = `${profile.sector ?? ''} ${profile.industry ?? ''}`.toLowerCase();
   if (/software|saas|cloud/.test(combined)) return 'SaaS';
@@ -105,7 +113,7 @@ export async function syncCompanyFromFmp(ticker: string): Promise<CompanySyncSum
   const normalizedTicker = ticker.trim().toUpperCase();
   const warnings: string[] = [];
 
-  const [profileResult, quarterlyIncomeResult, latestBalanceResult] = await Promise.all([
+  const [profileResult, quarterlyIncomeResult, annualIncomeResult, latestBalanceResult] = await Promise.all([
     fetchJsonWithRetry<FmpProfileRow[]>({
       provider: 'fmp',
       url: `https://financialmodelingprep.com/stable/profile?symbol=${normalizedTicker}&apikey=${apiKey}`,
@@ -116,6 +124,12 @@ export async function syncCompanyFromFmp(ticker: string): Promise<CompanySyncSum
       provider: 'fmp',
       url: `https://financialmodelingprep.com/stable/income-statement?symbol=${normalizedTicker}&period=quarter&limit=4&apikey=${apiKey}`,
       cacheKey: `fmp:income-quarterly:${normalizedTicker}`,
+      ttlMs: 30 * 60 * 1000,
+    }),
+    fetchJsonWithRetry<FmpIncomeRow[]>({
+      provider: 'fmp',
+      url: `https://financialmodelingprep.com/stable/income-statement?symbol=${normalizedTicker}&limit=1&apikey=${apiKey}`,
+      cacheKey: `fmp:income-annual:${normalizedTicker}`,
       ttlMs: 30 * 60 * 1000,
     }),
     fetchJsonWithRetry<FmpBalanceRow[]>({
@@ -132,18 +146,20 @@ export async function syncCompanyFromFmp(ticker: string): Promise<CompanySyncSum
 
   const profile = profileResult.data[0] ?? {};
   const incomeRows = quarterlyIncomeResult.ok && Array.isArray(quarterlyIncomeResult.data) ? quarterlyIncomeResult.data : [];
+  const annualIncomeRows = annualIncomeResult.ok && Array.isArray(annualIncomeResult.data) ? annualIncomeResult.data : [];
   const balanceRow = latestBalanceResult.ok && Array.isArray(latestBalanceResult.data) ? latestBalanceResult.data[0] ?? {} : {};
 
-  const revenueLtm = toMillions(sumLtm(incomeRows, 'revenue'));
-  const grossProfitLtm = toMillions(sumLtm(incomeRows, 'grossProfit'));
-  const ebitdaLtm = toMillions(sumLtm(incomeRows, 'ebitda'));
-  const ebitLtm = toMillions(sumLtm(incomeRows, 'operatingIncome'));
-  const netIncomeLtm = toMillions(sumLtm(incomeRows, 'netIncome'));
+  const revenueLtm = toMillions(sumLtm(incomeRows, 'revenue') ?? pickLatest(annualIncomeRows, 'revenue'));
+  const grossProfitLtm = toMillions(sumLtm(incomeRows, 'grossProfit') ?? pickLatest(annualIncomeRows, 'grossProfit'));
+  const ebitdaLtm = toMillions(sumLtm(incomeRows, 'ebitda') ?? pickLatest(annualIncomeRows, 'ebitda'));
+  const ebitLtm = toMillions(sumLtm(incomeRows, 'operatingIncome') ?? pickLatest(annualIncomeRows, 'operatingIncome'));
+  const netIncomeLtm = toMillions(sumLtm(incomeRows, 'netIncome') ?? pickLatest(annualIncomeRows, 'netIncome'));
   const cash = toMillions(balanceRow.cashAndCashEquivalents ?? balanceRow.cashAndShortTermInvestments ?? null);
   const totalDebt = toMillions(balanceRow.totalDebt ?? ((balanceRow.shortTermDebt ?? 0) + (balanceRow.longTermDebt ?? 0)));
   const sharesOutstanding = deriveSharesOutstanding(profile);
   const marketCap = toMillions(profile.marketCap ?? profile.mktCap ?? null);
-  const snapshotDate = incomeRows[0]?.date ?? balanceRow.date ?? new Date().toISOString().slice(0, 10);
+  const sharePrice = typeof profile.price === 'number' && Number.isFinite(profile.price) ? profile.price : null;
+  const snapshotDate = incomeRows[0]?.date ?? annualIncomeRows[0]?.date ?? balanceRow.date ?? new Date().toISOString().slice(0, 10);
 
   if (revenueLtm === null) warnings.push('Revenue LTM unavailable from FMP quarterly statements.');
   if (grossProfitLtm === null) warnings.push('Gross profit LTM unavailable from FMP quarterly statements.');
@@ -209,6 +225,30 @@ export async function syncCompanyFromFmp(ticker: string): Promise<CompanySyncSum
     .single();
   if (snapshotUpsert.error) {
     warnings.push(`Snapshot upsert failed: ${snapshotUpsert.error.message}`);
+  }
+
+  if (sharePrice !== null) {
+    const priceUpsert = await (supabase.from('company_prices') as any)
+      .upsert(
+        {
+          company_id: companyId,
+          date: snapshotDate,
+          open: sharePrice,
+          high: sharePrice,
+          low: sharePrice,
+          close: sharePrice,
+          volume: null,
+          source: 'fmp',
+        },
+        { onConflict: 'company_id,date' }
+      )
+      .select('id')
+      .single();
+    if (priceUpsert.error) {
+      warnings.push(`FMP price upsert failed: ${priceUpsert.error.message}`);
+    }
+  } else {
+    warnings.push('Share price unavailable from FMP profile.');
   }
 
   return {
