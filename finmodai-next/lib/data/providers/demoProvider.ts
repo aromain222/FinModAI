@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { NormalizedFundamentals, NormalizedQuote } from '@/lib/data/types';
 import { normalizeDemoQuote, normalizeDemoSnapshot } from '@/lib/demo/normalizeDemoSnapshot';
+import { aiFillFinancialData } from '@/lib/aiFillFinancialData';
 
 export type DemoSnapshotRow = {
   ticker: string;
@@ -14,10 +15,12 @@ export type DemoSnapshotRow = {
   shares_outstanding?: number | null;
   share_price?: number | null;
   market_cap?: number | null;
+  enterprise_value?: number | null;
   currency?: string | null;
   units?: string | null;
   as_of_date?: string | null;
   updated_at?: string | null;
+  source_map?: Record<string, string> | null;
 };
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -38,19 +41,156 @@ function getSupabaseClient() {
   });
 }
 
+type StoredCompanyOverlay = {
+  companyName: string | null;
+  sector: string | null;
+  revenueLtm: number | null;
+  ebitdaLtm: number | null;
+  netIncomeLtm: number | null;
+  cash: number | null;
+  totalDebt: number | null;
+  sharesOutstanding: number | null;
+  marketCap: number | null;
+  sharePrice: number | null;
+  asOfDate: string | null;
+  updatedAt: string | null;
+  sourceMap: Record<string, string>;
+};
+
+async function getStoredCompanyOverlay(ticker: string): Promise<StoredCompanyOverlay | null> {
+  const supabase = getSupabaseClient();
+  const normalizedTicker = ticker.toUpperCase().trim();
+
+  const companyResult = await supabase.from('companies').select('id, name, sector').eq('ticker', normalizedTicker).maybeSingle();
+  if (companyResult.error || !companyResult.data) {
+    return null;
+  }
+
+  const companyId = companyResult.data.id as string;
+  const [snapshotResult, priceResult] = await Promise.all([
+    supabase
+      .from('company_snapshots')
+      .select('*')
+      .eq('company_id', companyId)
+      .order('as_of_date', { ascending: false })
+      .order('source_priority', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('company_prices')
+      .select('*')
+      .eq('company_id', companyId)
+      .order('date', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const snapshot = snapshotResult.data as Record<string, unknown> | null;
+  const price = priceResult.data as Record<string, unknown> | null;
+  if (!snapshot && !price) {
+    return null;
+  }
+
+  const snapshotSource = typeof snapshot?.source === 'string' ? snapshot.source : 'company_snapshots';
+  const priceSource = typeof price?.source === 'string' ? price.source : 'company_prices';
+  const sourceMap: Record<string, string> = {};
+
+  if (snapshot?.revenue_ltm != null) sourceMap.revenueLtm = snapshotSource;
+  if (snapshot?.ebitda_ltm != null) sourceMap.ebitdaLtm = snapshotSource;
+  if (snapshot?.net_income_ltm != null) sourceMap.netIncomeLtm = snapshotSource;
+  if (snapshot?.cash != null) sourceMap.cash = snapshotSource;
+  if (snapshot?.total_debt != null) sourceMap.totalDebt = snapshotSource;
+  if (snapshot?.shares_outstanding != null) sourceMap.sharesOutstanding = snapshotSource;
+  if (snapshot?.market_cap != null) sourceMap.marketCap = snapshotSource;
+  if (price?.close != null) sourceMap.sharePrice = priceSource;
+
+  return {
+    companyName: (companyResult.data.name as string | null) ?? null,
+    sector: (companyResult.data.sector as string | null) ?? null,
+    revenueLtm: typeof snapshot?.revenue_ltm === 'number' ? snapshot.revenue_ltm : Number(snapshot?.revenue_ltm ?? NaN) || null,
+    ebitdaLtm: typeof snapshot?.ebitda_ltm === 'number' ? snapshot.ebitda_ltm : Number(snapshot?.ebitda_ltm ?? NaN) || null,
+    netIncomeLtm: typeof snapshot?.net_income_ltm === 'number' ? snapshot.net_income_ltm : Number(snapshot?.net_income_ltm ?? NaN) || null,
+    cash: typeof snapshot?.cash === 'number' ? snapshot.cash : Number(snapshot?.cash ?? NaN) || null,
+    totalDebt: typeof snapshot?.total_debt === 'number' ? snapshot.total_debt : Number(snapshot?.total_debt ?? NaN) || null,
+    sharesOutstanding:
+      typeof snapshot?.shares_outstanding === 'number'
+        ? snapshot.shares_outstanding
+        : Number(snapshot?.shares_outstanding ?? NaN) || null,
+    marketCap: typeof snapshot?.market_cap === 'number' ? snapshot.market_cap : Number(snapshot?.market_cap ?? NaN) || null,
+    sharePrice: typeof price?.close === 'number' ? price.close : Number(price?.close ?? NaN) || null,
+    asOfDate: (snapshot?.as_of_date as string | null) ?? (price?.date as string | null) ?? null,
+    updatedAt: (snapshot?.created_at as string | null) ?? (price?.created_at as string | null) ?? null,
+    sourceMap,
+  };
+}
+
+function mergeDemoWithStored(row: DemoSnapshotRow, stored: StoredCompanyOverlay | null): DemoSnapshotRow {
+  if (!stored) return row;
+
+  const sharePrice = stored.sharePrice ?? row.share_price ?? null;
+  const marketCap = stored.marketCap ?? row.market_cap ?? null;
+  const sharesOutstanding = stored.sharesOutstanding ?? row.shares_outstanding ?? null;
+  const totalDebt = stored.totalDebt ?? row.total_debt ?? null;
+  const cash = stored.cash ?? row.cash ?? null;
+  const enterpriseValue =
+    marketCap != null && totalDebt != null && cash != null ? marketCap + totalDebt - cash : row.enterprise_value ?? null;
+
+  return {
+    ...row,
+    company_name: stored.companyName ?? row.company_name ?? null,
+    sector: stored.sector ?? row.sector ?? null,
+    revenue_ltm: stored.revenueLtm ?? row.revenue_ltm ?? null,
+    ebitda_ltm: stored.ebitdaLtm ?? row.ebitda_ltm ?? null,
+    net_income_ltm: stored.netIncomeLtm ?? row.net_income_ltm ?? null,
+    cash,
+    total_debt: totalDebt,
+    shares_outstanding: sharesOutstanding,
+    share_price: sharePrice,
+    market_cap: marketCap,
+    enterprise_value: enterpriseValue,
+    as_of_date: stored.asOfDate ?? row.as_of_date ?? null,
+    updated_at: stored.updatedAt ?? row.updated_at ?? null,
+    source_map: {
+      ...(row.source_map ?? {}),
+      ...stored.sourceMap,
+    },
+  };
+}
+
 export async function getDemoSnapshot(ticker: string): Promise<DemoSnapshotRow | null> {
   const supabase = getSupabaseClient();
+  const cleanTicker = ticker.toUpperCase().trim();
 
   const { data, error } = await supabase
     .from('demo_company_snapshots')
     .select('*')
-    .eq('ticker', ticker.toUpperCase().trim())
+    .eq('ticker', cleanTicker)
     .maybeSingle();
 
   if (error) {
     throw new Error(`[demoProvider] snapshot query failed: ${error.message}`);
   }
-  return data as DemoSnapshotRow | null;
+  const baseRow = data as DemoSnapshotRow | null;
+  const stored = await getStoredCompanyOverlay(cleanTicker);
+  const row = baseRow ? mergeDemoWithStored(baseRow, stored) : null;
+  if (!row) return null;
+
+  const aiFilled = await aiFillFinancialData({
+    ticker: row.ticker || cleanTicker,
+    company_name: row.company_name ?? null,
+    share_price: row.share_price ?? null,
+    market_cap: row.market_cap ?? null,
+    enterprise_value: row.enterprise_value ?? null,
+    shares_outstanding: row.shares_outstanding ?? null,
+  });
+
+  return {
+    ...row,
+    share_price: row.share_price ?? aiFilled.share_price ?? null,
+    market_cap: row.market_cap ?? aiFilled.market_cap ?? null,
+    enterprise_value: row.enterprise_value ?? aiFilled.enterprise_value ?? null,
+    shares_outstanding: row.shares_outstanding ?? aiFilled.shares_outstanding ?? null,
+  };
 }
 
 export async function getDemoFundamentals(ticker: string): Promise<NormalizedFundamentals | null> {

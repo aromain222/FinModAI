@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
-import { DEMO_TICKERS, DEMO_COMPANY_META } from '../lib/demo/demoUniverse';
-import { fetchNormalizedFundamentals, fetchNormalizedQuote } from '../lib/data/normalized';
-import { fetchSecEdgarAnnualFundamentals } from '../lib/data/providers/secEdgar';
+import { DEMO_COMPANY_META, DEMO_TICKERS } from '../lib/demo/demoUniverse';
+import { syncCompanyFromFmp } from '../lib/integrations/fmp/syncCompany';
+import { syncPricesFromPolygon } from '../lib/integrations/polygon/syncPrices';
+import { syncCompanyFactsFromSec } from '../lib/integrations/sec/syncCompanyFacts';
 
 type DemoSnapshotRow = {
   ticker: string;
@@ -15,91 +16,214 @@ type DemoSnapshotRow = {
   shares_outstanding?: number | null;
   share_price?: number | null;
   market_cap?: number | null;
-  updated_at?: string;
+  enterprise_value?: number | null;
+  currency?: string | null;
+  units?: string | null;
+  as_of_date?: string | null;
+  updated_at?: string | null;
   source_map?: Record<string, string>;
 };
+
+type CompanyRow = {
+  id: string;
+  ticker: string;
+  name: string | null;
+  sector: string | null;
+};
+
+type SnapshotRow = {
+  as_of_date: string | null;
+  currency: string | null;
+  revenue_ltm: number | string | null;
+  ebitda_ltm: number | string | null;
+  net_income_ltm: number | string | null;
+  cash: number | string | null;
+  total_debt: number | string | null;
+  shares_outstanding: number | string | null;
+  market_cap: number | string | null;
+  source: string | null;
+};
+
+type PriceRow = {
+  date: string | null;
+  close: number | string | null;
+  source: string | null;
+};
+
+function parseNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
 
 async function sleep(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function main() {
-  // Ensure demo mode is off for live refresh
-  process.env.NEXT_PUBLIC_DEMO_MODE = 'false';
-
+function getSupabaseAdminClient() {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-  const supabase = supabaseUrl && supabaseServiceKey ? createClient(supabaseUrl, supabaseServiceKey) : null;
-
-  if (!supabase) {
+  if (!supabaseUrl || !supabaseServiceKey) {
     throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required to refresh demo snapshots.');
   }
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { persistSession: false },
+  });
+}
 
-  const snapshots: Record<string, DemoSnapshotRow> = {};
-  const missing: Record<string, string[]> = {};
+async function buildDemoSnapshotRow(
+  supabase: ReturnType<typeof createClient>,
+  ticker: string
+): Promise<DemoSnapshotRow> {
+  const normalizedTicker = ticker.trim().toUpperCase();
+  const meta = DEMO_COMPANY_META[normalizedTicker] || {};
 
-  for (const ticker of DEMO_TICKERS) {
-    const meta = DEMO_COMPANY_META[ticker] || {};
-    const warnings: string[] = [];
-
-    const [
-      { fundamentals, missingFields: missingFundamentals },
-      { quote, missingFields: missingQuote },
-      annualResult,
-    ] = await Promise.all([
-      fetchNormalizedFundamentals(ticker),
-      fetchNormalizedQuote(ticker),
-      fetchSecEdgarAnnualFundamentals(ticker),
-    ]);
-
-    const annual = annualResult.ok ? annualResult.data : null;
-    const annualTag = annual?.fiscalYear ? `sec_edgar_fy${annual.fiscalYear}` : 'sec_edgar_fy';
-    const useAnnualRevenue = typeof annual?.revenueFY === 'number' && annual.revenueFY > 0;
-    const useAnnualNetIncome = typeof annual?.netIncomeFY === 'number' && annual.netIncomeFY > 0;
-    const useAnnualCash = typeof annual?.cash === 'number' && annual.cash > 0;
-    const useAnnualDebt = typeof annual?.totalDebt === 'number' && annual.totalDebt > 0;
-
-    missing[ticker] = [...missingFundamentals, ...missingQuote];
-
-    const row: DemoSnapshotRow = {
-      ticker,
-      company_name: meta.name || ticker,
-      sector: meta.sector || null,
-      revenue_ltm: useAnnualRevenue ? annual!.revenueFY : fundamentals.revenueLTM ?? null,
-      ebitda_ltm: fundamentals.ebitdaLTM ?? null,
-      net_income_ltm: useAnnualNetIncome ? annual!.netIncomeFY : fundamentals.netIncomeLTM ?? null,
-      cash: useAnnualCash ? annual!.cash : fundamentals.cash ?? null,
-      total_debt: useAnnualDebt ? annual!.totalDebt : fundamentals.totalDebt ?? null,
-      shares_outstanding: quote.sharesOutstanding ?? null,
-      share_price: quote.price ?? null,
-      market_cap: quote.marketCap ?? null,
-      updated_at: new Date().toISOString(),
-      source_map: {
-        ...fundamentals.provenance,
-        ...quote.provenance,
-        ...(useAnnualRevenue ? { revenueLTM: annualTag } : {}),
-        ...(useAnnualNetIncome ? { netIncomeLTM: annualTag } : {}),
-        ...(useAnnualCash ? { cash: annualTag } : {}),
-        ...(useAnnualDebt ? { totalDebt: annualTag } : {}),
-        ...(annual?.period ? { fiscalPeriod: String(annual.period) } : {}),
-      },
-    };
-
-    snapshots[ticker] = row;
-    console.log(`[demo-refresh] ${ticker} ok. Missing fields: ${missing[ticker].join(', ') || 'none'}`);
-
-    await sleep(250);
+  const companyResult = await supabase
+    .from('companies')
+    .select('id, ticker, name, sector')
+    .eq('ticker', normalizedTicker)
+    .maybeSingle();
+  if (companyResult.error || !companyResult.data) {
+    throw new Error(`No cached company row found for ${normalizedTicker}`);
   }
 
-  const payload = Object.values(snapshots);
+  const company = companyResult.data as CompanyRow;
+  const [snapshotResult, priceResult] = await Promise.all([
+    supabase
+      .from('company_snapshots')
+      .select('as_of_date, currency, revenue_ltm, ebitda_ltm, net_income_ltm, cash, total_debt, shares_outstanding, market_cap, source')
+      .eq('company_id', company.id)
+      .order('as_of_date', { ascending: false })
+      .order('source_priority', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('company_prices')
+      .select('date, close, source')
+      .eq('company_id', company.id)
+      .order('date', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
-  const { error } = await supabase.from('demo_company_snapshots').upsert(payload, {
+  const snapshot = (snapshotResult.data as SnapshotRow | null) ?? null;
+  const price = (priceResult.data as PriceRow | null) ?? null;
+  if (!snapshot && !price) {
+    throw new Error(`No cached snapshot or price found for ${normalizedTicker}`);
+  }
+
+  const revenueLtm = parseNumber(snapshot?.revenue_ltm);
+  const ebitdaLtm = parseNumber(snapshot?.ebitda_ltm);
+  const netIncomeLtm = parseNumber(snapshot?.net_income_ltm);
+  const cash = parseNumber(snapshot?.cash);
+  const totalDebt = parseNumber(snapshot?.total_debt);
+  const sharesOutstanding = parseNumber(snapshot?.shares_outstanding);
+  const marketCap = parseNumber(snapshot?.market_cap);
+  const sharePrice = parseNumber(price?.close);
+  const enterpriseValue =
+    marketCap !== null && totalDebt !== null && cash !== null ? marketCap + totalDebt - cash : null;
+
+  const snapshotSource = snapshot?.source ?? 'company_snapshots';
+  const priceSource = price?.source ?? 'company_prices';
+
+  return {
+    ticker: normalizedTicker,
+    company_name: company.name ?? meta.name ?? normalizedTicker,
+    sector: company.sector ?? meta.sector ?? null,
+    revenue_ltm: revenueLtm,
+    ebitda_ltm: ebitdaLtm,
+    net_income_ltm: netIncomeLtm,
+    cash,
+    total_debt: totalDebt,
+    shares_outstanding: sharesOutstanding,
+    share_price: sharePrice,
+    market_cap: marketCap,
+    enterprise_value: enterpriseValue,
+    currency: snapshot?.currency ?? 'USD',
+    units: 'millions',
+    as_of_date: snapshot?.as_of_date ?? price?.date ?? null,
+    updated_at: new Date().toISOString(),
+    source_map: {
+      companyName: 'companies',
+      sector: 'companies',
+      ...(revenueLtm !== null ? { revenueLTM: snapshotSource } : {}),
+      ...(ebitdaLtm !== null ? { ebitdaLTM: snapshotSource } : {}),
+      ...(netIncomeLtm !== null ? { netIncomeLTM: snapshotSource } : {}),
+      ...(cash !== null ? { cash: snapshotSource } : {}),
+      ...(totalDebt !== null ? { totalDebt: snapshotSource } : {}),
+      ...(sharesOutstanding !== null ? { sharesOutstanding: snapshotSource } : {}),
+      ...(marketCap !== null ? { marketCap: snapshotSource } : {}),
+      ...(sharePrice !== null ? { sharePrice: priceSource } : {}),
+    },
+  };
+}
+
+async function main() {
+  const supabase = getSupabaseAdminClient();
+  const snapshots: DemoSnapshotRow[] = [];
+  const failures: Record<string, string> = {};
+
+  for (const ticker of DEMO_TICKERS) {
+    const warnings: string[] = [];
+
+    try {
+      const fmp = await syncCompanyFromFmp(ticker);
+      if (fmp.warnings.length > 0) warnings.push(...fmp.warnings);
+    } catch (error) {
+      warnings.push(`FMP sync failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+    }
+
+    try {
+      const polygon = await syncPricesFromPolygon(ticker);
+      if (polygon.warnings.length > 0) warnings.push(...polygon.warnings);
+    } catch (error) {
+      warnings.push(`Polygon sync failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+    }
+
+    try {
+      const sec = await syncCompanyFactsFromSec(ticker);
+      if (sec.warnings.length > 0) warnings.push(...sec.warnings);
+    } catch (error) {
+      warnings.push(`SEC sync failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+    }
+
+    try {
+      const row = await buildDemoSnapshotRow(supabase, ticker);
+      if (warnings.length > 0) {
+        row.source_map = {
+          ...(row.source_map ?? {}),
+          syncWarnings: warnings.join(' | '),
+        };
+      }
+      snapshots.push(row);
+      console.log(`[demo-refresh] ${ticker} ok. ${warnings.length > 0 ? `Warnings: ${warnings.join('; ')}` : 'No warnings.'}`);
+    } catch (error) {
+      failures[ticker] = error instanceof Error ? error.message : 'unknown error';
+      console.error(`[demo-refresh] ${ticker} failed: ${failures[ticker]}`);
+    }
+
+    await sleep(350);
+  }
+
+  if (snapshots.length === 0) {
+    throw new Error('No demo snapshot rows were built from cached company data.');
+  }
+
+  const { error } = await supabase.from('demo_company_snapshots').upsert(snapshots, {
     onConflict: 'ticker',
   });
   if (error) {
     throw new Error(`Supabase upsert failed: ${error.message}`);
   }
-  console.log('[demo-refresh] Supabase upsert complete.');
+
+  console.log(`[demo-refresh] Supabase upsert complete for ${snapshots.length} tickers.`);
+  const failedTickers = Object.keys(failures);
+  if (failedTickers.length > 0) {
+    console.warn(`[demo-refresh] failures: ${failedTickers.map((ticker) => `${ticker}: ${failures[ticker]}`).join(' | ')}`);
+  }
 }
 
 main().catch((err) => {

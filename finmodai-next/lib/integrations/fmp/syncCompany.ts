@@ -1,0 +1,222 @@
+import { getSupabaseServiceClient } from '@/lib/events/store';
+import { fetchJsonWithRetry } from '@/lib/data/providers/shared';
+import { serverEnv } from '@/lib/env/server';
+
+export type CompanySyncSummary = {
+  ticker: string;
+  companyId: string | null;
+  companyName: string | null;
+  snapshotDate: string | null;
+  source: string;
+  warnings: string[];
+};
+
+type FmpProfileRow = {
+  symbol?: string;
+  companyName?: string;
+  sector?: string;
+  industry?: string;
+  country?: string;
+  exchange?: string;
+  exchangeShortName?: string;
+  currency?: string;
+  isin?: string;
+  cusip?: string;
+  price?: number;
+  mktCap?: number;
+  marketCap?: number;
+  sharesOutstanding?: number;
+};
+
+type FmpIncomeRow = {
+  date?: string;
+  revenue?: number;
+  grossProfit?: number;
+  ebitda?: number;
+  operatingIncome?: number;
+  netIncome?: number;
+};
+
+type FmpBalanceRow = {
+  date?: string;
+  cashAndCashEquivalents?: number;
+  cashAndShortTermInvestments?: number;
+  totalDebt?: number;
+  shortTermDebt?: number;
+  longTermDebt?: number;
+};
+
+function toMillions(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value / 1_000_000;
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed / 1_000_000 : null;
+  }
+  return null;
+}
+
+function deriveSharesOutstanding(profile: FmpProfileRow): number | null {
+  const direct = toMillions(profile.sharesOutstanding ?? null);
+  if (direct !== null) return direct;
+
+  const marketCap = typeof profile.marketCap === 'number' && Number.isFinite(profile.marketCap)
+    ? profile.marketCap
+    : typeof profile.mktCap === 'number' && Number.isFinite(profile.mktCap)
+      ? profile.mktCap
+      : null;
+  const price = typeof profile.price === 'number' && Number.isFinite(profile.price) && profile.price > 0 ? profile.price : null;
+  if (marketCap === null || price === null) return null;
+  return marketCap / price / 1_000_000;
+}
+
+function sumLtm(rows: FmpIncomeRow[], key: keyof FmpIncomeRow): number | null {
+  const values = rows.slice(0, 4).map((row) => row[key]).filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+  if (values.length === 0) return null;
+  return values.reduce((sum, value) => sum + value, 0);
+}
+
+function inferCompanyType(profile: FmpProfileRow): string | null {
+  const combined = `${profile.sector ?? ''} ${profile.industry ?? ''}`.toLowerCase();
+  if (/software|saas|cloud/.test(combined)) return 'SaaS';
+  if (/semiconductor|chip|gpu/.test(combined)) return 'Semiconductors';
+  if (/bank|payments|fintech|financial/.test(combined)) return 'Fintech';
+  if (/consumer|retail|e-commerce/.test(combined)) return 'Consumer';
+  if (/industrial|manufacturing|logistics/.test(combined)) return 'Industrial';
+  if (/health|biotech|pharma|medical/.test(combined)) return 'Healthcare';
+  return profile.sector ?? null;
+}
+
+function isSaas(profile: FmpProfileRow): boolean {
+  const combined = `${profile.sector ?? ''} ${profile.industry ?? ''}`.toLowerCase();
+  return /software|saas|cloud/.test(combined);
+}
+
+export async function syncCompanyFromFmp(ticker: string): Promise<CompanySyncSummary> {
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) {
+    throw new Error('Supabase service client is not configured');
+  }
+
+  const apiKey = serverEnv.FMP_API_KEY;
+  if (!apiKey) {
+    throw new Error('FMP_API_KEY is not configured');
+  }
+
+  const normalizedTicker = ticker.trim().toUpperCase();
+  const warnings: string[] = [];
+
+  const [profileResult, quarterlyIncomeResult, latestBalanceResult] = await Promise.all([
+    fetchJsonWithRetry<FmpProfileRow[]>({
+      provider: 'fmp',
+      url: `https://financialmodelingprep.com/stable/profile?symbol=${normalizedTicker}&apikey=${apiKey}`,
+      cacheKey: `fmp:profile:${normalizedTicker}`,
+      ttlMs: 30 * 60 * 1000,
+    }),
+    fetchJsonWithRetry<FmpIncomeRow[]>({
+      provider: 'fmp',
+      url: `https://financialmodelingprep.com/stable/income-statement?symbol=${normalizedTicker}&period=quarter&limit=4&apikey=${apiKey}`,
+      cacheKey: `fmp:income-quarterly:${normalizedTicker}`,
+      ttlMs: 30 * 60 * 1000,
+    }),
+    fetchJsonWithRetry<FmpBalanceRow[]>({
+      provider: 'fmp',
+      url: `https://financialmodelingprep.com/stable/balance-sheet-statement?symbol=${normalizedTicker}&period=quarter&limit=1&apikey=${apiKey}`,
+      cacheKey: `fmp:balance-quarterly:${normalizedTicker}`,
+      ttlMs: 30 * 60 * 1000,
+    }),
+  ]);
+
+  if (!profileResult.ok || !Array.isArray(profileResult.data) || profileResult.data.length === 0) {
+    throw new Error(`FMP profile unavailable for ${normalizedTicker}`);
+  }
+
+  const profile = profileResult.data[0] ?? {};
+  const incomeRows = quarterlyIncomeResult.ok && Array.isArray(quarterlyIncomeResult.data) ? quarterlyIncomeResult.data : [];
+  const balanceRow = latestBalanceResult.ok && Array.isArray(latestBalanceResult.data) ? latestBalanceResult.data[0] ?? {} : {};
+
+  const revenueLtm = toMillions(sumLtm(incomeRows, 'revenue'));
+  const grossProfitLtm = toMillions(sumLtm(incomeRows, 'grossProfit'));
+  const ebitdaLtm = toMillions(sumLtm(incomeRows, 'ebitda'));
+  const ebitLtm = toMillions(sumLtm(incomeRows, 'operatingIncome'));
+  const netIncomeLtm = toMillions(sumLtm(incomeRows, 'netIncome'));
+  const cash = toMillions(balanceRow.cashAndCashEquivalents ?? balanceRow.cashAndShortTermInvestments ?? null);
+  const totalDebt = toMillions(balanceRow.totalDebt ?? ((balanceRow.shortTermDebt ?? 0) + (balanceRow.longTermDebt ?? 0)));
+  const sharesOutstanding = deriveSharesOutstanding(profile);
+  const marketCap = toMillions(profile.marketCap ?? profile.mktCap ?? null);
+  const snapshotDate = incomeRows[0]?.date ?? balanceRow.date ?? new Date().toISOString().slice(0, 10);
+
+  if (revenueLtm === null) warnings.push('Revenue LTM unavailable from FMP quarterly statements.');
+  if (grossProfitLtm === null) warnings.push('Gross profit LTM unavailable from FMP quarterly statements.');
+  if (ebitdaLtm === null) warnings.push('EBITDA LTM unavailable from FMP quarterly statements.');
+  if (sharesOutstanding === null) warnings.push('Shares outstanding unavailable from FMP profile.');
+
+  const companyPayload = {
+    ticker: normalizedTicker,
+    name: profile.companyName ?? normalizedTicker,
+    sector: profile.sector ?? null,
+    industry: profile.industry ?? null,
+    country: profile.country ?? null,
+    exchange: profile.exchangeShortName ?? profile.exchange ?? null,
+    company_type: inferCompanyType(profile),
+    is_saas: isSaas(profile),
+  };
+
+  const companyUpsert = await (supabase.from('companies') as any)
+    .upsert(companyPayload, { onConflict: 'ticker' })
+    .select('*')
+    .single();
+  if (companyUpsert.error || !companyUpsert.data) {
+    throw new Error(`Failed to upsert company ${normalizedTicker}: ${companyUpsert.error?.message ?? 'unknown error'}`);
+  }
+
+  const companyId = companyUpsert.data.id as string;
+
+  const identifierPayload = {
+    company_id: companyId,
+    ticker: normalizedTicker,
+    isin: profile.isin ?? null,
+    cusip: profile.cusip ?? null,
+    source: 'fmp',
+  };
+  const identifierUpsert = await (supabase.from('company_identifiers') as any)
+    .upsert(identifierPayload, { onConflict: 'company_id,source' })
+    .select('id')
+    .single();
+  if (identifierUpsert.error) {
+    warnings.push(`Identifier upsert failed: ${identifierUpsert.error.message}`);
+  }
+
+  const snapshotPayload = {
+    company_id: companyId,
+    as_of_date: snapshotDate,
+    period_type: 'LTM',
+    currency: profile.currency ?? 'USD',
+    revenue_ltm: revenueLtm,
+    gross_profit_ltm: grossProfitLtm,
+    ebitda_ltm: ebitdaLtm,
+    ebit_ltm: ebitLtm,
+    net_income_ltm: netIncomeLtm,
+    cash,
+    total_debt: totalDebt,
+    shares_outstanding: sharesOutstanding,
+    market_cap: marketCap,
+    source: 'fmp',
+    source_priority: 100,
+  };
+  const snapshotUpsert = await (supabase.from('company_snapshots') as any)
+    .upsert(snapshotPayload, { onConflict: 'company_id,as_of_date,period_type,source' })
+    .select('id')
+    .single();
+  if (snapshotUpsert.error) {
+    warnings.push(`Snapshot upsert failed: ${snapshotUpsert.error.message}`);
+  }
+
+  return {
+    ticker: normalizedTicker,
+    companyId,
+    companyName: companyPayload.name,
+    snapshotDate,
+    source: 'fmp',
+    warnings,
+  };
+}
