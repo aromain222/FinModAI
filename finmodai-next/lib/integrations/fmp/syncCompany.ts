@@ -1,6 +1,8 @@
 import { getSupabaseServiceClient } from '@/lib/events/store';
 import { fetchJsonWithRetry } from '@/lib/data/providers/shared';
 import { serverEnv } from '@/lib/env/server';
+import path from 'node:path';
+import { runPythonJson } from '@/lib/integrations/python/runPythonJson';
 
 export type CompanySyncSummary = {
   ticker: string;
@@ -44,6 +46,19 @@ type FmpBalanceRow = {
   totalDebt?: number;
   shortTermDebt?: number;
   longTermDebt?: number;
+};
+
+type PythonFallbackRow = {
+  ticker?: string;
+  companyName?: string | null;
+  sector?: string | null;
+  industry?: string | null;
+  country?: string | null;
+  exchange?: string | null;
+  currency?: string | null;
+  price?: number | null;
+  marketCap?: number | null;
+  sharesOutstanding?: number | null;
 };
 
 function toMillions(value: unknown): number | null {
@@ -99,6 +114,31 @@ function isSaas(profile: FmpProfileRow): boolean {
   return /software|saas|cloud/.test(combined);
 }
 
+function mergeFallbackProfile(profile: FmpProfileRow, fallback: PythonFallbackRow | null): FmpProfileRow {
+  if (!fallback) return profile;
+  return {
+    ...profile,
+    companyName: profile.companyName ?? fallback.companyName ?? undefined,
+    sector: profile.sector ?? fallback.sector ?? undefined,
+    industry: profile.industry ?? fallback.industry ?? undefined,
+    country: profile.country ?? fallback.country ?? undefined,
+    exchange: profile.exchange ?? fallback.exchange ?? undefined,
+    exchangeShortName: profile.exchangeShortName ?? fallback.exchange ?? undefined,
+    currency: profile.currency ?? fallback.currency ?? undefined,
+    price: typeof profile.price === 'number' ? profile.price : fallback.price ?? undefined,
+    marketCap:
+      typeof profile.marketCap === 'number'
+        ? profile.marketCap
+        : typeof profile.mktCap === 'number'
+          ? profile.mktCap
+          : fallback.marketCap ?? undefined,
+    sharesOutstanding:
+      typeof profile.sharesOutstanding === 'number'
+        ? profile.sharesOutstanding
+        : fallback.sharesOutstanding ?? undefined,
+  };
+}
+
 export async function syncCompanyFromFmp(ticker: string): Promise<CompanySyncSummary> {
   const supabase = getSupabaseServiceClient();
   if (!supabase) {
@@ -112,6 +152,8 @@ export async function syncCompanyFromFmp(ticker: string): Promise<CompanySyncSum
 
   const normalizedTicker = ticker.trim().toUpperCase();
   const warnings: string[] = [];
+  const yfinanceScript = path.join(process.cwd(), 'scripts/providers/yfinance_quote.py');
+  const financeDatabaseScript = path.join(process.cwd(), 'scripts/providers/financedatabase_metadata.py');
 
   const [profileResult, quarterlyIncomeResult, annualIncomeResult, latestBalanceResult] = await Promise.all([
     fetchJsonWithRetry<FmpProfileRow[]>({
@@ -140,11 +182,23 @@ export async function syncCompanyFromFmp(ticker: string): Promise<CompanySyncSum
     }),
   ]);
 
-  if (!profileResult.ok || !Array.isArray(profileResult.data) || profileResult.data.length === 0) {
+  const financedatabaseMetadata = await runPythonJson<PythonFallbackRow>(financeDatabaseScript, [normalizedTicker]);
+  const yfinanceQuote = await runPythonJson<PythonFallbackRow>(yfinanceScript, [normalizedTicker]);
+
+  const fallbackProfile = mergeFallbackProfile({}, financedatabaseMetadata);
+  const fallbackEnrichedProfile = mergeFallbackProfile(fallbackProfile, yfinanceQuote);
+
+  if ((!profileResult.ok || !Array.isArray(profileResult.data) || profileResult.data.length === 0) && !fallbackEnrichedProfile.companyName) {
     throw new Error(`FMP profile unavailable for ${normalizedTicker}`);
   }
 
-  const profile = profileResult.data[0] ?? {};
+  const profile = mergeFallbackProfile(
+    (profileResult.ok && Array.isArray(profileResult.data) ? profileResult.data[0] : {}) ?? {},
+    fallbackEnrichedProfile
+  );
+  if (!profileResult.ok || !Array.isArray(profileResult.data) || profileResult.data.length === 0) {
+    warnings.push(`FMP profile unavailable for ${normalizedTicker}; used fallback metadata.`);
+  }
   const incomeRows = quarterlyIncomeResult.ok && Array.isArray(quarterlyIncomeResult.data) ? quarterlyIncomeResult.data : [];
   const annualIncomeRows = annualIncomeResult.ok && Array.isArray(annualIncomeResult.data) ? annualIncomeResult.data : [];
   const balanceRow = latestBalanceResult.ok && Array.isArray(latestBalanceResult.data) ? latestBalanceResult.data[0] ?? {} : {};
