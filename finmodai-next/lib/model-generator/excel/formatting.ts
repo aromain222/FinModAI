@@ -1,0 +1,227 @@
+import ExcelJS from 'exceljs';
+
+const COLORS = {
+  ink: 'FF0F172A',
+  slate: 'FF475569',
+  grid: 'FFD7DEE7',
+  headerBg: 'FFE5E7EB',
+  titleBg: 'FF111827',
+  inputBg: 'FFDCEBFF',
+  formulaBg: 'FFF8FAFC',
+  outputBg: 'FFE7F6EC',
+  checkBg: 'FFFEF3C7',
+  passBg: 'FFDCFCE7',
+  failBg: 'FFFEE2E2',
+  accent: 'FF0F766E',
+  danger: 'FFB91C1C',
+} as const;
+
+type CellKind = 'currency' | 'percent' | 'number' | 'multiple' | 'text';
+
+function applyBorder(cell: ExcelJS.Cell) {
+  cell.border = {
+    top: { style: 'thin', color: { argb: COLORS.grid } },
+    bottom: { style: 'thin', color: { argb: COLORS.grid } },
+    left: { style: 'thin', color: { argb: COLORS.grid } },
+    right: { style: 'thin', color: { argb: COLORS.grid } },
+  };
+}
+
+export function applyWorkbookMeta(workbook: ExcelJS.Workbook, subject: string) {
+  workbook.creator = 'CapitalBase';
+  workbook.company = 'CapitalBase';
+  workbook.created = new Date();
+  workbook.modified = new Date();
+  workbook.subject = subject;
+}
+
+export function enableWorkbookRecalculation(workbook: ExcelJS.Workbook) {
+  workbook.calcProperties.fullCalcOnLoad = true;
+  (workbook.calcProperties as ExcelJS.Workbook['calcProperties'] & { forceFullCalc?: boolean }).forceFullCalc = true;
+}
+
+export function setupSheet(
+  sheet: ExcelJS.Worksheet,
+  options?: {
+    freezeRows?: number;
+    freezeCols?: number;
+    tabColor?: string;
+    columnWidths?: number[];
+    defaultRowHeight?: number;
+  }
+) {
+  sheet.views = [
+    {
+      state: 'frozen',
+      ySplit: options?.freezeRows ?? 3,
+      xSplit: options?.freezeCols ?? 2,
+    },
+  ];
+  sheet.properties.defaultRowHeight = options?.defaultRowHeight ?? 20;
+  if (options?.tabColor) {
+    sheet.properties.tabColor = { argb: options.tabColor };
+  }
+  const widths = options?.columnWidths ?? [28, 16, 14, 14, 14, 14, 14, 14, 14, 14];
+  widths.forEach((width, index) => {
+    sheet.getColumn(index + 1).width = width;
+  });
+}
+
+export function col(index: number): string {
+  let value = index;
+  let output = '';
+  while (value > 0) {
+    const mod = (value - 1) % 26;
+    output = String.fromCharCode(65 + mod) + output;
+    value = Math.floor((value - 1) / 26);
+  }
+  return output;
+}
+
+export function formatCell(cell: ExcelJS.Cell, kind: CellKind) {
+  if (kind === 'currency') cell.numFmt = '$#,##0.0';
+  if (kind === 'percent') cell.numFmt = '0.0%';
+  if (kind === 'number') cell.numFmt = '#,##0.0';
+  if (kind === 'multiple') cell.numFmt = '0.0x';
+}
+
+export function styleTitle(cell: ExcelJS.Cell) {
+  cell.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.titleBg } };
+  cell.alignment = { vertical: 'middle' };
+}
+
+export function styleModelMeta(sheet: ExcelJS.Worksheet, row: number, label: string, value: string) {
+  sheet.getCell(row, 1).value = label;
+  sheet.getCell(row, 1).font = { bold: true, color: { argb: COLORS.slate } };
+  sheet.getCell(row, 2).value = value;
+  sheet.getCell(row, 2).font = { color: { argb: COLORS.ink } };
+}
+
+export function styleSectionHeader(sheet: ExcelJS.Worksheet, row: number, title: string, endCol = 8) {
+  sheet.getCell(row, 1).value = title;
+  for (let column = 1; column <= endCol; column += 1) {
+    const cell = sheet.getCell(row, column);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.titleBg } };
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.alignment = { vertical: 'middle' };
+    applyBorder(cell);
+  }
+}
+
+export function styleTableHeader(sheet: ExcelJS.Worksheet, row: number, startCol: number, endCol: number) {
+  for (let column = startCol; column <= endCol; column += 1) {
+    const cell = sheet.getCell(row, column);
+    cell.font = { bold: true, color: { argb: COLORS.ink } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.headerBg } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    applyBorder(cell);
+  }
+}
+
+export function styleLabel(cell: ExcelJS.Cell) {
+  cell.font = { color: { argb: COLORS.ink } };
+}
+
+export function styleInput(cell: ExcelJS.Cell, kind: CellKind = 'text') {
+  cell.font = { color: { argb: 'FF1D4ED8' }, bold: true };
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.inputBg } };
+  cell.protection = { locked: false };
+  applyBorder(cell);
+  formatCell(cell, kind);
+}
+
+export function styleFormula(cell: ExcelJS.Cell, kind: CellKind = 'text') {
+  cell.font = { color: { argb: COLORS.ink } };
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.formulaBg } };
+  cell.protection = { locked: true };
+  applyBorder(cell);
+  formatCell(cell, kind);
+}
+
+export function styleOutput(cell: ExcelJS.Cell, kind: CellKind = 'text') {
+  cell.font = { color: { argb: COLORS.accent }, bold: true };
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.outputBg } };
+  cell.protection = { locked: true };
+  applyBorder(cell);
+  formatCell(cell, kind);
+}
+
+export function styleCheck(cell: ExcelJS.Cell) {
+  cell.font = { color: { argb: COLORS.danger }, bold: true };
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.checkBg } };
+  cell.protection = { locked: true };
+  applyBorder(cell);
+}
+
+export function styleTotal(sheet: ExcelJS.Worksheet, row: number, startCol: number, endCol: number) {
+  for (let column = startCol; column <= endCol; column += 1) {
+    const cell = sheet.getCell(row, column);
+    cell.font = { bold: true, color: { argb: COLORS.ink } };
+    cell.border = {
+      top: { style: 'medium', color: { argb: COLORS.ink } },
+      bottom: { style: 'double', color: { argb: COLORS.ink } },
+    };
+  }
+}
+
+export function addPassFailConditionalFormatting(sheet: ExcelJS.Worksheet, range: string) {
+  const topLeftCell = range.split(':')[0];
+  sheet.addConditionalFormatting({
+    ref: range,
+    rules: [
+      {
+        type: 'expression',
+        formulae: [`EXACT(${topLeftCell},"PASS")`],
+        style: {
+          fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: COLORS.passBg }, fgColor: { argb: COLORS.passBg } },
+          font: { bold: true, color: { argb: COLORS.accent } },
+        },
+      },
+      {
+        type: 'expression',
+        formulae: [`EXACT(${topLeftCell},"FLAG")`],
+        style: {
+          fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: COLORS.failBg }, fgColor: { argb: COLORS.failBg } },
+          font: { bold: true, color: { argb: COLORS.danger } },
+        },
+      },
+    ] as any,
+  });
+}
+
+export function styleSubTotal(sheet: ExcelJS.Worksheet, row: number, startCol: number, endCol: number) {
+  for (let column = startCol; column <= endCol; column += 1) {
+    const cell = sheet.getCell(row, column);
+    cell.font = { bold: true, color: { argb: COLORS.ink } };
+    cell.border = {
+      top: { style: 'thin', color: { argb: COLORS.ink } },
+      bottom: { style: 'double', color: { argb: COLORS.ink } },
+    };
+  }
+}
+
+export function styleDashedSubTotal(sheet: ExcelJS.Worksheet, row: number, startCol: number, endCol: number) {
+  for (let column = startCol; column <= endCol; column += 1) {
+    const cell = sheet.getCell(row, column);
+    cell.font = { bold: true, color: { argb: COLORS.ink } };
+    cell.border = {
+      top: { style: 'dotted', color: { argb: COLORS.ink } },
+      bottom: { style: 'thin', color: { argb: COLORS.ink } },
+    };
+  }
+}
+
+export function styleThinGrid(sheet: ExcelJS.Worksheet, rowStart: number, rowEnd: number, colStart: number, colEnd: number) {
+  for (let row = rowStart; row <= rowEnd; row += 1) {
+    for (let column = colStart; column <= colEnd; column += 1) {
+      applyBorder(sheet.getCell(row, column));
+    }
+  }
+}
+
+export function mergeAndCenter(sheet: ExcelJS.Worksheet, range: string) {
+  sheet.mergeCells(range);
+  const cell = sheet.getCell(range.split(':')[0]);
+  cell.alignment = { horizontal: 'center', vertical: 'middle' };
+}

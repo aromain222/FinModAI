@@ -12,6 +12,7 @@
  *   financial_model     – "Generate a DCF for Google"
  *   general_finance     – "How does a leveraged recap work?"
  */
+import { classifyPrompt } from '@/lib/model-generator/classifyPrompt';
 
 export type AnalystIntent =
   | 'event_intelligence'
@@ -88,10 +89,14 @@ export function extractTickers(message: string): string[] {
 
 export function classifyIntent(message: string, tickers: string[]): AnalystIntent {
   const text = message.toLowerCase();
+  const detectedModelType = classifyPrompt(message);
 
   const isModelRequest =
-    /\b(generate|build|create|draft|run)\b/.test(text) &&
-    /\b(model|dcf|lbo|three[- ]?statement|3[- ]?statement|comps?|financial model|merger model|operating model)\b/.test(text);
+    detectedModelType !== null ||
+    (
+      /\b(generate|build|create|draft|run|export|download|show)\b/.test(text) &&
+      /\b(model|dcf|lbo|three[- ]?statement|3[- ]?statement|financial statements?|income statement|balance sheet|cash flow(?: statement)?|comps?|financial model|merger model|operating model|cap\s?table|seed round|series a|series b|series c|pre-money|saas|arr)\b/.test(text)
+    );
   if (isModelRequest) return 'financial_model';
 
   const isEventIntelligence =
