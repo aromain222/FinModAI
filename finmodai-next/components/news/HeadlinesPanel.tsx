@@ -141,7 +141,7 @@ function formatAiSummaryText(raw: string | null | undefined): string {
 
   const cleaned = trimmed
     .replace(/[•·◦▪▫●∙]/g, ' ')
-    .replace(/\b(EVENT|SUMMARY|BOTTOM LINE|KEY FACTS|DRIVERS|TRANSMISSION PATH|MARKET IMPACT|WINNERS?|LOSERS?|HORIZON|WATCH NEXT|ASSETS TO WATCH|MACRO EVENT|INVESTOR TAKEAWAY|WHAT HAPPENED|WHAT ACTUALLY CHANGED|WHY MARKETS CARE|MARKET LOGIC|DIRECTIONAL SIGNAL|MARKET REACTION FRAMEWORK|MACRO SIGNAL|TICKERS\s*\/\s*ASSETS TO WATCH)\b:?/gi, ' ')
+    .replace(/\b(EVENT|SUMMARY|BOTTOM LINE|KEY FACTS|DRIVERS|WHY IT MATTERS|TRANSMISSION PATH|PREDICTION|MARKET IMPACT|WINNERS?|LOSERS?|HORIZON|CONFIDENCE|BASE CASE|BULL CASE|BEAR CASE|SECTOR IMPACT|TICKERS TO WATCH|MODEL IMPLICATIONS|WATCH NEXT|SOURCES|ASSETS TO WATCH|MACRO EVENT|INVESTOR TAKEAWAY|WHAT HAPPENED|WHAT ACTUALLY CHANGED|WHY MARKETS CARE|MARKET LOGIC|DIRECTIONAL SIGNAL|MARKET REACTION FRAMEWORK|MACRO SIGNAL|TICKERS\s*\/\s*ASSETS TO WATCH)\b:?/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -165,7 +165,7 @@ function formatPlainNarrative(raw: string | null | undefined, maxSentences = 5):
   const cleaned = raw
     .replace(/\r\n/g, '\n')
     .replace(/[•·◦▪▫●∙]/g, ' ')
-    .replace(/\b(EVENT|SUMMARY|BOTTOM LINE|KEY FACTS|DRIVERS|TRANSMISSION PATH|MARKET IMPACT|WINNERS?|LOSERS?|HORIZON|WATCH NEXT|ASSETS TO WATCH|MACRO EVENT|INVESTOR TAKEAWAY|WHAT HAPPENED|WHAT ACTUALLY CHANGED|WHY MARKETS CARE|MARKET LOGIC|DIRECTIONAL SIGNAL|MARKET REACTION FRAMEWORK|MACRO SIGNAL|TICKERS\s*\/\s*ASSETS TO WATCH|EQUITIES|RATES|FX|COMMODITIES|CREDIT)\b:?/gi, ' ')
+    .replace(/\b(EVENT|SUMMARY|BOTTOM LINE|KEY FACTS|DRIVERS|WHY IT MATTERS|TRANSMISSION PATH|PREDICTION|MARKET IMPACT|WINNERS?|LOSERS?|HORIZON|CONFIDENCE|BASE CASE|BULL CASE|BEAR CASE|SECTOR IMPACT|TICKERS TO WATCH|MODEL IMPLICATIONS|WATCH NEXT|SOURCES|ASSETS TO WATCH|MACRO EVENT|INVESTOR TAKEAWAY|WHAT HAPPENED|WHAT ACTUALLY CHANGED|WHY MARKETS CARE|MARKET LOGIC|DIRECTIONAL SIGNAL|MARKET REACTION FRAMEWORK|MACRO SIGNAL|TICKERS\s*\/\s*ASSETS TO WATCH|EQUITIES|RATES|FX|COMMODITIES|CREDIT)\b:?/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   if (!cleaned) return 'Additional context unavailable.';
@@ -193,7 +193,7 @@ function preprocessImpactText(raw: string): string {
     .replace(/\r\n/g, '\n')
     .replace(/\s+•\s+/g, '\n• ')
     .replace(
-      /\s+(?=(EVENT|SUMMARY|BOTTOM LINE|KEY FACTS|DRIVERS|TRANSMISSION PATH|MARKET IMPACT|WINNERS?|LOSERS?|HORIZON|WATCH NEXT|ASSETS TO WATCH)\b)/gi,
+      /\s+(?=(EVENT|SUMMARY|BOTTOM LINE|KEY FACTS|DRIVERS|WHY IT MATTERS|TRANSMISSION PATH|PREDICTION|MARKET IMPACT|WINNERS?|LOSERS?|HORIZON|CONFIDENCE|BASE CASE|BULL CASE|BEAR CASE|SECTOR IMPACT|TICKERS TO WATCH|MODEL IMPLICATIONS|WATCH NEXT|SOURCES|ASSETS TO WATCH)\b)/gi,
       '\n'
     )
     .replace(/\n{3,}/g, '\n\n')
@@ -294,15 +294,19 @@ function parseMacroStructuredAnalysis(raw: string | null | undefined): MacroStru
 
   const labels = [
     { label: 'EVENT', aliases: ['EVENT', 'INVESTOR TAKEAWAY', 'MACRO EVENT'] },
-    { label: 'SUMMARY', aliases: ['SUMMARY'] },
-    { label: 'KEY FACTS', aliases: ['KEY FACTS'] },
-    { label: 'DRIVERS', aliases: ['DRIVERS'] },
+    { label: 'WHY IT MATTERS', aliases: ['WHY IT MATTERS', 'SUMMARY', 'DRIVERS'] },
     { label: 'TRANSMISSION PATH', aliases: ['TRANSMISSION PATH', 'MARKET LOGIC', 'WHY MARKETS CARE'] },
-    { label: 'MARKET IMPACT', aliases: ['MARKET IMPACT', 'MARKET REACTION FRAMEWORK'] },
-    { label: 'WINNERS', aliases: ['WINNERS'] },
-    { label: 'LOSERS', aliases: ['LOSERS'] },
+    { label: 'PREDICTION', aliases: ['PREDICTION', 'MARKET IMPACT', 'MARKET REACTION FRAMEWORK'] },
     { label: 'HORIZON', aliases: ['HORIZON'] },
-    { label: 'WATCH NEXT', aliases: ['WATCH NEXT', 'ASSETS TO WATCH', 'TICKERS / ASSETS TO WATCH', 'TICKERS/ASSETS TO WATCH', 'TICKERS TO WATCH'] },
+    { label: 'CONFIDENCE', aliases: ['CONFIDENCE'] },
+    { label: 'BASE CASE', aliases: ['BASE CASE'] },
+    { label: 'BULL CASE', aliases: ['BULL CASE'] },
+    { label: 'BEAR CASE', aliases: ['BEAR CASE'] },
+    { label: 'SECTOR IMPACT', aliases: ['SECTOR IMPACT', 'WINNERS', 'LOSERS'] },
+    { label: 'TICKERS TO WATCH', aliases: ['TICKERS TO WATCH', 'ASSETS TO WATCH', 'TICKERS / ASSETS TO WATCH', 'TICKERS/ASSETS TO WATCH'] },
+    { label: 'MODEL IMPLICATIONS', aliases: ['MODEL IMPLICATIONS'] },
+    { label: 'WATCH NEXT', aliases: ['WATCH NEXT'] },
+    { label: 'SOURCES', aliases: ['SOURCES'] },
   ] as const;
 
   const allAliases = labels.flatMap((item) => item.aliases);
@@ -642,33 +646,49 @@ export default function HeadlinesPanel({
         'EVENT',
         `- ${eventTitle}`,
         '',
-        'SUMMARY',
+        'WHY IT MATTERS',
         `- ${whatHappened}`,
         '- This matters if it shifts policy, inflation, or risk-pricing expectations.',
-        '',
-        'KEY FACTS',
-        `- ${whatHappened}`,
-        '',
-        'DRIVERS',
-        `- ${sentenceCase(whyMarketsCare)}`,
         '',
         'TRANSMISSION PATH',
         '- Event -> macro expectations -> cross-asset repricing.',
         '',
-        'MARKET IMPACT',
-        ...marketImpact.map((item) => `- ${item}`),
-        '',
-        'WINNERS',
-        ...winners.map((item) => `- ${item}`),
-        '',
-        'LOSERS',
-        ...losers.map((item) => `- ${item}`),
+        'PREDICTION',
+        '- Base case depends on whether follow-through data confirms a sustained repricing.',
         '',
         'HORIZON',
-        `- ${horizon}`,
+        `- ${horizon === 'Immediate' ? 'Intraday' : '1W'}`,
+        '',
+        'CONFIDENCE',
+        '- Low',
+        '',
+        'BASE CASE',
+        ...marketImpact.map((item) => `- ${item}`),
+        '',
+        'BULL CASE',
+        '- Follow-up commentary narrows the concern and keeps the move contained.',
+        '',
+        'BEAR CASE',
+        '- Confirmation broadens the repricing across exposed sectors and risk assets.',
+        '',
+        'SECTOR IMPACT',
+        `- Winners: ${winners.join(', ')}.`,
+        `- Losers: ${losers.join(', ')}.`,
+        '',
+        'TICKERS TO WATCH',
+        `- ${watch}`,
+        '',
+        'MODEL IMPLICATIONS',
+        `- Revenue: ${sentenceCase(whyMarketsCare)}`,
+        '- Margins: exposed sectors may face assumption resets if the signal persists.',
+        '- Multiples: crowded, rate-sensitive exposures are most vulnerable to compression.',
         '',
         'WATCH NEXT',
-        `- ${watch}`,
+        `- Catalysts: ${watch}.`,
+        '- Invalidation signals: follow-through fades or management narrows the interpretation.',
+        '',
+        'SOURCES',
+        '- No primary sources attached in this example.',
       ].join('\n');
 
       return headlineEnrichmentSchema.parse({
