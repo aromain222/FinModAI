@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { DEMO_COMPANY_META, DEMO_TICKERS } from '../lib/demo/demoUniverse';
 import { syncCompanyFromFmp } from '../lib/integrations/fmp/syncCompany';
 import { syncPricesFromPolygon } from '../lib/integrations/polygon/syncPrices';
@@ -73,7 +73,7 @@ async function sleep(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function getSupabaseAdminClient() {
+function getSupabaseAdminClient(): SupabaseClient {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
   if (!supabaseUrl || !supabaseServiceKey) {
@@ -85,7 +85,7 @@ function getSupabaseAdminClient() {
 }
 
 async function buildDemoSnapshotRow(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   ticker: string
 ): Promise<DemoSnapshotRow> {
   const normalizedTicker = ticker.trim().toUpperCase();
