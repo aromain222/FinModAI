@@ -8,6 +8,8 @@ function env(key: string): string | undefined {
 }
 
 export const serverEnv = {
+  FMP_API_KEY: env('FMP_API_KEY'),
+  OPENFIGI_API_KEY: env('OPENFIGI_API_KEY'),
   POLYGON_API_KEY: env('POLYGON_API_KEY'),
   FINNHUB_API_KEY: env('FINNHUB_API_KEY'),
   TWELVEDATA_API_KEY: env('TWELVEDATA_API_KEY'),
