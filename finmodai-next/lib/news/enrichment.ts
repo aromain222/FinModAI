@@ -39,6 +39,15 @@ Rules:
 
 Output must be valid JSON matching the schema.`;
 
+function isPoliticalProcessHeadline(headline: { title: string; description: string | null }): boolean {
+  const text = `${headline.title} ${headline.description ?? ''}`.toLowerCase();
+  const processPattern =
+    /\b(senator|senate|nomination|nominee|chair pick|meets with|meeting with|blockade|committee|confirmation|hearing|whip count|white house)\b/i;
+  const hardMacroPattern =
+    /\b(rate|rates|yield|yields|inflation|cpi|pce|jobs|payrolls|treasury|tariff|sanction|oil|wti|brent|fomc|fed funds)\b/i;
+  return processPattern.test(text) && !hardMacroPattern.test(text);
+}
+
 const dbRowSchema = z.object({
   url: z.string().url(),
   ai_summary: z.string().nullable().optional(),
@@ -547,6 +556,8 @@ export function deterministicFallback(headline: {
   const direction = directionFromBias(impact.bias);
   const theme = inferHeadlineTheme(headline.title, headline.description);
   const directional = directionalTriplet(impact.bias);
+  const lowRelevance = !relevance.accepted || relevance.score < 45;
+  const politicalProcessOnly = isPoliticalProcessHeadline(headline);
 
   const stocksImpact = directional.equities === 'up'
     ? 'equities could benefit as risk appetite improves'
@@ -572,7 +583,9 @@ export function deterministicFallback(headline: {
     .filter((s) => s.direction === 'down')
     .map((s) => s.sector);
 
-  const summaryLine = impact.bias === 'Hawkish'
+  const summaryLine = lowRelevance || politicalProcessOnly
+    ? 'The headline adds political or process uncertainty, but the immediate market read-through appears limited unless it changes policy expectations directly.'
+    : impact.bias === 'Hawkish'
     ? 'The update signals tighter policy expectations with broader cross-asset effects.'
     : impact.bias === 'Dovish'
       ? 'The update signals easier policy expectations and support for risk assets.'
@@ -581,7 +594,9 @@ export function deterministicFallback(headline: {
         : impact.bias === 'Risk-On'
           ? 'The update signals improving risk appetite and cyclical sensitivity.'
           : 'The update appears incremental and may not reset the macro baseline.';
-  const whyLine = impact.bias === 'Hawkish'
+  const whyLine = lowRelevance || politicalProcessOnly
+    ? 'Markets are unlikely to reprice materially unless follow-up reporting changes the expected policy path, timing, or credibility of the underlying institution.'
+    : impact.bias === 'Hawkish'
     ? 'Higher rate expectations can lift yields and USD while pressuring long-duration equities.'
     : impact.bias === 'Dovish'
       ? 'Easing expectations can lower yields and USD while supporting risk assets.'
@@ -590,10 +605,15 @@ export function deterministicFallback(headline: {
         : impact.bias === 'Risk-On'
           ? 'Risk appetite can support cyclicals and broad equities while easing dollar demand.'
           : 'Without new macro information, cross-asset repricing is typically limited.';
-  const aiSummarySentences = [
-    toSentence(headline.title),
-    toSentence(headline.description && headline.description.trim().length > 0 ? headline.description : summaryLine),
-  ].filter(Boolean);
+  const aiSummarySentences = lowRelevance || politicalProcessOnly
+    ? [
+        toSentence(summaryLine),
+        toSentence(whyLine),
+      ].filter(Boolean)
+    : [
+        toSentence(headline.title),
+        toSentence(headline.description && headline.description.trim().length > 0 ? headline.description : summaryLine),
+      ].filter(Boolean);
   const aiSummary = ensureConciseSummary(aiSummarySentences.join(' '), aiSummarySentences.join(' '));
   const fallbackWatch = Array.from(
     new Set([
@@ -601,10 +621,50 @@ export function deterministicFallback(headline: {
       ...(theme.watch.length > 0 ? theme.watch.slice(0, 2) : ['SPY', 'TLT']),
     ])
   ).join(', ');
-  const transmissionFallback = impact.bias === 'Neutral'
+  const transmissionFallback = lowRelevance || politicalProcessOnly
+    ? 'Event -> political/process uncertainty -> limited shift in policy expectations -> selective moves in rate-sensitive assets.'
+    : impact.bias === 'Neutral'
     ? 'Event → limited change to macro expectations → muted cross-asset response.'
     : 'Event → macro expectation shift → rates/FX repricing → sector and style rotation.';
-  const horizon = impact.bias === 'Neutral' ? 'Immediate' : 'NearTerm';
+  const horizon = lowRelevance || politicalProcessOnly ? 'Immediate' : impact.bias === 'Neutral' ? 'Immediate' : 'NearTerm';
+  const displayedConfidence =
+    lowRelevance || politicalProcessOnly ? 'LOW' : impact.confidence.toUpperCase();
+  const sectorImpactLines =
+    lowRelevance || politicalProcessOnly
+      ? [
+          'Winners: No durable sector winner yet; any move should stay narrow and rate-sensitive.',
+          'Losers: Rate-sensitive groups can wobble if confirmation risk starts to affect policy-continuity expectations.',
+        ]
+      : [
+          `Winners: ${(winnerSectors.length > 0 ? winnerSectors : ['Defensives']).join(', ')}.`,
+          `Losers: ${(loserSectors.length > 0 ? loserSectors : ['Rate-sensitive cyclicals']).join(', ')}.`,
+        ];
+  const tickersToWatchLine =
+    lowRelevance || politicalProcessOnly
+      ? 'JPM — Mixed; financials react only if policy expectations materially shift. KRE — Mixed; regional banks are rate-sensitive. XLRE — Negative if confirmation risk lifts yields. QQQ — Mixed; duration-sensitive tech reacts to rate repricing, not nomination noise alone.'
+      : fallbackWatch || 'SPY, QQQ, TLT, DXY';
+  const modelImplicationLines =
+    lowRelevance || politicalProcessOnly
+      ? [
+          'Revenue: No immediate estimate change unless policy expectations move.',
+          'WACC: Small upward pressure only if yields rise on confirmation risk.',
+          'Multiples: Rate-sensitive sectors would move first; broad model changes are premature.',
+        ]
+      : [
+          `Revenue: ${summaryLine}`,
+          `Margins: ${whyLine}`,
+          'Multiples: the most crowded or duration-sensitive exposures reprice first.',
+        ];
+  const watchNextLines =
+    lowRelevance || politicalProcessOnly
+      ? [
+          'Catalysts: Senate whip count, White House guidance, Treasury yield reaction.',
+          'Invalidation signals: nomination path clears without changing policy expectations, or yields stay contained.',
+        ]
+      : [
+          `Catalysts: ${fallbackWatch || 'SPY, QQQ, TLT, DXY'}.`,
+          'Invalidation signals: follow-through data fades or management narrows the interpretation.',
+        ];
 
   const structuredFallback = formatStructuredAnalysis({
     EVENT: [headline.title || 'Macro update'],
@@ -615,7 +675,7 @@ export function deterministicFallback(headline: {
     'TRANSMISSION PATH': [transmissionFallback],
     PREDICTION: ['Base case depends on whether follow-up data confirms a sustained repricing.'],
     HORIZON: [horizon === 'Immediate' ? 'Intraday' : '1W'],
-    CONFIDENCE: [impact.confidence.toUpperCase()],
+    CONFIDENCE: [displayedConfidence],
     'BASE CASE': [
       `Equities: ${stocksImpact}.`,
       `Rates: ${ratesImpact}.`,
@@ -623,20 +683,10 @@ export function deterministicFallback(headline: {
     ],
     'BULL CASE': ['Follow-up commentary narrows the concern and keeps the move contained.'],
     'BEAR CASE': ['Confirmation broadens the repricing across sectors, estimates, and risk assets.'],
-    'SECTOR IMPACT': [
-      `Winners: ${(winnerSectors.length > 0 ? winnerSectors : ['Defensives']).join(', ')}.`,
-      `Losers: ${(loserSectors.length > 0 ? loserSectors : ['Rate-sensitive cyclicals']).join(', ')}.`,
-    ],
-    'TICKERS TO WATCH': [fallbackWatch || 'SPY, QQQ, TLT, DXY'],
-    'MODEL IMPLICATIONS': [
-      `Revenue: ${summaryLine}`,
-      `Margins: ${whyLine}`,
-      'Multiples: the most crowded or duration-sensitive exposures reprice first.',
-    ],
-    'WATCH NEXT': [
-      `Catalysts: ${fallbackWatch || 'SPY, QQQ, TLT, DXY'}.`,
-      'Invalidation signals: follow-through data fades or management narrows the interpretation.',
-    ],
+    'SECTOR IMPACT': sectorImpactLines,
+    'TICKERS TO WATCH': [tickersToWatchLine],
+    'MODEL IMPLICATIONS': modelImplicationLines,
+    'WATCH NEXT': watchNextLines,
     SOURCES: ['No primary sources attached in this example.'],
   });
   const whyItMatters = limitStructuredAnalysisWords(structuredFallback, 250);
@@ -644,21 +694,25 @@ export function deterministicFallback(headline: {
   return headlineEnrichmentSchema.parse({
     ai_summary: aiSummary,
     why_it_matters: whyItMatters,
-    impacted_sectors: impact.affectedSectors.length > 0
+    impacted_sectors: lowRelevance || politicalProcessOnly
+      ? []
+      : impact.affectedSectors.length > 0
       ? impact.affectedSectors.map((sector) => ({
           sector: sector.sector,
           direction: sector.direction,
           rationale: sector.rationale,
         }))
       : [{ sector: 'Financials', direction, rationale: 'Broad market sensitivity.' }],
-    impacted_tickers: impact.affectedTickers.length > 0
+    impacted_tickers: lowRelevance || politicalProcessOnly
+      ? []
+      : impact.affectedTickers.length > 0
       ? impact.affectedTickers.map((ticker) => ({
           ticker: ticker.ticker,
           direction: ticker.direction,
           rationale: ticker.rationale,
         }))
       : [{ ticker: 'SPY', direction, rationale: 'Tracks the overall stock market.' }],
-    confidence: impact.confidence,
+    confidence: lowRelevance || politicalProcessOnly ? 'low' : impact.confidence,
   });
 }
 
@@ -784,6 +838,8 @@ function ensureCompleteness(
   headline: { title: string; description: string | null; contextLines?: string[] }
 ): HeadlineEnrichment {
   const fallback = deterministicFallback(headline);
+  const shouldUseFallbackExposure =
+    enrichment.confidence === 'low' || isPoliticalProcessHeadline(headline);
   const hasInformativeDirection = (direction: 'up' | 'down' | 'mixed' | 'unknown') =>
     direction === 'up' || direction === 'down' || direction === 'mixed';
   const sectorsHaveDirectionalSignal = enrichment.impacted_sectors.some((sector) =>
@@ -809,15 +865,27 @@ function ensureCompleteness(
     if (fb) return fb;
     return null;
   };
+  const normalizedImpact = ensureStructuredImpact(
+    ensureConcreteImpact(enrichment.why_it_matters, fallback.why_it_matters),
+    {
+      ...fallback,
+      confidence: enrichment.confidence || fallback.confidence,
+    }
+  );
+
   return headlineEnrichmentSchema.parse({
     ai_summary: ensureSpecificSummary(enrichment.ai_summary),
-    why_it_matters: ensureConcreteImpact(enrichment.why_it_matters, fallback.why_it_matters),
+    why_it_matters: normalizedImpact,
     impacted_sectors:
-      enrichment.impacted_sectors.length > 0 && sectorsHaveDirectionalSignal
+      shouldUseFallbackExposure
+        ? fallback.impacted_sectors
+        : enrichment.impacted_sectors.length > 0 && sectorsHaveDirectionalSignal
         ? enrichment.impacted_sectors
         : fallback.impacted_sectors,
     impacted_tickers:
-      enrichment.impacted_tickers.filter((ticker) => normalizeTickerLabel(ticker.ticker) !== null).length > 0 &&
+      shouldUseFallbackExposure
+        ? fallback.impacted_tickers
+        : enrichment.impacted_tickers.filter((ticker) => normalizeTickerLabel(ticker.ticker) !== null).length > 0 &&
       tickersHaveDirectionalSignal
         ? enrichment.impacted_tickers
             .map((ticker) => ({
@@ -861,6 +929,27 @@ function hasLowQualityTickers(tickers: string[] | null | undefined): boolean {
   });
 }
 
+function cachedEnrichmentLooksOverstatedForWeakHeadline(
+  headline: { title: string; description: string | null },
+  row: {
+    confidence?: 'high' | 'medium' | 'low' | null;
+    why_it_matters?: string | null;
+    affected_tickers?: string[] | null;
+    affected_sectors?: string[] | null;
+  }
+): boolean {
+  if (!isPoliticalProcessHeadline(headline)) return false;
+  if (row.confidence && row.confidence !== 'low') return true;
+
+  const text = (row.why_it_matters ?? '').toUpperCase();
+  return (
+    text.includes('CONFIDENCE') ||
+    text.includes('HIGH') ||
+    (row.affected_tickers?.length ?? 0) > 0 ||
+    (row.affected_sectors?.length ?? 0) > 0
+  );
+}
+
 export async function getEnrichmentForHeadline(headline: {
   title: string;
   description: string | null;
@@ -881,7 +970,13 @@ export async function getEnrichmentForHeadline(headline: {
       if (row.success && row.data.ai_summary) {
         if (
           !hasLowQualityLegacySummary(row.data.ai_summary) &&
-          !hasLowQualityTickers(row.data.affected_tickers ?? [])
+          !hasLowQualityTickers(row.data.affected_tickers ?? []) &&
+          !cachedEnrichmentLooksOverstatedForWeakHeadline(headline, {
+            confidence: row.data.confidence,
+            why_it_matters: row.data.why_it_matters,
+            affected_tickers: row.data.affected_tickers ?? [],
+            affected_sectors: row.data.affected_sectors ?? [],
+          })
         ) {
         const fromCache = headlineEnrichmentSchema.parse({
           ai_summary: row.data.ai_summary,

@@ -449,9 +449,12 @@ function BulletList({ items, className }: { items: string[]; className?: string 
 function MarketImpactBlock({ text }: { text: string }) {
   const structured = parseMacroStructuredAnalysis(text);
   if (structured) {
+    const hiddenLabels = new Set(['PREDICTION', 'HORIZON', 'CONFIDENCE', 'SOURCES']);
     return (
       <div className="space-y-3">
-        {structured.map((section) => {
+        {structured
+          .filter((section) => !hiddenLabels.has(section.label))
+          .map((section) => {
           const lines = section.content
             .split('\n')
             .map((line) => line.trim())
@@ -868,6 +871,14 @@ export default function HeadlinesPanel({
               const risingSectors = (enrichment?.impacted_sectors ?? []).filter((sector) => sector.direction === 'up');
               const fallingSectors = (enrichment?.impacted_sectors ?? []).filter((sector) => sector.direction === 'down');
               const mixedSectors = (enrichment?.impacted_sectors ?? []).filter((sector) => sector.direction === 'mixed');
+              const showImpactChips =
+                (enrichment?.confidence ?? 'low') !== 'low' &&
+                (
+                  risingSectors.length > 0 ||
+                  fallingSectors.length > 0 ||
+                  mixedSectors.length > 0 ||
+                  (enrichment?.impacted_tickers?.length ?? 0) > 0
+                );
 
               return (
                 <div
@@ -948,14 +959,20 @@ export default function HeadlinesPanel({
                         </div>
 
                         {/* impact chips */}
-                        <div className="space-y-3">
-                          <div className="flex flex-wrap gap-6">
-                            <ImpactChips title="Rising Sectors" items={risingSectors} />
-                            <ImpactChips title="Falling Sectors" items={fallingSectors} />
-                            <ImpactChips title="Mixed Sectors" items={mixedSectors} />
+                        {showImpactChips ? (
+                          <div className="space-y-3">
+                            <div className="flex flex-wrap gap-6">
+                              <ImpactChips title="Rising Sectors" items={risingSectors} />
+                              <ImpactChips title="Falling Sectors" items={fallingSectors} />
+                              <ImpactChips title="Mixed Sectors" items={mixedSectors} />
+                            </div>
+                            <ImpactChips title="Tickers" items={enrichment.impacted_tickers} />
                           </div>
-                          <ImpactChips title="Tickers" items={enrichment.impacted_tickers} />
-                        </div>
+                        ) : (
+                          <div className="rounded-md border border-zinc-800/30 bg-zinc-900/20 px-3 py-2 text-[12px] text-zinc-400">
+                            No strong sector or ticker read-through yet.
+                          </div>
+                        )}
 
                         {/* market impact */}
                         {enrichment.why_it_matters && (
