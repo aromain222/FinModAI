@@ -23,6 +23,7 @@ import { extractVerifiedFacts, serializeFactsForContext, type VerifiedFacts } fr
 import { gatherAnalystRetrievalContext, inferTickerFromPrompt } from '@/lib/analyst/retrieval';
 import { generateAnalystDcfDemo } from '@/lib/analyst/dcfDemo';
 import { generateAnalystStructuredModel } from '@/lib/analyst/modelChat';
+import { savePromptModelRunVersion } from '@/lib/model-generator/runHistory';
 import { classifyPrompt } from '@/lib/model-generator/classifyPrompt';
 import { getIntentPrompt } from '@/lib/analyst/prompts';
 import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKey';
@@ -242,6 +243,7 @@ export async function POST(req: NextRequest) {
       ? body.ticker.trim().toUpperCase()
       : undefined;
     const pdfText = typeof body?.pdfText === 'string' ? body.pdfText : null;
+    const sessionId = typeof body?.sessionId === 'string' && body.sessionId.trim().length > 0 ? body.sessionId.trim() : null;
     const messages = Array.isArray(body?.messages) ? body.messages : [];
 
     const safeMessages = messages
@@ -282,15 +284,43 @@ export async function POST(req: NextRequest) {
     if (route.intent === 'financial_model') {
       const modelType = classifyPrompt(lastUserMessage);
       if (modelType && modelType !== 'DCF') {
-        const generatedModel = await generateAnalystStructuredModel(lastUserMessage);
+        const generatedModel = await generateAnalystStructuredModel(lastUserMessage, sessionId);
         if (generatedModel) {
+          try {
+            await savePromptModelRunVersion({
+              surface: 'analyst_chat',
+              sessionId,
+              prompt: lastUserMessage,
+              modelType: generatedModel.payload.modelType,
+              companyName:
+                'companyName' in generatedModel.payload.extractedInputs
+                  ? generatedModel.payload.extractedInputs.companyName
+                  : null,
+              ticker:
+                'ticker' in generatedModel.payload.extractedInputs
+                  ? generatedModel.payload.extractedInputs.ticker ?? null
+                  : null,
+              status: 'generated',
+              assumptions: generatedModel.payload.extractedInputs as Record<string, unknown>,
+              defaultsUsed: generatedModel.payload.defaultsUsed,
+              extractedInputs: generatedModel.payload.extractedInputs as Record<string, unknown>,
+              provenance: generatedModel.payload.provenanceSummary,
+            });
+          } catch (error) {
+            console.error('[analyst-chat] unable to persist generated model run', error);
+          }
+
           return NextResponse.json({
             reply: generatedModel.reply,
             fallback: false,
             mode: 'live',
             route: route.intent,
             generatedModel: generatedModel.payload,
-            sources: ['CapitalBase local model templates', 'Deterministic prompt extraction and defaults'],
+            sources: [
+              ...generatedModel.payload.provenanceSummary.sources,
+              'CapitalBase local model templates',
+              'Deterministic prompt extraction and defaults',
+            ],
             factsCount: 0,
           });
         }

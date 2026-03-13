@@ -80,11 +80,24 @@ export function AnalystChatApp() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingState, setLoadingState] = useState<{ title: string; detail: string } | null>(null);
+  const [sessionId, setSessionId] = useState<string>('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    const storageKey = 'capitalbase-analyst-session-id';
+    const existing = window.localStorage.getItem(storageKey);
+    if (existing) {
+      setSessionId(existing);
+      return;
+    }
+    const created = crypto.randomUUID();
+    window.localStorage.setItem(storageKey, created);
+    setSessionId(created);
+  }, []);
 
   const handlePdf = (file: File | null) => {
     if (!file) {
@@ -113,6 +126,7 @@ export function AnalystChatApp() {
         body: JSON.stringify({
           ticker: ticker.trim().length > 0 ? ticker.trim().toUpperCase() : undefined,
           pdfText: pdfNote,
+          sessionId,
           messages: [...messages, userMessage]
         })
       });
