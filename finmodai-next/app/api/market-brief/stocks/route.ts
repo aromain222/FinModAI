@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { fetchDailySeries, type SeriesQuality } from '@/lib/marketData/fetchDailySeries';
 import { getDemoTickers } from '@/lib/data/providers/demoProvider';
 
-type TimeRange = '1D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'YTD' | 'MAX';
+type TimeRange = '1D' | '1W' | '1M' | '3M' | '6M' | '1Y' | '5Y' | 'YTD' | 'MAX';
 
 export type StockMove = {
   ticker: string;
@@ -48,6 +48,9 @@ function getPeriodDates(period: TimeRange): { startDate: Date; endDate: Date } {
     case '1Y':
       startDate.setFullYear(startDate.getFullYear() - 1);
       break;
+    case '5Y':
+      startDate.setFullYear(startDate.getFullYear() - 5);
+      break;
     case 'MAX':
       startDate.setFullYear(startDate.getFullYear() - 10);
       break;
@@ -84,7 +87,7 @@ export async function GET(req: NextRequest) {
   const rangeParam = (req.nextUrl.searchParams.get('period') ||
     req.nextUrl.searchParams.get('range') ||
     '1M') as TimeRange;
-  const range: TimeRange = ['1D','1W','1M','3M','6M','1Y','YTD','MAX'].includes(rangeParam)
+  const range: TimeRange = ['1D','1W','1M','3M','6M','1Y','5Y','YTD','MAX'].includes(rangeParam)
     ? rangeParam
     : '1M';
 

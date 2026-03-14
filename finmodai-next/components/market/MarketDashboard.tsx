@@ -17,6 +17,7 @@ import {
 } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { trackEvent } from '@/lib/trackEvent';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -101,6 +102,34 @@ interface SectorsPayload {
   error?: { code: string; message: string };
 }
 
+interface MarketBriefStockMove {
+  ticker: string;
+  returnPct: number;
+  lastPrice?: number;
+  name?: string;
+}
+
+interface MarketBriefStocksPayload {
+  range: Exclude<RangeKey, '5D'> | '6M';
+  asOf: string;
+  rising: MarketBriefStockMove[];
+  falling: MarketBriefStockMove[];
+  warnings?: string[];
+}
+
+interface MarketBriefSectorRow {
+  sector: string;
+  ticker: string;
+  returnPct: number;
+}
+
+interface MarketBriefSectorsPayload {
+  asOf?: string;
+  rising: MarketBriefSectorRow[];
+  falling: MarketBriefSectorRow[];
+  warnings?: string[];
+}
+
 type CandlePoint = {
   t: number;
   open: number;
@@ -122,6 +151,11 @@ const QUOTE_SYMBOLS = [
   'AAPL', 'MSFT', 'NVDA', 'AMZN', 'TSLA',
   'BTCUSD', 'ETHUSD',
 ];
+
+function breadthRangeFor(range: RangeKey): Exclude<RangeKey, '5D'> | '6M' {
+  if (range === '5D') return '1W';
+  return range;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -429,11 +463,13 @@ export default function MarketDashboard() {
   const [movers, setMovers] = useState<{ rising: StockMove[]; falling: StockMove[] } | null>(null);
   const [moversLoading, setMoversLoading] = useState(true);
   const [moversFreshness, setMoversFreshness] = useState<Freshness>('fresh');
+  const [moversAsOf, setMoversAsOf] = useState<string | null>(null);
 
   // Sectors
   const [sectors, setSectors] = useState<{ rising: SectorRow[]; falling: SectorRow[] } | null>(null);
   const [sectorsLoading, setSectorsLoading] = useState(true);
   const [sectorsFreshness, setSectorsFreshness] = useState<Freshness>('fresh');
+  const [sectorsAsOf, setSectorsAsOf] = useState<string | null>(null);
 
   const perfRequestId = useRef(0);
 
@@ -489,37 +525,45 @@ export default function MarketDashboard() {
     }
   };
 
-  const fetchMovers = async () => {
+  const fetchMovers = async (range: RangeKey) => {
     setMoversLoading(true);
     try {
-      const res = await fetch('/api/market/movers', { cache: 'no-store' });
-      const payload: MoversPayload = await res.json();
-      if (payload.ok) {
-        setMovers({ rising: payload.rising ?? [], falling: payload.falling ?? [] });
-        setMoversFreshness(payload.freshness ?? 'fresh');
-      } else {
+      const breadthRange = breadthRangeFor(range);
+      const res = await fetch(`/api/market-brief/stocks?period=${breadthRange}`, { cache: 'no-store' });
+      if (!res.ok) {
         setMovers(null);
+        setMoversFreshness('stale');
+        return;
       }
+      const payload: MarketBriefStocksPayload = await res.json();
+      setMovers({ rising: payload.rising ?? [], falling: payload.falling ?? [] });
+      setMoversFreshness('fresh');
+      setMoversAsOf(payload.asOf ?? null);
     } catch {
       setMovers(null);
+      setMoversFreshness('stale');
     } finally {
       setMoversLoading(false);
     }
   };
 
-  const fetchSectors = async () => {
+  const fetchSectors = async (range: RangeKey) => {
     setSectorsLoading(true);
     try {
-      const res = await fetch('/api/market/sectors', { cache: 'no-store' });
-      const payload: SectorsPayload = await res.json();
-      if (payload.ok) {
-        setSectors({ rising: payload.rising ?? [], falling: payload.falling ?? [] });
-        setSectorsFreshness(payload.freshness ?? 'fresh');
-      } else {
+      const breadthRange = breadthRangeFor(range);
+      const res = await fetch(`/api/market-brief/sectors?period=${breadthRange}`, { cache: 'no-store' });
+      if (!res.ok) {
         setSectors(null);
+        setSectorsFreshness('stale');
+        return;
       }
+      const payload: MarketBriefSectorsPayload = await res.json();
+      setSectors({ rising: payload.rising ?? [], falling: payload.falling ?? [] });
+      setSectorsFreshness('fresh');
+      setSectorsAsOf(payload.asOf ?? null);
     } catch {
       setSectors(null);
+      setSectorsFreshness('stale');
     } finally {
       setSectorsLoading(false);
     }
@@ -528,13 +572,14 @@ export default function MarketDashboard() {
   /* --- Effects --- */
 
   useEffect(() => {
+    void trackEvent('opened_market_tab');
     fetchQuotes();
-    fetchMovers();
-    fetchSectors();
   }, []);
 
   useEffect(() => {
     fetchPerformance(rangeKey);
+    fetchMovers(rangeKey);
+    fetchSectors(rangeKey);
   }, [rangeKey]);
 
   /* --- Derived data --- */
@@ -560,7 +605,7 @@ export default function MarketDashboard() {
       ? 'stale'
       : 'fresh';
 
-  const asOfDisplay = quotesAsOf || chartAsOf || new Date().toISOString();
+  const asOfDisplay = quotesAsOf || chartAsOf || moversAsOf || sectorsAsOf || new Date().toISOString();
 
   return (
     <div className="h-[calc(100vh-72px)] w-full overflow-y-auto overflow-x-hidden bg-zinc-950">
