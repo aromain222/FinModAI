@@ -357,6 +357,33 @@ function parseMacroStructuredAnalysis(raw: string | null | undefined): MacroStru
   return sections.length >= 3 ? sections : null;
 }
 
+function buildStructuredLead(text: string | null | undefined): string | null {
+  const structured = parseMacroStructuredAnalysis(text);
+  if (!structured) return null;
+
+  const getSection = (label: string) => structured.find((section) => section.label === label)?.content ?? null;
+  const event = structuredSectionParagraph(getSection('EVENT') ?? '', 1);
+  const why = structuredSectionParagraph(getSection('WHY IT MATTERS') ?? '', 2);
+  const base = structuredSectionParagraph(getSection('BASE CASE') ?? '', 1);
+
+  const parts = [event, why, base]
+    .filter((part): part is string => Boolean(part))
+    .map((part) => part.replace(/^That said,\s*/i, '').trim());
+
+  if (parts.length === 0) return null;
+  return parts.join(' ');
+}
+
+function buildAnalysisLead(enrichment: HeadlineEnrichment): string {
+  const structuredLead = buildStructuredLead(enrichment.why_it_matters);
+  if (structuredLead) return structuredLead;
+
+  const aiSummary = formatAiSummaryText(enrichment.ai_summary);
+  if (aiSummary !== 'Summary unavailable.') return aiSummary;
+
+  return formatPlainNarrative(enrichment.why_it_matters, 2);
+}
+
 function normalizeSentence(text: string): string {
   const cleaned = text
     .replace(/^why it matters:\s*/i, '')
@@ -488,13 +515,13 @@ function MarketImpactBlock({ text }: { text: string }) {
         {(horizon || confidence) && (
           <div className="flex flex-wrap gap-2">
             {horizon && (
-              <div className="rounded-md border border-zinc-800/40 bg-zinc-900/30 px-3 py-1.5 text-[11px] font-medium text-zinc-300">
-                Horizon: <span className="text-zinc-100">{horizon}</span>
+              <div className="rounded-full border border-zinc-800/50 bg-zinc-900/50 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-300">
+                Horizon <span className="ml-1 text-zinc-100 normal-case tracking-normal">{horizon}</span>
               </div>
             )}
             {confidence && (
-              <div className="rounded-md border border-zinc-800/40 bg-zinc-900/30 px-3 py-1.5 text-[11px] font-medium text-zinc-300">
-                Confidence: <span className="text-zinc-100">{confidence}</span>
+              <div className="rounded-full border border-zinc-800/50 bg-zinc-900/50 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-300">
+                Confidence <span className="ml-1 text-zinc-100 normal-case tracking-normal">{confidence}</span>
               </div>
             )}
           </div>
@@ -522,21 +549,21 @@ function MarketImpactBlock({ text }: { text: string }) {
         )}
 
         {(baseCase.length > 0 || bullCase.length > 0 || bearCase.length > 0) && (
-          <div className="grid gap-3 lg:grid-cols-3">
+          <div className="grid gap-3 xl:grid-cols-3">
             {baseCase.length > 0 && (
-              <div className="rounded-md border border-zinc-800/35 bg-zinc-900/20 px-3 py-3">
+              <div className="rounded-lg border border-zinc-800/40 bg-zinc-900/30 px-4 py-3">
                 <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Base Case</div>
                 <BulletList items={baseCase.map((item) => sentenceCase(item))} />
               </div>
             )}
             {bullCase.length > 0 && (
-              <div className="rounded-md border border-emerald-500/15 bg-emerald-500/5 px-3 py-3">
+              <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/6 px-4 py-3">
                 <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-emerald-400">Bull Case</div>
                 <BulletList items={bullCase.map((item) => sentenceCase(item))} />
               </div>
             )}
             {bearCase.length > 0 && (
-              <div className="rounded-md border border-rose-500/15 bg-rose-500/5 px-3 py-3">
+              <div className="rounded-lg border border-rose-500/20 bg-rose-500/6 px-4 py-3">
                 <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-rose-400">Bear Case</div>
                 <BulletList items={bearCase.map((item) => sentenceCase(item))} />
               </div>
@@ -545,15 +572,15 @@ function MarketImpactBlock({ text }: { text: string }) {
         )}
 
         {(sectorImpact.length > 0 || tickersToWatch.length > 0) && (
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid gap-3 xl:grid-cols-2">
             {sectorImpact.length > 0 && (
-              <div className="rounded-md border border-zinc-800/35 bg-zinc-900/20 px-3 py-3">
+              <div className="rounded-lg border border-zinc-800/40 bg-zinc-900/25 px-4 py-3">
                 <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Sector Impact</div>
                 <BulletList items={sectorImpact.map((item) => sentenceCase(item))} />
               </div>
             )}
             {tickersToWatch.length > 0 && (
-              <div className="rounded-md border border-zinc-800/35 bg-zinc-900/20 px-3 py-3">
+              <div className="rounded-lg border border-zinc-800/40 bg-zinc-900/25 px-4 py-3">
                 <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Tickers To Watch</div>
                 <BulletList items={tickersToWatch.map((item) => sentenceCase(item))} />
               </div>
@@ -562,15 +589,15 @@ function MarketImpactBlock({ text }: { text: string }) {
         )}
 
         {(modelImplications.length > 0 || watchNext.length > 0) && (
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid gap-3 xl:grid-cols-2">
             {modelImplications.length > 0 && (
-              <div className="rounded-md border border-zinc-800/35 bg-zinc-900/20 px-3 py-3">
+              <div className="rounded-lg border border-zinc-800/40 bg-zinc-900/25 px-4 py-3">
                 <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Model Implications</div>
                 <BulletList items={modelImplications.map((item) => sentenceCase(item))} />
               </div>
             )}
             {watchNext.length > 0 && (
-              <div className="rounded-md border border-zinc-800/35 bg-zinc-900/20 px-3 py-3">
+              <div className="rounded-lg border border-zinc-800/40 bg-zinc-900/25 px-4 py-3">
                 <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Watch Next</div>
                 <BulletList items={watchNext.map((item) => sentenceCase(item))} />
               </div>
@@ -1053,8 +1080,8 @@ export default function HeadlinesPanel({
                             <SectionLabel icon={<Zap className="h-3 w-3" />} label="AI Analysis" />
                             <ConfidenceBadge level={enrichment.confidence ?? 'low'} />
                           </div>
-                          <p className="text-[13px] leading-relaxed text-zinc-300">
-                            {formatAiSummaryText(enrichment.ai_summary)}
+                          <p className="text-[13px] leading-relaxed text-zinc-200">
+                            {buildAnalysisLead(enrichment)}
                           </p>
                         </div>
 
