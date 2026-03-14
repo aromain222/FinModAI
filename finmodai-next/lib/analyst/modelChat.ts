@@ -110,6 +110,17 @@ function computeChangedKeys(previous: Record<string, unknown>, current: Record<s
   return Array.from(keys).filter((key) => JSON.stringify(previous[key]) !== JSON.stringify(current[key]));
 }
 
+function removeOverriddenDefaults(
+  defaultsUsed: Record<string, unknown>,
+  overrides: Record<string, unknown>
+): Record<string, unknown> {
+  const next = { ...defaultsUsed };
+  for (const key of Object.keys(overrides)) {
+    delete next[key];
+  }
+  return next;
+}
+
 function buildRecentRunSummary(recentRun: PromptRunRecord | null) {
   if (!recentRun) return null;
   return {
@@ -798,16 +809,23 @@ export async function reviseAnalystStructuredModel(
     ...existingPayload.extractedInputs,
     ...mergedOverrides,
   } as ExtractedModelInputs;
+  const defaultsUsed = removeOverriddenDefaults(existingPayload.defaultsUsed, mergedOverrides);
   const fallbackUsed = Array.from(new Set([
     ...existingPayload.provenanceSummary.fallbackUsed,
     'follow_up_adjustment',
   ]));
-
-  return buildStructuredModelPayload({
+  const currentAssumptions = extractComparableAssumptions(extractedInputs as Record<string, unknown>);
+  const previousAssumptions = extractComparableAssumptions(existingPayload.extractedInputs as Record<string, unknown>);
+  const changedKeys = computeChangedKeys(previousAssumptions, currentAssumptions);
+  const previousVersionNumber =
+    existingPayload.comparisonSummary?.currentVersionNumber ??
+    existingPayload.recentRun?.versionNumber ??
+    null;
+  const payloadResult = await buildStructuredModelPayload({
     prompt,
     modelType: existingPayload.modelType,
     extractedInputs,
-    defaultsUsed: existingPayload.defaultsUsed,
+    defaultsUsed,
     provenanceSummary: {
       ...existingPayload.provenanceSummary,
       fallbackUsed,
@@ -815,6 +833,21 @@ export async function reviseAnalystStructuredModel(
     sessionId,
     replyPrefix: buildAdjustedReply(existingPayload.modelType, mergedOverrides),
   });
+
+  return {
+    reply: payloadResult.reply,
+    payload: {
+      ...payloadResult.payload,
+      comparisonSummary:
+        changedKeys.length > 0
+          ? {
+              previousVersionNumber,
+              currentVersionNumber: previousVersionNumber !== null ? previousVersionNumber + 1 : null,
+              changedKeys,
+            }
+          : payloadResult.payload.comparisonSummary,
+    },
+  };
 }
 
 export async function generateAnalystStructuredModel(prompt: string, sessionId?: string | null): Promise<{
