@@ -283,6 +283,26 @@ type MacroStructuredSection = {
   content: string;
 };
 
+function cleanStructuredLine(line: string): string {
+  return line
+    .replace(/^[-•*]\s*/, '')
+    .replace(/^[-•*]\s*/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function structuredSectionLines(content: string): string[] {
+  return content
+    .split('\n')
+    .map((line) => cleanStructuredLine(line))
+    .filter(Boolean);
+}
+
+function structuredSectionParagraph(content: string, maxSentences = 3): string | null {
+  const lines = structuredSectionLines(content);
+  return toParagraph(lines, maxSentences);
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -449,34 +469,114 @@ function BulletList({ items, className }: { items: string[]; className?: string 
 function MarketImpactBlock({ text }: { text: string }) {
   const structured = parseMacroStructuredAnalysis(text);
   if (structured) {
-    const hiddenLabels = new Set(['PREDICTION', 'HORIZON', 'CONFIDENCE', 'SOURCES']);
-    return (
-      <div className="space-y-3">
-        {structured
-          .filter((section) => !hiddenLabels.has(section.label))
-          .map((section) => {
-          const lines = section.content
-            .split('\n')
-            .map((line) => line.trim())
-            .filter(Boolean);
-          const bullets = (lines.length > 0 ? lines : [section.content])
-            .map((line) => line.replace(/^[-•*]\s*/, '').trim())
-            .filter(Boolean);
+    const getSection = (label: string) => structured.find((section) => section.label === label)?.content ?? null;
+    const horizon = structuredSectionParagraph(getSection('HORIZON') ?? '', 1);
+    const confidence = structuredSectionParagraph(getSection('CONFIDENCE') ?? '', 1);
+    const event = structuredSectionParagraph(getSection('EVENT') ?? '', 2);
+    const whyItMatters = structuredSectionParagraph(getSection('WHY IT MATTERS') ?? '', 3);
+    const transmission = structuredSectionParagraph(getSection('TRANSMISSION PATH') ?? '', 2);
+    const baseCase = structuredSectionLines(getSection('BASE CASE') ?? '');
+    const bullCase = structuredSectionLines(getSection('BULL CASE') ?? '');
+    const bearCase = structuredSectionLines(getSection('BEAR CASE') ?? '');
+    const sectorImpact = structuredSectionLines(getSection('SECTOR IMPACT') ?? '');
+    const tickersToWatch = structuredSectionLines(getSection('TICKERS TO WATCH') ?? '');
+    const modelImplications = structuredSectionLines(getSection('MODEL IMPLICATIONS') ?? '');
+    const watchNext = structuredSectionLines(getSection('WATCH NEXT') ?? '');
 
-          return (
-            <div key={section.label}>
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{section.label}</div>
-              <ul className="space-y-1">
-                {bullets.map((bullet, index) => (
-                  <li key={`${section.label}-${index}`} className="flex items-start gap-2 text-[13px] leading-relaxed text-zinc-300">
-                    <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-zinc-500" />
-                    <span>{sentenceCase(bullet)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          );
-        })}
+    return (
+      <div className="space-y-4">
+        {(horizon || confidence) && (
+          <div className="flex flex-wrap gap-2">
+            {horizon && (
+              <div className="rounded-md border border-zinc-800/40 bg-zinc-900/30 px-3 py-1.5 text-[11px] font-medium text-zinc-300">
+                Horizon: <span className="text-zinc-100">{horizon}</span>
+              </div>
+            )}
+            {confidence && (
+              <div className="rounded-md border border-zinc-800/40 bg-zinc-900/30 px-3 py-1.5 text-[11px] font-medium text-zinc-300">
+                Confidence: <span className="text-zinc-100">{confidence}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {event && (
+          <div>
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Event</div>
+            <p className="text-[13px] leading-relaxed text-zinc-200">{event}</p>
+          </div>
+        )}
+
+        {whyItMatters && (
+          <div>
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Why It Matters</div>
+            <p className="text-[13px] leading-relaxed text-zinc-300">{whyItMatters}</p>
+          </div>
+        )}
+
+        {transmission && (
+          <div className="rounded-md border border-zinc-800/40 bg-zinc-900/30 px-3 py-2.5">
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Transmission Path</div>
+            <p className="text-[13px] leading-relaxed text-zinc-200">{transmission}</p>
+          </div>
+        )}
+
+        {(baseCase.length > 0 || bullCase.length > 0 || bearCase.length > 0) && (
+          <div className="grid gap-3 lg:grid-cols-3">
+            {baseCase.length > 0 && (
+              <div className="rounded-md border border-zinc-800/35 bg-zinc-900/20 px-3 py-3">
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Base Case</div>
+                <BulletList items={baseCase.map((item) => sentenceCase(item))} />
+              </div>
+            )}
+            {bullCase.length > 0 && (
+              <div className="rounded-md border border-emerald-500/15 bg-emerald-500/5 px-3 py-3">
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-emerald-400">Bull Case</div>
+                <BulletList items={bullCase.map((item) => sentenceCase(item))} />
+              </div>
+            )}
+            {bearCase.length > 0 && (
+              <div className="rounded-md border border-rose-500/15 bg-rose-500/5 px-3 py-3">
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-rose-400">Bear Case</div>
+                <BulletList items={bearCase.map((item) => sentenceCase(item))} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {(sectorImpact.length > 0 || tickersToWatch.length > 0) && (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {sectorImpact.length > 0 && (
+              <div className="rounded-md border border-zinc-800/35 bg-zinc-900/20 px-3 py-3">
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Sector Impact</div>
+                <BulletList items={sectorImpact.map((item) => sentenceCase(item))} />
+              </div>
+            )}
+            {tickersToWatch.length > 0 && (
+              <div className="rounded-md border border-zinc-800/35 bg-zinc-900/20 px-3 py-3">
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Tickers To Watch</div>
+                <BulletList items={tickersToWatch.map((item) => sentenceCase(item))} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {(modelImplications.length > 0 || watchNext.length > 0) && (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {modelImplications.length > 0 && (
+              <div className="rounded-md border border-zinc-800/35 bg-zinc-900/20 px-3 py-3">
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Model Implications</div>
+                <BulletList items={modelImplications.map((item) => sentenceCase(item))} />
+              </div>
+            )}
+            {watchNext.length > 0 && (
+              <div className="rounded-md border border-zinc-800/35 bg-zinc-900/20 px-3 py-3">
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Watch Next</div>
+                <BulletList items={watchNext.map((item) => sentenceCase(item))} />
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
