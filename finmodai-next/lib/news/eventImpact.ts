@@ -12,6 +12,141 @@ export type EventImpact = {
   whyItMatters: string;
 };
 
+const BROAD_PROXY_TICKERS = new Set([
+  'SPY',
+  'QQQ',
+  'TLT',
+  'DXY',
+  'XLE',
+  'XLF',
+  'XLK',
+  'XLRE',
+  'XLI',
+  'XLY',
+  'XLP',
+  'XLV',
+  'XLU',
+  'KRE',
+]);
+
+const SECTOR_TICKER_MAP: Record<
+  string,
+  Array<{ ticker: string; rationale: string }>
+> = {
+  Energy: [
+    { ticker: 'XOM', rationale: 'Integrated oil major with direct sensitivity to crude and refined-product pricing.' },
+    { ticker: 'CVX', rationale: 'Large-cap energy exposure with clear read-through from commodity moves.' },
+    { ticker: 'SLB', rationale: 'Oilfield-services name leveraged to upstream activity and capex expectations.' },
+  ],
+  Financials: [
+    { ticker: 'JPM', rationale: 'Large bank with direct sensitivity to rates, credit, and market conditions.' },
+    { ticker: 'MS', rationale: 'Capital-markets and wealth platform sensitive to rates and risk sentiment.' },
+    { ticker: 'SCHW', rationale: 'Brokerage and sweep-balance model with high sensitivity to rate and funding shifts.' },
+  ],
+  Technology: [
+    { ticker: 'MSFT', rationale: 'Mega-cap technology name sensitive to discount rates and enterprise demand.' },
+    { ticker: 'NVDA', rationale: 'High-expectation semiconductor exposure with valuation sensitivity to macro repricing.' },
+    { ticker: 'AAPL', rationale: 'Large multinational with meaningful rates, FX, and demand sensitivity.' },
+  ],
+  'Consumer Discretionary': [
+    { ticker: 'AMZN', rationale: 'Large consumer and logistics exposure with sensitivity to spending and margin pressure.' },
+    { ticker: 'HD', rationale: 'Consumer spending and housing-linked name exposed to macro demand shifts.' },
+    { ticker: 'NKE', rationale: 'Global discretionary brand with consumer and FX sensitivity.' },
+  ],
+  'Consumer Staples': [
+    { ticker: 'WMT', rationale: 'Defensive consumer exposure with pricing-power and volume read-through.' },
+    { ticker: 'PG', rationale: 'Staples name with margin and pricing sensitivity to inflation and FX.' },
+    { ticker: 'KO', rationale: 'Defensive global consumer business with FX and input-cost exposure.' },
+  ],
+  Industrials: [
+    { ticker: 'CAT', rationale: 'Global cyclical industrial with direct sensitivity to growth, commodity, and capex expectations.' },
+    { ticker: 'DE', rationale: 'Industrial and agriculture exposure tied to cyclical demand and financing conditions.' },
+    { ticker: 'GE', rationale: 'Large industrial platform exposed to capex, aviation, and macro demand shifts.' },
+  ],
+  Materials: [
+    { ticker: 'LIN', rationale: 'Industrial gas leader leveraged to global manufacturing and commodity activity.' },
+    { ticker: 'FCX', rationale: 'Copper miner with direct commodity and growth-cycle exposure.' },
+    { ticker: 'NEM', rationale: 'Gold and metals exposure tied to inflation, rates, and risk sentiment.' },
+  ],
+  Utilities: [
+    { ticker: 'NEE', rationale: 'Utility and renewables name with clear rate sensitivity.' },
+    { ticker: 'DUK', rationale: 'Defensive regulated utility exposed to yield competition.' },
+    { ticker: 'SO', rationale: 'Rate-sensitive utility used as a bond-proxy read-through.' },
+  ],
+  'Real Estate': [
+    { ticker: 'PLD', rationale: 'Large REIT with direct cap-rate and financing sensitivity.' },
+    { ticker: 'AMT', rationale: 'Rate-sensitive tower REIT with long-duration cash flow exposure.' },
+    { ticker: 'SPG', rationale: 'Consumer-linked REIT exposed to funding conditions and discretionary demand.' },
+  ],
+  'Communication Services': [
+    { ticker: 'GOOGL', rationale: 'Ad and cloud exposure with clear read-through from macro growth and risk appetite.' },
+    { ticker: 'META', rationale: 'Digital advertising and AI spend exposure sensitive to macro and valuation shifts.' },
+    { ticker: 'NFLX', rationale: 'Large liquid media platform used as a communication-services read-through.' },
+  ],
+  Healthcare: [
+    { ticker: 'UNH', rationale: 'Large-cap healthcare exposure often used as a defensive macro read-through.' },
+    { ticker: 'JNJ', rationale: 'Defensive healthcare exposure with broad institutional liquidity.' },
+    { ticker: 'LLY', rationale: 'High-quality healthcare growth name sensitive to both defensiveness and valuation.' },
+  ],
+};
+
+const EVENT_TYPE_TICKER_MAP: Partial<
+  Record<RelevanceEventType, Array<{ ticker: string; direction: ImpactDirection; rationale: string }>>
+> = {
+  policy: [
+    { ticker: 'JPM', direction: 'up', rationale: 'Large banks benefit first if higher rates support spreads.' },
+    { ticker: 'SCHW', direction: 'up', rationale: 'Rate-sensitive sweep economics reprice quickly on policy shifts.' },
+    { ticker: 'PLD', direction: 'down', rationale: 'REIT valuations are directly exposed to higher discount rates.' },
+    { ticker: 'AMT', direction: 'down', rationale: 'Long-duration real estate cash flows de-rate as yields rise.' },
+  ],
+  rates: [
+    { ticker: 'JPM', direction: 'up', rationale: 'Financials react directly to curve and funding changes.' },
+    { ticker: 'MS', direction: 'up', rationale: 'Capital-markets names respond quickly to rate-led risk rotation.' },
+    { ticker: 'PLD', direction: 'down', rationale: 'REIT cap-rate sensitivity makes rate moves visible in equity prices.' },
+    { ticker: 'NEE', direction: 'down', rationale: 'Utilities act like bond proxies when yields move higher.' },
+  ],
+  inflation: [
+    { ticker: 'XOM', direction: 'up', rationale: 'Commodity-linked cash flows can strengthen when inflation pressure rises.' },
+    { ticker: 'CVX', direction: 'up', rationale: 'Energy majors tend to benefit from higher commodity realizations.' },
+    { ticker: 'WMT', direction: 'mixed', rationale: 'Staples-like traffic can hold, but margin and mix pressure still matter.' },
+    { ticker: 'HD', direction: 'down', rationale: 'Consumer purchasing-power pressure can weigh on discretionary demand.' },
+  ],
+  growth: [
+    { ticker: 'CAT', direction: 'up', rationale: 'Industrial cyclicals reprice quickly when growth expectations improve.' },
+    { ticker: 'DE', direction: 'up', rationale: 'Equipment demand and operating leverage track the growth backdrop.' },
+    { ticker: 'AMZN', direction: 'up', rationale: 'Consumer and cloud demand expectations improve in a stronger growth regime.' },
+    { ticker: 'NEE', direction: 'down', rationale: 'Defensive yield-sensitive names can lag in pro-growth rotations.' },
+  ],
+  energy: [
+    { ticker: 'XOM', direction: 'up', rationale: 'Direct exposure to crude-price and supply-risk repricing.' },
+    { ticker: 'CVX', direction: 'up', rationale: 'Integrated energy exposure benefits from higher oil prices.' },
+    { ticker: 'SLB', direction: 'up', rationale: 'Oilfield services has high operating leverage to energy capex.' },
+    { ticker: 'DAL', direction: 'down', rationale: 'Airline margins are exposed to fuel-cost pressure.' },
+  ],
+  fx: [
+    { ticker: 'AAPL', direction: 'down', rationale: 'Large multinational with clear FX translation exposure.' },
+    { ticker: 'NKE', direction: 'down', rationale: 'Global revenue mix makes the equity sensitive to dollar strength.' },
+    { ticker: 'CAT', direction: 'down', rationale: 'Export and translation sensitivity makes FX a first-order driver.' },
+    { ticker: 'MSFT', direction: 'mixed', rationale: 'Large global revenue base faces translation pressure but retains quality support.' },
+  ],
+  credit: [
+    { ticker: 'SCHW', direction: 'down', rationale: 'Funding and confidence sensitivity make it a first-order credit stress read-through.' },
+    { ticker: 'BX', direction: 'down', rationale: 'Credit and financing conditions directly affect alternative-asset valuations.' },
+    { ticker: 'PLD', direction: 'down', rationale: 'Tighter credit conditions pressure financing-sensitive real estate valuations.' },
+    { ticker: 'JPM', direction: 'down', rationale: 'Large banks reflect credit-spread widening and funding stress quickly.' },
+  ],
+  geopolitics: [
+    { ticker: 'XOM', direction: 'up', rationale: 'Geopolitical supply risk often shows up first in integrated energy names.' },
+    { ticker: 'CVX', direction: 'up', rationale: 'Commodity risk premia support energy exposure.' },
+    { ticker: 'LMT', direction: 'up', rationale: 'Defense spending and geopolitical stress can support defense primes.' },
+    { ticker: 'DAL', direction: 'down', rationale: 'Travel and fuel-cost exposure can suffer under geopolitical shocks.' },
+  ],
+};
+
+export function isBroadProxyTicker(ticker: string): boolean {
+  return BROAD_PROXY_TICKERS.has(ticker.toUpperCase());
+}
+
 function biasToDirection(bias: BiasDirection): ImpactDirection {
   if (bias === 'Risk-On' || bias === 'Dovish') return 'up';
   if (bias === 'Risk-Off' || bias === 'Hawkish') return 'down';
@@ -41,6 +176,49 @@ function dedupeTickers(
     if (!byTicker.has(key)) byTicker.set(key, { ...item, ticker: key });
   }
   return Array.from(byTicker.values());
+}
+
+function rankTicker(
+  ticker: { ticker: string; direction: ImpactDirection; rationale: string },
+  text: string
+): number {
+  const upper = ticker.ticker.toUpperCase();
+  let score = 0;
+  if (!isBroadProxyTicker(upper)) score += 100;
+  if (text.includes(`$${upper.toLowerCase()}`) || new RegExp(`\\b${upper}\\b`, 'i').test(text)) score += 80;
+  if (ticker.direction === 'up' || ticker.direction === 'down') score += 20;
+  score += Math.min(ticker.rationale.length, 80) / 10;
+  return score;
+}
+
+function rankAndTrimTickers(
+  tickers: Array<{ ticker: string; direction: ImpactDirection; rationale: string }>,
+  text: string
+): Array<{ ticker: string; direction: ImpactDirection; rationale: string }> {
+  return dedupeTickers(tickers)
+    .sort((a, b) => rankTicker(b, text) - rankTicker(a, text))
+    .slice(0, 5);
+}
+
+function sectorDerivedTickers(
+  sectors: Array<{ sector: string; direction: ImpactDirection; rationale: string }>
+): Array<{ ticker: string; direction: ImpactDirection; rationale: string }> {
+  return sectors.flatMap((sector) =>
+    (SECTOR_TICKER_MAP[sector.sector] ?? []).map((item) => ({
+      ticker: item.ticker,
+      direction: sector.direction,
+      rationale: item.rationale,
+    }))
+  );
+}
+
+function proxyFallbackTickers(bias: BiasDirection): Array<{ ticker: string; direction: ImpactDirection; rationale: string }> {
+  const direction = biasToDirection(bias);
+  return [
+    { ticker: 'SPY', direction, rationale: 'Broad equity proxy when the event is cross-asset rather than company-specific.' },
+    { ticker: 'TLT', direction: bias === 'Hawkish' ? 'down' : bias === 'Dovish' ? 'up' : 'mixed', rationale: 'Rates proxy when the transmission runs primarily through yields.' },
+    { ticker: 'DXY', direction: bias === 'Risk-Off' || bias === 'Hawkish' ? 'up' : bias === 'Risk-On' || bias === 'Dovish' ? 'down' : 'mixed', rationale: 'Dollar proxy when the event primarily transmits through FX and relative-rate expectations.' },
+  ];
 }
 
 function mergeWatchItems(existing: string[], additions: string[]): string[] {
@@ -338,9 +516,23 @@ export function inferEventImpact(params: {
   }
 
   const geoAdjusted = applyMexicoAirlineOverlay(impact, text);
+  const textLower = text.toLowerCase();
+  const directCandidates = EVENT_TYPE_TICKER_MAP[params.eventType] ?? [];
+  const sectorCandidates = sectorDerivedTickers(geoAdjusted.affectedSectors);
+  const explicitCandidates = geoAdjusted.affectedTickers;
+  const candidatePool = [...explicitCandidates, ...directCandidates, ...sectorCandidates];
+  const specificCandidates = rankAndTrimTickers(
+    candidatePool.filter((item) => !isBroadProxyTicker(item.ticker)),
+    textLower
+  );
+  const shouldUseProxyFallback =
+    specificCandidates.length === 0 && (geoAdjusted.confidence === 'low' || params.eventType === 'equities' || params.eventType === 'fx');
+
   return {
     ...geoAdjusted,
-    affectedTickers: dedupeTickers(geoAdjusted.affectedTickers),
+    affectedTickers: shouldUseProxyFallback
+      ? rankAndTrimTickers(proxyFallbackTickers(geoAdjusted.bias), textLower)
+      : specificCandidates,
     affectedSectors: dedupeSectors(geoAdjusted.affectedSectors),
     watchItems: mergeWatchItems([], geoAdjusted.watchItems),
   };

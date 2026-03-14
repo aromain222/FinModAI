@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 import { z } from 'zod';
 import { getOpenAIKey, getOpenAIModelCandidates } from '@/lib/openaiKey';
 import { headlineEnrichmentSchema, type HeadlineEnrichment, type SectorName } from '@/lib/news/types';
-import { inferEventImpact } from '@/lib/news/eventImpact';
+import { inferEventImpact, isBroadProxyTicker } from '@/lib/news/eventImpact';
 import { assessHeadlineRelevance } from '@/lib/news/relevance';
 
 const HEADLINE_INTELLIGENCE_SYSTEM_PROMPT = `You are CapitalBase Analyst, a financial markets analyst writing structured market intelligence for investors.
@@ -615,10 +615,19 @@ export function deterministicFallback(headline: {
         toSentence(headline.description && headline.description.trim().length > 0 ? headline.description : summaryLine),
       ].filter(Boolean);
   const aiSummary = ensureConciseSummary(aiSummarySentences.join(' '), aiSummarySentences.join(' '));
+  const formattedImpactWatch = impact.affectedTickers
+    .filter((item) => !isBroadProxyTicker(item.ticker))
+    .slice(0, 4)
+    .map((item) => {
+      const directionLabel =
+        item.direction === 'up' ? 'Positive' : item.direction === 'down' ? 'Negative' : item.direction === 'mixed' ? 'Mixed' : 'Watch';
+      return `${item.ticker} — ${directionLabel}; ${item.rationale}`;
+    })
+    .join(' ');
   const fallbackWatch = Array.from(
     new Set([
-      ...impact.affectedTickers.slice(0, 3).map((item) => item.ticker),
-      ...(theme.watch.length > 0 ? theme.watch.slice(0, 2) : ['SPY', 'TLT']),
+      ...impact.affectedTickers.slice(0, 4).map((item) => item.ticker),
+      ...(theme.watch.length > 0 ? theme.watch.slice(0, 1) : ['TLT']),
     ])
   ).join(', ');
   const transmissionFallback = lowRelevance || politicalProcessOnly
@@ -641,8 +650,8 @@ export function deterministicFallback(headline: {
         ];
   const tickersToWatchLine =
     lowRelevance || politicalProcessOnly
-      ? 'JPM — Mixed; financials react only if policy expectations materially shift. KRE — Mixed; regional banks are rate-sensitive. XLRE — Negative if confirmation risk lifts yields. QQQ — Mixed; duration-sensitive tech reacts to rate repricing, not nomination noise alone.'
-      : fallbackWatch || 'SPY, QQQ, TLT, DXY';
+      ? 'JPM — Mixed; large banks react only if policy expectations materially shift. SCHW — Mixed; funding-sensitive financials move faster than the broad group. PLD — Negative if confirmation risk lifts yields and cap rates. MSFT — Mixed; duration-sensitive quality tech reacts only if rates actually reprice.'
+      : formattedImpactWatch || fallbackWatch || 'SPY, TLT, DXY';
   const modelImplicationLines =
     lowRelevance || politicalProcessOnly
       ? [
@@ -662,7 +671,7 @@ export function deterministicFallback(headline: {
           'Invalidation signals: nomination path clears without changing policy expectations, or yields stay contained.',
         ]
       : [
-          `Catalysts: ${fallbackWatch || 'SPY, QQQ, TLT, DXY'}.`,
+          `Catalysts: ${fallbackWatch || 'SPY, TLT, DXY'}.`,
           'Invalidation signals: follow-through data fades or management narrows the interpretation.',
         ];
 
@@ -711,7 +720,7 @@ export function deterministicFallback(headline: {
           direction: ticker.direction,
           rationale: ticker.rationale,
         }))
-      : [{ ticker: 'SPY', direction, rationale: 'Tracks the overall stock market.' }],
+      : [{ ticker: 'SPY', direction, rationale: 'Broad market proxy only when company-specific exposure is not clear.' }],
     confidence: lowRelevance || politicalProcessOnly ? 'low' : impact.confidence,
   });
 }
@@ -915,7 +924,11 @@ function hasLowQualityLegacySummary(summary: string | null | undefined): boolean
 
 function hasLowQualityTickers(tickers: string[] | null | undefined): boolean {
   if (!tickers || tickers.length === 0) return false;
-  return tickers.some((ticker) => {
+  const normalized = tickers
+    .map((ticker) => ticker.trim().toUpperCase())
+    .filter(Boolean);
+  const allBroadProxies = normalized.length > 0 && normalized.every((ticker) => isBroadProxyTicker(ticker));
+  return allBroadProxies || normalized.some((ticker) => {
     const clean = ticker.trim().toUpperCase();
     return (
       clean.length < 2 ||
