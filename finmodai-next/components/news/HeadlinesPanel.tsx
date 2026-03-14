@@ -283,10 +283,62 @@ type MacroStructuredSection = {
   content: string;
 };
 
+const STRUCTURED_LABELS = [
+  'EVENT',
+  'SUMMARY',
+  'BOTTOM LINE',
+  'KEY FACTS',
+  'DRIVERS',
+  'WHY IT MATTERS',
+  'TRANSMISSION PATH',
+  'PREDICTION',
+  'MARKET IMPACT',
+  'WINNERS',
+  'LOSERS',
+  'HORIZON',
+  'CONFIDENCE',
+  'BASE CASE',
+  'BULL CASE',
+  'BEAR CASE',
+  'SECTOR IMPACT',
+  'TICKERS TO WATCH',
+  'MODEL IMPLICATIONS',
+  'WATCH NEXT',
+  'SOURCES',
+  'ASSETS TO WATCH',
+  'MACRO EVENT',
+  'INVESTOR TAKEAWAY',
+  'WHAT HAPPENED',
+  'WHAT ACTUALLY CHANGED',
+  'WHY MARKETS CARE',
+  'MARKET LOGIC',
+  'DIRECTIONAL SIGNAL',
+  'MARKET REACTION FRAMEWORK',
+  'MACRO SIGNAL',
+  'TICKERS / ASSETS TO WATCH',
+] as const;
+
+const STRUCTURED_LABEL_PATTERN = STRUCTURED_LABELS
+  .map((label) => escapeRegExp(label))
+  .sort((a, b) => b.length - a.length)
+  .join('|');
+
+function normalizeStructuredAnalysisText(raw: string): string {
+  return raw
+    .replace(/\r\n/g, '\n')
+    .replace(/(?:\s*[-–—]{3,}\s*)+/g, '\n')
+    .replace(/\s+(?=(?:EVENT|SUMMARY|BOTTOM LINE|KEY FACTS|DRIVERS|WHY IT MATTERS|TRANSMISSION PATH|PREDICTION|MARKET IMPACT|WINNERS|LOSERS|HORIZON|CONFIDENCE|BASE CASE|BULL CASE|BEAR CASE|SECTOR IMPACT|TICKERS TO WATCH|MODEL IMPLICATIONS|WATCH NEXT|SOURCES|ASSETS TO WATCH|MACRO EVENT|INVESTOR TAKEAWAY|WHAT HAPPENED|WHAT ACTUALLY CHANGED|WHY MARKETS CARE|MARKET LOGIC|DIRECTIONAL SIGNAL|MARKET REACTION FRAMEWORK|MACRO SIGNAL|TICKERS \/ ASSETS TO WATCH)\b)/g, '\n')
+    .replace(new RegExp(`(?:^|\\n)\\s*[-•*]+\\s*(?=${STRUCTURED_LABEL_PATTERN}\\b)`, 'g'), '\n')
+    .replace(new RegExp(`([^\\n])\\s*(?=${STRUCTURED_LABEL_PATTERN}\\b\\s*:?)`, 'g'), '$1\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function cleanStructuredLine(line: string): string {
   return line
-    .replace(/^[-•*]\s*/, '')
-    .replace(/^[-•*]\s*/, '')
+    .replace(/^[\s\-–—•*]+/, '')
+    .replace(/[\-–—]{2,}/g, ' ')
+    .replace(/\s*→\s*\/\s*/g, ' → ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -309,7 +361,7 @@ function escapeRegExp(value: string): string {
 
 function parseMacroStructuredAnalysis(raw: string | null | undefined): MacroStructuredSection[] | null {
   if (!raw || typeof raw !== 'string') return null;
-  const text = raw.replace(/\r\n/g, '\n').trim();
+  const text = normalizeStructuredAnalysisText(raw);
   if (!text) return null;
 
   const labels = [
@@ -349,7 +401,10 @@ function parseMacroStructuredAnalysis(raw: string | null | undefined): MacroStru
     if (sectionText) {
       sections.push({
         label: item.label,
-        content: sectionText.replace(/\n{3,}/g, '\n\n').trim(),
+        content: sectionText
+          .replace(/\n{3,}/g, '\n\n')
+          .replace(/\s*[-–—]{3,}\s*/g, '\n')
+          .trim(),
       });
     }
   }
