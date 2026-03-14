@@ -99,6 +99,20 @@ export function AnalystChatApp() {
     setSessionId(created);
   }, []);
 
+  function getLatestGeneratedArtifact() {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const candidate = messages[index];
+      if (candidate.role !== 'assistant') continue;
+      if (candidate.meta?.generatedModel || candidate.meta?.dcfDemo) {
+        return {
+          generatedModel: candidate.meta?.generatedModel ?? null,
+          dcfDemo: candidate.meta?.dcfDemo ?? null,
+        };
+      }
+    }
+    return { generatedModel: null, dcfDemo: null };
+  }
+
   const handlePdf = (file: File | null) => {
     if (!file) {
       setPdfNote(null);
@@ -117,6 +131,7 @@ export function AnalystChatApp() {
     setInput('');
     setIsLoading(true);
     setLoadingState(getLoadingMessage(prompt));
+    const latestArtifact = getLatestGeneratedArtifact();
 
     try {
       const response = await fetch('/api/analyst-chat', {
@@ -127,6 +142,8 @@ export function AnalystChatApp() {
           ticker: ticker.trim().length > 0 ? ticker.trim().toUpperCase() : undefined,
           pdfText: pdfNote,
           sessionId,
+          currentModel: latestArtifact.generatedModel,
+          currentDcf: latestArtifact.dcfDemo,
           messages: [...messages, userMessage]
         })
       });

@@ -21,8 +21,13 @@ import { routeAnalystQuery, type AnalystRoute } from '@/lib/analyst/router';
 import { retrieveDataForRoute } from '@/lib/analyst/dataRetrieval';
 import { extractVerifiedFacts, serializeFactsForContext, type VerifiedFacts } from '@/lib/analyst/factsExtractor';
 import { gatherAnalystRetrievalContext, inferTickerFromPrompt } from '@/lib/analyst/retrieval';
-import { generateAnalystDcfDemo } from '@/lib/analyst/dcfDemo';
-import { generateAnalystStructuredModel } from '@/lib/analyst/modelChat';
+import { generateAnalystDcfDemo, reviseAnalystDcfDemo, type AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
+import {
+  generateAnalystStructuredModel,
+  isModelAdjustmentPrompt,
+  reviseAnalystStructuredModel,
+  type AnalystGeneratedModelPayload,
+} from '@/lib/analyst/modelChat';
 import { savePromptModelRunVersion } from '@/lib/model-generator/runHistory';
 import { classifyPrompt } from '@/lib/model-generator/classifyPrompt';
 import { getIntentPrompt } from '@/lib/analyst/prompts';
@@ -244,6 +249,14 @@ export async function POST(req: NextRequest) {
       : undefined;
     const pdfText = typeof body?.pdfText === 'string' ? body.pdfText : null;
     const sessionId = typeof body?.sessionId === 'string' && body.sessionId.trim().length > 0 ? body.sessionId.trim() : null;
+    const currentModel =
+      body?.currentModel && typeof body.currentModel === 'object'
+        ? (body.currentModel as AnalystGeneratedModelPayload)
+        : null;
+    const currentDcf =
+      body?.currentDcf && typeof body.currentDcf === 'object'
+        ? (body.currentDcf as AnalystDcfDemoPayload)
+        : null;
     const messages = Array.isArray(body?.messages) ? body.messages : [];
 
     const safeMessages = messages
@@ -267,6 +280,14 @@ export async function POST(req: NextRequest) {
 
     /* ── Step 1: Route the question ── */
     const route: AnalystRoute = routeAnalystQuery(lastUserMessage, resolvedTicker);
+    const shouldReviseCurrentModel =
+      currentModel &&
+      isModelAdjustmentPrompt(lastUserMessage) &&
+      !classifyPrompt(lastUserMessage);
+    const shouldReviseCurrentDcf =
+      currentDcf &&
+      isModelAdjustmentPrompt(lastUserMessage) &&
+      !classifyPrompt(lastUserMessage);
     if (route.intent === 'company_question' && resolvedTicker) {
       stockLookupPayload = await lookupStock({ prompt: lastUserMessage, ticker: resolvedTicker });
     }
@@ -281,8 +302,70 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (route.intent === 'financial_model') {
+    if (route.intent === 'financial_model' || shouldReviseCurrentModel) {
       const modelType = classifyPrompt(lastUserMessage);
+      if (shouldReviseCurrentModel && currentModel) {
+        const revisedModel = await reviseAnalystStructuredModel(lastUserMessage, currentModel, sessionId);
+        if (revisedModel) {
+          try {
+            await savePromptModelRunVersion({
+              surface: 'analyst_chat',
+              sessionId,
+              prompt: lastUserMessage,
+              modelType: revisedModel.payload.modelType,
+              companyName:
+                'companyName' in revisedModel.payload.extractedInputs
+                  ? revisedModel.payload.extractedInputs.companyName
+                  : null,
+              ticker:
+                'ticker' in revisedModel.payload.extractedInputs
+                  ? revisedModel.payload.extractedInputs.ticker ?? null
+                  : null,
+              status: 'generated',
+              assumptions: revisedModel.payload.extractedInputs as Record<string, unknown>,
+              defaultsUsed: revisedModel.payload.defaultsUsed,
+              extractedInputs: revisedModel.payload.extractedInputs as Record<string, unknown>,
+              provenance: revisedModel.payload.provenanceSummary,
+            });
+          } catch (error) {
+            console.error('[analyst-chat] unable to persist revised model run', error);
+          }
+
+          return NextResponse.json({
+            reply: revisedModel.reply,
+            fallback: false,
+            mode: 'live',
+            route: 'financial_model',
+            generatedModel: revisedModel.payload,
+            sources: [
+              ...revisedModel.payload.provenanceSummary.sources,
+              'CapitalBase local model templates',
+              'Conversation follow-up model adjustment',
+            ],
+            factsCount: 0,
+          });
+        }
+      }
+
+      if (shouldReviseCurrentDcf && currentDcf) {
+        const revisedDcf = await reviseAnalystDcfDemo(lastUserMessage, currentDcf);
+        if (revisedDcf) {
+          return NextResponse.json({
+            reply: revisedDcf.reply,
+            fallback: false,
+            mode: 'live',
+            route: 'financial_model',
+            dcfDemo: revisedDcf.payload,
+            sources: [
+              `Demo snapshot cache — ${revisedDcf.payload.source}`,
+              ...(revisedDcf.payload.asOfDate ? [`Snapshot updated ${revisedDcf.payload.asOfDate}`] : []),
+              'Conversation follow-up DCF adjustment',
+            ],
+            factsCount: 0,
+          });
+        }
+      }
+
       if (modelType && modelType !== 'DCF') {
         const generatedModel = await generateAnalystStructuredModel(lastUserMessage, sessionId);
         if (generatedModel) {
@@ -314,7 +397,7 @@ export async function POST(req: NextRequest) {
             reply: generatedModel.reply,
             fallback: false,
             mode: 'live',
-            route: route.intent,
+            route: 'financial_model',
             generatedModel: generatedModel.payload,
             sources: [
               ...generatedModel.payload.provenanceSummary.sources,
@@ -335,7 +418,7 @@ export async function POST(req: NextRequest) {
         reply: demo.reply,
         fallback: false,
         mode: 'live',
-        route: route.intent,
+        route: 'financial_model',
         dcfDemo: demo.payload,
         sources: [
           `Demo snapshot cache — ${demo.payload.source}`,

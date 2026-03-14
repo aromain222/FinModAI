@@ -1,5 +1,10 @@
 import { classifyPrompt, type ModelGeneratorType } from '@/lib/model-generator/classifyPrompt';
-import { extractInputs, type ExtractedModelInputs } from '@/lib/model-generator/extractInputs';
+import {
+  extractInputs,
+  type CompsPeerInputs,
+  type ExtractedModelInputs,
+  type PrecedentTransactionInputs,
+} from '@/lib/model-generator/extractInputs';
 import type { ComparisonSummary, PromptRunRecord, ProvenanceSummary } from '@/lib/model-generator/runHistory';
 import { getLatestComparableRun } from '@/lib/model-generator/runHistory';
 import * as compsTemplate from '@/lib/model-generator/templates/comps';
@@ -8,6 +13,7 @@ import * as lboTemplate from '@/lib/model-generator/templates/lbo';
 import * as threeStatementTemplate from '@/lib/model-generator/templates/threeStatement';
 import * as capTableTemplate from '@/lib/model-generator/templates/capTable';
 import * as saasOperatingTemplate from '@/lib/model-generator/templates/saasOperating';
+import { loadDemoSnapshots, type DemoCompanySnapshot } from '@/lib/demo/demoSnapshotStore';
 
 type ModelNarrativeBlock = {
   title: string;
@@ -33,11 +39,13 @@ export type AnalystGeneratedModelPayload = {
   narrativeBlocks: ModelNarrativeBlock[];
 };
 
+type StructuredModelType = Exclude<ModelGeneratorType, 'DCF'>;
+
 type PreviewBuilder = {
   getPreview: (inputs: ExtractedModelInputs) => { title: string; tabs: string[] };
 };
 
-const TEMPLATE_MAP: Record<Exclude<ModelGeneratorType, 'DCF'>, PreviewBuilder> = {
+const TEMPLATE_MAP: Record<StructuredModelType, PreviewBuilder> = {
   COMPS: compsTemplate as PreviewBuilder,
   PRECEDENTS: precedentsTemplate as PreviewBuilder,
   LBO: lboTemplate as PreviewBuilder,
@@ -46,7 +54,7 @@ const TEMPLATE_MAP: Record<Exclude<ModelGeneratorType, 'DCF'>, PreviewBuilder> =
   SAAS_OPERATING_MODEL: saasOperatingTemplate as PreviewBuilder,
 };
 
-const KEY_OUTPUTS: Record<Exclude<ModelGeneratorType, 'DCF'>, string[]> = {
+const KEY_OUTPUTS: Record<StructuredModelType, string[]> = {
   COMPS: ['Peer Trading Multiples', 'Implied Valuation Range', 'Premium / Discount View', 'Peer Set Summary'],
   PRECEDENTS: ['Transaction Multiples', 'Control Premium', 'Implied Valuation Range', 'Pitch Summary'],
   LBO: ['MOIC', 'IRR', 'Exit Equity Value', 'Debt Paydown'],
@@ -55,7 +63,7 @@ const KEY_OUTPUTS: Record<Exclude<ModelGeneratorType, 'DCF'>, string[]> = {
   SAAS_OPERATING_MODEL: ['ARR Growth', 'Gross Margin', 'CAC Payback', 'LTV:CAC'],
 };
 
-function labelForModelType(modelType: Exclude<ModelGeneratorType, 'DCF'>): string {
+function labelForModelType(modelType: StructuredModelType): string {
   switch (modelType) {
     case 'COMPS':
       return 'comparable company analysis';
@@ -112,7 +120,7 @@ function buildRecentRunSummary(recentRun: PromptRunRecord | null) {
   };
 }
 
-function buildNarrativeBlocks(modelType: Exclude<ModelGeneratorType, 'DCF'>, inputs: ExtractedModelInputs): ModelNarrativeBlock[] {
+function buildNarrativeBlocks(modelType: StructuredModelType, inputs: ExtractedModelInputs): ModelNarrativeBlock[] {
   switch (modelType) {
     case 'COMPS': {
       const compsInputs = inputs as ExtractedModelInputs & {
@@ -225,25 +233,525 @@ function buildNarrativeBlocks(modelType: Exclude<ModelGeneratorType, 'DCF'>, inp
   }
 }
 
-export async function generateAnalystStructuredModel(prompt: string, sessionId?: string | null): Promise<{
-  reply: string;
-  payload: AnalystGeneratedModelPayload;
-} | null> {
-  const modelType = classifyPrompt(prompt);
-  if (!modelType || modelType === 'DCF') return null;
+function normalizeEntityLabel(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
 
-  const extraction = await extractInputs(prompt, modelType);
-  const preview = TEMPLATE_MAP[modelType].getPreview(extraction.extractedInputs);
+function toPeerInputs(ticker: string, snapshot: DemoCompanySnapshot): CompsPeerInputs {
+  const marketCap = snapshot.marketCap ?? (snapshot.sharePrice && snapshot.sharesOutstanding ? snapshot.sharePrice * snapshot.sharesOutstanding : null);
+  return {
+    ticker,
+    name: snapshot.companyName || ticker,
+    marketCap,
+    price: snapshot.sharePrice ?? null,
+    sharesOutstanding: snapshot.sharesOutstanding ?? null,
+    totalDebt: snapshot.totalDebt ?? null,
+    cash: snapshot.cash ?? null,
+    revenue: snapshot.revenueLtm ?? null,
+    ebitda: snapshot.ebitdaLtm ?? null,
+    netIncome: snapshot.netIncomeLtm ?? null,
+  };
+}
+
+function buildPrecedentTransaction(ticker: string, snapshot: DemoCompanySnapshot, index: number): PrecedentTransactionInputs {
+  const enterpriseValue = (snapshot.marketCap ?? 0) + (snapshot.totalDebt ?? 0) - (snapshot.cash ?? 0);
+  return {
+    transaction: `${snapshot.companyName || ticker} strategic sale`,
+    target: snapshot.companyName || ticker,
+    acquirer: ['Strategic buyer', 'Sponsor buyer', 'Infrastructure buyer', 'Global platform', 'Financial sponsor'][index % 5],
+    announcementYear: new Date().getFullYear() - (index % 3),
+    enterpriseValue: enterpriseValue > 0 ? enterpriseValue : (snapshot.marketCap ?? 0),
+    revenueMultiple: 4.5 + index * 0.4,
+    ebitdaMultiple: 13 + index * 0.6,
+    premium: 0.18 + index * 0.02,
+  };
+}
+
+function extractEntityList(raw: string): string[] {
+  return raw
+    .split(/\band\b|,|;/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function resolveDemoTickersFromList(raw: string, snapshots: Record<string, DemoCompanySnapshot>): string[] {
+  const candidates = extractEntityList(raw);
+  const resolved = new Set<string>();
+
+  for (const candidate of candidates) {
+    const upper = candidate.toUpperCase();
+    if (snapshots[upper]) {
+      resolved.add(upper);
+      continue;
+    }
+
+    const normalizedCandidate = normalizeEntityLabel(candidate);
+    for (const [ticker, snapshot] of Object.entries(snapshots)) {
+      const normalizedName = normalizeEntityLabel(snapshot.companyName || '');
+      if (normalizedName && (normalizedName.includes(normalizedCandidate) || normalizedCandidate.includes(normalizedName))) {
+        resolved.add(ticker);
+        break;
+      }
+    }
+  }
+
+  return Array.from(resolved);
+}
+
+function extractNestedScalarOverride(prompt: string, aliases: string[], type: 'percent' | 'money' | 'number'): number | undefined {
+  for (const alias of aliases) {
+    const escapedAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+    const patterns = [
+      new RegExp(`(?:set|make|change|adjust|update)\\s+(?:the\\s+)?${escapedAlias}\\s+(?:to\\s+)?([^,.;\\n]+)`, 'i'),
+      new RegExp(`${escapedAlias}\\s+(?:to\\s+)?([^,.;\\n]+)`, 'i'),
+    ];
+    for (const pattern of patterns) {
+      const match = prompt.match(pattern);
+      const value = normalizeOverrideValue(match?.[1] ?? '', type);
+      if (typeof value === 'number') return value;
+    }
+  }
+  return undefined;
+}
+
+async function applyNestedModelOverrides(
+  prompt: string,
+  payload: AnalystGeneratedModelPayload,
+): Promise<Record<string, unknown>> {
+  const snapshots = await loadDemoSnapshots();
+
+  if (payload.modelType === 'COMPS') {
+    const inputs = payload.extractedInputs as ExtractedModelInputs & {
+      subject: CompsPeerInputs;
+      peers: CompsPeerInputs[];
+      peerSetLabel: string;
+      companyType?: string;
+      ticker?: string;
+    };
+    const subjectOverrides: Partial<CompsPeerInputs> = {};
+    const subjectRevenue = extractNestedScalarOverride(prompt, ['subject revenue'], 'money');
+    const subjectEbitda = extractNestedScalarOverride(prompt, ['subject ebitda', 'subject EBITDA'], 'money');
+    const subjectPrice = extractNestedScalarOverride(prompt, ['subject price', 'subject share price'], 'money');
+    const subjectMarketCap = extractNestedScalarOverride(prompt, ['subject market cap', 'subject market value'], 'money');
+    const subjectShares = extractNestedScalarOverride(prompt, ['subject shares', 'subject shares outstanding'], 'number');
+
+    if (subjectRevenue !== undefined) subjectOverrides.revenue = subjectRevenue;
+    if (subjectEbitda !== undefined) subjectOverrides.ebitda = subjectEbitda;
+    if (subjectPrice !== undefined) subjectOverrides.price = subjectPrice;
+    if (subjectMarketCap !== undefined) subjectOverrides.marketCap = subjectMarketCap;
+    if (subjectShares !== undefined) subjectOverrides.sharesOutstanding = subjectShares;
+
+    let peers = inputs.peers;
+    const replacePeersMatch = prompt.match(/(?:set|replace|change|update)\s+(?:the\s+)?peers?\s+(?:to|with)\s+([^.\n]+)/i);
+    if (replacePeersMatch?.[1]) {
+      const tickers = resolveDemoTickersFromList(replacePeersMatch[1], snapshots).filter((ticker) => ticker !== inputs.ticker);
+      const nextPeers = tickers.map((ticker) => toPeerInputs(ticker, snapshots[ticker])).filter((peer) => peer.name);
+      if (nextPeers.length > 0) peers = nextPeers;
+    }
+
+    const addPeersMatch = prompt.match(/add\s+([^.\n]+?)\s+to\s+(?:the\s+)?peers?/i);
+    if (addPeersMatch?.[1]) {
+      const additions = resolveDemoTickersFromList(addPeersMatch[1], snapshots)
+        .filter((ticker) => ticker !== inputs.ticker && !peers.some((peer) => peer.ticker === ticker))
+        .map((ticker) => toPeerInputs(ticker, snapshots[ticker]));
+      if (additions.length > 0) peers = [...peers, ...additions];
+    }
+
+    const removePeersMatch = prompt.match(/remove\s+([^.\n]+?)\s+from\s+(?:the\s+)?peers?/i);
+    if (removePeersMatch?.[1]) {
+      const removals = new Set(resolveDemoTickersFromList(removePeersMatch[1], snapshots));
+      peers = peers.filter((peer) => !removals.has(peer.ticker));
+    }
+
+    const result: Record<string, unknown> = {};
+    if (Object.keys(subjectOverrides).length > 0) {
+      result.subject = { ...inputs.subject, ...subjectOverrides };
+    }
+    if (peers !== inputs.peers) {
+      result.peers = peers;
+      result.peerSetLabel = `${peers.length} selected peers`;
+    }
+    return result;
+  }
+
+  if (payload.modelType === 'PRECEDENTS') {
+    const inputs = payload.extractedInputs as ExtractedModelInputs & {
+      transactions: PrecedentTransactionInputs[];
+      transactionCount: number;
+      companyType?: string;
+      ticker?: string;
+    };
+    const result: Record<string, unknown> = {};
+    const subjectRevenue = extractNestedScalarOverride(prompt, ['subject revenue'], 'money');
+    const subjectEbitda = extractNestedScalarOverride(prompt, ['subject ebitda', 'subject EBITDA'], 'money');
+    if (subjectRevenue !== undefined) {
+      result.subjectRevenue = subjectRevenue;
+    }
+    if (subjectEbitda !== undefined) {
+      result.subjectEbitda = subjectEbitda;
+    }
+
+    let transactions = inputs.transactions;
+
+    const replaceTransactionsMatch = prompt.match(/(?:set|replace|change|update)\s+(?:the\s+)?transactions?\s+(?:to|with)\s+([^.\n]+)/i);
+    if (replaceTransactionsMatch?.[1]) {
+      const tickers = resolveDemoTickersFromList(replaceTransactionsMatch[1], snapshots).filter((ticker) => ticker !== inputs.ticker);
+      const nextTransactions = tickers.map((ticker, index) => buildPrecedentTransaction(ticker, snapshots[ticker], index));
+      if (nextTransactions.length > 0) transactions = nextTransactions;
+    }
+
+    const addTransactionsMatch = prompt.match(/add\s+([^.\n]+?)\s+to\s+(?:the\s+)?transactions?/i);
+    if (addTransactionsMatch?.[1]) {
+      const existingTargets = new Set(transactions.map((item) => normalizeEntityLabel(item.target)));
+      const additions = resolveDemoTickersFromList(addTransactionsMatch[1], snapshots)
+        .filter((ticker) => ticker !== inputs.ticker)
+        .filter((ticker) => !existingTargets.has(normalizeEntityLabel(snapshots[ticker].companyName || ticker)))
+        .map((ticker, index) => buildPrecedentTransaction(ticker, snapshots[ticker], transactions.length + index));
+      if (additions.length > 0) transactions = [...transactions, ...additions];
+    }
+
+    const removeTransactionsMatch = prompt.match(/remove\s+([^.\n]+?)\s+from\s+(?:the\s+)?transactions?/i);
+    if (removeTransactionsMatch?.[1]) {
+      const removals = new Set(resolveDemoTickersFromList(removeTransactionsMatch[1], snapshots).map((ticker) => normalizeEntityLabel(snapshots[ticker].companyName || ticker)));
+      transactions = transactions.filter((item) => !removals.has(normalizeEntityLabel(item.target)));
+    }
+
+    const transactionCountMatch = prompt.match(/(?:set|change|update|make)\s+(?:the\s+)?transaction count\s+(?:to\s+)?(\d+)/i);
+    if (transactionCountMatch?.[1]) {
+      const requestedCount = Math.max(1, Number(transactionCountMatch[1]));
+      if (transactions.length >= requestedCount) {
+        transactions = transactions.slice(0, requestedCount);
+      } else {
+        const universe = Object.entries(snapshots)
+          .filter(([ticker, snapshot]) => ticker !== inputs.ticker && (!inputs.companyType || snapshot.sector === inputs.companyType))
+          .sort(([, left], [, right]) => (right.marketCap ?? 0) - (left.marketCap ?? 0))
+          .map(([ticker]) => ticker)
+          .filter((ticker) => !transactions.some((item) => normalizeEntityLabel(item.target) === normalizeEntityLabel(snapshots[ticker].companyName || ticker)))
+          .slice(0, requestedCount - transactions.length);
+        transactions = [
+          ...transactions,
+          ...universe.map((ticker, index) => buildPrecedentTransaction(ticker, snapshots[ticker], transactions.length + index)),
+        ];
+      }
+    }
+
+    if (transactions !== inputs.transactions) {
+      result.transactions = transactions;
+      result.transactionCount = transactions.length;
+    }
+
+    return result;
+  }
+
+  return {};
+}
+
+function toPercentString(value: unknown): string | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function toMoneyString(value: unknown): string | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  return String(value);
+}
+
+function toNumberString(value: unknown): string | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  return String(value);
+}
+
+function normalizeOverrideValue(raw: string, typeHint: 'percent' | 'money' | 'number' | 'text'): unknown {
+  const cleaned = raw.trim().replace(/[.,]+$/, '');
+  if (!cleaned) return undefined;
+
+  if (typeHint === 'text') return cleaned;
+
+  const normalizedPercentWords = cleaned.replace(/\bpercent(age)?\b/gi, '%');
+  const compact = normalizedPercentWords.replace(/,/g, '').replace(/\$/g, '').trim();
+  const match = compact.match(/^(-?\d*\.?\d+)([kmb])?\s*(%)?$/i);
+  if (!match) return undefined;
+
+  let numeric = Number(match[1]);
+  if (!Number.isFinite(numeric)) return undefined;
+
+  const suffix = match[2]?.toLowerCase();
+  if (suffix === 'k') numeric *= 1e3;
+  if (suffix === 'm') numeric *= 1e6;
+  if (suffix === 'b') numeric *= 1e9;
+
+  const hasPercent = Boolean(match[3]) || typeHint === 'percent';
+  if (hasPercent) numeric = numeric > 1 ? numeric / 100 : numeric;
+
+  return numeric;
+}
+
+const OVERRIDE_CONFIG: Record<string, { aliases: string[]; type: 'percent' | 'money' | 'number' | 'text' }> = {
+  companyName: { aliases: ['company name', 'name'], type: 'text' },
+  ticker: { aliases: ['ticker'], type: 'text' },
+  churn: { aliases: ['churn', 'churn rate'], type: 'percent' },
+  growthRate: { aliases: ['growth rate', 'arr growth', 'annual growth'], type: 'percent' },
+  grossMargin: { aliases: ['gross margin'], type: 'percent' },
+  startingArr: { aliases: ['starting arr', 'arr'], type: 'money' },
+  cac: { aliases: ['cac'], type: 'money' },
+  arpu: { aliases: ['arpu'], type: 'money' },
+  years: { aliases: ['years', 'forecast years'], type: 'number' },
+  taxRate: { aliases: ['tax rate'], type: 'percent' },
+  capexPctRevenue: { aliases: ['capex', 'capex percent', 'capex pct revenue'], type: 'percent' },
+  daPctRevenue: { aliases: ['d&a', 'depreciation', 'amortization'], type: 'percent' },
+  opexPctRevenue: { aliases: ['opex', 'operating expense'], type: 'percent' },
+  entryMultiple: { aliases: ['entry multiple'], type: 'number' },
+  exitMultiple: { aliases: ['exit multiple'], type: 'number' },
+  debtPercent: { aliases: ['debt percent', 'debt percentage', 'debt'], type: 'percent' },
+  equityPercent: { aliases: ['equity percent', 'equity percentage', 'equity'], type: 'percent' },
+  interestRate: { aliases: ['interest rate'], type: 'percent' },
+  amortizationPercent: { aliases: ['amortization percent', 'amortization'], type: 'percent' },
+  cashSweepPercent: { aliases: ['cash sweep', 'cash sweep percent'], type: 'percent' },
+  holdingPeriodYears: { aliases: ['holding period', 'hold period'], type: 'number' },
+  preMoney: { aliases: ['pre money', 'pre-money'], type: 'money' },
+  raiseAmount: { aliases: ['raise amount', 'raise'], type: 'money' },
+  founderShares: { aliases: ['founder shares'], type: 'number' },
+  optionPoolRefresh: { aliases: ['option pool', 'option pool refresh'], type: 'percent' },
+  revenueMultiple: { aliases: ['revenue multiple'], type: 'number' },
+  ebitdaMultiple: { aliases: ['ebitda multiple'], type: 'number' },
+};
+
+function humanizeKey(key: string): string {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/Pct/g, ' Percent ')
+    .replace(/\bda\b/gi, 'D&A')
+    .replace(/\bnwc\b/gi, 'NWC')
+    .replace(/\bebitda\b/gi, 'EBITDA')
+    .replace(/\bebit\b/gi, 'EBIT')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function looksPercentKey(key: string): boolean {
+  return /(margin|growth|rate|tax|churn|percent|pct|wacc)/i.test(key);
+}
+
+function looksMoneyKey(key: string): boolean {
+  return /(revenue|arr|cash|debt|price|capex|cac|arpu|pre money|raise|value|shares|income)/i.test(key);
+}
+
+function inferOverrideType(key: string, currentValue: unknown): 'percent' | 'money' | 'number' | 'text' | 'percent_array' | 'number_array' | 'text_array' | null {
+  if (Array.isArray(currentValue)) {
+    if (currentValue.every((item) => typeof item === 'number')) {
+      return looksPercentKey(key) ? 'percent_array' : 'number_array';
+    }
+    if (currentValue.every((item) => typeof item === 'string')) {
+      return 'text_array';
+    }
+    return null;
+  }
+
+  if (typeof currentValue === 'string') return 'text';
+  if (typeof currentValue === 'number') {
+    if (looksPercentKey(key) || (currentValue > 0 && currentValue <= 1)) return 'percent';
+    if (looksMoneyKey(key)) return 'money';
+    return 'number';
+  }
+
+  return null;
+}
+
+function extraAliasesForKey(key: string): string[] {
+  const map: Record<string, string[]> = {
+    companyName: ['company name', 'name'],
+    companyType: ['company type', 'sector', 'business type'],
+    companyScale: ['company scale', 'scale', 'stage'],
+    roundType: ['round type', 'financing round'],
+    startingArr: ['starting arr', 'arr'],
+    growthRate: ['growth rate', 'arr growth', 'annual growth'],
+    grossMargin: ['gross margin'],
+    churn: ['churn', 'churn rate'],
+    cac: ['cac'],
+    arpu: ['arpu'],
+    revenueGrowth: ['revenue growth', 'growth'],
+    ebitMargin: ['ebit margin', 'operating margin'],
+    opexPctRevenue: ['opex', 'operating expense', 'opex percent'],
+    daPctRevenue: ['d&a', 'depreciation', 'amortization'],
+    capexPctRevenue: ['capex', 'capex percent'],
+    nwcPctRevenue: ['nwc', 'working capital', 'working capital percent'],
+    deltaNwcPctRevenue: ['delta nwc', 'change in working capital'],
+    optionPoolRefresh: ['option pool', 'option pool refresh'],
+    entryMultiple: ['entry multiple'],
+    exitMultiple: ['exit multiple'],
+    debtPercent: ['debt percent', 'debt percentage', 'debt'],
+    equityPercent: ['equity percent', 'equity percentage', 'equity'],
+    interestRate: ['interest rate'],
+    amortizationPercent: ['amortization percent', 'amortization'],
+    cashSweepPercent: ['cash sweep', 'cash sweep percent'],
+    holdingPeriodYears: ['holding period', 'hold period'],
+    valuationMultiples: ['valuation multiples', 'multiples'],
+  };
+
+  return map[key] ?? [];
+}
+
+function aliasesForKey(key: string): string[] {
+  return Array.from(new Set([humanizeKey(key), ...extraAliasesForKey(key)]));
+}
+
+function parseArrayOverrideValue(raw: string, baseType: 'percent' | 'number' | 'text'): unknown[] | undefined {
+  const parts = raw
+    .split(/[\/,]/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) return undefined;
+  if (baseType === 'text') return parts;
+
+  const parsed = parts
+    .map((part) => normalizeOverrideValue(part, baseType))
+    .filter((value) => value !== undefined);
+  return parsed.length > 0 ? parsed as unknown[] : undefined;
+}
+
+function replaceArrayAtIndex(values: unknown[], index: number, nextValue: unknown): unknown[] {
+  return values.map((value, currentIndex) => (currentIndex === index ? nextValue : value));
+}
+
+function extractOverrideForKey(key: string, currentValue: unknown, prompt: string): unknown {
+  const type = inferOverrideType(key, currentValue);
+  if (!type) return undefined;
+
+  for (const alias of aliasesForKey(key)) {
+    const escapedAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+
+    if (Array.isArray(currentValue)) {
+      const yearMatch = prompt.match(new RegExp(`(?:year|yr)\\s*(\\d+)\\s+${escapedAlias}\\s+(?:to\\s+)?([^,.;\\n]+)`, 'i'));
+      if (yearMatch) {
+        const yearIndex = Number(yearMatch[1]) - 1;
+        if (Number.isInteger(yearIndex) && yearIndex >= 0 && yearIndex < currentValue.length) {
+          const nextValue = normalizeOverrideValue(yearMatch[2], type === 'percent_array' ? 'percent' : type === 'number_array' ? 'number' : 'text');
+          if (nextValue !== undefined) return replaceArrayAtIndex(currentValue, yearIndex, nextValue);
+        }
+      }
+
+      const fullArrayPatterns = [
+        new RegExp(`(?:set|make|change|adjust|update)\\s+(?:the\\s+)?${escapedAlias}\\s+(?:to\\s+)?([^.;\\n]+)`, 'i'),
+        new RegExp(`${escapedAlias}\\s+(?:to\\s+)?([^.;\\n]+)`, 'i'),
+      ];
+
+      for (const pattern of fullArrayPatterns) {
+        const match = prompt.match(pattern);
+        if (!match?.[1]) continue;
+        const parsed = parseArrayOverrideValue(match[1], type === 'percent_array' ? 'percent' : type === 'number_array' ? 'number' : 'text');
+        if (parsed && parsed.length > 1) return parsed;
+        if (parsed && parsed.length === 1) return currentValue.map(() => parsed[0]);
+      }
+
+      continue;
+    }
+
+    const patterns = [
+      new RegExp(`(?:set|make|change|adjust|update|revise)\\s+(?:the\\s+)?${escapedAlias}\\s+(?:to\\s+)?([^,.;\\n]+)`, 'i'),
+      new RegExp(`${escapedAlias}\\s+(?:to\\s+)?([^,.;\\n]+)`, 'i'),
+    ];
+    const scalarType: 'percent' | 'money' | 'number' | 'text' =
+      type === 'percent' || type === 'money' || type === 'number' || type === 'text'
+        ? type
+        : 'text';
+    for (const pattern of patterns) {
+      const match = prompt.match(pattern);
+      const value = normalizeOverrideValue(match?.[1] ?? '', scalarType);
+      if (value !== undefined) return value;
+    }
+  }
+
+  return undefined;
+}
+
+function extractFollowUpOverrides(prompt: string, existingInputs: ExtractedModelInputs): Record<string, unknown> {
+  const overrides: Record<string, unknown> = {};
+
+  for (const [key, currentValue] of Object.entries(existingInputs)) {
+    if (['modelType', 'source', 'subject', 'peers', 'transactions'].includes(key)) continue;
+    const nextValue = extractOverrideForKey(key, currentValue, prompt);
+    if (nextValue !== undefined) {
+      overrides[key] = nextValue;
+    }
+  }
+
+  return overrides;
+}
+
+export function isModelAdjustmentPrompt(prompt: string): boolean {
+  return /\b(?:adjust|update|change|set|make|rename|revise)\b/i.test(prompt);
+}
+
+function buildAdjustedReply(modelType: StructuredModelType, overrides: Record<string, unknown>): string {
+  const labels = Object.keys(overrides).map((key) => {
+    const value = overrides[key];
+    if (Array.isArray(value) && value.every((item) => item && typeof item === 'object')) {
+      const objectLabels = value
+        .map((item) => {
+          const row = item as Record<string, unknown>;
+          return typeof row.ticker === 'string'
+            ? row.ticker
+            : typeof row.target === 'string'
+              ? row.target
+              : typeof row.name === 'string'
+                ? row.name
+                : null;
+        })
+        .filter((item): item is string => typeof item === 'string');
+      return `${humanizeKey(key)} to ${objectLabels.join(', ')}`;
+    }
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const row = value as Record<string, unknown>;
+      const objectSummary = Object.entries(row)
+        .filter(([, item]) => typeof item === 'string' || typeof item === 'number')
+        .slice(0, 3)
+        .map(([nestedKey, nestedValue]) => `${humanizeKey(nestedKey)} ${typeof nestedValue === 'number' ? (toPercentString(nestedValue) ?? toMoneyString(nestedValue) ?? String(nestedValue)) : nestedValue}`)
+        .join(', ');
+      return `${humanizeKey(key)} updated${objectSummary ? ` (${objectSummary})` : ''}`;
+    }
+    const type = inferOverrideType(key, value);
+    const formatted = Array.isArray(value)
+      ? value.map((item) => {
+          if (type === 'percent_array') return toPercentString(item) ?? String(item);
+          if (type === 'number_array') return toNumberString(item) ?? String(item);
+          return String(item);
+        }).join(', ')
+      : type === 'percent'
+        ? toPercentString(value)
+        : type === 'money'
+          ? toMoneyString(value)
+          : type === 'number'
+            ? toNumberString(value)
+            : String(value);
+    return `${humanizeKey(key)} to ${formatted ?? String(value)}`;
+  });
+
+  return `Updated the ${labelForModelType(modelType)} model by setting ${labels.join(', ')}. The attached card now reflects the revised assumptions and remains downloadable in Excel.`;
+}
+
+async function buildStructuredModelPayload(params: {
+  prompt: string;
+  modelType: StructuredModelType;
+  extractedInputs: ExtractedModelInputs;
+  defaultsUsed: Record<string, unknown>;
+  provenanceSummary: ProvenanceSummary;
+  sessionId?: string | null;
+  replyPrefix?: string;
+}): Promise<{ reply: string; payload: AnalystGeneratedModelPayload }> {
+  const { prompt, modelType, extractedInputs, defaultsUsed, provenanceSummary, sessionId, replyPrefix } = params;
+  const preview = TEMPLATE_MAP[modelType].getPreview(extractedInputs);
   const modelLabel = labelForModelType(modelType);
-  const defaultsSummary = summarizeDefaults(extraction.defaultsUsed);
+  const defaultsSummary = summarizeDefaults(defaultsUsed);
   const recentRun = await getLatestComparableRun({
     surface: 'analyst_chat',
     sessionId: sessionId ?? null,
     modelType,
-    companyName: 'companyName' in extraction.extractedInputs ? extraction.extractedInputs.companyName : null,
-    ticker: 'ticker' in extraction.extractedInputs ? extraction.extractedInputs.ticker ?? null : null,
+    companyName: 'companyName' in extractedInputs ? extractedInputs.companyName : null,
+    ticker: 'ticker' in extractedInputs ? extractedInputs.ticker ?? null : null,
   });
-  const currentAssumptions = extractComparableAssumptions(extraction.extractedInputs as Record<string, unknown>);
+  const currentAssumptions = extractComparableAssumptions(extractedInputs as Record<string, unknown>);
   const comparisonSummary =
     recentRun?.latestVersion
       ? {
@@ -252,11 +760,11 @@ export async function generateAnalystStructuredModel(prompt: string, sessionId?:
           changedKeys: computeChangedKeys(recentRun.latestVersion.assumptions, currentAssumptions),
         }
       : null;
-  const narrativeBlocks = buildNarrativeBlocks(modelType, extraction.extractedInputs);
+  const narrativeBlocks = buildNarrativeBlocks(modelType, extractedInputs);
 
   return {
     reply: [
-      `Built a demo-ready ${modelLabel} model from your prompt. The workbook includes ${preview.tabs.join(', ')} so the output is immediately downloadable and reviewable in Excel.`,
+      replyPrefix ?? `Built a demo-ready ${modelLabel} model from your prompt. The workbook includes ${preview.tabs.join(', ')} so the output is immediately downloadable and reviewable in Excel.`,
       `${defaultsSummary} Key outputs in the workbook are ${KEY_OUTPUTS[modelType].join(', ')}. Use the attached card to download the model file.`,
       narrativeBlocks.map((block) => `${block.title}\n${block.body}`).join('\n\n'),
     ].join('\n\n'),
@@ -266,12 +774,63 @@ export async function generateAnalystStructuredModel(prompt: string, sessionId?:
       title: preview.title,
       tabs: preview.tabs,
       keyOutputs: KEY_OUTPUTS[modelType],
-      extractedInputs: extraction.extractedInputs,
-      defaultsUsed: extraction.defaultsUsed,
-      provenanceSummary: extraction.provenanceSummary,
+      extractedInputs,
+      defaultsUsed,
+      provenanceSummary,
       comparisonSummary,
       recentRun: buildRecentRunSummary(recentRun),
       narrativeBlocks,
     },
   };
+}
+
+export async function reviseAnalystStructuredModel(
+  prompt: string,
+  existingPayload: AnalystGeneratedModelPayload,
+  sessionId?: string | null,
+): Promise<{ reply: string; payload: AnalystGeneratedModelPayload } | null> {
+  const overrides = extractFollowUpOverrides(prompt, existingPayload.extractedInputs);
+  const nestedOverrides = await applyNestedModelOverrides(prompt, existingPayload);
+  const mergedOverrides = { ...overrides, ...nestedOverrides };
+  if (Object.keys(mergedOverrides).length === 0) return null;
+
+  const extractedInputs = {
+    ...existingPayload.extractedInputs,
+    ...mergedOverrides,
+  } as ExtractedModelInputs;
+  const fallbackUsed = Array.from(new Set([
+    ...existingPayload.provenanceSummary.fallbackUsed,
+    'follow_up_adjustment',
+  ]));
+
+  return buildStructuredModelPayload({
+    prompt,
+    modelType: existingPayload.modelType,
+    extractedInputs,
+    defaultsUsed: existingPayload.defaultsUsed,
+    provenanceSummary: {
+      ...existingPayload.provenanceSummary,
+      fallbackUsed,
+    },
+    sessionId,
+    replyPrefix: buildAdjustedReply(existingPayload.modelType, mergedOverrides),
+  });
+}
+
+export async function generateAnalystStructuredModel(prompt: string, sessionId?: string | null): Promise<{
+  reply: string;
+  payload: AnalystGeneratedModelPayload;
+} | null> {
+  const modelType = classifyPrompt(prompt);
+  if (!modelType || modelType === 'DCF') return null;
+
+  const extraction = await extractInputs(prompt, modelType);
+  return buildStructuredModelPayload({
+    prompt,
+    modelType,
+    extractedInputs: extraction.extractedInputs,
+    defaultsUsed: extraction.defaultsUsed,
+    provenanceSummary: extraction.provenanceSummary,
+    sessionId,
+  });
 }

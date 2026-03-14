@@ -670,6 +670,243 @@ function buildReply(payload: AnalystDcfDemoPayload): string {
   ].join('\n');
 }
 
+function parseDcfOverrideValue(raw: string, typeHint: 'percent' | 'number' | 'text'): string | number | undefined {
+  const cleaned = raw.trim().replace(/[.,]+$/, '');
+  if (!cleaned) return undefined;
+  if (typeHint === 'text') return cleaned;
+
+  const normalizedPercentWords = cleaned.replace(/\bpercent(age)?\b/gi, '%');
+  const compact = normalizedPercentWords.replace(/,/g, '').replace(/\$/g, '').trim();
+  const match = compact.match(/^(-?\d*\.?\d+)\s*(%)?$/i);
+  if (!match) return undefined;
+  const parsed = Number(match[1]);
+  if (!Number.isFinite(parsed)) return undefined;
+  if (typeHint === 'percent' || match[2]) return parsed > 1 ? parsed / 100 : parsed;
+  return parsed;
+}
+
+function extractDcfOverrides(prompt: string, payload: AnalystDcfDemoPayload): {
+  companyName?: string;
+  years?: number;
+  assumptions?: Partial<DeterministicAssumptions>;
+} {
+  const overrides: {
+    companyName?: string;
+    years?: number;
+    assumptions?: Partial<DeterministicAssumptions>;
+  } = {};
+
+  const assumptionOverrides: Partial<DeterministicAssumptions> = {};
+  const renameMatch = prompt.match(/(?:rename|change|update|adjust|make|set)(?:\s+the)?\s+name\s+(?:to|as)?\s+([A-Za-z0-9.&' -]+)/i)
+    || prompt.match(/company name\s+(?:to|as)\s+([A-Za-z0-9.&' -]+)/i);
+  if (renameMatch?.[1]) {
+    overrides.companyName = renameMatch[1].trim().replace(/[.,]+$/, '');
+  }
+
+  const yearsMatch = prompt.match(/(?:set|make|change|adjust|update)\s+(?:the\s+)?(?:forecast\s+)?years?\s+(?:to\s+)?(\d{1,2})/i);
+  if (yearsMatch?.[1]) {
+    overrides.years = clamp(Number(yearsMatch[1]), 3, 10);
+  }
+
+  const scalarPatterns: Array<{
+    key: 'wacc' | 'terminalGrowth' | 'taxRate' | 'daPctRevenue' | 'capexPctRevenue' | 'nwcPctRevenue';
+    aliases: string[];
+    type: 'percent' | 'number';
+  }> = [
+    { key: 'wacc', aliases: ['wacc'], type: 'percent' },
+    { key: 'terminalGrowth', aliases: ['terminal growth', 'terminal g'], type: 'percent' },
+    { key: 'taxRate', aliases: ['tax rate'], type: 'percent' },
+    { key: 'daPctRevenue', aliases: ['d&a', 'depreciation', 'amortization'], type: 'percent' },
+    { key: 'capexPctRevenue', aliases: ['capex', 'capex percent'], type: 'percent' },
+    { key: 'nwcPctRevenue', aliases: ['nwc', 'working capital'], type: 'percent' },
+  ];
+
+  for (const { key, aliases, type } of scalarPatterns) {
+    for (const alias of aliases) {
+      const escapedAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+      const patterns = [
+        new RegExp(`(?:set|make|change|adjust|update)\\s+(?:the\\s+)?${escapedAlias}\\s+(?:to\\s+)?([^,.;\\n]+)`, 'i'),
+        new RegExp(`${escapedAlias}\\s+(?:to\\s+)?([^,.;\\n]+)`, 'i'),
+      ];
+      for (const pattern of patterns) {
+        const match = prompt.match(pattern);
+        const parsed = parseDcfOverrideValue(match?.[1] ?? '', type);
+        if (typeof parsed === 'number') {
+          assumptionOverrides[key] = parsed;
+          break;
+        }
+      }
+      if (key in assumptionOverrides) break;
+    }
+  }
+
+  const seriesPatterns: Array<{ key: 'revenueGrowth' | 'ebitMargin'; aliases: string[] }> = [
+    { key: 'revenueGrowth', aliases: ['revenue growth', 'growth'] },
+    { key: 'ebitMargin', aliases: ['ebit margin', 'operating margin'] },
+  ];
+
+  for (const { key, aliases } of seriesPatterns) {
+    for (const alias of aliases) {
+      const escapedAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+      const yearMatch = prompt.match(new RegExp(`(?:year|yr)\\s*(\\d+)\\s+${escapedAlias}\\s+(?:to\\s+)?([^,.;\\n]+)`, 'i'));
+      if (yearMatch?.[1] && yearMatch?.[2]) {
+        const yearIndex = Number(yearMatch[1]) - 1;
+        if (Number.isInteger(yearIndex) && yearIndex >= 0 && yearIndex < payload.assumptions[key].length) {
+          const nextValue = parseDcfOverrideValue(yearMatch[2], 'percent');
+          if (typeof nextValue === 'number') {
+            assumptionOverrides[key] = payload.assumptions[key].map((value, index) => (index === yearIndex ? nextValue : value));
+            break;
+          }
+        }
+      }
+
+      const fullSeriesMatch = prompt.match(new RegExp(`(?:set|make|change|adjust|update)\\s+(?:the\\s+)?${escapedAlias}\\s+(?:to\\s+)?([^.;\\n]+)`, 'i'))
+        || prompt.match(new RegExp(`${escapedAlias}\\s+(?:to\\s+)?([^.;\\n]+)`, 'i'));
+      if (fullSeriesMatch?.[1]) {
+        const parts = fullSeriesMatch[1].split(/[\\/,]/).map((part) => part.trim()).filter(Boolean);
+        const parsed = parts
+          .map((part) => parseDcfOverrideValue(part, 'percent'))
+          .filter((value): value is number => typeof value === 'number');
+        if (parsed.length > 1) {
+          assumptionOverrides[key] = parsed.slice(0, payload.assumptions[key].length);
+          break;
+        }
+        if (parsed.length === 1) {
+          assumptionOverrides[key] = payload.assumptions[key].map(() => parsed[0]);
+          break;
+        }
+      }
+    }
+  }
+
+  if (Object.keys(assumptionOverrides).length > 0) {
+    overrides.assumptions = assumptionOverrides;
+  }
+
+  return overrides;
+}
+
+async function buildAnalystDcfDemoFromPayload(params: {
+  prompt: string;
+  ticker: string;
+  companyName: string;
+  sector: string | null;
+  source: string;
+  asOfDate: string | null;
+  years: number;
+  baseMetrics: AnalystDcfDemoPayload['baseMetrics'];
+  assumptions: DeterministicAssumptions;
+  warnings: string[];
+}): Promise<{ reply: string; payload: AnalystDcfDemoPayload }> {
+  const currentEbitMargin = clamp(
+    params.assumptions.ebitMargin[0] ?? ((params.baseMetrics.revenueLtm > 0 && params.baseMetrics.ebitdaLtm > 0)
+      ? (params.baseMetrics.ebitdaLtm / params.baseMetrics.revenueLtm) - params.assumptions.daPctRevenue
+      : 0.2),
+    0.08,
+    0.4
+  );
+
+  const scenarioResults = {
+    base: null as AnalystDcfScenarioResult | null,
+    bull: null as AnalystDcfScenarioResult | null,
+    bear: null as AnalystDcfScenarioResult | null,
+  };
+  let forecast: AnalystDcfDemoPayload['forecast'] = [];
+
+  for (const key of ['base', 'bull', 'bear'] as const) {
+    const scenarioAssumptions = buildScenarioAssumptions(params.assumptions, key);
+    const spec = buildDcfSpec({
+      years: params.years,
+      startYear: new Date().getUTCFullYear(),
+      ticker: params.ticker,
+      companyName: params.companyName,
+      revenueLtm: params.baseMetrics.revenueLtm,
+      currentEbitMargin,
+      assumptions: scenarioAssumptions,
+    });
+
+    const evaluated = evaluateScenario({
+      key,
+      spec,
+      netDebt: params.baseMetrics.netDebt,
+      sharesOutstanding: params.baseMetrics.sharesOutstanding,
+      marketPrice: params.baseMetrics.sharePrice,
+    });
+    scenarioResults[key] = evaluated.scenario;
+    if (key === 'base') forecast = evaluated.forecast;
+  }
+
+  const payload: AnalystDcfDemoPayload = {
+    prompt: params.prompt,
+    ticker: params.ticker,
+    companyName: params.companyName,
+    sector: params.sector,
+    currency: 'USD',
+    years: params.years,
+    source: params.source,
+    asOfDate: params.asOfDate,
+    memo: '',
+    warnings: params.warnings,
+    notes: params.assumptions.notes,
+    baseMetrics: params.baseMetrics,
+    assumptions: {
+      revenueGrowth: params.assumptions.revenueGrowth,
+      ebitMargin: params.assumptions.ebitMargin,
+      taxRate: params.assumptions.taxRate,
+      daPctRevenue: params.assumptions.daPctRevenue,
+      capexPctRevenue: params.assumptions.capexPctRevenue,
+      nwcPctRevenue: params.assumptions.nwcPctRevenue,
+      wacc: params.assumptions.wacc,
+      terminalGrowth: params.assumptions.terminalGrowth,
+    },
+    forecast,
+    scenarios: {
+      base: scenarioResults.base as AnalystDcfScenarioResult,
+      bull: scenarioResults.bull as AnalystDcfScenarioResult,
+      bear: scenarioResults.bear as AnalystDcfScenarioResult,
+    },
+  };
+
+  payload.memo = (await generateAiMemo(payload, getOpenAIKeyCandidates('user'))) ?? buildDeterministicMemo(payload);
+
+  return {
+    reply: buildReply(payload),
+    payload,
+  };
+}
+
+export async function reviseAnalystDcfDemo(
+  prompt: string,
+  existingPayload: AnalystDcfDemoPayload,
+): Promise<{ reply: string; payload: AnalystDcfDemoPayload } | null> {
+  const overrides = extractDcfOverrides(prompt, existingPayload);
+  if (!overrides.companyName && !overrides.years && !overrides.assumptions) return null;
+
+  const assumptions: DeterministicAssumptions = {
+    ...existingPayload.assumptions,
+    ...(overrides.assumptions ?? {}),
+    revenueGrowth: overrides.assumptions?.revenueGrowth ?? existingPayload.assumptions.revenueGrowth,
+    ebitMargin: overrides.assumptions?.ebitMargin ?? existingPayload.assumptions.ebitMargin,
+    notes: [
+      ...existingPayload.notes,
+      'Updated from an Analyst Chat follow-up adjustment.',
+    ].slice(0, 4),
+  };
+
+  return buildAnalystDcfDemoFromPayload({
+    prompt,
+    ticker: existingPayload.ticker,
+    companyName: overrides.companyName ?? existingPayload.companyName,
+    sector: existingPayload.sector,
+    source: existingPayload.source,
+    asOfDate: existingPayload.asOfDate,
+    years: overrides.years ?? existingPayload.years,
+    baseMetrics: existingPayload.baseMetrics,
+    assumptions,
+    warnings: existingPayload.warnings,
+  });
+}
+
 export async function generateAnalystDcfDemo(params: {
   prompt: string;
   explicitTicker?: string;
@@ -716,58 +953,14 @@ export async function generateAnalystDcfDemo(params: {
     apiKeys: getOpenAIKeyCandidates('user'),
   });
   const assumptions = mergeAssumptions(defaultAssumptions, aiPatch ?? {}, parsed.years);
-
-  const currentEbitMargin = clamp(
-    assumptions.ebitMargin[0] ?? (ebitdaMargin !== null ? ebitdaMargin - assumptions.daPctRevenue : 0.2),
-    0.08,
-    0.4
-  );
-
-  const scenarioResults = {
-    base: null as AnalystDcfScenarioResult | null,
-    bull: null as AnalystDcfScenarioResult | null,
-    bear: null as AnalystDcfScenarioResult | null,
-  };
-  let forecast: AnalystDcfDemoPayload['forecast'] = [];
-
-  for (const key of ['base', 'bull', 'bear'] as const) {
-    const scenarioAssumptions = buildScenarioAssumptions(assumptions, key);
-    const spec = buildDcfSpec({
-      years: parsed.years,
-      startYear: new Date().getUTCFullYear(),
-      ticker: resolved.ticker,
-      companyName,
-      revenueLtm,
-      currentEbitMargin,
-      assumptions: scenarioAssumptions,
-    });
-
-    const evaluated = evaluateScenario({
-      key,
-      spec,
-      netDebt,
-      sharesOutstanding,
-      marketPrice: sharePrice,
-    });
-    scenarioResults[key] = evaluated.scenario;
-    if (key === 'base') forecast = evaluated.forecast;
-  }
-
-  const payload: AnalystDcfDemoPayload = {
+  return buildAnalystDcfDemoFromPayload({
     prompt: params.prompt,
     ticker: resolved.ticker,
     companyName,
     sector: snapshot.sector ?? null,
-    currency: 'USD',
-    years: parsed.years,
     source: resolved.source,
     asOfDate: resolved.asOfDate ?? snapshot.updatedAt ?? null,
-    memo: '',
-    warnings: [
-      ...(sharePrice === null ? ['Cached share price unavailable; upside/downside may be blank.'] : []),
-      ...(sharesOutstanding === null ? ['Cached shares outstanding unavailable; implied share price may be blank.'] : []),
-    ],
-    notes: assumptions.notes,
+    years: parsed.years,
     baseMetrics: {
       revenueLtm,
       ebitdaLtm,
@@ -779,28 +972,10 @@ export async function generateAnalystDcfDemo(params: {
       sharePrice,
       marketCap,
     },
-    assumptions: {
-      revenueGrowth: assumptions.revenueGrowth,
-      ebitMargin: assumptions.ebitMargin,
-      taxRate: assumptions.taxRate,
-      daPctRevenue: assumptions.daPctRevenue,
-      capexPctRevenue: assumptions.capexPctRevenue,
-      nwcPctRevenue: assumptions.nwcPctRevenue,
-      wacc: assumptions.wacc,
-      terminalGrowth: assumptions.terminalGrowth,
-    },
-    forecast,
-    scenarios: {
-      base: scenarioResults.base as AnalystDcfScenarioResult,
-      bull: scenarioResults.bull as AnalystDcfScenarioResult,
-      bear: scenarioResults.bear as AnalystDcfScenarioResult,
-    },
-  };
-
-  payload.memo = (await generateAiMemo(payload, getOpenAIKeyCandidates('user'))) ?? buildDeterministicMemo(payload);
-
-  return {
-    reply: buildReply(payload),
-    payload,
-  };
+    assumptions,
+    warnings: [
+      ...(sharePrice === null ? ['Cached share price unavailable; upside/downside may be blank.'] : []),
+      ...(sharesOutstanding === null ? ['Cached shares outstanding unavailable; implied share price may be blank.'] : []),
+    ],
+  });
 }
