@@ -33,6 +33,7 @@ import { classifyPrompt } from '@/lib/model-generator/classifyPrompt';
 import { getIntentPrompt } from '@/lib/analyst/prompts';
 import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKey';
 import { lookupStock } from '@/lib/data/company/lookupStock';
+import { detectCoreTemplatePrompt } from '@/lib/analyst/coreModelTemplates';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -177,6 +178,14 @@ function fmtMillions(value: number | null | undefined): string {
   return `$${value.toLocaleString('en-US')}`;
 }
 
+function isVisualizationPrompt(message: string): boolean {
+  const text = message.toLowerCase();
+  return (
+    /\b(graph|chart|visuali[sz]e|plot|trend line|show.*chart|show.*graph)\b/.test(text) &&
+    !/\b(download|export)\b/.test(text)
+  );
+}
+
 /* ────────── Fallback Reply Builder ────────── */
 
 async function buildFallbackReply(params: {
@@ -288,6 +297,14 @@ export async function POST(req: NextRequest) {
       currentDcf &&
       isModelAdjustmentPrompt(lastUserMessage) &&
       !classifyPrompt(lastUserMessage);
+    const shouldVisualizeCurrentModel =
+      currentModel &&
+      isVisualizationPrompt(lastUserMessage) &&
+      !classifyPrompt(lastUserMessage);
+    const shouldVisualizeCurrentDcf =
+      currentDcf &&
+      isVisualizationPrompt(lastUserMessage) &&
+      !classifyPrompt(lastUserMessage);
     if (route.intent === 'company_question' && resolvedTicker) {
       stockLookupPayload = await lookupStock({ prompt: lastUserMessage, ticker: resolvedTicker });
     }
@@ -302,8 +319,41 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (route.intent === 'financial_model' || shouldReviseCurrentModel) {
+    if (route.intent === 'financial_model' || shouldReviseCurrentModel || shouldVisualizeCurrentModel || shouldVisualizeCurrentDcf) {
       const modelType = classifyPrompt(lastUserMessage);
+      const coreTemplateModel = detectCoreTemplatePrompt(lastUserMessage);
+
+      if (shouldVisualizeCurrentDcf && currentDcf) {
+        return NextResponse.json({
+          reply: `Here is the visual DCF view for ${currentDcf.companyName} (${currentDcf.ticker}). The card below shows the base forecast and scenario value-per-share chart for the current assumptions.`,
+          fallback: false,
+          mode: 'live',
+          route: 'financial_model',
+          dcfDemo: currentDcf,
+          sources: [
+            `Demo snapshot cache — ${currentDcf.source}`,
+            ...(currentDcf.asOfDate ? [`Snapshot updated ${currentDcf.asOfDate}`] : []),
+            'Conversation follow-up visualization request',
+          ],
+          factsCount: 0,
+        });
+      }
+
+      if (shouldVisualizeCurrentModel && currentModel) {
+        return NextResponse.json({
+          reply: `Here is the current ${currentModel.modelType.replace(/_/g, ' ')} model view. The structured card below reflects the latest assumptions and can still be exported to Excel.`,
+          fallback: false,
+          mode: 'live',
+          route: 'financial_model',
+          generatedModel: currentModel,
+          sources: [
+            ...currentModel.provenanceSummary.sources,
+            'Conversation follow-up visualization request',
+          ],
+          factsCount: 0,
+        });
+      }
+
       if (shouldReviseCurrentModel && currentModel) {
         const revisedModel = await reviseAnalystStructuredModel(lastUserMessage, currentModel, sessionId);
         if (revisedModel) {
@@ -407,6 +457,24 @@ export async function POST(req: NextRequest) {
             factsCount: 0,
           });
         }
+      }
+
+      if (coreTemplateModel) {
+        return NextResponse.json({
+          reply:
+            coreTemplateModel.surface === 'template_library'
+              ? `I routed this request into the deterministic template library. ${coreTemplateModel.name} already exists as a dedicated workbook model in CapitalBase, so the right workflow is to open the wizard, set the specific assumptions, and export the file from there.`
+              : `I routed this request into the existing automated model builder. ${coreTemplateModel.name} already exists in CapitalBase, so the right workflow is to open the builder, set the required inputs, and export the workbook through that model-specific path.`,
+          fallback: false,
+          mode: 'live',
+          route: 'financial_model',
+          coreTemplateModel,
+          sources:
+            coreTemplateModel.surface === 'template_library'
+              ? ['CapitalBase template library', 'Deterministic workbook model registry']
+              : ['CapitalBase automated builder', 'Existing model generation workflow'],
+          factsCount: 0,
+        });
       }
 
       const demo = await generateAnalystDcfDemo({
