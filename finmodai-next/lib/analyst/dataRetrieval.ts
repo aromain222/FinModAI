@@ -141,7 +141,7 @@ function toNum(value: unknown): number | null {
   return null;
 }
 
-async function fetchCompanyFinancials(ticker: string): Promise<CompanyFinancials | null> {
+export async function fetchCompanyFinancials(ticker: string): Promise<CompanyFinancials | null> {
   const apiKey = process.env.FMP_API_KEY;
   if (!apiKey) return null;
 

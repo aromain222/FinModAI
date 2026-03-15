@@ -35,7 +35,7 @@ import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKe
 import { lookupStock } from '@/lib/data/company/lookupStock';
 import { detectCoreTemplatePrompt } from '@/lib/analyst/coreModelTemplates';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
-import { buildVisualizationFromCurrentArtifact } from '@/lib/analyst/visualization';
+import { buildComparisonVisualizationFromPrompt, buildVisualizationFromCurrentArtifact } from '@/lib/analyst/visualization';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -317,6 +317,21 @@ export async function POST(req: NextRequest) {
       !classifyPrompt(lastUserMessage);
     if (route.intent === 'company_question' && resolvedTicker) {
       stockLookupPayload = await lookupStock({ prompt: lastUserMessage, ticker: resolvedTicker });
+    }
+
+    if (isVisualizationPrompt(lastUserMessage) && !currentModel && !currentDcf && !currentStock) {
+      const comparisonVisualization = await buildComparisonVisualizationFromPrompt(lastUserMessage);
+      if (comparisonVisualization) {
+        return NextResponse.json({
+          reply: `Here is a standalone comparison chart for ${comparisonVisualization.contextLabel}. It was generated directly from your prompt and is separate from any model card.`,
+          fallback: false,
+          mode: 'live',
+          route: route.intent,
+          visualization: comparisonVisualization,
+          sources: comparisonVisualization.notes,
+          factsCount: 0,
+        });
+      }
     }
 
     if (process.env.NODE_ENV !== 'production') {

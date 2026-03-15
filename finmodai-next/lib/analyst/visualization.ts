@@ -1,6 +1,9 @@
 import type { AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 import type { AnalystGeneratedModelPayload } from '@/lib/analyst/modelChat';
+import { fetchCompanyFinancials } from '@/lib/analyst/dataRetrieval';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
+import { resolveCompanyProfile } from '@/lib/data/company/resolveCompanyProfile';
+import { loadDemoSnapshots } from '@/lib/demo/demoSnapshotStore';
 
 type PlotTrace = Record<string, unknown>;
 type PlotLayout = Record<string, unknown>;
@@ -22,6 +25,115 @@ export type AnalystVisualizationPayload = {
   notes: string[];
   panels: AnalystVisualizationPanel[];
 };
+
+type ComparisonMetricKey = 'revenue' | 'ebitda' | 'netIncome' | 'eps';
+
+type CompanyComparisonSeries = {
+  ticker: string;
+  companyName: string;
+  quarterDate: string | null;
+  metrics: Record<ComparisonMetricKey, number | null>;
+  source: string;
+};
+
+function normalizePromptText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function normalizeCompanyName(value: string): string {
+  return normalizePromptText(value)
+    .replace(/\b(incorporated|inc|corp|corporation|holdings|holding|group|plc|limited|ltd|company|co)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function hasComparisonIntent(prompt: string): boolean {
+  return /\b(compare|comparison|versus|vs\.?|against)\b/i.test(prompt);
+}
+
+function isEarningsComparisonPrompt(prompt: string): boolean {
+  return hasComparisonIntent(prompt) && /\b(earnings?|quarter|revenue|eps|net income|ebitda)\b/i.test(prompt);
+}
+
+function resolveMentionedTickers(prompt: string, snapshots: Record<string, { companyName?: string | null }>): string[] {
+  const normalizedPrompt = normalizePromptText(prompt);
+  const matched = new Map<string, { position: number; score: number }>();
+
+  for (const ticker of Object.keys(snapshots)) {
+    const tickerPattern = new RegExp(`\\b${ticker.replace('.', '\\.')}\\b`, 'i');
+    const tickerMatch = prompt.match(tickerPattern);
+    if (tickerMatch?.index !== undefined) {
+      matched.set(ticker, { position: tickerMatch.index, score: 1000 });
+    }
+  }
+
+  for (const [ticker, snapshot] of Object.entries(snapshots)) {
+    const normalizedName = normalizeCompanyName(snapshot.companyName ?? '');
+    if (!normalizedName || normalizedName.length < 3) continue;
+    const idx = normalizedPrompt.indexOf(normalizedName);
+    if (idx >= 0) {
+      const existing = matched.get(ticker);
+      if (!existing || idx < existing.position) {
+        matched.set(ticker, { position: idx, score: normalizedName.length });
+      }
+    }
+  }
+
+  return Array.from(matched.entries())
+    .sort((left, right) => {
+      if (left[1].position !== right[1].position) return left[1].position - right[1].position;
+      return right[1].score - left[1].score;
+    })
+    .map(([ticker]) => ticker)
+    .slice(0, 2);
+}
+
+async function fetchComparisonSeries(ticker: string): Promise<CompanyComparisonSeries | null> {
+  const financials = await fetchCompanyFinancials(ticker);
+  if (financials && Object.values(financials.latestQuarter).some((value) => value !== null && value !== financials.latestQuarter.date)) {
+    return {
+      ticker: financials.ticker,
+      companyName: financials.companyName,
+      quarterDate: financials.latestQuarter.date,
+      metrics: {
+        revenue: financials.latestQuarter.revenue,
+        ebitda: financials.latestQuarter.ebitda,
+        netIncome: financials.latestQuarter.netIncome,
+        eps: financials.latestQuarter.eps,
+      },
+      source: 'fmp_latest_quarter',
+    };
+  }
+
+  const profile = await resolveCompanyProfile({ ticker });
+  if (!profile?.snapshot) return null;
+
+  return {
+    ticker: profile.company.ticker,
+    companyName: profile.company.name ?? ticker,
+    quarterDate: profile.snapshot.asOfDate,
+    metrics: {
+      revenue: profile.snapshot.revenueLtm,
+      ebitda: profile.snapshot.ebitdaLtm,
+      netIncome: profile.snapshot.netIncomeLtm,
+      eps: null,
+    },
+    source: 'company_snapshot_ltm_fallback',
+  };
+}
+
+function formatMetricLabel(metric: ComparisonMetricKey): string {
+  switch (metric) {
+    case 'revenue':
+      return 'Revenue';
+    case 'ebitda':
+      return 'EBITDA';
+    case 'netIncome':
+      return 'Net Income';
+    case 'eps':
+      return 'EPS';
+  }
+}
 
 function formatModelTypeLabel(modelType: AnalystGeneratedModelPayload['modelType']): string {
   return modelType.replace(/_/g, ' ');
@@ -457,4 +569,63 @@ export function buildVisualizationFromCurrentArtifact(input: {
   if (input.currentModel) return buildModelVisualization(input.currentModel);
   if (input.currentStock) return buildStockVisualization(input.currentStock);
   return null;
+}
+
+export async function buildComparisonVisualizationFromPrompt(prompt: string): Promise<AnalystVisualizationPayload | null> {
+  if (!isEarningsComparisonPrompt(prompt)) return null;
+
+  const snapshots = await loadDemoSnapshots();
+  const tickers = resolveMentionedTickers(prompt, snapshots);
+  if (tickers.length < 2) return null;
+
+  const series = (await Promise.all(tickers.map((ticker) => fetchComparisonSeries(ticker)))).filter(
+    (item): item is CompanyComparisonSeries => Boolean(item)
+  );
+  if (series.length < 2) return null;
+
+  const metricOrder: ComparisonMetricKey[] = ['revenue', 'ebitda', 'netIncome', 'eps'];
+  const availableMetrics = metricOrder.filter((metric) => series.some((company) => typeof company.metrics[metric] === 'number'));
+  if (availableMetrics.length === 0) return null;
+
+  const notes: string[] = [
+    'This chart was generated directly from the prompt, not from an existing model artifact.',
+    ...series.map((company) =>
+      `${company.ticker}: ${company.source === 'fmp_latest_quarter' ? 'latest quarterly earnings' : 'LTM snapshot fallback'}`
+    ),
+  ];
+
+  return {
+    title: `${series[0].companyName} vs ${series[1].companyName} Earnings Comparison`,
+    subtitle: 'Direct comparison chart built from the latest available company earnings context.',
+    contextType: 'stock',
+    contextLabel: `${series[0].ticker} vs ${series[1].ticker}`,
+    notes,
+    panels: availableMetrics.map((metric) => ({
+      id: `earnings-${metric}`,
+      title: `${formatMetricLabel(metric)} Comparison`,
+      subtitle:
+        metric === 'eps'
+          ? 'Latest available EPS by company.'
+          : `Latest available ${formatMetricLabel(metric).toLowerCase()} by company.`,
+      height: 280,
+      data: [
+        {
+          type: 'bar',
+          name: formatMetricLabel(metric),
+          x: series.map((company) => company.ticker),
+          y: series.map((company) => (typeof company.metrics[metric] === 'number' ? company.metrics[metric] : 0)),
+          text: series.map((company) => company.companyName),
+          marker: { color: ['#76b7ff', '#7ce7ac'] },
+          hovertemplate:
+            metric === 'eps'
+              ? '%{x}<br>%{text}<br>EPS: $%{y:.2f}<extra></extra>'
+              : '%{x}<br>%{text}<br>Value: $%{y:,.0f}M<extra></extra>',
+        },
+      ],
+      layout: {
+        xaxis: { type: 'category' },
+        yaxis: metric === 'eps' ? { tickprefix: '$' } : { tickprefix: '$', ticksuffix: 'M' },
+      },
+    })),
+  };
 }
