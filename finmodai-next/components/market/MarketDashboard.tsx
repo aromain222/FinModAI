@@ -157,6 +157,31 @@ function breadthRangeFor(range: RangeKey): Exclude<RangeKey, '5D'> | '6M' {
   return range;
 }
 
+function rangeDisplayLabel(range: RangeKey): string {
+  switch (range) {
+    case '1D':
+      return '1D';
+    case '5D':
+      return '5D';
+    case '1W':
+      return '1W';
+    case '1M':
+      return '1M';
+    case '3M':
+      return '3M';
+    case '1Y':
+      return '1Y';
+    case 'YTD':
+      return 'YTD';
+    case '5Y':
+      return '5Y';
+    case 'MAX':
+      return 'MAX';
+    default:
+      return range;
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
@@ -615,6 +640,7 @@ export default function MarketDashboard() {
       : 'fresh';
 
   const asOfDisplay = quotesAsOf || chartAsOf || moversAsOf || sectorsAsOf || new Date().toISOString();
+  const selectedRangeLabel = rangeDisplayLabel(rangeKey);
 
   return (
     <div className="h-[calc(100vh-72px)] w-full overflow-y-auto overflow-x-hidden bg-zinc-950">
@@ -628,6 +654,12 @@ export default function MarketDashboard() {
 
         {/* Quote Tiles */}
         <section>
+          <div className="mb-3 flex items-center justify-between gap-3 text-[11px] text-zinc-400">
+            <div className="uppercase tracking-[0.12em] text-zinc-500">Live snapshot</div>
+            <div className="rounded-full border border-zinc-800/50 bg-zinc-900/40 px-2.5 py-1 text-[10px] uppercase tracking-[0.12em] text-zinc-300">
+              Current session (1D)
+            </div>
+          </div>
           {quotesLoading ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10">
               {Array.from({ length: 10 }).map((_, i) => (
@@ -747,6 +779,9 @@ export default function MarketDashboard() {
               <div className="flex items-center gap-2">
                 <div className="text-sm font-semibold text-zinc-200">S&P 500 (SPY)</div>
                 <FreshnessBadge freshness={chartFreshness} />
+                <span className="rounded-full border border-zinc-800/50 bg-zinc-900/40 px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-zinc-300">
+                  {selectedRangeLabel} view
+                </span>
               </div>
               <div className="mt-2 text-[4.9rem] font-semibold tracking-tight text-zinc-50">{formatNumber(priceNow, 2)}</div>
               <div className={cn('mt-2 text-lg font-medium', up === null ? 'text-zinc-300' : up ? 'text-emerald-400' : 'text-rose-400')}>
@@ -755,11 +790,11 @@ export default function MarketDashboard() {
 
               <div className="mt-4 space-y-2 text-xs text-zinc-300">
                 <div className="flex items-center justify-between border-b border-zinc-800/40 pb-1">
-                  <span className="text-[10px] uppercase tracking-[0.12em] text-zinc-300/70">Session Range</span>
+                  <span className="text-[10px] uppercase tracking-[0.12em] text-zinc-300/70">{selectedRangeLabel} Range</span>
                   <span>{rangeLow !== null && rangeHigh !== null ? `${formatNumber(rangeLow, 2)} – ${formatNumber(rangeHigh, 2)}` : '—'}</span>
                 </div>
                 <div className="flex items-center justify-between border-b border-zinc-800/40 pb-1">
-                  <span className="text-[10px] uppercase tracking-[0.12em] text-zinc-300/70">Volume</span>
+                  <span className="text-[10px] uppercase tracking-[0.12em] text-zinc-300/70">{selectedRangeLabel} Volume</span>
                   <span>{compactVolume(candleData.length === 0 ? null : volumeTotal)}</span>
                 </div>
                 <div className="flex items-center justify-between border-b border-zinc-800/40 pb-1">
@@ -780,6 +815,9 @@ export default function MarketDashboard() {
               <div className="mb-2 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-zinc-400/70">
                   <span>S&P 500 (SPY)</span>
+                  <span className="rounded-full border border-zinc-700/50 bg-zinc-800/40 px-2 py-0.5 text-[10px] tracking-normal text-zinc-300">
+                    {selectedRangeLabel}
+                  </span>
                   <span className="rounded-full border border-zinc-700/50 bg-zinc-800/40 px-2 py-0.5 text-[10px] tracking-normal text-zinc-300">
                     FMP
                   </span>
