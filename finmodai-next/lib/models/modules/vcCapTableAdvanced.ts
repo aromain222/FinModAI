@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
   setInputCell,
@@ -212,6 +213,7 @@ async function buildVcCapTableAdvancedWorkbook(
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'CapitalBase';
   workbook.created = new Date();
+  configureWorkbookForRecalc(workbook);
 
   const stakeholdersSheet = workbook.addWorksheet('Stakeholders');
   stakeholdersSheet.views = [{ state: 'frozen', ySplit: 3 }];

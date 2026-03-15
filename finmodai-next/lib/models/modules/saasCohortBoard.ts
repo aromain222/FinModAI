@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
   setInputCell,
@@ -112,6 +113,7 @@ async function buildSaasCohortBoardWorkbook(
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'CapitalBase';
   workbook.created = new Date();
+  configureWorkbookForRecalc(workbook);
 
   const inputsSheet = workbook.addWorksheet('Cohort Inputs');
   inputsSheet.views = [{ state: 'frozen', ySplit: 3 }];

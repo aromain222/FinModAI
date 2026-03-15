@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
   setInputCell,
@@ -194,6 +195,7 @@ async function buildLboLiteWorkbook(input: LboLiteInput, output: LboLiteOutput):
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'CapitalBase';
   workbook.created = new Date();
+  configureWorkbookForRecalc(workbook);
 
   const weightedInterestRate =
     input.debt_tranches.reduce((sum, tranche) => sum + tranche.amount * tranche.interest_rate, 0) / output.totalDebt;

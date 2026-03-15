@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
   setInputCell,
@@ -151,6 +152,7 @@ async function buildRevenueRecognitionAsc606Workbook(
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'CapitalBase';
   workbook.created = new Date();
+  configureWorkbookForRecalc(workbook);
 
   const contractsSheet = workbook.addWorksheet('Contracts Input');
   contractsSheet.views = [{ state: 'frozen', ySplit: 3 }];

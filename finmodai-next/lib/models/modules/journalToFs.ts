@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
   setInputCell,
@@ -322,6 +323,7 @@ async function buildJournalToFsWorkbook(input: JournalToFsInput, output: Journal
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'CapitalBase';
   workbook.created = new Date();
+  configureWorkbookForRecalc(workbook);
 
   const journalSheet = workbook.addWorksheet('Journal Entries');
   journalSheet.views = [{ state: 'frozen', ySplit: 6 }];
