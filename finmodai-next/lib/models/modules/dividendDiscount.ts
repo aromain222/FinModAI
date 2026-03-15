@@ -3,8 +3,10 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
+  setFormulaCell,
   setInputCell,
   setOutputCell,
   setPercent,
@@ -57,7 +59,7 @@ const dividendDiscountUiSchema: UISchema = {
     {
       title: 'Dividend Inputs',
       fields: [
-        { key: 'current_dividend_per_share', label: 'Current Dividend / Share', type: 'currency', required: true, defaultValue: 6.00 },
+        { key: 'current_dividend_per_share', label: 'Current Dividend / Share', type: 'currency', required: true, defaultValue: 6.0 },
         { key: 'near_term_growth', label: 'Near-term Dividend Growth', type: 'percent', required: true, defaultValue: 0.06 },
         { key: 'terminal_growth', label: 'Terminal Growth', type: 'percent', required: true, defaultValue: 0.025 },
         { key: 'cost_of_equity', label: 'Cost of Equity', type: 'percent', required: true, defaultValue: 0.09 },
@@ -103,13 +105,11 @@ function computeDividendDiscount(input: DividendDiscountInput): DividendDiscount
   };
 }
 
-async function buildDividendDiscountWorkbook(
-  input: DividendDiscountInput,
-  output: DividendDiscountOutput,
-): Promise<ExcelJS.Workbook> {
+async function buildDividendDiscountWorkbook(input: DividendDiscountInput, output: DividendDiscountOutput): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'CapitalBase';
   workbook.created = new Date();
+  configureWorkbookForRecalc(workbook);
 
   const assumptionsSheet = workbook.addWorksheet('Assumptions');
   assumptionsSheet.views = [{ state: 'frozen', ySplit: 3 }];
@@ -159,18 +159,23 @@ async function buildDividendDiscountWorkbook(
   output.rows.forEach((row, idx) => {
     const excelRow = 4 + idx;
     scheduleSheet.getCell(excelRow, 1).value = row.year;
-    scheduleSheet.getCell(excelRow, 2).value = row.dividendPerShare;
-    scheduleSheet.getCell(excelRow, 3).value = row.growth;
-    scheduleSheet.getCell(excelRow, 4).value = row.discountFactor;
-    scheduleSheet.getCell(excelRow, 5).value = row.pvDividend;
+    if (idx === 0) {
+      setFormulaCell(scheduleSheet.getCell(excelRow, 2), `=Assumptions!$B$4*(1+Assumptions!$B$5)`, row.dividendPerShare);
+    } else {
+      setFormulaCell(scheduleSheet.getCell(excelRow, 2), `=B${excelRow - 1}*(1+Assumptions!$B$5)`, row.dividendPerShare);
+    }
+    setFormulaCell(scheduleSheet.getCell(excelRow, 3), '=Assumptions!$B$5', row.growth);
+    setFormulaCell(scheduleSheet.getCell(excelRow, 4), `=1/((1+Assumptions!$B$7)^A${excelRow})`, row.discountFactor);
+    setFormulaCell(scheduleSheet.getCell(excelRow, 5), `=B${excelRow}*D${excelRow}`, row.pvDividend);
     setCurrency(scheduleSheet.getCell(excelRow, 2));
     setPercent(scheduleSheet.getCell(excelRow, 3));
     scheduleSheet.getCell(excelRow, 4).numFmt = '0.0000x';
     setCurrency(scheduleSheet.getCell(excelRow, 5));
-    for (let c = 1; c <= 5; c += 1) setOutputCell(scheduleSheet.getCell(excelRow, c));
+    setOutputCell(scheduleSheet.getCell(excelRow, 1));
   });
   styleGrid(scheduleSheet, 3, 3 + output.rows.length, 1, 5);
 
+  const lastScheduleRow = 3 + output.rows.length;
   const summarySheet = workbook.addWorksheet('Summary');
   summarySheet.views = [{ state: 'frozen', ySplit: 3 }];
   summarySheet.getColumn(1).width = 34;
@@ -180,23 +185,26 @@ async function buildDividendDiscountWorkbook(
   summarySheet.getCell('A3').value = 'Metric';
   summarySheet.getCell('B3').value = 'Value';
   styleHeaderRow(summarySheet, 3, 1, 2);
-  const summaryRows: Array<[string, number | string, 'currency' | 'percent' | 'text']> = [
-    ['PV of Forecast Dividends', output.rows.reduce((sum, row) => sum + row.pvDividend, 0), 'currency'],
-    ['PV of Terminal Value', output.pvTerminalValue, 'currency'],
-    ['Implied Value / Share', output.impliedValuePerShare, 'currency'],
-    ['Current Price', input.current_price, 'currency'],
-    ['Upside / Downside', output.priceUpsidePct ?? 0, 'percent'],
-    ['Current Dividend Yield', output.impliedYield, 'percent'],
+
+  const summaryDefs: Array<[string, string, number | null, 'currency' | 'percent']> = [
+    ['PV of Forecast Dividends', `=SUM('Dividend Schedule'!E4:E${lastScheduleRow})`, output.rows.reduce((sum, row) => sum + row.pvDividend, 0), 'currency'],
+    ['Terminal Dividend', `='Dividend Schedule'!B${lastScheduleRow}*(1+Assumptions!$B$6)`, output.terminalDividend, 'currency'],
+    ['Terminal Value', `=B5/(Assumptions!$B$7-Assumptions!$B$6)`, output.terminalValue, 'currency'],
+    ['PV of Terminal Value', `=B6/((1+Assumptions!$B$7)^Assumptions!$B$8)`, output.pvTerminalValue, 'currency'],
+    ['Implied Value / Share', '=B4+B7', output.impliedValuePerShare, 'currency'],
+    ['Current Price', '=Assumptions!$B$9', input.current_price, 'currency'],
+    ['Upside / Downside', '=IF(B9>0,B8/B9-1,0)', output.priceUpsidePct ?? 0, 'percent'],
+    ['Current Dividend Yield', '=IF(Assumptions!$B$9>0,Assumptions!$B$4/Assumptions!$B$9,0)', output.impliedYield, 'percent'],
   ];
-  summaryRows.forEach(([label, value, fmt], idx) => {
+  summaryDefs.forEach(([label, formula, result, fmt], idx) => {
     const row = 4 + idx;
     summarySheet.getCell(row, 1).value = label;
-    summarySheet.getCell(row, 2).value = value;
+    setFormulaCell(summarySheet.getCell(row, 2), formula, result);
     if (fmt === 'currency') setCurrency(summarySheet.getCell(row, 2));
     if (fmt === 'percent') setPercent(summarySheet.getCell(row, 2));
-    for (let c = 1; c <= 2; c += 1) setOutputCell(summarySheet.getCell(row, c));
+    setOutputCell(summarySheet.getCell(row, 1));
   });
-  styleGrid(summarySheet, 3, 9, 1, 2);
+  styleGrid(summarySheet, 3, 11, 1, 2);
 
   const checksSheet = workbook.addWorksheet('Checks');
   checksSheet.views = [{ state: 'frozen', ySplit: 3 }];
@@ -209,18 +217,15 @@ async function buildDividendDiscountWorkbook(
   checksSheet.getCell('B3').value = 'Value';
   checksSheet.getCell('C3').value = 'Status';
   styleHeaderRow(checksSheet, 3, 1, 3);
-  const spread = input.cost_of_equity - input.terminal_growth;
   checksSheet.getCell('A4').value = 'Cost of equity > terminal growth';
-  checksSheet.getCell('B4').value = spread;
-  checksSheet.getCell('C4').value = spread > 0 ? 'PASS' : 'FAIL';
+  setFormulaCell(checksSheet.getCell('B4'), '=Assumptions!$B$7-Assumptions!$B$6', input.cost_of_equity - input.terminal_growth);
   setPercent(checksSheet.getCell('B4'));
+  setFormulaCell(checksSheet.getCell('C4'), '=IF(B4>0,"PASS","FAIL")', input.cost_of_equity > input.terminal_growth ? 'PASS' : 'FAIL');
   checksSheet.getCell('A5').value = 'Implied value / share finite';
-  checksSheet.getCell('B5').value = output.impliedValuePerShare;
-  checksSheet.getCell('C5').value = Number.isFinite(output.impliedValuePerShare) ? 'PASS' : 'FAIL';
+  setFormulaCell(checksSheet.getCell('B5'), '=Summary!B8', output.impliedValuePerShare);
   setCurrency(checksSheet.getCell('B5'));
-  for (let row = 4; row <= 5; row += 1) {
-    for (let col = 1; col <= 3; col += 1) setOutputCell(checksSheet.getCell(row, col));
-  }
+  setFormulaCell(checksSheet.getCell('C5'), '=IF(ISNUMBER(B5),"PASS","FAIL")', Number.isFinite(output.impliedValuePerShare) ? 'PASS' : 'FAIL');
+  for (let row = 4; row <= 5; row += 1) for (let col = 1; col <= 3; col += 1) setOutputCell(checksSheet.getCell(row, col));
   styleGrid(checksSheet, 3, 5, 1, 3);
 
   const equationsSheet = workbook.addWorksheet('Equations');
@@ -232,9 +237,10 @@ async function buildDividendDiscountWorkbook(
   equationsSheet.getCell('B3').value = 'Equation';
   styleHeaderRow(equationsSheet, 3, 1, 2);
   const equations: Array<[string, string]> = [
-    ['Forecast dividend', 'DPS_t = DPS_(t-1) * (1 + near-term growth)'],
-    ['Terminal value', 'TV = DPS_(n+1) / (cost of equity - terminal growth)'],
-    ['Implied value / share', 'Value = sum(PV of forecast dividends) + PV of terminal value'],
+    ['Dividend forecast', 'Dividend_t = Dividend_(t-1) * (1 + g)'],
+    ['PV of dividend', 'PV Dividend = Dividend / (1 + ke)^t'],
+    ['Terminal value', 'TV = Dividend_(t+1) / (ke - g_terminal)'],
+    ['Implied value / share', 'Value = Sum(PV Dividends) + PV(Terminal Value)'],
   ];
   equations.forEach(([item, eq], idx) => {
     const row = 4 + idx;
@@ -243,7 +249,7 @@ async function buildDividendDiscountWorkbook(
     setOutputCell(equationsSheet.getCell(row, 1));
     setOutputCell(equationsSheet.getCell(row, 2));
   });
-  styleGrid(equationsSheet, 3, 6, 1, 2);
+  styleGrid(equationsSheet, 3, 7, 1, 2);
 
   await Promise.all(workbook.worksheets.map((sheet) => protectSheetIfConfigured(sheet)));
   return workbook;
@@ -253,7 +259,7 @@ export const dividendDiscountModel: ModelDef<DividendDiscountInput, DividendDisc
   slug: 'dividend-discount-model',
   name: 'Dividend Discount Model',
   category: 'Corporate Finance',
-  description: 'Value mature dividend-paying companies from forecast dividends, terminal growth, and cost of equity.',
+  description: 'Forecast dividends, discount them to present value, and derive an implied per-share value under a stable dividend framework.',
   inputSchema: DividendDiscountInputSchema,
   uiSchema: dividendDiscountUiSchema,
   compute: computeDividendDiscount,

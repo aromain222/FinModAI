@@ -3,8 +3,10 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
+  setFormulaCell,
   setInputCell,
   setOutputCell,
   setPercent,
@@ -120,13 +122,11 @@ function computeDebtAmortizationRefi(input: DebtAmortizationRefiInput): DebtAmor
   };
 }
 
-async function buildDebtAmortizationRefiWorkbook(
-  input: DebtAmortizationRefiInput,
-  output: DebtAmortizationRefiOutput,
-): Promise<ExcelJS.Workbook> {
+async function buildDebtAmortizationRefiWorkbook(input: DebtAmortizationRefiInput, output: DebtAmortizationRefiOutput): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'CapitalBase';
   workbook.created = new Date();
+  configureWorkbookForRecalc(workbook);
 
   const assumptionsSheet = workbook.addWorksheet('Assumptions');
   assumptionsSheet.views = [{ state: 'frozen', ySplit: 3 }];
@@ -176,24 +176,29 @@ async function buildDebtAmortizationRefiWorkbook(
   output.rows.forEach((row, idx) => {
     const excelRow = 4 + idx;
     scheduleSheet.getCell(excelRow, 1).value = row.year;
-    scheduleSheet.getCell(excelRow, 2).value = row.beginningDebt;
-    scheduleSheet.getCell(excelRow, 3).value = row.amortization;
-    scheduleSheet.getCell(excelRow, 4).value = row.cashSweep;
-    scheduleSheet.getCell(excelRow, 5).value = row.refinanceAmount;
-    scheduleSheet.getCell(excelRow, 6).value = row.endingDebt;
-    scheduleSheet.getCell(excelRow, 7).value = row.interestRate;
-    scheduleSheet.getCell(excelRow, 8).value = row.interestExpense;
-    scheduleSheet.getCell(excelRow, 9).value = row.netDebt;
-    scheduleSheet.getCell(excelRow, 10).value = row.leverage;
-    scheduleSheet.getCell(excelRow, 11).value = row.coverage;
-    for (const c of [2,3,4,5,6,8,9]) setCurrency(scheduleSheet.getCell(excelRow, c));
+    if (idx === 0) {
+      setFormulaCell(scheduleSheet.getCell(excelRow, 2), '=Assumptions!$B$4', row.beginningDebt);
+    } else {
+      setFormulaCell(scheduleSheet.getCell(excelRow, 2), `=F${excelRow - 1}`, row.beginningDebt);
+    }
+    setFormulaCell(scheduleSheet.getCell(excelRow, 3), `=MIN(B${excelRow}*Assumptions!$B$8,B${excelRow})`, row.amortization);
+    setFormulaCell(scheduleSheet.getCell(excelRow, 4), `=MIN(Assumptions!$B$9,B${excelRow}-C${excelRow})`, row.cashSweep);
+    setFormulaCell(scheduleSheet.getCell(excelRow, 5), `=IF(A${excelRow}=Assumptions!$B$11,B${excelRow}-C${excelRow}-D${excelRow},0)`, row.refinanceAmount);
+    setFormulaCell(scheduleSheet.getCell(excelRow, 6), `=MAX(0,B${excelRow}-C${excelRow}-D${excelRow})`, row.endingDebt);
+    setFormulaCell(scheduleSheet.getCell(excelRow, 7), `=IF(A${excelRow}>=Assumptions!$B$11,Assumptions!$B$12,Assumptions!$B$7)`, row.interestRate);
+    setFormulaCell(scheduleSheet.getCell(excelRow, 8), `=((B${excelRow}+F${excelRow})/2)*G${excelRow}`, row.interestExpense);
+    setFormulaCell(scheduleSheet.getCell(excelRow, 9), `=MAX(F${excelRow}-Assumptions!$B$5,0)`, row.netDebt);
+    setFormulaCell(scheduleSheet.getCell(excelRow, 10), `=IF(Assumptions!$B$6>0,F${excelRow}/Assumptions!$B$6,0)`, row.leverage);
+    setFormulaCell(scheduleSheet.getCell(excelRow, 11), `=IF(H${excelRow}>0,Assumptions!$B$6/H${excelRow},999)`, row.coverage);
+    for (const c of [2, 3, 4, 5, 6, 8, 9]) setCurrency(scheduleSheet.getCell(excelRow, c));
     setPercent(scheduleSheet.getCell(excelRow, 7));
     scheduleSheet.getCell(excelRow, 10).numFmt = '0.00x';
     scheduleSheet.getCell(excelRow, 11).numFmt = '0.00x';
-    for (let c = 1; c <= 11; c += 1) setOutputCell(scheduleSheet.getCell(excelRow, c));
+    setOutputCell(scheduleSheet.getCell(excelRow, 1));
   });
   styleGrid(scheduleSheet, 3, 3 + output.rows.length, 1, 11);
 
+  const lastScheduleRow = 3 + output.rows.length;
   const summarySheet = workbook.addWorksheet('Summary');
   summarySheet.views = [{ state: 'frozen', ySplit: 3 }];
   summarySheet.getColumn(1).width = 34;
@@ -203,20 +208,19 @@ async function buildDebtAmortizationRefiWorkbook(
   summarySheet.getCell('A3').value = 'Metric';
   summarySheet.getCell('B3').value = 'Value';
   styleHeaderRow(summarySheet, 3, 1, 2);
-  const summaryRows: Array<[string, number, 'currency' | 'multiple']> = [
-    ['Ending Debt', output.endingDebt, 'currency'],
-    ['Ending Net Debt', output.endingNetDebt, 'currency'],
-    ['Peak Leverage', output.peakLeverage, 'multiple'],
-    ['Minimum Coverage', output.minCoverage, 'multiple'],
+  const summaryRows: Array<[string, string, number, 'currency' | 'multiple']> = [
+    ['Ending Debt', `='Debt Schedule'!F${lastScheduleRow}`, output.endingDebt, 'currency'],
+    ['Ending Net Debt', `='Debt Schedule'!I${lastScheduleRow}`, output.endingNetDebt, 'currency'],
+    ['Peak Leverage', `=MAX('Debt Schedule'!J4:J${lastScheduleRow})`, output.peakLeverage, 'multiple'],
+    ['Minimum Coverage', `=MIN('Debt Schedule'!K4:K${lastScheduleRow})`, output.minCoverage, 'multiple'],
   ];
-  summaryRows.forEach(([label, value, fmt], idx) => {
+  summaryRows.forEach(([label, formula, value, fmt], idx) => {
     const row = 4 + idx;
     summarySheet.getCell(row, 1).value = label;
-    summarySheet.getCell(row, 2).value = value;
+    setFormulaCell(summarySheet.getCell(row, 2), formula, value);
     if (fmt === 'currency') setCurrency(summarySheet.getCell(row, 2));
     if (fmt === 'multiple') summarySheet.getCell(row, 2).numFmt = '0.00x';
     setOutputCell(summarySheet.getCell(row, 1));
-    setOutputCell(summarySheet.getCell(row, 2));
   });
   styleGrid(summarySheet, 3, 7, 1, 2);
 
@@ -232,13 +236,13 @@ async function buildDebtAmortizationRefiWorkbook(
   checksSheet.getCell('C3').value = 'Status';
   styleHeaderRow(checksSheet, 3, 1, 3);
   checksSheet.getCell('A4').value = 'Ending debt non-negative';
-  checksSheet.getCell('B4').value = output.endingDebt;
-  checksSheet.getCell('C4').value = output.endingDebt >= 0 ? 'PASS' : 'FAIL';
+  setFormulaCell(checksSheet.getCell('B4'), '=Summary!B4', output.endingDebt);
   setCurrency(checksSheet.getCell('B4'));
+  setFormulaCell(checksSheet.getCell('C4'), '=IF(B4>=0,"PASS","FAIL")', output.endingDebt >= 0 ? 'PASS' : 'FAIL');
   checksSheet.getCell('A5').value = 'Minimum coverage > 1.0x';
-  checksSheet.getCell('B5').value = output.minCoverage;
-  checksSheet.getCell('C5').value = output.minCoverage > 1 ? 'PASS' : 'FAIL';
+  setFormulaCell(checksSheet.getCell('B5'), '=Summary!B7', output.minCoverage);
   checksSheet.getCell('B5').numFmt = '0.00x';
+  setFormulaCell(checksSheet.getCell('C5'), '=IF(B5>1,"PASS","FAIL")', output.minCoverage > 1 ? 'PASS' : 'FAIL');
   for (let row = 4; row <= 5; row += 1) for (let col = 1; col <= 3; col += 1) setOutputCell(checksSheet.getCell(row, col));
   styleGrid(checksSheet, 3, 5, 1, 3);
 
@@ -271,9 +275,9 @@ async function buildDebtAmortizationRefiWorkbook(
 
 export const debtAmortizationRefiModel: ModelDef<DebtAmortizationRefiInput, DebtAmortizationRefiOutput> = {
   slug: 'debt-amortization-refi',
-  name: 'Debt Amortization / Refi Model',
+  name: 'Debt Amortization / Refi',
   category: 'Corporate Finance',
-  description: 'Model debt paydown, refinancing, leverage, and coverage under a simple capital structure plan.',
+  description: 'Roll debt balances, scheduled amortization, cash sweeps, and refinancing assumptions into a credit summary.',
   inputSchema: DebtAmortizationRefiInputSchema,
   uiSchema: debtAmortizationRefiUiSchema,
   compute: computeDebtAmortizationRefi,

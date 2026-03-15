@@ -69,6 +69,14 @@ const CORE_TEMPLATE_MATCHERS: CoreTemplateMatcher[] = [
     patterns: [/\bpurchase price allocation\b/i, /\bppa\b/i, /\bgoodwill\b.*\ballocation\b/i],
   },
   {
+    slug: 'working-capital-schedule',
+    patterns: [/\bworking capital schedule\b/i, /\bnwc schedule\b/i, /\bworking capital\b/i],
+  },
+  {
+    slug: 'ppe-depreciation-schedule',
+    patterns: [/\bpp&e\b/i, /\bdepreciation schedule\b/i, /\bcapex schedule\b/i],
+  },
+  {
     slug: 'vc-cap-table-advanced',
     patterns: [/\badvanced cap table\b/i, /\bvc cap table\b/i, /\bsafe conversion\b/i, /\bwaterfall\b/i],
   },

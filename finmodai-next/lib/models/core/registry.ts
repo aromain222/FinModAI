@@ -19,6 +19,8 @@ import { residualIncomeModel } from '@/lib/models/modules/residualIncome';
 import { debtAmortizationRefiModel } from '@/lib/models/modules/debtAmortizationRefi';
 import { buybackEpsAccretionModel } from '@/lib/models/modules/buybackEpsAccretion';
 import { purchasePriceAllocationModel } from '@/lib/models/modules/purchasePriceAllocation';
+import { workingCapitalScheduleModel } from '@/lib/models/modules/workingCapitalSchedule';
+import { ppeDepreciationScheduleModel } from '@/lib/models/modules/ppeDepreciationSchedule';
 
 export const modelRegistry: Record<string, AnyModelDef> = {
   [driverThreeStatementModel.slug]: driverThreeStatementModel,
@@ -41,6 +43,8 @@ export const modelRegistry: Record<string, AnyModelDef> = {
   [debtAmortizationRefiModel.slug]: debtAmortizationRefiModel,
   [buybackEpsAccretionModel.slug]: buybackEpsAccretionModel,
   [purchasePriceAllocationModel.slug]: purchasePriceAllocationModel,
+  [workingCapitalScheduleModel.slug]: workingCapitalScheduleModel,
+  [ppeDepreciationScheduleModel.slug]: ppeDepreciationScheduleModel,
 };
 
 const MODEL_SLUG_ALIASES: Record<string, string> = {

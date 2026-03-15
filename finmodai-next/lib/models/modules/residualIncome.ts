@@ -3,8 +3,10 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
+  setFormulaCell,
   setInputCell,
   setOutputCell,
   setPercent,
@@ -116,13 +118,11 @@ function computeResidualIncome(input: ResidualIncomeInput): ResidualIncomeOutput
   };
 }
 
-async function buildResidualIncomeWorkbook(
-  input: ResidualIncomeInput,
-  output: ResidualIncomeOutput,
-): Promise<ExcelJS.Workbook> {
+async function buildResidualIncomeWorkbook(input: ResidualIncomeInput, output: ResidualIncomeOutput): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'CapitalBase';
   workbook.created = new Date();
+  configureWorkbookForRecalc(workbook);
 
   const assumptionsSheet = workbook.addWorksheet('Assumptions');
   assumptionsSheet.views = [{ state: 'frozen', ySplit: 3 }];
@@ -176,20 +176,25 @@ async function buildResidualIncomeWorkbook(
   output.rows.forEach((row, idx) => {
     const excelRow = 4 + idx;
     scheduleSheet.getCell(excelRow, 1).value = row.year;
-    scheduleSheet.getCell(excelRow, 2).value = row.beginningBook;
-    scheduleSheet.getCell(excelRow, 3).value = row.netIncome;
-    scheduleSheet.getCell(excelRow, 4).value = row.dividend;
-    scheduleSheet.getCell(excelRow, 5).value = row.endingBook;
-    scheduleSheet.getCell(excelRow, 6).value = row.equityCharge;
-    scheduleSheet.getCell(excelRow, 7).value = row.residualIncome;
-    scheduleSheet.getCell(excelRow, 8).value = row.discountFactor;
-    scheduleSheet.getCell(excelRow, 9).value = row.pvResidualIncome;
-    for (const c of [2,3,4,5,6,7,9]) setCurrency(scheduleSheet.getCell(excelRow, c));
+    if (idx === 0) {
+      setFormulaCell(scheduleSheet.getCell(excelRow, 2), '=Assumptions!$B$4', row.beginningBook);
+    } else {
+      setFormulaCell(scheduleSheet.getCell(excelRow, 2), `=E${excelRow - 1}`, row.beginningBook);
+    }
+    setFormulaCell(scheduleSheet.getCell(excelRow, 3), `=B${excelRow}*Assumptions!$B$5`, row.netIncome);
+    setFormulaCell(scheduleSheet.getCell(excelRow, 4), `=C${excelRow}*Assumptions!$B$6`, row.dividend);
+    setFormulaCell(scheduleSheet.getCell(excelRow, 5), `=B${excelRow}+C${excelRow}-D${excelRow}`, row.endingBook);
+    setFormulaCell(scheduleSheet.getCell(excelRow, 6), `=B${excelRow}*Assumptions!$B$7`, row.equityCharge);
+    setFormulaCell(scheduleSheet.getCell(excelRow, 7), `=C${excelRow}-F${excelRow}`, row.residualIncome);
+    setFormulaCell(scheduleSheet.getCell(excelRow, 8), `=1/((1+Assumptions!$B$7)^A${excelRow})`, row.discountFactor);
+    setFormulaCell(scheduleSheet.getCell(excelRow, 9), `=G${excelRow}*H${excelRow}`, row.pvResidualIncome);
+    for (const c of [2, 3, 4, 5, 6, 7, 9]) setCurrency(scheduleSheet.getCell(excelRow, c));
     scheduleSheet.getCell(excelRow, 8).numFmt = '0.0000x';
-    for (let c = 1; c <= 9; c += 1) setOutputCell(scheduleSheet.getCell(excelRow, c));
+    setOutputCell(scheduleSheet.getCell(excelRow, 1));
   });
   styleGrid(scheduleSheet, 3, 3 + output.rows.length, 1, 9);
 
+  const lastScheduleRow = 3 + output.rows.length;
   const summarySheet = workbook.addWorksheet('Summary');
   summarySheet.views = [{ state: 'frozen', ySplit: 3 }];
   summarySheet.getColumn(1).width = 34;
@@ -199,28 +204,28 @@ async function buildResidualIncomeWorkbook(
   summarySheet.getCell('A3').value = 'Metric';
   summarySheet.getCell('B3').value = 'Value';
   styleHeaderRow(summarySheet, 3, 1, 2);
-  const summaryRows: Array<[string, number, 'currency' | 'percent']> = [
-    ['Beginning Book Value / Share', input.beginning_book_value_per_share, 'currency'],
-    ['PV of Forecast Residual Income', output.rows.reduce((sum, row) => sum + row.pvResidualIncome, 0), 'currency'],
-    ['PV of Terminal Residual Income', output.pvTerminalValue, 'currency'],
-    ['Intrinsic Value / Share', output.intrinsicValuePerShare, 'currency'],
-    ['Current Price', input.current_price, 'currency'],
-    ['Upside / Downside', output.upsidePct ?? 0, 'percent'],
+  const summaryRows: Array<[string, string, number, 'currency' | 'percent']> = [
+    ['Beginning Book Value / Share', '=Assumptions!$B$4', input.beginning_book_value_per_share, 'currency'],
+    ['PV of Forecast Residual Income', `=SUM('Residual Income'!I4:I${lastScheduleRow})`, output.rows.reduce((sum, row) => sum + row.pvResidualIncome, 0), 'currency'],
+    ['Terminal Residual Income', `='Residual Income'!G${lastScheduleRow}*(1+Assumptions!$B$8)`, output.terminalResidualIncome, 'currency'],
+    ['PV of Terminal Residual Income', `=B6/(Assumptions!$B$7-Assumptions!$B$8)/((1+Assumptions!$B$7)^Assumptions!$B$9)`, output.pvTerminalValue, 'currency'],
+    ['Intrinsic Value / Share', '=B4+B5+B7', output.intrinsicValuePerShare, 'currency'],
+    ['Current Share Price', '=Assumptions!$B$10', input.current_price, 'currency'],
+    ['Upside / Downside', '=IF(B9>0,B8/B9-1,0)', output.upsidePct ?? 0, 'percent'],
   ];
-  summaryRows.forEach(([label, value, fmt], idx) => {
+  summaryRows.forEach(([label, formula, value, fmt], idx) => {
     const row = 4 + idx;
     summarySheet.getCell(row, 1).value = label;
-    summarySheet.getCell(row, 2).value = value;
+    setFormulaCell(summarySheet.getCell(row, 2), formula, value);
     if (fmt === 'currency') setCurrency(summarySheet.getCell(row, 2));
     if (fmt === 'percent') setPercent(summarySheet.getCell(row, 2));
     setOutputCell(summarySheet.getCell(row, 1));
-    setOutputCell(summarySheet.getCell(row, 2));
   });
-  styleGrid(summarySheet, 3, 9, 1, 2);
+  styleGrid(summarySheet, 3, 10, 1, 2);
 
   const checksSheet = workbook.addWorksheet('Checks');
   checksSheet.views = [{ state: 'frozen', ySplit: 3 }];
-  checksSheet.getColumn(1).width = 34;
+  checksSheet.getColumn(1).width = 36;
   checksSheet.getColumn(2).width = 18;
   checksSheet.getColumn(3).width = 12;
   checksSheet.getCell('A1').value = 'Checks';
@@ -229,18 +234,15 @@ async function buildResidualIncomeWorkbook(
   checksSheet.getCell('B3').value = 'Value';
   checksSheet.getCell('C3').value = 'Status';
   styleHeaderRow(checksSheet, 3, 1, 3);
-  const spread = input.cost_of_equity - input.terminal_growth;
   checksSheet.getCell('A4').value = 'Cost of equity > terminal growth';
-  checksSheet.getCell('B4').value = spread;
-  checksSheet.getCell('C4').value = spread > 0 ? 'PASS' : 'FAIL';
+  setFormulaCell(checksSheet.getCell('B4'), '=Assumptions!$B$7-Assumptions!$B$8', input.cost_of_equity - input.terminal_growth);
   setPercent(checksSheet.getCell('B4'));
-  checksSheet.getCell('A5').value = 'Ending book value positive';
-  checksSheet.getCell('B5').value = output.rows[output.rows.length - 1].endingBook;
-  checksSheet.getCell('C5').value = output.rows[output.rows.length - 1].endingBook > 0 ? 'PASS' : 'FAIL';
+  setFormulaCell(checksSheet.getCell('C4'), '=IF(B4>0,"PASS","FAIL")', input.cost_of_equity > input.terminal_growth ? 'PASS' : 'FAIL');
+  checksSheet.getCell('A5').value = 'Book value remains positive';
+  setFormulaCell(checksSheet.getCell('B5'), `='Residual Income'!E${lastScheduleRow}`, output.rows[output.rows.length - 1].endingBook);
   setCurrency(checksSheet.getCell('B5'));
-  for (let row = 4; row <= 5; row += 1) {
-    for (let col = 1; col <= 3; col += 1) setOutputCell(checksSheet.getCell(row, col));
-  }
+  setFormulaCell(checksSheet.getCell('C5'), '=IF(B5>0,"PASS","FAIL")', output.rows[output.rows.length - 1].endingBook > 0 ? 'PASS' : 'FAIL');
+  for (let row = 4; row <= 5; row += 1) for (let col = 1; col <= 3; col += 1) setOutputCell(checksSheet.getCell(row, col));
   styleGrid(checksSheet, 3, 5, 1, 3);
 
   const equationsSheet = workbook.addWorksheet('Equations');
@@ -252,10 +254,10 @@ async function buildResidualIncomeWorkbook(
   equationsSheet.getCell('B3').value = 'Equation';
   styleHeaderRow(equationsSheet, 3, 1, 2);
   const equations: Array<[string, string]> = [
-    ['Net income', 'Net Income_t = Beginning BVPS_t * ROE'],
-    ['Ending book value', 'Ending BVPS_t = Beginning BVPS_t + Net Income_t - Dividend_t'],
-    ['Residual income', 'RI_t = Net Income_t - (Beginning BVPS_t * Cost of Equity)'],
-    ['Intrinsic value', 'Value = Current BVPS + PV(Forecast RI) + PV(Terminal RI)'],
+    ['Net income', 'Net Income = Beginning Book Value * ROE'],
+    ['Ending book value', 'Ending BV = Beginning BV + Net Income - Dividend'],
+    ['Residual income', 'Residual Income = Net Income - (Cost of Equity * Beginning BV)'],
+    ['Intrinsic value', 'Value = Beginning BV + PV(Forecast RI) + PV(Terminal RI)'],
   ];
   equations.forEach(([item, eq], idx) => {
     const row = 4 + idx;
@@ -274,7 +276,7 @@ export const residualIncomeModel: ModelDef<ResidualIncomeInput, ResidualIncomeOu
   slug: 'residual-income-model',
   name: 'Residual Income Model',
   category: 'Corporate Finance',
-  description: 'Value equity from current book value plus discounted future residual income.',
+  description: 'Value equity from beginning book value and forecast residual income above the cost of equity charge.',
   inputSchema: ResidualIncomeInputSchema,
   uiSchema: residualIncomeUiSchema,
   compute: computeResidualIncome,

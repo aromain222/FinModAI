@@ -3,8 +3,11 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
+  setDate,
+  setFormulaCell,
   setInputCell,
   setOutputCell,
   setPercent,
@@ -121,13 +124,48 @@ async function buildRunwayBurnWorkbook(input: RunwayBurnInput, output: RunwayBur
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'CapitalBase';
   workbook.created = new Date();
+  configureWorkbookForRecalc(workbook);
+
+  const startDate = new Date(input.start_date);
+
+  const inputsSheet = workbook.addWorksheet('Inputs');
+  inputsSheet.views = [{ state: 'frozen', ySplit: 3 }];
+  inputsSheet.getColumn(1).width = 36;
+  inputsSheet.getColumn(2).width = 18;
+  inputsSheet.getCell('A1').value = 'Runway Inputs';
+  inputsSheet.getCell('A1').font = { bold: true, size: 14 };
+  inputsSheet.getCell('A3').value = 'Input';
+  inputsSheet.getCell('B3').value = 'Value';
+  styleHeaderRow(inputsSheet, 3, 1, 2);
+  const inputRows: Array<[string, string | number | Date, 'date' | 'currency' | 'percent' | 'number']> = [
+    ['Start Date', startDate, 'date'],
+    ['Forecast Months', input.forecast_months, 'number'],
+    ['Starting Cash', input.starting_cash, 'currency'],
+    ['Monthly Burn', input.monthly_burn, 'currency'],
+    ['Hiring Ramp', input.hiring_ramp, 'currency'],
+    ['Revenue Growth', input.revenue_growth, 'percent'],
+    ['Fundraise Timing', input.fundraise_timing, 'number'],
+    ['Fundraise Amount', input.fundraise_amount, 'currency'],
+    ['Base Revenue', input.monthly_burn * 0.25, 'currency'],
+  ];
+  inputRows.forEach(([label, value, fmt], idx) => {
+    const row = 4 + idx;
+    inputsSheet.getCell(row, 1).value = label;
+    inputsSheet.getCell(row, 2).value = value as ExcelJS.CellValue;
+    if (fmt === 'date') setDate(inputsSheet.getCell(row, 2));
+    if (fmt === 'currency') setCurrency(inputsSheet.getCell(row, 2));
+    if (fmt === 'percent') setPercent(inputsSheet.getCell(row, 2));
+    if (fmt === 'number') inputsSheet.getCell(row, 2).numFmt = '#,##0';
+    setInputCell(inputsSheet.getCell(row, 2));
+    setOutputCell(inputsSheet.getCell(row, 1));
+  });
+  styleGrid(inputsSheet, 3, 12, 1, 2);
 
   const cashSheet = workbook.addWorksheet('Cash Forecast');
   cashSheet.views = [{ state: 'frozen', ySplit: 3 }];
   cashSheet.columns = [{ width: 10 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 16 }];
   cashSheet.getCell('A1').value = 'Cash Forecast';
   cashSheet.getCell('A1').font = { bold: true, size: 14 };
-
   ['Month', 'Period', 'Burn', 'Revenue', 'Net Burn', 'Fundraise', 'Cash Close'].forEach((header, idx) => {
     cashSheet.getCell(3, 1 + idx).value = header;
   });
@@ -136,13 +174,21 @@ async function buildRunwayBurnWorkbook(input: RunwayBurnInput, output: RunwayBur
   output.rows.forEach((row, idx) => {
     const excelRow = 4 + idx;
     cashSheet.getCell(excelRow, 1).value = row.monthIndex;
-    cashSheet.getCell(excelRow, 2).value = row.monthLabel;
-    cashSheet.getCell(excelRow, 3).value = row.burn;
-    cashSheet.getCell(excelRow, 4).value = row.revenue;
-    cashSheet.getCell(excelRow, 5).value = row.netBurn;
-    cashSheet.getCell(excelRow, 6).value = row.fundraise;
-    cashSheet.getCell(excelRow, 7).value = row.cashClose;
-
+    if (idx === 0) {
+      setFormulaCell(cashSheet.getCell(excelRow, 2), '=Inputs!$B$4', startDate);
+    } else {
+      setFormulaCell(cashSheet.getCell(excelRow, 2), `=EDATE(B${excelRow - 1},1)`, addMonths(startDate, idx));
+    }
+    setDate(cashSheet.getCell(excelRow, 2));
+    setFormulaCell(cashSheet.getCell(excelRow, 3), `=Inputs!$B$7+(A${excelRow}-1)*Inputs!$B$8`, row.burn);
+    setFormulaCell(cashSheet.getCell(excelRow, 4), `=Inputs!$B$12*((1+Inputs!$B$9)^(A${excelRow}-1))`, row.revenue);
+    setFormulaCell(cashSheet.getCell(excelRow, 5), `=C${excelRow}-D${excelRow}`, row.netBurn);
+    setFormulaCell(cashSheet.getCell(excelRow, 6), `=IF(A${excelRow}=Inputs!$B$10,Inputs!$B$11,0)`, row.fundraise);
+    if (idx === 0) {
+      setFormulaCell(cashSheet.getCell(excelRow, 7), `=Inputs!$B$6-E${excelRow}+F${excelRow}`, row.cashClose);
+    } else {
+      setFormulaCell(cashSheet.getCell(excelRow, 7), `=G${excelRow - 1}-E${excelRow}+F${excelRow}`, row.cashClose);
+    }
     for (let col = 3; col <= 7; col += 1) {
       setCurrency(cashSheet.getCell(excelRow, col));
       setOutputCell(cashSheet.getCell(excelRow, col));
@@ -152,43 +198,7 @@ async function buildRunwayBurnWorkbook(input: RunwayBurnInput, output: RunwayBur
   });
   styleGrid(cashSheet, 3, 3 + output.rows.length, 1, 7);
 
-  const hiringSheet = workbook.addWorksheet('Hiring Plan');
-  hiringSheet.views = [{ state: 'frozen', ySplit: 3 }];
-  hiringSheet.getColumn(1).width = 36;
-  hiringSheet.getColumn(2).width = 18;
-  hiringSheet.getCell('A1').value = 'Hiring Plan Inputs';
-  hiringSheet.getCell('A1').font = { bold: true, size: 14 };
-  hiringSheet.getCell('A3').value = 'Input';
-  hiringSheet.getCell('B3').value = 'Value';
-  styleHeaderRow(hiringSheet, 3, 1, 2);
-
-  const hiringRows: Array<[string, number | string, boolean]> = [
-    ['Start Date', input.start_date, false],
-    ['Forecast Months', input.forecast_months, false],
-    ['Monthly Burn', input.monthly_burn, false],
-    ['Hiring Ramp (extra burn / month)', input.hiring_ramp, false],
-    ['Revenue Growth', input.revenue_growth, false],
-    ['Fundraise Month', input.fundraise_timing, false],
-    ['Fundraise Amount', input.fundraise_amount, false],
-  ];
-
-  hiringRows.forEach(([label, value, outputValue], idx) => {
-    const row = 4 + idx;
-    hiringSheet.getCell(row, 1).value = label;
-    const cell = hiringSheet.getCell(row, 2);
-    cell.value = value;
-
-    if (!outputValue) setInputCell(cell);
-    else setOutputCell(cell);
-
-    if (label.includes('Burn') || label.includes('Amount') || label.includes('Ramp')) setCurrency(cell);
-    if (label.includes('Growth')) setPercent(cell);
-
-    setOutputCell(hiringSheet.getCell(row, 1));
-  });
-
-  styleGrid(hiringSheet, 3, 3 + hiringRows.length, 1, 2);
-
+  const lastCashRow = 3 + output.rows.length;
   const runwaySheet = workbook.addWorksheet('Runway Analysis');
   runwaySheet.views = [{ state: 'frozen', ySplit: 3 }];
   runwaySheet.getColumn(1).width = 34;
@@ -200,25 +210,39 @@ async function buildRunwayBurnWorkbook(input: RunwayBurnInput, output: RunwayBur
   styleHeaderRow(runwaySheet, 3, 1, 2);
 
   runwaySheet.getCell('A4').value = 'Runway (months)';
-  runwaySheet.getCell('B4').value = output.runwayMonths ?? input.forecast_months;
+  setFormulaCell(runwaySheet.getCell('B4'), `=IFERROR(MATCH(TRUE,'Cash Forecast'!G4:G${lastCashRow}<=0,0),Inputs!$B$5)`, output.runwayMonths ?? input.forecast_months);
+  runwaySheet.getCell('B4').numFmt = '#,##0';
   runwaySheet.getCell('A5').value = 'Cash-out Date';
-  runwaySheet.getCell('B5').value = output.cashOutDate ?? 'No cash-out in forecast horizon';
+  setFormulaCell(runwaySheet.getCell('B5'), `=IF(COUNTIF('Cash Forecast'!G4:G${lastCashRow},"<=0")=0,"No cash-out in forecast horizon",INDEX('Cash Forecast'!B4:B${lastCashRow},MATCH(TRUE,'Cash Forecast'!G4:G${lastCashRow}<=0,0)))`, output.cashOutDate ?? 'No cash-out in forecast horizon');
+  if (output.cashOutDate) setDate(runwaySheet.getCell('B5'));
   runwaySheet.getCell('A6').value = 'Ending Cash';
-  runwaySheet.getCell('B6').value = output.endingCash;
-  runwaySheet.getCell('A7').value = 'Status';
-  runwaySheet.getCell('B7').value = output.endingCash >= 0 ? 'PASS' : 'WARN';
-
+  setFormulaCell(runwaySheet.getCell('B6'), `='Cash Forecast'!G${lastCashRow}`, output.endingCash);
   setCurrency(runwaySheet.getCell('B6'));
-  setOutputCell(runwaySheet.getCell('A4'));
-  setOutputCell(runwaySheet.getCell('B4'));
-  setOutputCell(runwaySheet.getCell('A5'));
-  setOutputCell(runwaySheet.getCell('B5'));
-  setOutputCell(runwaySheet.getCell('A6'));
-  setOutputCell(runwaySheet.getCell('B6'));
-  setOutputCell(runwaySheet.getCell('A7'));
-  setOutputCell(runwaySheet.getCell('B7'));
-
+  runwaySheet.getCell('A7').value = 'Status';
+  setFormulaCell(runwaySheet.getCell('B7'), '=IF(B6>=0,"PASS","WARN")', output.endingCash >= 0 ? 'PASS' : 'WARN');
+  for (const cell of ['A4', 'B4', 'A5', 'B5', 'A6', 'B6', 'A7', 'B7']) setOutputCell(runwaySheet.getCell(cell));
   styleGrid(runwaySheet, 3, 7, 1, 2);
+
+  const checksSheet = workbook.addWorksheet('Checks');
+  checksSheet.views = [{ state: 'frozen', ySplit: 3 }];
+  checksSheet.getColumn(1).width = 34;
+  checksSheet.getColumn(2).width = 18;
+  checksSheet.getColumn(3).width = 12;
+  checksSheet.getCell('A1').value = 'Checks';
+  checksSheet.getCell('A1').font = { bold: true, size: 14 };
+  checksSheet.getCell('A3').value = 'Check';
+  checksSheet.getCell('B3').value = 'Value';
+  checksSheet.getCell('C3').value = 'Status';
+  styleHeaderRow(checksSheet, 3, 1, 3);
+  checksSheet.getCell('A4').value = 'Ending cash non-negative';
+  setFormulaCell(checksSheet.getCell('B4'), '=\'Runway Analysis\'!B6', output.endingCash);
+  setCurrency(checksSheet.getCell('B4'));
+  setFormulaCell(checksSheet.getCell('C4'), '=IF(B4>=0,"PASS","WARN")', output.endingCash >= 0 ? 'PASS' : 'WARN');
+  checksSheet.getCell('A5').value = 'Fundraise timing within forecast';
+  setFormulaCell(checksSheet.getCell('B5'), '=Inputs!$B$10<=Inputs!$B$5', input.fundraise_timing <= input.forecast_months);
+  setFormulaCell(checksSheet.getCell('C5'), '=IF(B5,"PASS","FAIL")', input.fundraise_timing <= input.forecast_months ? 'PASS' : 'FAIL');
+  for (let row = 4; row <= 5; row += 1) for (let col = 1; col <= 3; col += 1) setOutputCell(checksSheet.getCell(row, col));
+  styleGrid(checksSheet, 3, 5, 1, 3);
 
   await Promise.all(workbook.worksheets.map((sheet) => protectSheetIfConfigured(sheet)));
 

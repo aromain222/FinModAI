@@ -46,12 +46,40 @@ export function setOutputCell(cell: ExcelJS.Cell): void {
   cell.protection = { locked: true };
 }
 
+export function setFormulaCell(cell: ExcelJS.Cell, formula: string, result?: number | string | boolean | Date | null): void {
+  cell.value = {
+    formula,
+    result: result ?? undefined,
+  } as ExcelJS.CellValue;
+  setOutputCell(cell);
+}
+
 export function setCurrency(cell: ExcelJS.Cell): void {
   cell.numFmt = '$#,##0.00';
 }
 
 export function setPercent(cell: ExcelJS.Cell): void {
   cell.numFmt = '0.00%';
+}
+
+export function setDate(cell: ExcelJS.Cell): void {
+  cell.numFmt = 'mmm-yy';
+}
+
+export function configureWorkbookForRecalc(workbook: ExcelJS.Workbook): void {
+  workbook.calcProperties.fullCalcOnLoad = true;
+  (workbook.calcProperties as ExcelJS.Workbook['calcProperties'] & { forceFullCalc?: boolean }).forceFullCalc = true;
+}
+
+export function columnLetter(index: number): string {
+  let value = index;
+  let result = '';
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    result = String.fromCharCode(65 + remainder) + result;
+    value = Math.floor((value - 1) / 26);
+  }
+  return result;
 }
 
 export async function protectSheetIfConfigured(sheet: ExcelJS.Worksheet): Promise<void> {

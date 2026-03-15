@@ -3,8 +3,10 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
+  setFormulaCell,
   setInputCell,
   setOutputCell,
   styleGrid,
@@ -107,13 +109,11 @@ function computePurchasePriceAllocation(input: PurchasePriceAllocationInput): Pp
   };
 }
 
-async function buildPurchasePriceAllocationWorkbook(
-  input: PurchasePriceAllocationInput,
-  output: PpaOutput,
-): Promise<ExcelJS.Workbook> {
+async function buildPurchasePriceAllocationWorkbook(input: PurchasePriceAllocationInput, output: PpaOutput): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'CapitalBase';
   workbook.created = new Date();
+  configureWorkbookForRecalc(workbook);
 
   const assumptionsSheet = workbook.addWorksheet('Assumptions');
   assumptionsSheet.views = [{ state: 'frozen', ySplit: 3 }];
@@ -158,31 +158,29 @@ async function buildPurchasePriceAllocationWorkbook(
   ppaSheet.getCell('A3').value = 'Component';
   ppaSheet.getCell('B3').value = 'Value';
   styleHeaderRow(ppaSheet, 3, 1, 2);
-  const ppaRows: Array<[string, number]> = [
-    ['Acquired Net Assets (Book)', input.acquired_net_assets_book],
-    ['Inventory Step-up', input.inventory_step_up],
-    ['PP&E Step-up', input.ppe_step_up],
-    ['Identifiable Intangibles', output.identifiableIntangibles],
-    ['Gross Step-up', output.grossStepUp],
-    ['Deferred Tax Liability', -output.deferredTaxLiability],
-    ['Goodwill', output.goodwill],
-    ['Purchase Price', input.purchase_price],
+  const ppaRows: Array<[string, string, number]> = [
+    ['Acquired Net Assets (Book)', '=Assumptions!$B$5', input.acquired_net_assets_book],
+    ['Inventory Step-up', '=Assumptions!$B$6', input.inventory_step_up],
+    ['PP&E Step-up', '=Assumptions!$B$7', input.ppe_step_up],
+    ['Identifiable Intangibles', '=SUM(Assumptions!$B$8:$B$10)', output.identifiableIntangibles],
+    ['Gross Step-up', '=SUM(B5:B8)', output.grossStepUp],
+    ['Deferred Tax Liability', '=B9*Assumptions!$B$11', output.deferredTaxLiability],
+    ['Goodwill', '=Assumptions!$B$4-Assumptions!$B$5-B9+B10', output.goodwill],
+    ['Purchase Price', '=Assumptions!$B$4', input.purchase_price],
   ];
-  ppaRows.forEach(([label, value], idx) => {
+  ppaRows.forEach(([label, formula, value], idx) => {
     const row = 4 + idx;
     ppaSheet.getCell(row, 1).value = label;
-    ppaSheet.getCell(row, 2).value = value;
+    setFormulaCell(ppaSheet.getCell(row, 2), formula, value);
     setCurrency(ppaSheet.getCell(row, 2));
     setOutputCell(ppaSheet.getCell(row, 1));
-    setOutputCell(ppaSheet.getCell(row, 2));
   });
   styleGrid(ppaSheet, 3, 11, 1, 2);
 
+  const longestLife = output.amortizationSchedule.length;
   const amortSheet = workbook.addWorksheet('Amortization');
   amortSheet.views = [{ state: 'frozen', ySplit: 3 }];
-  amortSheet.columns = [
-    { width: 10 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 },
-  ];
+  amortSheet.columns = [{ width: 10 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }];
   amortSheet.getCell('A1').value = 'Intangible Amortization Schedule';
   amortSheet.getCell('A1').font = { bold: true, size: 14 };
   ['Year', 'Customer', 'Technology', 'Trade Name', 'Total'].forEach((header, idx) => {
@@ -192,17 +190,17 @@ async function buildPurchasePriceAllocationWorkbook(
   output.amortizationSchedule.forEach((row, idx) => {
     const excelRow = 4 + idx;
     amortSheet.getCell(excelRow, 1).value = row.year;
-    amortSheet.getCell(excelRow, 2).value = row.customer;
-    amortSheet.getCell(excelRow, 3).value = row.technology;
-    amortSheet.getCell(excelRow, 4).value = row.tradeName;
-    amortSheet.getCell(excelRow, 5).value = row.total;
+    setFormulaCell(amortSheet.getCell(excelRow, 2), `=IF(A${excelRow}<=Assumptions!$B$12,Assumptions!$B$8/Assumptions!$B$12,0)`, row.customer);
+    setFormulaCell(amortSheet.getCell(excelRow, 3), `=IF(A${excelRow}<=Assumptions!$B$13,Assumptions!$B$9/Assumptions!$B$13,0)`, row.technology);
+    setFormulaCell(amortSheet.getCell(excelRow, 4), `=IF(A${excelRow}<=Assumptions!$B$14,Assumptions!$B$10/Assumptions!$B$14,0)`, row.tradeName);
+    setFormulaCell(amortSheet.getCell(excelRow, 5), `=SUM(B${excelRow}:D${excelRow})`, row.total);
     for (let c = 2; c <= 5; c += 1) {
       setCurrency(amortSheet.getCell(excelRow, c));
       setOutputCell(amortSheet.getCell(excelRow, c));
     }
     setOutputCell(amortSheet.getCell(excelRow, 1));
   });
-  styleGrid(amortSheet, 3, 3 + output.amortizationSchedule.length, 1, 5);
+  styleGrid(amortSheet, 3, 3 + longestLife, 1, 5);
 
   const checksSheet = workbook.addWorksheet('Checks');
   checksSheet.views = [{ state: 'frozen', ySplit: 3 }];
@@ -216,13 +214,13 @@ async function buildPurchasePriceAllocationWorkbook(
   checksSheet.getCell('C3').value = 'Status';
   styleHeaderRow(checksSheet, 3, 1, 3);
   checksSheet.getCell('A4').value = 'Purchase price tie';
-  checksSheet.getCell('B4').value = output.checkTie;
-  checksSheet.getCell('C4').value = Math.abs(output.checkTie) < 0.01 ? 'PASS' : 'FAIL';
+  setFormulaCell(checksSheet.getCell('B4'), '=B5+B6+B7-B8', output.checkTie);
   setCurrency(checksSheet.getCell('B4'));
+  setFormulaCell(checksSheet.getCell('C4'), '=IF(ABS(B4)<0.01,"PASS","FAIL")', Math.abs(output.checkTie) < 0.01 ? 'PASS' : 'FAIL');
   checksSheet.getCell('A5').value = 'Goodwill non-negative';
-  checksSheet.getCell('B5').value = output.goodwill;
-  checksSheet.getCell('C5').value = output.goodwill >= 0 ? 'PASS' : 'FAIL';
+  setFormulaCell(checksSheet.getCell('B5'), '=\'PPA Summary\'!B10', output.goodwill);
   setCurrency(checksSheet.getCell('B5'));
+  setFormulaCell(checksSheet.getCell('C5'), '=IF(B5>=0,"PASS","FAIL")', output.goodwill >= 0 ? 'PASS' : 'FAIL');
   for (let row = 4; row <= 5; row += 1) for (let col = 1; col <= 3; col += 1) setOutputCell(checksSheet.getCell(row, col));
   styleGrid(checksSheet, 3, 5, 1, 3);
 

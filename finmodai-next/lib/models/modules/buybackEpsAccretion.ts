@@ -3,8 +3,10 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
+  setFormulaCell,
   setInputCell,
   setOutputCell,
   setPercent,
@@ -66,11 +68,7 @@ const buybackEpsAccretionUiSchema: UISchema = {
   ],
 };
 
-function computeAccretionAt(
-  input: BuybackEpsAccretionInput,
-  pricePremiumPct: number,
-  debtPct: number,
-): { proFormaEps: number; accretionPct: number } {
+function computeAccretionAt(input: BuybackEpsAccretionInput, pricePremiumPct: number, debtPct: number): { proFormaEps: number; accretionPct: number } {
   const repurchasePrice = input.current_share_price * (1 + pricePremiumPct);
   const sharesRepurchased = input.repurchase_amount / repurchasePrice;
   const debtRaised = input.repurchase_amount * debtPct;
@@ -112,13 +110,11 @@ function computeBuybackEpsAccretion(input: BuybackEpsAccretionInput): BuybackEps
   };
 }
 
-async function buildBuybackEpsAccretionWorkbook(
-  input: BuybackEpsAccretionInput,
-  output: BuybackEpsAccretionOutput,
-): Promise<ExcelJS.Workbook> {
+async function buildBuybackEpsAccretionWorkbook(input: BuybackEpsAccretionInput, output: BuybackEpsAccretionOutput): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'CapitalBase';
   workbook.created = new Date();
+  configureWorkbookForRecalc(workbook);
 
   const assumptionsSheet = workbook.addWorksheet('Assumptions');
   assumptionsSheet.views = [{ state: 'frozen', ySplit: 3 }];
@@ -160,26 +156,25 @@ async function buildBuybackEpsAccretionWorkbook(
   bridgeSheet.getCell('A3').value = 'Metric';
   bridgeSheet.getCell('B3').value = 'Value';
   styleHeaderRow(bridgeSheet, 3, 1, 2);
-  const bridgeRows: Array<[string, number, 'currency' | 'percent' | 'number']> = [
-    ['Repurchase Price', output.repurchasePrice, 'currency'],
-    ['Shares Repurchased', output.sharesRepurchased, 'number'],
-    ['Debt Raised', output.debtRaised, 'currency'],
-    ['After-tax Interest', output.afterTaxInterest, 'currency'],
-    ['Standalone EPS', output.standaloneEps, 'currency'],
-    ['Pro Forma Net Income', output.proFormaNetIncome, 'currency'],
-    ['Pro Forma Shares', output.proFormaShares, 'number'],
-    ['Pro Forma EPS', output.proFormaEps, 'currency'],
-    ['EPS Accretion / Dilution', output.accretionPct, 'percent'],
+  const bridgeRows: Array<[string, string, number, 'currency' | 'percent' | 'number']> = [
+    ['Repurchase Price', '=Assumptions!$B$6*(1+Assumptions!$B$11)', output.repurchasePrice, 'currency'],
+    ['Shares Repurchased', '=Assumptions!$B$7/B4', output.sharesRepurchased, 'number'],
+    ['Debt Raised', '=Assumptions!$B$7*Assumptions!$B$8', output.debtRaised, 'currency'],
+    ['After-tax Interest', '=B6*Assumptions!$B$9*(1-Assumptions!$B$10)', output.afterTaxInterest, 'currency'],
+    ['Standalone EPS', '=Assumptions!$B$4/Assumptions!$B$5', output.standaloneEps, 'currency'],
+    ['Pro Forma Net Income', '=Assumptions!$B$4-B7', output.proFormaNetIncome, 'currency'],
+    ['Pro Forma Shares', '=Assumptions!$B$5-B5', output.proFormaShares, 'number'],
+    ['Pro Forma EPS', '=B9/B10', output.proFormaEps, 'currency'],
+    ['EPS Accretion / Dilution', '=IF(B8=0,0,B11/B8-1)', output.accretionPct, 'percent'],
   ];
-  bridgeRows.forEach(([label, value, fmt], idx) => {
+  bridgeRows.forEach(([label, formula, value, fmt], idx) => {
     const row = 4 + idx;
     bridgeSheet.getCell(row, 1).value = label;
-    bridgeSheet.getCell(row, 2).value = value;
+    setFormulaCell(bridgeSheet.getCell(row, 2), formula, value);
     if (fmt === 'currency') setCurrency(bridgeSheet.getCell(row, 2));
     if (fmt === 'percent') setPercent(bridgeSheet.getCell(row, 2));
     if (fmt === 'number') bridgeSheet.getCell(row, 2).numFmt = '#,##0.00';
     setOutputCell(bridgeSheet.getCell(row, 1));
-    setOutputCell(bridgeSheet.getCell(row, 2));
   });
   styleGrid(bridgeSheet, 3, 12, 1, 2);
 
@@ -192,19 +187,27 @@ async function buildBuybackEpsAccretionWorkbook(
   sensitivitySheet.getCell('A3').value = 'Premium';
   sensitivitySheet.getCell('B3').value = 'Debt-funded %';
   output.sensitivity.debtAxis.forEach((value, idx) => {
-    sensitivitySheet.getCell(4, 3 + idx).value = value;
-    setPercent(sensitivitySheet.getCell(4, 3 + idx));
+    const cell = sensitivitySheet.getCell(4, 3 + idx);
+    const delta = [-0.2, -0.1, 0, 0.1, 0.2][idx];
+    setFormulaCell(cell, `=MAX(0,MIN(1,Assumptions!$B$8+${delta}))`, value);
+    setPercent(cell);
   });
   styleHeaderRow(sensitivitySheet, 4, 1, 2 + output.sensitivity.debtAxis.length);
   output.sensitivity.priceAxis.forEach((premium, rowIdx) => {
     const row = 5 + rowIdx;
     sensitivitySheet.getCell(row, 1).value = 'Repurchase Premium';
-    sensitivitySheet.getCell(row, 2).value = premium;
+    setFormulaCell(sensitivitySheet.getCell(row, 2), `=MAX(-20%,MIN(50%,Assumptions!$B$11+${[-0.05, 0, 0.05, 0.1, 0.15][rowIdx]}))`, premium);
     setPercent(sensitivitySheet.getCell(row, 2));
     output.sensitivity.values[rowIdx].forEach((value, colIdx) => {
-      sensitivitySheet.getCell(row, 3 + colIdx).value = value;
-      setPercent(sensitivitySheet.getCell(row, 3 + colIdx));
-      setOutputCell(sensitivitySheet.getCell(row, 3 + colIdx));
+      const col = 3 + colIdx;
+      const debtCell = sensitivitySheet.getCell(4, col).address;
+      setFormulaCell(
+        sensitivitySheet.getCell(row, col),
+        `=IF((Assumptions!$B$4/Assumptions!$B$5)=0,0,((Assumptions!$B$4-(Assumptions!$B$7*${debtCell}*Assumptions!$B$9*(1-Assumptions!$B$10)))/(Assumptions!$B$5-(Assumptions!$B$7/(Assumptions!$B$6*(1+$B${row})))))/(Assumptions!$B$4/Assumptions!$B$5)-1)`,
+        value,
+      );
+      setPercent(sensitivitySheet.getCell(row, col));
+      setOutputCell(sensitivitySheet.getCell(row, col));
     });
     setOutputCell(sensitivitySheet.getCell(row, 1));
     setOutputCell(sensitivitySheet.getCell(row, 2));
@@ -223,13 +226,13 @@ async function buildBuybackEpsAccretionWorkbook(
   checksSheet.getCell('C3').value = 'Status';
   styleHeaderRow(checksSheet, 3, 1, 3);
   checksSheet.getCell('A4').value = 'Pro forma shares remain positive';
-  checksSheet.getCell('B4').value = output.proFormaShares;
-  checksSheet.getCell('C4').value = output.proFormaShares > 0 ? 'PASS' : 'FAIL';
+  setFormulaCell(checksSheet.getCell('B4'), '=IF(OR(Assumptions!$B$6=0,(1+Assumptions!$B$11)=0),0,Assumptions!$B$5-(Assumptions!$B$7/(Assumptions!$B$6*(1+Assumptions!$B$11))))', output.proFormaShares);
   checksSheet.getCell('B4').numFmt = '#,##0.00';
+  setFormulaCell(checksSheet.getCell('C4'), '=IF(B4>0,"PASS","FAIL")', output.proFormaShares > 0 ? 'PASS' : 'FAIL');
   checksSheet.getCell('A5').value = 'Accretion finite';
-  checksSheet.getCell('B5').value = output.accretionPct;
-  checksSheet.getCell('C5').value = Number.isFinite(output.accretionPct) ? 'PASS' : 'FAIL';
+  setFormulaCell(checksSheet.getCell('B5'), '=Bridge!B12', output.accretionPct);
   setPercent(checksSheet.getCell('B5'));
+  setFormulaCell(checksSheet.getCell('C5'), '=IF(ISNUMBER(B5),"PASS","FAIL")', Number.isFinite(output.accretionPct) ? 'PASS' : 'FAIL');
   for (let row = 4; row <= 5; row += 1) for (let col = 1; col <= 3; col += 1) setOutputCell(checksSheet.getCell(row, col));
   styleGrid(checksSheet, 3, 5, 1, 3);
 
@@ -239,9 +242,9 @@ async function buildBuybackEpsAccretionWorkbook(
 
 export const buybackEpsAccretionModel: ModelDef<BuybackEpsAccretionInput, BuybackEpsAccretionOutput> = {
   slug: 'buyback-eps-accretion',
-  name: 'Buyback / EPS Accretion Model',
+  name: 'Buyback / EPS Accretion',
   category: 'Corporate Finance',
-  description: 'Model share repurchases, financing mix, and EPS accretion or dilution from a buyback program.',
+  description: 'Measure the EPS impact of a share repurchase under varying pricing and financing assumptions.',
   inputSchema: BuybackEpsAccretionInputSchema,
   uiSchema: buybackEpsAccretionUiSchema,
   compute: computeBuybackEpsAccretion,
