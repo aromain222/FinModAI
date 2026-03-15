@@ -2,9 +2,22 @@
 
 import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ExternalLink, RefreshCw, Clock, Zap, AlertTriangle, TrendingUp, TrendingDown, Eye } from 'lucide-react';
+import {
+  ExternalLink,
+  RefreshCw,
+  Clock,
+  Zap,
+  AlertTriangle,
+  TrendingUp,
+  TrendingDown,
+  Eye,
+  Newspaper,
+  BrainCircuit,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import ExpandableCard from '@/components/news/ExpandableCard';
 import ImpactChips from '@/components/news/ImpactChips';
 import { getMacroEventFallbackImage } from '@/lib/macroEventImageQueries';
 import { headlineEnrichmentSchema, type HeadlineEnrichment, type NewsRange, type NewsTopic } from '@/lib/news/types';
@@ -439,6 +452,179 @@ function buildAnalysisLead(enrichment: HeadlineEnrichment): string {
   return formatPlainNarrative(enrichment.why_it_matters, 2);
 }
 
+function tickerTag(ticker: string): string {
+  return ticker.startsWith('$') ? ticker : `$${ticker}`;
+}
+
+function highlightTickers(text: string): React.ReactNode {
+  const parts = text.split(/(\$[A-Z]{1,6})/g);
+  return parts.map((part, index) =>
+    /^\$[A-Z]{1,6}$/.test(part) ? (
+      <span key={`${part}-${index}`} className="font-semibold text-zinc-100">
+        {part}
+      </span>
+    ) : (
+      <span key={`${part}-${index}`}>{part}</span>
+    )
+  );
+}
+
+function toTickerSentence(items: Array<{ ticker: string; rationale?: string }>, fallback: string[]): string {
+  const labels = items.slice(0, 4).map((item) => tickerTag(item.ticker));
+  if (labels.length > 0) return labels.join(', ');
+  const normalized = fallback
+    .slice(0, 4)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => (item.startsWith('$') ? item : /^\w{1,6}$/.test(item) ? tickerTag(item.toUpperCase()) : item));
+  return normalized.join(', ');
+}
+
+function buildPanelBullets(enrichment: HeadlineEnrichment): {
+  tldr: string[];
+  bull: string[];
+  bear: string[];
+  soWhat: string;
+  watchList: string[];
+  horizon: string | null;
+  confidence: string | null;
+} {
+  const structured = parseMacroStructuredAnalysis(enrichment.why_it_matters);
+  if (structured) {
+    const getSection = (label: string) => structured.find((section) => section.label === label)?.content ?? null;
+    const tldr = [
+      structuredSectionParagraph(getSection('EVENT') ?? '', 1),
+      structuredSectionParagraph(getSection('WHY IT MATTERS') ?? '', 2),
+      structuredSectionParagraph(getSection('TRANSMISSION PATH') ?? '', 1),
+    ].filter((item): item is string => Boolean(item));
+    const bull = structuredSectionLines(getSection('BULL CASE') ?? '').map((item) => sentenceCase(item));
+    const bear = structuredSectionLines(getSection('BEAR CASE') ?? '').map((item) => sentenceCase(item));
+    const watchNext = structuredSectionLines(getSection('WATCH NEXT') ?? '').map((item) => sentenceCase(item));
+    const modelImplications = structuredSectionLines(getSection('MODEL IMPLICATIONS') ?? '').map((item) => sentenceCase(item));
+    return {
+      tldr: tldr.length > 0 ? tldr : [buildAnalysisLead(enrichment)],
+      bull,
+      bear,
+      soWhat:
+        modelImplications[0] ??
+        structuredSectionParagraph(getSection('BASE CASE') ?? '', 1) ??
+        buildAnalysisLead(enrichment),
+      watchList: watchNext,
+      horizon: structuredSectionParagraph(getSection('HORIZON') ?? '', 1),
+      confidence: structuredSectionParagraph(getSection('CONFIDENCE') ?? '', 1),
+    };
+  }
+
+  const parsed = parseMarketImpactSections(enrichment.why_it_matters);
+  const fallbackTldr = [buildAnalysisLead(enrichment)];
+  return {
+    tldr: parsed?.summary.length ? parsed.summary.map((item) => sentenceCase(item)).slice(0, 3) : fallbackTldr,
+    bull: parsed?.winners.length ? parsed.winners.map((item) => sentenceCase(item)).slice(0, 3) : [],
+    bear: parsed?.losers.length ? parsed.losers.map((item) => sentenceCase(item)).slice(0, 3) : [],
+    soWhat: parsed ? formatPlainNarrative(parsed.fallback, 2) : buildAnalysisLead(enrichment),
+    watchList: parsed?.watchItems.map((item) => sentenceCase(item)).slice(0, 3) ?? [],
+    horizon: null,
+    confidence: null,
+  };
+}
+
+function sparklinePoints(seed: string, direction: 'up' | 'down' | 'mixed' | 'unknown'): string {
+  const values: number[] = [];
+  let baseline = direction === 'up' ? 24 : direction === 'down' ? 72 : 48;
+  for (let index = 0; index < 12; index += 1) {
+    const code = seed.charCodeAt(index % seed.length) || 71;
+    const drift = direction === 'up' ? -1.8 : direction === 'down' ? 1.8 : 0.35;
+    baseline = Math.max(8, Math.min(88, baseline + drift + ((code % 11) - 5) * 0.9));
+    values.push(baseline);
+  }
+  return values.map((value, index) => `${index * 14},${value.toFixed(1)}`).join(' ');
+}
+
+function SparklineMiniCard({
+  ticker,
+  direction,
+  rationale,
+}: {
+  ticker: string;
+  direction: 'up' | 'down' | 'mixed' | 'unknown';
+  rationale?: string;
+}) {
+  const stroke =
+    direction === 'up'
+      ? '#34d399'
+      : direction === 'down'
+        ? '#fb7185'
+        : '#60a5fa';
+  const Icon = direction === 'up' ? ArrowUpRight : direction === 'down' ? ArrowDownRight : Minus;
+  return (
+    <div className="rounded-2xl border border-white/8 bg-[rgba(255,255,255,0.03)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-semibold text-zinc-100">{tickerTag(ticker)}</div>
+        <div
+          className={cn(
+            'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium',
+            direction === 'up'
+              ? 'bg-emerald-500/12 text-emerald-300'
+              : direction === 'down'
+                ? 'bg-rose-500/12 text-rose-300'
+                : 'bg-sky-500/12 text-sky-300'
+          )}
+        >
+          <Icon className="h-3 w-3" />
+          24h
+        </div>
+      </div>
+      <svg viewBox="0 0 154 96" className="mt-3 h-16 w-full overflow-visible">
+        <defs>
+          <linearGradient id={`spark-${ticker}`} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor={stroke} stopOpacity="0.36" />
+            <stop offset="100%" stopColor={stroke} stopOpacity="0.04" />
+          </linearGradient>
+        </defs>
+        <polyline fill="none" stroke={stroke} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={sparklinePoints(ticker, direction)} />
+      </svg>
+      {rationale && <p className="mt-2 text-[11px] leading-5 text-zinc-400">{rationale}</p>}
+    </div>
+  );
+}
+
+function SentimentMeter({
+  title,
+  items,
+  tone,
+}: {
+  title: string;
+  items: string[];
+  tone: 'bull' | 'bear';
+}) {
+  const accent = tone === 'bull' ? 'emerald' : 'rose';
+  return (
+    <div className={cn('rounded-2xl border p-4', tone === 'bull' ? 'border-emerald-500/20 bg-emerald-500/6' : 'border-rose-500/20 bg-rose-500/6')}>
+      <div className="flex items-center justify-between gap-3">
+        <div className={cn('text-[11px] font-semibold uppercase tracking-[0.18em]', tone === 'bull' ? 'text-emerald-300' : 'text-rose-300')}>{title}</div>
+        <div className="h-2 w-24 overflow-hidden rounded-full bg-white/6">
+          <div
+            className={cn('h-full rounded-full', tone === 'bull' ? 'bg-emerald-400' : 'bg-rose-400')}
+            style={{ width: `${items.length > 0 ? Math.min(100, 34 + items.length * 18) : 28}%` }}
+          />
+        </div>
+      </div>
+      <div className="mt-3 space-y-2">
+        {items.length > 0 ? (
+          items.slice(0, 3).map((item, index) => (
+            <div key={`${title}-${index}`} className="flex items-start gap-2 text-[13px] leading-6 text-zinc-200">
+              <span className={cn('mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full', tone === 'bull' ? 'bg-emerald-400' : 'bg-rose-400')} />
+              <span>{item}</span>
+            </div>
+          ))
+        ) : (
+          <div className="text-[12px] leading-5 text-zinc-400">No strong {tone === 'bull' ? 'bullish' : 'bearish'} skew yet.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function normalizeSentence(text: string): string {
   const cleaned = text
     .replace(/^why it matters:\s*/i, '')
@@ -777,7 +963,7 @@ export default function HeadlinesPanel({
   const [provider, setProvider] = useState<NewsSuccessResponse['provider']>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<NewsErrorResponse | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [enrichLoadingId, setEnrichLoadingId] = useState<string | null>(null);
   const [enrichMap, setEnrichMap] = useState<Record<string, HeadlineEnrichment>>({});
 
@@ -917,9 +1103,14 @@ export default function HeadlinesPanel({
   }, [fetchHeadlines]);
 
   useEffect(() => {
-    if (items.length === 0) setExpandedId(null);
-    else if (expandedId && !items.some((i) => i.id === expandedId)) setExpandedId(null);
-  }, [expandedId, items]);
+    if (items.length === 0) {
+      setSelectedId(null);
+      return;
+    }
+    if (!selectedId || !items.some((item) => item.id === selectedId)) {
+      setSelectedId(items[0].id);
+    }
+  }, [items, selectedId]);
 
   const loadEnrichment = useCallback(
     async (headline: NewsItem) => {
@@ -951,6 +1142,18 @@ export default function HeadlinesPanel({
   );
 
   const resolvedProviderLabel = useMemo(() => providerLabel(provider), [provider]);
+  const selectedItem = useMemo(
+    () => items.find((item) => item.id === selectedId) ?? items[0] ?? null,
+    [items, selectedId]
+  );
+  const selectedEnrichment = selectedItem ? enrichMap[selectedItem.id] : null;
+
+  useEffect(() => {
+    if (!selectedItem) return;
+    if (!selectedEnrichment && enrichLoadingId !== selectedItem.id) {
+      void loadEnrichment(selectedItem);
+    }
+  }, [selectedEnrichment, selectedItem, enrichLoadingId, loadEnrichment]);
 
   return (
     <div className="space-y-5">
@@ -1017,9 +1220,23 @@ export default function HeadlinesPanel({
         </div>
       </div>
 
-      {/* ---- feed ---- */}
-      <div>
-        <div className="space-y-2">
+      {/* ---- feed + summary ---- */}
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(380px,0.95fr)]">
+        <div className="min-w-0">
+          <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-white/7 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.015))] px-4 py-3 backdrop-blur-md">
+            <div>
+              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                <Newspaper className="h-3.5 w-3.5" />
+                Live Feed
+              </div>
+              <p className="mt-1 text-sm text-zinc-400">Scan the tape and pick the item that actually deserves attention.</p>
+            </div>
+            <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-medium text-zinc-300">
+              {items.length} headlines
+            </div>
+          </div>
+
+          <div className="space-y-2">
           {loading && (
             <>
               {Array.from({ length: 8 }).map((_, i) => (
@@ -1047,37 +1264,57 @@ export default function HeadlinesPanel({
           {!loading &&
             !error &&
             items.map((item) => {
-              const isOpen = expandedId === item.id;
-              const enrichment = enrichMap[item.id];
               const fallbackImg = getMacroEventFallbackImage(inferHeadlineImageCategory(item), 'thumb');
-              const risingSectors = (enrichment?.impacted_sectors ?? []).filter((sector) => sector.direction === 'up');
-              const fallingSectors = (enrichment?.impacted_sectors ?? []).filter((sector) => sector.direction === 'down');
-              const mixedSectors = (enrichment?.impacted_sectors ?? []).filter((sector) => sector.direction === 'mixed');
-              const showImpactChips =
-                (enrichment?.confidence ?? 'low') !== 'low' &&
-                (
-                  risingSectors.length > 0 ||
-                  fallingSectors.length > 0 ||
-                  mixedSectors.length > 0 ||
-                  (enrichment?.impacted_tickers?.length ?? 0) > 0
-                );
+              const isSelected = selectedItem?.id === item.id;
+              const enrichment = enrichMap[item.id];
 
               return (
-                <div
+                <button
                   key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedId(item.id);
+                    if (!enrichment) void loadEnrichment(item);
+                  }}
                   className={cn(
-                    'transition-all duration-200',
-                    isOpen && 'ring-1 ring-zinc-700/60'
+                    'group w-full rounded-2xl border p-4 text-left transition-all duration-200',
+                    isSelected
+                      ? 'border-cyan-400/30 bg-[linear-gradient(180deg,rgba(14,165,233,0.12),rgba(255,255,255,0.02))] shadow-[0_0_0_1px_rgba(34,211,238,0.08)]'
+                      : 'border-white/7 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] hover:border-white/14 hover:bg-[rgba(255,255,255,0.04)]'
                   )}
-                  style={{ borderRadius: '0.5rem' }}
                 >
-                  <ExpandableCard
-                    isOpen={isOpen}
-                    onToggle={() => {
-                      setExpandedId((c) => (c === item.id ? null : item.id));
-                      if (!isOpen) void loadEnrichment(item);
-                    }}
-                    rightAccessory={
+                  <div className="flex items-start gap-3">
+                    <NewsImage
+                      src={item.imageUrl}
+                      alt={item.title}
+                      fallbackSrc={fallbackImg}
+                      className="h-16 w-16 shrink-0 rounded-xl"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 text-[11px] text-zinc-500">
+                        <span className="font-medium text-zinc-300">{item.source}</span>
+                        <span className="text-zinc-700">·</span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-2.5 w-2.5" />
+                          {relativeTimeLabel(item.publishedAt)}
+                        </span>
+                        {enrichment ? <ConfidenceBadge level={enrichment.confidence ?? 'low'} /> : null}
+                      </div>
+                      <div className="mt-1 line-clamp-2 text-[15px] font-semibold leading-[1.35] text-zinc-100">
+                        {item.title}
+                      </div>
+                      {item.description && (
+                        <div className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-zinc-400">
+                          {item.description}
+                        </div>
+                      )}
+                      {enrichment && (
+                        <p className="mt-2 line-clamp-2 text-[12px] leading-relaxed text-zinc-300">
+                          {buildAnalysisLead(enrichment)}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
                       <a
                         href={item.url}
                         target="_blank"
@@ -1087,104 +1324,167 @@ export default function HeadlinesPanel({
                       >
                         <ExternalLink className="h-3.5 w-3.5" />
                       </a>
-                    }
-                    header={
-                      <div className="flex items-start gap-3">
-                        <NewsImage
-                          src={item.imageUrl}
-                          alt={item.title}
-                          fallbackSrc={fallbackImg}
-                          className="h-14 w-14 shrink-0 rounded-md"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 text-[11px] text-zinc-500">
-                            <span className="font-medium text-zinc-400">{item.source}</span>
-                            <span className="text-zinc-700">·</span>
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-2.5 w-2.5" />
-                              {relativeTimeLabel(item.publishedAt)}
-                            </span>
-                          </div>
-                          <div className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-[1.4] text-zinc-100">
-                            {item.title}
-                          </div>
-                          {item.description && (
-                            <div className="mt-0.5 line-clamp-1 text-[12px] leading-relaxed text-zinc-500">
-                              {item.description}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    }
-                  >
-                    {/* enrichment loading */}
-                    {enrichLoadingId === item.id && !enrichment && (
-                      <div className="space-y-2">
-                        <div className="h-4 w-2/3 animate-pulse rounded bg-zinc-800/40" />
-                        <div className="h-3 w-full animate-pulse rounded bg-zinc-800/30" />
-                        <div className="h-3 w-5/6 animate-pulse rounded bg-zinc-800/30" />
-                      </div>
-                    )}
-
-                    {/* enrichment loaded */}
-                    {enrichment && (
-                      <div className="space-y-4">
-                        {/* confidence + summary */}
-                        <div>
-                          <div className="mb-2 flex items-center justify-between">
-                            <SectionLabel icon={<Zap className="h-3 w-3" />} label="AI Analysis" />
-                            <ConfidenceBadge level={enrichment.confidence ?? 'low'} />
-                          </div>
-                          <p className="text-[13px] leading-relaxed text-zinc-200">
-                            {buildAnalysisLead(enrichment)}
-                          </p>
-                        </div>
-
-                        {/* impact chips */}
-                        {showImpactChips ? (
-                          <div className="space-y-3">
-                            <div className="flex flex-wrap gap-6">
-                              <ImpactChips title="Rising Sectors" items={risingSectors} />
-                              <ImpactChips title="Falling Sectors" items={fallingSectors} />
-                              <ImpactChips title="Mixed Sectors" items={mixedSectors} />
-                            </div>
-                            <ImpactChips title="Tickers" items={enrichment.impacted_tickers} />
-                          </div>
-                        ) : (
-                          <div className="rounded-md border border-zinc-800/30 bg-zinc-900/20 px-3 py-2 text-[12px] text-zinc-400">
-                            No strong sector or ticker read-through yet.
-                          </div>
-                        )}
-
-                        {/* market impact */}
-                        {enrichment.why_it_matters && (
-                          <div className="rounded-lg border border-zinc-800/30 bg-zinc-950/40 p-4">
-                            <MarketImpactBlock text={enrichment.why_it_matters} />
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* fallback retry */}
-                    {!enrichLoadingId && !enrichment && (
-                      <div className="rounded-lg border border-zinc-800/40 bg-zinc-900/20 p-4 text-center">
-                        <div className="text-xs text-zinc-400">Could not load analysis for this headline.</div>
-                        <button
-                          type="button"
-                          className="mt-2 text-xs font-medium text-zinc-200 underline underline-offset-2 hover:text-zinc-100"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void loadEnrichment(item);
-                          }}
-                        >
-                          Retry
-                        </button>
-                      </div>
-                    )}
-                  </ExpandableCard>
-                </div>
+                    </div>
+                  </div>
+                </button>
               );
             })}
+          </div>
+        </div>
+
+        <div className="min-w-0 xl:sticky xl:top-6 xl:self-start">
+          <div className="rounded-[28px] border border-white/8 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),rgba(255,255,255,0.03)_28%,rgba(255,255,255,0.015)_100%)] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                  <BrainCircuit className="h-3.5 w-3.5" />
+                  Smart Summary
+                </div>
+                <p className="mt-1 text-sm text-zinc-400">Institutional read-through for the selected headline.</p>
+              </div>
+              {selectedEnrichment ? <ConfidenceBadge level={selectedEnrichment.confidence ?? 'low'} /> : null}
+            </div>
+
+            {!selectedItem ? (
+              <div className="mt-6 rounded-2xl border border-white/8 bg-white/[0.03] p-6 text-sm text-zinc-400">
+                Select a headline from the live feed.
+              </div>
+            ) : enrichLoadingId === selectedItem.id && !selectedEnrichment ? (
+              <div className="mt-6 space-y-3">
+                <div className="h-8 animate-pulse rounded-xl bg-white/[0.05]" />
+                <div className="h-28 animate-pulse rounded-2xl bg-white/[0.04]" />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="h-36 animate-pulse rounded-2xl bg-white/[0.04]" />
+                  <div className="h-36 animate-pulse rounded-2xl bg-white/[0.04]" />
+                </div>
+              </div>
+            ) : selectedEnrichment ? (
+              (() => {
+                const fallbackImg = getMacroEventFallbackImage(inferHeadlineImageCategory(selectedItem), 'thumb');
+                const risingSectors = selectedEnrichment.impacted_sectors.filter((sector) => sector.direction === 'up');
+                const fallingSectors = selectedEnrichment.impacted_sectors.filter((sector) => sector.direction === 'down');
+                const mixedSectors = selectedEnrichment.impacted_sectors.filter((sector) => sector.direction === 'mixed');
+                const smart = buildPanelBullets(selectedEnrichment);
+                const watchTickers =
+                  selectedEnrichment.impacted_tickers.length > 0
+                    ? selectedEnrichment.impacted_tickers.slice(0, 3)
+                    : [
+                        { ticker: 'SPY', direction: 'mixed' as const, rationale: 'Broad market tape.' },
+                        { ticker: 'QQQ', direction: 'mixed' as const, rationale: 'Growth and duration sensitivity.' },
+                        { ticker: 'XOM', direction: 'up' as const, rationale: 'Energy read-through.' },
+                      ];
+
+                return (
+                  <div className="mt-5 space-y-5">
+                    <div className="overflow-hidden rounded-[24px] border border-white/8 bg-white/[0.03]">
+                      <div className="relative h-48">
+                        <NewsImage
+                          src={selectedItem.imageUrl}
+                          alt={selectedItem.title}
+                          fallbackSrc={fallbackImg}
+                          className="h-full w-full"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[rgba(7,10,15,0.95)] via-[rgba(7,10,15,0.45)] to-transparent" />
+                        <div className="absolute inset-x-0 bottom-0 p-5">
+                          <div className="flex items-center gap-2 text-[11px] text-zinc-400">
+                            <span>{selectedItem.source}</span>
+                            <span>•</span>
+                            <span>{relativeTimeLabel(selectedItem.publishedAt)}</span>
+                            {smart.horizon ? (
+                              <>
+                                <span>•</span>
+                                <span>{smart.horizon}</span>
+                              </>
+                            ) : null}
+                          </div>
+                          <h2 className="mt-2 text-xl font-semibold leading-tight text-white">{selectedItem.title}</h2>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-[24px] border border-cyan-400/10 bg-[rgba(8,12,18,0.72)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                      <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-300">TL;DR</div>
+                      <div className="space-y-2">
+                        {smart.tldr.slice(0, 3).map((line, index) => (
+                          <div key={`tldr-${index}`} className="flex items-start gap-3 rounded-2xl border border-white/6 bg-white/[0.025] px-3 py-3 text-[13px] leading-6 text-zinc-200">
+                            <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.7)]" />
+                            <span>
+                              {highlightTickers(
+                                line.includes('$')
+                                  ? line
+                                  : `${line} ${index === 0 ? toTickerSentence(selectedEnrichment.impacted_tickers, smart.watchList) : ''}`.trim()
+                              )}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <SentimentMeter title="Bullish Setup" items={smart.bull.length > 0 ? smart.bull : risingSectors.map((item) => sentenceCase(`${item.sector}: ${item.rationale ?? 'Positive read-through.'}`))} tone="bull" />
+                      <SentimentMeter title="Bearish Setup" items={smart.bear.length > 0 ? smart.bear : fallingSectors.map((item) => sentenceCase(`${item.sector}: ${item.rationale ?? 'Negative read-through.'}`))} tone="bear" />
+                    </div>
+
+                    {(watchTickers.length > 0 || mixedSectors.length > 0) && (
+                      <div className="rounded-[24px] border border-white/8 bg-[rgba(255,255,255,0.03)] p-4">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">24H Trend Watch</div>
+                          {mixedSectors.length > 0 ? (
+                            <div className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1 text-[11px] text-zinc-400">
+                              Mixed sectors: {mixedSectors.map((item) => item.sector).join(', ')}
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-3">
+                          {watchTickers.map((item) => (
+                            <SparklineMiniCard key={item.ticker} ticker={item.ticker} direction={item.direction} rationale={item.rationale} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {(risingSectors.length > 0 || fallingSectors.length > 0 || mixedSectors.length > 0) && (
+                      <div className="rounded-[24px] border border-white/8 bg-[rgba(255,255,255,0.03)] p-4">
+                        <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Sector Read-Through</div>
+                        <div className="flex flex-wrap gap-6">
+                          <ImpactChips title="Rising" items={risingSectors} />
+                          <ImpactChips title="Falling" items={fallingSectors} />
+                          <ImpactChips title="Mixed" items={mixedSectors} />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="rounded-[24px] border border-amber-400/15 bg-[linear-gradient(180deg,rgba(245,158,11,0.08),rgba(255,255,255,0.025))] p-5">
+                      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-300">So What?</div>
+                      <p className="text-[14px] leading-7 text-zinc-100">{highlightTickers(smart.soWhat)}</p>
+                      {smart.watchList.length > 0 && (
+                        <div className="mt-4 border-t border-white/8 pt-4">
+                          <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                            <Eye className="h-3.5 w-3.5" />
+                            Market Implications
+                          </div>
+                          <BulletList items={smart.watchList.slice(0, 3)} className="space-y-2" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <div className="mt-6 rounded-2xl border border-white/8 bg-white/[0.03] p-6 text-center">
+                <div className="text-sm text-zinc-300">Could not load analysis for this headline.</div>
+                <button
+                  type="button"
+                  className="mt-2 text-xs font-medium text-zinc-200 underline underline-offset-2 hover:text-zinc-100"
+                  onClick={() => {
+                    if (selectedItem) void loadEnrichment(selectedItem);
+                  }}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

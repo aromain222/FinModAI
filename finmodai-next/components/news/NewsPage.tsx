@@ -10,7 +10,7 @@ export default function NewsPage() {
 
   return (
     <div className="w-full bg-zinc-950 px-6 py-5 lg:px-10">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-7xl">
         <HeadlinesPanel
           range={range}
           topic={topic}
