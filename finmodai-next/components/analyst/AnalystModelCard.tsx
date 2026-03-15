@@ -1,9 +1,23 @@
 'use client';
 
 import { useState } from 'react';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+  Cell,
+} from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { financeTooltipStyle } from '@/components/charts/FinanceChart';
 import type { AnalystGeneratedModelPayload } from '@/lib/analyst/modelChat';
 
 function isCurrencyKey(key?: string): boolean {
@@ -85,9 +99,246 @@ function ObjectGrid(props: { title: string; values: Record<string, unknown>; emp
   );
 }
 
+type ChartSpec =
+  | {
+      kind: 'line';
+      title: string;
+      data: Array<Record<string, string | number>>;
+      lines: Array<{ key: string; label: string; color: string; valueType?: 'currency' | 'percent' | 'number' }>;
+      yType?: 'currency' | 'percent' | 'number';
+    }
+  | {
+      kind: 'bar';
+      title: string;
+      data: Array<Record<string, string | number>>;
+      bars: Array<{ key: string; label: string; color: string; valueType?: 'currency' | 'percent' | 'number' }>;
+      yType?: 'currency' | 'percent' | 'number';
+    };
+
+function formatAxisValue(value: number, type: 'currency' | 'percent' | 'number' = 'number'): string {
+  if (!Number.isFinite(value)) return '—';
+  if (type === 'currency') {
+    if (Math.abs(value) >= 1000) return `$${Math.round(value / 1000)}B`;
+    return `$${Math.round(value)}M`;
+  }
+  if (type === 'percent') return `${value.toFixed(0)}%`;
+  return value.toLocaleString('en-US', { maximumFractionDigits: 1 });
+}
+
+function normalizeModelTypeForReport(modelType: AnalystGeneratedModelPayload['modelType']): string {
+  switch (modelType) {
+    case 'THREE_STATEMENT':
+      return 'three-statement';
+    case 'CAP_TABLE':
+      return 'cap-table';
+    case 'SAAS_OPERATING_MODEL':
+      return 'saas-operating-model';
+    case 'COMPS':
+      return 'comps';
+    case 'PRECEDENTS':
+      return 'precedents';
+    case 'LBO':
+      return 'lbo';
+  }
+}
+
+function inferChartSpec(payload: AnalystGeneratedModelPayload): ChartSpec | null {
+  const inputs = payload.extractedInputs as Record<string, unknown>;
+
+  if (payload.modelType === 'THREE_STATEMENT') {
+    const revenueGrowth = Array.isArray(inputs.revenueGrowth) ? inputs.revenueGrowth : [];
+    const ebitMargin = Array.isArray(inputs.ebitMargin) ? inputs.ebitMargin : [];
+    const years = Array.from({ length: Math.max(revenueGrowth.length, ebitMargin.length) }, (_, idx) => `Y${idx + 1}`);
+    if (years.length > 0) {
+      return {
+        kind: 'line',
+        title: 'Forecast Assumption Paths',
+        data: years.map((year, index) => ({
+          year,
+          revenueGrowth: typeof revenueGrowth[index] === 'number' ? Number(revenueGrowth[index]) * 100 : 0,
+          ebitMargin: typeof ebitMargin[index] === 'number' ? Number(ebitMargin[index]) * 100 : 0,
+        })),
+        lines: [
+          { key: 'revenueGrowth', label: 'Revenue Growth', color: '#2563eb', valueType: 'percent' },
+          { key: 'ebitMargin', label: 'EBIT Margin', color: '#16a34a', valueType: 'percent' },
+        ],
+        yType: 'percent',
+      };
+    }
+  }
+
+  if (payload.modelType === 'COMPS') {
+    const peers = Array.isArray(inputs.peers) ? (inputs.peers as Array<Record<string, unknown>>) : [];
+    if (peers.length > 0) {
+      const data = peers
+        .slice(0, 8)
+        .map((peer) => ({
+          label: String(peer.ticker ?? peer.name ?? 'Peer'),
+          revenue: typeof peer.revenue === 'number' ? Number(peer.revenue) : 0,
+          ebitda: typeof peer.ebitda === 'number' ? Number(peer.ebitda) : 0,
+        }));
+      return {
+        kind: 'bar',
+        title: 'Peer Operating Scale',
+        data,
+        bars: [
+          { key: 'revenue', label: 'Revenue', color: '#2563eb', valueType: 'currency' },
+          { key: 'ebitda', label: 'EBITDA', color: '#16a34a', valueType: 'currency' },
+        ],
+        yType: 'currency',
+      };
+    }
+  }
+
+  if (payload.modelType === 'PRECEDENTS') {
+    const transactions = Array.isArray(inputs.transactions) ? (inputs.transactions as Array<Record<string, unknown>>) : [];
+    if (transactions.length > 0) {
+      const data = transactions.slice(0, 8).map((transaction) => ({
+        label: String(transaction.target ?? transaction.transaction ?? 'Deal'),
+        revenueMultiple: typeof transaction.revenueMultiple === 'number' ? Number(transaction.revenueMultiple) : 0,
+        ebitdaMultiple: typeof transaction.ebitdaMultiple === 'number' ? Number(transaction.ebitdaMultiple) : 0,
+      }));
+      return {
+        kind: 'bar',
+        title: 'Transaction Multiples',
+        data,
+        bars: [
+          { key: 'revenueMultiple', label: 'EV / Revenue', color: '#2563eb', valueType: 'number' },
+          { key: 'ebitdaMultiple', label: 'EV / EBITDA', color: '#f59e0b', valueType: 'number' },
+        ],
+        yType: 'number',
+      };
+    }
+  }
+
+  if (payload.modelType === 'LBO') {
+    const revenueGrowth = Array.isArray(inputs.revenueGrowth) ? inputs.revenueGrowth : [];
+    if (revenueGrowth.length > 0) {
+      return {
+        kind: 'line',
+        title: 'Underwriting Growth Path',
+        data: revenueGrowth.map((value, index) => ({
+          year: `Y${index + 1}`,
+          revenueGrowth: typeof value === 'number' ? Number(value) * 100 : 0,
+        })),
+        lines: [{ key: 'revenueGrowth', label: 'Revenue Growth', color: '#2563eb', valueType: 'percent' }],
+        yType: 'percent',
+      };
+    }
+  }
+
+  if (payload.modelType === 'CAP_TABLE') {
+    const founderShares = typeof inputs.founderShares === 'number' ? Number(inputs.founderShares) : null;
+    const raiseAmount = typeof inputs.raiseAmount === 'number' ? Number(inputs.raiseAmount) : null;
+    const preMoney = typeof inputs.preMoney === 'number' ? Number(inputs.preMoney) : null;
+    if (founderShares !== null || raiseAmount !== null || preMoney !== null) {
+      return {
+        kind: 'bar',
+        title: 'Financing Structure Snapshot',
+        data: [
+          {
+            label: 'Round',
+            founderShares: founderShares ?? 0,
+            raiseAmount: raiseAmount ?? 0,
+            preMoney: preMoney ?? 0,
+          },
+        ],
+        bars: [
+          { key: 'founderShares', label: 'Founder Shares', color: '#2563eb', valueType: 'number' },
+          { key: 'raiseAmount', label: 'Raise Amount', color: '#16a34a', valueType: 'currency' },
+          { key: 'preMoney', label: 'Pre-Money', color: '#f59e0b', valueType: 'currency' },
+        ],
+        yType: 'number',
+      };
+    }
+  }
+
+  if (payload.modelType === 'SAAS_OPERATING_MODEL') {
+    const growthRate = typeof inputs.growthRate === 'number' ? Number(inputs.growthRate) * 100 : null;
+    const grossMargin = typeof inputs.grossMargin === 'number' ? Number(inputs.grossMargin) * 100 : null;
+    const churn = typeof inputs.churn === 'number' ? Number(inputs.churn) * 100 : null;
+    const cac = typeof inputs.cac === 'number' ? Number(inputs.cac) : null;
+    const arpu = typeof inputs.arpu === 'number' ? Number(inputs.arpu) : null;
+    const data = [
+      { label: 'Growth', value: growthRate ?? 0 },
+      { label: 'Gross Margin', value: grossMargin ?? 0 },
+      { label: 'Churn', value: churn ?? 0 },
+      { label: 'CAC', value: cac ?? 0 },
+      { label: 'ARPU', value: arpu ?? 0 },
+    ];
+    if (data.some((row) => row.value > 0)) {
+      return {
+        kind: 'bar',
+        title: 'Operating Driver Snapshot',
+        data,
+        bars: [{ key: 'value', label: 'Value', color: '#2563eb', valueType: 'number' }],
+        yType: 'number',
+      };
+    }
+  }
+
+  return null;
+}
+
+function ModelVisualization({ spec }: { spec: ChartSpec }) {
+  return (
+    <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
+      <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">{spec.title}</div>
+      <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          {spec.kind === 'line' ? (
+            <LineChart data={spec.data} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#dbe1ea" vertical={false} />
+              <XAxis dataKey="year" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={(value) => formatAxisValue(Number(value), spec.yType)} />
+              <Tooltip
+                contentStyle={financeTooltipStyle}
+                formatter={(value: number, _name: string, item: { dataKey?: string | number }) => {
+                  const dataKey = typeof item.dataKey === 'string' ? item.dataKey : String(item.dataKey ?? '');
+                  const line = spec.lines.find((entry) => entry.key === dataKey);
+                  return [formatAxisValue(Number(value), line?.valueType ?? spec.yType), (line?.label ?? dataKey) || 'Value'];
+                }}
+              />
+              <Legend />
+              {spec.lines.map((line) => (
+                <Line key={line.key} type="monotone" dataKey={line.key} name={line.label} stroke={line.color} strokeWidth={2.2} dot={false} />
+              ))}
+            </LineChart>
+          ) : (
+            <BarChart data={spec.data} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#dbe1ea" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={(value) => formatAxisValue(Number(value), spec.yType)} />
+              <Tooltip
+                contentStyle={financeTooltipStyle}
+                formatter={(value: number, _name: string, item: { dataKey?: string | number }) => {
+                  const dataKey = typeof item.dataKey === 'string' ? item.dataKey : String(item.dataKey ?? '');
+                  const bar = spec.bars.find((entry) => entry.key === dataKey);
+                  return [formatAxisValue(Number(value), bar?.valueType ?? spec.yType), (bar?.label ?? dataKey) || 'Value'];
+                }}
+              />
+              <Legend />
+              {spec.bars.map((bar) => (
+                <Bar key={bar.key} dataKey={bar.key} name={bar.label} radius={[6, 6, 0, 0]}>
+                  {spec.data.map((row, index) => (
+                    <Cell key={`${bar.key}-${index}-${String(row.label ?? index)}`} fill={bar.color} />
+                  ))}
+                </Bar>
+              ))}
+            </BarChart>
+          )}
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
 export function AnalystModelCard({ payload }: { payload: AnalystGeneratedModelPayload }) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const chartSpec = inferChartSpec(payload);
 
   async function handleDownload() {
     if (isDownloading) return;
@@ -128,6 +379,65 @@ export function AnalystModelCard({ payload }: { payload: AnalystGeneratedModelPa
     }
   }
 
+  async function handleGenerateReport() {
+    if (isGeneratingReport) return;
+    setIsGeneratingReport(true);
+    setReportError(null);
+
+    try {
+      const response = await fetch('/api/generateReport', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticker:
+            typeof (payload.extractedInputs as Record<string, unknown>).ticker === 'string'
+              ? (payload.extractedInputs as Record<string, unknown>).ticker
+              : undefined,
+          companyName:
+            typeof (payload.extractedInputs as Record<string, unknown>).companyName === 'string'
+              ? (payload.extractedInputs as Record<string, unknown>).companyName
+              : payload.title,
+          asOfDate: payload.provenanceSummary.asOfDate,
+          modelType: normalizeModelTypeForReport(payload.modelType),
+          modelData: {
+            extractedInputs: payload.extractedInputs,
+            defaultsUsed: payload.defaultsUsed,
+            narrativeBlocks: payload.narrativeBlocks,
+            provenanceSummary: payload.provenanceSummary,
+            comparisonSummary: payload.comparisonSummary,
+          },
+          reportInput: {
+            highLevelNotes: payload.narrativeBlocks.map((block) => `${block.title}: ${block.body}`).join(' '),
+          },
+        }),
+      });
+
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(body?.error || 'Failed to generate PDF report.');
+      }
+
+      const pdfBase64 = typeof body?.pdfBase64 === 'string' ? body.pdfBase64 : null;
+      if (!pdfBase64) {
+        throw new Error('Report generated but PDF output was missing.');
+      }
+
+      const binary = atob(pdfBase64);
+      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${payload.modelType.toLowerCase()}_capitalbase_report.pdf`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setReportError(error instanceof Error ? error.message : 'Unable to generate report.');
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  }
+
   return (
     <Card className="mt-4 overflow-hidden border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
       <CardHeader className="border-b border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)]">
@@ -138,6 +448,9 @@ export function AnalystModelCard({ payload }: { payload: AnalystGeneratedModelPa
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">{payload.modelType}</Badge>
+            <Button type="button" variant="outline" size="sm" onClick={() => void handleGenerateReport()} disabled={isGeneratingReport}>
+              {isGeneratingReport ? 'Generating Report…' : 'Generate Report'}
+            </Button>
             <Button type="button" variant="outline" size="sm" onClick={() => void handleDownload()} disabled={isDownloading}>
               {isDownloading ? 'Preparing Excel…' : 'Download Excel'}
             </Button>
@@ -148,6 +461,11 @@ export function AnalystModelCard({ payload }: { payload: AnalystGeneratedModelPa
         {downloadError ? (
           <div className="rounded-xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.16)] px-3 py-2 text-sm text-[#fecaca]">
             {downloadError}
+          </div>
+        ) : null}
+        {reportError ? (
+          <div className="rounded-xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.16)] px-3 py-2 text-sm text-[#fecaca]">
+            {reportError}
           </div>
         ) : null}
 
@@ -166,6 +484,8 @@ export function AnalystModelCard({ payload }: { payload: AnalystGeneratedModelPa
           <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Key Outputs</div>
           <p className="text-sm leading-6 text-[var(--cb-text-primary)]">{payload.keyOutputs.join(', ')}</p>
         </div>
+
+        {chartSpec ? <ModelVisualization spec={chartSpec} /> : null}
 
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">

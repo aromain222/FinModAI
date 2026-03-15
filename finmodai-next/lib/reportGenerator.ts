@@ -298,6 +298,114 @@ function buildCompsSections(context: ReportContext): GeneratedReportSection[] {
   ];
 }
 
+function buildPrecedentsSections(_context: ReportContext): GeneratedReportSection[] {
+  return [
+    {
+      title: 'Precedent Valuation Snapshot',
+      body: buildBulletBody(
+        [
+          'The precedent set should be read as a control-value framing tool rather than a direct trading mark.',
+          'Outputs are most useful when the selected transactions are strategically and temporally comparable to the target.',
+        ],
+        'Precedent valuation outputs were generated from the current transaction set.'
+      ),
+    },
+    {
+      title: 'Interpretation',
+      body: buildBulletBody(
+        [
+          'Control premiums and deal-specific synergies can distort direct comparability.',
+          'Use the range to support valuation framing, then pressure-test which transactions truly belong in the set.',
+        ],
+        'Transaction selection and premium normalization drive the usefulness of the precedent range.'
+      ),
+    },
+  ];
+}
+
+function buildCapTableSections(context: ReportContext): GeneratedReportSection[] {
+  const data = context.data ?? {};
+  return [
+    {
+      title: 'Ownership Snapshot',
+      body: buildBulletBody(
+        [
+          data.extractedInputs?.preMoney ? `Pre-money valuation: ${fmtNumber(data.extractedInputs.preMoney)}.` : null,
+          data.extractedInputs?.raiseAmount ? `Primary raise amount: ${fmtNumber(data.extractedInputs.raiseAmount)}.` : null,
+          data.extractedInputs?.optionPoolRefresh !== undefined ? `Option pool refresh: ${fmtPct(Number(data.extractedInputs.optionPoolRefresh) * 100)}.` : null,
+          'This model is most useful for understanding dilution mechanics, post-money ownership, and control shifts.',
+        ],
+        'The cap table frames dilution, ownership, and post-money structure under the current financing assumptions.'
+      ),
+    },
+    {
+      title: 'Interpretation',
+      body: buildBulletBody(
+        [
+          'The key question is how much ownership existing holders give up for the next financing milestone.',
+          'Small changes in valuation, raise size, or option pool sizing can move founder and new-investor ownership meaningfully.',
+        ],
+        'Dilution is most sensitive to valuation, raise size, and option pool assumptions.'
+      ),
+    },
+  ];
+}
+
+function buildSaasOperatingSections(context: ReportContext): GeneratedReportSection[] {
+  const data = context.data ?? {};
+  return [
+    {
+      title: 'Operating Snapshot',
+      body: buildBulletBody(
+        [
+          data.extractedInputs?.growthRate !== undefined ? `Growth rate: ${fmtPct(Number(data.extractedInputs.growthRate) * 100)}.` : null,
+          data.extractedInputs?.grossMargin !== undefined ? `Gross margin: ${fmtPct(Number(data.extractedInputs.grossMargin) * 100)}.` : null,
+          data.extractedInputs?.churn !== undefined ? `Churn: ${fmtPct(Number(data.extractedInputs.churn) * 100)}.` : null,
+          data.extractedInputs?.cac ? `CAC: ${fmtNumber(data.extractedInputs.cac)}.` : null,
+          data.extractedInputs?.arpu ? `ARPU: ${fmtNumber(data.extractedInputs.arpu)}.` : null,
+        ],
+        'The SaaS operating model ties recurring revenue assumptions to margin and unit-economic durability.'
+      ),
+    },
+    {
+      title: 'Interpretation',
+      body: buildBulletBody(
+        [
+          'The main question is whether growth quality is durable after churn, margin, and acquisition-cost assumptions are applied.',
+          'The model is most sensitive to churn discipline and whether CAC remains supportable relative to ARPU and gross margin.',
+        ],
+        'Growth quality and unit economics are the main interpretation anchors.'
+      ),
+    },
+  ];
+}
+
+function buildSpecializedTemplateSections(context: ReportContext): GeneratedReportSection[] {
+  const label = formatModelLabel(context.modelType);
+  return [
+    {
+      title: 'Model Overview',
+      body: buildBulletBody(
+        [
+          `${label} outputs were generated from the current assumptions and supporting inputs.`,
+          'The model should be read as a decision framework anchored in the assumptions provided, not as an autonomous live-data conclusion.',
+        ],
+        `${label} outputs were generated from the current assumptions.`
+      ),
+    },
+    {
+      title: 'Interpretation',
+      body: buildBulletBody(
+        [
+          'The main read-through depends on whether the current assumptions are complete enough to support a decision-useful conclusion.',
+          'The next step is to pressure-test the assumptions that most directly drive the model’s headline output and sensitivity.',
+        ],
+        'Interpret the output through its key assumptions and sensitivity to incomplete inputs.'
+      ),
+    },
+  ];
+}
+
 function buildThreeStatementSections(context: ReportContext): GeneratedReportSection[] {
   const summary =
     context.data?.threeStatementSummary && typeof context.data.threeStatementSummary === 'object'
@@ -730,14 +838,64 @@ function analyzeDebtCapacityReport(context: ReportContext): DebtCapacityReportAn
   };
 }
 
+function buildReverseDcfSections(context: ReportContext): GeneratedReportSection[] {
+  const dcfSummary = context.data?.dcfSummary;
+  const reverseDcf = dcfSummary?.reverseDcf ?? context.data?.reverseDcf;
+  const lines: string[] = [];
+
+  const impliedGrowth = toFinite(reverseDcf?.impliedRevenueGrowth ?? reverseDcf?.impliedGrowth);
+  const targetPrice = toFinite(reverseDcf?.targetPrice ?? dcfSummary?.reverseDcf?.targetPrice);
+  const wacc = toFinite(reverseDcf?.wacc ?? dcfSummary?.wacc);
+  const terminalGrowth = toFinite(reverseDcf?.terminalGrowth);
+  const marketPrice = toFinite(dcfSummary?.marketContext?.sharePrice);
+  const ev = toFinite(dcfSummary?.results?.enterpriseValue);
+  const equityValue = toFinite(dcfSummary?.results?.equityValue);
+
+  pushLine(lines, impliedGrowth !== null ? `Implied revenue CAGR: ${fmtPct(impliedGrowth * 100)}.` : null);
+  pushLine(lines, targetPrice !== null ? `Target price used: ${fmtNumber(targetPrice)}.` : null);
+  pushLine(lines, marketPrice !== null ? `Current market price: ${fmtNumber(marketPrice)}.` : null);
+  pushLine(lines, wacc !== null ? `WACC assumption: ${fmtPct(wacc * 100)}.` : null);
+  pushLine(lines, terminalGrowth !== null ? `Terminal growth assumption: ${fmtPct(terminalGrowth * 100)}.` : null);
+  pushLine(lines, ev !== null ? `Enterprise value: ${fmtNumber(ev)}.` : null);
+  pushLine(lines, equityValue !== null ? `Equity value: ${fmtNumber(equityValue)}.` : null);
+
+  return [
+    {
+      title: 'Reverse DCF Snapshot',
+      body: buildBulletBody(lines, 'Reverse DCF output: implied revenue growth rate embedded in the current valuation anchor.'),
+    },
+    {
+      title: 'Interpretation',
+      body: buildBulletBody(
+        [
+          impliedGrowth !== null && impliedGrowth > 0.15
+            ? 'The market is pricing in aggressive growth expectations that may be demanding.'
+            : impliedGrowth !== null && impliedGrowth < 0.05
+              ? 'The market is pricing in conservative growth — the bar is low if fundamentals hold.'
+              : impliedGrowth !== null
+                ? 'Implied growth appears moderate relative to the current valuation anchor.'
+                : null,
+          'The result is most sensitive to WACC and terminal growth assumptions.',
+          'Small changes in the discount rate can move implied expectations materially.',
+        ],
+        'The reverse DCF output shows growth expectations embedded in the valuation anchor.'
+      ),
+    },
+  ];
+}
+
 function buildSections(context: ReportContext): GeneratedReportSection[] {
   switch (context.modelType) {
     case 'dcf':
       return buildDcfSections(context);
+    case 'reverse-dcf':
+      return buildReverseDcfSections(context);
     case 'lbo':
       return buildLboSections(context);
     case 'comps':
       return buildCompsSections(context);
+    case 'precedents':
+      return buildPrecedentsSections(context);
     case 'three-statement':
       return buildThreeStatementSections(context);
     case 'scorecard':
@@ -745,9 +903,26 @@ function buildSections(context: ReportContext): GeneratedReportSection[] {
     case 'debt-capacity-lite':
       return buildDebtCapacitySections(context);
     case 'merger':
+    case 'ma-accretion-dilution':
       return buildMergerSections(context);
     case 'operating':
       return buildOperatingSections(context);
+    case 'cap-table':
+      return buildCapTableSections(context);
+    case 'saas-operating-model':
+      return buildSaasOperatingSections(context);
+    case 'dividend-discount-model':
+    case 'residual-income-model':
+    case 'debt-amortization-refi':
+    case 'buyback-eps-accretion':
+    case 'purchase-price-allocation':
+    case 'working-capital-schedule':
+    case 'ppe-depreciation-schedule':
+    case 'runway-burn':
+    case 'vc-returns-irr':
+    case 'inventory-cogs':
+    case 'revenue-recognition-asc606':
+      return buildSpecializedTemplateSections(context);
     default:
       return [
         {
@@ -774,6 +949,7 @@ function buildSummaryFallback(context: ReportContext): string {
     case 'scorecard':
       return `${company} has been assessed through a rules-based scorecard that emphasizes business quality, profitability, leverage, and resilience. The output is a screening view rather than a standalone investment conclusion. The most important follow-up is to test whether weaker sub-scores are cyclical, structural, or driven by incomplete inputs.`;
     case 'merger':
+    case 'ma-accretion-dilution':
       return `${company} has been framed through a merger model focused on transaction structure, financing mix, and pro forma impact. The main issue is whether strategic logic and synergies offset deal friction and financing drag. Sensitivity remains highest around synergy realization, purchase price, and integration execution.`;
     case 'operating':
       return `${company} has been modeled through an operating framework centered on revenue build, margin shape, and cash consequences. The key question is whether the current plan converts topline assumptions into durable operating leverage. Forecast quality depends most on execution against revenue and spending assumptions.`;
@@ -781,6 +957,8 @@ function buildSummaryFallback(context: ReportContext): string {
       return `${company} has been evaluated under an LBO framework where returns are driven by entry price, leverage, deleveraging, and exit valuation. The investment case is most exposed to cash conversion and multiple discipline. Small changes in operating execution or exit assumptions can move sponsor returns materially.`;
     case 'comps':
       return `${company} has been evaluated on a relative basis against a comparable set. The implied range is useful for framing, but it remains highly sensitive to peer selection and market multiple stability. The output should be treated as a relative valuation reference rather than intrinsic value.`;
+    case 'precedents':
+      return `${company} has been evaluated against a precedent transaction set to frame control-value support and transaction context. The output is only as good as the deal set, premium normalization, and strategic comparability of the selected transactions. This should be treated as transaction framing, not a substitute for full live precedents coverage.`;
     case 'three-statement': {
       const three = (context.data?.threeStatementSummary ?? {}) as Record<string, any>;
       const revenueSeries = Array.isArray(three?.incomeStatement?.revenue) ? three.incomeStatement.revenue : [];
@@ -808,6 +986,34 @@ function buildSummaryFallback(context: ReportContext): string {
 
       return `${company} has been modeled through an integrated three-statement framework that ties operating assumptions to cash generation and balance-sheet outcomes. The most important sensitivities are revenue durability, margin progression, and cash conversion. Changes in working capital or financing assumptions can materially alter the end-state balance sheet.`;
     }
+    case 'reverse-dcf':
+      return `${company} has been evaluated through a Reverse DCF framework that solves for the implied revenue growth embedded in the current valuation anchor. This approach asks what the market is pricing in, rather than what the company is worth. The result is most sensitive to WACC and terminal growth assumptions — small changes in these inputs can materially shift the implied expectations.`;
+    case 'cap-table':
+      return `${company} has been framed through a cap table model focused on ownership, dilution, and post-money structure. The output is most useful for understanding how valuation, raise size, and option pool decisions reallocate control and economic ownership. Small changes in financing terms can move stakeholder outcomes materially.`;
+    case 'saas-operating-model':
+      return `${company} has been modeled through a SaaS operating framework centered on ARR growth, churn, gross margin, and unit economics. The key question is whether growth quality remains durable after customer attrition and acquisition cost are properly reflected. The output is most sensitive to churn discipline, CAC efficiency, and gross margin durability.`;
+    case 'dividend-discount-model':
+      return `${company} has been evaluated through a dividend discount framework where value is anchored to the projected payout stream and cost of equity. The conclusion is most sensitive to dividend growth durability and terminal payout assumptions. This model is most decision-useful for mature businesses with credible cash-return policies.`;
+    case 'residual-income-model':
+      return `${company} has been evaluated through a residual income framework that starts from book value and adds the present value of excess earnings over the equity charge. The conclusion is most sensitive to return-on-equity durability and cost-of-equity assumptions. The model is most useful when balance-sheet quality and accounting returns matter as much as terminal cash-flow assumptions.`;
+    case 'debt-amortization-refi':
+      return `${company} has been evaluated through a debt amortization and refinancing framework focused on paydown, maturity management, and funding-cost sensitivity. The central question is whether the current capital structure can de-risk over time without creating refinancing pressure. The output is most sensitive to amortization pace, coupon assumptions, and operating cash support.`;
+    case 'buyback-eps-accretion':
+      return `${company} has been evaluated through a buyback and EPS accretion framework focused on repurchase size, financing mix, and share-count reduction. The key issue is whether EPS accretion reflects real value creation or only financial engineering. The output is most sensitive to repurchase price, funding cost, and the durability of the earnings base.`;
+    case 'purchase-price-allocation':
+      return `${company} has been framed through a purchase price allocation model that decomposes the consideration into identifiable assets, liabilities, deferred tax effects, and residual goodwill. The main read-through is how the transaction changes future amortization and reported returns rather than just headline purchase price. The output is most sensitive to intangible valuation assumptions and deferred tax treatment.`;
+    case 'working-capital-schedule':
+      return `${company} has been modeled through a working capital schedule focused on receivables, inventory, payables, and cash-conversion intensity. The central question is whether growth is consuming or releasing cash through operating working capital. The output is most sensitive to DSO, DIO, and DPO assumptions.`;
+    case 'ppe-depreciation-schedule':
+      return `${company} has been modeled through a PP&E and depreciation schedule focused on capex cadence, asset-base growth, and depreciation burden. The main issue is how aggressively reinvestment needs consume cash relative to accounting profitability. The output is most sensitive to capex intensity and depreciation policy.`;
+    case 'runway-burn':
+      return `${company} has been evaluated through a runway and burn framework focused on liquidity duration under the current spend and funding assumptions. The key question is how quickly the cash balance compresses if revenue or funding assumptions disappoint. The output is most sensitive to burn discipline and any near-term financing requirement.`;
+    case 'vc-returns-irr':
+      return `${company} has been modeled through a venture returns framework focused on ownership at exit, MOIC, and IRR. The main issue is how much exit value and dilution are required to support target return thresholds. The output is most sensitive to entry ownership, follow-on dilution, and exit valuation.`;
+    case 'inventory-cogs':
+      return `${company} has been modeled through an inventory and COGS framework focused on turns, absorption, and the cash and margin consequences of inventory policy. The main question is whether inventory build supports demand or creates working-capital drag and margin risk. The output is most sensitive to turnover and purchasing assumptions.`;
+    case 'revenue-recognition-asc606':
+      return `${company} has been modeled through a revenue recognition framework focused on timing, deferred revenue, and contract accounting treatment. The key issue is how recognition policy changes the pattern of reported revenue and margin without changing underlying economics. The output is most sensitive to contract timing and recognition assumptions.`;
     case 'dcf':
     default:
       return `${company} has been evaluated through a DCF framework with value driven by the operating forecast, discount rate, and terminal assumptions. The output is most sensitive to long-duration assumptions, so small changes in growth or WACC can move the valuation range materially. This model should be read as a decision framework, not a single-point answer.`;
@@ -823,7 +1029,7 @@ async function maybeGenerateStructuredPayloadWithOpenAI(
   const apiKey = getOpenAIKey('service');
   if (!apiKey) return null;
 
-  const models = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-4o-mini', 'gpt-4.1-mini');
+  const models = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-5.4-pro', 'gpt-5.4');
   if (!models.length) return null;
 
   const fallbackSummary = buildSummaryFallback(context);
@@ -863,7 +1069,25 @@ export async function generateModelReport(context: ReportContext): Promise<Gener
   if (context.modelType === 'debt-capacity-lite') {
     const analysis = analyzeDebtCapacityReport(context);
     if (!analysis.ok) {
-      throw new Error(analysis.message);
+      const companyLabel = context.companyName || context.ticker || 'Company';
+      const title = `${companyLabel} Debt Capacity Lite Report`;
+      const subtitle = `Debt Capacity Lite • ${context.asOfDate || new Date().toISOString().slice(0, 10)}`;
+      const sections = buildDebtCapacitySections(context);
+      const summaryText = analysis.message;
+      return {
+        title,
+        summaryText,
+        markdownBody: [`# ${title}`, '', summaryText, '', ...sections.flatMap(s => [`## ${s.title}`, s.body, ''])].join('\n').trim(),
+        reportPayload: {
+          title,
+          summaryText,
+          generatedAt: new Date().toISOString(),
+          subtitle,
+          oneLineSummary: 'Insufficient inputs for a full debt-capacity conclusion. See missing fields below.',
+          keyTakeaways: analysis.missingFields.slice(0, 3).map(f => `Missing: ${f}`),
+          sections,
+        },
+      };
     }
   }
 

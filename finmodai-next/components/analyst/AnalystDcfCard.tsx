@@ -61,6 +61,8 @@ function ComparisonRow(props: { label: string; primary: string; comparison: stri
 export function AnalystDcfCard({ payload }: { payload: AnalystDcfDemoPayload }) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
   const scenarioBars = [
     { name: 'Bear', value: payload.scenarios.bear.pricePerShare ?? 0, fill: '#dc2626' },
     { name: 'Base', value: payload.scenarios.base.pricePerShare ?? 0, fill: '#2563eb' },
@@ -104,6 +106,76 @@ export function AnalystDcfCard({ payload }: { payload: AnalystDcfDemoPayload }) 
     }
   }
 
+  async function handleGenerateReport() {
+    if (isGeneratingReport) return;
+
+    setIsGeneratingReport(true);
+    setReportError(null);
+
+    try {
+      const response = await fetch('/api/generateReport', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticker: payload.ticker,
+          companyName: payload.companyName,
+          asOfDate: payload.asOfDate,
+          modelType: 'dcf',
+          keyOutputs: {
+            baseValuePerShare: payload.scenarios.base.pricePerShare,
+            bullValuePerShare: payload.scenarios.bull.pricePerShare,
+            bearValuePerShare: payload.scenarios.bear.pricePerShare,
+            impliedUpsidePct:
+              typeof payload.scenarios.base.upsidePct === 'number' ? payload.scenarios.base.upsidePct * 100 : null,
+          },
+          modelData: {
+            dcfSummary: {
+              results: {
+                enterpriseValue: payload.scenarios.base.enterpriseValue,
+                equityValue: payload.scenarios.base.equityValue,
+                pricePerShare: payload.scenarios.base.pricePerShare,
+              },
+              scenarios: payload.scenarios,
+              assumptions: payload.assumptions,
+              marketContext: {
+                sharePrice: payload.baseMetrics.sharePrice,
+              },
+            },
+            forecast: payload.forecast,
+            notes: payload.notes,
+          },
+          reportInput: {
+            highLevelNotes: payload.memo,
+          },
+        }),
+      });
+
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(body?.error || 'Failed to generate PDF report.');
+      }
+
+      const pdfBase64 = typeof body?.pdfBase64 === 'string' ? body.pdfBase64 : null;
+      if (!pdfBase64) {
+        throw new Error('Report generated but PDF output was missing.');
+      }
+
+      const binary = atob(pdfBase64);
+      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${payload.ticker}_capitalbase_dcf_report.pdf`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setReportError(error instanceof Error ? error.message : 'Unable to generate report.');
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  }
+
   return (
     <Card className="mt-4 overflow-hidden border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
       <CardHeader className="border-b border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)]">
@@ -118,6 +190,9 @@ export function AnalystDcfCard({ payload }: { payload: AnalystDcfDemoPayload }) 
             <Badge variant="outline">{payload.years}Y</Badge>
             <Badge variant="outline">{payload.currency}</Badge>
             <Badge variant="outline">{payload.source}</Badge>
+            <Button type="button" variant="outline" size="sm" onClick={() => void handleGenerateReport()} disabled={isGeneratingReport}>
+              {isGeneratingReport ? 'Generating Report…' : 'Generate Report'}
+            </Button>
             <Button type="button" variant="outline" size="sm" onClick={() => void handleDownload()} disabled={isDownloading}>
               {isDownloading ? 'Preparing Excel…' : 'Download Excel'}
             </Button>
@@ -128,6 +203,11 @@ export function AnalystDcfCard({ payload }: { payload: AnalystDcfDemoPayload }) 
         {downloadError ? (
           <div className="rounded-xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.16)] px-3 py-2 text-sm text-[#fecaca]">
             {downloadError}
+          </div>
+        ) : null}
+        {reportError ? (
+          <div className="rounded-xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.16)] px-3 py-2 text-sm text-[#fecaca]">
+            {reportError}
           </div>
         ) : null}
         <div className="grid gap-3 md:grid-cols-4">

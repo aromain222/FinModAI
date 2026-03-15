@@ -1,12 +1,28 @@
 export type ReportModelType =
   | 'dcf'
+  | 'reverse-dcf'
   | 'lbo'
   | 'comps'
+  | 'precedents'
   | 'merger'
+  | 'ma-accretion-dilution'
   | 'operating'
   | 'three-statement'
   | 'scorecard'
-  | 'debt-capacity-lite';
+  | 'debt-capacity-lite'
+  | 'cap-table'
+  | 'saas-operating-model'
+  | 'dividend-discount-model'
+  | 'residual-income-model'
+  | 'debt-amortization-refi'
+  | 'buyback-eps-accretion'
+  | 'purchase-price-allocation'
+  | 'working-capital-schedule'
+  | 'ppe-depreciation-schedule'
+  | 'runway-burn'
+  | 'vc-returns-irr'
+  | 'inventory-cogs'
+  | 'revenue-recognition-asc606';
 
 export interface ReportContext {
   ticker: string;
@@ -298,13 +314,29 @@ If fewer than 4 of these required fields are present:
 
 const MODEL_GUIDANCE: Record<ReportModelType, string> = {
   dcf: 'Emphasize valuation level, WACC, terminal value share, and the main assumption driving the base case.',
+  'reverse-dcf': 'Focus on implied expectations embedded in the valuation anchor. Explain whether implied growth looks demanding, reasonable, or conservative versus the company fundamentals.',
   lbo: 'Emphasize IRR, MOIC, leverage, debt paydown, and what must go right operationally.',
   comps: 'Emphasize peer-set quality, multiple range, and whether the implied valuation range is defensible.',
+  precedents: 'Emphasize transaction-set quality, control premiums, precedent multiple range, and what the selected deal set actually implies for valuation framing.',
   merger: 'Emphasize financing mix, pro forma impact, accretion/dilution, and execution risk.',
+  'ma-accretion-dilution': 'Emphasize financing mix, pro forma impact, accretion/dilution, and execution risk.',
   operating: 'Emphasize revenue build, margin conversion, cash usage, and variance risk.',
   'three-statement': 'Emphasize integrated forecast logic, cash conversion, ending cash, and balance sheet durability.',
   scorecard: 'Emphasize ratio interpretation, business quality, leverage, and what the scorecard cannot prove on its own.',
   'debt-capacity-lite': 'Emphasize leverage cap, coverage cap, max debt, binding constraint, and headroom versus current net debt.',
+  'cap-table': 'Emphasize ownership, dilution, post-money valuation, and control implications across stakeholders.',
+  'saas-operating-model': 'Emphasize ARR growth, churn, gross margin, CAC efficiency, and the operating assumptions that drive recurring revenue durability.',
+  'dividend-discount-model': 'Emphasize dividend growth, cost of equity, terminal assumptions, and implied value per share under the payout stream.',
+  'residual-income-model': 'Emphasize book value, residual earnings generation, cost of equity, and intrinsic value implied by excess returns over equity charge.',
+  'debt-amortization-refi': 'Emphasize debt paydown, refinancing assumptions, interest burden, leverage path, and maturity-risk reduction.',
+  'buyback-eps-accretion': 'Emphasize repurchase size, financing mix, share reduction, pro forma EPS, and whether the buyback is value-accretive or merely cosmetic.',
+  'purchase-price-allocation': 'Emphasize purchase price bridge, identifiable intangibles, deferred tax effects, goodwill creation, and amortization consequences.',
+  'working-capital-schedule': 'Emphasize DSO, DIO, DPO, net working capital intensity, and the cash conversion implications of operating assumptions.',
+  'ppe-depreciation-schedule': 'Emphasize capex cadence, depreciation policy, asset base evolution, and the impact on EBITDA-to-cash conversion.',
+  'runway-burn': 'Emphasize burn, runway, liquidity trajectory, and what assumptions most quickly shorten or extend survival.',
+  'vc-returns-irr': 'Emphasize entry ownership, exit value, MOIC, IRR, and what assumptions drive venture return asymmetry.',
+  'inventory-cogs': 'Emphasize inventory build, turns, COGS absorption, and the working-capital and margin read-through.',
+  'revenue-recognition-asc606': 'Emphasize timing of recognition, deferred revenue, contract assets/liabilities, and what the accounting treatment means for comparability.',
 };
 
 export function getReportWriterSystemPrompt(context: ReportContext): string {
