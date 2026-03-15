@@ -228,12 +228,18 @@ function FreshnessBadge({ freshness, reason }: { freshness: Freshness; reason?: 
   );
 }
 
-function LiveUnavailable() {
+function LiveUnavailable({
+  title = 'Live market data temporarily unavailable',
+  detail = 'Try refreshing in a few moments',
+}: {
+  title?: string;
+  detail?: string;
+}) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-zinc-800/35 bg-zinc-900/25 px-8 py-16 text-center">
       <WifiOff className="h-8 w-8 text-zinc-500" />
-      <div className="text-sm font-medium text-zinc-300">Live market data temporarily unavailable</div>
-      <div className="text-xs text-zinc-500">Try refreshing in a few moments</div>
+      <div className="text-sm font-medium text-zinc-300">{title}</div>
+      <div className="max-w-md text-xs leading-5 text-zinc-500">{detail}</div>
     </div>
   );
 }
@@ -599,6 +605,9 @@ export default function MarketDashboard() {
   const volumeTotal = candleData.reduce((sum, p) => sum + (p.volume ?? 0), 0);
 
   const isLiveUnavailable = !performanceLoading && performanceError === 'LIVE_UNAVAILABLE' && candleData.length < 2;
+  const hasBreadthSnapshot =
+    ((movers?.rising?.length ?? 0) > 0 || (movers?.falling?.length ?? 0) > 0) &&
+    ((sectors?.rising?.length ?? 0) > 0 || (sectors?.falling?.length ?? 0) > 0);
 
   const overallFreshness: Freshness =
     quotesFreshness === 'stale' || chartFreshness === 'stale' || moversFreshness === 'stale' || sectorsFreshness === 'stale'
@@ -626,7 +635,14 @@ export default function MarketDashboard() {
               ))}
             </div>
           ) : quotes.length === 0 ? (
-            <LiveUnavailable />
+            <LiveUnavailable
+              title="Live quote strip temporarily unavailable"
+              detail={
+                hasBreadthSnapshot
+                  ? 'Live quotes are down right now, but delayed breadth data is still available below.'
+                  : 'Try refreshing in a few moments.'
+              }
+            />
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10">
               {quotes.map((q) => (
@@ -638,6 +654,11 @@ export default function MarketDashboard() {
 
         {/* Breadth strip: Movers + Sectors */}
         <section className="overflow-hidden rounded-2xl border border-zinc-800/40 bg-zinc-900/25 transition-colors duration-200 ease-out">
+          {hasBreadthSnapshot && (quotes.length === 0 || isLiveUnavailable) ? (
+            <div className="border-b border-zinc-800/35 bg-amber-500/8 px-5 py-2.5 text-[11px] text-amber-200/90">
+              Showing delayed breadth snapshot while live quote or chart feeds are unavailable.
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 divide-y divide-zinc-800/35 md:grid-cols-2 md:divide-x md:divide-y-0">
             {/* Movers */}
             <div className="p-5">
@@ -711,7 +732,14 @@ export default function MarketDashboard() {
 
         {/* Price + Chart */}
         {isLiveUnavailable ? (
-          <LiveUnavailable />
+          <LiveUnavailable
+            title="Live SPY chart temporarily unavailable"
+            detail={
+              hasBreadthSnapshot
+                ? 'Top movers and sector performance above are still rendering from delayed cached breadth data.'
+                : 'Try refreshing in a few moments.'
+            }
+          />
         ) : (
           <section className="grid grid-cols-1 gap-4 lg:grid-cols-[40%_60%]">
             {/* SPY summary tile */}
