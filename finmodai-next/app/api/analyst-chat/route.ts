@@ -35,6 +35,7 @@ import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKe
 import { lookupStock } from '@/lib/data/company/lookupStock';
 import { detectCoreTemplatePrompt } from '@/lib/analyst/coreModelTemplates';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
+import { buildVisualizationFromCurrentArtifact } from '@/lib/analyst/visualization';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -333,12 +334,13 @@ export async function POST(req: NextRequest) {
       const coreTemplateModel = detectCoreTemplatePrompt(lastUserMessage);
 
       if (shouldVisualizeCurrentDcf && currentDcf) {
+        const visualization = buildVisualizationFromCurrentArtifact({ currentDcf });
         return NextResponse.json({
-          reply: `Here is the visual DCF view for ${currentDcf.companyName} (${currentDcf.ticker}). The card below shows the base forecast and scenario value-per-share chart for the current assumptions.`,
+          reply: `Here is a standalone chart package for ${currentDcf.companyName} (${currentDcf.ticker}). This is separate from the DCF model card and is meant purely for visualization.`,
           fallback: false,
           mode: 'live',
           route: 'financial_model',
-          dcfDemo: currentDcf,
+          visualization,
           sources: [
             `Demo snapshot cache — ${currentDcf.source}`,
             ...(currentDcf.asOfDate ? [`Snapshot updated ${currentDcf.asOfDate}`] : []),
@@ -349,12 +351,13 @@ export async function POST(req: NextRequest) {
       }
 
       if (shouldVisualizeCurrentModel && currentModel) {
+        const visualization = buildVisualizationFromCurrentArtifact({ currentModel });
         return NextResponse.json({
-          reply: `Here is the current ${currentModel.modelType.replace(/_/g, ' ')} model view. The structured card below reflects the latest assumptions and can still be exported to Excel.`,
+          reply: `Here is a standalone visualization for the current ${currentModel.modelType.replace(/_/g, ' ')} output. This is separate from the model card so the chart can stand on its own.`,
           fallback: false,
           mode: 'live',
           route: 'financial_model',
-          generatedModel: currentModel,
+          visualization,
           sources: [
             ...currentModel.provenanceSummary.sources,
             'Conversation follow-up visualization request',
@@ -506,11 +509,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (shouldVisualizeCurrentStock && currentStock) {
+      const visualization = buildVisualizationFromCurrentArtifact({ currentStock });
       return NextResponse.json({
-        reply: `Here is the current visual market view for ${currentStock.companyName ?? currentStock.ticker} (${currentStock.ticker}). The card below keeps the latest available price or fundamentals chart attached to the company context.`,
+        reply: `Here is a standalone market chart for ${currentStock.companyName ?? currentStock.ticker} (${currentStock.ticker}). This is separate from the full company lookup card.`,
         fallback: false,
         mode: 'live',
         route: route.intent,
+        visualization,
         sources: [
           currentStock.source.company ? `Company: ${currentStock.source.company}` : null,
           currentStock.source.fundamentals ? `Fundamentals: ${currentStock.source.fundamentals}` : null,

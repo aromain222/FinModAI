@@ -5,6 +5,7 @@ import { AnalystDcfCard } from '@/components/analyst/AnalystDcfCard';
 import { AnalystCoreTemplateCard } from '@/components/analyst/AnalystCoreTemplateCard';
 import { AnalystModelCard } from '@/components/analyst/AnalystModelCard';
 import { AnalystStockCard } from '@/components/analyst/AnalystStockCard';
+import { AnalystVisualizationCard } from '@/components/analyst/AnalystVisualizationCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplates';
 import type { AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 import type { AnalystGeneratedModelPayload } from '@/lib/analyst/modelChat';
+import type { AnalystVisualizationPayload } from '@/lib/analyst/visualization';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
 
 type Message = {
@@ -27,6 +29,7 @@ type Message = {
     generatedModel?: AnalystGeneratedModelPayload;
     coreTemplateModel?: AnalystCoreTemplatePayload;
     stockLookup?: StockLookupResult;
+    visualization?: AnalystVisualizationPayload;
   };
 };
 
@@ -193,6 +196,10 @@ export function AnalystChatApp() {
             payload?.stockLookup && typeof payload.stockLookup === 'object'
               ? (payload.stockLookup as StockLookupResult)
               : undefined,
+          visualization:
+            payload?.visualization && typeof payload.visualization === 'object'
+              ? (payload.visualization as AnalystVisualizationPayload)
+              : undefined,
         },
       };
       setMessages((prev) => [...prev, reply]);
@@ -283,6 +290,9 @@ export function AnalystChatApp() {
                 )}
                 {message.role === 'assistant' && message.meta?.stockLookup && (
                   <AnalystStockCard payload={message.meta.stockLookup} />
+                )}
+                {message.role === 'assistant' && message.meta?.visualization && (
+                  <AnalystVisualizationCard payload={message.meta.visualization} />
                 )}
               </div>
             </div>
