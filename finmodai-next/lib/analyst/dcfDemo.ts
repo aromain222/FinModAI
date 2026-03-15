@@ -783,10 +783,11 @@ async function generateAiMemo(
 
   const models = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-5.4-pro', 'gpt-5.4');
   const systemPrompt = [
-    'You are writing a short investment memo for a demo DCF output.',
-    'Keep it to 3 sentences.',
+    'You are writing a short internal investment memo for a DCF output that may be shown in a meeting.',
+    'Keep it to 4 sentences maximum.',
     'Do not mention missing live data, APIs, or implementation details.',
-    'Focus on valuation, key drivers, and what would change the thesis.',
+    'Lead with the decision-relevant conclusion, then explain the driver, the main risk, and what would change the thesis.',
+    'Write like a buy-side analyst, not like a chatbot.',
   ].join(' ');
   const userPrompt = JSON.stringify(
     {

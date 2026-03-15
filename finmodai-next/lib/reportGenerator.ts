@@ -406,6 +406,265 @@ function buildSpecializedTemplateSections(context: ReportContext): GeneratedRepo
   ];
 }
 
+function buildDecisionFramingSection(context: ReportContext): GeneratedReportSection {
+  const company = context.companyName || context.ticker || 'Company';
+  const label = formatModelLabel(context.modelType);
+  const summary = buildSummaryFallback(context);
+
+  return {
+    title: 'Decision Framing',
+    body: buildBulletBody(
+      [
+        summary,
+        `${label} should be used as a decision framework for ${company}, not as a substitute for judgment on source data quality and assumption realism.`,
+      ],
+      `${label} should be used as a decision framework, not a single-point answer.`
+    ),
+  };
+}
+
+function buildRiskConstraintSection(context: ReportContext): GeneratedReportSection {
+  const explicitRisks = context.risks?.trim();
+  const genericByModel: Record<ReportModelType, string[]> = {
+    dcf: [
+      'Valuation can move materially with small changes in WACC, terminal growth, or steady-state margin assumptions.',
+      'If terminal value dominates the result, the output is less reliable as a near-term decision anchor.',
+    ],
+    'reverse-dcf': [
+      'Implied expectations can look precise while still being highly sensitive to the valuation anchor and discount rate.',
+      'This framework is weak if the starting market price or share count is stale.',
+    ],
+    lbo: [
+      'Returns are usually more sensitive to entry price, exit multiple, and deleveraging than to modest operating upside.',
+      'If cash conversion is weaker than underwritten, headline IRR can compress quickly.',
+    ],
+    comps: [
+      'The range is only as defensible as the peer set; weak comparability makes the output fragile.',
+      'Fast multiple re-rating in the market can stale the conclusion quickly.',
+    ],
+    precedents: [
+      'A precedent range can mislead if the deal set mixes different cycles, strategic contexts, or premium regimes.',
+      'Control values should not be treated as direct trading marks.',
+    ],
+    merger: [
+      'Synergy timing, financing terms, and integration costs can change the accretion conclusion quickly.',
+      'A mechanically accretive deal can still be strategically weak.',
+    ],
+    'ma-accretion-dilution': [
+      'Synergy timing, financing terms, and integration costs can change the accretion conclusion quickly.',
+      'A mechanically accretive deal can still be strategically weak.',
+    ],
+    operating: [
+      'The output can overstate control if topline conversion or expense discipline are weaker than planned.',
+      'Working-capital drift can pressure cash even if operating profit looks acceptable.',
+    ],
+    'three-statement': [
+      'Balance-sheet outcomes can swing on working-capital and financing assumptions that are easy to under-specify.',
+      'Modeled earnings quality matters less than modeled cash conversion and funding durability.',
+    ],
+    scorecard: [
+      'Rules-based scores are useful screens, but they can compress nuance and miss business-model context.',
+      'A strong score is not a substitute for valuation discipline.',
+    ],
+    'debt-capacity-lite': [
+      'Debt capacity is highly sensitive to EBITDA quality, interest burden, and the chosen covenant thresholds.',
+      'If required fields are stale or incomplete, the output should not drive a financing decision.',
+    ],
+    'cap-table': [
+      'Small changes in valuation, raise size, or option pool sizing can materially alter dilution outcomes.',
+      'Stakeholder control implications can be misread if the share classes are incomplete.',
+    ],
+    'saas-operating-model': [
+      'Growth quality can look better than reality if churn or CAC assumptions are too optimistic.',
+      'ARR frameworks can hide cash intensity if hiring and working-capital effects are understated.',
+    ],
+    'dividend-discount-model': [
+      'This framework becomes unreliable if dividend policy is unstable or payout capacity is poorly anchored.',
+      'Long-duration value can shift materially on small changes in cost of equity.',
+    ],
+    'residual-income-model': [
+      'Residual income is only as good as the starting equity base and return-on-equity durability assumptions.',
+      'Accounting distortions can weaken comparability across periods.',
+    ],
+    'debt-amortization-refi': [
+      'Refinancing conclusions are highly sensitive to maturity timing, rates, and free cash generation assumptions.',
+      'Liquidity pressure can emerge faster than the base schedule implies.',
+    ],
+    'buyback-eps-accretion': [
+      'EPS accretion can overstate value creation if repurchase price or financing cost is too generous.',
+      'Share-count math should not be confused with economic return quality.',
+    ],
+    'purchase-price-allocation': [
+      'Goodwill and amortization outputs depend heavily on valuation judgments around intangible assets.',
+      'Deferred tax assumptions can materially alter the post-deal accounting picture.',
+    ],
+    'working-capital-schedule': [
+      'Small assumption changes in DSO, DIO, or DPO can create outsized cash effects.',
+      'Operating seasonality can distort steady-state working-capital assumptions.',
+    ],
+    'ppe-depreciation-schedule': [
+      'Capex intensity and useful-life assumptions can materially alter cash conversion and accounting earnings.',
+      'Depreciation policy consistency matters for comparability.',
+    ],
+    'runway-burn': [
+      'Runway is often overstated when revenue timing and hiring discipline are too optimistic.',
+      'Funding risk can become the real constraint well before modeled cash reaches zero.',
+    ],
+    'vc-returns-irr': [
+      'Venture return math is extremely sensitive to exit valuation and dilution assumptions.',
+      'A high modeled IRR can still be fragile if the ownership path is unrealistic.',
+    ],
+    'inventory-cogs': [
+      'Turns and absorption assumptions can overstate margin durability if demand weakens.',
+      'Inventory build can become a cash trap even when revenue appears to support it.',
+    ],
+    'revenue-recognition-asc606': [
+      'Accounting timing can change the pattern of reported performance without changing economics.',
+      'Comparability risk is high if contract assumptions are simplified.',
+    ],
+  };
+
+  return {
+    title: 'Risks And Constraints',
+    body: buildBulletBody(
+      [explicitRisks, ...(genericByModel[context.modelType] ?? [])],
+      'Model conclusions remain sensitive to input quality and assumption realism.'
+    ),
+  };
+}
+
+function buildNextStepsSection(context: ReportContext): GeneratedReportSection {
+  const nextByModel: Record<ReportModelType, string[]> = {
+    dcf: [
+      'Re-run the valuation with a tighter WACC and terminal-growth sensitivity table.',
+      'Validate the operating forecast against current consensus, management guidance, and recent quarter trends.',
+      'Separate near-term execution risk from terminal assumptions before using the base case in a meeting.',
+    ],
+    'reverse-dcf': [
+      'Pressure-test the valuation anchor and share count used in the reverse DCF.',
+      'Compare implied growth against consensus and recent realized growth.',
+      'Run a margin sensitivity to see whether the market is underwriting growth, margin, or both.',
+    ],
+    lbo: [
+      'Stress leverage, exit multiple, and cash conversion in downside cases.',
+      'Validate whether the entry multiple embeds enough room for operational miss.',
+      'Check whether debt service still works under lower EBITDA.',
+    ],
+    comps: [
+      'Tighten the peer set and remove weak comparables.',
+      'Check where the subject screens on growth, margin, and balance-sheet quality versus the selected peers.',
+      'Reframe the range under current market multiples if the sector has re-rated recently.',
+    ],
+    precedents: [
+      'Cull transactions that are temporally or strategically weak comparables.',
+      'Separate control premium effects from operating comparability.',
+      'Use the precedent range alongside trading comps instead of on a standalone basis.',
+    ],
+    merger: [
+      'Validate synergy timing and one-time cost assumptions with a downside integration case.',
+      'Rebuild financing mix sensitivity before relying on the accretion conclusion.',
+      'Test whether the strategic rationale still holds if synergies slip.',
+    ],
+    'ma-accretion-dilution': [
+      'Validate synergy timing and one-time cost assumptions with a downside integration case.',
+      'Rebuild financing mix sensitivity before relying on the accretion conclusion.',
+      'Test whether the strategic rationale still holds if synergies slip.',
+    ],
+    operating: [
+      'Reconcile topline assumptions with current pipeline or demand visibility.',
+      'Stress expense timing and hiring cadence against a slower revenue case.',
+      'Focus the next review on cash conversion, not just operating margin.',
+    ],
+    'three-statement': [
+      'Stress working-capital and capex assumptions before relying on ending cash.',
+      'Check whether debt and financing assumptions are internally consistent with the cash flow statement.',
+      'Use the next pass to identify which line items actually change the end-state balance sheet.',
+    ],
+    scorecard: [
+      'Validate the weakest metrics directly from statements and current filings.',
+      'Compare the score with a peer set instead of treating it as standalone judgment.',
+      'Use the scorecard to prioritize deeper work, not to close the debate.',
+    ],
+    'debt-capacity-lite': [
+      'Fill missing debt, cash, EBITDA, and interest inputs before using the result in a financing discussion.',
+      'Stress EBITDA down and rates up to identify the real binding constraint.',
+      'Separate leverage capacity from practical market capacity before framing a debt raise.',
+    ],
+    'cap-table': [
+      'Re-run the round with alternative valuation and raise-size cases.',
+      'Check whether the option pool and share-class assumptions match current legal documents.',
+      'Use the next pass to isolate who bears the most dilution under each financing case.',
+    ],
+    'saas-operating-model': [
+      'Pressure-test churn, CAC, and gross margin together rather than one at a time.',
+      'Check whether hiring and cash burn remain supportable in a slower-growth case.',
+      'Use the next review to isolate the assumptions that actually drive ARR durability.',
+    ],
+    'dividend-discount-model': [
+      'Check whether the payout path is defensible under a weaker earnings case.',
+      'Stress cost of equity and terminal dividend growth explicitly.',
+      'Use a second valuation method to triangulate the conclusion.',
+    ],
+    'residual-income-model': [
+      'Validate the opening equity base and return-on-equity assumptions.',
+      'Pressure-test cost of equity and fade assumptions.',
+      'Cross-check with DCF or comps before using the result in a meeting.',
+    ],
+    'debt-amortization-refi': [
+      'Stress refinancing rates and maturity timing.',
+      'Check whether cash generation is sufficient to support the amortization path.',
+      'Flag any years where refinancing becomes a practical liquidity event.',
+    ],
+    'buyback-eps-accretion': [
+      'Re-run the analysis at a higher repurchase price and higher funding cost.',
+      'Separate EPS optics from value creation in the discussion.',
+      'Check whether the company has better capital-allocation alternatives than repurchases.',
+    ],
+    'purchase-price-allocation': [
+      'Validate the identifiable intangible split with a transaction-specific view.',
+      'Re-check deferred tax assumptions and amortization consequences.',
+      'Use the next pass to isolate what portion of value is truly going into goodwill.',
+    ],
+    'working-capital-schedule': [
+      'Stress DSO, DIO, and DPO independently and together.',
+      'Check seasonality before using the base working-capital path in a meeting.',
+      'Translate the working-capital outcome into explicit cash impact for the broader model.',
+    ],
+    'ppe-depreciation-schedule': [
+      'Stress capex cadence and useful-life assumptions.',
+      'Check whether depreciation policy is distorting comparability or cash conversion.',
+      'Use the next pass to tie reinvestment needs back to growth assumptions.',
+    ],
+    'runway-burn': [
+      'Re-run the case with slower revenue and higher burn.',
+      'Identify the first practical financing decision point before modeled cash reaches zero.',
+      'Translate runway into management actions, not just months of cash.',
+    ],
+    'vc-returns-irr': [
+      'Pressure-test exit valuation and dilution assumptions.',
+      'Map the ownership path across follow-on rounds explicitly.',
+      'Check whether the modeled return clears the fund’s required threshold after realistic dilution.',
+    ],
+    'inventory-cogs': [
+      'Stress turnover and margin together in a softer-demand case.',
+      'Check whether inventory policy is creating cash drag or markdown risk.',
+      'Tie the next pass back to working-capital and cash-conversion implications.',
+    ],
+    'revenue-recognition-asc606': [
+      'Validate contract timing assumptions against actual commercial terms.',
+      'Separate accounting timing from cash economics in the discussion.',
+      'Use the next pass to identify where comparability with peers breaks down.',
+    ],
+  };
+
+  return {
+    title: 'Recommended Next Steps',
+    body: nextByModel[context.modelType]
+      .map((item, idx) => `${idx + 1}. ${item}`)
+      .join('\n'),
+  };
+}
+
 function buildThreeStatementSections(context: ReportContext): GeneratedReportSection[] {
   const summary =
     context.data?.threeStatementSummary && typeof context.data.threeStatementSummary === 'object'
@@ -885,7 +1144,8 @@ function buildReverseDcfSections(context: ReportContext): GeneratedReportSection
 }
 
 function buildSections(context: ReportContext): GeneratedReportSection[] {
-  switch (context.modelType) {
+  const primarySections = (() => {
+    switch (context.modelType) {
     case 'dcf':
       return buildDcfSections(context);
     case 'reverse-dcf':
@@ -930,7 +1190,19 @@ function buildSections(context: ReportContext): GeneratedReportSection[] {
           body: `${formatModelLabel(context.modelType)} outputs were generated successfully.`,
         },
       ];
+    }
+  })();
+
+  if (context.modelType === 'debt-capacity-lite') {
+    return primarySections;
   }
+
+  return [
+    ...primarySections,
+    buildDecisionFramingSection(context),
+    buildRiskConstraintSection(context),
+    buildNextStepsSection(context),
+  ];
 }
 
 function buildSummaryFallback(context: ReportContext): string {

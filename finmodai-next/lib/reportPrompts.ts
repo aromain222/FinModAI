@@ -55,6 +55,8 @@ Use plain English.
 Use short, precise sentences.
 Be specific, numerate, and decision-useful.
 No hype. No vague commentary. No duplication.
+Write as if this PDF will be read in an internal investment meeting, management review, or deal team discussion.
+The reader should understand the conclusion, what drives it, what weakens it, and what to do next in under two minutes.
 
 NON-NEGOTIABLE RULES
 1) Use only the provided inputs and outputs.
@@ -74,6 +76,8 @@ NON-NEGOTIABLE RULES
 8) Keep the report layout-friendly: short paragraphs, clean bullets, no walls of text.
 9) No markdown.
 10) Return valid JSON only.
+11) Do not use app language such as "this tool," "the platform," "the report would include," or "the model card."
+12) Every section must help a meeting discussion move forward. If a point is not decision-useful, omit it.
 
 PRIMARY OBJECTIVE
 Produce a clean, structured, deeply informative memo with:
@@ -186,6 +190,7 @@ EXECUTIVE SUMMARY
   1) what the model produced
   2) what is driving it
   3) whether it is decision-useful
+- The headline should sound like something a PM, IC member, CFO, or deal lead would actually say aloud in a meeting.
 
 KEY METRICS
 Include only the most decision-relevant metrics.
@@ -238,6 +243,7 @@ WHAT TO DO NEXT
   - rerun with complete assumptions
   - compare against peers
   - run downside cases
+- Next steps should be specific enough that an analyst or associate could act on them immediately.
 
 MODEL-SPECIFIC RULES
 
@@ -276,6 +282,7 @@ Before responding, verify:
 - no filler
 - no fabricated facts
 - clean separation between facts, interpretation, risks, and next steps
+- the report reads like a meeting-ready memo, not a software-generated summary
 - output is valid JSON only`;
 
 export const DEBT_CAPACITY_LITE_REPORT_WRITER_SYSTEM_PROMPT = `You are generating a professional capital markets report for CapitalBase.
@@ -372,6 +379,7 @@ export function buildReportWriterUserPrompt(context: ReportContext): string {
     `Sector: ${context.sector || 'N/A'}`,
     `Industry: ${context.industry || 'N/A'}`,
     `Model-Specific Guidance: ${MODEL_GUIDANCE[context.modelType]}`,
+    `Meeting Objective: produce a report that can be dropped directly into an internal investor, management, or deal review without cleanup.`,
     `Key Outputs JSON: ${JSON.stringify(context.keyOutputs || {}, null, 2)}`,
     `Supporting Data JSON: ${JSON.stringify(context.data || {}, null, 2)}`,
     context.highLevelNotes ? `Additional Notes: ${context.highLevelNotes}` : '',
