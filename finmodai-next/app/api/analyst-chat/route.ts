@@ -34,6 +34,7 @@ import { getIntentPrompt } from '@/lib/analyst/prompts';
 import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKey';
 import { lookupStock } from '@/lib/data/company/lookupStock';
 import { detectCoreTemplatePrompt } from '@/lib/analyst/coreModelTemplates';
+import type { StockLookupResult } from '@/lib/data/company/lookupStock';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -266,6 +267,10 @@ export async function POST(req: NextRequest) {
       body?.currentDcf && typeof body.currentDcf === 'object'
         ? (body.currentDcf as AnalystDcfDemoPayload)
         : null;
+    const currentStock =
+      body?.currentStock && typeof body.currentStock === 'object'
+        ? (body.currentStock as StockLookupResult)
+        : null;
     const messages = Array.isArray(body?.messages) ? body.messages : [];
 
     const safeMessages = messages
@@ -303,6 +308,10 @@ export async function POST(req: NextRequest) {
       !classifyPrompt(lastUserMessage);
     const shouldVisualizeCurrentDcf =
       currentDcf &&
+      isVisualizationPrompt(lastUserMessage) &&
+      !classifyPrompt(lastUserMessage);
+    const shouldVisualizeCurrentStock =
+      currentStock &&
       isVisualizationPrompt(lastUserMessage) &&
       !classifyPrompt(lastUserMessage);
     if (route.intent === 'company_question' && resolvedTicker) {
@@ -493,6 +502,22 @@ export async function POST(req: NextRequest) {
           ...(demo.payload.asOfDate ? [`Snapshot updated ${demo.payload.asOfDate}`] : []),
         ],
         factsCount: 0,
+      });
+    }
+
+    if (shouldVisualizeCurrentStock && currentStock) {
+      return NextResponse.json({
+        reply: `Here is the current visual market view for ${currentStock.companyName ?? currentStock.ticker} (${currentStock.ticker}). The card below keeps the latest available price or fundamentals chart attached to the company context.`,
+        fallback: false,
+        mode: 'live',
+        route: route.intent,
+        sources: [
+          currentStock.source.company ? `Company: ${currentStock.source.company}` : null,
+          currentStock.source.fundamentals ? `Fundamentals: ${currentStock.source.fundamentals}` : null,
+          currentStock.source.price ? `Price: ${currentStock.source.price}` : null,
+        ].filter((item): item is string => Boolean(item)),
+        factsCount: 0,
+        stockLookup: currentStock,
       });
     }
 

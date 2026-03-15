@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { AnalystDcfCard } from '@/components/analyst/AnalystDcfCard';
+import { AnalystCoreTemplateCard } from '@/components/analyst/AnalystCoreTemplateCard';
 import { AnalystModelCard } from '@/components/analyst/AnalystModelCard';
 import { AnalystStockCard } from '@/components/analyst/AnalystStockCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplates';
 import type { AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 import type { AnalystGeneratedModelPayload } from '@/lib/analyst/modelChat';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
@@ -23,6 +25,7 @@ type Message = {
     retrievalWarnings?: string[];
     dcfDemo?: AnalystDcfDemoPayload;
     generatedModel?: AnalystGeneratedModelPayload;
+    coreTemplateModel?: AnalystCoreTemplatePayload;
     stockLookup?: StockLookupResult;
   };
 };
@@ -103,14 +106,15 @@ export function AnalystChatApp() {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const candidate = messages[index];
       if (candidate.role !== 'assistant') continue;
-      if (candidate.meta?.generatedModel || candidate.meta?.dcfDemo) {
+      if (candidate.meta?.generatedModel || candidate.meta?.dcfDemo || candidate.meta?.stockLookup) {
         return {
           generatedModel: candidate.meta?.generatedModel ?? null,
           dcfDemo: candidate.meta?.dcfDemo ?? null,
+          stockLookup: candidate.meta?.stockLookup ?? null,
         };
       }
     }
-    return { generatedModel: null, dcfDemo: null };
+    return { generatedModel: null, dcfDemo: null, stockLookup: null };
   }
 
   const handlePdf = (file: File | null) => {
@@ -144,6 +148,7 @@ export function AnalystChatApp() {
           sessionId,
           currentModel: latestArtifact.generatedModel,
           currentDcf: latestArtifact.dcfDemo,
+          currentStock: latestArtifact.stockLookup,
           messages: [...messages, userMessage]
         })
       });
@@ -179,6 +184,10 @@ export function AnalystChatApp() {
           generatedModel:
             payload?.generatedModel && typeof payload.generatedModel === 'object'
               ? (payload.generatedModel as AnalystGeneratedModelPayload)
+              : undefined,
+          coreTemplateModel:
+            payload?.coreTemplateModel && typeof payload.coreTemplateModel === 'object'
+              ? (payload.coreTemplateModel as AnalystCoreTemplatePayload)
               : undefined,
           stockLookup:
             payload?.stockLookup && typeof payload.stockLookup === 'object'
@@ -268,6 +277,9 @@ export function AnalystChatApp() {
                 )}
                 {message.role === 'assistant' && message.meta?.generatedModel && (
                   <AnalystModelCard payload={message.meta.generatedModel} />
+                )}
+                {message.role === 'assistant' && message.meta?.coreTemplateModel && (
+                  <AnalystCoreTemplateCard payload={message.meta.coreTemplateModel} />
                 )}
                 {message.role === 'assistant' && message.meta?.stockLookup && (
                   <AnalystStockCard payload={message.meta.stockLookup} />
