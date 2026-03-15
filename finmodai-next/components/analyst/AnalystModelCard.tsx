@@ -6,11 +6,55 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { AnalystGeneratedModelPayload } from '@/lib/analyst/modelChat';
 
-function renderValue(value: unknown): string {
+function isCurrencyKey(key?: string): boolean {
+  if (!key) return false;
+  return /(revenue|income|cash|debt|price|value|equity|ebitda|ebit|ev|capex|nwc|inventory|dividend|book|ppe|burn|fundraise|purchase|goodwill|assets|liab|sales|cogs|arr|arpu|cac|marketcap|valuation|proceeds|amount|principal|interest|expense|balance|amortization|buyback|repurchase|cashflow|fcf)/i.test(
+    key
+  );
+}
+
+function isPercentKey(key?: string): boolean {
+  if (!key) return false;
+  return /(margin|growth|rate|yield|pct|percent|ownership|churn|tax|wacc|discount|terminal|payout|roe|irr|probability)/i.test(
+    key
+  );
+}
+
+function isMultipleKey(key?: string): boolean {
+  if (!key) return false;
+  return /(multiple|coverage|leverage|moic|ltv|turnover)/i.test(key);
+}
+
+function renderValue(value: unknown, key?: string): string {
   if (Array.isArray(value)) {
-    return value.map((item) => renderValue(item)).join(', ');
+    if (value.every((item) => item && typeof item === 'object' && !Array.isArray(item))) {
+      return value
+        .map((item) => {
+          const row = item as Record<string, unknown>;
+          return String(row.ticker ?? row.name ?? row.target ?? row.transaction ?? 'Structured row');
+        })
+        .join(', ');
+    }
+    return value.map((item) => renderValue(item, key)).join(', ');
+  }
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => typeof item === 'string' || typeof item === 'number')
+      .slice(0, 4)
+      .map(([entryKey, item]) => `${entryKey}: ${renderValue(item, entryKey)}`);
+    return entries.length > 0 ? entries.join(', ') : 'Structured object';
   }
   if (typeof value === 'number') {
+    if (isPercentKey(key)) {
+      const percentValue = Math.abs(value) <= 1 ? value * 100 : value;
+      return `${percentValue.toLocaleString('en-US', { maximumFractionDigits: 1 })}%`;
+    }
+    if (isMultipleKey(key)) return `${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}x`;
+    if (isCurrencyKey(key)) {
+      return `$${value.toLocaleString('en-US', {
+        maximumFractionDigits: Math.abs(value) >= 1000 ? 0 : 2,
+      })}`;
+    }
     if (Math.abs(value) >= 1000) return value.toLocaleString('en-US');
     if (value > 0 && value < 1) return `${(value * 100).toFixed(1)}%`;
     return Number.isInteger(value) ? String(value) : value.toFixed(2);
@@ -32,7 +76,7 @@ function ObjectGrid(props: { title: string; values: Record<string, unknown>; emp
           {entries.map(([key, value]) => (
             <div key={key} className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
               <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">{key}</div>
-              <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{renderValue(value)}</div>
+              <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{renderValue(value, key)}</div>
             </div>
           ))}
         </div>

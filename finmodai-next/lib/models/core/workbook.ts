@@ -55,7 +55,7 @@ export function setFormulaCell(cell: ExcelJS.Cell, formula: string, result?: num
 }
 
 export function setCurrency(cell: ExcelJS.Cell): void {
-  cell.numFmt = '$#,##0.00';
+  cell.numFmt = '$#,##0.00;($#,##0.00)';
 }
 
 export function setPercent(cell: ExcelJS.Cell): void {

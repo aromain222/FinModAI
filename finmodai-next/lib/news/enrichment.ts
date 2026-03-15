@@ -536,6 +536,20 @@ function isGenericSummary(text: string | null | undefined): boolean {
   return GENERIC_SUMMARY_PATTERNS.some((pattern) => pattern.test(text));
 }
 
+function isQuestionStyleTitle(title: string): boolean {
+  const trimmed = title.trim();
+  return /^(what|will|should|can|is|are|do|does|did|how)\b/i.test(trimmed) || trimmed.endsWith('?');
+}
+
+function normalizedFallbackEventLine(headline: { title: string; description: string | null }): string {
+  const title = headline.title.trim();
+  const description = headline.description?.trim();
+  if (description && (isQuestionStyleTitle(title) || title.length < 24)) {
+    return description.replace(/\s+/g, ' ').trim();
+  }
+  return title || description || 'Macro update';
+}
+
 
 export function deterministicFallback(headline: {
   title: string;
@@ -555,25 +569,30 @@ export function deterministicFallback(headline: {
   });
   const direction = directionFromBias(impact.bias);
   const theme = inferHeadlineTheme(headline.title, headline.description);
+  const eventLine = normalizedFallbackEventLine(headline);
   const directional = directionalTriplet(impact.bias);
   const lowRelevance = !relevance.accepted || relevance.score < 45;
   const politicalProcessOnly = isPoliticalProcessHeadline(headline);
 
-  const stocksImpact = directional.equities === 'up'
-    ? 'equities could benefit as risk appetite improves'
-    : directional.equities === 'down'
-      ? 'equities may face pressure from discount-rate or risk-off repricing'
-      : 'equity reaction is likely mixed';
+  const stocksImpact = /\b(oil|wti|brent|opec|energy|crude)\b/i.test(eventLine)
+    ? directional.equities === 'down'
+      ? 'equities may stay under pressure as higher oil reinforces inflation and delays rate-cut relief'
+      : 'energy leadership can offset some broader index pressure if oil strength holds'
+    : directional.equities === 'up'
+      ? 'equities could benefit as risk appetite improves'
+      : directional.equities === 'down'
+        ? 'equities may face pressure from discount-rate or risk-off repricing'
+        : `equity reaction should stay selective, with the focus on ${theme.baseCase}`;
   const ratesImpact = directional.rates.includes('up') || directional.rates.includes('higher')
     ? 'yields may move higher on tighter policy expectations'
     : directional.rates.includes('down') || directional.rates.includes('lower')
       ? 'yields may drift lower as easing expectations build'
-      : 'rates may trade in a mixed range';
+      : `rates should stay range-bound unless ${theme.channel} starts to reprice materially`;
   const fxImpact = directional.usd === 'up'
     ? 'the dollar could strengthen on relative rate support'
     : directional.usd === 'down'
       ? 'the dollar could soften as policy expectations turn easier'
-      : 'FX impact is likely mixed';
+      : 'FX should stay contained unless yields or risk appetite move decisively';
 
   const leadSectors = impact.affectedSectors.slice(0, 2);
   const winnerSectors = leadSectors
@@ -611,8 +630,8 @@ export function deterministicFallback(headline: {
         toSentence(whyLine),
       ].filter(Boolean)
     : [
-        toSentence(headline.title),
-        toSentence(headline.description && headline.description.trim().length > 0 ? headline.description : summaryLine),
+        toSentence(eventLine),
+        toSentence(headline.description && headline.description.trim().length > 0 && !isQuestionStyleTitle(headline.title) ? headline.description : whyLine),
       ].filter(Boolean);
   const aiSummary = ensureConciseSummary(aiSummarySentences.join(' '), aiSummarySentences.join(' '));
   const formattedImpactWatch = impact.affectedTickers
@@ -633,11 +652,11 @@ export function deterministicFallback(headline: {
   const transmissionFallback = lowRelevance || politicalProcessOnly
     ? 'Event -> political/process uncertainty -> limited shift in policy expectations -> selective moves in rate-sensitive assets.'
     : impact.bias === 'Neutral'
-    ? 'Event → limited change to macro expectations → muted cross-asset response.'
-    : 'Event → macro expectation shift → rates/FX repricing → sector and style rotation.';
+    ? `Event → ${theme.channel} stays contained → limited cross-asset repricing → selective sector moves.`
+    : `Event → ${theme.channel} → rates/FX repricing → sector and style rotation.`;
   const horizon = lowRelevance || politicalProcessOnly ? 'Immediate' : impact.bias === 'Neutral' ? 'Immediate' : 'NearTerm';
   const displayedConfidence =
-    lowRelevance || politicalProcessOnly ? 'LOW' : impact.confidence.toUpperCase();
+    lowRelevance || politicalProcessOnly ? 'LOW' : ((impact.confidence || 'medium').toUpperCase());
   const sectorImpactLines =
     lowRelevance || politicalProcessOnly
       ? [
@@ -676,13 +695,15 @@ export function deterministicFallback(headline: {
         ];
 
   const structuredFallback = formatStructuredAnalysis({
-    EVENT: [headline.title || 'Macro update'],
+    EVENT: [eventLine],
     'WHY IT MATTERS': [
-      headline.description?.trim() || summaryLine,
-      'This matters if it meaningfully shifts policy, growth, or risk-pricing expectations.',
+      headline.description?.trim() && !isQuestionStyleTitle(headline.title)
+        ? headline.description.trim()
+        : `The market focus is ${theme.channel}, with the base case centered on ${theme.baseCase}.`,
+      whyLine,
     ],
     'TRANSMISSION PATH': [transmissionFallback],
-    PREDICTION: ['Base case depends on whether follow-up data confirms a sustained repricing.'],
+    PREDICTION: [`Scenario framing depends on whether follow-through pushes ${theme.channel} into a broader repricing.`],
     HORIZON: [horizon === 'Immediate' ? 'Intraday' : '1W'],
     CONFIDENCE: [displayedConfidence],
     'BASE CASE': [

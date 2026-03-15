@@ -35,7 +35,7 @@ import {
 import type { LboEngineOutput } from '../../lboEngine';
 import { writeValuationBlock } from '../../excel/valuationBlock';
 
-const MONEY_FMT = '#,##0;(#,##0)';
+const MONEY_FMT = '$#,##0;($#,##0)';
 const PERCENT_FMT = '0.0%';
 const MULTIPLE_FMT = '0.0x';
 const UNITS_TITLE = 'All figures in USD millions unless otherwise noted.';
