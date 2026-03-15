@@ -114,6 +114,9 @@ export default async function AppHomePage() {
           <p className="text-base text-cb-slate">
             {APP_DASHBOARD_TAGLINE}
           </p>
+          <div className="inline-flex items-center rounded-full border border-cb-blue/20 bg-cb-blue/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-cb-blue">
+            S&amp;P 500 company support is wired across CapitalBase model workflows
+          </div>
         </header>
 
         <section className="grid gap-6 md:grid-cols-2">
