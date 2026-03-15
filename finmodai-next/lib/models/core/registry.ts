@@ -14,6 +14,11 @@ import { revenueRecognitionAsc606Model } from '@/lib/models/modules/revenueRecog
 import { inventoryCogsModel } from '@/lib/models/modules/inventoryCogs';
 import { vcCapTableAdvancedModel } from '@/lib/models/modules/vcCapTableAdvanced';
 import { saasCohortBoardModel } from '@/lib/models/modules/saasCohortBoard';
+import { dividendDiscountModel } from '@/lib/models/modules/dividendDiscount';
+import { residualIncomeModel } from '@/lib/models/modules/residualIncome';
+import { debtAmortizationRefiModel } from '@/lib/models/modules/debtAmortizationRefi';
+import { buybackEpsAccretionModel } from '@/lib/models/modules/buybackEpsAccretion';
+import { purchasePriceAllocationModel } from '@/lib/models/modules/purchasePriceAllocation';
 
 export const modelRegistry: Record<string, AnyModelDef> = {
   [driverThreeStatementModel.slug]: driverThreeStatementModel,
@@ -31,6 +36,11 @@ export const modelRegistry: Record<string, AnyModelDef> = {
   [inventoryCogsModel.slug]: inventoryCogsModel,
   [vcCapTableAdvancedModel.slug]: vcCapTableAdvancedModel,
   [saasCohortBoardModel.slug]: saasCohortBoardModel,
+  [dividendDiscountModel.slug]: dividendDiscountModel,
+  [residualIncomeModel.slug]: residualIncomeModel,
+  [debtAmortizationRefiModel.slug]: debtAmortizationRefiModel,
+  [buybackEpsAccretionModel.slug]: buybackEpsAccretionModel,
+  [purchasePriceAllocationModel.slug]: purchasePriceAllocationModel,
 };
 
 const MODEL_SLUG_ALIASES: Record<string, string> = {
