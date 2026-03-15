@@ -1,23 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Legend,
-  Cell,
-} from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { financeTooltipStyle } from '@/components/charts/FinanceChart';
+import { EditableFinanceChart } from '@/components/charts/EditableFinanceChart';
 import type { AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 
 function fmtMillions(value: number): string {
@@ -67,6 +54,40 @@ export function AnalystDcfCard({ payload }: { payload: AnalystDcfDemoPayload }) 
     { name: 'Bear', value: payload.scenarios.bear.pricePerShare ?? 0, fill: '#dc2626' },
     { name: 'Base', value: payload.scenarios.base.pricePerShare ?? 0, fill: '#2563eb' },
     { name: 'Bull', value: payload.scenarios.bull.pricePerShare ?? 0, fill: '#16a34a' },
+  ];
+  const forecastChartData = [
+    {
+      type: 'scatter',
+      mode: 'lines+markers',
+      name: 'Revenue',
+      x: payload.forecast.map((row) => row.year),
+      y: payload.forecast.map((row) => row.revenue),
+      line: { color: '#2563eb', width: 2.5, shape: 'spline' },
+      marker: { color: '#2563eb', size: 6 },
+      hovertemplate: '%{x}<br>Revenue: $%{y:,.0f}M<extra></extra>',
+      yaxis: 'y',
+    },
+    {
+      type: 'scatter',
+      mode: 'lines+markers',
+      name: 'FCFF',
+      x: payload.forecast.map((row) => row.year),
+      y: payload.forecast.map((row) => row.fcff),
+      line: { color: '#16a34a', width: 2.5, shape: 'spline' },
+      marker: { color: '#16a34a', size: 6 },
+      hovertemplate: '%{x}<br>FCFF: $%{y:,.0f}M<extra></extra>',
+      yaxis: 'y2',
+    },
+  ];
+  const scenarioChartData = [
+    {
+      type: 'bar',
+      name: 'Scenario Value / Share',
+      x: scenarioBars.map((entry) => entry.name),
+      y: scenarioBars.map((entry) => entry.value),
+      marker: { color: scenarioBars.map((entry) => entry.fill) },
+      hovertemplate: '%{x}<br>Value / Share: $%{y:.2f}<extra></extra>',
+    },
   ];
 
   async function handleDownload() {
@@ -296,55 +317,36 @@ export function AnalystDcfCard({ payload }: { payload: AnalystDcfDemoPayload }) 
         )}
 
         <div className="grid gap-4 lg:grid-cols-[1.8fr_1fr]">
-          <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
-            <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">
-              Base Forecast
-            </div>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={payload.forecast} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#dbe1ea" vertical={false} />
-                  <XAxis dataKey="year" tick={{ fontSize: 11 }} />
-                  <YAxis
-                    yAxisId="left"
-                    tickFormatter={(value) => `${Math.round(value / 1000)}B`}
-                    tick={{ fontSize: 11 }}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    tickFormatter={(value) => `${Math.round(value / 1000)}B`}
-                    tick={{ fontSize: 11 }}
-                  />
-                  <Tooltip contentStyle={financeTooltipStyle} formatter={(value: number) => fmtMillions(value)} />
-                  <Legend />
-                  <Line yAxisId="left" type="monotone" dataKey="revenue" stroke="#2563eb" strokeWidth={2.5} dot={false} name="Revenue" />
-                  <Line yAxisId="right" type="monotone" dataKey="fcff" stroke="#16a34a" strokeWidth={2.5} dot={false} name="FCFF" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <EditableFinanceChart
+            title="Base Forecast"
+            subtitle="Editable forecast view across revenue and FCFF."
+            className="p-3"
+            height={256}
+            data={forecastChartData}
+            layout={{
+              xaxis: { type: 'category' },
+              yaxis: { tickprefix: '$', ticksuffix: 'M', title: 'Revenue' },
+              yaxis2: {
+                overlaying: 'y',
+                side: 'right',
+                tickprefix: '$',
+                ticksuffix: 'M',
+                title: 'FCFF',
+              },
+            }}
+          />
 
-          <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
-            <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">
-              Scenario Value / Share
-            </div>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={scenarioBars} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#dbe1ea" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tickFormatter={(value) => `$${Number(value).toFixed(0)}`} tick={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={financeTooltipStyle} formatter={(value: number) => fmtPrice(value)} />
-                  <Bar dataKey="value" radius={[10, 10, 0, 0]}>
-                    {scenarioBars.map((entry) => (
-                      <Cell key={entry.name} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <EditableFinanceChart
+            title="Scenario Value / Share"
+            subtitle="Editable scenario framing for bear, base, and bull."
+            className="p-3"
+            height={256}
+            data={scenarioChartData}
+            layout={{
+              xaxis: { type: 'category' },
+              yaxis: { tickprefix: '$' },
+            }}
+          />
         </div>
 
         <div className="grid gap-3 md:grid-cols-3">

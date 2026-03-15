@@ -1,23 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Legend,
-  Cell,
-} from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { financeTooltipStyle } from '@/components/charts/FinanceChart';
+import { EditableFinanceChart } from '@/components/charts/EditableFinanceChart';
 import type { AnalystGeneratedModelPayload } from '@/lib/analyst/modelChat';
 
 function isCurrencyKey(key?: string): boolean {
@@ -281,55 +268,52 @@ function inferChartSpec(payload: AnalystGeneratedModelPayload): ChartSpec | null
 }
 
 function ModelVisualization({ spec }: { spec: ChartSpec }) {
+  const plotData =
+    spec.kind === 'line'
+      ? spec.lines.map((line) => ({
+          type: 'scatter',
+          mode: 'lines+markers',
+          name: line.label,
+          x: spec.data.map((row) => String(row.year ?? row.label ?? '')),
+          y: spec.data.map((row) => Number(row[line.key] ?? 0)),
+          line: { color: line.color, width: 2.5, shape: 'spline' },
+          marker: { color: line.color, size: 6 },
+          hovertemplate: `%{x}<br>${line.label}: %{y}${line.valueType === 'percent' ? '%' : line.valueType === 'currency' ? 'M' : ''}<extra></extra>`,
+        }))
+      : spec.bars.map((bar) => ({
+          type: 'bar',
+          name: bar.label,
+          x: spec.data.map((row) => String(row.label ?? row.year ?? '')),
+          y: spec.data.map((row) => Number(row[bar.key] ?? 0)),
+          marker: { color: bar.color, opacity: 0.9 },
+          hovertemplate: `%{x}<br>${bar.label}: %{y}${bar.valueType === 'percent' ? '%' : bar.valueType === 'currency' ? 'M' : bar.valueType === 'number' ? 'x' : ''}<extra></extra>`,
+        }));
+
+  const yAxisLayout =
+    spec.yType === 'currency'
+      ? { tickprefix: '$', ticksuffix: 'M' }
+      : spec.yType === 'percent'
+        ? { ticksuffix: '%' }
+        : {};
+
   return (
-    <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
-      <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">{spec.title}</div>
-      <div className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          {spec.kind === 'line' ? (
-            <LineChart data={spec.data} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#dbe1ea" vertical={false} />
-              <XAxis dataKey="year" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={(value) => formatAxisValue(Number(value), spec.yType)} />
-              <Tooltip
-                contentStyle={financeTooltipStyle}
-                formatter={(value: number, _name: string, item: { dataKey?: string | number }) => {
-                  const dataKey = typeof item.dataKey === 'string' ? item.dataKey : String(item.dataKey ?? '');
-                  const line = spec.lines.find((entry) => entry.key === dataKey);
-                  return [formatAxisValue(Number(value), line?.valueType ?? spec.yType), (line?.label ?? dataKey) || 'Value'];
-                }}
-              />
-              <Legend />
-              {spec.lines.map((line) => (
-                <Line key={line.key} type="monotone" dataKey={line.key} name={line.label} stroke={line.color} strokeWidth={2.2} dot={false} />
-              ))}
-            </LineChart>
-          ) : (
-            <BarChart data={spec.data} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#dbe1ea" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={(value) => formatAxisValue(Number(value), spec.yType)} />
-              <Tooltip
-                contentStyle={financeTooltipStyle}
-                formatter={(value: number, _name: string, item: { dataKey?: string | number }) => {
-                  const dataKey = typeof item.dataKey === 'string' ? item.dataKey : String(item.dataKey ?? '');
-                  const bar = spec.bars.find((entry) => entry.key === dataKey);
-                  return [formatAxisValue(Number(value), bar?.valueType ?? spec.yType), (bar?.label ?? dataKey) || 'Value'];
-                }}
-              />
-              <Legend />
-              {spec.bars.map((bar) => (
-                <Bar key={bar.key} dataKey={bar.key} name={bar.label} radius={[6, 6, 0, 0]}>
-                  {spec.data.map((row, index) => (
-                    <Cell key={`${bar.key}-${index}-${String(row.label ?? index)}`} fill={bar.color} />
-                  ))}
-                </Bar>
-              ))}
-            </BarChart>
-          )}
-        </ResponsiveContainer>
-      </div>
-    </div>
+    <EditableFinanceChart
+      title={spec.title}
+      subtitle="Editable chart: zoom, relabel, and annotate directly."
+      height={256}
+      data={plotData}
+      layout={{
+        barmode: spec.kind === 'bar' ? 'group' : undefined,
+        xaxis: {
+          title: '',
+          type: 'category',
+        },
+        yaxis: {
+          title: '',
+          ...yAxisLayout,
+        },
+      }}
+    />
   );
 }
 

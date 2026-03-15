@@ -1,19 +1,8 @@
 'use client';
 
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-} from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { financeTooltipStyle } from '@/components/charts/FinanceChart';
+import { EditableFinanceChart } from '@/components/charts/EditableFinanceChart';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
 
 function fmtNumber(value: number | null): string {
@@ -43,6 +32,30 @@ function StatCard(props: { label: string; value: string; helper?: string }) {
 
 export function AnalystStockCard({ payload }: { payload: StockLookupResult }) {
   const chartHeight = 220;
+  const stockChartData =
+    payload.chart.kind === 'price'
+      ? [
+          {
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: payload.ticker,
+            x: payload.chart.points.map((point) => point.label),
+            y: payload.chart.points.map((point) => point.value),
+            line: { color: '#10b981', width: 2.5, shape: 'spline' },
+            marker: { color: '#10b981', size: 5 },
+            hovertemplate: '%{x}<br>Price: $%{y:.2f}<extra></extra>',
+          },
+        ]
+      : [
+          {
+            type: 'bar',
+            name: 'Value',
+            x: payload.chart.points.map((point) => point.label),
+            y: payload.chart.points.map((point) => point.value),
+            marker: { color: '#2563eb', opacity: 0.9 },
+            hovertemplate: '%{x}<br>Value: $%{y:,.0f}M<extra></extra>',
+          },
+        ];
 
   return (
     <Card className="mt-4 overflow-hidden border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
@@ -74,32 +87,17 @@ export function AnalystStockCard({ payload }: { payload: StockLookupResult }) {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[1.8fr_1fr]">
-          <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
-            <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">
-              {payload.chart.kind === 'price' ? 'Recent Price Trend' : 'Fundamental Snapshot'}
-            </div>
-            <div style={{ height: chartHeight }}>
-              <ResponsiveContainer width="100%" height="100%">
-                {payload.chart.kind === 'price' ? (
-                  <LineChart data={payload.chart.points} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#dbe1ea" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                    <YAxis tickFormatter={(value) => `$${Number(value).toFixed(0)}`} tick={{ fontSize: 11 }} />
-                    <Tooltip contentStyle={financeTooltipStyle} formatter={(value: number) => fmtPrice(value)} />
-                    <Line type="monotone" dataKey="value" stroke="#10b981" strokeWidth={2.5} dot={false} />
-                  </LineChart>
-                ) : (
-                  <BarChart data={payload.chart.points} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#dbe1ea" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                    <YAxis tickFormatter={(value) => `$${Math.round(Number(value) / 1000)}B`} tick={{ fontSize: 11 }} />
-                    <Tooltip contentStyle={financeTooltipStyle} formatter={(value: number) => fmtMillions(value)} />
-                    <Bar dataKey="value" radius={[10, 10, 0, 0]} fill="#2563eb" />
-                  </BarChart>
-                )}
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <EditableFinanceChart
+            title={payload.chart.kind === 'price' ? 'Recent Price Trend' : 'Fundamental Snapshot'}
+            subtitle="Editable view for annotations, zoom, and layout changes."
+            className="p-3"
+            height={chartHeight}
+            data={stockChartData}
+            layout={{
+              xaxis: { type: 'category' },
+              yaxis: payload.chart.kind === 'price' ? { tickprefix: '$' } : { tickprefix: '$', ticksuffix: 'M' },
+            }}
+          />
 
           <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
             <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Lookup Provenance</div>
