@@ -346,6 +346,33 @@ const MODEL_GUIDANCE: Record<ReportModelType, string> = {
   'revenue-recognition-asc606': 'Emphasize timing of recognition, deferred revenue, contract assets/liabilities, and what the accounting treatment means for comparability.',
 };
 
+const MODEL_MEMO_PURPOSE: Record<ReportModelType, string> = {
+  dcf: 'Write this as an intrinsic-value memo for an investor deciding whether current valuation is justified by the operating forecast.',
+  'reverse-dcf': 'Write this as an expectations memo that explains what growth, margins, or duration the market is already pricing in.',
+  lbo: 'Write this as an underwriting memo for a sponsor or deal team deciding whether the leverage and return profile is acceptable.',
+  comps: 'Write this as a relative-valuation memo used to frame where the company should trade versus peers and why.',
+  precedents: 'Write this as a transaction-framing memo used to discuss control value, premium support, and what deal comps imply for valuation.',
+  merger: 'Write this as an M&A decision memo focused on transaction structure, strategic rationale, and whether accretion justifies execution risk.',
+  'ma-accretion-dilution': 'Write this as an accretion/dilution memo focused on whether the transaction improves per-share economics under realistic assumptions.',
+  operating: 'Write this as an operating review memo focused on plan credibility, cash consequences, and what management would need to execute.',
+  'three-statement': 'Write this as a forecast memo focused on integrated operating performance, cash conversion, and balance-sheet outcomes.',
+  scorecard: 'Write this as a screening memo focused on quality, resilience, and whether the company merits deeper work.',
+  'debt-capacity-lite': 'Write this as a financing-capacity memo focused on how much debt the business can support and what constraint binds first.',
+  'cap-table': 'Write this as a dilution and control memo focused on ownership outcomes across stakeholders under the proposed round.',
+  'saas-operating-model': 'Write this as an operating KPI memo focused on ARR durability, churn discipline, and unit-economic quality.',
+  'dividend-discount-model': 'Write this as a payout-value memo focused on whether the dividend stream supports current value.',
+  'residual-income-model': 'Write this as a franchise-return memo focused on whether excess returns above the equity charge justify value.',
+  'debt-amortization-refi': 'Write this as a capital-structure memo focused on maturity management, paydown feasibility, and refinance risk.',
+  'buyback-eps-accretion': 'Write this as a capital-allocation memo focused on whether repurchases create real value or only EPS optics.',
+  'purchase-price-allocation': 'Write this as a transaction-accounting memo focused on goodwill, intangible allocation, and earnings consequences post-close.',
+  'working-capital-schedule': 'Write this as a cash-conversion memo focused on how receivables, inventory, and payables affect liquidity.',
+  'ppe-depreciation-schedule': 'Write this as a reinvestment memo focused on capex burden, asset-base evolution, and cash conversion.',
+  'runway-burn': 'Write this as a liquidity-survival memo focused on months of runway, funding needs, and what shortens or extends survival.',
+  'vc-returns-irr': 'Write this as a venture-return memo focused on ownership, exit value, and whether the return profile clears the hurdle.',
+  'inventory-cogs': 'Write this as an operations memo focused on turns, inventory intensity, margin absorption, and working-capital risk.',
+  'revenue-recognition-asc606': 'Write this as an accounting-policy memo focused on timing, deferred revenue, and how recognition policy changes comparability.',
+};
+
 export function getReportWriterSystemPrompt(context: ReportContext): string {
   if (context.modelType === 'debt-capacity-lite') {
     return DEBT_CAPACITY_LITE_REPORT_WRITER_SYSTEM_PROMPT;
@@ -379,6 +406,7 @@ export function buildReportWriterUserPrompt(context: ReportContext): string {
     `Sector: ${context.sector || 'N/A'}`,
     `Industry: ${context.industry || 'N/A'}`,
     `Model-Specific Guidance: ${MODEL_GUIDANCE[context.modelType]}`,
+    `Memo Purpose: ${MODEL_MEMO_PURPOSE[context.modelType]}`,
     `Meeting Objective: produce a report that can be dropped directly into an internal investor, management, or deal review without cleanup.`,
     `Key Outputs JSON: ${JSON.stringify(context.keyOutputs || {}, null, 2)}`,
     `Supporting Data JSON: ${JSON.stringify(context.data || {}, null, 2)}`,

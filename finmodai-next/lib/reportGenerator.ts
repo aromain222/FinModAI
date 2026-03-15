@@ -410,12 +410,39 @@ function buildDecisionFramingSection(context: ReportContext): GeneratedReportSec
   const company = context.companyName || context.ticker || 'Company';
   const label = formatModelLabel(context.modelType);
   const summary = buildSummaryFallback(context);
+  const purposeByModel: Record<ReportModelType, string> = {
+    dcf: 'The purpose of this memo is to frame intrinsic value versus the current market anchor.',
+    'reverse-dcf': 'The purpose of this memo is to frame what expectations are already embedded in the current valuation.',
+    lbo: 'The purpose of this memo is to frame whether the deal can clear underwriting return thresholds.',
+    comps: 'The purpose of this memo is to frame where the company should trade relative to a peer set.',
+    precedents: 'The purpose of this memo is to frame control value and transaction precedent support.',
+    merger: 'The purpose of this memo is to frame whether the transaction makes strategic and per-share sense.',
+    'ma-accretion-dilution': 'The purpose of this memo is to frame whether the transaction is credibly accretive after execution risk.',
+    operating: 'The purpose of this memo is to frame plan quality and the operating path management must execute.',
+    'three-statement': 'The purpose of this memo is to frame forecast quality, cash conversion, and balance-sheet durability.',
+    scorecard: 'The purpose of this memo is to frame whether the company merits deeper work rather than to make a final call.',
+    'debt-capacity-lite': 'The purpose of this memo is to frame financing headroom and the constraint that binds first.',
+    'cap-table': 'The purpose of this memo is to frame dilution, control, and ownership outcomes.',
+    'saas-operating-model': 'The purpose of this memo is to frame recurring-revenue quality and unit-economic durability.',
+    'dividend-discount-model': 'The purpose of this memo is to frame whether the payout stream supports value.',
+    'residual-income-model': 'The purpose of this memo is to frame value creation through excess returns over the equity charge.',
+    'debt-amortization-refi': 'The purpose of this memo is to frame maturity management and refinance risk.',
+    'buyback-eps-accretion': 'The purpose of this memo is to frame whether repurchases create economic value or only optical accretion.',
+    'purchase-price-allocation': 'The purpose of this memo is to frame post-deal accounting consequences and balance-sheet allocation.',
+    'working-capital-schedule': 'The purpose of this memo is to frame cash conversion through working-capital intensity.',
+    'ppe-depreciation-schedule': 'The purpose of this memo is to frame reinvestment burden and depreciation drag.',
+    'runway-burn': 'The purpose of this memo is to frame survival horizon and funding urgency.',
+    'vc-returns-irr': 'The purpose of this memo is to frame whether exit outcomes support target venture returns.',
+    'inventory-cogs': 'The purpose of this memo is to frame inventory policy, margin absorption, and cash drag risk.',
+    'revenue-recognition-asc606': 'The purpose of this memo is to frame accounting timing and comparability implications.',
+  };
 
   return {
     title: 'Decision Framing',
     body: buildBulletBody(
       [
         summary,
+        purposeByModel[context.modelType],
         `${label} should be used as a decision framework for ${company}, not as a substitute for judgment on source data quality and assumption realism.`,
       ],
       `${label} should be used as a decision framework, not a single-point answer.`
