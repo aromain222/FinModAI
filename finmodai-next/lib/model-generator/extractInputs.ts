@@ -346,6 +346,71 @@ function normalizeText(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function extractEntityList(raw: string): string[] {
+  return raw
+    .split(/\band\b|,|;/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function resolveDemoTickersFromList(raw: string, snapshots: Record<string, DemoCompanySnapshot>): string[] {
+  const candidates = extractEntityList(raw);
+  const resolved = new Set<string>();
+
+  for (const candidate of candidates) {
+    const upper = candidate.toUpperCase();
+    if (snapshots[upper]) {
+      resolved.add(upper);
+      continue;
+    }
+
+    const normalizedCandidate = normalizeText(candidate);
+    for (const [ticker, snapshot] of Object.entries(snapshots)) {
+      const normalizedName = normalizeText(snapshot.companyName || '');
+      if (normalizedName && (normalizedName.includes(normalizedCandidate) || normalizedCandidate.includes(normalizedName))) {
+        resolved.add(ticker);
+        break;
+      }
+    }
+  }
+
+  return Array.from(resolved);
+}
+
+function sanitizeCompsSubjectPrompt(prompt: string): string {
+  return prompt
+    .replace(/\bcomparable company analysis\b/gi, ' ')
+    .replace(/\bcomps\b/gi, ' ')
+    .replace(/\binclude\s+.+?\s+in\s+(?:its|the)\s+peer group\b/gi, ' ')
+    .replace(/\badd\s+.+?\s+to\s+(?:its|the)\s+peers?\b/gi, ' ')
+    .replace(/\b(?:replace|set|change|update)\s+(?:its|the)\s+peers?\s+(?:to|with)\s+.+$/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractExplicitPeerTickers(prompt: string, snapshots: Record<string, DemoCompanySnapshot>): string[] {
+  const patterns = [
+    /include\s+(.+?)\s+in\s+(?:its|the)\s+peer group/i,
+    /add\s+(.+?)\s+to\s+(?:its|the)\s+peers?/i,
+    /(?:set|replace|change|update)\s+(?:its|the)\s+peers?\s+(?:to|with)\s+([^.\n]+)/i,
+    /peer group\s+(?:with|including)\s+([^.\n]+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = prompt.match(pattern);
+    if (!match?.[1]) continue;
+    const tickers = resolveDemoTickersFromList(match[1], snapshots);
+    if (tickers.length > 0) return tickers;
+  }
+
+  return [];
+}
+
+function isInstructionContaminatedName(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return /\b(include|peer group|peers|comparable|analysis|transaction|precedent|with microsoft|with peers?)\b/i.test(value);
+}
+
 function cloneArray(values: readonly number[]): number[] {
   return [...values];
 }
@@ -477,6 +542,62 @@ function deriveCompanyLabel(companyType: string | null, fallback: string): strin
   if (!companyType) return fallback;
   if (companyType === 'SaaS') return 'SaaS Co.';
   return `${companyType} Business`;
+}
+
+function normalizeSectorBucket(value: string | null | undefined): string | null {
+  const normalized = normalizeText(value || '');
+  if (!normalized) return null;
+  if (/\b(software|cloud|internet|technology|tech|semiconductor|chip|communication)\b/.test(normalized)) return 'Technology';
+  if (/\b(bank|financial|payments|fintech|insurance|broker)\b/.test(normalized)) return 'Financials';
+  if (/\b(consumer|retail|e commerce|ecommerce|marketplace|discretionary|staples)\b/.test(normalized)) return 'Consumer';
+  if (/\b(industrial|manufacturing|transport|logistics|aerospace|defense)\b/.test(normalized)) return 'Industrial';
+  if (/\b(healthcare|medtech|biotech|pharma)\b/.test(normalized)) return 'Healthcare';
+  if (/\b(energy|oil|gas|utilities|power)\b/.test(normalized)) return 'Energy';
+  if (/\b(materials|mining|chemicals)\b/.test(normalized)) return 'Materials';
+  return value?.trim() || null;
+}
+
+function hasCompsCoreFields(snapshot: DemoCompanySnapshot): boolean {
+  const marketCap =
+    snapshot.marketCap ?? (snapshot.sharePrice && snapshot.sharesOutstanding ? snapshot.sharePrice * snapshot.sharesOutstanding : null);
+  return typeof marketCap === 'number' && marketCap > 0 && typeof snapshot.revenueLtm === 'number' && snapshot.revenueLtm > 0;
+}
+
+function pickRankedCompsPeers(params: {
+  snapshots: Record<string, DemoCompanySnapshot>;
+  subjectTicker?: string;
+  subjectSector?: string | null;
+  subjectMarketCap?: number | null;
+  peerCount: number;
+}): Array<readonly [string, DemoCompanySnapshot]> {
+  const subjectBucket = normalizeSectorBucket(params.subjectSector);
+  const targetCap = typeof params.subjectMarketCap === 'number' && params.subjectMarketCap > 0 ? params.subjectMarketCap : null;
+
+  return Object.entries(params.snapshots)
+    .filter(([candidateTicker, snapshot]) => candidateTicker !== params.subjectTicker && hasCompsCoreFields(snapshot))
+    .map(([candidateTicker, snapshot]) => {
+      const candidateBucket = normalizeSectorBucket(snapshot.sector);
+      const exactSector = params.subjectSector && snapshot.sector && normalizeText(snapshot.sector) === normalizeText(params.subjectSector) ? 3 : 0;
+      const bucketMatch = subjectBucket && candidateBucket && subjectBucket === candidateBucket ? 2 : 0;
+      const marketCap = snapshot.marketCap ?? (snapshot.sharePrice && snapshot.sharesOutstanding ? snapshot.sharePrice * snapshot.sharesOutstanding : null);
+      const capDistance =
+        targetCap && marketCap && targetCap > 0 && marketCap > 0 ? Math.abs(Math.log(marketCap / targetCap)) : Number.POSITIVE_INFINITY;
+
+      return {
+        candidateTicker,
+        snapshot,
+        marketCap: marketCap ?? 0,
+        sectorScore: exactSector + bucketMatch,
+        capDistance,
+      };
+    })
+    .sort((left, right) => {
+      if (right.sectorScore !== left.sectorScore) return right.sectorScore - left.sectorScore;
+      if (left.capDistance !== right.capDistance) return left.capDistance - right.capDistance;
+      return right.marketCap - left.marketCap;
+    })
+    .slice(0, params.peerCount)
+    .map(({ candidateTicker, snapshot }) => [candidateTicker, snapshot] as const);
 }
 
 function toPeerInputs(ticker: string, snapshot: DemoCompanySnapshot): CompsPeerInputs {
@@ -857,25 +978,43 @@ async function buildCompsInputs(prompt: string): Promise<ExtractInputsResult> {
   const stored = await resolveStoredCompany(prompt);
   const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt);
   const snapshots = await loadDemoSnapshots();
+  const subjectPrompt = sanitizeCompsSubjectPrompt(prompt);
+  const explicitPeerTickers = extractExplicitPeerTickers(prompt, snapshots);
 
   const companyType =
-    extractCompanyType(prompt) ??
+    extractCompanyType(subjectPrompt) ??
     stored?.company.companyType ??
     stored?.company.sector ??
     resolved?.snapshot.sector ??
     null;
-  const parsedCompanyName = extractCompanyName(prompt);
-  const companyName = parsedCompanyName || stored?.company.name || resolved?.snapshot.companyName || deriveCompanyLabel(companyType, 'Subject Company');
+  const parsedCompanyNameRaw = extractCompanyName(subjectPrompt) ?? extractCompanyName(prompt);
+  const parsedCompanyName = isInstructionContaminatedName(parsedCompanyNameRaw) ? null : parsedCompanyNameRaw;
+  const companyName = stored?.company.name || resolved?.snapshot.companyName || parsedCompanyName || deriveCompanyLabel(companyType, 'Subject Company');
   const ticker = stored?.company.ticker ?? resolved?.ticker;
+  const subjectSnapshot = resolved?.snapshot ?? (ticker ? snapshots[ticker] : undefined);
+  const subjectMarketCap =
+    stored?.snapshot?.marketCap ??
+    subjectSnapshot?.marketCap ??
+    (stored?.latestPrice?.close && stored?.snapshot?.sharesOutstanding
+      ? stored.latestPrice.close * stored.snapshot.sharesOutstanding
+      : null);
   if (companyType) providedInputs.add('companyType');
   if (parsedCompanyName || stored?.company.name || resolved?.snapshot.companyName) providedInputs.add('companyName');
+  if (explicitPeerTickers.length > 0) providedInputs.add('peerSet');
 
-  const peerUniverse = Object.entries(snapshots)
-    .filter(([candidateTicker, snapshot]) => candidateTicker !== ticker && (!companyType || snapshot.sector === companyType))
-    .sort(([, left], [, right]) => (right.marketCap ?? 0) - (left.marketCap ?? 0))
-    .slice(0, COMPS_DEFAULTS.peerCount);
+  const peerUniverse =
+    explicitPeerTickers.length > 0
+      ? explicitPeerTickers
+          .filter((peerTicker) => peerTicker !== ticker && snapshots[peerTicker])
+          .map((peerTicker) => [peerTicker, snapshots[peerTicker]] as const)
+      : pickRankedCompsPeers({
+          snapshots,
+          subjectTicker: ticker,
+          subjectSector: stored?.company.sector ?? stored?.company.companyType ?? companyType ?? subjectSnapshot?.sector ?? null,
+          subjectMarketCap,
+          peerCount: COMPS_DEFAULTS.peerCount,
+        });
 
-  const subjectSnapshot = resolved?.snapshot ?? (ticker ? snapshots[ticker] : undefined);
   const subject: CompsPeerInputs = toPeerInputs(
     ticker ?? 'SUBJECT',
     subjectSnapshot ?? {
@@ -894,7 +1033,7 @@ async function buildCompsInputs(prompt: string): Promise<ExtractInputsResult> {
   );
 
   const peerInputs = peerUniverse.map(([peerTicker, snapshot]) => toPeerInputs(peerTicker, snapshot));
-  if (peerInputs.length === 0) defaultsUsed.peerSet = 'demo_peer_universe_unavailable';
+  if (peerInputs.length === 0) defaultsUsed.peerSet = explicitPeerTickers.length > 0 ? 'requested_peers_unavailable' : 'demo_peer_universe_unavailable';
   defaultsUsed.valuationMultiples = COMPS_DEFAULTS.valuationMultiples;
 
   const missingInputs = buildMissingList([
@@ -910,7 +1049,12 @@ async function buildCompsInputs(prompt: string): Promise<ExtractInputsResult> {
       companyType: companyType ?? undefined,
       ticker,
       source: stored?.snapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
-      peerSetLabel: companyType ? `${companyType} peers` : 'Selected peers',
+      peerSetLabel:
+        explicitPeerTickers.length > 0
+          ? `${peerInputs.length} requested peers`
+          : companyType
+            ? `${companyType} peers`
+            : 'Selected peers',
       valuationMultiples: [...COMPS_DEFAULTS.valuationMultiples],
       subject,
       peers: peerInputs,

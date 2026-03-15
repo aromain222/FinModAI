@@ -22,6 +22,41 @@ export type AnalystDcfScenarioResult = {
   terminalValueWeight: number | null;
 };
 
+export type AnalystDcfBaseMetrics = {
+  revenueLtm: number;
+  ebitdaLtm: number;
+  netIncomeLtm: number;
+  cash: number;
+  totalDebt: number;
+  netDebt: number;
+  sharesOutstanding: number | null;
+  sharePrice: number | null;
+  marketCap: number | null;
+};
+
+export type AnalystDcfAssumptions = {
+  revenueGrowth: number[];
+  ebitMargin: number[];
+  taxRate: number;
+  daPctRevenue: number;
+  capexPctRevenue: number;
+  nwcPctRevenue: number;
+  wacc: number;
+  terminalGrowth: number;
+};
+
+export type AnalystDcfComparisonPayload = {
+  ticker: string;
+  companyName: string;
+  sector: string | null;
+  source: string;
+  asOfDate: string | null;
+  notes: string[];
+  baseMetrics: AnalystDcfBaseMetrics;
+  assumptions: AnalystDcfAssumptions;
+  scenarios: Record<AnalystDcfScenarioKey, AnalystDcfScenarioResult>;
+};
+
 export type AnalystDcfDemoPayload = {
   prompt: string;
   ticker: string;
@@ -34,27 +69,8 @@ export type AnalystDcfDemoPayload = {
   memo: string;
   warnings: string[];
   notes: string[];
-  baseMetrics: {
-    revenueLtm: number;
-    ebitdaLtm: number;
-    netIncomeLtm: number;
-    cash: number;
-    totalDebt: number;
-    netDebt: number;
-    sharesOutstanding: number | null;
-    sharePrice: number | null;
-    marketCap: number | null;
-  };
-  assumptions: {
-    revenueGrowth: number[];
-    ebitMargin: number[];
-    taxRate: number;
-    daPctRevenue: number;
-    capexPctRevenue: number;
-    nwcPctRevenue: number;
-    wacc: number;
-    terminalGrowth: number;
-  };
+  baseMetrics: AnalystDcfBaseMetrics;
+  assumptions: AnalystDcfAssumptions;
   forecast: Array<{
     year: number;
     revenue: number;
@@ -62,6 +78,7 @@ export type AnalystDcfDemoPayload = {
     fcff: number;
   }>;
   scenarios: Record<AnalystDcfScenarioKey, AnalystDcfScenarioResult>;
+  comparison?: AnalystDcfComparisonPayload | null;
 };
 
 type PromptParseResult = {
@@ -95,6 +112,11 @@ type ResolvedCompany = {
   asOfDate: string | null;
 };
 
+type MentionedResolvedCompany = ResolvedCompany & {
+  position: number;
+  score: number;
+};
+
 const DEFAULT_YEARS = 5;
 const COMPANY_SUFFIX_RE =
   /\b(incorporated|inc|corp|corporation|holdings|holding|group|plc|limited|ltd|co|company)\b/gi;
@@ -109,6 +131,10 @@ function normalizePromptText(value: string): string {
 
 function normalizeCompanyName(value: string): string {
   return normalizePromptText(value).replace(COMPANY_SUFFIX_RE, '').replace(/\s+/g, ' ').trim();
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function parsePercentLike(match: RegExpMatchArray | null): number | undefined {
@@ -146,6 +172,10 @@ export function parseDcfPrompt(prompt: string, explicitTicker?: string): PromptP
     },
     tone,
   };
+}
+
+function hasComparisonIntent(prompt: string): boolean {
+  return /\b(compare|comparison|versus|vs\.?|against|relative to|stack(?:ed)? against|compoare)\b/i.test(prompt);
 }
 
 function resolveCompanyFromPrompt(
@@ -197,6 +227,88 @@ function resolveCompanyFromPrompt(
   return best;
 }
 
+function findMentionedCompanies(
+  prompt: string,
+  explicitTicker: string | undefined,
+  snapshots: Record<string, DemoCompanySnapshot>
+): MentionedResolvedCompany[] {
+  const normalizedPrompt = normalizePromptText(prompt);
+  const explicit = explicitTicker?.trim().toUpperCase();
+  const matches: MentionedResolvedCompany[] = [];
+
+  for (const [ticker, snapshot] of Object.entries(snapshots)) {
+    const companyName = snapshot.companyName || '';
+    const fullName = normalizePromptText(companyName);
+    const strippedName = normalizeCompanyName(companyName);
+    let position = Number.POSITIVE_INFINITY;
+    let score = 0;
+
+    if (explicit && explicit === ticker) {
+      position = 0;
+      score = Math.max(score, 10_000);
+    }
+
+    const tickerPattern = new RegExp(`\\b${escapeRegExp(ticker)}\\b`, 'i');
+    const tickerMatch = prompt.match(tickerPattern);
+    if (tickerMatch?.index !== undefined) {
+      position = Math.min(position, tickerMatch.index);
+      score = Math.max(score, 9_000);
+    }
+
+    if (strippedName) {
+      const idx = normalizedPrompt.indexOf(strippedName);
+      if (idx >= 0) {
+        position = Math.min(position, idx);
+        score = Math.max(score, 2_000 + strippedName.length);
+      }
+    }
+
+    if (fullName) {
+      const idx = normalizedPrompt.indexOf(fullName);
+      if (idx >= 0) {
+        position = Math.min(position, idx);
+        score = Math.max(score, 3_000 + fullName.length);
+      }
+    }
+
+    if (score > 0 && Number.isFinite(position)) {
+      matches.push({
+        ticker,
+        snapshot,
+        source: 'demo_company_snapshots',
+        asOfDate: snapshot.updatedAt ?? null,
+        position,
+        score,
+      });
+    }
+  }
+
+  return matches.sort((left, right) => {
+    if (left.position !== right.position) return left.position - right.position;
+    return right.score - left.score;
+  });
+}
+
+function resolveComparisonPairFromPrompt(
+  prompt: string,
+  explicitTicker: string | undefined,
+  snapshots: Record<string, DemoCompanySnapshot>
+): { primary: ResolvedCompany; comparison: ResolvedCompany } | null {
+  if (!hasComparisonIntent(prompt)) return null;
+
+  const mentions = findMentionedCompanies(prompt, explicitTicker, snapshots);
+  if (mentions.length < 2) return null;
+
+  const [primary, ...rest] = mentions;
+  const comparison = rest.find((candidate) => candidate.ticker !== primary.ticker);
+  if (!comparison) return null;
+
+  return {
+    primary,
+    comparison,
+  };
+}
+
 function mapStoredProfileToSnapshot(
   resolved: Awaited<ReturnType<typeof resolveCompanyProfile>>
 ): ResolvedCompany | null {
@@ -232,6 +344,68 @@ async function resolveCompanyForDcf(prompt: string, explicitTicker?: string): Pr
 
   const snapshots = await loadDemoSnapshots();
   return resolveCompanyFromPrompt(prompt, explicitTicker, snapshots);
+}
+
+async function hydrateResolvedCompany(seed: ResolvedCompany): Promise<ResolvedCompany> {
+  const stored = await resolveCompanyProfile({
+    prompt: seed.snapshot.companyName || seed.ticker,
+    ticker: seed.ticker,
+  });
+  const storedResolved = mapStoredProfileToSnapshot(stored);
+  if (storedResolved?.snapshot.revenueLtm && storedResolved.snapshot.revenueLtm > 0) {
+    return storedResolved;
+  }
+  return seed;
+}
+
+function buildBaseMetrics(snapshot: DemoCompanySnapshot): AnalystDcfBaseMetrics {
+  const cash = snapshot.cash ?? 0;
+  const totalDebt = snapshot.totalDebt ?? 0;
+
+  return {
+    revenueLtm: snapshot.revenueLtm ?? 0,
+    ebitdaLtm: snapshot.ebitdaLtm ?? 0,
+    netIncomeLtm: snapshot.netIncomeLtm ?? 0,
+    cash,
+    totalDebt,
+    netDebt: totalDebt - cash,
+    sharesOutstanding:
+      typeof snapshot.sharesOutstanding === 'number' && snapshot.sharesOutstanding > 0 ? snapshot.sharesOutstanding : null,
+    sharePrice: typeof snapshot.sharePrice === 'number' && snapshot.sharePrice > 0 ? snapshot.sharePrice : null,
+    marketCap: typeof snapshot.marketCap === 'number' && snapshot.marketCap > 0 ? snapshot.marketCap : null,
+  };
+}
+
+function buildComparisonNotes(primary: AnalystDcfDemoPayload, comparison: AnalystDcfComparisonPayload): string[] {
+  const primaryBase = primary.scenarios.base;
+  const comparisonBase = comparison.scenarios.base;
+  const notes: string[] = [];
+
+  const betterUpside =
+    primaryBase.upsidePct !== null && comparisonBase.upsidePct !== null
+      ? primaryBase.upsidePct >= comparisonBase.upsidePct
+        ? primary.companyName
+        : comparison.companyName
+      : null;
+  if (betterUpside) {
+    notes.push(`Compared with ${comparison.companyName}, ${betterUpside} shows the stronger base-case upside/downside profile in this DCF set.`);
+  }
+
+  const primaryGrowth = primary.assumptions.revenueGrowth[0] ?? 0;
+  const comparisonGrowth = comparison.assumptions.revenueGrowth[0] ?? 0;
+  if (primaryGrowth !== comparisonGrowth) {
+    const fasterName = primaryGrowth > comparisonGrowth ? primary.companyName : comparison.companyName;
+    notes.push(`${fasterName} is modeled with the faster near-term revenue growth path in year one.`);
+  }
+
+  const primaryMargin = primary.assumptions.ebitMargin[0] ?? 0;
+  const comparisonMargin = comparison.assumptions.ebitMargin[0] ?? 0;
+  if (primaryMargin !== comparisonMargin) {
+    const higherMarginName = primaryMargin > comparisonMargin ? primary.companyName : comparison.companyName;
+    notes.push(`${higherMarginName} carries the higher modeled EBIT margin entering the forecast period.`);
+  }
+
+  return notes.slice(0, 3);
 }
 
 function defaultGrowthCurve(years: number, sector: string | null, revenueLtm: number): number[] {
@@ -586,11 +760,19 @@ function buildDeterministicMemo(payload: AnalystDcfDemoPayload): string {
   const terminalMix =
     base.terminalValueWeight === null ? 'Terminal value mix is not available.' : `Terminal value represents ${(base.terminalValueWeight * 100).toFixed(1)}% of enterprise value.`;
 
+  const comparisonSentence = payload.comparison
+    ? ` Versus ${payload.comparison.companyName}, the base case implies ${fmtComparisonMetric(payload.scenarios.base.pricePerShare)} for ${payload.companyName} against ${fmtComparisonMetric(payload.comparison.scenarios.base.pricePerShare)} for ${payload.comparison.companyName}.`
+    : '';
+
   return [
     `${payload.companyName} screens as a long-duration valuation where cash flow compounding and discount-rate discipline drive most of the result.`,
     `${upsideText} ${terminalMix}`,
-    `The underwriting debate is whether revenue growth can decelerate into the terminal period without giving back too much operating margin.`,
+    `The underwriting debate is whether revenue growth can decelerate into the terminal period without giving back too much operating margin.${comparisonSentence}`,
   ].join(' ');
+}
+
+function fmtComparisonMetric(value: number | null): string {
+  return value === null ? 'n/a' : `$${value.toFixed(2)}`;
 }
 
 async function generateAiMemo(
@@ -615,6 +797,14 @@ async function generateAiMemo(
       bullCase: payload.scenarios.bull,
       bearCase: payload.scenarios.bear,
       assumptions: payload.assumptions,
+      comparison: payload.comparison
+        ? {
+            company: payload.comparison.companyName,
+            ticker: payload.comparison.ticker,
+            baseCase: payload.comparison.scenarios.base,
+            assumptions: payload.comparison.assumptions,
+          }
+        : null,
     },
     null,
     2
@@ -652,6 +842,17 @@ function buildReply(payload: AnalystDcfDemoPayload): string {
   const bull = payload.scenarios.bull;
   const bear = payload.scenarios.bear;
 
+  const comparisonSection = payload.comparison
+    ? [
+        '',
+        `COMPARISON VS ${payload.comparison.companyName.toUpperCase()}`,
+        `- ${payload.companyName}: base implied value ${formatPrice(base.pricePerShare)} and ${formatPct(base.upsidePct)} upside/downside versus cached price.`,
+        `- ${payload.comparison.companyName}: base implied value ${formatPrice(payload.comparison.scenarios.base.pricePerShare)} and ${formatPct(payload.comparison.scenarios.base.upsidePct)} upside/downside versus cached price.`,
+        `- Year 1 revenue growth: ${(payload.assumptions.revenueGrowth[0] * 100).toFixed(1)}% for ${payload.ticker} vs ${(payload.comparison.assumptions.revenueGrowth[0] * 100).toFixed(1)}% for ${payload.comparison.ticker}.`,
+        `- Year 1 EBIT margin: ${(payload.assumptions.ebitMargin[0] * 100).toFixed(1)}% for ${payload.ticker} vs ${(payload.comparison.assumptions.ebitMargin[0] * 100).toFixed(1)}% for ${payload.comparison.ticker}.`,
+      ]
+    : [];
+
   return [
     'VALUATION SUMMARY',
     `- Base case implied value: ${formatPrice(base.pricePerShare)} per share on $${base.enterpriseValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}M EV.`,
@@ -664,10 +865,27 @@ function buildReply(payload: AnalystDcfDemoPayload): string {
     `- EBIT margin path: ${payload.assumptions.ebitMargin.map((value) => `${(value * 100).toFixed(1)}%`).join(', ')}.`,
     `- WACC / terminal growth: ${(payload.assumptions.wacc * 100).toFixed(1)}% / ${(payload.assumptions.terminalGrowth * 100).toFixed(1)}%.`,
     `- Base case upside vs cached price: ${formatPct(base.upsidePct)}.`,
+    ...comparisonSection,
     '',
     'INVESTMENT MEMO',
     payload.memo,
   ].join('\n');
+}
+
+function normalizeAssumptionLength(assumptions: AnalystDcfAssumptions, years: number): DeterministicAssumptions {
+  const expandSeries = (series: number[]) => {
+    if (series.length === years) return series;
+    if (series.length > years) return series.slice(0, years);
+    const fill = series[series.length - 1] ?? 0;
+    return [...series, ...Array.from({ length: years - series.length }, () => fill)];
+  };
+
+  return {
+    ...assumptions,
+    revenueGrowth: expandSeries(assumptions.revenueGrowth),
+    ebitMargin: expandSeries(assumptions.ebitMargin),
+    notes: [],
+  };
 }
 
 function parseDcfOverrideValue(raw: string, typeHint: 'percent' | 'number' | 'text'): string | number | undefined {
@@ -794,9 +1012,11 @@ async function buildAnalystDcfDemoFromPayload(params: {
   source: string;
   asOfDate: string | null;
   years: number;
-  baseMetrics: AnalystDcfDemoPayload['baseMetrics'];
+  baseMetrics: AnalystDcfBaseMetrics;
   assumptions: DeterministicAssumptions;
   warnings: string[];
+  comparison?: AnalystDcfComparisonPayload | null;
+  includeMemo?: boolean;
 }): Promise<{ reply: string; payload: AnalystDcfDemoPayload }> {
   const currentEbitMargin = clamp(
     params.assumptions.ebitMargin[0] ?? ((params.baseMetrics.revenueLtm > 0 && params.baseMetrics.ebitdaLtm > 0)
@@ -865,9 +1085,15 @@ async function buildAnalystDcfDemoFromPayload(params: {
       bull: scenarioResults.bull as AnalystDcfScenarioResult,
       bear: scenarioResults.bear as AnalystDcfScenarioResult,
     },
+    comparison: params.comparison ?? null,
   };
 
-  payload.memo = (await generateAiMemo(payload, getOpenAIKeyCandidates('user'))) ?? buildDeterministicMemo(payload);
+  if (payload.comparison) {
+    payload.notes = [...payload.notes, ...buildComparisonNotes(payload, payload.comparison)].slice(0, 6);
+  }
+  payload.memo = params.includeMemo === false
+    ? buildDeterministicMemo(payload)
+    : (await generateAiMemo(payload, getOpenAIKeyCandidates('user'))) ?? buildDeterministicMemo(payload);
 
   return {
     reply: buildReply(payload),
@@ -893,6 +1119,39 @@ export async function reviseAnalystDcfDemo(
     ].slice(0, 4),
   };
 
+  let comparison = existingPayload.comparison ?? null;
+  if (comparison) {
+    const normalizedComparisonAssumptions = normalizeAssumptionLength(comparison.assumptions, overrides.years ?? existingPayload.years);
+    const rebuiltComparison = await buildAnalystDcfDemoFromPayload({
+      prompt,
+      ticker: comparison.ticker,
+      companyName: comparison.companyName,
+      sector: comparison.sector,
+      source: comparison.source,
+      asOfDate: comparison.asOfDate,
+      years: overrides.years ?? existingPayload.years,
+      baseMetrics: comparison.baseMetrics,
+      assumptions: {
+        ...normalizedComparisonAssumptions,
+        notes: comparison.notes,
+      },
+      warnings: [],
+      comparison: null,
+      includeMemo: false,
+    });
+    comparison = {
+      ticker: rebuiltComparison.payload.ticker,
+      companyName: rebuiltComparison.payload.companyName,
+      sector: rebuiltComparison.payload.sector,
+      source: rebuiltComparison.payload.source,
+      asOfDate: rebuiltComparison.payload.asOfDate,
+      notes: rebuiltComparison.payload.notes,
+      baseMetrics: rebuiltComparison.payload.baseMetrics,
+      assumptions: rebuiltComparison.payload.assumptions,
+      scenarios: rebuiltComparison.payload.scenarios,
+    };
+  }
+
   return buildAnalystDcfDemoFromPayload({
     prompt,
     ticker: existingPayload.ticker,
@@ -904,6 +1163,7 @@ export async function reviseAnalystDcfDemo(
     baseMetrics: existingPayload.baseMetrics,
     assumptions,
     warnings: existingPayload.warnings,
+    comparison,
   });
 }
 
@@ -914,7 +1174,11 @@ export async function generateAnalystDcfDemo(params: {
   reply: string;
   payload: AnalystDcfDemoPayload;
 }> {
-  const resolved = await resolveCompanyForDcf(params.prompt, params.explicitTicker);
+  const snapshots = await loadDemoSnapshots();
+  const comparisonPair = resolveComparisonPairFromPrompt(params.prompt, params.explicitTicker, snapshots);
+  const resolved = comparisonPair
+    ? await hydrateResolvedCompany(comparisonPair.primary)
+    : await resolveCompanyForDcf(params.prompt, params.explicitTicker);
 
   if (!resolved?.snapshot) {
     throw new Error('No matching company profile was found for this prompt.');
@@ -953,6 +1217,43 @@ export async function generateAnalystDcfDemo(params: {
     apiKeys: getOpenAIKeyCandidates('user'),
   });
   const assumptions = mergeAssumptions(defaultAssumptions, aiPatch ?? {}, parsed.years);
+
+  let comparison: AnalystDcfComparisonPayload | null = null;
+  if (comparisonPair) {
+    const comparisonResolved = await hydrateResolvedCompany(comparisonPair.comparison);
+    const comparisonSnapshot = comparisonResolved.snapshot;
+    const comparisonBaseMetrics = buildBaseMetrics(comparisonSnapshot);
+    if (comparisonBaseMetrics.revenueLtm > 0) {
+      const comparisonAssumptions = buildDeterministicAssumptions(comparisonSnapshot, parsed);
+      const comparisonPayload = await buildAnalystDcfDemoFromPayload({
+        prompt: params.prompt,
+        ticker: comparisonResolved.ticker,
+        companyName: comparisonSnapshot.companyName || comparisonResolved.ticker,
+        sector: comparisonSnapshot.sector ?? null,
+        source: comparisonResolved.source,
+        asOfDate: comparisonResolved.asOfDate ?? comparisonSnapshot.updatedAt ?? null,
+        years: parsed.years,
+        baseMetrics: comparisonBaseMetrics,
+        assumptions: comparisonAssumptions,
+        warnings: [],
+        comparison: null,
+        includeMemo: false,
+      });
+
+      comparison = {
+        ticker: comparisonPayload.payload.ticker,
+        companyName: comparisonPayload.payload.companyName,
+        sector: comparisonPayload.payload.sector,
+        source: comparisonPayload.payload.source,
+        asOfDate: comparisonPayload.payload.asOfDate,
+        notes: comparisonPayload.payload.notes,
+        baseMetrics: comparisonPayload.payload.baseMetrics,
+        assumptions: comparisonPayload.payload.assumptions,
+        scenarios: comparisonPayload.payload.scenarios,
+      };
+    }
+  }
+
   return buildAnalystDcfDemoFromPayload({
     prompt: params.prompt,
     ticker: resolved.ticker,
@@ -977,5 +1278,6 @@ export async function generateAnalystDcfDemo(params: {
       ...(sharePrice === null ? ['Cached share price unavailable; upside/downside may be blank.'] : []),
       ...(sharesOutstanding === null ? ['Cached shares outstanding unavailable; implied share price may be blank.'] : []),
     ],
+    comparison,
   });
 }

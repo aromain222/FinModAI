@@ -42,6 +42,22 @@ function StatCard(props: { label: string; value: string; helper?: string }) {
   );
 }
 
+function ComparisonRow(props: { label: string; primary: string; comparison: string; primaryTicker: string; comparisonTicker: string }) {
+  return (
+    <div className="grid gap-2 border-t border-[var(--cb-border-subtle)] py-3 md:grid-cols-[1.2fr_1fr_1fr] md:items-center">
+      <div className="text-sm text-[var(--cb-text-muted)]">{props.label}</div>
+      <div>
+        <div className="text-[11px] uppercase tracking-wide text-[var(--cb-text-muted)]">{props.primaryTicker}</div>
+        <div className="text-sm font-medium text-[var(--cb-text-primary)]">{props.primary}</div>
+      </div>
+      <div>
+        <div className="text-[11px] uppercase tracking-wide text-[var(--cb-text-muted)]">{props.comparisonTicker}</div>
+        <div className="text-sm font-medium text-[var(--cb-text-primary)]">{props.comparison}</div>
+      </div>
+    </div>
+  );
+}
+
 export function AnalystDcfCard({ payload }: { payload: AnalystDcfDemoPayload }) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -136,6 +152,68 @@ export function AnalystDcfCard({ payload }: { payload: AnalystDcfDemoPayload }) 
             helper={`Bull ${fmtPrice(payload.scenarios.bull.pricePerShare)} | Bear ${fmtPrice(payload.scenarios.bear.pricePerShare)}`}
           />
         </div>
+
+        {payload.comparison && (
+          <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
+            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">
+              Comparison Summary
+            </div>
+            <div className="mb-4 text-sm text-[var(--cb-text-primary)]">
+              {payload.companyName} ({payload.ticker}) vs {payload.comparison.companyName} ({payload.comparison.ticker})
+            </div>
+            <div className="grid gap-2">
+              <ComparisonRow
+                label="Cached Price"
+                primary={fmtPrice(payload.baseMetrics.sharePrice)}
+                comparison={fmtPrice(payload.comparison.baseMetrics.sharePrice)}
+                primaryTicker={payload.ticker}
+                comparisonTicker={payload.comparison.ticker}
+              />
+              <ComparisonRow
+                label="Base Implied Value"
+                primary={fmtPrice(payload.scenarios.base.pricePerShare)}
+                comparison={fmtPrice(payload.comparison.scenarios.base.pricePerShare)}
+                primaryTicker={payload.ticker}
+                comparisonTicker={payload.comparison.ticker}
+              />
+              <ComparisonRow
+                label="Base Upside / Downside"
+                primary={fmtPct(payload.scenarios.base.upsidePct)}
+                comparison={fmtPct(payload.comparison.scenarios.base.upsidePct)}
+                primaryTicker={payload.ticker}
+                comparisonTicker={payload.comparison.ticker}
+              />
+              <ComparisonRow
+                label="Base Enterprise Value"
+                primary={fmtMillions(payload.scenarios.base.enterpriseValue)}
+                comparison={fmtMillions(payload.comparison.scenarios.base.enterpriseValue)}
+                primaryTicker={payload.ticker}
+                comparisonTicker={payload.comparison.ticker}
+              />
+              <ComparisonRow
+                label="Year 1 Revenue Growth"
+                primary={`${((payload.assumptions.revenueGrowth[0] ?? 0) * 100).toFixed(1)}%`}
+                comparison={`${((payload.comparison.assumptions.revenueGrowth[0] ?? 0) * 100).toFixed(1)}%`}
+                primaryTicker={payload.ticker}
+                comparisonTicker={payload.comparison.ticker}
+              />
+              <ComparisonRow
+                label="Year 1 EBIT Margin"
+                primary={`${((payload.assumptions.ebitMargin[0] ?? 0) * 100).toFixed(1)}%`}
+                comparison={`${((payload.comparison.assumptions.ebitMargin[0] ?? 0) * 100).toFixed(1)}%`}
+                primaryTicker={payload.ticker}
+                comparisonTicker={payload.comparison.ticker}
+              />
+              <ComparisonRow
+                label="WACC / Terminal g"
+                primary={`${(payload.assumptions.wacc * 100).toFixed(1)}% / ${(payload.assumptions.terminalGrowth * 100).toFixed(1)}%`}
+                comparison={`${(payload.comparison.assumptions.wacc * 100).toFixed(1)}% / ${(payload.comparison.assumptions.terminalGrowth * 100).toFixed(1)}%`}
+                primaryTicker={payload.ticker}
+                comparisonTicker={payload.comparison.ticker}
+              />
+            </div>
+          </div>
+        )}
 
         <div className="grid gap-4 lg:grid-cols-[1.8fr_1fr]">
           <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
