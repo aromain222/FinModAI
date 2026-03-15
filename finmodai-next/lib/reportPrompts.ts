@@ -373,6 +373,108 @@ const MODEL_MEMO_PURPOSE: Record<ReportModelType, string> = {
   'revenue-recognition-asc606': 'Write this as an accounting-policy memo focused on timing, deferred revenue, and how recognition policy changes comparability.',
 };
 
+const MODEL_DECISION_TO_MAKE: Record<ReportModelType, string> = {
+  dcf: 'Decision to make: whether intrinsic value versus the current price supports acting, waiting, or refining assumptions first.',
+  'reverse-dcf': 'Decision to make: whether current market pricing already embeds expectations that are too demanding or too conservative.',
+  lbo: 'Decision to make: whether the deal clears underwriting thresholds at an acceptable leverage and exit-risk profile.',
+  comps: 'Decision to make: where the company should trade relative to peers and whether the current multiple is misframed.',
+  precedents: 'Decision to make: whether precedent transactions actually support the control-value range being discussed.',
+  merger: 'Decision to make: whether strategic logic and financing support moving forward with the transaction.',
+  'ma-accretion-dilution': 'Decision to make: whether the transaction is truly accretive after financing, synergies, and execution risk.',
+  operating: 'Decision to make: whether the operating plan is credible enough to use for budgeting, target setting, or investor messaging.',
+  'three-statement': 'Decision to make: whether the integrated forecast is internally consistent enough to rely on for planning or valuation.',
+  scorecard: 'Decision to make: whether the company should advance to deeper work rather than how to value it precisely.',
+  'debt-capacity-lite': 'Decision to make: how much debt the business can prudently support and what constraint fails first.',
+  'cap-table': 'Decision to make: whether the proposed financing creates acceptable dilution, control, and ownership outcomes.',
+  'saas-operating-model': 'Decision to make: whether ARR growth quality and unit economics justify the operating plan.',
+  'dividend-discount-model': 'Decision to make: whether the payout stream supports current value and whether the dividend path is defensible.',
+  'residual-income-model': 'Decision to make: whether excess returns over the equity charge justify the current valuation frame.',
+  'debt-amortization-refi': 'Decision to make: whether the capital structure is manageable through maturity and refinancing windows.',
+  'buyback-eps-accretion': 'Decision to make: whether repurchases create real shareholder value or only optical accretion.',
+  'purchase-price-allocation': 'Decision to make: how transaction value should be allocated and what the post-close accounting burden will be.',
+  'working-capital-schedule': 'Decision to make: whether working-capital intensity supports the broader forecast and liquidity case.',
+  'ppe-depreciation-schedule': 'Decision to make: whether reinvestment and depreciation assumptions support the modeled cash profile.',
+  'runway-burn': 'Decision to make: when the company needs capital and what operational actions extend survival.',
+  'vc-returns-irr': 'Decision to make: whether the ownership and exit path clears the required venture return hurdle.',
+  'inventory-cogs': 'Decision to make: whether inventory policy supports margins and cash conversion without creating balance-sheet risk.',
+  'revenue-recognition-asc606': 'Decision to make: whether revenue timing assumptions are defensible and comparable across periods.',
+};
+
+const MODEL_RISK_LENS: Record<ReportModelType, string> = {
+  dcf: 'Risk lens: valuation sensitivity, terminal-value dependence, and whether the forecast is doing too much work.',
+  'reverse-dcf': 'Risk lens: stale pricing anchors, discount-rate sensitivity, and false precision in implied expectations.',
+  lbo: 'Risk lens: underwriting miss, deleveraging risk, and exit-multiple compression.',
+  comps: 'Risk lens: peer-set weakness, multiple regime shifts, and weak comparability.',
+  precedents: 'Risk lens: bad transaction selection, premium distortion, and cycle mismatch.',
+  merger: 'Risk lens: synergy slippage, financing drag, and integration failure.',
+  'ma-accretion-dilution': 'Risk lens: synergy slippage, financing drag, and accretion that disappears under realistic integration assumptions.',
+  operating: 'Risk lens: execution miss, expense drift, and weak cash conversion.',
+  'three-statement': 'Risk lens: working-capital miss, capex burden, and balance-sheet stress under downside assumptions.',
+  scorecard: 'Risk lens: incomplete screening inputs and false confidence from simplified scoring.',
+  'debt-capacity-lite': 'Risk lens: EBITDA quality, rate sensitivity, covenant pressure, and incomplete debt data.',
+  'cap-table': 'Risk lens: dilution surprises, option-pool creep, and control misreads.',
+  'saas-operating-model': 'Risk lens: churn understatement, CAC inflation, and ARR that fails to convert into durable cash flow.',
+  'dividend-discount-model': 'Risk lens: unstable payout policy and cost-of-equity sensitivity.',
+  'residual-income-model': 'Risk lens: weak opening equity base, ROE fade, and accounting distortions.',
+  'debt-amortization-refi': 'Risk lens: maturity walls, rate reset pressure, and liquidity shortfall.',
+  'buyback-eps-accretion': 'Risk lens: expensive buybacks, debt-funded optics, and weak opportunity cost discipline.',
+  'purchase-price-allocation': 'Risk lens: over-allocated goodwill, aggressive intangible assumptions, and post-close earnings drag.',
+  'working-capital-schedule': 'Risk lens: DSO/DIO/DPO miss, seasonality, and hidden liquidity drag.',
+  'ppe-depreciation-schedule': 'Risk lens: capex understatement, useful-life errors, and overstated cash conversion.',
+  'runway-burn': 'Risk lens: slower revenue, faster burn, and financing markets shutting sooner than planned.',
+  'vc-returns-irr': 'Risk lens: dilution creep, exit compression, and ownership assumptions that are too generous.',
+  'inventory-cogs': 'Risk lens: markdown risk, absorption miss, and inventory that traps cash.',
+  'revenue-recognition-asc606': 'Risk lens: timing distortion, poor comparability, and mistaken interpretation of accounting-driven growth.',
+};
+
+const MODEL_SECTION_ORDER: Record<ReportModelType, string> = {
+  dcf: 'Preferred section order: Model Overview -> What The Model Says -> Decision Framing -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  'reverse-dcf':
+    'Preferred section order: Model Overview -> What The Model Says -> Decision Framing -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  lbo: 'Preferred section order: Model Overview -> Decision Framing -> What The Model Says -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  comps: 'Preferred section order: Model Overview -> What The Model Says -> Decision Framing -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  precedents:
+    'Preferred section order: Model Overview -> What The Model Says -> Decision Framing -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  merger:
+    'Preferred section order: Model Overview -> Decision Framing -> What The Model Says -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  'ma-accretion-dilution':
+    'Preferred section order: Model Overview -> Decision Framing -> What The Model Says -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  operating:
+    'Preferred section order: Model Overview -> What The Model Says -> Interpretation -> Decision Framing -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  'three-statement':
+    'Preferred section order: Model Overview -> What The Model Says -> Interpretation -> Decision Framing -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  scorecard:
+    'Preferred section order: Model Overview -> What The Model Says -> Interpretation -> Decision Framing -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  'debt-capacity-lite':
+    'Preferred section order: Model Overview -> Decision Framing -> What The Model Says -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  'cap-table':
+    'Preferred section order: Model Overview -> What The Model Says -> Decision Framing -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  'saas-operating-model':
+    'Preferred section order: Model Overview -> What The Model Says -> Interpretation -> Decision Framing -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  'dividend-discount-model':
+    'Preferred section order: Model Overview -> What The Model Says -> Decision Framing -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  'residual-income-model':
+    'Preferred section order: Model Overview -> What The Model Says -> Decision Framing -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  'debt-amortization-refi':
+    'Preferred section order: Model Overview -> Decision Framing -> What The Model Says -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  'buyback-eps-accretion':
+    'Preferred section order: Model Overview -> Decision Framing -> What The Model Says -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  'purchase-price-allocation':
+    'Preferred section order: Model Overview -> Decision Framing -> What The Model Says -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  'working-capital-schedule':
+    'Preferred section order: Model Overview -> What The Model Says -> Interpretation -> Decision Framing -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  'ppe-depreciation-schedule':
+    'Preferred section order: Model Overview -> What The Model Says -> Interpretation -> Decision Framing -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  'runway-burn':
+    'Preferred section order: Model Overview -> Decision Framing -> What The Model Says -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  'vc-returns-irr':
+    'Preferred section order: Model Overview -> Decision Framing -> What The Model Says -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  'inventory-cogs':
+    'Preferred section order: Model Overview -> What The Model Says -> Interpretation -> Decision Framing -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  'revenue-recognition-asc606':
+    'Preferred section order: Model Overview -> What The Model Says -> Interpretation -> Decision Framing -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+};
+
 export function getReportWriterSystemPrompt(context: ReportContext): string {
   if (context.modelType === 'debt-capacity-lite') {
     return DEBT_CAPACITY_LITE_REPORT_WRITER_SYSTEM_PROMPT;
@@ -407,6 +509,9 @@ export function buildReportWriterUserPrompt(context: ReportContext): string {
     `Industry: ${context.industry || 'N/A'}`,
     `Model-Specific Guidance: ${MODEL_GUIDANCE[context.modelType]}`,
     `Memo Purpose: ${MODEL_MEMO_PURPOSE[context.modelType]}`,
+    `Decision To Make: ${MODEL_DECISION_TO_MAKE[context.modelType]}`,
+    `Risk Lens: ${MODEL_RISK_LENS[context.modelType]}`,
+    MODEL_SECTION_ORDER[context.modelType],
     `Meeting Objective: produce a report that can be dropped directly into an internal investor, management, or deal review without cleanup.`,
     `Key Outputs JSON: ${JSON.stringify(context.keyOutputs || {}, null, 2)}`,
     `Supporting Data JSON: ${JSON.stringify(context.data || {}, null, 2)}`,

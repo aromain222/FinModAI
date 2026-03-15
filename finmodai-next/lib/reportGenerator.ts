@@ -58,6 +58,212 @@ type AiReportResponse = {
   callouts?: unknown;
 };
 
+type NarrativeSectionId = 'decision' | 'risks' | 'next';
+
+type ModelNarrativeConfig = {
+  decisionTitle: string;
+  riskTitle: string;
+  nextTitle: string;
+  decisionToMake: string;
+  riskLens: string;
+  order: NarrativeSectionId[];
+};
+
+const MODEL_NARRATIVE_CONFIG: Record<ReportModelType, ModelNarrativeConfig> = {
+  dcf: {
+    decisionTitle: 'Valuation Framing',
+    riskTitle: 'Valuation Risks And Constraints',
+    nextTitle: 'Valuation Workplan',
+    decisionToMake: 'Decide whether intrinsic value versus the current price supports action or only a watch list stance.',
+    riskLens: 'Focus on discount-rate sensitivity, terminal-value concentration, and whether the forecast is doing too much work.',
+    order: ['decision', 'risks', 'next'],
+  },
+  'reverse-dcf': {
+    decisionTitle: 'Expectation Framing',
+    riskTitle: 'Expectation Risks And Constraints',
+    nextTitle: 'Expectation Workplan',
+    decisionToMake: 'Decide whether the market is already pricing in expectations that are too demanding or too conservative.',
+    riskLens: 'Focus on the price anchor, implied-growth sensitivity, and false precision from reverse-engineered assumptions.',
+    order: ['decision', 'risks', 'next'],
+  },
+  lbo: {
+    decisionTitle: 'Underwriting Framing',
+    riskTitle: 'Underwriting Risks',
+    nextTitle: 'Underwriting Workplan',
+    decisionToMake: 'Decide whether the deal clears return thresholds with enough downside protection.',
+    riskLens: 'Focus on entry valuation, deleveraging realism, cash conversion, and exit-multiple compression.',
+    order: ['decision', 'risks', 'next'],
+  },
+  comps: {
+    decisionTitle: 'Relative Valuation Framing',
+    riskTitle: 'Peer Set Risks',
+    nextTitle: 'Peer Workplan',
+    decisionToMake: 'Decide where the company should trade relative to peers and whether the current multiple is misframed.',
+    riskLens: 'Focus on peer-set quality, multiple regime change, and weak comparability.',
+    order: ['decision', 'risks', 'next'],
+  },
+  precedents: {
+    decisionTitle: 'Transaction Framing',
+    riskTitle: 'Precedent Risks',
+    nextTitle: 'Precedent Workplan',
+    decisionToMake: 'Decide whether precedent transactions genuinely support the control-value frame being discussed.',
+    riskLens: 'Focus on deal comparability, premium distortion, and cycle mismatch.',
+    order: ['decision', 'risks', 'next'],
+  },
+  merger: {
+    decisionTitle: 'Transaction Decision Framing',
+    riskTitle: 'Transaction Risks',
+    nextTitle: 'Transaction Workplan',
+    decisionToMake: 'Decide whether the transaction makes strategic and per-share sense after financing and execution risk.',
+    riskLens: 'Focus on synergy timing, financing drag, integration friction, and scenario fragility.',
+    order: ['decision', 'risks', 'next'],
+  },
+  'ma-accretion-dilution': {
+    decisionTitle: 'Accretion Decision Framing',
+    riskTitle: 'Accretion Risks',
+    nextTitle: 'Accretion Workplan',
+    decisionToMake: 'Decide whether accretion survives realistic financing and integration assumptions.',
+    riskLens: 'Focus on synergy slippage, financing mix, one-time costs, and whether accretion is only optical.',
+    order: ['decision', 'risks', 'next'],
+  },
+  operating: {
+    decisionTitle: 'Operating Plan Framing',
+    riskTitle: 'Execution Risks',
+    nextTitle: 'Operating Workplan',
+    decisionToMake: 'Decide whether the operating plan is credible enough to use for planning or investor communication.',
+    riskLens: 'Focus on revenue conversion, cost control, working-capital drift, and cash consequences.',
+    order: ['decision', 'risks', 'next'],
+  },
+  'three-statement': {
+    decisionTitle: 'Forecast Framing',
+    riskTitle: 'Forecast Risks',
+    nextTitle: 'Forecast Workplan',
+    decisionToMake: 'Decide whether the integrated forecast is internally consistent enough to rely on for valuation or planning.',
+    riskLens: 'Focus on cash conversion, working capital, capex burden, and balance-sheet stress.',
+    order: ['decision', 'risks', 'next'],
+  },
+  scorecard: {
+    decisionTitle: 'Screening Framing',
+    riskTitle: 'Screening Risks',
+    nextTitle: 'Screening Workplan',
+    decisionToMake: 'Decide whether the company merits deeper work rather than whether it is fully underwritten.',
+    riskLens: 'Focus on incomplete inputs, sector context, and the limits of rules-based screening.',
+    order: ['decision', 'risks', 'next'],
+  },
+  'debt-capacity-lite': {
+    decisionTitle: 'Financing Framing',
+    riskTitle: 'Financing Risks',
+    nextTitle: 'Financing Workplan',
+    decisionToMake: 'Decide how much debt the business can support and which constraint binds first.',
+    riskLens: 'Focus on EBITDA quality, borrowing cost sensitivity, covenant pressure, and missing debt inputs.',
+    order: ['decision', 'risks', 'next'],
+  },
+  'cap-table': {
+    decisionTitle: 'Dilution Framing',
+    riskTitle: 'Ownership Risks',
+    nextTitle: 'Capital Structure Workplan',
+    decisionToMake: 'Decide whether the financing structure creates acceptable dilution and control outcomes.',
+    riskLens: 'Focus on valuation sensitivity, option-pool changes, and hidden control effects.',
+    order: ['decision', 'risks', 'next'],
+  },
+  'saas-operating-model': {
+    decisionTitle: 'ARR Quality Framing',
+    riskTitle: 'Unit-Economic Risks',
+    nextTitle: 'KPI Workplan',
+    decisionToMake: 'Decide whether recurring-revenue quality and unit economics support the plan.',
+    riskLens: 'Focus on churn, CAC inflation, margin durability, and cash burn hidden beneath ARR growth.',
+    order: ['decision', 'risks', 'next'],
+  },
+  'dividend-discount-model': {
+    decisionTitle: 'Payout Valuation Framing',
+    riskTitle: 'Payout Risks',
+    nextTitle: 'Payout Workplan',
+    decisionToMake: 'Decide whether the payout stream supports current value under a defensible dividend path.',
+    riskLens: 'Focus on payout durability, cost of equity, and terminal-growth sensitivity.',
+    order: ['decision', 'risks', 'next'],
+  },
+  'residual-income-model': {
+    decisionTitle: 'Franchise Return Framing',
+    riskTitle: 'Residual Income Risks',
+    nextTitle: 'Residual Income Workplan',
+    decisionToMake: 'Decide whether excess returns above the equity charge justify the valuation frame.',
+    riskLens: 'Focus on opening book value, ROE fade, and accounting distortions.',
+    order: ['decision', 'risks', 'next'],
+  },
+  'debt-amortization-refi': {
+    decisionTitle: 'Capital Structure Framing',
+    riskTitle: 'Refinancing Risks',
+    nextTitle: 'Refinancing Workplan',
+    decisionToMake: 'Decide whether the debt stack can be managed through maturity and refinancing windows.',
+    riskLens: 'Focus on maturity walls, rate resets, liquidity drawdown, and refinancing feasibility.',
+    order: ['decision', 'risks', 'next'],
+  },
+  'buyback-eps-accretion': {
+    decisionTitle: 'Capital Allocation Framing',
+    riskTitle: 'Repurchase Risks',
+    nextTitle: 'Capital Allocation Workplan',
+    decisionToMake: 'Decide whether repurchases create real value rather than only EPS optics.',
+    riskLens: 'Focus on repurchase price, financing cost, leverage effects, and opportunity cost.',
+    order: ['decision', 'risks', 'next'],
+  },
+  'purchase-price-allocation': {
+    decisionTitle: 'Purchase Accounting Framing',
+    riskTitle: 'Accounting Risks',
+    nextTitle: 'Purchase Accounting Workplan',
+    decisionToMake: 'Decide whether the proposed allocation creates acceptable post-close accounting consequences.',
+    riskLens: 'Focus on goodwill reliance, intangible valuation, deferred taxes, and amortization drag.',
+    order: ['decision', 'risks', 'next'],
+  },
+  'working-capital-schedule': {
+    decisionTitle: 'Cash Conversion Framing',
+    riskTitle: 'Working Capital Risks',
+    nextTitle: 'Cash Conversion Workplan',
+    decisionToMake: 'Decide whether working-capital intensity supports the broader liquidity and forecast case.',
+    riskLens: 'Focus on DSO, DIO, DPO, seasonality, and hidden cash drag.',
+    order: ['decision', 'risks', 'next'],
+  },
+  'ppe-depreciation-schedule': {
+    decisionTitle: 'Reinvestment Framing',
+    riskTitle: 'Reinvestment Risks',
+    nextTitle: 'Reinvestment Workplan',
+    decisionToMake: 'Decide whether capex and depreciation assumptions support the modeled cash profile.',
+    riskLens: 'Focus on capex understatement, useful-life errors, and distorted cash conversion.',
+    order: ['decision', 'risks', 'next'],
+  },
+  'runway-burn': {
+    decisionTitle: 'Liquidity Framing',
+    riskTitle: 'Runway Risks',
+    nextTitle: 'Liquidity Workplan',
+    decisionToMake: 'Decide when capital must be raised and what actions extend survival.',
+    riskLens: 'Focus on burn acceleration, slower revenue, and financing-window risk.',
+    order: ['decision', 'risks', 'next'],
+  },
+  'vc-returns-irr': {
+    decisionTitle: 'Return Framing',
+    riskTitle: 'Venture Return Risks',
+    nextTitle: 'Return Workplan',
+    decisionToMake: 'Decide whether ownership and exit assumptions clear the required venture hurdle.',
+    riskLens: 'Focus on dilution, exit compression, and ownership assumptions that are too generous.',
+    order: ['decision', 'risks', 'next'],
+  },
+  'inventory-cogs': {
+    decisionTitle: 'Operations Framing',
+    riskTitle: 'Inventory Risks',
+    nextTitle: 'Inventory Workplan',
+    decisionToMake: 'Decide whether inventory policy supports margins and cash conversion without creating balance-sheet risk.',
+    riskLens: 'Focus on turnover miss, markdown risk, and inventory that traps cash.',
+    order: ['decision', 'risks', 'next'],
+  },
+  'revenue-recognition-asc606': {
+    decisionTitle: 'Accounting Policy Framing',
+    riskTitle: 'Recognition Risks',
+    nextTitle: 'Recognition Workplan',
+    decisionToMake: 'Decide whether revenue timing assumptions are defensible and comparable across periods.',
+    riskLens: 'Focus on timing distortions, comparability risk, and confusing accounting effects with economic change.',
+    order: ['decision', 'risks', 'next'],
+  },
+};
+
 function formatModelLabel(modelType: string): string {
   return modelType
     .replace(/-/g, ' ')
@@ -410,39 +616,15 @@ function buildDecisionFramingSection(context: ReportContext): GeneratedReportSec
   const company = context.companyName || context.ticker || 'Company';
   const label = formatModelLabel(context.modelType);
   const summary = buildSummaryFallback(context);
-  const purposeByModel: Record<ReportModelType, string> = {
-    dcf: 'The purpose of this memo is to frame intrinsic value versus the current market anchor.',
-    'reverse-dcf': 'The purpose of this memo is to frame what expectations are already embedded in the current valuation.',
-    lbo: 'The purpose of this memo is to frame whether the deal can clear underwriting return thresholds.',
-    comps: 'The purpose of this memo is to frame where the company should trade relative to a peer set.',
-    precedents: 'The purpose of this memo is to frame control value and transaction precedent support.',
-    merger: 'The purpose of this memo is to frame whether the transaction makes strategic and per-share sense.',
-    'ma-accretion-dilution': 'The purpose of this memo is to frame whether the transaction is credibly accretive after execution risk.',
-    operating: 'The purpose of this memo is to frame plan quality and the operating path management must execute.',
-    'three-statement': 'The purpose of this memo is to frame forecast quality, cash conversion, and balance-sheet durability.',
-    scorecard: 'The purpose of this memo is to frame whether the company merits deeper work rather than to make a final call.',
-    'debt-capacity-lite': 'The purpose of this memo is to frame financing headroom and the constraint that binds first.',
-    'cap-table': 'The purpose of this memo is to frame dilution, control, and ownership outcomes.',
-    'saas-operating-model': 'The purpose of this memo is to frame recurring-revenue quality and unit-economic durability.',
-    'dividend-discount-model': 'The purpose of this memo is to frame whether the payout stream supports value.',
-    'residual-income-model': 'The purpose of this memo is to frame value creation through excess returns over the equity charge.',
-    'debt-amortization-refi': 'The purpose of this memo is to frame maturity management and refinance risk.',
-    'buyback-eps-accretion': 'The purpose of this memo is to frame whether repurchases create economic value or only optical accretion.',
-    'purchase-price-allocation': 'The purpose of this memo is to frame post-deal accounting consequences and balance-sheet allocation.',
-    'working-capital-schedule': 'The purpose of this memo is to frame cash conversion through working-capital intensity.',
-    'ppe-depreciation-schedule': 'The purpose of this memo is to frame reinvestment burden and depreciation drag.',
-    'runway-burn': 'The purpose of this memo is to frame survival horizon and funding urgency.',
-    'vc-returns-irr': 'The purpose of this memo is to frame whether exit outcomes support target venture returns.',
-    'inventory-cogs': 'The purpose of this memo is to frame inventory policy, margin absorption, and cash drag risk.',
-    'revenue-recognition-asc606': 'The purpose of this memo is to frame accounting timing and comparability implications.',
-  };
+  const config = MODEL_NARRATIVE_CONFIG[context.modelType];
 
   return {
-    title: 'Decision Framing',
+    title: config.decisionTitle,
     body: buildBulletBody(
       [
         summary,
-        purposeByModel[context.modelType],
+        config.decisionToMake,
+        config.riskLens,
         `${label} should be used as a decision framework for ${company}, not as a substitute for judgment on source data quality and assumption realism.`,
       ],
       `${label} should be used as a decision framework, not a single-point answer.`
@@ -452,6 +634,7 @@ function buildDecisionFramingSection(context: ReportContext): GeneratedReportSec
 
 function buildRiskConstraintSection(context: ReportContext): GeneratedReportSection {
   const explicitRisks = context.risks?.trim();
+  const config = MODEL_NARRATIVE_CONFIG[context.modelType];
   const genericByModel: Record<ReportModelType, string[]> = {
     dcf: [
       'Valuation can move materially with small changes in WACC, terminal growth, or steady-state margin assumptions.',
@@ -552,15 +735,16 @@ function buildRiskConstraintSection(context: ReportContext): GeneratedReportSect
   };
 
   return {
-    title: 'Risks And Constraints',
+    title: config.riskTitle,
     body: buildBulletBody(
-      [explicitRisks, ...(genericByModel[context.modelType] ?? [])],
+      [config.riskLens, explicitRisks, ...(genericByModel[context.modelType] ?? [])],
       'Model conclusions remain sensitive to input quality and assumption realism.'
     ),
   };
 }
 
 function buildNextStepsSection(context: ReportContext): GeneratedReportSection {
+  const config = MODEL_NARRATIVE_CONFIG[context.modelType];
   const nextByModel: Record<ReportModelType, string[]> = {
     dcf: [
       'Re-run the valuation with a tighter WACC and terminal-growth sensitivity table.',
@@ -685,7 +869,7 @@ function buildNextStepsSection(context: ReportContext): GeneratedReportSection {
   };
 
   return {
-    title: 'Recommended Next Steps',
+    title: config.nextTitle,
     body: nextByModel[context.modelType]
       .map((item, idx) => `${idx + 1}. ${item}`)
       .join('\n'),
@@ -1219,16 +1403,15 @@ function buildSections(context: ReportContext): GeneratedReportSection[] {
       ];
     }
   })();
-
-  if (context.modelType === 'debt-capacity-lite') {
-    return primarySections;
-  }
+  const narrativeSections: Record<NarrativeSectionId, GeneratedReportSection> = {
+    decision: buildDecisionFramingSection(context),
+    risks: buildRiskConstraintSection(context),
+    next: buildNextStepsSection(context),
+  };
 
   return [
     ...primarySections,
-    buildDecisionFramingSection(context),
-    buildRiskConstraintSection(context),
-    buildNextStepsSection(context),
+    ...MODEL_NARRATIVE_CONFIG[context.modelType].order.map((sectionId) => narrativeSections[sectionId]),
   ];
 }
 
