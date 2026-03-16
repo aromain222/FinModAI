@@ -12,7 +12,6 @@ import {
   TrendingDown,
   Eye,
   Newspaper,
-  BrainCircuit,
   ArrowUpRight,
   ArrowDownRight,
   Minus,
@@ -296,6 +295,14 @@ type MacroStructuredSection = {
   content: string;
 };
 
+type CompactImpactView = {
+  summary: string;
+  whyItMatters: string;
+  marketImpact: string[];
+  timeHorizon: string | null;
+  watchItems: string[];
+};
+
 const STRUCTURED_LABELS = [
   'EVENT',
   'SUMMARY',
@@ -378,20 +385,11 @@ function parseMacroStructuredAnalysis(raw: string | null | undefined): MacroStru
   if (!text) return null;
 
   const labels = [
-    { label: 'EVENT', aliases: ['EVENT', 'INVESTOR TAKEAWAY', 'MACRO EVENT'] },
-    { label: 'WHY IT MATTERS', aliases: ['WHY IT MATTERS', 'SUMMARY', 'DRIVERS'] },
-    { label: 'TRANSMISSION PATH', aliases: ['TRANSMISSION PATH', 'MARKET LOGIC', 'WHY MARKETS CARE'] },
-    { label: 'PREDICTION', aliases: ['PREDICTION', 'MARKET IMPACT', 'MARKET REACTION FRAMEWORK'] },
-    { label: 'HORIZON', aliases: ['HORIZON'] },
-    { label: 'CONFIDENCE', aliases: ['CONFIDENCE'] },
-    { label: 'BASE CASE', aliases: ['BASE CASE'] },
-    { label: 'BULL CASE', aliases: ['BULL CASE'] },
-    { label: 'BEAR CASE', aliases: ['BEAR CASE'] },
-    { label: 'SECTOR IMPACT', aliases: ['SECTOR IMPACT', 'WINNERS', 'LOSERS'] },
-    { label: 'TICKERS TO WATCH', aliases: ['TICKERS TO WATCH', 'ASSETS TO WATCH', 'TICKERS / ASSETS TO WATCH', 'TICKERS/ASSETS TO WATCH'] },
-    { label: 'MODEL IMPLICATIONS', aliases: ['MODEL IMPLICATIONS'] },
-    { label: 'WATCH NEXT', aliases: ['WATCH NEXT'] },
-    { label: 'SOURCES', aliases: ['SOURCES'] },
+    { label: 'SUMMARY', aliases: ['SUMMARY', 'EVENT', 'INVESTOR TAKEAWAY', 'MACRO EVENT'] },
+    { label: 'WHY IT MATTERS', aliases: ['WHY IT MATTERS', 'DRIVERS'] },
+    { label: 'MARKET IMPACT', aliases: ['MARKET IMPACT', 'PREDICTION', 'BASE CASE', 'SECTOR IMPACT', 'MODEL IMPLICATIONS'] },
+    { label: 'TIME HORIZON', aliases: ['TIME HORIZON', 'HORIZON', 'CONFIDENCE'] },
+    { label: 'WATCH ITEMS', aliases: ['WATCH ITEMS', 'WATCH NEXT', 'TICKERS TO WATCH', 'ASSETS TO WATCH', 'TICKERS / ASSETS TO WATCH', 'TICKERS/ASSETS TO WATCH'] },
   ] as const;
 
   const allAliases = labels.flatMap((item) => item.aliases);
@@ -430,11 +428,11 @@ function buildStructuredLead(text: string | null | undefined): string | null {
   if (!structured) return null;
 
   const getSection = (label: string) => structured.find((section) => section.label === label)?.content ?? null;
-  const event = structuredSectionParagraph(getSection('EVENT') ?? '', 1);
+  const summary = structuredSectionParagraph(getSection('SUMMARY') ?? getSection('EVENT') ?? '', 1);
   const why = structuredSectionParagraph(getSection('WHY IT MATTERS') ?? '', 2);
-  const base = structuredSectionParagraph(getSection('BASE CASE') ?? '', 1);
+  const impact = structuredSectionParagraph(getSection('MARKET IMPACT') ?? getSection('BASE CASE') ?? '', 1);
 
-  const parts = [event, why, base]
+  const parts = [summary, why, impact]
     .filter((part): part is string => Boolean(part))
     .map((part) => part.replace(/^That said,\s*/i, '').trim());
 
@@ -480,51 +478,55 @@ function toTickerSentence(items: Array<{ ticker: string; rationale?: string }>, 
   return normalized.join(', ');
 }
 
-function buildPanelBullets(enrichment: HeadlineEnrichment): {
-  tldr: string[];
-  bull: string[];
-  bear: string[];
-  soWhat: string;
-  watchList: string[];
-  horizon: string | null;
-  confidence: string | null;
-} {
+function buildCompactImpactView(enrichment: HeadlineEnrichment): CompactImpactView {
   const structured = parseMacroStructuredAnalysis(enrichment.why_it_matters);
   if (structured) {
     const getSection = (label: string) => structured.find((section) => section.label === label)?.content ?? null;
-    const tldr = [
-      structuredSectionParagraph(getSection('EVENT') ?? '', 1),
-      structuredSectionParagraph(getSection('WHY IT MATTERS') ?? '', 2),
-      structuredSectionParagraph(getSection('TRANSMISSION PATH') ?? '', 1),
-    ].filter((item): item is string => Boolean(item));
-    const bull = structuredSectionLines(getSection('BULL CASE') ?? '').map((item) => sentenceCase(item));
-    const bear = structuredSectionLines(getSection('BEAR CASE') ?? '').map((item) => sentenceCase(item));
-    const watchNext = structuredSectionLines(getSection('WATCH NEXT') ?? '').map((item) => sentenceCase(item));
-    const modelImplications = structuredSectionLines(getSection('MODEL IMPLICATIONS') ?? '').map((item) => sentenceCase(item));
+    const summary =
+      structuredSectionParagraph(getSection('SUMMARY') ?? getSection('EVENT') ?? '', 2) ??
+      buildAnalysisLead(enrichment);
+    const whyItMatters =
+      structuredSectionParagraph(getSection('WHY IT MATTERS') ?? '', 3) ??
+      buildAnalysisLead(enrichment);
+    const marketImpact = structuredSectionLines(getSection('MARKET IMPACT') ?? '')
+      .concat(structuredSectionLines(getSection('BASE CASE') ?? ''))
+      .map((item) => sentenceCase(item))
+      .filter(Boolean)
+      .slice(0, 4);
+    const watchItems = structuredSectionLines(getSection('WATCH ITEMS') ?? '')
+      .concat(structuredSectionLines(getSection('WATCH NEXT') ?? ''))
+      .concat(structuredSectionLines(getSection('TICKERS TO WATCH') ?? ''))
+      .map((item) => sentenceCase(item))
+      .filter(Boolean)
+      .slice(0, 4);
     return {
-      tldr: tldr.length > 0 ? tldr : [buildAnalysisLead(enrichment)],
-      bull,
-      bear,
-      soWhat:
-        modelImplications[0] ??
-        structuredSectionParagraph(getSection('BASE CASE') ?? '', 1) ??
-        buildAnalysisLead(enrichment),
-      watchList: watchNext,
-      horizon: structuredSectionParagraph(getSection('HORIZON') ?? '', 1),
-      confidence: structuredSectionParagraph(getSection('CONFIDENCE') ?? '', 1),
+      summary,
+      whyItMatters,
+      marketImpact,
+      timeHorizon:
+        structuredSectionParagraph(getSection('TIME HORIZON') ?? getSection('HORIZON') ?? '', 1) ??
+        (structuredSectionParagraph(getSection('CONFIDENCE') ?? '', 1)
+          ? `Confidence ${structuredSectionParagraph(getSection('CONFIDENCE') ?? '', 1)?.toLowerCase()}`
+          : null),
+      watchItems,
     };
   }
 
   const parsed = parseMarketImpactSections(enrichment.why_it_matters);
-  const fallbackTldr = [buildAnalysisLead(enrichment)];
   return {
-    tldr: parsed?.summary.length ? parsed.summary.map((item) => sentenceCase(item)).slice(0, 3) : fallbackTldr,
-    bull: parsed?.winners.length ? parsed.winners.map((item) => sentenceCase(item)).slice(0, 3) : [],
-    bear: parsed?.losers.length ? parsed.losers.map((item) => sentenceCase(item)).slice(0, 3) : [],
-    soWhat: parsed ? formatPlainNarrative(parsed.fallback, 2) : buildAnalysisLead(enrichment),
-    watchList: parsed?.watchItems.map((item) => sentenceCase(item)).slice(0, 3) ?? [],
-    horizon: null,
-    confidence: null,
+    summary: buildAnalysisLead(enrichment),
+    whyItMatters: parsed ? formatPlainNarrative(parsed.fallback, 2) : buildAnalysisLead(enrichment),
+    marketImpact: parsed
+      ? [
+          ...parsed.assetImpacts.flatMap((group) =>
+            group.bullets.slice(0, 1).map((bullet) => `${group.asset}: ${sentenceCase(bullet)}`)
+          ),
+          ...(parsed.winners.slice(0, 1).map((item) => `Beneficiaries: ${sentenceCase(item)}`)),
+          ...(parsed.losers.slice(0, 1).map((item) => `Pressure points: ${sentenceCase(item)}`)),
+        ].slice(0, 4)
+      : [],
+    timeHorizon: null,
+    watchItems: parsed?.watchItems.map((item) => sentenceCase(item)).slice(0, 4) ?? [],
   };
 }
 
@@ -738,40 +740,35 @@ function MarketImpactBlock({ text }: { text: string }) {
   const structured = parseMacroStructuredAnalysis(text);
   if (structured) {
     const getSection = (label: string) => structured.find((section) => section.label === label)?.content ?? null;
-    const horizon = structuredSectionParagraph(getSection('HORIZON') ?? '', 1);
-    const confidence = structuredSectionParagraph(getSection('CONFIDENCE') ?? '', 1);
-    const event = structuredSectionParagraph(getSection('EVENT') ?? '', 2);
+    const summary = structuredSectionParagraph(getSection('SUMMARY') ?? getSection('EVENT') ?? '', 2);
     const whyItMatters = structuredSectionParagraph(getSection('WHY IT MATTERS') ?? '', 3);
-    const transmission = structuredSectionParagraph(getSection('TRANSMISSION PATH') ?? '', 2);
-    const baseCase = structuredSectionLines(getSection('BASE CASE') ?? '');
-    const bullCase = structuredSectionLines(getSection('BULL CASE') ?? '');
-    const bearCase = structuredSectionLines(getSection('BEAR CASE') ?? '');
-    const sectorImpact = structuredSectionLines(getSection('SECTOR IMPACT') ?? '');
-    const tickersToWatch = structuredSectionLines(getSection('TICKERS TO WATCH') ?? '');
-    const modelImplications = structuredSectionLines(getSection('MODEL IMPLICATIONS') ?? '');
-    const watchNext = structuredSectionLines(getSection('WATCH NEXT') ?? '');
+    const marketImpact = (
+      structuredSectionLines(getSection('MARKET IMPACT') ?? '')
+        .concat(structuredSectionLines(getSection('BASE CASE') ?? ''))
+        .concat(structuredSectionLines(getSection('SECTOR IMPACT') ?? ''))
+        .concat(structuredSectionLines(getSection('MODEL IMPLICATIONS') ?? ''))
+    )
+      .map((item) => sentenceCase(item))
+      .filter(Boolean)
+      .slice(0, 5);
+    const timeHorizon =
+      structuredSectionParagraph(getSection('TIME HORIZON') ?? getSection('HORIZON') ?? '', 1) ??
+      structuredSectionParagraph(getSection('CONFIDENCE') ?? '', 1);
+    const watchItems = (
+      structuredSectionLines(getSection('WATCH ITEMS') ?? '')
+        .concat(structuredSectionLines(getSection('WATCH NEXT') ?? ''))
+        .concat(structuredSectionLines(getSection('TICKERS TO WATCH') ?? ''))
+    )
+      .map((item) => sentenceCase(item))
+      .filter(Boolean)
+      .slice(0, 5);
 
     return (
       <div className="space-y-4">
-        {(horizon || confidence) && (
-          <div className="flex flex-wrap gap-2">
-            {horizon && (
-              <div className="rounded-full border border-zinc-800/50 bg-zinc-900/50 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-300">
-                Horizon <span className="ml-1 text-zinc-100 normal-case tracking-normal">{horizon}</span>
-              </div>
-            )}
-            {confidence && (
-              <div className="rounded-full border border-zinc-800/50 bg-zinc-900/50 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-300">
-                Confidence <span className="ml-1 text-zinc-100 normal-case tracking-normal">{confidence}</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {event && (
+        {summary && (
           <div>
-            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Event</div>
-            <p className="text-[13px] leading-relaxed text-zinc-200">{event}</p>
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Summary</div>
+            <p className="text-[13px] leading-relaxed text-zinc-200">{summary}</p>
           </div>
         )}
 
@@ -782,67 +779,24 @@ function MarketImpactBlock({ text }: { text: string }) {
           </div>
         )}
 
-        {transmission && (
-          <div className="rounded-md border border-zinc-800/40 bg-zinc-900/30 px-3 py-2.5">
-            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Transmission Path</div>
-            <p className="text-[13px] leading-relaxed text-zinc-200">{transmission}</p>
+        {marketImpact.length > 0 && (
+          <div>
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Market Impact</div>
+            <BulletList items={marketImpact} />
           </div>
         )}
 
-        {(baseCase.length > 0 || bullCase.length > 0 || bearCase.length > 0) && (
-          <div className="grid gap-3 xl:grid-cols-3">
-            {baseCase.length > 0 && (
-              <div className="rounded-lg border border-zinc-800/40 bg-zinc-900/30 px-4 py-3">
-                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Base Case</div>
-                <BulletList items={baseCase.map((item) => sentenceCase(item))} />
-              </div>
-            )}
-            {bullCase.length > 0 && (
-              <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/6 px-4 py-3">
-                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-emerald-400">Bull Case</div>
-                <BulletList items={bullCase.map((item) => sentenceCase(item))} />
-              </div>
-            )}
-            {bearCase.length > 0 && (
-              <div className="rounded-lg border border-rose-500/20 bg-rose-500/6 px-4 py-3">
-                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-rose-400">Bear Case</div>
-                <BulletList items={bearCase.map((item) => sentenceCase(item))} />
-              </div>
-            )}
+        {timeHorizon && (
+          <div>
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Time Horizon</div>
+            <p className="text-[13px] leading-relaxed text-zinc-300">{sentenceCase(timeHorizon)}</p>
           </div>
         )}
 
-        {(sectorImpact.length > 0 || tickersToWatch.length > 0) && (
-          <div className="grid gap-3 xl:grid-cols-2">
-            {sectorImpact.length > 0 && (
-              <div className="rounded-lg border border-zinc-800/40 bg-zinc-900/25 px-4 py-3">
-                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Sector Impact</div>
-                <BulletList items={sectorImpact.map((item) => sentenceCase(item))} />
-              </div>
-            )}
-            {tickersToWatch.length > 0 && (
-              <div className="rounded-lg border border-zinc-800/40 bg-zinc-900/25 px-4 py-3">
-                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Tickers To Watch</div>
-                <BulletList items={tickersToWatch.map((item) => sentenceCase(item))} />
-              </div>
-            )}
-          </div>
-        )}
-
-        {(modelImplications.length > 0 || watchNext.length > 0) && (
-          <div className="grid gap-3 xl:grid-cols-2">
-            {modelImplications.length > 0 && (
-              <div className="rounded-lg border border-zinc-800/40 bg-zinc-900/25 px-4 py-3">
-                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Model Implications</div>
-                <BulletList items={modelImplications.map((item) => sentenceCase(item))} />
-              </div>
-            )}
-            {watchNext.length > 0 && (
-              <div className="rounded-lg border border-zinc-800/40 bg-zinc-900/25 px-4 py-3">
-                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Watch Next</div>
-                <BulletList items={watchNext.map((item) => sentenceCase(item))} />
-              </div>
-            )}
+        {watchItems.length > 0 && (
+          <div>
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Watch Items</div>
+            <BulletList items={watchItems} />
           </div>
         )}
       </div>
@@ -986,80 +940,44 @@ export default function HeadlinesPanel({
       const summary = headline.description
         ? `${headline.title}. ${headline.description}`
         : headline.title;
-      const eventTitle = sentenceCase(headline.title || 'Macro development');
-      const whatHappened = sentenceCase(headline.description ?? 'A potentially market-relevant development was reported.');
       const whyMarketsCare = mentionsRates
-        ? 'Policy-rate expectations can quickly reprice yields, discount rates, and USD demand.'
+        ? 'This matters because policy-rate expectations can quickly reprice yields, discount rates, and USD demand.'
         : mentionsEnergy
-          ? 'Energy shocks can feed inflation expectations and shift margin and policy assumptions.'
+          ? 'This matters because energy shocks can feed inflation expectations and pressure margin assumptions across exposed sectors.'
           : mentionsFx
-            ? 'FX shifts can change imported inflation and multinational earnings translation.'
-            : 'The reaction depends on whether follow-up data confirms a material macro shift.';
+            ? 'This matters because FX moves can change imported inflation and multinational earnings translation.'
+            : 'This matters if follow-up reporting turns the headline into a real change in policy, earnings, or risk sentiment.';
       const marketImpact = mentionsRates
-        ? ['Equities: Rate-sensitive sectors may face valuation pressure.', 'Rates: Front-end yields likely react first.', 'FX: USD can strengthen with higher policy expectations.']
+        ? ['Rate-sensitive equities: mildly bearish if yields keep rising', 'Financials: relatively better if higher rates support net interest income', 'USD: relatively positive if policy expectations stay firm']
         : mentionsEnergy
-          ? ['Commodities: Energy benchmarks may remain bid.', 'Equities: Energy may outperform while input-cost-sensitive sectors lag.', 'Rates: Inflation pass-through can keep yields firmer.']
+          ? ['Energy producers: relatively positive if oil stays elevated', 'Consumer and transport names: mildly bearish if fuel costs stay high', 'Broad equities: selective pressure if inflation concerns broaden']
           : mentionsFx
-            ? ['FX: Dollar and major crosses can reprice quickly.', 'Equities: Exporters/importers may diverge on translation effects.', 'Credit: External funding conditions may tighten for weaker borrowers.']
-            : ['Equities: Reaction likely selective until confirmation.', 'Rates: Moves may fade without policy implications.'];
-      const watch = mentionsRates
-        ? 'TLT, XLF, SPY, DXY'
+            ? ['USD-sensitive multinationals: mixed on translation effects', 'Domestic earners: relatively better if FX volatility rises', 'Risk assets: selective reaction unless rates move with the currency signal']
+            : ['Most equities: limited immediate reaction unless the story broadens', 'Policy-sensitive sectors: first to move if follow-up reporting raises the stakes'];
+      const watchItems = mentionsRates
+        ? ['2Y Treasury yield', 'Fed funds futures', 'Management commentary on demand sensitivity']
         : mentionsEnergy
-          ? 'XLE, USO, SPY, TLT'
+          ? ['Oil price follow-through', 'Margin commentary from exposed sectors', 'Any policy or supply response']
           : mentionsFx
-            ? 'UUP, FXE, EFA, SPY'
-            : 'SPY, QQQ, TLT, DXY';
-      const winners = mentionsRates ? ['Financials', 'Cash-yield alternatives'] : mentionsEnergy ? ['Energy producers', 'Commodity-linked cyclicals'] : mentionsFx ? ['Domestic earners with limited FX exposure'] : ['Defensive sectors'];
-      const losers = mentionsRates ? ['Long-duration growth', 'Rate-sensitive real assets'] : mentionsEnergy ? ['Input-cost-sensitive consumer sectors'] : mentionsFx ? ['USD-sensitive multinationals'] : ['High-beta momentum trades'];
-      const horizon = mentionsRates ? 'Immediate' : mentionsEnergy || mentionsFx ? 'NearTerm' : 'NearTerm';
+            ? ['DXY follow-through', 'EURUSD / USDJPY reaction', 'Management guidance on FX impact']
+            : ['Size of the development', 'Whether follow-up reporting broadens the scope', 'Management response or regulator clarification'];
+      const horizon = mentionsRates ? 'Near-term reaction, confidence low.' : 'Near-term sentiment hit, confidence low.';
 
       const whyItMatters = [
-        'EVENT',
-        `- ${eventTitle}`,
+        'SUMMARY',
+        `- ${sentenceCase(headline.title || 'Market-relevant development reported')}`,
         '',
         'WHY IT MATTERS',
-        `- ${whatHappened}`,
-        '- This matters if it shifts policy, inflation, or risk-pricing expectations.',
+        `- ${whyMarketsCare}`,
         '',
-        'TRANSMISSION PATH',
-        '- Event -> macro expectations -> cross-asset repricing.',
-        '',
-        'PREDICTION',
-        '- Base case depends on whether follow-through data confirms a sustained repricing.',
-        '',
-        'HORIZON',
-        `- ${horizon === 'Immediate' ? 'Intraday' : '1W'}`,
-        '',
-        'CONFIDENCE',
-        '- Low',
-        '',
-        'BASE CASE',
+        'MARKET IMPACT',
         ...marketImpact.map((item) => `- ${item}`),
         '',
-        'BULL CASE',
-        '- Follow-up commentary narrows the concern and keeps the move contained.',
+        'TIME HORIZON',
+        `- ${horizon}`,
         '',
-        'BEAR CASE',
-        '- Confirmation broadens the repricing across exposed sectors and risk assets.',
-        '',
-        'SECTOR IMPACT',
-        `- Winners: ${winners.join(', ')}.`,
-        `- Losers: ${losers.join(', ')}.`,
-        '',
-        'TICKERS TO WATCH',
-        `- ${watch}`,
-        '',
-        'MODEL IMPLICATIONS',
-        `- Revenue: ${sentenceCase(whyMarketsCare)}`,
-        '- Margins: exposed sectors may face assumption resets if the signal persists.',
-        '- Multiples: crowded, rate-sensitive exposures are most vulnerable to compression.',
-        '',
-        'WATCH NEXT',
-        `- Catalysts: ${watch}.`,
-        '- Invalidation signals: follow-through fades or management narrows the interpretation.',
-        '',
-        'SOURCES',
-        '- No primary sources attached in this example.',
+        'WATCH ITEMS',
+        ...watchItems.map((item) => `- ${item}`),
       ].join('\n');
 
       return headlineEnrichmentSchema.parse({
@@ -1268,7 +1186,7 @@ export default function HeadlinesPanel({
               const risingSectors = enrichment?.impacted_sectors.filter((sector) => sector.direction === 'up') ?? [];
               const fallingSectors = enrichment?.impacted_sectors.filter((sector) => sector.direction === 'down') ?? [];
               const mixedSectors = enrichment?.impacted_sectors.filter((sector) => sector.direction === 'mixed') ?? [];
-              const smart = enrichment ? buildPanelBullets(enrichment) : null;
+              const compact = enrichment ? buildCompactImpactView(enrichment) : null;
 
               return (
                 <div
@@ -1346,18 +1264,21 @@ export default function HeadlinesPanel({
                       ) : enrichment ? (
                         <div className="space-y-4">
                           <div className="rounded-2xl border border-white/8 bg-[rgba(255,255,255,0.03)] p-4">
-                            <div className="mb-2 flex items-center justify-between gap-3">
-                              <SectionLabel icon={<BrainCircuit className="h-3.5 w-3.5" />} label="AI Analysis" />
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                                <Eye className="h-3.5 w-3.5" />
+                                Market Impact
+                              </div>
                               <div className="flex items-center gap-2">
-                                {smart?.horizon ? (
+                                {compact?.timeHorizon ? (
                                   <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-400">
-                                    {smart.horizon}
+                                    {compact.timeHorizon}
                                   </span>
                                 ) : null}
                                 <ConfidenceBadge level={enrichment.confidence ?? 'low'} />
                               </div>
                             </div>
-                            <p className="text-[15px] leading-7 text-zinc-100">{buildAnalysisLead(enrichment)}</p>
+                            <MarketImpactBlock text={enrichment.why_it_matters ?? enrichment.ai_summary ?? 'Additional context unavailable.'} />
                           </div>
 
                           {(risingSectors.length > 0 || fallingSectors.length > 0 || mixedSectors.length > 0) && (
@@ -1370,14 +1291,6 @@ export default function HeadlinesPanel({
                               </div>
                             </div>
                           )}
-
-                          <div className="rounded-2xl border border-white/8 bg-[rgba(255,255,255,0.03)] p-4">
-                            <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
-                              <Eye className="h-3.5 w-3.5" />
-                              Market Impact
-                            </div>
-                            <MarketImpactBlock text={enrichment.why_it_matters ?? enrichment.ai_summary ?? 'Additional context unavailable.'} />
-                          </div>
                         </div>
                       ) : (
                         <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-6 text-center">

@@ -17,8 +17,8 @@ Output rules:
 - Keep the analysis causally grounded and finance-native.
 - Distinguish between what happened and why markets should care.
 - Be explicit about the channel: growth, inflation, rates, FX, commodity, credit, regulation, or positioning.
-- Use concise bullet points and keep sections scannable for a dashboard.
-- Keep "why_it_matters" in a 200-250 word range and never above 250 words.
+- Use concise short sections and keep the output scannable for a dashboard.
+- Keep "why_it_matters" in a 90-140 word range and never above 140 words.
 - If the market relevance is weak, say so directly and lower confidence.
 - Do not speculate beyond what the headline supports.
 - Do not paraphrase the headline as analysis.
@@ -97,40 +97,24 @@ function clipWords(text: string, maxWords: number): string {
   return `${words.slice(0, maxWords).join(' ').replace(/[.,;:!?-]+$/g, '')}.`;
 }
 
-const MACRO_SECTION_ORDER = [
-  'EVENT',
-  'WHY IT MATTERS',
-  'TRANSMISSION PATH',
-  'PREDICTION',
-  'HORIZON',
-  'CONFIDENCE',
-  'BASE CASE',
-  'BULL CASE',
-  'BEAR CASE',
-  'SECTOR IMPACT',
-  'TICKERS TO WATCH',
-  'MODEL IMPLICATIONS',
-  'WATCH NEXT',
-  'SOURCES',
-] as const;
+const MACRO_SECTION_ORDER = ['SUMMARY', 'WHY IT MATTERS', 'MARKET IMPACT', 'TIME HORIZON', 'WATCH ITEMS'] as const;
 
 type MacroSectionLabel = (typeof MACRO_SECTION_ORDER)[number];
 
 const MACRO_SECTION_ALIASES: Record<MacroSectionLabel, string[]> = {
-  EVENT: ['EVENT', 'INVESTOR TAKEAWAY', 'MACRO EVENT'],
-  'WHY IT MATTERS': ['WHY IT MATTERS', 'SUMMARY', 'DRIVERS'],
-  'TRANSMISSION PATH': ['TRANSMISSION PATH', 'MARKET LOGIC', 'WHY MARKETS CARE'],
-  PREDICTION: ['PREDICTION', 'MARKET IMPACT', 'MARKET REACTION FRAMEWORK'],
-  HORIZON: ['HORIZON'],
-  CONFIDENCE: ['CONFIDENCE'],
-  'BASE CASE': ['BASE CASE'],
-  'BULL CASE': ['BULL CASE'],
-  'BEAR CASE': ['BEAR CASE'],
-  'SECTOR IMPACT': ['SECTOR IMPACT', 'WINNERS', 'LOSERS'],
-  'TICKERS TO WATCH': ['TICKERS TO WATCH', 'ASSETS TO WATCH', 'TICKERS / ASSETS TO WATCH', 'TICKERS/ASSETS TO WATCH'],
-  'MODEL IMPLICATIONS': ['MODEL IMPLICATIONS'],
-  'WATCH NEXT': ['WATCH NEXT'],
-  SOURCES: ['SOURCES'],
+  SUMMARY: ['SUMMARY', 'EVENT', 'INVESTOR TAKEAWAY', 'MACRO EVENT'],
+  'WHY IT MATTERS': ['WHY IT MATTERS', 'DRIVERS'],
+  'MARKET IMPACT': [
+    'MARKET IMPACT',
+    'PREDICTION',
+    'BASE CASE',
+    'BULL CASE',
+    'BEAR CASE',
+    'SECTOR IMPACT',
+    'MODEL IMPLICATIONS',
+  ],
+  'TIME HORIZON': ['TIME HORIZON', 'HORIZON', 'CONFIDENCE'],
+  'WATCH ITEMS': ['WATCH ITEMS', 'WATCH NEXT', 'TICKERS TO WATCH', 'ASSETS TO WATCH', 'TICKERS / ASSETS TO WATCH', 'TICKERS/ASSETS TO WATCH'],
 };
 
 function escapeRegExp(value: string): string {
@@ -158,6 +142,22 @@ function parseStructuredSections(text: string): Partial<Record<MacroSectionLabel
     if (matched) sections[label] = matched;
   }
   return sections;
+}
+
+function extractSectionByAliases(text: string, aliases: string[]): string | null {
+  const allLabels = Array.from(
+    new Set([...MACRO_SECTION_ORDER.flatMap((label) => MACRO_SECTION_ALIASES[label]), ...aliases])
+  );
+  const allPattern = allLabels.map((label) => escapeRegExp(label)).join('|');
+  for (const alias of aliases) {
+    const regex = new RegExp(
+      `(?:^|\\n)\\s*${escapeRegExp(alias)}\\s*:?\\s*([\\s\\S]*?)(?=(?:\\n\\s*(?:${allPattern})\\s*:?)|$)`,
+      'i'
+    );
+    const capture = text.match(regex)?.[1]?.trim();
+    if (capture) return capture;
+  }
+  return null;
 }
 
 function parseBulletItems(raw: string | null | undefined): string[] {
@@ -207,36 +207,18 @@ function limitStructuredAnalysisWords(text: string, maxWords = 250): string {
     return clipWords(text.replace(/\n+/g, ' '), maxWords);
   }
   const caps: Record<MacroSectionLabel, number> = {
-    EVENT: 18,
+    SUMMARY: 24,
     'WHY IT MATTERS': 34,
-    'TRANSMISSION PATH': 26,
-    PREDICTION: 18,
-    HORIZON: 6,
-    CONFIDENCE: 3,
-    'BASE CASE': 22,
-    'BULL CASE': 18,
-    'BEAR CASE': 18,
-    'SECTOR IMPACT': 22,
-    'TICKERS TO WATCH': 20,
-    'MODEL IMPLICATIONS': 24,
-    'WATCH NEXT': 18,
-    SOURCES: 10,
+    'MARKET IMPACT': 32,
+    'TIME HORIZON': 12,
+    'WATCH ITEMS': 26,
   };
   const clipped = formatStructuredAnalysis({
-    EVENT: [clipWords(parsed.EVENT ?? '', caps.EVENT)],
+    SUMMARY: [clipWords(parsed.SUMMARY ?? '', caps.SUMMARY)],
     'WHY IT MATTERS': [clipWords(parsed['WHY IT MATTERS'] ?? '', caps['WHY IT MATTERS'])],
-    'TRANSMISSION PATH': [clipWords(parsed['TRANSMISSION PATH'] ?? '', caps['TRANSMISSION PATH'])],
-    PREDICTION: [clipWords(parsed.PREDICTION ?? '', caps.PREDICTION)],
-    HORIZON: [clipWords(parsed.HORIZON ?? '', caps.HORIZON)],
-    CONFIDENCE: [clipWords(parsed.CONFIDENCE ?? '', caps.CONFIDENCE)],
-    'BASE CASE': [clipWords(parsed['BASE CASE'] ?? '', caps['BASE CASE'])],
-    'BULL CASE': [clipWords(parsed['BULL CASE'] ?? '', caps['BULL CASE'])],
-    'BEAR CASE': [clipWords(parsed['BEAR CASE'] ?? '', caps['BEAR CASE'])],
-    'SECTOR IMPACT': [clipWords(parsed['SECTOR IMPACT'] ?? '', caps['SECTOR IMPACT'])],
-    'TICKERS TO WATCH': [clipWords(parsed['TICKERS TO WATCH'] ?? '', caps['TICKERS TO WATCH'])],
-    'MODEL IMPLICATIONS': [clipWords(parsed['MODEL IMPLICATIONS'] ?? '', caps['MODEL IMPLICATIONS'])],
-    'WATCH NEXT': [clipWords(parsed['WATCH NEXT'] ?? '', caps['WATCH NEXT'])],
-    SOURCES: [clipWords(parsed.SOURCES ?? '', caps.SOURCES)],
+    'MARKET IMPACT': [clipWords(parsed['MARKET IMPACT'] ?? '', caps['MARKET IMPACT'])],
+    'TIME HORIZON': [clipWords(parsed['TIME HORIZON'] ?? '', caps['TIME HORIZON'])],
+    'WATCH ITEMS': [clipWords(parsed['WATCH ITEMS'] ?? '', caps['WATCH ITEMS'])],
   });
   if (wordCount(clipped) <= maxWords) return clipped;
   return clipWords(clipped.replace(/\n+/g, ' '), maxWords);
@@ -252,114 +234,84 @@ function ensureStructuredImpact(text: string | null, fallback: HeadlineEnrichmen
   const merged = `${text ?? ''}`.trim();
   const parsed = parseStructuredSections(merged);
   const fallbackParsed = parseStructuredSections(fallback.why_it_matters ?? '');
+  const legacySummary = extractSectionByAliases(merged, ['EVENT']);
+  const fallbackLegacySummary = extractSectionByAliases(fallback.why_it_matters ?? '', ['EVENT']);
   const baseSummarySentences = splitSentences(fallback.ai_summary ?? '');
-  const event =
-    parseBulletItems(parsed.EVENT ?? fallbackParsed.EVENT)[0] ??
+  const summary =
+    parseBulletItems(parsed.SUMMARY ?? legacySummary ?? fallbackParsed.SUMMARY ?? fallbackLegacySummary)[0] ??
     baseSummarySentences[0] ??
     'Macro development with cross-asset implications.';
   const whyItMatters = parseBulletItems(parsed['WHY IT MATTERS'] ?? fallbackParsed['WHY IT MATTERS']);
-  if (whyItMatters.length === 0 && baseSummarySentences.length > 0) {
-    whyItMatters.push(...baseSummarySentences.slice(0, 2));
+  if (whyItMatters.length === 0 && baseSummarySentences.length > 1) {
+    whyItMatters.push(baseSummarySentences[1]);
   }
-  if (whyItMatters.length < 2) {
-    whyItMatters.push('The update matters if it shifts policy, growth, or risk-pricing expectations.');
-  }
-
-  const transmissionPath = parseBulletItems(parsed['TRANSMISSION PATH'] ?? fallbackParsed['TRANSMISSION PATH']);
-  if (transmissionPath.length === 0) {
-    transmissionPath.push('Event → macro expectations → rates/FX repricing → sector and asset rotation.');
+  if (whyItMatters.length === 0) {
+    whyItMatters.push('This matters if it changes earnings durability, regulatory risk, or valuation assumptions.');
   }
 
-  const prediction = parseBulletItems(parsed.PREDICTION ?? fallbackParsed.PREDICTION);
-  if (prediction.length === 0) {
-    prediction.push('Base case depends on whether follow-through data confirms a lasting shift in macro expectations.');
-  }
-
-  const horizon = parseBulletItems(parsed.HORIZON ?? fallbackParsed.HORIZON);
-  if (horizon.length === 0) horizon.push('1W');
-
-  const confidence = parseBulletItems(parsed.CONFIDENCE ?? fallbackParsed.CONFIDENCE);
-  if (confidence.length === 0) confidence.push((fallback.confidence ?? 'medium').toUpperCase());
-
-  const baseCase = parseBulletItems(parsed['BASE CASE'] ?? fallbackParsed['BASE CASE']);
-  if (baseCase.length === 0) {
-    baseCase.push('The market reaction stays selective while investors revise the most exposed assumptions first.');
-  }
-
-  const bullCase = parseBulletItems(parsed['BULL CASE'] ?? fallbackParsed['BULL CASE']);
-  if (bullCase.length === 0) {
-    bullCase.push('Management and follow-up data narrow the concern, keeping the repricing contained.');
-  }
-
-  const bearCase = parseBulletItems(parsed['BEAR CASE'] ?? fallbackParsed['BEAR CASE']);
-  if (bearCase.length === 0) {
-    bearCase.push('Additional confirmation broadens estimate cuts and drives a sharper derating across exposed sectors.');
-  }
-
-  const sectorImpact = parseBulletItems(parsed['SECTOR IMPACT'] ?? fallbackParsed['SECTOR IMPACT']);
-  if (sectorImpact.length === 0) {
-    const fallbackWinners = fallback.impacted_sectors.filter((sector) => sector.direction === 'up').map((sector) => sector.sector);
-    const fallbackLosers = fallback.impacted_sectors.filter((sector) => sector.direction === 'down').map((sector) => sector.sector);
-    if (fallbackWinners.length > 0) sectorImpact.push(`Winners: ${fallbackWinners.slice(0, 3).join(', ')}.`);
-    if (fallbackLosers.length > 0) sectorImpact.push(`Losers: ${fallbackLosers.slice(0, 3).join(', ')}.`);
-    if (sectorImpact.length === 0) {
-      sectorImpact.push('Winners and losers depend on whether the event changes growth, inflation, or discount-rate assumptions.');
-    }
-  }
-
-  const tickersToWatch = parseBulletItems(parsed['TICKERS TO WATCH'] ?? fallbackParsed['TICKERS TO WATCH']);
-  if (tickersToWatch.length === 0) {
+  const marketImpact = parseBulletItems(
+    parsed['MARKET IMPACT'] ??
+      extractSectionByAliases(merged, ['PREDICTION', 'BASE CASE', 'SECTOR IMPACT', 'MODEL IMPLICATIONS']) ??
+      fallbackParsed['MARKET IMPACT'] ??
+      extractSectionByAliases(fallback.why_it_matters ?? '', ['PREDICTION', 'BASE CASE', 'SECTOR IMPACT', 'MODEL IMPLICATIONS'])
+  );
+  if (marketImpact.length === 0) {
     if (fallback.impacted_tickers.length > 0) {
-      tickersToWatch.push(
-        ...fallback.impacted_tickers
-          .slice(0, 4)
-          .map((item) => `${item.ticker} — ${item.rationale ?? 'Watch for market read-through.'}`)
+      marketImpact.push(
+        ...fallback.impacted_tickers.slice(0, 3).map((item) => {
+          const directionLabel =
+            item.direction === 'up' ? 'relatively positive' : item.direction === 'down' ? 'mildly bearish near term' : 'mixed';
+          return `${item.ticker}: ${directionLabel}${item.rationale ? `; ${item.rationale}` : ''}`;
+        })
+      );
+    } else if (fallback.impacted_sectors.length > 0) {
+      marketImpact.push(
+        ...fallback.impacted_sectors.slice(0, 3).map((item) => `${item.sector}: ${item.direction === 'up' ? 'relatively positive' : item.direction === 'down' ? 'sentiment negative' : 'mixed reaction likely'}`)
       );
     } else {
-      tickersToWatch.push('SPY — broad equity reaction.', 'TLT — rate sensitivity.', 'DXY — FX reaction.');
+      marketImpact.push('Immediate market reaction should stay selective unless the development forces a real change in policy, regulation, or earnings expectations.');
     }
   }
 
-  const modelImplications = parseBulletItems(parsed['MODEL IMPLICATIONS'] ?? fallbackParsed['MODEL IMPLICATIONS']);
-  if (modelImplications.length === 0) {
-    modelImplications.push('Revenue: exposed sectors may need lower near-term assumptions.');
-    modelImplications.push('Margins: utilization and mix can shift with demand expectations.');
-    modelImplications.push('Multiples: crowded or duration-sensitive names face the largest rerating risk.');
+  const timeHorizon = parseBulletItems(
+    parsed['TIME HORIZON'] ??
+      extractSectionByAliases(merged, ['HORIZON']) ??
+      fallbackParsed['TIME HORIZON'] ??
+      extractSectionByAliases(fallback.why_it_matters ?? '', ['HORIZON'])
+  );
+  const confidence = parseBulletItems(
+    extractSectionByAliases(merged, ['CONFIDENCE']) ??
+      extractSectionByAliases(fallback.why_it_matters ?? '', ['CONFIDENCE'])
+  );
+  if (timeHorizon.length === 0) {
+    timeHorizon.push(`Near-term sentiment hit; confidence ${fallback.confidence ?? 'medium'}`);
+  } else if (confidence.length > 0 && !timeHorizon[0].toLowerCase().includes('confidence')) {
+    timeHorizon[0] = `${timeHorizon[0]} | confidence ${confidence[0].toLowerCase()}`;
   }
 
-  const watch = parseBulletItems(parsed['WATCH NEXT'] ?? fallbackParsed['WATCH NEXT']);
-  if (watch.length === 0) {
-    watch.push(`Catalysts: ${
-      fallback.impacted_tickers.length > 0
-        ? fallback.impacted_tickers.slice(0, 5).map((item) => item.ticker).join(', ')
-        : 'SPY, QQQ, TLT, DXY'
-    }.`);
-    watch.push('Invalidation signals: follow-through data narrows the concern or management frames the change as timing-related.');
-  }
-
-  const sources = parseBulletItems(parsed.SOURCES ?? fallbackParsed.SOURCES);
-  if (sources.length === 0) {
-    sources.push('No primary sources attached in this example.');
+  const watchItems = parseBulletItems(
+    parsed['WATCH ITEMS'] ??
+      extractSectionByAliases(merged, ['WATCH NEXT', 'TICKERS TO WATCH']) ??
+      fallbackParsed['WATCH ITEMS'] ??
+      extractSectionByAliases(fallback.why_it_matters ?? '', ['WATCH NEXT', 'TICKERS TO WATCH'])
+  );
+  if (watchItems.length === 0) {
+    if (fallback.impacted_tickers.length > 0) {
+      watchItems.push(...fallback.impacted_tickers.slice(0, 4).map((item) => item.ticker));
+    } else {
+      watchItems.push('size of fine', 'required remedies', 'whether scope broadens');
+    }
   }
 
   return limitStructuredAnalysisWords(
     formatStructuredAnalysis({
-      EVENT: [event],
-      'WHY IT MATTERS': whyItMatters.slice(0, 3),
-      'TRANSMISSION PATH': transmissionPath.slice(0, 3),
-      PREDICTION: prediction.slice(0, 2),
-      HORIZON: horizon.slice(0, 1),
-      CONFIDENCE: confidence.slice(0, 1),
-      'BASE CASE': baseCase.slice(0, 2),
-      'BULL CASE': bullCase.slice(0, 2),
-      'BEAR CASE': bearCase.slice(0, 2),
-      'SECTOR IMPACT': sectorImpact.slice(0, 3),
-      'TICKERS TO WATCH': tickersToWatch.slice(0, 4),
-      'MODEL IMPLICATIONS': modelImplications.slice(0, 3),
-      'WATCH NEXT': watch.slice(0, 3),
-      SOURCES: sources.slice(0, 1),
+      SUMMARY: [summary],
+      'WHY IT MATTERS': whyItMatters.slice(0, 2),
+      'MARKET IMPACT': marketImpact.slice(0, 4),
+      'TIME HORIZON': timeHorizon.slice(0, 1),
+      'WATCH ITEMS': watchItems.slice(0, 4),
     }),
-    250
+    140
   );
 }
 
@@ -649,77 +601,48 @@ export function deterministicFallback(headline: {
       ...(theme.watch.length > 0 ? theme.watch.slice(0, 1) : ['TLT']),
     ])
   ).join(', ');
-  const transmissionFallback = lowRelevance || politicalProcessOnly
-    ? 'Event -> political/process uncertainty -> limited shift in policy expectations -> selective moves in rate-sensitive assets.'
-    : impact.bias === 'Neutral'
-    ? `Event → ${theme.channel} stays contained → limited cross-asset repricing → selective sector moves.`
-    : `Event → ${theme.channel} → rates/FX repricing → sector and style rotation.`;
-  const horizon = lowRelevance || politicalProcessOnly ? 'Immediate' : impact.bias === 'Neutral' ? 'Immediate' : 'NearTerm';
-  const displayedConfidence =
-    lowRelevance || politicalProcessOnly ? 'LOW' : ((impact.confidence || 'medium').toUpperCase());
-  const sectorImpactLines =
+  const horizon = lowRelevance || politicalProcessOnly ? 'near-term sentiment only' : 'near-term reaction, longer-term impact depends on scope';
+  const displayedConfidence = lowRelevance || politicalProcessOnly ? 'low' : (impact.confidence || 'medium');
+  const marketImpactLines =
     lowRelevance || politicalProcessOnly
       ? [
-          'Winners: No durable sector winner yet; any move should stay narrow and rate-sensitive.',
-          'Losers: Rate-sensitive groups can wobble if confirmation risk starts to affect policy-continuity expectations.',
+          'Immediate market impact appears limited unless follow-up reporting changes policy expectations directly.',
+          'Rate-sensitive groups would move first if the story broadens into a policy or credibility issue.',
         ]
-      : [
-          `Winners: ${(winnerSectors.length > 0 ? winnerSectors : ['Defensives']).join(', ')}.`,
-          `Losers: ${(loserSectors.length > 0 ? loserSectors : ['Rate-sensitive cyclicals']).join(', ')}.`,
-        ];
-  const tickersToWatchLine =
-    lowRelevance || politicalProcessOnly
-      ? 'JPM — Mixed; large banks react only if policy expectations materially shift. SCHW — Mixed; funding-sensitive financials move faster than the broad group. PLD — Negative if confirmation risk lifts yields and cap rates. MSFT — Mixed; duration-sensitive quality tech reacts only if rates actually reprice.'
-      : formattedImpactWatch || fallbackWatch || 'SPY, TLT, DXY';
-  const modelImplicationLines =
-    lowRelevance || politicalProcessOnly
-      ? [
-          'Revenue: No immediate estimate change unless policy expectations move.',
-          'WACC: Small upward pressure only if yields rise on confirmation risk.',
-          'Multiples: Rate-sensitive sectors would move first; broad model changes are premature.',
-        ]
-      : [
-          `Revenue: ${summaryLine}`,
-          `Margins: ${whyLine}`,
-          'Multiples: the most crowded or duration-sensitive exposures reprice first.',
-        ];
+      : formattedImpactWatch
+        ? formattedImpactWatch.split(/(?<=\.)\s+/).filter(Boolean).slice(0, 4)
+        : [
+            `${(winnerSectors[0] ?? 'Defensives')}: relatively positive if the move stays narrow.`,
+            `${(loserSectors[0] ?? 'Rate-sensitive cyclicals')}: more exposed if repricing broadens.`,
+          ];
   const watchNextLines =
     lowRelevance || politicalProcessOnly
-      ? [
-          'Catalysts: Senate whip count, White House guidance, Treasury yield reaction.',
-          'Invalidation signals: nomination path clears without changing policy expectations, or yields stay contained.',
-        ]
-      : [
-          `Catalysts: ${fallbackWatch || 'SPY, TLT, DXY'}.`,
-          'Invalidation signals: follow-through data fades or management narrows the interpretation.',
-        ];
+      ? ['policy follow-through', 'yield reaction', 'management response']
+      : Array.from(
+          new Set([
+            ...theme.watch.slice(0, 2),
+            ...(impact.affectedTickers.length > 0 ? impact.affectedTickers.slice(0, 2).map((item) => item.ticker) : []),
+          ])
+        );
 
   const structuredFallback = formatStructuredAnalysis({
-    EVENT: [eventLine],
+    SUMMARY: [summaryLine],
     'WHY IT MATTERS': [
       headline.description?.trim() && !isQuestionStyleTitle(headline.title)
         ? headline.description.trim()
         : `The market focus is ${theme.channel}, with the base case centered on ${theme.baseCase}.`,
       whyLine,
     ],
-    'TRANSMISSION PATH': [transmissionFallback],
-    PREDICTION: [`Scenario framing depends on whether follow-through pushes ${theme.channel} into a broader repricing.`],
-    HORIZON: [horizon === 'Immediate' ? 'Intraday' : '1W'],
-    CONFIDENCE: [displayedConfidence],
-    'BASE CASE': [
+    'MARKET IMPACT': [
       `Equities: ${stocksImpact}.`,
       `Rates: ${ratesImpact}.`,
       `FX: ${fxImpact}.`,
+      ...marketImpactLines,
     ],
-    'BULL CASE': ['Follow-up commentary narrows the concern and keeps the move contained.'],
-    'BEAR CASE': ['Confirmation broadens the repricing across sectors, estimates, and risk assets.'],
-    'SECTOR IMPACT': sectorImpactLines,
-    'TICKERS TO WATCH': [tickersToWatchLine],
-    'MODEL IMPLICATIONS': modelImplicationLines,
-    'WATCH NEXT': watchNextLines,
-    SOURCES: ['No primary sources attached in this example.'],
+    'TIME HORIZON': [`${horizon}; confidence ${displayedConfidence}.`],
+    'WATCH ITEMS': watchNextLines,
   });
-  const whyItMatters = limitStructuredAnalysisWords(structuredFallback, 250);
+  const whyItMatters = limitStructuredAnalysisWords(structuredFallback, 140);
 
   return headlineEnrichmentSchema.parse({
     ai_summary: aiSummary,
@@ -1076,23 +999,14 @@ Return JSON with these fields:
 
 "ai_summary": Concise plain-English summary in sentence form (no bullets, no markdown). Keep it brief, investor-focused, and include the core market angle.
 
-"why_it_matters": Use this section structure with bullet points:
-EVENT
+"why_it_matters": Use this exact compact section structure:
+SUMMARY
 WHY IT MATTERS
-TRANSMISSION PATH (format at least one bullet as: Event → economic effect → market reaction)
-PREDICTION
-HORIZON (Intraday | 1W | 1M)
-CONFIDENCE (Low | Medium | High)
-BASE CASE
-BULL CASE
-BEAR CASE
-SECTOR IMPACT
-TICKERS TO WATCH
-MODEL IMPLICATIONS
-WATCH NEXT
-SOURCES
+MARKET IMPACT
+TIME HORIZON
+WATCH ITEMS
 
-Hard requirement: keep "why_it_matters" between 200 and 250 words, and never above 250 words.
+Hard requirement: keep "why_it_matters" between 90 and 140 words, and never above 140 words.
 
 IMPORTANT:
 - Do NOT rewrite the article.
@@ -1100,11 +1014,10 @@ IMPORTANT:
 - Be decisive and avoid vague language.
 - Keep language concrete and causally grounded.
 - Avoid repeating the article headline.
-- If the headline is not truly market-moving, say that clearly in WHY IT MATTERS or BASE CASE and keep the implications narrow.
-- In TICKERS TO WATCH, include 1-line rationale for each ticker.
-- In MODEL IMPLICATIONS, mention only the relevant levers: revenue, margins, capex, WACC, or multiples.
-- In WATCH NEXT, include both catalysts and invalidation signals.
-- In SOURCES, cite only source names available from the headline context. If none are available, say so explicitly.
+- If the headline is not truly market-moving, say that clearly in WHY IT MATTERS and keep the implications narrow.
+- In MARKET IMPACT, list the exposed companies, sectors, or groups and the directional read-through in plain English.
+- In TIME HORIZON, state one bounded horizon and the confidence on the same line.
+- In WATCH ITEMS, list the specific datapoints, enforcement details, or follow-up signals that would change the view.
 
 "impacted_tickers": array of {ticker, direction, rationale}
 "impacted_sectors": array of {sector, direction, rationale}
