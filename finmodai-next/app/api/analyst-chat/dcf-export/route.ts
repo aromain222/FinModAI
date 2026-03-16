@@ -9,6 +9,8 @@ export const revalidate = 0;
 function isAnalystDcfPayload(value: unknown): value is AnalystDcfDemoPayload {
   if (!value || typeof value !== 'object') return false;
   const row = value as Record<string, unknown>;
+  const baseMetrics = row.baseMetrics as Record<string, unknown> | undefined;
+  const assumptions = row.assumptions as Record<string, unknown> | undefined;
   return (
     typeof row.prompt === 'string' &&
     typeof row.ticker === 'string' &&
@@ -18,7 +20,12 @@ function isAnalystDcfPayload(value: unknown): value is AnalystDcfDemoPayload {
     typeof row.baseMetrics === 'object' &&
     typeof row.assumptions === 'object' &&
     Array.isArray(row.forecast) &&
-    typeof row.scenarios === 'object'
+    typeof row.scenarios === 'object' &&
+    typeof baseMetrics?.revenueLtm === 'number' &&
+    Number.isFinite(baseMetrics.revenueLtm) &&
+    baseMetrics.revenueLtm > 0 &&
+    Array.isArray(assumptions?.revenueGrowth) &&
+    Array.isArray(assumptions?.ebitMargin)
   );
 }
 

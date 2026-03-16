@@ -1,7 +1,7 @@
 import type ExcelJS from 'exceljs';
 import type { AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 import { DcfSpecSchema, type DcfSpec } from '@/lib/modeling/dcfSpec';
-import { buildDcfWorkbook } from '@/lib/modeling/buildDcfWorkbook';
+import { buildDcfWorkbook, evaluateDcfSpec } from '@/lib/modeling/buildDcfWorkbook';
 import {
   mergeAndCenter,
   setupSheet,
@@ -30,6 +30,51 @@ function buildSensitivityAxis(base: number, deltas: number[], min: number, max: 
   return deltas
     .map((delta) => Number(Math.min(max, Math.max(min, base + delta)).toFixed(4)))
     .filter((value, index, array) => array.indexOf(value) === index);
+}
+
+function normalizeYears(payload: AnalystDcfDemoPayload): number {
+  const candidates = [
+    payload.years,
+    payload.forecast?.length,
+    payload.assumptions?.revenueGrowth?.length,
+    payload.assumptions?.ebitMargin?.length,
+  ].filter((value): value is number => Number.isInteger(value) && value > 0);
+  return Math.min(10, Math.max(3, candidates[0] ?? 5));
+}
+
+function normalizeSeries(series: number[] | null | undefined, years: number, fallback: number): number[] {
+  const cleaned = (series ?? []).filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+  if (cleaned.length >= years) return cleaned.slice(0, years);
+  const fill = cleaned[cleaned.length - 1] ?? fallback;
+  return [...cleaned, ...Array.from({ length: years - cleaned.length }, () => fill)];
+}
+
+function buildNormalizedPayload(payload: AnalystDcfDemoPayload): AnalystDcfDemoPayload {
+  const years = normalizeYears(payload);
+  const inferredMargin =
+    payload.baseMetrics.revenueLtm > 0 && payload.baseMetrics.ebitdaLtm > 0
+      ? Math.max(0.08, Math.min(0.4, payload.baseMetrics.ebitdaLtm / payload.baseMetrics.revenueLtm - safeNumber(payload.assumptions?.daPctRevenue, 0.03)))
+      : 0.2;
+
+  const normalizedAssumptions = {
+    revenueGrowth: normalizeSeries(payload.assumptions?.revenueGrowth, years, 0.06),
+    ebitMargin: normalizeSeries(payload.assumptions?.ebitMargin, years, inferredMargin),
+    taxRate: safeNumber(payload.assumptions?.taxRate, 0.21),
+    daPctRevenue: safeNumber(payload.assumptions?.daPctRevenue, 0.03),
+    capexPctRevenue: safeNumber(payload.assumptions?.capexPctRevenue, 0.04),
+    nwcPctRevenue: safeNumber(payload.assumptions?.nwcPctRevenue, 0.01),
+    wacc: safeNumber(payload.assumptions?.wacc, 0.095),
+    terminalGrowth: safeNumber(payload.assumptions?.terminalGrowth, 0.03),
+  };
+
+  const normalized: AnalystDcfDemoPayload = {
+    ...payload,
+    years,
+    assumptions: normalizedAssumptions,
+    forecast: Array.isArray(payload.forecast) ? payload.forecast.filter((row) => row && Number.isFinite(row.year)) : [],
+  };
+
+  return normalized;
 }
 
 function mapPayloadToSpec(payload: AnalystDcfDemoPayload): DcfSpec {
@@ -73,6 +118,20 @@ function mapPayloadToSpec(payload: AnalystDcfDemoPayload): DcfSpec {
       },
     },
   });
+}
+
+function ensureForecast(payload: AnalystDcfDemoPayload, spec: DcfSpec): AnalystDcfDemoPayload['forecast'] {
+  if (payload.forecast.length >= payload.years) {
+    return payload.forecast.slice(0, payload.years);
+  }
+
+  const evaluation = evaluateDcfSpec(spec);
+  return evaluation.revenue.map((revenue, index) => ({
+    year: spec.periods.start_year + index + 1,
+    revenue,
+    ebit: evaluation.ebit[index],
+    fcff: evaluation.fcff[index],
+  }));
 }
 
 function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystDcfDemoPayload) {
@@ -122,7 +181,7 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystDcfDemoP
   });
   styleThinGrid(sheet, 10, 13, 1, 6);
 
-  styleSectionHeader(sheet, 15, 'Base Metrics', 7);
+  styleSectionHeader(sheet, 15, 'Base Metrics', 3);
   styleTableHeader(sheet, 16, 1, 2);
   [
     ['LTM Revenue', payload.baseMetrics.revenueLtm, 'currency'],
@@ -141,7 +200,7 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystDcfDemoP
     styleFormula(sheet.getCell(`B${row}`), kind as 'currency' | 'number');
   });
 
-  styleSectionHeader(sheet, 15, 'Key Assumptions', 6);
+  styleSectionHeader(sheet, 15, 'Key Assumptions', 3);
   [
     ['WACC', payload.assumptions.wacc, 'percent'],
     ['Terminal Growth', payload.assumptions.terminalGrowth, 'percent'],
@@ -151,10 +210,10 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystDcfDemoP
     ['NWC % Revenue', payload.assumptions.nwcPctRevenue, 'percent'],
   ].forEach(([label, value, kind], index) => {
     const row = 17 + index;
-    sheet.getCell(`E${row}`).value = label;
-    sheet.getCell(`F${row}`).value = value;
-    styleLabel(sheet.getCell(`E${row}`));
-    styleFormula(sheet.getCell(`F${row}`), kind as 'percent');
+    sheet.getCell(`D${row}`).value = label;
+    sheet.getCell(`E${row}`).value = value;
+    styleLabel(sheet.getCell(`D${row}`));
+    styleFormula(sheet.getCell(`E${row}`), kind as 'percent');
   });
 
   styleSectionHeader(sheet, 26, 'Forecast Snapshot', 7);
@@ -210,8 +269,17 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystDcfDemoP
 }
 
 export async function buildAnalystDcfDemoWorkbook(payload: AnalystDcfDemoPayload): Promise<ExcelJS.Workbook> {
-  const workbook = await buildDcfWorkbook(mapPayloadToSpec(payload));
-  appendSummarySheet(workbook, payload);
+  const normalizedPayload = buildNormalizedPayload(payload);
+  if (!(normalizedPayload.baseMetrics.revenueLtm > 0)) {
+    throw new Error('DCF export failed because revenue is missing from the Analyst Chat payload.');
+  }
+
+  const spec = mapPayloadToSpec(normalizedPayload);
+  const workbook = await buildDcfWorkbook(spec);
+  appendSummarySheet(workbook, {
+    ...normalizedPayload,
+    forecast: ensureForecast(normalizedPayload, spec),
+  });
   return workbook;
 }
 
