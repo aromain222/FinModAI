@@ -85,33 +85,89 @@ function asSentence(value: string): string {
   return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
+function formatSeriesAsSentence(items: string[], fallback: string, maxItems = 3): string {
+  const cleaned = items
+    .map((item) => item.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .slice(0, maxItems);
+  if (cleaned.length === 0) return fallback;
+  if (cleaned.length === 1) return asSentence(cleaned[0]);
+  if (cleaned.length === 2) return asSentence(`${cleaned[0]} and ${cleaned[1]}`);
+  return asSentence(`${cleaned.slice(0, -1).join(', ')}, and ${cleaned[cleaned.length - 1]}`);
+}
+
+function cleanImpactText(value: string): string {
+  return value.replace(/\bTIME\b\.?/gi, '').replace(/\s+/g, ' ').trim();
+}
+
 function buildSummaryParagraph(event: MarketEvent): string {
-  const headline = shortSummary(event);
-  const secondary = event.drivers[1] ? asSentence(event.drivers[1]) : '';
+  const lead = asSentence(shortSummary(event));
+  const driverSummary = formatSeriesAsSentence(
+    event.drivers.slice(1),
+    'The event remains driven by the core catalyst outlined above.',
+    2
+  );
   const timing =
     event.horizon === 'Immediate'
-      ? 'The setup looks immediate and market-sensitive.'
+      ? 'The market is likely to treat this as an immediate tape driver rather than a background issue.'
       : event.horizon === 'NearTerm'
-        ? 'The setup looks most relevant over the next several weeks.'
-        : 'The setup looks more structural than purely tactical.';
+        ? 'The read-through looks most relevant over the next several weeks as investors test whether the initial signal broadens.'
+        : 'The setup looks more structural than purely tactical, with the market likely to focus on whether the theme persists beyond the first reaction.';
 
-  return [asSentence(headline), secondary, timing].filter(Boolean).join(' ');
+  return [lead, driverSummary, timing].filter(Boolean).join(' ');
+}
+
+function buildWhyItMattersParagraph(event: MarketEvent): string {
+  const pathLead = formatSeriesAsSentence(
+    event.transmissionPath,
+    'The key market question is whether this changes the earnings, policy, or liquidity backdrop in a way that deserves a repricing.',
+    2
+  );
+  const marketFields = MARKET_IMPACT_ORDER
+    .filter((key) => Boolean(event.marketImpact[key]) && key !== 'sectors')
+    .slice(0, 2)
+    .map((key) => `${formatImpactLabel(key)} exposure matters because ${cleanImpactText(String(event.marketImpact[key]))}`);
+
+  const fieldNarrative =
+    marketFields.length > 0
+      ? formatSeriesAsSentence(
+          marketFields,
+          'The significance depends on whether investors start revising assumptions for growth, inflation, policy, or cross-asset positioning.',
+          2
+        )
+      : 'The significance depends on whether investors start revising assumptions for growth, inflation, policy, or cross-asset positioning.';
+
+  return [pathLead, fieldNarrative].filter(Boolean).join(' ');
 }
 
 function buildMarketImpactParagraph(event: MarketEvent): string {
-  const firstPath = event.transmissionPath[0] ? asSentence(event.transmissionPath[0]) : '';
-  const impacts = MARKET_IMPACT_ORDER
+  const directEffects = MARKET_IMPACT_ORDER
     .filter((key) => Boolean(event.marketImpact[key]) && key !== 'sectors')
     .slice(0, 3)
-    .map((key) => `${formatImpactLabel(key)}: ${event.marketImpact[key]}`)
-    .join(' ');
+    .map((key) => `${formatImpactLabel(key)} is most exposed through ${cleanImpactText(String(event.marketImpact[key]))}`);
+  const directNarrative = formatSeriesAsSentence(
+    directEffects,
+    'Direct market effects are mixed and will depend on whether follow-through data confirms the initial move.',
+    3
+  );
 
-  return [firstPath, impacts ? asSentence(impacts) : ''].filter(Boolean).join(' ');
+  const horizonSentence =
+    event.horizon === 'Immediate'
+      ? 'In the near term, investors are likely to trade the first-order beneficiaries and losers before moving to second-order balance-sheet and valuation effects.'
+      : event.horizon === 'NearTerm'
+        ? 'The next leg of the move will likely depend on whether the theme starts changing earnings expectations, funding conditions, or policy language over the coming weeks.'
+        : 'The longer-duration question is whether this becomes embedded in forward estimates, discount rates, or capital allocation decisions rather than remaining a short-lived headline effect.';
+
+  return [directNarrative, horizonSentence].filter(Boolean).join(' ');
 }
 
 function buildImpactedSectorsParagraph(event: MarketEvent): string {
   if (event.marketImpact.sectors) {
-    return asSentence(event.marketImpact.sectors);
+    const cleaned = cleanImpactText(event.marketImpact.sectors);
+    return [
+      asSentence(cleaned),
+      'The most important distinction is between sectors with pricing power or direct exposure to the catalyst and sectors where higher costs, weaker demand, or tighter financing conditions compress expectations.'
+    ].join(' ');
   }
 
   const combined = `${event.title} ${event.drivers.join(' ')} ${event.transmissionPath.join(' ')}`.toLowerCase();
@@ -121,7 +177,9 @@ function buildImpactedSectorsParagraph(event: MarketEvent): string {
   if (/(rates|yield|bank|financial)/.test(combined)) sectors.push('Financials');
   if (/(chip|semi|ai|software|cloud)/.test(combined)) sectors.push('Technology');
   if (/(defense|military|aerospace)/.test(combined)) sectors.push('Defense and aerospace');
-  return sectors.length ? `Most exposed sectors include ${sectors.join(', ')}.` : 'Sector exposure is mixed and depends on follow-through in the underlying catalyst.';
+  return sectors.length
+    ? `Most exposed sectors include ${sectors.join(', ')}. The read-through is likely to be differentiated rather than market-wide, with relative winners driven by direct exposure to the catalyst and pressured groups driven by cost, demand, or discount-rate sensitivity.`
+    : 'Sector exposure is mixed and depends on follow-through in the underlying catalyst. The market is more likely to separate direct beneficiaries from second-order losers than to reprice every sector evenly.';
 }
 
 function InfoChip({
@@ -255,6 +313,7 @@ export default function EventDetailScreen({
     : event?.sources.find((source) => typeof source.imageUrl === 'string' && source.imageUrl.trim())?.imageUrl;
   const fallbackImage = getSpecificEventFallbackImage(event?.title, event?.eventType ?? 'Macro', 'hero');
   const summaryParagraph = event ? buildSummaryParagraph(event) : '';
+  const whyItMattersParagraph = event ? buildWhyItMattersParagraph(event) : '';
   const marketImpactParagraph = event ? buildMarketImpactParagraph(event) : '';
   const impactedSectorsParagraph = event ? buildImpactedSectorsParagraph(event) : '';
 
@@ -356,6 +415,11 @@ export default function EventDetailScreen({
               <div className="rounded-2xl border border-zinc-800/70 bg-zinc-900/40 px-4 py-4">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Summary</div>
                 <p className="mt-2 text-sm leading-7 text-zinc-200">{summaryParagraph}</p>
+              </div>
+
+              <div className="rounded-2xl border border-zinc-800/70 bg-zinc-900/35 px-4 py-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Why It Matters</div>
+                <p className="mt-2 text-sm leading-7 text-zinc-300">{whyItMattersParagraph}</p>
               </div>
 
               <div className="rounded-2xl border border-zinc-800/70 bg-zinc-900/30 px-4 py-4">
