@@ -3,8 +3,15 @@ import type { DcfSpec } from '@/lib/modeling/dcfSpec';
 
 type BaseCaseResult = {
   revenue: number[];
+  ebitMargin: number[];
   ebit: number[];
+  nopat: number[];
+  da: number[];
+  capex: number[];
+  deltaNwc: number[];
   fcff: number[];
+  discountFactors: number[];
+  pvFcff: number[];
   stagePv: number;
   terminalValue: number;
   pvTerminalValue: number;
@@ -82,7 +89,12 @@ function fmtMultiple(cell: ExcelJS.Cell): void {
 function computeBaseCase(spec: DcfSpec): BaseCaseResult {
   const years = spec.periods.years;
   const revenue: number[] = [];
+  const ebitMargin: number[] = [];
   const ebit: number[] = [];
+  const nopat: number[] = [];
+  const da: number[] = [];
+  const capex: number[] = [];
+  const deltaNwc: number[] = [];
   const fcff: number[] = [];
 
   let prevRevenue = spec.base_year.revenue;
@@ -90,19 +102,26 @@ function computeBaseCase(spec: DcfSpec): BaseCaseResult {
   for (let i = 0; i < years; i += 1) {
     const rev = prevRevenue * (1 + spec.forecast.revenue_growth[i]);
     const e = rev * spec.forecast.ebit_margin[i];
-    const da = rev * spec.forecast.da_pct_rev;
-    const capex = rev * spec.forecast.capex_pct_rev;
+    const nop = e * (1 - spec.forecast.tax_rate);
+    const dep = rev * spec.forecast.da_pct_rev;
+    const cap = rev * spec.forecast.capex_pct_rev;
     const dNwc = rev * spec.forecast.nwc_pct_rev;
-    const f = e * (1 - spec.forecast.tax_rate) + da - capex - dNwc;
+    const f = nop + dep - cap - dNwc;
 
     revenue.push(rev);
+    ebitMargin.push(spec.forecast.ebit_margin[i]);
     ebit.push(e);
+    nopat.push(nop);
+    da.push(dep);
+    capex.push(cap);
+    deltaNwc.push(dNwc);
     fcff.push(f);
     prevRevenue = rev;
   }
 
   const discountFactors = fcff.map((_, i) => 1 / Math.pow(1 + spec.valuation.wacc, i + 1));
-  const stagePv = fcff.reduce((acc, value, i) => acc + value * discountFactors[i], 0);
+  const pvFcff = fcff.map((value, i) => value * discountFactors[i]);
+  const stagePv = pvFcff.reduce((acc, value) => acc + value, 0);
 
   let terminalValue: number;
   if (spec.valuation.terminal.method === 'gordon') {
@@ -116,8 +135,15 @@ function computeBaseCase(spec: DcfSpec): BaseCaseResult {
 
   return {
     revenue,
+    ebitMargin,
     ebit,
+    nopat,
+    da,
+    capex,
+    deltaNwc,
     fcff,
+    discountFactors,
+    pvFcff,
     stagePv,
     terminalValue,
     pvTerminalValue,
@@ -236,7 +262,7 @@ function buildAssumptionsSheet(workbook: ExcelJS.Workbook, spec: DcfSpec): void 
   styleBodyGrid(sheet, 35, 35, 1, firstYearCol + Math.max(spec.outputs.sensitivity.wacc.length - 1, 0));
 }
 
-function buildForecastSheet(workbook: ExcelJS.Workbook, spec: DcfSpec): void {
+function buildForecastSheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCase: BaseCaseResult): void {
   const sheet = workbook.addWorksheet('Forecast');
   applySheetScaffold(sheet);
 
@@ -261,15 +287,21 @@ function buildForecastSheet(workbook: ExcelJS.Workbook, spec: DcfSpec): void {
     sheet.getCell(3, c).value = spec.periods.start_year + i + 1;
 
     if (i === 0) {
-      sheet.getCell(4, c).value = { formula: `=Assumptions!$B$10*(1+Assumptions!${cLetter}26)` };
+      sheet.getCell(4, c).value = {
+        formula: `Assumptions!$B$10*(1+Assumptions!${cLetter}26)`,
+        result: baseCase.revenue[i],
+      };
     } else {
-      sheet.getCell(4, c).value = { formula: `=${prevCLetter}4*(1+Assumptions!${cLetter}26)` };
+      sheet.getCell(4, c).value = {
+        formula: `${prevCLetter}4*(1+Assumptions!${cLetter}26)`,
+        result: baseCase.revenue[i],
+      };
     }
 
-    sheet.getCell(5, c).value = { formula: `=Assumptions!${cLetter}30` };
-    sheet.getCell(6, c).value = { formula: `=${cLetter}4*${cLetter}5` };
-    sheet.getCell(7, c).value = { formula: '=Assumptions!$B$13' };
-    sheet.getCell(8, c).value = { formula: `=${cLetter}6*(1-${cLetter}7)` };
+    sheet.getCell(5, c).value = { formula: `Assumptions!${cLetter}30`, result: baseCase.ebitMargin[i] };
+    sheet.getCell(6, c).value = { formula: `${cLetter}4*${cLetter}5`, result: baseCase.ebit[i] };
+    sheet.getCell(7, c).value = { formula: 'Assumptions!$B$13', result: spec.forecast.tax_rate };
+    sheet.getCell(8, c).value = { formula: `${cLetter}6*(1-${cLetter}7)`, result: baseCase.nopat[i] };
 
     fmtCurrency(sheet.getCell(4, c));
     fmtPercent(sheet.getCell(5, c));
@@ -282,7 +314,7 @@ function buildForecastSheet(workbook: ExcelJS.Workbook, spec: DcfSpec): void {
   styleBodyGrid(sheet, 4, 8, 1, firstYearCol + years - 1);
 }
 
-function buildFcffSheet(workbook: ExcelJS.Workbook, spec: DcfSpec): void {
+function buildFcffSheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCase: BaseCaseResult): void {
   const sheet = workbook.addWorksheet('FCFF');
   applySheetScaffold(sheet);
 
@@ -305,17 +337,17 @@ function buildFcffSheet(workbook: ExcelJS.Workbook, spec: DcfSpec): void {
     const cLetter = col(c);
 
     sheet.getCell(3, c).value = spec.periods.start_year + i + 1;
-    sheet.getCell(4, c).value = { formula: `=Forecast!${cLetter}6` };
-    sheet.getCell(5, c).value = { formula: `=Forecast!${cLetter}8` };
-    sheet.getCell(6, c).value = { formula: `=Forecast!${cLetter}4*Assumptions!$B$14` };
-    sheet.getCell(7, c).value = { formula: `=Forecast!${cLetter}4*Assumptions!$B$15` };
-    sheet.getCell(8, c).value = { formula: `=Forecast!${cLetter}4*Assumptions!$B$16` };
+    sheet.getCell(4, c).value = { formula: `Forecast!${cLetter}6`, result: baseCase.ebit[i] };
+    sheet.getCell(5, c).value = { formula: `Forecast!${cLetter}8`, result: baseCase.nopat[i] };
+    sheet.getCell(6, c).value = { formula: `Forecast!${cLetter}4*Assumptions!$B$14`, result: baseCase.da[i] };
+    sheet.getCell(7, c).value = { formula: `Forecast!${cLetter}4*Assumptions!$B$15`, result: baseCase.capex[i] };
+    sheet.getCell(8, c).value = { formula: `Forecast!${cLetter}4*Assumptions!$B$16`, result: baseCase.deltaNwc[i] };
 
     // Required explicit FCFF formula: EBIT*(1-tax)+D&A-Capex-ΔNWC
     sheet.getCell(9, c).value = {
-      formula: `=${cLetter}4*(1-Assumptions!$B$13)+${cLetter}6-${cLetter}7-${cLetter}8`,
+      formula: `${cLetter}4*(1-Assumptions!$B$13)+${cLetter}6-${cLetter}7-${cLetter}8`,
+      result: baseCase.fcff[i],
     };
-
     fmtCurrency(sheet.getCell(4, c));
     fmtCurrency(sheet.getCell(5, c));
     fmtCurrency(sheet.getCell(6, c));
@@ -328,7 +360,7 @@ function buildFcffSheet(workbook: ExcelJS.Workbook, spec: DcfSpec): void {
   styleBodyGrid(sheet, 4, 9, 1, firstYearCol + years - 1);
 }
 
-function buildDcfSheet(workbook: ExcelJS.Workbook, spec: DcfSpec): void {
+function buildDcfSheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCase: BaseCaseResult): void {
   const sheet = workbook.addWorksheet('DCF');
   applySheetScaffold(sheet);
 
@@ -351,9 +383,9 @@ function buildDcfSheet(workbook: ExcelJS.Workbook, spec: DcfSpec): void {
     const yearNum = i + 1;
 
     sheet.getCell(3, c).value = spec.periods.start_year + yearNum;
-    sheet.getCell(4, c).value = { formula: `=FCFF!${cLetter}9` };
-    sheet.getCell(5, c).value = { formula: `=1/(1+Assumptions!$B$18)^${yearNum}` };
-    sheet.getCell(6, c).value = { formula: `=${cLetter}4*${cLetter}5` };
+    sheet.getCell(4, c).value = { formula: `FCFF!${cLetter}9`, result: baseCase.fcff[i] };
+    sheet.getCell(5, c).value = { formula: `1/(1+Assumptions!$B$18)^${yearNum}`, result: baseCase.discountFactors[i] };
+    sheet.getCell(6, c).value = { formula: `${cLetter}4*${cLetter}5`, result: baseCase.pvFcff[i] };
 
     fmtCurrency(sheet.getCell(4, c));
     sheet.getCell(5, c).numFmt = '0.0000';
@@ -361,21 +393,22 @@ function buildDcfSheet(workbook: ExcelJS.Workbook, spec: DcfSpec): void {
   }
 
   sheet.getCell('A8').value = 'PV of Stage-1 FCFF';
-  sheet.getCell('B8').value = { formula: `=SUM(${col(firstYearCol)}6:${lastColLetter}6)` };
+  sheet.getCell('B8').value = { formula: `SUM(${col(firstYearCol)}6:${lastColLetter}6)`, result: baseCase.stagePv };
   fmtCurrency(sheet.getCell('B8'));
 
   sheet.getCell('A9').value = 'Terminal Value';
   sheet.getCell('B9').value = {
-    formula: `=IF(Assumptions!$B$19="gordon",(FCFF!${lastColLetter}9*(1+Assumptions!$B$20))/(Assumptions!$B$18-Assumptions!$B$20),Forecast!${lastColLetter}6*Assumptions!$B$21)`,
+    formula: `IF(Assumptions!$B$19="gordon",(FCFF!${lastColLetter}9*(1+Assumptions!$B$20))/(Assumptions!$B$18-Assumptions!$B$20),Forecast!${lastColLetter}6*Assumptions!$B$21)`,
+    result: baseCase.terminalValue,
   };
   fmtCurrency(sheet.getCell('B9'));
 
   sheet.getCell('A10').value = 'PV of Terminal Value';
-  sheet.getCell('B10').value = { formula: `=B9*${lastColLetter}5` };
+  sheet.getCell('B10').value = { formula: `B9*${lastColLetter}5`, result: baseCase.pvTerminalValue };
   fmtCurrency(sheet.getCell('B10'));
 
   sheet.getCell('A11').value = 'Enterprise Value';
-  sheet.getCell('B11').value = { formula: '=B8+B10' };
+  sheet.getCell('B11').value = { formula: 'B8+B10', result: baseCase.enterpriseValue };
   fmtCurrency(sheet.getCell('B11'));
   sheet.getCell('A11').font = { bold: true };
   sheet.getCell('B11').font = { bold: true };
@@ -385,7 +418,23 @@ function buildDcfSheet(workbook: ExcelJS.Workbook, spec: DcfSpec): void {
   styleBodyGrid(sheet, 8, 11, 1, 2);
 }
 
-function buildSensitivitySheet(workbook: ExcelJS.Workbook, spec: DcfSpec): void {
+function buildSensitivityEnterpriseValue(spec: DcfSpec, wacc: number, terminalValueAssumption: number): number {
+  const altSpec: DcfSpec = {
+    ...spec,
+    valuation: {
+      ...spec.valuation,
+      wacc,
+      terminal:
+        spec.valuation.terminal.method === 'gordon'
+          ? { method: 'gordon', g: terminalValueAssumption }
+          : { method: 'exit_multiple', exit_multiple: terminalValueAssumption },
+    },
+  };
+
+  return computeBaseCase(altSpec).enterpriseValue;
+}
+
+function buildSensitivitySheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCase: BaseCaseResult): void {
   const sheet = workbook.addWorksheet('Sensitivity');
   applySheetScaffold(sheet);
 
@@ -433,14 +482,16 @@ function buildSensitivitySheet(workbook: ExcelJS.Workbook, spec: DcfSpec): void 
       if (spec.valuation.terminal.method === 'gordon') {
         sheet.getCell(r, c).value = {
           formula:
-            `=SUMPRODUCT(${fcffRange},1/(1+${waccCell})^${exponentLiteral})+` +
+            `SUMPRODUCT(${fcffRange},1/(1+${waccCell})^${exponentLiteral})+` +
             `((FCFF!$${fcffLastColLetter}$9*(1+${terminalCell}))/(${waccCell}-${terminalCell}))/(1+${waccCell})^${years}`,
+          result: buildSensitivityEnterpriseValue(spec, wacc, terminalAxis[colIdx]),
         };
       } else {
         sheet.getCell(r, c).value = {
           formula:
-            `=SUMPRODUCT(${fcffRange},1/(1+${waccCell})^${exponentLiteral})+` +
+            `SUMPRODUCT(${fcffRange},1/(1+${waccCell})^${exponentLiteral})+` +
             `((Forecast!$${fcffLastColLetter}$6*${terminalCell})/(1+${waccCell})^${years})`,
+          result: buildSensitivityEnterpriseValue(spec, wacc, terminalAxis[colIdx]),
         };
       }
       fmtCurrency(sheet.getCell(r, c));
@@ -454,7 +505,7 @@ function buildSensitivitySheet(workbook: ExcelJS.Workbook, spec: DcfSpec): void 
   styleBodyGrid(sheet, startRow + 1, endRow, 2, endCol);
 
   sheet.getCell(endRow + 2, 1).value = 'Base Case EV';
-  sheet.getCell(endRow + 2, 2).value = { formula: '=DCF!B11' };
+  sheet.getCell(endRow + 2, 2).value = { formula: 'DCF!B11', result: baseCase.enterpriseValue };
   fmtCurrency(sheet.getCell(endRow + 2, 2));
   sheet.getCell(endRow + 2, 1).font = { bold: true };
   sheet.getCell(endRow + 2, 2).font = { bold: true };
@@ -466,14 +517,17 @@ export function evaluateDcfSpec(spec: DcfSpec): BaseCaseResult {
 
 export async function buildDcfWorkbook(spec: DcfSpec): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
+  workbook.calcProperties.fullCalcOnLoad = true;
+  (workbook.calcProperties as ExcelJS.Workbook['calcProperties'] & { forceFullCalc?: boolean }).forceFullCalc = true;
   workbook.creator = 'CapitalBase';
   workbook.created = new Date();
+  const baseCase = computeBaseCase(spec);
 
   buildAssumptionsSheet(workbook, spec);
-  buildForecastSheet(workbook, spec);
-  buildFcffSheet(workbook, spec);
-  buildDcfSheet(workbook, spec);
-  buildSensitivitySheet(workbook, spec);
+  buildForecastSheet(workbook, spec, baseCase);
+  buildFcffSheet(workbook, spec, baseCase);
+  buildDcfSheet(workbook, spec, baseCase);
+  buildSensitivitySheet(workbook, spec, baseCase);
 
   return workbook;
 }
