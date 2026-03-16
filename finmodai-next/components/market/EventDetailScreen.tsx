@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, ExternalLink, RefreshCcw } from 'lucide-react';
+import { ArrowLeft, ExternalLink, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getSpecificEventFallbackImage } from '@/lib/macroEventImageQueries';
 import {
@@ -85,157 +85,43 @@ function asSentence(value: string): string {
   return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
-function buildInterpretation(event: MarketEvent): string[] {
-  const lines: string[] = [];
-  const primaryDriver = event.drivers[0] ? asSentence(event.drivers[0]) : '';
-  const secondaryDriver = event.drivers[1] ? asSentence(event.drivers[1]) : '';
+function buildSummaryParagraph(event: MarketEvent): string {
+  const headline = shortSummary(event);
+  const secondary = event.drivers[1] ? asSentence(event.drivers[1]) : '';
+  const timing =
+    event.horizon === 'Immediate'
+      ? 'The setup looks immediate and market-sensitive.'
+      : event.horizon === 'NearTerm'
+        ? 'The setup looks most relevant over the next several weeks.'
+        : 'The setup looks more structural than purely tactical.';
+
+  return [asSentence(headline), secondary, timing].filter(Boolean).join(' ');
+}
+
+function buildMarketImpactParagraph(event: MarketEvent): string {
   const firstPath = event.transmissionPath[0] ? asSentence(event.transmissionPath[0]) : '';
-  const firstImpacts = MARKET_IMPACT_ORDER
-    .filter((key) => Boolean(event.marketImpact[key]))
-    .slice(0, 2)
+  const impacts = MARKET_IMPACT_ORDER
+    .filter((key) => Boolean(event.marketImpact[key]) && key !== 'sectors')
+    .slice(0, 3)
     .map((key) => `${formatImpactLabel(key)}: ${event.marketImpact[key]}`)
     .join(' ');
 
-  if (primaryDriver || secondaryDriver) {
-    lines.push([primaryDriver, secondaryDriver].filter(Boolean).join(' '));
-  }
-
-  if (firstPath) {
-    lines.push(`The market is trading the event through this path: ${firstPath}`);
-  }
-
-  if (firstImpacts) {
-    lines.push(`Immediate read-through: ${asSentence(firstImpacts)}`);
-  }
-
-  return lines.filter(Boolean);
+  return [firstPath, impacts ? asSentence(impacts) : ''].filter(Boolean).join(' ');
 }
 
-function buildConfirmationNote(event: MarketEvent): string {
-  const firstWatch = event.watchNext[0] ? asSentence(event.watchNext[0]) : '';
-  const secondWatch = event.watchNext[1] ? asSentence(event.watchNext[1]) : '';
-  const severityText =
-    event.severity >= 85
-      ? 'This is a high-priority setup that should move quickly if the next trigger confirms it.'
-      : event.severity >= 70
-        ? 'This is a meaningful setup, but it still needs confirmation from the next catalyst.'
-        : 'This setup matters, but follow-through will depend on whether the next catalyst validates the move.';
-
-  return [severityText, firstWatch, secondWatch].filter(Boolean).join(' ');
-}
-
-type StockMover = {
-  ticker: string;
-  direction: 'up' | 'down';
-  rationale: string;
-};
-
-function inferStockMovers(event: MarketEvent): { rising: StockMover[]; falling: StockMover[] } {
-  const title = event.title.toLowerCase();
-  const drivers = event.drivers.join(' ').toLowerCase();
-  const transmission = event.transmissionPath.join(' ').toLowerCase();
-  const combined = `${title} ${drivers} ${transmission}`;
-
-  const rising: StockMover[] = [];
-  const falling: StockMover[] = [];
-
-  const pushUnique = (bucket: StockMover[], candidate: StockMover) => {
-    if (!bucket.some((item) => item.ticker === candidate.ticker)) {
-      bucket.push(candidate);
-    }
-  };
-
-  const addDefenseTheme = () => {
-    pushUnique(rising, { ticker: 'PLTR', direction: 'up', rationale: 'Defense software and mission analytics tend to re-rate when procurement urgency rises.' });
-    pushUnique(rising, { ticker: 'LMT', direction: 'up', rationale: 'Missile defense and replenishment programs benefit from higher defense spending expectations.' });
-    pushUnique(rising, { ticker: 'NOC', direction: 'up', rationale: 'ISR, aerospace, and missile systems gain from multi-year backlog visibility.' });
-    pushUnique(falling, { ticker: 'QQQ', direction: 'down', rationale: 'Risk-off geopolitical tape can pressure long-duration growth and broad tech multiples.' });
-  };
-
-  const addEnergyTheme = () => {
-    pushUnique(rising, { ticker: 'XOM', direction: 'up', rationale: 'Higher geopolitical risk usually supports crude-linked cash flow expectations.' });
-    pushUnique(rising, { ticker: 'CVX', direction: 'up', rationale: 'Integrated energy names tend to benefit when oil risk premia rise.' });
-    pushUnique(falling, { ticker: 'XLY', direction: 'down', rationale: 'Higher fuel costs and a risk-off tone pressure discretionary demand sensitivity.' });
-  };
-
-  const addRatesTheme = () => {
-    pushUnique(rising, { ticker: 'UUP', direction: 'up', rationale: 'Higher-for-longer messaging usually supports the U.S. dollar.' });
-    pushUnique(rising, { ticker: 'XLF', direction: 'up', rationale: 'Banks can get near-term support from firmer front-end rates and better NII expectations.' });
-    pushUnique(falling, { ticker: 'TLT', direction: 'down', rationale: 'Long-duration Treasuries are pressured when yields stay supported.' });
-    pushUnique(falling, { ticker: 'QQQ', direction: 'down', rationale: 'Higher discount rates weigh on long-duration growth equities.' });
-    pushUnique(falling, { ticker: 'VNQ', direction: 'down', rationale: 'Rate-sensitive real estate underperforms when financing costs stay elevated.' });
-  };
-
-  const addSemisTheme = () => {
-    pushUnique(rising, { ticker: 'SMH', direction: 'up', rationale: 'AI capex momentum usually lifts the semiconductor complex.' });
-    pushUnique(rising, { ticker: 'NVDA', direction: 'up', rationale: 'Strong AI infrastructure demand supports the highest-quality GPU exposure.' });
-    pushUnique(falling, { ticker: 'KWEB', direction: 'down', rationale: 'China-linked tech can weaken if export controls tighten or retaliation risk rises.' });
-  };
-
-  if (
-    event.eventType === 'Geopolitics' ||
-    event.eventType === 'Conflict' ||
-    combined.includes('defense') ||
-    combined.includes('military') ||
-    combined.includes('middle east') ||
-    combined.includes('isr')
-  ) {
-    addDefenseTheme();
-    addEnergyTheme();
+function buildImpactedSectorsParagraph(event: MarketEvent): string {
+  if (event.marketImpact.sectors) {
+    return asSentence(event.marketImpact.sectors);
   }
 
-  if (
-    event.eventType === 'CentralBank' ||
-    event.eventType === 'Macro' ||
-    combined.includes('fed') ||
-    combined.includes('rates') ||
-    combined.includes('inflation') ||
-    combined.includes('yield')
-  ) {
-    addRatesTheme();
-  }
-
-  if (
-    event.eventType === 'RegulatoryShock' ||
-    event.eventType === 'EarningsMegaCap' ||
-    combined.includes('ai') ||
-    combined.includes('chip') ||
-    combined.includes('semiconductor')
-  ) {
-    addSemisTheme();
-  }
-
-  return {
-    rising: rising.slice(0, 4),
-    falling: falling.slice(0, 4),
-  };
-}
-
-function buildStockReadThrough(event: MarketEvent, movers: { rising: StockMover[]; falling: StockMover[] }): string[] {
-  const lines: string[] = [];
-
-  if (movers.rising.length > 0) {
-    lines.push(
-      `Likely relative winners are ${movers.rising
-        .map((item) => item.ticker)
-        .join(', ')}, where the setup most directly supports near-term positioning and earnings visibility.`
-    );
-  }
-
-  if (movers.falling.length > 0) {
-    lines.push(
-      `Likely relative laggards are ${movers.falling
-        .map((item) => item.ticker)
-        .join(', ')}, where the event raises discount-rate, fuel-cost, or risk-off pressure.`
-    );
-  }
-
-  const firstSectorImpact = event.marketImpact.sectors ? asSentence(event.marketImpact.sectors) : '';
-  if (firstSectorImpact) {
-    lines.push(`Sector read-through: ${firstSectorImpact}`);
-  }
-
-  return lines;
+  const combined = `${event.title} ${event.drivers.join(' ')} ${event.transmissionPath.join(' ')}`.toLowerCase();
+  const sectors: string[] = [];
+  if (/(oil|energy|opec|brent|wti)/.test(combined)) sectors.push('Energy');
+  if (/(consumer|retail|travel|airline|transport)/.test(combined)) sectors.push('Consumer and transport');
+  if (/(rates|yield|bank|financial)/.test(combined)) sectors.push('Financials');
+  if (/(chip|semi|ai|software|cloud)/.test(combined)) sectors.push('Technology');
+  if (/(defense|military|aerospace)/.test(combined)) sectors.push('Defense and aerospace');
+  return sectors.length ? `Most exposed sectors include ${sectors.join(', ')}.` : 'Sector exposure is mixed and depends on follow-through in the underlying catalyst.';
 }
 
 function InfoChip({
@@ -368,13 +254,9 @@ export default function EventDetailScreen({
     ? undefined
     : event?.sources.find((source) => typeof source.imageUrl === 'string' && source.imageUrl.trim())?.imageUrl;
   const fallbackImage = getSpecificEventFallbackImage(event?.title, event?.eventType ?? 'Macro', 'hero');
-  const interpretation = event ? buildInterpretation(event) : [];
-  const confirmationNote = event ? buildConfirmationNote(event) : '';
-  const stockMovers = useMemo(() => (event ? inferStockMovers(event) : { rising: [], falling: [] }), [event]);
-  const stockReadThrough = useMemo(
-    () => (event ? buildStockReadThrough(event, stockMovers) : []),
-    [event, stockMovers]
-  );
+  const summaryParagraph = event ? buildSummaryParagraph(event) : '';
+  const marketImpactParagraph = event ? buildMarketImpactParagraph(event) : '';
+  const impactedSectorsParagraph = event ? buildImpactedSectorsParagraph(event) : '';
 
   useEffect(() => {
     containerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
@@ -470,160 +352,44 @@ export default function EventDetailScreen({
               <p className="mt-2 text-base leading-8 text-zinc-200">{shortSummary(event)}</p>
             </div>
 
-            {interpretation.length > 0 && (
-              <div className="mt-5 rounded-2xl border border-zinc-800/70 bg-zinc-900/30 px-4 py-4">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Why This Matters Now</div>
-                <div className="mt-2 space-y-3">
-                  {interpretation.map((line, idx) => (
-                    <p key={`${event.id}-interpretation-${idx}`} className="text-sm leading-7 text-zinc-300">
-                      {line}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {confirmationNote && (
-              <div className="mt-5 rounded-2xl border border-zinc-800/70 bg-zinc-950/80 px-4 py-4">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">What Confirms Or Changes It</div>
-                <p className="mt-2 text-sm leading-7 text-zinc-300">{confirmationNote}</p>
-              </div>
-            )}
-
-            {stockReadThrough.length > 0 && (
-              <div className="mt-5 rounded-2xl border border-zinc-800/70 bg-zinc-900/30 px-4 py-4">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">How Stocks Usually Trade This</div>
-                <div className="mt-2 space-y-3">
-                  {stockReadThrough.map((line, idx) => (
-                    <p key={`${event.id}-stock-read-${idx}`} className="text-sm leading-7 text-zinc-300">
-                      {line}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
-              <div className="space-y-5">
-                {(stockMovers.rising.length > 0 || stockMovers.falling.length > 0) && (
-                  <section>
-                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Rising / Falling Stocks</div>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      {stockMovers.rising.length > 0 && (
-                        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-300">Likely Rising</div>
-                          <ul className="mt-2 space-y-2">
-                            {stockMovers.rising.map((item) => (
-                              <li key={`${event.id}-rise-${item.ticker}`} className="text-sm leading-7 text-zinc-200">
-                                <span className="font-semibold text-zinc-100">{item.ticker}</span>
-                                <span className="text-zinc-400"> — {item.rationale}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {stockMovers.falling.length > 0 && (
-                        <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 px-4 py-3">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-300">Likely Falling</div>
-                          <ul className="mt-2 space-y-2">
-                            {stockMovers.falling.map((item) => (
-                              <li key={`${event.id}-fall-${item.ticker}`} className="text-sm leading-7 text-zinc-200">
-                                <span className="font-semibold text-zinc-100">{item.ticker}</span>
-                                <span className="text-zinc-400"> — {item.rationale}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  </section>
-                )}
-
-                <section>
-                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Drivers</div>
-                  <ul className="space-y-2">
-                    {event.drivers.map((driver, idx) => (
-                      <li
-                        key={`${event.id}-driver-${idx}`}
-                        className="rounded-2xl border border-zinc-800/70 bg-zinc-900/50 px-4 py-3 text-sm leading-7 text-zinc-200"
-                      >
-                        {driver}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-
-                <section>
-                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Transmission Path</div>
-                  <ul className="space-y-2">
-                    {event.transmissionPath.map((path, idx) => (
-                      <li
-                        key={`${event.id}-path-${idx}`}
-                        className="flex items-start gap-3 rounded-2xl border border-zinc-800/70 bg-zinc-950/70 px-4 py-3 text-sm leading-7 text-zinc-300"
-                      >
-                        <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-[var(--cb-green)]" />
-                        <span>{path}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-
-                <section>
-                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Sources</div>
-                  <div className="space-y-2">
-                    {event.sources.slice(0, 4).map((source, idx) => (
-                      <a
-                        key={`${event.id}-source-${idx}`}
-                        href={source.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-between gap-3 rounded-2xl border border-zinc-800/70 bg-zinc-950/70 px-4 py-3 text-sm text-zinc-300 hover:border-zinc-700 hover:text-zinc-100"
-                      >
-                        <div className="min-w-0">
-                          <div className="truncate font-medium text-zinc-200">{source.title || source.name}</div>
-                          <div className="mt-1 truncate text-xs text-zinc-500">
-                            {host(source.url)} · {formatTime(source.publishedAt)}
-                          </div>
-                        </div>
-                        <ExternalLink className="h-4 w-4 shrink-0 text-zinc-500" />
-                      </a>
-                    ))}
-                  </div>
-                </section>
+            <div className="mt-6 space-y-5">
+              <div className="rounded-2xl border border-zinc-800/70 bg-zinc-900/40 px-4 py-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Summary</div>
+                <p className="mt-2 text-sm leading-7 text-zinc-200">{summaryParagraph}</p>
               </div>
 
-              <div className="space-y-5">
-                <section>
-                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Market Impact</div>
-                  <div className="space-y-3">
-                    {MARKET_IMPACT_ORDER.filter((key) => Boolean(event.marketImpact[key])).map((key) => (
-                      <div
-                        key={`${event.id}-impact-${key}`}
-                        className="rounded-2xl border border-zinc-800/70 bg-zinc-900/50 px-4 py-3"
-                      >
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
-                          {formatImpactLabel(key)}
+              <div className="rounded-2xl border border-zinc-800/70 bg-zinc-900/30 px-4 py-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Market Impact</div>
+                <p className="mt-2 text-sm leading-7 text-zinc-300">{marketImpactParagraph}</p>
+              </div>
+
+              <div className="rounded-2xl border border-zinc-800/70 bg-zinc-950/80 px-4 py-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Impacted Sectors</div>
+                <p className="mt-2 text-sm leading-7 text-zinc-300">{impactedSectorsParagraph}</p>
+              </div>
+
+              <section>
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Sources</div>
+                <div className="space-y-2">
+                  {event.sources.slice(0, 4).map((source, idx) => (
+                    <a
+                      key={`${event.id}-source-${idx}`}
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between gap-3 rounded-2xl border border-zinc-800/70 bg-zinc-950/70 px-4 py-3 text-sm text-zinc-300 hover:border-zinc-700 hover:text-zinc-100"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate font-medium text-zinc-200">{source.title || source.name}</div>
+                        <div className="mt-1 truncate text-xs text-zinc-500">
+                          {host(source.url)} · {formatTime(source.publishedAt)}
                         </div>
-                        <p className="mt-2 text-sm leading-7 text-zinc-200">{event.marketImpact[key]}</p>
                       </div>
-                    ))}
-                  </div>
-                </section>
-
-                <section>
-                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Watch Next</div>
-                  <ul className="space-y-2">
-                    {event.watchNext.map((item, idx) => (
-                      <li
-                        key={`${event.id}-watch-${idx}`}
-                        className="rounded-2xl border border-zinc-800/70 bg-zinc-900/50 px-4 py-3 text-sm leading-7 text-zinc-200"
-                      >
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              </div>
+                      <ExternalLink className="h-4 w-4 shrink-0 text-zinc-500" />
+                    </a>
+                  ))}
+                </div>
+              </section>
             </div>
           </section>
         )}

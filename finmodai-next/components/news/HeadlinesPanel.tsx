@@ -295,14 +295,6 @@ type MacroStructuredSection = {
   content: string;
 };
 
-type CompactImpactView = {
-  summary: string;
-  whyItMatters: string;
-  marketImpact: string[];
-  timeHorizon: string | null;
-  watchItems: string[];
-};
-
 const STRUCTURED_LABELS = [
   'EVENT',
   'SUMMARY',
@@ -476,58 +468,6 @@ function toTickerSentence(items: Array<{ ticker: string; rationale?: string }>, 
     .filter(Boolean)
     .map((item) => (item.startsWith('$') ? item : /^\w{1,6}$/.test(item) ? tickerTag(item.toUpperCase()) : item));
   return normalized.join(', ');
-}
-
-function buildCompactImpactView(enrichment: HeadlineEnrichment): CompactImpactView {
-  const structured = parseMacroStructuredAnalysis(enrichment.why_it_matters);
-  if (structured) {
-    const getSection = (label: string) => structured.find((section) => section.label === label)?.content ?? null;
-    const summary =
-      structuredSectionParagraph(getSection('SUMMARY') ?? getSection('EVENT') ?? '', 2) ??
-      buildAnalysisLead(enrichment);
-    const whyItMatters =
-      structuredSectionParagraph(getSection('WHY IT MATTERS') ?? '', 3) ??
-      buildAnalysisLead(enrichment);
-    const marketImpact = structuredSectionLines(getSection('MARKET IMPACT') ?? '')
-      .concat(structuredSectionLines(getSection('BASE CASE') ?? ''))
-      .map((item) => sentenceCase(item))
-      .filter(Boolean)
-      .slice(0, 4);
-    const watchItems = structuredSectionLines(getSection('WATCH ITEMS') ?? '')
-      .concat(structuredSectionLines(getSection('WATCH NEXT') ?? ''))
-      .concat(structuredSectionLines(getSection('TICKERS TO WATCH') ?? ''))
-      .map((item) => sentenceCase(item))
-      .filter(Boolean)
-      .slice(0, 4);
-    return {
-      summary,
-      whyItMatters,
-      marketImpact,
-      timeHorizon:
-        structuredSectionParagraph(getSection('TIME HORIZON') ?? getSection('HORIZON') ?? '', 1) ??
-        (structuredSectionParagraph(getSection('CONFIDENCE') ?? '', 1)
-          ? `Confidence ${structuredSectionParagraph(getSection('CONFIDENCE') ?? '', 1)?.toLowerCase()}`
-          : null),
-      watchItems,
-    };
-  }
-
-  const parsed = parseMarketImpactSections(enrichment.why_it_matters);
-  return {
-    summary: buildAnalysisLead(enrichment),
-    whyItMatters: parsed ? formatPlainNarrative(parsed.fallback, 2) : buildAnalysisLead(enrichment),
-    marketImpact: parsed
-      ? [
-          ...parsed.assetImpacts.flatMap((group) =>
-            group.bullets.slice(0, 1).map((bullet) => `${group.asset}: ${sentenceCase(bullet)}`)
-          ),
-          ...(parsed.winners.slice(0, 1).map((item) => `Beneficiaries: ${sentenceCase(item)}`)),
-          ...(parsed.losers.slice(0, 1).map((item) => `Pressure points: ${sentenceCase(item)}`)),
-        ].slice(0, 4)
-      : [],
-    timeHorizon: null,
-    watchItems: parsed?.watchItems.map((item) => sentenceCase(item)).slice(0, 4) ?? [],
-  };
 }
 
 function sparklinePoints(seed: string, direction: 'up' | 'down' | 'mixed' | 'unknown'): string {
@@ -736,67 +676,62 @@ function BulletList({ items, className }: { items: string[]; className?: string 
   );
 }
 
-function MarketImpactBlock({ text }: { text: string }) {
+function buildImpactedSectorParagraph(
+  sectors: Array<{ sector: string; direction: 'up' | 'down' | 'mixed' | 'unknown'; rationale?: string }>
+): string | null {
+  if (!sectors.length) return null;
+
+  const groups = {
+    up: sectors.filter((sector) => sector.direction === 'up'),
+    down: sectors.filter((sector) => sector.direction === 'down'),
+    mixed: sectors.filter((sector) => sector.direction === 'mixed'),
+  };
+
+  const parts: string[] = [];
+  if (groups.up.length) {
+    parts.push(`Likely relative beneficiaries include ${groups.up.map((item) => item.sector).join(', ')}`);
+  }
+  if (groups.down.length) {
+    parts.push(`Likely pressured sectors include ${groups.down.map((item) => item.sector).join(', ')}`);
+  }
+  if (groups.mixed.length) {
+    parts.push(`More balanced or mixed read-throughs sit in ${groups.mixed.map((item) => item.sector).join(', ')}`);
+  }
+
+  return parts.length ? `${parts.join('. ')}.` : null;
+}
+
+function MarketImpactBlock({ enrichment }: { enrichment: HeadlineEnrichment }) {
+  const text = enrichment.why_it_matters ?? enrichment.ai_summary ?? 'Additional context unavailable.';
   const structured = parseMacroStructuredAnalysis(text);
+  const impactedSectorsParagraph = buildImpactedSectorParagraph(enrichment.impacted_sectors ?? []);
   if (structured) {
     const getSection = (label: string) => structured.find((section) => section.label === label)?.content ?? null;
     const summary = structuredSectionParagraph(getSection('SUMMARY') ?? getSection('EVENT') ?? '', 2);
-    const whyItMatters = structuredSectionParagraph(getSection('WHY IT MATTERS') ?? '', 3);
-    const marketImpact = (
-      structuredSectionLines(getSection('MARKET IMPACT') ?? '')
-        .concat(structuredSectionLines(getSection('BASE CASE') ?? ''))
-        .concat(structuredSectionLines(getSection('SECTOR IMPACT') ?? ''))
-        .concat(structuredSectionLines(getSection('MODEL IMPLICATIONS') ?? ''))
-    )
-      .map((item) => sentenceCase(item))
-      .filter(Boolean)
-      .slice(0, 5);
-    const timeHorizon =
-      structuredSectionParagraph(getSection('TIME HORIZON') ?? getSection('HORIZON') ?? '', 1) ??
-      structuredSectionParagraph(getSection('CONFIDENCE') ?? '', 1);
-    const watchItems = (
-      structuredSectionLines(getSection('WATCH ITEMS') ?? '')
-        .concat(structuredSectionLines(getSection('WATCH NEXT') ?? ''))
-        .concat(structuredSectionLines(getSection('TICKERS TO WATCH') ?? ''))
-    )
-      .map((item) => sentenceCase(item))
-      .filter(Boolean)
-      .slice(0, 5);
+    const marketImpactParagraph =
+      structuredSectionParagraph(getSection('MARKET IMPACT') ?? getSection('BASE CASE') ?? '', 3) ??
+      structuredSectionParagraph(getSection('WHY IT MATTERS') ?? '', 3);
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-5">
         {summary && (
           <div>
             <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Summary</div>
-            <p className="text-[13px] leading-relaxed text-zinc-200">{summary}</p>
+            <p className="text-[14px] leading-7 text-zinc-200">{summary}</p>
           </div>
         )}
 
-        {whyItMatters && (
-          <div>
-            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Why It Matters</div>
-            <p className="text-[13px] leading-relaxed text-zinc-300">{whyItMatters}</p>
-          </div>
-        )}
-
-        {marketImpact.length > 0 && (
+        {marketImpactParagraph && (
           <div>
             <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Market Impact</div>
-            <BulletList items={marketImpact} />
+            <p className="text-[14px] leading-7 text-zinc-300">{marketImpactParagraph}</p>
           </div>
         )}
 
-        {timeHorizon && (
+        {impactedSectorsParagraph && (
           <div>
-            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Time Horizon</div>
-            <p className="text-[13px] leading-relaxed text-zinc-300">{sentenceCase(timeHorizon)}</p>
-          </div>
-        )}
-
-        {watchItems.length > 0 && (
-          <div>
-            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Watch Items</div>
-            <BulletList items={watchItems} />
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Impacted Sectors</div>
+            <p className="text-[14px] leading-7 text-zinc-300">{impactedSectorsParagraph}</p>
           </div>
         )}
       </div>
@@ -817,8 +752,6 @@ function MarketImpactBlock({ text }: { text: string }) {
     parsed.losers.length > 0
       ? sentenceCase(`Likely pressured areas include ${parsed.losers.slice(0, 3).join(', ')}`)
       : null;
-  const watchParagraph = toParagraph(parsed.watchItems, 2);
-
   const isEmpty = parsed.summary.length === 0 && parsed.drivers.length === 0 && parsed.assetImpacts.length === 0 && parsed.winners.length === 0 && parsed.losers.length === 0 && parsed.watchItems.length === 0;
 
   if (isEmpty) {
@@ -826,65 +759,38 @@ function MarketImpactBlock({ text }: { text: string }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {impactParagraph && (
-        <div className="rounded-md border border-zinc-800/40 bg-zinc-900/30 px-3 py-2.5">
-          <p className="text-[13px] leading-relaxed text-zinc-200">{impactParagraph}</p>
+        <div>
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Summary</div>
+          <p className="text-[14px] leading-7 text-zinc-200">{impactParagraph}</p>
         </div>
       )}
 
       {driversParagraph && (
         <div>
-          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Drivers</div>
-          <p className="text-[13px] leading-relaxed text-zinc-300">{driversParagraph}</p>
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Market Impact</div>
+          <p className="text-[14px] leading-7 text-zinc-300">{driversParagraph}</p>
         </div>
       )}
 
-      {parsed.assetImpacts.length > 0 && (
+      {(impactedSectorsParagraph || parsed.assetImpacts.length > 0 || winnersParagraph || losersParagraph) && (
         <div>
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Market Impact</div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {parsed.assetImpacts.map((group, i) => (
-              <div key={`asset-${i}`} className="rounded-md border border-zinc-800/30 bg-zinc-900/20 px-3 py-2">
-                <div className="mb-1.5">
-                  <AssetBadge asset={group.asset} />
-                </div>
-                <p className="text-[13px] leading-relaxed text-zinc-300">
-                  {toParagraph(group.bullets, 2) ?? sentenceCase(group.bullets.join(' '))}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {(winnersParagraph || losersParagraph) && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {winnersParagraph && (
-            <div className="rounded-md border border-emerald-500/15 bg-emerald-500/5 px-3 py-2">
-              <div className="mb-1.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
-                <TrendingUp className="h-3 w-3" /> Winners
-              </div>
-              <p className="text-[13px] leading-relaxed text-zinc-300">{winnersParagraph}</p>
-            </div>
-          )}
-          {losersParagraph && (
-            <div className="rounded-md border border-rose-500/15 bg-rose-500/5 px-3 py-2">
-              <div className="mb-1.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-rose-400">
-                <TrendingDown className="h-3 w-3" /> Losers
-              </div>
-              <p className="text-[13px] leading-relaxed text-zinc-300">{losersParagraph}</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {watchParagraph && (
-        <div>
-          <div className="mb-1.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-            <Eye className="h-3 w-3" /> Watch Next
-          </div>
-          <p className="text-[13px] leading-relaxed text-zinc-300">{watchParagraph}</p>
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Impacted Sectors</div>
+          <p className="text-[14px] leading-7 text-zinc-300">
+            {impactedSectorsParagraph ??
+              [
+                parsed.assetImpacts.length > 0
+                  ? parsed.assetImpacts
+                      .map((group) => `${group.asset}: ${toParagraph(group.bullets, 1) ?? sentenceCase(group.bullets.join(' '))}`)
+                      .join(' ')
+                  : null,
+                winnersParagraph,
+                losersParagraph,
+              ]
+                .filter(Boolean)
+                .join(' ')}
+          </p>
         </div>
       )}
     </div>
@@ -1183,10 +1089,6 @@ export default function HeadlinesPanel({
               const fallbackImg = getMacroEventFallbackImage(inferHeadlineImageCategory(item), 'thumb');
               const isSelected = selectedItem?.id === item.id;
               const enrichment = enrichMap[item.id];
-              const risingSectors = enrichment?.impacted_sectors.filter((sector) => sector.direction === 'up') ?? [];
-              const fallingSectors = enrichment?.impacted_sectors.filter((sector) => sector.direction === 'down') ?? [];
-              const mixedSectors = enrichment?.impacted_sectors.filter((sector) => sector.direction === 'mixed') ?? [];
-              const compact = enrichment ? buildCompactImpactView(enrichment) : null;
 
               return (
                 <div
@@ -1269,28 +1171,13 @@ export default function HeadlinesPanel({
                                 <Eye className="h-3.5 w-3.5" />
                                 Market Impact
                               </div>
-                              <div className="flex items-center gap-2">
-                                {compact?.timeHorizon ? (
-                                  <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-400">
-                                    {compact.timeHorizon}
-                                  </span>
-                                ) : null}
-                                <ConfidenceBadge level={enrichment.confidence ?? 'low'} />
+                              <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+                                Investor Read-Through
                               </div>
                             </div>
-                            <MarketImpactBlock text={enrichment.why_it_matters ?? enrichment.ai_summary ?? 'Additional context unavailable.'} />
+                            <MarketImpactBlock enrichment={enrichment} />
                           </div>
 
-                          {(risingSectors.length > 0 || fallingSectors.length > 0 || mixedSectors.length > 0) && (
-                            <div className="rounded-2xl border border-white/8 bg-[rgba(255,255,255,0.03)] p-4">
-                              <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Market Read-Through</div>
-                              <div className="flex flex-wrap gap-6">
-                                <ImpactChips title="Rising" items={risingSectors} />
-                                <ImpactChips title="Falling" items={fallingSectors} />
-                                <ImpactChips title="Mixed" items={mixedSectors} />
-                              </div>
-                            </div>
-                          )}
                         </div>
                       ) : (
                         <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-6 text-center">
