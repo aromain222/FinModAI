@@ -17,6 +17,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { PDFParse } from 'pdf-parse';
 import type { UploadedAttachmentContext } from '@/lib/analyst/attachmentContext';
 import { routeAnalystQuery, type AnalystRoute } from '@/lib/analyst/router';
 import { retrieveDataForRoute } from '@/lib/analyst/dataRetrieval';
@@ -36,6 +37,8 @@ import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKe
 import { lookupStock } from '@/lib/data/company/lookupStock';
 import { detectCoreTemplatePrompt } from '@/lib/analyst/coreModelTemplates';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
+import { getMarketEvents } from '@/lib/news/marketEventsPipeline';
+import type { MarketEvent } from '@/lib/news/marketEventsTypes';
 import {
   buildComparisonVisualizationFromPrompt,
   buildRevenueForecastVisualizationFromDcf,
@@ -213,7 +216,9 @@ function isUploadedAttachmentContext(value: unknown): value is UploadedAttachmen
     typeof row.sizeKb === 'number' &&
     typeof row.kind === 'string' &&
     typeof row.summary === 'string' &&
-    Array.isArray(row.warnings)
+    Array.isArray(row.warnings) &&
+    (typeof row.rawText === 'undefined' || typeof row.rawText === 'string') &&
+    (typeof row.rawBase64 === 'undefined' || typeof row.rawBase64 === 'string')
   );
 }
 
@@ -230,6 +235,69 @@ function attachmentContextBlock(attachment: UploadedAttachmentContext): string {
   ]
     .filter((item): item is string => Boolean(item))
     .join('\n');
+}
+
+async function hydrateAttachmentContext(
+  attachment: UploadedAttachmentContext | null,
+): Promise<UploadedAttachmentContext | null> {
+  if (!attachment) return null;
+  if (attachment.mimeType !== 'application/pdf' && !/\.pdf$/i.test(attachment.name)) {
+    return attachment;
+  }
+  if (!attachment.rawBase64) return attachment;
+
+  try {
+    const pdfBuffer = Buffer.from(attachment.rawBase64, 'base64');
+    const parser = new PDFParse({ data: pdfBuffer });
+    const parsed = await parser.getText();
+    await parser.destroy();
+    const extractedText = parsed.text
+      .replace(/\r\n/g, '\n')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    if (!extractedText) return attachment;
+    return {
+      ...attachment,
+      summary: extractedText.slice(0, 7000),
+      rawText: extractedText.slice(0, 120000),
+      warnings: attachment.warnings.filter(
+        (warning) => !warning.toLowerCase().includes('client-side pdf preview extraction'),
+      ),
+    };
+  } catch (error) {
+    return {
+      ...attachment,
+      warnings: [...attachment.warnings, 'Server-side PDF extraction failed; using limited preview text instead.'],
+    };
+  }
+}
+
+function serializeMarketEventsContext(events: MarketEvent[]): string {
+  return events
+    .slice(0, 5)
+    .map((event, index) => {
+      const impact = [
+        event.marketImpact.equities,
+        event.marketImpact.rates,
+        event.marketImpact.fx,
+        event.marketImpact.oil,
+        event.marketImpact.credit,
+        event.marketImpact.sectors,
+      ]
+        .filter((item): item is string => Boolean(item))
+        .slice(0, 2)
+        .join(' | ');
+      return [
+        `${index + 1}. ${event.title} (${event.eventType}; severity ${event.severity}; ${event.horizon})`,
+        `Drivers: ${event.drivers.join(' | ')}`,
+        `Transmission: ${event.transmissionPath.join(' -> ')}`,
+        impact ? `Market impact: ${impact}` : null,
+      ]
+        .filter((item): item is string => Boolean(item))
+        .join('\n');
+    })
+    .join('\n\n');
 }
 
 /* ────────── Fallback Reply Builder ────────── */
@@ -302,7 +370,8 @@ export async function POST(req: NextRequest) {
     const tickerRaw = typeof body?.ticker === 'string' && body.ticker.trim().length > 0
       ? body.ticker.trim().toUpperCase()
       : undefined;
-    const attachmentContext = isUploadedAttachmentContext(body?.attachmentContext) ? body.attachmentContext : null;
+    const attachmentContextInput = isUploadedAttachmentContext(body?.attachmentContext) ? body.attachmentContext : null;
+    const attachmentContext = await hydrateAttachmentContext(attachmentContextInput);
     const sessionId = typeof body?.sessionId === 'string' && body.sessionId.trim().length > 0 ? body.sessionId.trim() : null;
     const currentModel =
       body?.currentModel && typeof body.currentModel === 'object'
@@ -335,6 +404,9 @@ export async function POST(req: NextRequest) {
     const effectiveUserMessage = attachmentContext
       ? `${lastUserMessage}\n\n${attachmentContextBlock(attachmentContext)}`
       : lastUserMessage;
+    const attachmentLabel = attachmentContext
+      ? `Uploaded context: ${attachmentContext.name} (${attachmentContext.kind.replace(/_/g, ' ')})`
+      : null;
     const tickerFromMessage = inferTickerFromPrompt(effectiveUserMessage);
     const resolvedTicker = tickerRaw ?? tickerFromMessage;
     fallbackTicker = resolvedTicker;
@@ -369,6 +441,22 @@ export async function POST(req: NextRequest) {
       stockLookupPayload = await lookupStock({ prompt: lastUserMessage, ticker: resolvedTicker });
     }
 
+    const macroEventsContext =
+      route.intent === 'event_intelligence' || route.intent === 'market_question'
+        ? await getMarketEvents({
+            origin: req.nextUrl.origin,
+            view: 'active',
+            limit: 5,
+            provider: 'live',
+          }).catch(() => null)
+        : null;
+    const macroEventsBlock =
+      macroEventsContext && macroEventsContext.events.length > 0
+        ? `ACTIVE MARKET EVENT CONTEXT (use this to ground macro answers if relevant):\n\n${serializeMarketEventsContext(
+            macroEventsContext.events,
+          )}`
+        : null;
+
     if (isVisualizationPrompt(lastUserMessage)) {
       const comparisonVisualization = await buildComparisonVisualizationFromPrompt(lastUserMessage);
       if (comparisonVisualization) {
@@ -380,6 +468,7 @@ export async function POST(req: NextRequest) {
           visualization: comparisonVisualization.visualization,
           sources: comparisonVisualization.visualization.notes,
           factsCount: 0,
+          attachmentUsed: attachmentLabel,
         });
       }
 
@@ -401,6 +490,7 @@ export async function POST(req: NextRequest) {
             'Deterministic forecast path used for standalone visualization',
           ],
           factsCount: 0,
+          attachmentUsed: attachmentLabel,
         });
       }
     }
@@ -433,6 +523,7 @@ export async function POST(req: NextRequest) {
             'Conversation follow-up visualization request',
           ],
           factsCount: 0,
+          attachmentUsed: attachmentLabel,
         });
       }
 
@@ -449,6 +540,7 @@ export async function POST(req: NextRequest) {
             'Conversation follow-up visualization request',
           ],
           factsCount: 0,
+          attachmentUsed: attachmentLabel,
         });
       }
 
@@ -491,6 +583,7 @@ export async function POST(req: NextRequest) {
               'Conversation follow-up model adjustment',
             ],
             factsCount: 0,
+            attachmentUsed: attachmentLabel,
           });
         }
       }
@@ -510,6 +603,7 @@ export async function POST(req: NextRequest) {
               'Conversation follow-up DCF adjustment',
             ],
             factsCount: 0,
+            attachmentUsed: attachmentLabel,
           });
         }
       }
@@ -554,6 +648,7 @@ export async function POST(req: NextRequest) {
               'Deterministic prompt extraction and defaults',
             ],
             factsCount: 0,
+            attachmentUsed: attachmentLabel,
           });
         }
       }
@@ -573,6 +668,7 @@ export async function POST(req: NextRequest) {
               ? ['CapitalBase template library', 'Deterministic workbook model registry']
               : ['CapitalBase automated builder', 'Existing model generation workflow'],
           factsCount: 0,
+          attachmentUsed: attachmentLabel,
         });
       }
 
@@ -592,6 +688,7 @@ export async function POST(req: NextRequest) {
           ...(demo.payload.asOfDate ? [`Snapshot updated ${demo.payload.asOfDate}`] : []),
         ],
         factsCount: 0,
+        attachmentUsed: attachmentLabel,
       });
     }
 
@@ -610,6 +707,7 @@ export async function POST(req: NextRequest) {
         ].filter((item): item is string => Boolean(item)),
         factsCount: 0,
         stockLookup: currentStock,
+        attachmentUsed: attachmentLabel,
       });
     }
 
@@ -648,6 +746,7 @@ export async function POST(req: NextRequest) {
         route: route.intent,
         factsCount: facts.numbers.length + facts.events.length,
         stockLookup: stockLookupPayload,
+        attachmentUsed: attachmentLabel,
       }, { status: 200 });
     }
 
@@ -662,6 +761,7 @@ export async function POST(req: NextRequest) {
         role: 'system',
         content: `VERIFIED FACTS CONTEXT (retrieved and verified before this conversation — base your analysis on these):\n\n${factsContext}`,
       },
+      ...(macroEventsBlock ? [{ role: 'system' as const, content: macroEventsBlock }] : []),
       ...(attachmentContext ? [{ role: 'system' as const, content: attachmentContextBlock(attachmentContext) }] : []),
       ...safeMessages,
     ];
@@ -793,11 +893,17 @@ export async function POST(req: NextRequest) {
       fallback: false,
       mode: 'live',
       route: route.intent,
-      sources: facts.sources.slice(0, 8),
+      sources: [
+        ...facts.sources.slice(0, 8),
+        ...(macroEventsContext && macroEventsContext.events.length > 0
+          ? ['CapitalBase active market event context']
+          : []),
+      ],
       factsCount: facts.numbers.length + facts.events.length,
       dataGaps: facts.dataGaps.length > 0 ? facts.dataGaps : undefined,
       retrievalWarnings: retrievedData.warnings.length > 0 ? retrievedData.warnings : undefined,
       stockLookup: stockLookupPayload,
+      attachmentUsed: attachmentLabel,
     });
   } catch (error) {
     const message = error instanceof Error ? redactSecrets(error.message) : 'Unable to generate response';

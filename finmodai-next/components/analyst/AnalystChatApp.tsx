@@ -26,6 +26,7 @@ type Message = {
     reason?: string;
     sources?: string[];
     retrievalWarnings?: string[];
+    attachmentUsed?: string;
     dcfDemo?: AnalystDcfDemoPayload;
     generatedModel?: AnalystGeneratedModelPayload;
     coreTemplateModel?: AnalystCoreTemplatePayload;
@@ -191,6 +192,10 @@ export function AnalystChatApp() {
           retrievalWarnings: Array.isArray(payload?.retrievalWarnings)
             ? payload.retrievalWarnings.filter((item: unknown): item is string => typeof item === 'string').slice(0, 3)
             : [],
+          attachmentUsed:
+            typeof payload?.attachmentUsed === 'string' && payload.attachmentUsed.trim().length > 0
+              ? payload.attachmentUsed
+              : undefined,
           dcfDemo:
             payload?.dcfDemo && typeof payload.dcfDemo === 'object'
               ? (payload.dcfDemo as AnalystDcfDemoPayload)
@@ -285,6 +290,11 @@ export function AnalystChatApp() {
                 {message.role === 'assistant' && message.meta?.mode === 'fallback' && (
                   <div className="mt-2 text-[10px] uppercase tracking-wide text-amber-300/90">
                     fallback mode{message.meta.reason ? ` • ${message.meta.reason}` : ''}
+                  </div>
+                )}
+                {message.role === 'assistant' && message.meta?.attachmentUsed && (
+                  <div className="mt-2 text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
+                    {message.meta.attachmentUsed}
                   </div>
                 )}
                 {message.role === 'assistant' && message.meta?.sources && message.meta.sources.length > 0 && (

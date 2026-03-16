@@ -7,6 +7,8 @@ export type UploadedAttachmentContext = {
   kind: AttachmentKind;
   summary: string;
   warnings: string[];
+  rawText?: string;
+  rawBase64?: string;
 };
 
 function sanitizeText(input: string): string {
@@ -21,6 +23,17 @@ function sanitizeText(input: string): string {
 function truncate(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text;
   return `${text.slice(0, maxChars - 1).trimEnd()}…`;
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
 }
 
 function inferKind(name: string, mimeType: string, summary: string): AttachmentKind {
@@ -130,6 +143,9 @@ export async function parseUploadedAttachment(file: File): Promise<UploadedAttac
   const warnings: string[] = [];
 
   let summary = '';
+  let rawText: string | undefined;
+  let rawBase64: string | undefined;
+
   if (
     mimeType.includes('spreadsheet') ||
     mimeType.includes('excel') ||
@@ -139,16 +155,21 @@ export async function parseUploadedAttachment(file: File): Promise<UploadedAttac
     summary = workbookSummary.summary;
     warnings.push(...workbookSummary.warnings);
   } else if (mimeType === 'text/csv' || /\.csv$/i.test(file.name)) {
-    summary = summarizePlainText(await file.text());
+    rawText = truncate(await file.text(), 120000);
+    summary = summarizePlainText(rawText);
   } else if (mimeType === 'text/plain' || /\.txt$/i.test(file.name) || /\.md$/i.test(file.name)) {
-    summary = summarizePlainText(await file.text());
+    rawText = truncate(await file.text(), 120000);
+    summary = summarizePlainText(rawText);
   } else if (mimeType === 'application/pdf' || /\.pdf$/i.test(file.name)) {
-    summary = extractPdfText(await file.arrayBuffer());
+    const arrayBuffer = await file.arrayBuffer();
+    summary = extractPdfText(arrayBuffer);
+    rawBase64 = arrayBufferToBase64(arrayBuffer);
     if (summary.length < 200) {
-      warnings.push('PDF text extraction was limited; results may be incomplete for scanned or image-based PDFs.');
+      warnings.push('Client-side PDF preview extraction was limited; server-side extraction will be used for the full chat context.');
     }
   } else {
-    summary = summarizePlainText(await file.text().catch(() => ''));
+    rawText = truncate(await file.text().catch(() => ''), 120000);
+    summary = summarizePlainText(rawText);
     if (!summary) {
       warnings.push('This file type could not be parsed cleanly. Only metadata was captured.');
     }
@@ -166,5 +187,7 @@ export async function parseUploadedAttachment(file: File): Promise<UploadedAttac
     kind,
     summary: truncate(summary, 7000),
     warnings,
+    ...(rawText ? { rawText } : {}),
+    ...(rawBase64 ? { rawBase64 } : {}),
   };
 }
