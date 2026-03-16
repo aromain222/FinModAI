@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import { parseUploadedAttachment, type UploadedAttachmentContext } from '@/lib/analyst/attachmentContext';
 import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplates';
 import type { AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 import type { AnalystGeneratedModelPayload } from '@/lib/analyst/modelChat';
@@ -81,7 +82,8 @@ function getLoadingMessage(prompt: string): { title: string; detail: string } {
 
 export function AnalystChatApp() {
   const [ticker, setTicker] = useState('');
-  const [pdfNote, setPdfNote] = useState<string | null>(null);
+  const [attachment, setAttachment] = useState<UploadedAttachmentContext | null>(null);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -120,12 +122,21 @@ export function AnalystChatApp() {
     return { generatedModel: null, dcfDemo: null, stockLookup: null };
   }
 
-  const handlePdf = (file: File | null) => {
+  const handleAttachment = async (file: File | null) => {
     if (!file) {
-      setPdfNote(null);
+      setAttachment(null);
+      setAttachmentError(null);
       return;
     }
-    setPdfNote(`Attachment: ${file.name} (${Math.round(file.size / 1024)}kb)`);
+    try {
+      setAttachmentError(null);
+      const parsed = await parseUploadedAttachment(file);
+      setAttachment(parsed);
+    } catch (error) {
+      console.error('Attachment parse error', error);
+      setAttachment(null);
+      setAttachmentError('Unable to parse the uploaded file.');
+    }
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -147,7 +158,7 @@ export function AnalystChatApp() {
         // Optional ticker context; chat should still work without it.
         body: JSON.stringify({
           ticker: ticker.trim().length > 0 ? ticker.trim().toUpperCase() : undefined,
-          pdfText: pdfNote,
+          attachmentContext: attachment,
           sessionId,
           currentModel: latestArtifact.generatedModel,
           currentDcf: latestArtifact.dcfDemo,
@@ -237,11 +248,27 @@ export function AnalystChatApp() {
             type="file"
             id="pdf-upload-analyst"
             name="pdf-upload-analyst"
-            accept="application/pdf"
-            onChange={(event) => handlePdf(event.target.files?.[0] ?? null)}
+            accept=".pdf,.xlsx,.xls,.csv,.txt,.md,application/pdf,text/csv,text/plain"
+            onChange={(event) => void handleAttachment(event.target.files?.[0] ?? null)}
             className="text-xs text-[var(--cb-text-muted)]"
           />
         </div>
+        {attachment && (
+          <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] px-3 py-2 text-xs text-[var(--cb-text-muted)]">
+            <div className="font-medium text-[var(--cb-text-primary)]">
+              Attached: {attachment.name} • {attachment.kind.replace(/_/g, ' ')}
+            </div>
+            <div>{attachment.sizeKb}kb • parsed for chat context</div>
+            {attachment.warnings.length > 0 && (
+              <div className="mt-1 text-amber-300/90">{attachment.warnings[0]}</div>
+            )}
+          </div>
+        )}
+        {attachmentError && (
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+            {attachmentError}
+          </div>
+        )}
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-4 bg-[var(--cb-surface-subtle)] p-0">
         <div className="flex-1 space-y-4 overflow-y-auto px-4 py-6 text-sm">
@@ -327,7 +354,11 @@ export function AnalystChatApp() {
             disabled={isLoading}
           />
           <div className="mt-3 flex items-center justify-between text-xs text-[var(--cb-text-muted)]">
-            {pdfNote ? <span>{pdfNote}</span> : <span>Attach memo PDFs for additional context.</span>}
+            {attachment ? (
+              <span>Using {attachment.kind.replace(/_/g, ' ')} context from {attachment.name}.</span>
+            ) : (
+              <span>Attach earnings reports, model files, or notes for additional context.</span>
+            )}
             <Button type="submit" disabled={isLoading || !input.trim()}>
               {isLoading ? 'Thinking…' : 'Ask'}
             </Button>

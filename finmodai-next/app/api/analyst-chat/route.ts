@@ -17,6 +17,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import type { UploadedAttachmentContext } from '@/lib/analyst/attachmentContext';
 import { routeAnalystQuery, type AnalystRoute } from '@/lib/analyst/router';
 import { retrieveDataForRoute } from '@/lib/analyst/dataRetrieval';
 import { extractVerifiedFacts, serializeFactsForContext, type VerifiedFacts } from '@/lib/analyst/factsExtractor';
@@ -203,6 +204,34 @@ function isRevenueForecastVisualizationPrompt(message: string): boolean {
   );
 }
 
+function isUploadedAttachmentContext(value: unknown): value is UploadedAttachmentContext {
+  if (!value || typeof value !== 'object') return false;
+  const row = value as Record<string, unknown>;
+  return (
+    typeof row.name === 'string' &&
+    typeof row.mimeType === 'string' &&
+    typeof row.sizeKb === 'number' &&
+    typeof row.kind === 'string' &&
+    typeof row.summary === 'string' &&
+    Array.isArray(row.warnings)
+  );
+}
+
+function attachmentContextBlock(attachment: UploadedAttachmentContext): string {
+  const warnings = attachment.warnings.length > 0 ? `Warnings: ${attachment.warnings.join(' | ')}\n` : '';
+  return [
+    `Uploaded attachment: ${attachment.name}`,
+    `Attachment type: ${attachment.kind}`,
+    `MIME type: ${attachment.mimeType}`,
+    `Size: ${attachment.sizeKb}kb`,
+    warnings ? warnings.trimEnd() : null,
+    'Use this uploaded artifact as primary context when the user asks to explain, interpret, or turn it into a model.',
+    `Attachment summary:\n${attachment.summary}`,
+  ]
+    .filter((item): item is string => Boolean(item))
+    .join('\n');
+}
+
 /* ────────── Fallback Reply Builder ────────── */
 
 async function buildFallbackReply(params: {
@@ -273,7 +302,7 @@ export async function POST(req: NextRequest) {
     const tickerRaw = typeof body?.ticker === 'string' && body.ticker.trim().length > 0
       ? body.ticker.trim().toUpperCase()
       : undefined;
-    const pdfText = typeof body?.pdfText === 'string' ? body.pdfText : null;
+    const attachmentContext = isUploadedAttachmentContext(body?.attachmentContext) ? body.attachmentContext : null;
     const sessionId = typeof body?.sessionId === 'string' && body.sessionId.trim().length > 0 ? body.sessionId.trim() : null;
     const currentModel =
       body?.currentModel && typeof body.currentModel === 'object'
@@ -303,13 +332,19 @@ export async function POST(req: NextRequest) {
 
     type SafeMessage = { role: 'user' | 'assistant' | 'system'; content: string };
     const lastUserMessage = safeMessages.filter((m: SafeMessage) => m.role === 'user').slice(-1)[0]?.content || '';
-    const tickerFromMessage = inferTickerFromPrompt(lastUserMessage);
+    const effectiveUserMessage = attachmentContext
+      ? `${lastUserMessage}\n\n${attachmentContextBlock(attachmentContext)}`
+      : lastUserMessage;
+    const tickerFromMessage = inferTickerFromPrompt(effectiveUserMessage);
     const resolvedTicker = tickerRaw ?? tickerFromMessage;
     fallbackTicker = resolvedTicker;
     fallbackUserMessage = lastUserMessage;
 
     /* ── Step 1: Route the question ── */
-    const route: AnalystRoute = routeAnalystQuery(lastUserMessage, resolvedTicker);
+    const route: AnalystRoute = routeAnalystQuery(
+      attachmentContext ? `${lastUserMessage}\nAttachment type: ${attachmentContext.kind}` : lastUserMessage,
+      resolvedTicker,
+    );
     const shouldReviseCurrentModel =
       currentModel &&
       isModelAdjustmentPrompt(lastUserMessage) &&
@@ -350,7 +385,7 @@ export async function POST(req: NextRequest) {
 
       if (!currentModel && !currentDcf && !currentStock && isRevenueForecastVisualizationPrompt(lastUserMessage) && resolvedTicker) {
         const demo = await generateAnalystDcfDemo({
-          prompt: lastUserMessage,
+          prompt: effectiveUserMessage,
           explicitTicker: resolvedTicker,
         });
         const visualization = buildRevenueForecastVisualizationFromDcf(demo.payload);
@@ -480,13 +515,14 @@ export async function POST(req: NextRequest) {
       }
 
       if (modelType && modelType !== 'DCF') {
-        const generatedModel = await generateAnalystStructuredModel(lastUserMessage, sessionId);
+        const generatedModel = await generateAnalystStructuredModel(effectiveUserMessage, sessionId);
         if (generatedModel) {
           try {
             await savePromptModelRunVersion({
               surface: 'analyst_chat',
               sessionId,
               prompt: lastUserMessage,
+              // Preserve the original user request in run history, not the synthetic attachment block.
               modelType: generatedModel.payload.modelType,
               companyName:
                 'companyName' in generatedModel.payload.extractedInputs
@@ -541,7 +577,7 @@ export async function POST(req: NextRequest) {
       }
 
       const demo = await generateAnalystDcfDemo({
-        prompt: lastUserMessage,
+        prompt: effectiveUserMessage,
         explicitTicker: resolvedTicker,
       });
 
@@ -626,7 +662,7 @@ export async function POST(req: NextRequest) {
         role: 'system',
         content: `VERIFIED FACTS CONTEXT (retrieved and verified before this conversation — base your analysis on these):\n\n${factsContext}`,
       },
-      ...(pdfText ? [{ role: 'system' as const, content: `Uploaded memo excerpt: ${pdfText.slice(0, 2000)}` }] : []),
+      ...(attachmentContext ? [{ role: 'system' as const, content: attachmentContextBlock(attachmentContext) }] : []),
       ...safeMessages,
     ];
 
