@@ -22,22 +22,10 @@ const Plot = dynamic(() => import('react-plotly.js'), { ssr: false });
 
 const DEFAULT_CONFIG: PlotConfig = {
   responsive: true,
-  displayModeBar: true,
+  displayModeBar: false,
   displaylogo: false,
-  scrollZoom: true,
-  editable: true,
-  edits: {
-    annotationPosition: true,
-    annotationTail: true,
-    annotationText: true,
-    axisTitleText: true,
-    colorbarPosition: true,
-    colorbarTitleText: true,
-    legendPosition: true,
-    shapePosition: true,
-    titleText: true,
-  },
-  modeBarButtonsToAdd: ['drawline', 'drawopenpath', 'drawrect', 'eraseshape'],
+  scrollZoom: false,
+  editable: false,
 };
 
 const BASE_LAYOUT: PlotLayout = {
@@ -81,7 +69,7 @@ export function EditableFinanceChart({
   title,
   subtitle,
   height = 360,
-  editable = true,
+  editable = false,
 }: EditableFinanceChartProps) {
   return (
     <div className={cn('rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3', className)}>
