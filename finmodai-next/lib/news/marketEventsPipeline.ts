@@ -522,7 +522,102 @@ function absorbClassifyDiagnostics(target: PipelineDiagnostics, source: Classify
   target.classifierRawSamples = source.rawSamples ? source.rawSamples.slice(0, 5) : [];
 }
 
-function buildSeedEventImage(label: string, accent: string): string {
+type DemoSeedImageKind =
+  | 'oil'
+  | 'fed'
+  | 'trade'
+  | 'growth'
+  | 'nvidia'
+  | 'software'
+  | 'memory';
+
+function buildSeedIllustration(kind: DemoSeedImageKind, accent: string): string {
+  switch (kind) {
+    case 'oil':
+      return `
+        <path d="M170 430C250 360 360 340 450 370C520 392 585 442 655 446C748 450 820 388 900 360C968 336 1034 334 1095 356L1095 595L170 595Z" fill="rgba(15,23,42,0.72)" />
+        <path d="M330 470C390 435 447 422 510 438C574 454 621 492 685 503C760 516 830 486 890 450C955 412 1025 401 1095 422" stroke="rgba(248,250,252,0.18)" stroke-width="10" fill="none" stroke-linecap="round" />
+        <rect x="260" y="286" width="242" height="88" rx="18" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.10)" />
+        <rect x="502" y="308" width="118" height="66" rx="16" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.08)" />
+        <rect x="620" y="330" width="180" height="44" rx="12" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.08)" />
+        <circle cx="415" cy="330" r="24" fill="${accent}" opacity="0.24" />
+        <path d="M910 208C944 252 969 281 969 319C969 364 935 396 892 396C849 396 815 364 815 319C815 282 858 250 892 208Z" fill="${accent}" opacity="0.76" />
+      `;
+    case 'fed':
+      return `
+        <rect x="250" y="250" width="380" height="210" rx="20" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.10)" />
+        <polygon points="440,180 220,252 660,252" fill="rgba(255,255,255,0.08)" />
+        <rect x="286" y="282" width="40" height="126" rx="10" fill="rgba(248,250,252,0.12)" />
+        <rect x="362" y="282" width="40" height="126" rx="10" fill="rgba(248,250,252,0.12)" />
+        <rect x="438" y="282" width="40" height="126" rx="10" fill="rgba(248,250,252,0.12)" />
+        <rect x="514" y="282" width="40" height="126" rx="10" fill="rgba(248,250,252,0.12)" />
+        <path d="M735 440L815 370L884 396L949 310L1030 336" stroke="${accent}" stroke-width="14" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        <circle cx="735" cy="440" r="11" fill="${accent}" />
+        <circle cx="815" cy="370" r="11" fill="${accent}" />
+        <circle cx="884" cy="396" r="11" fill="${accent}" />
+        <circle cx="949" cy="310" r="11" fill="${accent}" />
+        <circle cx="1030" cy="336" r="11" fill="${accent}" />
+      `;
+    case 'trade':
+      return `
+        <rect x="240" y="305" width="170" height="98" rx="16" fill="rgba(249,115,22,0.18)" stroke="rgba(249,115,22,0.34)" />
+        <rect x="418" y="280" width="170" height="123" rx="16" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.10)" />
+        <rect x="596" y="322" width="170" height="81" rx="16" fill="rgba(249,115,22,0.14)" stroke="rgba(249,115,22,0.28)" />
+        <path d="M322 230H725" stroke="rgba(248,250,252,0.18)" stroke-width="12" stroke-linecap="round" />
+        <path d="M725 230L680 194" stroke="rgba(248,250,252,0.18)" stroke-width="12" stroke-linecap="round" />
+        <path d="M725 230L680 266" stroke="rgba(248,250,252,0.18)" stroke-width="12" stroke-linecap="round" />
+        <path d="M918 404H786" stroke="${accent}" stroke-width="14" stroke-linecap="round" />
+        <path d="M918 404L872 368" stroke="${accent}" stroke-width="14" stroke-linecap="round" />
+        <path d="M918 404L872 440" stroke="${accent}" stroke-width="14" stroke-linecap="round" />
+      `;
+    case 'growth':
+      return `
+        <rect x="250" y="430" width="88" height="100" rx="16" fill="rgba(255,255,255,0.08)" />
+        <rect x="372" y="378" width="88" height="152" rx="16" fill="rgba(255,255,255,0.07)" />
+        <rect x="494" y="330" width="88" height="200" rx="16" fill="rgba(255,255,255,0.06)" />
+        <rect x="616" y="286" width="88" height="244" rx="16" fill="rgba(255,255,255,0.05)" />
+        <path d="M274 258L404 286L548 318L684 366L832 436L988 490" stroke="${accent}" stroke-width="16" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="M988 490L955 444" stroke="${accent}" stroke-width="16" stroke-linecap="round" />
+        <path d="M988 490L930 500" stroke="${accent}" stroke-width="16" stroke-linecap="round" />
+      `;
+    case 'nvidia':
+      return `
+        <rect x="226" y="238" width="250" height="184" rx="28" fill="rgba(16,185,129,0.14)" stroke="rgba(16,185,129,0.34)" />
+        <rect x="268" y="280" width="166" height="100" rx="18" fill="rgba(248,250,252,0.10)" stroke="rgba(248,250,252,0.14)" />
+        <path d="M516 270H975" stroke="rgba(248,250,252,0.16)" stroke-width="10" stroke-linecap="round" />
+        <path d="M516 332H1012" stroke="rgba(248,250,252,0.12)" stroke-width="10" stroke-linecap="round" />
+        <path d="M516 394H960" stroke="rgba(248,250,252,0.10)" stroke-width="10" stroke-linecap="round" />
+        <circle cx="902" cy="236" r="58" fill="${accent}" opacity="0.16" />
+        <circle cx="324" cy="331" r="18" fill="${accent}" opacity="0.72" />
+        <circle cx="382" cy="331" r="18" fill="rgba(248,250,252,0.55)" />
+        <circle cx="350" cy="365" r="18" fill="rgba(248,250,252,0.35)" />
+      `;
+    case 'software':
+      return `
+        <rect x="235" y="230" width="310" height="226" rx="24" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.10)" />
+        <rect x="580" y="265" width="165" height="104" rx="18" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.10)" />
+        <rect x="784" y="265" width="165" height="104" rx="18" fill="rgba(6,182,212,0.14)" stroke="rgba(6,182,212,0.28)" />
+        <rect x="580" y="392" width="369" height="64" rx="18" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.08)" />
+        <circle cx="315" cy="312" r="22" fill="${accent}" opacity="0.72" />
+        <circle cx="436" cy="288" r="18" fill="rgba(248,250,252,0.62)" />
+        <circle cx="470" cy="376" r="20" fill="rgba(248,250,252,0.42)" />
+        <path d="M315 312L436 288L470 376L662 318L866 318" stroke="${accent}" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+      `;
+    case 'memory':
+      return `
+        <rect x="250" y="240" width="300" height="196" rx="28" fill="rgba(20,184,166,0.14)" stroke="rgba(20,184,166,0.32)" />
+        <rect x="306" y="290" width="188" height="96" rx="16" fill="rgba(248,250,252,0.12)" stroke="rgba(248,250,252,0.14)" />
+        <path d="M575 268H985" stroke="rgba(248,250,252,0.12)" stroke-width="12" stroke-linecap="round" />
+        <path d="M575 324H944" stroke="rgba(248,250,252,0.10)" stroke-width="12" stroke-linecap="round" />
+        <path d="M575 380H1018" stroke="rgba(248,250,252,0.08)" stroke-width="12" stroke-linecap="round" />
+        <path d="M575 436H932" stroke="${accent}" stroke-width="12" stroke-linecap="round" />
+        <rect x="842" y="214" width="112" height="112" rx="20" fill="${accent}" opacity="0.18" />
+        <rect x="878" y="250" width="40" height="40" rx="8" fill="${accent}" opacity="0.7" />
+      `;
+  }
+}
+
+function buildSeedEventImage(label: string, accent: string, kind: DemoSeedImageKind): string {
   const safeLabel = label
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -549,6 +644,7 @@ function buildSeedEventImage(label: string, accent: string): string {
       <rect x="104" y="156" width="132" height="10" rx="5" fill="rgba(255,255,255,0.07)" />
       <circle cx="1000" cy="156" r="84" fill="${accent}" opacity="0.14" />
       <circle cx="208" cy="522" r="68" fill="#ffffff" opacity="0.05" />
+      ${buildSeedIllustration(kind, accent)}
       <text x="104" y="486" fill="#f8fafc" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700">${safeLabel}</text>
       <text x="104" y="540" fill="rgba(248,250,252,0.72)" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="600" letter-spacing="4">CAPITALBASE EVENTS</text>
     </svg>
@@ -561,13 +657,13 @@ function buildDemoSeedEvents(): MarketEvent[] {
   const now = Date.now();
   const isoOffset = (hours: number) => new Date(now - hours * 60 * 60 * 1000).toISOString();
   const demoImageBySeed: Record<string, string> = {
-    'hormuz-oil-risk': buildSeedEventImage('Hormuz / Oil Shock', '#ef4444'),
-    'tariff-trade-reset': buildSeedEventImage('Tariffs / Trade', '#f59e0b'),
-    'fed-boxed-in': buildSeedEventImage('Fed / Boxed In', '#3b82f6'),
-    'growth-confidence-cracks': buildSeedEventImage('Growth / Confidence', '#8b5cf6'),
-    'nvidia-gtc-checkpoint': buildSeedEventImage('Nvidia / GTC', '#22c55e'),
-    'software-ai-reset': buildSeedEventImage('Software / AI Reset', '#06b6d4'),
-    'memory-hbm-checkpoint': buildSeedEventImage('Memory / HBM', '#14b8a6'),
+    'hormuz-oil-risk': buildSeedEventImage('Hormuz / Oil Shock', '#ef4444', 'oil'),
+    'tariff-trade-reset': buildSeedEventImage('Tariffs / Trade', '#f59e0b', 'trade'),
+    'fed-boxed-in': buildSeedEventImage('Fed / Boxed In', '#3b82f6', 'fed'),
+    'growth-confidence-cracks': buildSeedEventImage('Growth / Confidence', '#8b5cf6', 'growth'),
+    'nvidia-gtc-checkpoint': buildSeedEventImage('Nvidia / GTC', '#22c55e', 'nvidia'),
+    'software-ai-reset': buildSeedEventImage('Software / AI Reset', '#06b6d4', 'software'),
+    'memory-hbm-checkpoint': buildSeedEventImage('Memory / HBM', '#14b8a6', 'memory'),
   };
   const source = (
     seed: string,
