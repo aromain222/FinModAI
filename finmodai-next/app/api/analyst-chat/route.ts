@@ -359,6 +359,75 @@ function shouldInjectMacroEventsContext(
   return macroKeywords.test(attachmentText);
 }
 
+function artifactTickerFromContext(params: {
+  currentModel: AnalystGeneratedModelPayload | null;
+  currentDcf: AnalystDcfDemoPayload | null;
+  currentStock: StockLookupResult | null;
+}): string | undefined {
+  if (params.currentDcf?.ticker) return params.currentDcf.ticker.toUpperCase();
+  if (params.currentStock?.ticker) return params.currentStock.ticker.toUpperCase();
+  const extractedTicker = params.currentModel?.extractedInputs
+    && 'ticker' in params.currentModel.extractedInputs
+    && typeof params.currentModel.extractedInputs.ticker === 'string'
+    ? params.currentModel.extractedInputs.ticker
+    : null;
+  return extractedTicker?.trim().toUpperCase() || undefined;
+}
+
+function currentArtifactContextBlock(params: {
+  currentModel: AnalystGeneratedModelPayload | null;
+  currentDcf: AnalystDcfDemoPayload | null;
+  currentStock: StockLookupResult | null;
+}): string | null {
+  if (params.currentDcf) {
+    const base = params.currentDcf.scenarios.base;
+    return [
+      `Current artifact: DCF for ${params.currentDcf.companyName} (${params.currentDcf.ticker})`,
+      `Source: ${params.currentDcf.source}${params.currentDcf.asOfDate ? ` as of ${params.currentDcf.asOfDate}` : ''}`,
+      `Base implied value: ${base.pricePerShare != null ? `$${base.pricePerShare.toFixed(2)} per share` : 'not available'}`,
+      `Enterprise value: $${Math.round(base.enterpriseValue).toLocaleString('en-US')}M`,
+      `Revenue growth path: ${params.currentDcf.assumptions.revenueGrowth.map((value) => `${(value * 100).toFixed(1)}%`).join(' / ')}`,
+      `EBIT margin path: ${params.currentDcf.assumptions.ebitMargin.map((value) => `${(value * 100).toFixed(1)}%`).join(' / ')}`,
+      `WACC / terminal growth: ${(params.currentDcf.assumptions.wacc * 100).toFixed(1)}% / ${(params.currentDcf.assumptions.terminalGrowth * 100).toFixed(1)}%`,
+      `Memo: ${params.currentDcf.memo}`,
+    ].join('\n');
+  }
+
+  if (params.currentModel) {
+    const extractedTicker = params.currentModel.extractedInputs
+      && 'ticker' in params.currentModel.extractedInputs
+      && typeof params.currentModel.extractedInputs.ticker === 'string'
+      ? params.currentModel.extractedInputs.ticker
+      : null;
+    const extractedCompanyName = params.currentModel.extractedInputs
+      && 'companyName' in params.currentModel.extractedInputs
+      && typeof params.currentModel.extractedInputs.companyName === 'string'
+      ? params.currentModel.extractedInputs.companyName
+      : null;
+    return [
+      `Current artifact: ${params.currentModel.modelType.replace(/_/g, ' ')} model${extractedCompanyName ? ` for ${extractedCompanyName}` : ''}${extractedTicker ? ` (${extractedTicker})` : ''}`,
+      `Title: ${params.currentModel.title}`,
+      `Key outputs: ${params.currentModel.keyOutputs.join(' | ')}`,
+      `Tabs: ${params.currentModel.tabs.join(', ')}`,
+      `Narrative blocks:\n${params.currentModel.narrativeBlocks.map((block) => `- ${block.title}: ${block.body}`).join('\n')}`,
+      `Provenance: ${params.currentModel.provenanceSummary.sources.join(' | ')}`,
+    ].join('\n');
+  }
+
+  if (params.currentStock) {
+    return [
+      `Current artifact: company lookup for ${params.currentStock.companyName ?? params.currentStock.ticker} (${params.currentStock.ticker})`,
+      `Price: ${params.currentStock.price != null ? `$${params.currentStock.price.toFixed(2)}` : 'not available'}`,
+      `Market cap: ${params.currentStock.marketCap != null ? `$${Math.round(params.currentStock.marketCap).toLocaleString('en-US')}` : 'not available'}`,
+      `Revenue / EBITDA / net income: ${params.currentStock.revenueLtm != null ? `$${Math.round(params.currentStock.revenueLtm).toLocaleString('en-US')}M` : 'n/a'} / ${params.currentStock.ebitdaLtm != null ? `$${Math.round(params.currentStock.ebitdaLtm).toLocaleString('en-US')}M` : 'n/a'} / ${params.currentStock.netIncomeLtm != null ? `$${Math.round(params.currentStock.netIncomeLtm).toLocaleString('en-US')}M` : 'n/a'}`,
+      `Sector / industry: ${params.currentStock.sector ?? 'n/a'} / ${params.currentStock.industry ?? 'n/a'}`,
+      `Use this company context unless the user clearly pivots away from it.`,
+    ].join('\n');
+  }
+
+  return null;
+}
+
 async function hydrateAttachmentContext(
   attachment: UploadedAttachmentContext | null,
 ): Promise<UploadedAttachmentContext | null> {
@@ -531,7 +600,9 @@ export async function POST(req: NextRequest) {
       : null;
     const tickerFromAttachment = attachmentContext?.signals?.ticker?.toUpperCase();
     const tickerFromMessage = inferTickerFromPrompt(effectiveUserMessage);
-    const resolvedTicker = tickerRaw ?? tickerFromMessage ?? tickerFromAttachment;
+    const currentArtifactBlock = currentArtifactContextBlock({ currentModel, currentDcf, currentStock });
+    const tickerFromCurrentArtifact = artifactTickerFromContext({ currentModel, currentDcf, currentStock });
+    const resolvedTicker = tickerRaw ?? tickerFromMessage ?? tickerFromAttachment ?? tickerFromCurrentArtifact;
     fallbackTicker = resolvedTicker;
     fallbackUserMessage = lastUserMessage;
 
@@ -892,6 +963,7 @@ export async function POST(req: NextRequest) {
         content: `VERIFIED FACTS CONTEXT (retrieved and verified before this conversation — base your analysis on these):\n\n${factsContext}`,
       },
       ...(macroEventsBlock ? [{ role: 'system' as const, content: macroEventsBlock }] : []),
+      ...(currentArtifactBlock ? [{ role: 'system' as const, content: currentArtifactBlock }] : []),
       ...(attachmentContext ? [{ role: 'system' as const, content: attachmentContextBlock(attachmentContext) }] : []),
       ...safeMessages,
     ];
