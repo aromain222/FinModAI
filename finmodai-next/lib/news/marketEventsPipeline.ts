@@ -561,21 +561,44 @@ function buildDemoSeedEvents(): MarketEvent[] {
   const now = Date.now();
   const isoOffset = (hours: number) => new Date(now - hours * 60 * 60 * 1000).toISOString();
   const demoImageBySeed: Record<string, string> = {
-    'middle-east-defense': buildSeedEventImage('Defense / ISR', '#ef4444'),
-    'satellite-ai-warfare': buildSeedEventImage('Satellite / AI Warfare', '#3b82f6'),
-    'nato-defense-spend': buildSeedEventImage('NATO / Defense Budgets', '#10b981'),
-    'ai-cyber-defense': buildSeedEventImage('Cyber / Defense AI', '#8b5cf6'),
-    'energy-risk-premium': buildSeedEventImage('Energy / Oil Risk', '#f59e0b'),
+    'hormuz-oil-risk': buildSeedEventImage('Hormuz / Oil Shock', '#ef4444'),
+    'tariff-trade-reset': buildSeedEventImage('Tariffs / Trade', '#f59e0b'),
+    'fed-boxed-in': buildSeedEventImage('Fed / Boxed In', '#3b82f6'),
+    'growth-confidence-cracks': buildSeedEventImage('Growth / Confidence', '#8b5cf6'),
+    'nvidia-gtc-checkpoint': buildSeedEventImage('Nvidia / GTC', '#22c55e'),
+    'software-ai-reset': buildSeedEventImage('Software / AI Reset', '#06b6d4'),
+    'memory-hbm-checkpoint': buildSeedEventImage('Memory / HBM', '#14b8a6'),
   };
-  const source = (seed: string, title: string, publishedAt: string): MarketEventSource => ({
-    name: 'Demo Seed',
-    url: 'https://example.com/demo-seed',
+  const source = (
+    seed: string,
+    article: {
+      name: string;
+      url: string;
+      title: string;
+      snippet: string;
+    },
+    publishedAt: string
+  ): MarketEventSource => ({
+    name: article.name,
+    url: article.url,
     publishedAt,
-    title,
-    snippet: 'Structured seeded event for demo mode only.',
+    title: article.title,
+    snippet: article.snippet,
     imageUrl: demoImageBySeed[seed],
   });
-  const mk = (seed: string, payload: Omit<MarketEvent, 'id' | 'firstSeenAt' | 'lastUpdatedAt' | 'sources'> & { ageHours: number; firstSeenHours: number }) => {
+  const mk = (
+    seed: string,
+    payload: Omit<MarketEvent, 'id' | 'firstSeenAt' | 'lastUpdatedAt' | 'sources'> & {
+      ageHours: number;
+      firstSeenHours: number;
+      source: {
+        name: string;
+        url: string;
+        title: string;
+        snippet: string;
+      };
+    }
+  ) => {
     const updatedAt = isoOffset(payload.ageHours);
     const firstSeenAt = isoOffset(payload.firstSeenHours);
     return marketEventSchema.parse({
@@ -583,122 +606,247 @@ function buildDemoSeedEvents(): MarketEvent[] {
       id: createHash('sha256').update(`demo-seed:${seed}`).digest('hex').slice(0, 24),
       firstSeenAt,
       lastUpdatedAt: updatedAt,
-      sources: [source(seed, payload.title, updatedAt)],
+      sources: [source(seed, payload.source, updatedAt)],
     });
   };
 
   return [
-    mk('middle-east-defense', {
-      title: 'Escalating Middle East tensions drive defense and ISR bid',
-      eventType: 'Geopolitics',
-      severity: 89,
+    mk('hormuz-oil-risk', {
+      title: 'Hormuz oil-shock risk puts energy, inflation, and defense back on top of the tape',
+      eventType: 'Conflict',
+      severity: 93,
       horizon: 'Immediate',
       drivers: [
-        'Renewed instability raises the probability of sustained U.S. and allied engagement.',
-        'Markets are pricing a longer period of regional tension even without a full-scale war.',
-        'Defense and intelligence equities are responding before formal procurement catches up.',
+        'Markets are repricing the risk that a wider Middle East conflict disrupts energy flows and shipping insurance before any physical outage is confirmed.',
+        'Brent pushing toward the psychological $100 zone would tighten financial conditions by lifting fuel costs, inflation expectations, and risk aversion together.',
+        'Energy, defense, and safe-haven exposures are leading while airlines, transports, and other fuel-sensitive cyclicals lose sponsorship.',
       ],
       marketImpact: {
-        equities: 'Defense and intelligence-linked equities gain on expected backlog support.',
-        oil: 'Energy risk premia can rise as regional instability extends.',
-        sectors: 'PLTR, LMT, NOC, and BKSY are the most sensitive names in the immediate reaction window.',
+        equities: 'Energy, defense, and commodity-linked equities should keep outperforming if crude volatility stays elevated, while transports and discretionary exposure remain vulnerable.',
+        rates: 'An oil-led inflation shock can keep breakevens firm and make duration harder to own even if growth expectations soften.',
+        fx: 'Safe-haven dollar demand can strengthen if cross-border shipping and commodity flows become less predictable.',
+        oil: 'Crude risk premium rises first through freight, insurance, and inventory hedging before any confirmed supply loss.',
+        sectors: 'Integrated oil, refiners, and defense contractors screen best; airlines, chemicals, and consumer cyclicals carry the cleanest downside read-through.',
       },
       transmissionPath: [
-        'Regional instability rises -> defense spending expectations move higher -> contract backlog visibility improves -> defense-tech multiples expand',
+        'Conflict escalation -> shipping and supply risk rise -> crude and inflation expectations move higher -> energy and defense outperform while cyclicals de-rate',
       ],
-      watchNext: ['Watch supplemental defense appropriations and allied spending packages.', 'Watch new ISR, missile defense, and targeting-software contract awards.'],
+      watchNext: [
+        'Watch Hormuz and Red Sea shipping updates plus tanker insurance pricing.',
+        'Watch Brent term structure and whether spot crude breaks and holds above recent highs.',
+        'Watch airline and transport management commentary for demand or margin revisions.',
+      ],
+      status: 'developing',
+      ageHours: 2,
+      firstSeenHours: 18,
+      source: {
+        name: 'AP News',
+        url: 'https://apnews.com/article/66806b02a000235f1979e591279b6554',
+        title: 'Stocks sink worldwide as Iran attacks create a dilemma for central banks: how to cut rates and fight inflation?',
+        snippet: 'AP coverage tied the Middle East escalation directly to oil, inflation, and central-bank constraints.',
+      },
+    }),
+    mk('tariff-trade-reset', {
+      title: 'Tariff and trade-policy uncertainty keeps cyclicals and multinationals under pressure',
+      eventType: 'RegulatoryShock',
+      severity: 89,
+      horizon: 'NearTerm',
+      drivers: [
+        'Markets are still treating tariff headlines as a live earnings risk because policy scope, legal durability, and retaliation paths remain unsettled.',
+        'Trade-sensitive industrials, retailers, and hardware names face renewed margin and inventory planning pressure when import assumptions keep changing.',
+        'The market is rewarding domestically insulated cash flows over globally exposed operating leverage until policy clarity improves.',
+      ],
+      marketImpact: {
+        equities: 'Multinationals, import-heavy retailers, and trade-sensitive industrials stay under pressure while domestic defensives hold up better.',
+        fx: 'Trade uncertainty tends to support the dollar against export-sensitive and emerging-market currencies when growth expectations are marked down.',
+        credit: 'Lower-visibility cyclicals can see spread pressure if tariffs begin to hit inventory turns and pricing power unevenly.',
+        sectors: 'Industrials, autos, retail, and hardware remain the cleanest downside buckets while domestically oriented utilities and staples look relatively safer.',
+      },
+      transmissionPath: [
+        'Tariff uncertainty -> margin and sourcing assumptions worsen -> earnings visibility falls -> cyclicals and globally exposed names underperform',
+      ],
+      watchNext: [
+        'Watch legal and policy clarification on which tariffs survive and when they take effect.',
+        'Watch retaliation headlines and sourcing commentary from large import-dependent companies.',
+        'Watch whether management teams begin cutting full-year margin or demand guidance.',
+      ],
       status: 'developing',
       ageHours: 4,
       firstSeenHours: 28,
+      source: {
+        name: 'Reuters',
+        url: 'https://www.reuters.com/markets/us/',
+        title: 'Tariffs and AI concerns dominate U.S. equity tape',
+        snippet: 'Reuters market coverage highlighted tariffs as a direct drag on cyclicals and multinational sentiment.',
+      },
     }),
-    mk('satellite-ai-warfare', {
-      title: 'Satellite and AI warfare normalization deepens the defense software trade',
-      eventType: 'Conflict',
-      severity: 84,
-      horizon: 'Structural',
+    mk('fed-boxed-in', {
+      title: 'Fed is boxed in as oil risk revives inflation just as growth momentum cools',
+      eventType: 'CentralBank',
+      severity: 90,
+      horizon: 'Immediate',
       drivers: [
-        'Conflicts are increasingly data-centric, with AI-assisted reconnaissance becoming standard infrastructure.',
-        'Defense budgets are rotating toward ISR, cyber, predictive logistics, and autonomous coordination.',
-        'Software-integrated contractors are taking a larger share of new defense spending.',
+        'Energy-led inflation risk has returned at the same time the economy is showing more visible cracks in hiring, confidence, and consumer durability.',
+        'That combination makes a clean easing pivot harder because the Fed cannot ignore higher inflation expectations even if growth is slowing.',
+        'Markets are moving toward a slower and more conditional cutting path rather than a straightforward rescue-easing setup.',
       ],
       marketImpact: {
-        equities: 'Defense software and federal analytics names trade as structural winners.',
-        sectors: 'LDOS, CACI, BBAI, and RDW are the most levered to this budget shift.',
+        equities: 'Long-duration growth and lower-quality cyclicals both struggle because the market loses the simple lower-rates offset.',
+        rates: 'Front-end yields can stay sticky while the long end trades the stagflation mix of softer growth but worse inflation optics.',
+        fx: 'The dollar tends to stay supported when the U.S. still offers relative rate support despite weaker growth headlines.',
+        credit: 'Refinancing-sensitive borrowers face pressure if policy relief is delayed while top-line momentum softens.',
+        sectors: 'Financials, energy, and selective defensives hold up better than speculative growth and rate-sensitive balance-sheet stories.',
       },
       transmissionPath: [
-        'AI-enabled warfare adoption rises -> ISR and cyber budgets expand -> software-heavy defense vendors gain share -> higher long-duration revenue visibility lifts valuations',
+        'Oil and inflation risk rise -> Fed stays cautious -> real rates and financial conditions stay restrictive -> valuation and refinancing pressure spreads',
       ],
-      watchNext: ['Watch ISR and cyber allocations in budget proposals.', 'Watch whether small-cap defense AI names win new agency programs.'],
-      status: 'confirmed',
-      ageHours: 11,
-      firstSeenHours: 120,
+      watchNext: [
+        'Watch breakevens, gasoline passthrough, and inflation expectation surveys.',
+        'Watch FOMC language for whether energy-driven inflation alters the expected easing path.',
+        'Watch front-end futures to see if cuts are merely delayed or meaningfully repriced out.',
+      ],
+      status: 'developing',
+      ageHours: 3,
+      firstSeenHours: 24,
+      source: {
+        name: 'AP News',
+        url: 'https://apnews.com/article/66806b02a000235f1979e591279b6554',
+        title: 'Iran attacks create a dilemma for central banks: how to cut rates and fight inflation?',
+        snippet: 'AP framed the current macro bind as a simultaneous inflation and policy problem, not just a geopolitical headline.',
+      },
     }),
-    mk('nato-defense-spend', {
-      title: 'NATO and Western defense budget expansion supports multi-year prime backlog growth',
+    mk('growth-confidence-cracks', {
+      title: 'Softening U.S. jobs and confidence data deepen stagflation worries',
+      eventType: 'Macro',
+      severity: 85,
+      horizon: 'NearTerm',
+      drivers: [
+        'Recent labor and consumer data are pointing to slower underlying demand before the full energy shock has even hit household budgets.',
+        'That weakens the case for broad cyclical exposure because revenue expectations can roll over while the cost backdrop stays difficult.',
+        'The setup raises the probability of a more selective market led by balance-sheet quality and pricing power rather than beta.',
+      ],
+      marketImpact: {
+        equities: 'Consumer discretionary, travel, and lower-quality cyclicals look most exposed if demand fades while costs remain sticky.',
+        rates: 'Long-end yields can struggle to fall cleanly if slower growth is offset by worse inflation optics.',
+        credit: 'Lower-tier consumer and cyclical credit can widen as volume risk and margin pressure begin to overlap.',
+        sectors: 'Staples, utilities, and quality software hold up better than travel, retail, and economically sensitive cyclicals.',
+      },
+      transmissionPath: [
+        'Jobs and confidence soften -> revenue expectations weaken -> investors crowd into quality and defensives -> cyclical breadth deteriorates',
+      ],
+      watchNext: [
+        'Watch payroll revisions, weekly claims, and any broadening in unemployment.',
+        'Watch consumer confidence and spending data for signs that softness is moving beyond surveys.',
+        'Watch discretionary and travel management teams for demand language changes.',
+      ],
+      status: 'confirmed',
+      ageHours: 5,
+      firstSeenHours: 30,
+      source: {
+        name: 'AP News',
+        url: 'https://apnews.com/article/3172b6d0023717644c173cee94d44a79',
+        title: 'Cracks are showing in the U.S. economy and could spell trouble for the labor market',
+        snippet: 'AP highlighted slower hiring and softer demand as a separate macro issue that predates the latest oil shock.',
+      },
+    }),
+    mk('nvidia-gtc-checkpoint', {
+      title: 'Nvidia GTC becomes the next test of AI infrastructure durability',
+      eventType: 'EarningsMegaCap',
+      severity: 88,
+      horizon: 'NearTerm',
+      drivers: [
+        'Investors want confirmation that hyperscaler and enterprise AI budgets are still broadening rather than narrowing to a smaller set of projects.',
+        'The conference matters because guidance around Blackwell, networking, and inference adoption shapes the entire AI infrastructure stack.',
+        'A strong message can re-anchor semiconductor leadership while any signs of digestion would hit the most crowded names quickly.',
+      ],
+      marketImpact: {
+        equities: 'Semis, networking, foundry, and power-exposed infrastructure names should move first because the market is still trading AI as a capex chain.',
+        credit: 'Supplier spread tone stays constructive if the event supports another leg of durable capex visibility.',
+        sectors: 'GPU, memory, networking, and data-center power beneficiaries all remain directly tied to this checkpoint.',
+      },
+      transmissionPath: [
+        'Management tone on AI demand -> hyperscaler capex confidence adjusts -> semiconductor earnings expectations reset -> AI infrastructure leadership strengthens or fades',
+      ],
+      watchNext: [
+        'Watch Blackwell shipment commentary and any bottleneck language around networking or power.',
+        'Watch hyperscaler references for whether inference demand is broadening beyond training clusters.',
+        'Watch whether management reinforces 2026 demand durability instead of just near-term backlog strength.',
+      ],
+      status: 'developing',
+      ageHours: 6,
+      firstSeenHours: 36,
+      source: {
+        name: 'NVIDIA Newsroom',
+        url: 'https://nvidianews.nvidia.com/news/nvidia-ceo-jensen-huang-and-global-technology-leaders-to-showcase-age-of-ai-at-gtc-2026',
+        title: 'NVIDIA CEO Jensen Huang and global technology leaders to showcase the age of AI at GTC 2026',
+        snippet: 'NVIDIA framed GTC 2026 as the next major checkpoint for AI compute, networking, and enterprise deployment commentary.',
+      },
+    }),
+    mk('software-ai-reset', {
+      title: 'AI disruption fears keep software and services multiples under pressure',
       eventType: 'Macro',
       severity: 83,
       horizon: 'Structural',
       drivers: [
-        'European NATO members are accelerating commitments to meet or exceed 2% of GDP defense spend.',
-        'The U.S. continues replenishment funding tied to multiple conflict theaters.',
-        'Defense spend is sticky, multi-year, and politically durable in a high-risk environment.',
+        'The market is becoming less willing to pay peak multiples for application software if AI compresses pricing, feature differentiation, or seat-based expansion.',
+        'Services and software names without clear AI monetization are facing a valuation reset even before headline revenue erosion is fully visible.',
+        'This is creating a split tape between infrastructure beneficiaries and companies viewed as AI takers rather than AI sellers.',
       ],
       marketImpact: {
-        equities: 'Large defense primes gain from longer revenue visibility and backlog durability.',
-        sectors: 'RTX, GD, and BAESY benefit most from a broadening Western procurement cycle.',
+        equities: 'Application software and IT services can stay under relative pressure while infrastructure and monetization leaders retain premium support.',
+        credit: 'High-multiple software remains an equity story first, but weaker sentiment can widen the gap between premium and average issuers.',
+        sectors: 'Software, consulting, and recurring-revenue names with weak AI differentiation are screening worse than semiconductor and cloud-enabler cohorts.',
       },
       transmissionPath: [
-        'Allied defense budgets rise -> procurement pipelines lengthen -> prime contractor backlog expands -> earnings visibility improves -> multiples rerate modestly higher',
+        'AI disruption fear rises -> software pricing-power assumptions weaken -> multiples compress -> capital rotates toward infrastructure and proven monetizers',
       ],
-      watchNext: ['Watch NATO summit commitments and appropriations calendars.', 'Watch replenishment orders tied to missile defense and combat systems.'],
-      status: 'confirmed',
-      ageHours: 18,
-      firstSeenHours: 160,
-    }),
-    mk('ai-cyber-defense', {
-      title: 'AI militarization and cyber escalation reprice defense AI as structural growth',
-      eventType: 'RegulatoryShock',
-      severity: 86,
-      horizon: 'Structural',
-      drivers: [
-        'Cyber attacks and AI-enabled warfare are increasing in scale and operational relevance.',
-        'Governments are integrating AI into cyber, logistics, and battlefield planning.',
-        'Defense AI trades more like growth tech than traditional industrials when AI sentiment is strong.',
+      watchNext: [
+        'Watch software management teams for AI-driven upsell versus substitution commentary.',
+        'Watch whether enterprise customers delay seat expansion or compress renewal pricing.',
+        'Watch relative performance between software indices and semiconductor leaders for confirmation.',
       ],
-      marketImpact: {
-        equities: 'Defense AI and federal cybersecurity names can decouple positively from legacy defense valuations.',
-        sectors: 'CRWD, BAH, and PLTR are the clearest listed beneficiaries.',
-      },
-      transmissionPath: [
-        'AI militarization expands -> federal cyber and AI budgets rise -> software-heavy defense names gain higher growth multiples -> leadership shifts toward defense-adjacent AI',
-      ],
-      watchNext: ['Watch federal cyber contract awards and classified AI program commentary.', 'Watch whether AI sentiment broadens beyond pure defense into security software.'],
       status: 'developing',
       ageHours: 7,
-      firstSeenHours: 72,
+      firstSeenHours: 40,
+      source: {
+        name: 'Reuters',
+        url: 'https://www.reuters.com/markets/us/',
+        title: 'Tech worries dominate as AI disruption fears spread beyond semiconductors',
+        snippet: 'Reuters market coverage described a broader tech selloff driven by AI disruption and valuation reset concerns.',
+      },
     }),
-    mk('energy-risk-premium', {
-      title: 'Energy risk premium expands as shipping corridor instability lifts geopolitical oil sensitivity',
-      eventType: 'Conflict',
+    mk('memory-hbm-checkpoint', {
+      title: 'Memory and HBM pricing are emerging as the next checkpoint for the AI trade',
+      eventType: 'EarningsMegaCap',
       severity: 81,
       horizon: 'NearTerm',
       drivers: [
-        'Shipping corridor risks and regional instability are adding a geopolitical premium to crude.',
-        'Markets are treating transport disruption as an inflation-sensitive macro input.',
+        'After GPUs and networking, the market is rotating toward memory pricing and HBM supply as the next bottleneck in the AI value chain.',
+        'Supplier commentary now matters because sustained HBM tightness would support another leg of AI hardware earnings revisions.',
+        'Any sign of pricing normalization or inventory digestion would pressure the second tier of AI beneficiaries first.',
       ],
       marketImpact: {
-        equities: 'Energy equities outperform while growth tech can soften in risk-off periods.',
-        rates: 'Inflation expectations can push the long end higher.',
-        oil: 'Oil futures face upside pressure as conflict risk remains elevated.',
-        sectors: 'XOM and CVX act as direct beneficiaries, while airlines and transports face pressure.',
+        equities: 'Memory and equipment names can outperform if HBM tightness persists, while broader AI beneficiaries may fade if pricing power rolls over.',
+        credit: 'Improving visibility around memory margins supports spread stability for the best-positioned semiconductor suppliers.',
+        sectors: 'Memory, foundry equipment, and packaging beneficiaries remain the highest-beta read-through from this checkpoint.',
       },
       transmissionPath: [
-        'Conflict risk rises -> oil futures reprice higher -> inflation expectations increase -> energy equities rally while growth-duration assets underperform',
+        'HBM pricing and supply commentary -> memory margin expectations reset -> second-order AI trade breadth expands or contracts',
       ],
-      watchNext: ['Watch crude futures and shipping insurance rates.', 'Watch whether corridor disruption broadens into sustained supply constraints.'],
+      watchNext: [
+        'Watch Micron and other memory suppliers for HBM pricing, mix, and capacity language.',
+        'Watch packaging and advanced-memory bottleneck commentary across the semiconductor chain.',
+        'Watch whether AI customers prioritize capacity security over near-term cost discipline.',
+      ],
       status: 'developing',
-      ageHours: 5,
-      firstSeenHours: 44,
+      ageHours: 8,
+      firstSeenHours: 42,
+      source: {
+        name: 'Micron Investor Relations',
+        url: 'https://investors.micron.com/',
+        title: 'Micron investor updates remain a key checkpoint for HBM and memory pricing',
+        snippet: 'Micron disclosures are a direct read-through for the memory leg of the AI infrastructure trade.',
+      },
     }),
   ];
 }
