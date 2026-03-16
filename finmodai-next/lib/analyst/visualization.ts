@@ -26,6 +26,11 @@ export type AnalystVisualizationPayload = {
   panels: AnalystVisualizationPanel[];
 };
 
+export type ComparisonVisualizationResult = {
+  visualization: AnalystVisualizationPayload;
+  explanation: string;
+};
+
 type ComparisonMetricKey = 'revenue' | 'ebitda' | 'netIncome' | 'eps';
 
 type CompanyComparisonSeries = {
@@ -35,6 +40,18 @@ type CompanyComparisonSeries = {
   metrics: Record<ComparisonMetricKey, number | null>;
   source: string;
 };
+
+const COMPARISON_ALIASES: Array<{ ticker: string; patterns: RegExp[] }> = [
+  { ticker: 'MSFT', patterns: [/\bmicrosoft'?s?\b/i, /\bmsft\b/i] },
+  { ticker: 'GOOGL', patterns: [/\bgoogle'?s?\b/i, /\balphabet'?s?\b/i, /\bgoogl\b/i, /\bgoog\b/i] },
+  { ticker: 'NVDA', patterns: [/\bnvidia'?s?\b/i, /\bnvda\b/i] },
+  { ticker: 'AAPL', patterns: [/\bapple'?s?\b/i, /\baapl\b/i] },
+  { ticker: 'AMZN', patterns: [/\bamazon'?s?\b/i, /\bamzn\b/i] },
+  { ticker: 'META', patterns: [/\bmeta'?s?\b/i, /\bfacebook'?s?\b/i, /\bmeta platforms\b/i, /\bmeta\b/i] },
+  { ticker: 'TSLA', patterns: [/\btesla'?s?\b/i, /\btsla\b/i] },
+  { ticker: 'ORCL', patterns: [/\boracle'?s?\b/i, /\borcl\b/i] },
+  { ticker: 'CRM', patterns: [/\bsalesforce'?s?\b/i, /\bcrm\b/i] },
+];
 
 function normalizePromptText(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -51,13 +68,55 @@ function hasComparisonIntent(prompt: string): boolean {
   return /\b(compare|comparison|versus|vs\.?|against)\b/i.test(prompt);
 }
 
-function isEarningsComparisonPrompt(prompt: string): boolean {
-  return hasComparisonIntent(prompt) && /\b(earnings?|quarter|revenue|eps|net income|ebitda)\b/i.test(prompt);
+function inferComparisonMetric(prompt: string): ComparisonMetricKey | 'multi' | null {
+  const text = normalizePromptText(prompt);
+  if (/\b(eps|earnings per share)\b/.test(text)) return 'eps';
+  if (/\b(ebitda)\b/.test(text)) return 'ebitda';
+  if (/\b(net income|net profit|profit)\b/.test(text)) return 'netIncome';
+  if (/\b(revenue|reveneue|reveenue|sales|top line|topline)\b/.test(text)) return 'revenue';
+  if (/\b(earnings|quarter|results)\b/.test(text)) return 'multi';
+  return null;
+}
+
+function isComparisonChartPrompt(prompt: string): boolean {
+  return hasComparisonIntent(prompt) && inferComparisonMetric(prompt) !== null;
+}
+
+function comparisonDriverSummary(ticker: string): string {
+  switch (ticker) {
+    case 'MSFT':
+      return 'Microsoft revenue is primarily driven by Azure and the broader commercial cloud stack, with Office and other enterprise software adding a large recurring base.';
+    case 'GOOGL':
+      return 'Alphabet revenue is primarily driven by Google Search and YouTube advertising, with Google Cloud as the main secondary growth engine.';
+    case 'NVDA':
+      return 'NVIDIA revenue is primarily driven by data-center and AI accelerator demand, with gaming and networking as secondary contributors.';
+    case 'AAPL':
+      return 'Apple revenue is primarily driven by iPhone hardware, with services and wearables supporting mix and margin.';
+    case 'AMZN':
+      return 'Amazon revenue is primarily driven by e-commerce volume and third-party seller services, with AWS carrying outsized profit importance.';
+    case 'META':
+      return 'Meta revenue is primarily driven by digital advertising across its social platforms, with ad pricing and engagement as the key drivers.';
+    default:
+      return `${ticker} revenue should be tied to its core operating segments and any current cycle strength in demand, pricing, or mix.`;
+  }
 }
 
 function resolveMentionedTickers(prompt: string, snapshots: Record<string, { companyName?: string | null }>): string[] {
   const normalizedPrompt = normalizePromptText(prompt);
   const matched = new Map<string, { position: number; score: number }>();
+
+  for (const alias of COMPARISON_ALIASES) {
+    for (const pattern of alias.patterns) {
+      const hit = pattern.exec(prompt);
+      if (hit?.index !== undefined) {
+        const existing = matched.get(alias.ticker);
+        if (!existing || hit.index < existing.position) {
+          matched.set(alias.ticker, { position: hit.index, score: 900 });
+        }
+        break;
+      }
+    }
+  }
 
   for (const ticker of Object.keys(snapshots)) {
     const tickerPattern = new RegExp(`\\b${ticker.replace('.', '\\.')}\\b`, 'i');
@@ -571,8 +630,8 @@ export function buildVisualizationFromCurrentArtifact(input: {
   return null;
 }
 
-export async function buildComparisonVisualizationFromPrompt(prompt: string): Promise<AnalystVisualizationPayload | null> {
-  if (!isEarningsComparisonPrompt(prompt)) return null;
+export async function buildComparisonVisualizationFromPrompt(prompt: string): Promise<ComparisonVisualizationResult | null> {
+  if (!isComparisonChartPrompt(prompt)) return null;
 
   const snapshots = await loadDemoSnapshots();
   const tickers = resolveMentionedTickers(prompt, snapshots);
@@ -583,7 +642,11 @@ export async function buildComparisonVisualizationFromPrompt(prompt: string): Pr
   );
   if (series.length < 2) return null;
 
-  const metricOrder: ComparisonMetricKey[] = ['revenue', 'ebitda', 'netIncome', 'eps'];
+  const metricPreference = inferComparisonMetric(prompt);
+  const metricOrder: ComparisonMetricKey[] =
+    metricPreference && metricPreference !== 'multi'
+      ? [metricPreference]
+      : ['revenue', 'ebitda', 'netIncome', 'eps'];
   const availableMetrics = metricOrder.filter((metric) => series.some((company) => typeof company.metrics[metric] === 'number'));
   if (availableMetrics.length === 0) return null;
 
@@ -592,40 +655,45 @@ export async function buildComparisonVisualizationFromPrompt(prompt: string): Pr
     ...series.map((company) =>
       `${company.ticker}: ${company.source === 'fmp_latest_quarter' ? 'latest quarterly earnings' : 'LTM snapshot fallback'}`
     ),
+    ...series.map((company) => comparisonDriverSummary(company.ticker)),
   ];
+  const explanation = `${comparisonDriverSummary(series[0].ticker)} ${comparisonDriverSummary(series[1].ticker)}`;
 
   return {
-    title: `${series[0].companyName} vs ${series[1].companyName} Earnings Comparison`,
-    subtitle: 'Direct comparison chart built from the latest available company earnings context.',
-    contextType: 'stock',
-    contextLabel: `${series[0].ticker} vs ${series[1].ticker}`,
-    notes,
-    panels: availableMetrics.map((metric) => ({
-      id: `earnings-${metric}`,
-      title: `${formatMetricLabel(metric)} Comparison`,
-      subtitle:
-        metric === 'eps'
-          ? 'Latest available EPS by company.'
-          : `Latest available ${formatMetricLabel(metric).toLowerCase()} by company.`,
-      height: 280,
-      data: [
-        {
-          type: 'bar',
-          name: formatMetricLabel(metric),
-          x: series.map((company) => company.ticker),
-          y: series.map((company) => (typeof company.metrics[metric] === 'number' ? company.metrics[metric] : 0)),
-          text: series.map((company) => company.companyName),
-          marker: { color: ['#76b7ff', '#7ce7ac'] },
-          hovertemplate:
-            metric === 'eps'
-              ? '%{x}<br>%{text}<br>EPS: $%{y:.2f}<extra></extra>'
-              : '%{x}<br>%{text}<br>Value: $%{y:,.0f}M<extra></extra>',
+    explanation,
+    visualization: {
+      title: `${series[0].companyName} vs ${series[1].companyName} Comparison`,
+      subtitle: 'Direct comparison chart built from the latest available company financial context.',
+      contextType: 'stock',
+      contextLabel: `${series[0].ticker} vs ${series[1].ticker}`,
+      notes,
+      panels: availableMetrics.map((metric) => ({
+        id: `comparison-${metric}`,
+        title: `${formatMetricLabel(metric)} Comparison`,
+        subtitle:
+          metric === 'eps'
+            ? 'Latest available EPS by company.'
+            : `Latest available ${formatMetricLabel(metric).toLowerCase()} by company.`,
+        height: 280,
+        data: [
+          {
+            type: 'bar',
+            name: formatMetricLabel(metric),
+            x: series.map((company) => company.ticker),
+            y: series.map((company) => (typeof company.metrics[metric] === 'number' ? company.metrics[metric] : 0)),
+            text: series.map((company) => company.companyName),
+            marker: { color: ['#76b7ff', '#7ce7ac'] },
+            hovertemplate:
+              metric === 'eps'
+                ? '%{x}<br>%{text}<br>EPS: $%{y:.2f}<extra></extra>'
+                : '%{x}<br>%{text}<br>Value: $%{y:,.0f}M<extra></extra>',
+          },
+        ],
+        layout: {
+          xaxis: { type: 'category' },
+          yaxis: metric === 'eps' ? { tickprefix: '$' } : { tickprefix: '$', ticksuffix: 'M' },
         },
-      ],
-      layout: {
-        xaxis: { type: 'category' },
-        yaxis: metric === 'eps' ? { tickprefix: '$' } : { tickprefix: '$', ticksuffix: 'M' },
-      },
-    })),
+      })),
+    },
   };
 }

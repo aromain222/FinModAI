@@ -319,16 +319,16 @@ export async function POST(req: NextRequest) {
       stockLookupPayload = await lookupStock({ prompt: lastUserMessage, ticker: resolvedTicker });
     }
 
-    if (isVisualizationPrompt(lastUserMessage) && !currentModel && !currentDcf && !currentStock) {
+    if (isVisualizationPrompt(lastUserMessage)) {
       const comparisonVisualization = await buildComparisonVisualizationFromPrompt(lastUserMessage);
       if (comparisonVisualization) {
         return NextResponse.json({
-          reply: `Here is a standalone comparison chart for ${comparisonVisualization.contextLabel}. It was generated directly from your prompt and is separate from any model card.`,
+          reply: `Here is a standalone comparison chart for ${comparisonVisualization.visualization.contextLabel}. ${comparisonVisualization.explanation}`,
           fallback: false,
           mode: 'live',
           route: route.intent,
-          visualization: comparisonVisualization,
-          sources: comparisonVisualization.notes,
+          visualization: comparisonVisualization.visualization,
+          sources: comparisonVisualization.visualization.notes,
           factsCount: 0,
         });
       }
