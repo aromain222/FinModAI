@@ -126,6 +126,72 @@ function buildCorePreview(outputs: any) {
   };
 }
 
+function toFiniteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function normalizeRatioLike(value: unknown, fallback: number): number {
+  const base = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  return Math.abs(base) > 1 ? base / 100 : base;
+}
+
+function mapCoreInputsToBankerDcfInputs(
+  coreInputs: {
+    company: { name: string; currency: string; ticker?: string };
+    historicals: { revenue?: number[] };
+    assumptions: {
+      growth?: number | number[];
+      growthSeries?: number[];
+      margin?: number | number[];
+      taxRate?: number;
+      capexPctRevenue?: number;
+      nwcPctRevenue?: number;
+      daPctRevenue?: number;
+    };
+    capitalStructure?: { netDebt?: number; sharesOutstanding?: number };
+    pricingAnchor?: { marketCap?: number; sharePrice?: number; sharesOutstanding?: number };
+  },
+  coreOutputs: any
+) {
+  const latestRevenue =
+    Array.isArray(coreInputs.historicals?.revenue) && coreInputs.historicals.revenue.length > 0
+      ? coreInputs.historicals.revenue[coreInputs.historicals.revenue.length - 1]
+      : 1000;
+  const growthSeries =
+    Array.isArray(coreInputs.assumptions?.growthSeries) && coreInputs.assumptions.growthSeries.length > 0
+      ? coreInputs.assumptions.growthSeries.map((value) => normalizeRatioLike(value, 0.08))
+      : [normalizeRatioLike(coreInputs.assumptions?.growth, 0.08)];
+  const ebitMargin = normalizeRatioLike(coreInputs.assumptions?.margin, 0.2);
+  const daPctRevenue = normalizeRatioLike(coreInputs.assumptions?.daPctRevenue, 0.04);
+  const wacc = normalizeRatioLike((coreOutputs?.audit?.assumptionsUsed as any)?.wacc, 0.1);
+  const terminalGrowth = normalizeRatioLike((coreOutputs?.audit?.assumptionsUsed as any)?.terminalGrowth, 0.025);
+
+  return {
+    ticker: coreInputs.company?.ticker || 'DCF',
+    companyName: coreInputs.company?.name || coreInputs.company?.ticker || 'Company',
+    revenue: latestRevenue,
+    revenueGrowth: growthSeries,
+    ebitMargin,
+    ebitdaMargin: ebitMargin + daPctRevenue,
+    taxRate: normalizeRatioLike(coreInputs.assumptions?.taxRate, 0.25),
+    depreciationPctRevenue: daPctRevenue,
+    capexPctRevenue: normalizeRatioLike(coreInputs.assumptions?.capexPctRevenue, 0.04),
+    nwcPctRevenue: normalizeRatioLike(coreInputs.assumptions?.nwcPctRevenue, 0.02),
+    wacc,
+    terminalGrowth,
+    projectionYears: growthSeries.length > 0 ? growthSeries.length : 5,
+    netDebt: toFiniteNumber(coreInputs.capitalStructure?.netDebt),
+    sharesOutstanding:
+      toFiniteNumber(coreInputs.capitalStructure?.sharesOutstanding) ??
+      toFiniteNumber(coreInputs.pricingAnchor?.sharesOutstanding),
+    marketCap: toFiniteNumber(coreInputs.pricingAnchor?.marketCap) ?? undefined,
+    marketPrice: toFiniteNumber(coreInputs.pricingAnchor?.sharePrice) ?? undefined,
+    price: toFiniteNumber(coreInputs.pricingAnchor?.sharePrice) ?? undefined,
+    sharePrice: toFiniteNumber(coreInputs.pricingAnchor?.sharePrice) ?? undefined,
+    currency: coreInputs.company?.currency || 'USD',
+  };
+}
+
 const asFiniteNumber = (value: unknown): number | undefined => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
   return value;
@@ -471,11 +537,25 @@ export async function generateRunForModelType({
         },
       };
 
-      const workbookBuffer = await buildExcelFromModelOutputs({
-        templateId: 'dcf',
-        modelOutputs: baseResult.outputs,
-        companyName: baseResult.inputs.company.name,
-      });
+      let workbookBuffer: Buffer;
+      try {
+        const { generateBankerDCF, buildDcfWorkbook } = await import('@/lib/dcfGenerator');
+        const bankerInputs = mapCoreInputsToBankerDcfInputs(baseResult.inputs, baseResult.outputs);
+        const bankerOutput = await generateBankerDCF(bankerInputs);
+        const bankerWorkbook = await buildDcfWorkbook(bankerOutput);
+        const bankerBufferRaw = await bankerWorkbook.xlsx.writeBuffer();
+        workbookBuffer = Buffer.isBuffer(bankerBufferRaw) ? bankerBufferRaw : Buffer.from(bankerBufferRaw);
+      } catch (error) {
+        console.warn('[model-run] banker DCF workbook generation failed, falling back to core export', {
+          runId: run.id,
+          message: error instanceof Error ? error.message : String(error),
+        });
+        workbookBuffer = await buildExcelFromModelOutputs({
+          templateId: 'dcf',
+          modelOutputs: baseResult.outputs,
+          companyName: baseResult.inputs.company.name,
+        });
+      }
 
       const dataUri = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${workbookBuffer.toString('base64')}`;
       let storageKey: string | undefined;

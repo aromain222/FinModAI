@@ -23,6 +23,12 @@ const isFiniteNumber = (value: unknown): value is number =>
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 
+const normalizeRatioLike = (value: unknown, fallback: number): number => {
+  const base = isFiniteNumber(value) ? value : fallback;
+  if (!isFiniteNumber(base)) return fallback;
+  return Math.abs(base) > 1 ? base / 100 : base;
+};
+
 const sanitizeNumber = (
   value: unknown,
   fallback: number,
@@ -87,19 +93,19 @@ export function normalizeModelInputs(
       ? raw.historicals.years
       : Array.from({ length: normalizedRevenue.length }, (_, idx) => currentYear - normalizedRevenue.length + idx);
 
-  const growth = sanitizeNumber(raw.assumptions?.growth, 0.08, -0.95, 3);
-  const margin = sanitizeNumber(raw.assumptions?.margin, 0.2, -0.5, 0.9);
-  const taxRate = sanitizeNumber(raw.assumptions?.taxRate, 0.25, 0, 0.6);
-  const capexPctRevenue = sanitizeNumber(raw.assumptions?.capexPctRevenue, 0.04, -1, 1);
-  const nwcPctRevenue = sanitizeNumber(raw.assumptions?.nwcPctRevenue, 0.02, -1, 1);
+  const growth = sanitizeNumber(normalizeRatioLike(raw.assumptions?.growth, 0.08), 0.08, -0.95, 3);
+  const margin = sanitizeNumber(normalizeRatioLike(raw.assumptions?.margin, 0.2), 0.2, -0.5, 0.9);
+  const taxRate = sanitizeNumber(normalizeRatioLike(raw.assumptions?.taxRate, 0.25), 0.25, 0, 0.6);
+  const capexPctRevenue = sanitizeNumber(normalizeRatioLike(raw.assumptions?.capexPctRevenue, 0.04), 0.04, -1, 1);
+  const nwcPctRevenue = sanitizeNumber(normalizeRatioLike(raw.assumptions?.nwcPctRevenue, 0.02), 0.02, -1, 1);
   const daPctRevenue =
     raw.assumptions?.daPctRevenue === undefined
       ? undefined
-      : sanitizeNumber(raw.assumptions.daPctRevenue, 0.04, -1, 1);
+      : sanitizeNumber(normalizeRatioLike(raw.assumptions.daPctRevenue, 0.04), 0.04, -1, 1);
 
   const growthSeries =
     Array.isArray(raw.assumptions?.growthSeries) && raw.assumptions.growthSeries.length > 0
-      ? raw.assumptions.growthSeries.map((value) => sanitizeNumber(value, growth, -0.95, 3))
+      ? raw.assumptions.growthSeries.map((value) => sanitizeNumber(normalizeRatioLike(value, growth), growth, -0.95, 3))
       : Array.from({ length: 5 }, () => growth);
 
   const forecastRevenue =

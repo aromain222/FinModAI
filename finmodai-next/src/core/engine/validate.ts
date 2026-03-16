@@ -5,6 +5,12 @@ import { issue } from '@/src/core/engine/errors';
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value);
 
+const normalizeRatioLike = (value: unknown, fallback: number): number => {
+  const base = isFiniteNumber(value) ? value : fallback;
+  if (!Number.isFinite(base)) return fallback;
+  return Math.abs(base) > 1 ? base / 100 : base;
+};
+
 const sanitizeNumber = (value: unknown, fallback: number, min?: number, max?: number): number => {
   const base = isFiniteNumber(value) ? value : fallback;
   const boundedMin = typeof min === 'number' ? Math.max(base, min) : base;
@@ -18,7 +24,9 @@ const sanitizePositive = (value: unknown): number | undefined => {
 
 const sanitizeSeries = (values: unknown, fallback: number[]): number[] => {
   if (!Array.isArray(values)) return [...fallback];
-  const clean = values.filter((value) => isFiniteNumber(value)).map((value) => value as number);
+  const clean = values
+    .filter((value) => isFiniteNumber(value))
+    .map((value) => value as number);
   return clean.length > 0 ? clean : [...fallback];
 };
 
@@ -43,8 +51,8 @@ export function validateAndSanitizeInputs(
   }
 
   const projectionYears = sanitizeNumber(raw.assumptions?.projectionYears, 5, 3, 10);
-  const growthDefault = sanitizeNumber(raw.assumptions?.growth, 0.08, -0.95, 3);
-  const marginDefault = sanitizeNumber(raw.assumptions?.margins, 0.2, -0.7, 0.9);
+  const growthDefault = sanitizeNumber(normalizeRatioLike(raw.assumptions?.growth, 0.08), 0.08, -0.95, 3);
+  const marginDefault = sanitizeNumber(normalizeRatioLike(raw.assumptions?.margins, 0.2), 0.2, -0.7, 0.9);
 
   const safe: ModelInputs = {
     company: {
@@ -65,20 +73,20 @@ export function validateAndSanitizeInputs(
     assumptions: {
       growth: Array.isArray(raw.assumptions?.growth)
         ? sanitizeSeries(raw.assumptions?.growth, Array.from({ length: projectionYears }, () => growthDefault)).map(
-            (value) => sanitizeNumber(value, growthDefault, -0.95, 3)
+            (value) => sanitizeNumber(normalizeRatioLike(value, growthDefault), growthDefault, -0.95, 3)
           )
         : growthDefault,
       margins: Array.isArray(raw.assumptions?.margins)
         ? sanitizeSeries(raw.assumptions?.margins, Array.from({ length: projectionYears }, () => marginDefault)).map(
-            (value) => sanitizeNumber(value, marginDefault, -0.7, 0.9)
+            (value) => sanitizeNumber(normalizeRatioLike(value, marginDefault), marginDefault, -0.7, 0.9)
           )
         : marginDefault,
-      taxRate: sanitizeNumber(raw.assumptions?.taxRate, 0.25, 0, 0.6),
-      capexPct: sanitizeNumber(raw.assumptions?.capexPct, 0.04, -1, 1),
-      nwcPct: sanitizeNumber(raw.assumptions?.nwcPct, 0.02, -1, 1),
-      daPct: sanitizeNumber(raw.assumptions?.daPct, 0.04, -1, 1),
-      wacc: sanitizeNumber(raw.assumptions?.wacc, 0.1, 0.04, 0.3),
-      terminalGrowth: sanitizeNumber(raw.assumptions?.terminalGrowth, 0.025, -0.02, 0.08),
+      taxRate: sanitizeNumber(normalizeRatioLike(raw.assumptions?.taxRate, 0.25), 0.25, 0, 0.6),
+      capexPct: sanitizeNumber(normalizeRatioLike(raw.assumptions?.capexPct, 0.04), 0.04, -1, 1),
+      nwcPct: sanitizeNumber(normalizeRatioLike(raw.assumptions?.nwcPct, 0.02), 0.02, -1, 1),
+      daPct: sanitizeNumber(normalizeRatioLike(raw.assumptions?.daPct, 0.04), 0.04, -1, 1),
+      wacc: sanitizeNumber(normalizeRatioLike(raw.assumptions?.wacc, 0.1), 0.1, 0.04, 0.3),
+      terminalGrowth: sanitizeNumber(normalizeRatioLike(raw.assumptions?.terminalGrowth, 0.025), 0.025, -0.02, 0.08),
       terminalMultiple: raw.assumptions?.terminalMultiple,
       projectionYears,
     },
