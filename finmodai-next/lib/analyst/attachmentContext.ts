@@ -1,5 +1,13 @@
 export type AttachmentKind = 'earnings_report' | 'model_workbook' | 'spreadsheet' | 'document';
 
+export type AttachmentSignals = {
+  companyName?: string;
+  ticker?: string;
+  modelTypeHint?: 'DCF' | 'THREE_STATEMENT' | 'COMPS' | 'LBO' | 'SCORECARD';
+  fiscalPeriod?: string;
+  keyLines: string[];
+};
+
 export type UploadedAttachmentContext = {
   name: string;
   mimeType: string;
@@ -9,6 +17,7 @@ export type UploadedAttachmentContext = {
   warnings: string[];
   rawText?: string;
   rawBase64?: string;
+  signals?: AttachmentSignals;
 };
 
 function sanitizeText(input: string): string {
@@ -58,6 +67,70 @@ function inferKind(name: string, mimeType: string, summary: string): AttachmentK
 
 function summarizePlainText(text: string, maxChars = 6000): string {
   return truncate(sanitizeText(text), maxChars);
+}
+
+function inferModelTypeHint(text: string): AttachmentSignals['modelTypeHint'] | undefined {
+  const lower = text.toLowerCase();
+  if (/\bscorecard\b/.test(lower)) return 'SCORECARD';
+  if (/\blbo\b|leveraged buyout|sources and uses|deleveraging/.test(lower)) return 'LBO';
+  if (/\bcomps\b|comparable company|ev \/ ebitda|ev \/ revenue|p \/ e/.test(lower)) return 'COMPS';
+  if (/\bthree[- ]statement\b|\b3[- ]statement\b|income statement|balance sheet|cash flow statement/.test(lower)) {
+    return 'THREE_STATEMENT';
+  }
+  if (/\bdcf\b|discounted cash flow|terminal value|wacc|fcff/.test(lower)) return 'DCF';
+  return undefined;
+}
+
+function extractCompanySignal(text: string): { companyName?: string; ticker?: string } {
+  const compact = sanitizeText(text);
+  const namedTicker = compact.match(/\b([A-Z][A-Za-z0-9&.,' -]{2,80})\s+\(([A-Z]{1,5})\)\b/);
+  if (namedTicker) {
+    return {
+      companyName: namedTicker[1].trim(),
+      ticker: namedTicker[2].trim(),
+    };
+  }
+  const tickerLabel = compact.match(/\bTicker\b[:| ]+([A-Z]{1,5})\b/i);
+  if (tickerLabel) {
+    return { ticker: tickerLabel[1].toUpperCase() };
+  }
+  return {};
+}
+
+function extractFiscalPeriod(text: string): string | undefined {
+  const match = text.match(/\b(Q[1-4]\s*(?:FY)?\s*\d{2,4}|FY\s*\d{2,4}|fiscal\s+(?:year|quarter)\s+\d{2,4})\b/i);
+  return match ? sanitizeText(match[1]) : undefined;
+}
+
+function extractKeyLines(text: string, maxLines = 6): string[] {
+  const lines = text
+    .split('\n')
+    .map((line) => sanitizeText(line))
+    .filter(Boolean);
+  const matches = lines.filter((line) =>
+    /\b(revenue|eps|ebitda|ebit|net income|fcff|guidance|margin|wacc|terminal|shares outstanding|enterprise value|equity value|cash flow|debt|capex)\b/i.test(
+      line,
+    ),
+  );
+  return (matches.length > 0 ? matches : lines).slice(0, maxLines);
+}
+
+function buildSignals(text: string): AttachmentSignals | undefined {
+  const company = extractCompanySignal(text);
+  const fiscalPeriod = extractFiscalPeriod(text);
+  const keyLines = extractKeyLines(text);
+  const modelTypeHint = inferModelTypeHint(text);
+
+  if (!company.companyName && !company.ticker && !fiscalPeriod && !modelTypeHint && keyLines.length === 0) {
+    return undefined;
+  }
+
+  return {
+    ...company,
+    ...(modelTypeHint ? { modelTypeHint } : {}),
+    ...(fiscalPeriod ? { fiscalPeriod } : {}),
+    keyLines,
+  };
 }
 
 function decodePdfLiteral(raw: string): string {
@@ -180,6 +253,7 @@ export async function parseUploadedAttachment(file: File): Promise<UploadedAttac
   }
 
   const kind = inferKind(file.name, mimeType, summary);
+  const signals = buildSignals(`${summary}\n\n${rawText ?? ''}`.slice(0, 16000));
   return {
     name: file.name,
     mimeType,
@@ -189,5 +263,6 @@ export async function parseUploadedAttachment(file: File): Promise<UploadedAttac
     warnings,
     ...(rawText ? { rawText } : {}),
     ...(rawBase64 ? { rawBase64 } : {}),
+    ...(signals ? { signals } : {}),
   };
 }

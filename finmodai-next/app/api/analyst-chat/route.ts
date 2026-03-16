@@ -223,6 +223,19 @@ function isUploadedAttachmentContext(value: unknown): value is UploadedAttachmen
 }
 
 function attachmentContextBlock(attachment: UploadedAttachmentContext): string {
+  const signalLines = attachment.signals
+    ? [
+        attachment.signals.companyName ? `Company: ${attachment.signals.companyName}` : null,
+        attachment.signals.ticker ? `Ticker: ${attachment.signals.ticker}` : null,
+        attachment.signals.modelTypeHint ? `Model type hint: ${attachment.signals.modelTypeHint}` : null,
+        attachment.signals.fiscalPeriod ? `Fiscal period: ${attachment.signals.fiscalPeriod}` : null,
+        attachment.signals.keyLines.length > 0
+          ? `Key extracted lines:\n${attachment.signals.keyLines.map((line) => `- ${line}`).join('\n')}`
+          : null,
+      ]
+        .filter((item): item is string => Boolean(item))
+        .join('\n')
+    : null;
   const warnings = attachment.warnings.length > 0 ? `Warnings: ${attachment.warnings.join(' | ')}\n` : '';
   return [
     `Uploaded attachment: ${attachment.name}`,
@@ -230,11 +243,68 @@ function attachmentContextBlock(attachment: UploadedAttachmentContext): string {
     `MIME type: ${attachment.mimeType}`,
     `Size: ${attachment.sizeKb}kb`,
     warnings ? warnings.trimEnd() : null,
+    signalLines,
     'Use this uploaded artifact as primary context when the user asks to explain, interpret, or turn it into a model.',
     `Attachment summary:\n${attachment.summary}`,
   ]
     .filter((item): item is string => Boolean(item))
     .join('\n');
+}
+
+function overrideRouteFromAttachment(
+  route: AnalystRoute,
+  userMessage: string,
+  attachment: UploadedAttachmentContext | null,
+): AnalystRoute {
+  if (!attachment) return route;
+  const text = userMessage.toLowerCase();
+  const genericExplain = /\b(explain|interpret|summarize|walk me through|what matters|what are the drivers|driving factors|what is this)\b/.test(
+    text,
+  );
+  const buildFromAttachment = /\b(turn this into|use this to build|build from this|model this|create.*from this)\b/.test(text);
+
+  if (attachment.kind === 'model_workbook' && buildFromAttachment) {
+    return {
+      intent: 'financial_model',
+      tickers: route.tickers,
+      requiresLiveData: false,
+      requiresNews: false,
+      requiresFinancials: true,
+    };
+  }
+
+  if (attachment.kind === 'model_workbook' && (genericExplain || route.intent === 'general_finance')) {
+    return {
+      intent: 'general_finance',
+      tickers: route.tickers,
+      requiresLiveData: false,
+      requiresNews: false,
+      requiresFinancials: false,
+    };
+  }
+
+  if (attachment.kind === 'earnings_report') {
+    if (buildFromAttachment || route.intent === 'financial_model') {
+      return {
+        intent: 'financial_model',
+        tickers: route.tickers,
+        requiresLiveData: false,
+        requiresNews: false,
+        requiresFinancials: true,
+      };
+    }
+    if (genericExplain || route.intent === 'general_finance') {
+      return {
+        intent: 'company_question',
+        tickers: route.tickers,
+        requiresLiveData: false,
+        requiresNews: false,
+        requiresFinancials: true,
+      };
+    }
+  }
+
+  return route;
 }
 
 async function hydrateAttachmentContext(
@@ -407,16 +477,18 @@ export async function POST(req: NextRequest) {
     const attachmentLabel = attachmentContext
       ? `Uploaded context: ${attachmentContext.name} (${attachmentContext.kind.replace(/_/g, ' ')})`
       : null;
+    const tickerFromAttachment = attachmentContext?.signals?.ticker?.toUpperCase();
     const tickerFromMessage = inferTickerFromPrompt(effectiveUserMessage);
-    const resolvedTicker = tickerRaw ?? tickerFromMessage;
+    const resolvedTicker = tickerRaw ?? tickerFromMessage ?? tickerFromAttachment;
     fallbackTicker = resolvedTicker;
     fallbackUserMessage = lastUserMessage;
 
     /* ── Step 1: Route the question ── */
-    const route: AnalystRoute = routeAnalystQuery(
+    const baseRoute: AnalystRoute = routeAnalystQuery(
       attachmentContext ? `${lastUserMessage}\nAttachment type: ${attachmentContext.kind}` : lastUserMessage,
       resolvedTicker,
     );
+    const route = overrideRouteFromAttachment(baseRoute, lastUserMessage, attachmentContext);
     const shouldReviseCurrentModel =
       currentModel &&
       isModelAdjustmentPrompt(lastUserMessage) &&
@@ -506,7 +578,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (route.intent === 'financial_model' || shouldReviseCurrentModel || shouldVisualizeCurrentModel || shouldVisualizeCurrentDcf) {
-      const modelType = classifyPrompt(lastUserMessage);
+      const modelType = classifyPrompt(lastUserMessage) ?? attachmentContext?.signals?.modelTypeHint ?? null;
       const coreTemplateModel = detectCoreTemplatePrompt(lastUserMessage);
 
       if (shouldVisualizeCurrentDcf && currentDcf) {
@@ -609,7 +681,11 @@ export async function POST(req: NextRequest) {
       }
 
       if (modelType && modelType !== 'DCF') {
-        const generatedModel = await generateAnalystStructuredModel(effectiveUserMessage, sessionId);
+        const normalizedModelPrompt =
+          classifyPrompt(lastUserMessage) === null && attachmentContext?.signals?.modelTypeHint === modelType
+            ? `Build a ${modelType.replace(/_/g, ' ')} model using the uploaded context.\n\n${effectiveUserMessage}`
+            : effectiveUserMessage;
+        const generatedModel = await generateAnalystStructuredModel(normalizedModelPrompt, sessionId);
         if (generatedModel) {
           try {
             await savePromptModelRunVersion({
@@ -673,7 +749,10 @@ export async function POST(req: NextRequest) {
       }
 
       const demo = await generateAnalystDcfDemo({
-        prompt: effectiveUserMessage,
+        prompt:
+          attachmentContext?.signals?.modelTypeHint === 'DCF' || attachmentContext?.kind === 'earnings_report'
+            ? `Build a DCF using the uploaded context.\n\n${effectiveUserMessage}`
+            : effectiveUserMessage,
         explicitTicker: resolvedTicker,
       });
 
