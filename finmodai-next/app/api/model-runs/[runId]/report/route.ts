@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { buildPdfExecutiveSummary } from '@/lib/reports/pdfSummary';
+import { buildModelRunStructuredPayload } from '@/lib/reports/modelRunNarrative';
 import { getModelRunReportContext } from '@/lib/reports/modelRunReport';
 
 export const runtime = 'nodejs';
@@ -32,6 +33,9 @@ export async function GET(_req: NextRequest, { params }: { params: { runId: stri
     }
 
     const summary = await buildPdfExecutiveSummary(context.data);
+    const payload = buildModelRunStructuredPayload(context.data);
+    payload.summaryText = summary.paragraphs.join(' ');
+    payload.generatedAt = context.data.generatedAt;
     return NextResponse.json({
       ok: true,
       data: {
@@ -40,6 +44,7 @@ export async function GET(_req: NextRequest, { params }: { params: { runId: stri
           paragraphs: summary.paragraphs,
           source: summary.source,
         },
+        reportPayload: payload,
       },
     });
   } catch (error) {

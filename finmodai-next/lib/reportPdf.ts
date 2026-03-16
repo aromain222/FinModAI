@@ -1,6 +1,6 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 import type { GeneratedModelReport } from '@/lib/reportGenerator';
-import { normalizeReportPayload } from '@/lib/reportTypes';
+import { normalizeReportPayload, type StructuredReportPayload } from '@/lib/reportTypes';
 
 type PdfOptions = {
   ticker?: string;
@@ -13,7 +13,17 @@ type PdfBlock =
   | { type: 'paragraph'; text: string }
   | { type: 'bullets'; items: string[] };
 
-function normalizeContent(content: string | GeneratedModelReport, options?: PdfOptions) {
+function isStructuredPayload(value: unknown): value is StructuredReportPayload {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      typeof (value as StructuredReportPayload).title === 'string' &&
+      typeof (value as StructuredReportPayload).summaryText === 'string' &&
+      Array.isArray((value as StructuredReportPayload).sections)
+  );
+}
+
+function normalizeContent(content: string | GeneratedModelReport | StructuredReportPayload, options?: PdfOptions) {
   if (typeof content === 'string') {
     const title = `${options?.companyName || options?.ticker || 'CapitalBase'} Report`;
     return normalizeReportPayload({
@@ -22,6 +32,10 @@ function normalizeContent(content: string | GeneratedModelReport, options?: PdfO
       subtitle: options?.asOfDate ? `As of ${options.asOfDate}` : undefined,
       sections: [{ title: 'Summary', body: content.trim() || 'Summary unavailable.' }],
     });
+  }
+
+  if (isStructuredPayload(content)) {
+    return normalizeReportPayload(content);
   }
 
   return normalizeReportPayload(
@@ -103,7 +117,7 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
 }
 
 export async function createReportPdf(
-  content: string | GeneratedModelReport,
+  content: string | GeneratedModelReport | StructuredReportPayload,
   options?: PdfOptions
 ): Promise<Buffer> {
   const payload = normalizeContent(content, options);

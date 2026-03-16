@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { buildPdfExecutiveSummary } from '@/lib/reports/pdfSummary';
+import { buildModelRunStructuredPayload } from '@/lib/reports/modelRunNarrative';
 import { getModelRunReportContext } from '@/lib/reports/modelRunReport';
 import { createReportPdf } from '@/lib/reportPdf';
 
@@ -38,17 +39,11 @@ export async function GET(_req: NextRequest, { params }: { params: { runId: stri
     }
 
     const summary = await buildPdfExecutiveSummary(context.data);
-    const content = [
-      `${context.data.companyName} (${context.data.ticker})`,
-      `Model: ${context.data.modelType}`,
-      `As of: ${context.data.asOfDate}`,
-      '',
-      ...summary.paragraphs,
-    ]
-      .filter(Boolean)
-      .join('\n');
+    const payload = buildModelRunStructuredPayload(context.data);
+    payload.summaryText = summary.paragraphs.join(' ');
+    payload.generatedAt = context.data.generatedAt;
 
-    const pdf = await createReportPdf(content);
+    const pdf = await createReportPdf(payload);
     const companySafe = context.data.companyName
       ? context.data.companyName.replace(/[^A-Za-z0-9_-]/g, '_')
       : context.data.ticker;
