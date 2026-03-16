@@ -229,6 +229,9 @@ function attachmentContextBlock(attachment: UploadedAttachmentContext): string {
         attachment.signals.ticker ? `Ticker: ${attachment.signals.ticker}` : null,
         attachment.signals.modelTypeHint ? `Model type hint: ${attachment.signals.modelTypeHint}` : null,
         attachment.signals.fiscalPeriod ? `Fiscal period: ${attachment.signals.fiscalPeriod}` : null,
+        attachment.signals.extractedMetrics && attachment.signals.extractedMetrics.length > 0
+          ? `Extracted metrics:\n${attachment.signals.extractedMetrics.map((metric) => `- ${metric.label}: ${metric.value}`).join('\n')}`
+          : null,
         attachment.signals.keyLines.length > 0
           ? `Key extracted lines:\n${attachment.signals.keyLines.map((line) => `- ${line}`).join('\n')}`
           : null,
@@ -258,12 +261,26 @@ function overrideRouteFromAttachment(
 ): AnalystRoute {
   if (!attachment) return route;
   const text = userMessage.toLowerCase();
-  const genericExplain = /\b(explain|interpret|summarize|walk me through|what matters|what are the drivers|driving factors|what is this)\b/.test(
-    text,
-  );
-  const buildFromAttachment = /\b(turn this into|use this to build|build from this|model this|create.*from this)\b/.test(text);
+  const genericExplain =
+    /\b(explain|interpret|summari[sz]e|walk me through|what matters|what are the drivers|driving factors|what is this|read this|analy[sz]e this|what stands out|break this down)\b/.test(
+      text,
+    );
+  const genericModelingAsk =
+    /\b(turn this into|use this to build|build from this|model this|create.*from this|make a model from this|use this report|plug this in)\b/.test(
+      text,
+    ) ||
+    (/\b(build|create|generate|run|make|turn|convert)\b/.test(text) &&
+      /\b(model|dcf|lbo|comps|three[- ]?statement|3[- ]?statement|scorecard|valuation|forecast|operating model)\b/.test(
+        text,
+      ));
+  const hasStructuredSignals =
+    Boolean(attachment.signals?.ticker) ||
+    Boolean(attachment.signals?.companyName) ||
+    Boolean(attachment.signals?.fiscalPeriod) ||
+    Boolean(attachment.signals?.modelTypeHint) ||
+    Boolean(attachment.signals?.extractedMetrics && attachment.signals.extractedMetrics.length > 0);
 
-  if (attachment.kind === 'model_workbook' && buildFromAttachment) {
+  if (attachment.kind === 'model_workbook' && genericModelingAsk) {
     return {
       intent: 'financial_model',
       tickers: route.tickers,
@@ -284,7 +301,7 @@ function overrideRouteFromAttachment(
   }
 
   if (attachment.kind === 'earnings_report') {
-    if (buildFromAttachment || route.intent === 'financial_model') {
+    if (genericModelingAsk || route.intent === 'financial_model') {
       return {
         intent: 'financial_model',
         tickers: route.tickers,
@@ -304,7 +321,42 @@ function overrideRouteFromAttachment(
     }
   }
 
+  if ((attachment.kind === 'document' || attachment.kind === 'spreadsheet') && genericModelingAsk) {
+    return {
+      intent: 'financial_model',
+      tickers: route.tickers,
+      requiresLiveData: false,
+      requiresNews: false,
+      requiresFinancials: true,
+    };
+  }
+
+  if (hasStructuredSignals && genericExplain && route.intent === 'general_finance') {
+    return {
+      intent: attachment.kind === 'model_workbook' ? 'general_finance' : 'company_question',
+      tickers: route.tickers,
+      requiresLiveData: false,
+      requiresNews: false,
+      requiresFinancials: attachment.kind !== 'model_workbook',
+    };
+  }
+
   return route;
+}
+
+function shouldInjectMacroEventsContext(
+  route: AnalystRoute,
+  userMessage: string,
+  attachment: UploadedAttachmentContext | null,
+): boolean {
+  if (route.intent === 'event_intelligence' || route.intent === 'market_question') return true;
+
+  const macroKeywords =
+    /\b(macro|market|rates?|yield|curve|fed|fomc|ecb|boj|boe|inflation|cpi|pce|gdp|jobs|payrolls|unemployment|oil|crude|fx|dollar|dxy|treasury|credit|spread|liquidity|geopolitic|tariff|trade policy)\b/i;
+  if (macroKeywords.test(userMessage)) return true;
+
+  const attachmentText = `${attachment?.summary ?? ''}\n${attachment?.signals?.keyLines.join('\n') ?? ''}`;
+  return macroKeywords.test(attachmentText);
 }
 
 async function hydrateAttachmentContext(
@@ -513,15 +565,14 @@ export async function POST(req: NextRequest) {
       stockLookupPayload = await lookupStock({ prompt: lastUserMessage, ticker: resolvedTicker });
     }
 
-    const macroEventsContext =
-      route.intent === 'event_intelligence' || route.intent === 'market_question'
-        ? await getMarketEvents({
-            origin: req.nextUrl.origin,
-            view: 'active',
-            limit: 5,
-            provider: 'live',
-          }).catch(() => null)
-        : null;
+    const macroEventsContext = shouldInjectMacroEventsContext(route, effectiveUserMessage, attachmentContext)
+      ? await getMarketEvents({
+          origin: req.nextUrl.origin,
+          view: 'active',
+          limit: 5,
+          provider: 'live',
+        }).catch(() => null)
+      : null;
     const macroEventsBlock =
       macroEventsContext && macroEventsContext.events.length > 0
         ? `ACTIVE MARKET EVENT CONTEXT (use this to ground macro answers if relevant):\n\n${serializeMarketEventsContext(

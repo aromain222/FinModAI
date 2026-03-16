@@ -272,6 +272,26 @@ export function AnalystChatApp() {
               Attached: {attachment.name} • {attachment.kind.replace(/_/g, ' ')}
             </div>
             <div>{attachment.sizeKb}kb • parsed for chat context</div>
+            {(attachment.signals?.ticker || attachment.signals?.companyName || attachment.signals?.modelTypeHint || attachment.signals?.fiscalPeriod) && (
+              <div className="mt-1">
+                {[
+                  attachment.signals?.companyName,
+                  attachment.signals?.ticker,
+                  attachment.signals?.modelTypeHint?.replace(/_/g, ' '),
+                  attachment.signals?.fiscalPeriod,
+                ]
+                  .filter((item): item is string => Boolean(item))
+                  .join(' • ')}
+              </div>
+            )}
+            {attachment.signals?.extractedMetrics && attachment.signals.extractedMetrics.length > 0 && (
+              <div className="mt-1 truncate">
+                {attachment.signals.extractedMetrics
+                  .slice(0, 3)
+                  .map((metric) => `${metric.label}: ${metric.value}`)
+                  .join(' • ')}
+              </div>
+            )}
             {attachment.warnings.length > 0 && (
               <div className="mt-1 text-amber-300/90">{attachment.warnings[0]}</div>
             )}

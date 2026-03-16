@@ -6,6 +6,7 @@ export type AttachmentSignals = {
   modelTypeHint?: 'DCF' | 'THREE_STATEMENT' | 'COMPS' | 'LBO' | 'SCORECARD';
   fiscalPeriod?: string;
   keyLines: string[];
+  extractedMetrics?: Array<{ label: string; value: string }>;
 };
 
 export type UploadedAttachmentContext = {
@@ -115,13 +116,95 @@ function extractKeyLines(text: string, maxLines = 6): string[] {
   return (matches.length > 0 ? matches : lines).slice(0, maxLines);
 }
 
+function extractMetricValue(text: string, patterns: RegExp[]): string | undefined {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match) continue;
+    const value = sanitizeText(match[1] ?? match[0]);
+    if (value) return value;
+  }
+  return undefined;
+}
+
+function extractAttachmentMetrics(text: string): Array<{ label: string; value: string }> {
+  const normalized = sanitizeText(text);
+  const metrics: Array<{ label: string; value: string }> = [];
+
+  const candidates: Array<{ label: string; patterns: RegExp[] }> = [
+    {
+      label: 'Revenue',
+      patterns: [
+        /\brevenue\b[^$\dA-Za-z]{0,12}(\$?\s?\d[\d,.\s]*(?:[MBT]|million|billion|trillion)?(?:\s*(?:yoy|YoY))?)/i,
+      ],
+    },
+    {
+      label: 'EPS',
+      patterns: [
+        /\bEPS\b[^$\dA-Za-z]{0,12}(\$?\s?\d[\d,.\s]*)/i,
+        /\bearnings per share\b[^$\dA-Za-z]{0,12}(\$?\s?\d[\d,.\s]*)/i,
+      ],
+    },
+    {
+      label: 'EBITDA',
+      patterns: [/\bEBITDA\b[^$\dA-Za-z]{0,12}(\$?\s?\d[\d,.\s]*(?:[MBT]|million|billion|trillion)?)/i],
+    },
+    {
+      label: 'EBIT margin',
+      patterns: [/\bEBIT margin\b[^%\dA-Za-z]{0,12}(\d[\d.,]*\s?%)/i],
+    },
+    {
+      label: 'Operating margin',
+      patterns: [/\boperating margin\b[^%\dA-Za-z]{0,12}(\d[\d.,]*\s?%)/i],
+    },
+    {
+      label: 'Gross margin',
+      patterns: [/\bgross margin\b[^%\dA-Za-z]{0,12}(\d[\d.,]*\s?%)/i],
+    },
+    {
+      label: 'WACC',
+      patterns: [/\bWACC\b[^%\dA-Za-z]{0,12}(\d[\d.,]*\s?%)/i],
+    },
+    {
+      label: 'Terminal growth',
+      patterns: [/\bterminal(?: growth| g)\b[^%\dA-Za-z]{0,12}(\d[\d.,]*\s?%)/i],
+    },
+    {
+      label: 'Enterprise value',
+      patterns: [/\benterprise value\b[^$\dA-Za-z]{0,12}(\$?\s?\d[\d,.\s]*(?:[MBT]|million|billion|trillion)?)/i],
+    },
+    {
+      label: 'Equity value',
+      patterns: [/\bequity value\b[^$\dA-Za-z]{0,12}(\$?\s?\d[\d,.\s]*(?:[MBT]|million|billion|trillion)?)/i],
+    },
+    {
+      label: 'Implied share value',
+      patterns: [
+        /\bimplied (?:price|share value|value per share)\b[^$\dA-Za-z]{0,12}(\$?\s?\d[\d,.\s]*)/i,
+        /\bper-share value\b[^$\dA-Za-z]{0,12}(\$?\s?\d[\d,.\s]*)/i,
+      ],
+    },
+    {
+      label: 'Guidance',
+      patterns: [/\bguidance\b[^.\n]{0,140}/i],
+    },
+  ];
+
+  for (const candidate of candidates) {
+    const value = extractMetricValue(normalized, candidate.patterns);
+    if (value) metrics.push({ label: candidate.label, value });
+  }
+
+  return metrics.slice(0, 8);
+}
+
 function buildSignals(text: string): AttachmentSignals | undefined {
   const company = extractCompanySignal(text);
   const fiscalPeriod = extractFiscalPeriod(text);
   const keyLines = extractKeyLines(text);
   const modelTypeHint = inferModelTypeHint(text);
+  const extractedMetrics = extractAttachmentMetrics(text);
 
-  if (!company.companyName && !company.ticker && !fiscalPeriod && !modelTypeHint && keyLines.length === 0) {
+  if (!company.companyName && !company.ticker && !fiscalPeriod && !modelTypeHint && keyLines.length === 0 && extractedMetrics.length === 0) {
     return undefined;
   }
 
@@ -130,6 +213,7 @@ function buildSignals(text: string): AttachmentSignals | undefined {
     ...(modelTypeHint ? { modelTypeHint } : {}),
     ...(fiscalPeriod ? { fiscalPeriod } : {}),
     keyLines,
+    ...(extractedMetrics.length > 0 ? { extractedMetrics } : {}),
   };
 }
 
