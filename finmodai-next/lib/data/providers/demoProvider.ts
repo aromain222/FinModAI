@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { NormalizedFundamentals, NormalizedQuote } from '@/lib/data/types';
 import { normalizeDemoQuote, normalizeDemoSnapshot } from '@/lib/demo/normalizeDemoSnapshot';
-import { aiFillFinancialData } from '@/lib/aiFillFinancialData';
 
 export type DemoSnapshotRow = {
   ticker: string;
@@ -174,23 +173,7 @@ export async function getDemoSnapshot(ticker: string): Promise<DemoSnapshotRow |
   const stored = await getStoredCompanyOverlay(cleanTicker);
   const row = baseRow ? mergeDemoWithStored(baseRow, stored) : null;
   if (!row) return null;
-
-  const aiFilled = await aiFillFinancialData({
-    ticker: row.ticker || cleanTicker,
-    company_name: row.company_name ?? null,
-    share_price: row.share_price ?? null,
-    market_cap: row.market_cap ?? null,
-    enterprise_value: row.enterprise_value ?? null,
-    shares_outstanding: row.shares_outstanding ?? null,
-  });
-
-  return {
-    ...row,
-    share_price: row.share_price ?? aiFilled.share_price ?? null,
-    market_cap: row.market_cap ?? aiFilled.market_cap ?? null,
-    enterprise_value: row.enterprise_value ?? aiFilled.enterprise_value ?? null,
-    shares_outstanding: row.shares_outstanding ?? aiFilled.shares_outstanding ?? null,
-  };
+  return row;
 }
 
 export async function getDemoFundamentals(ticker: string): Promise<NormalizedFundamentals | null> {
