@@ -101,6 +101,10 @@ function comparisonDriverSummary(ticker: string): string {
   }
 }
 
+export function revenueDriverSummary(ticker: string): string {
+  return comparisonDriverSummary(ticker);
+}
+
 function resolveMentionedTickers(prompt: string, snapshots: Record<string, { companyName?: string | null }>): string[] {
   const normalizedPrompt = normalizePromptText(prompt);
   const matched = new Map<string, { position: number; score: number }>();
@@ -564,6 +568,44 @@ function buildDcfVisualization(payload: AnalystDcfDemoPayload): AnalystVisualiza
         layout: {
           xaxis: { type: 'category' },
           yaxis: { tickprefix: '$' },
+        },
+      },
+    ],
+  };
+}
+
+export function buildRevenueForecastVisualizationFromDcf(payload: AnalystDcfDemoPayload): AnalystVisualizationPayload {
+  return {
+    title: `${payload.companyName} Revenue Forecast`,
+    subtitle: `Standalone ${payload.years}-year revenue chart generated from the current deterministic forecast path.`,
+    contextType: 'dcf',
+    contextLabel: `${payload.companyName} (${payload.ticker})`,
+    notes: [
+      'This is a standalone forecast chart, separate from the full DCF card.',
+      `Forecast horizon: ${payload.years} years.`,
+      ...payload.notes.slice(0, 2),
+    ],
+    panels: [
+      {
+        id: 'revenue-forecast',
+        title: 'Revenue Forecast',
+        subtitle: 'Projected revenue by forecast year.',
+        height: 300,
+        data: [
+          {
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: 'Revenue',
+            x: payload.forecast.map((row) => row.year),
+            y: payload.forecast.map((row) => row.revenue),
+            line: { color: '#2563eb', width: 3, shape: 'spline' },
+            marker: { color: '#76b7ff', size: 7 },
+            hovertemplate: '%{x}<br>Revenue: $%{y:,.0f}M<extra></extra>',
+          },
+        ],
+        layout: {
+          xaxis: { type: 'category' },
+          yaxis: { tickprefix: '$', ticksuffix: 'M' },
         },
       },
     ],

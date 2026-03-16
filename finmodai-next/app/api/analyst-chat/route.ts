@@ -35,7 +35,12 @@ import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKe
 import { lookupStock } from '@/lib/data/company/lookupStock';
 import { detectCoreTemplatePrompt } from '@/lib/analyst/coreModelTemplates';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
-import { buildComparisonVisualizationFromPrompt, buildVisualizationFromCurrentArtifact } from '@/lib/analyst/visualization';
+import {
+  buildComparisonVisualizationFromPrompt,
+  buildRevenueForecastVisualizationFromDcf,
+  buildVisualizationFromCurrentArtifact,
+  revenueDriverSummary,
+} from '@/lib/analyst/visualization';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -188,6 +193,16 @@ function isVisualizationPrompt(message: string): boolean {
   );
 }
 
+function isRevenueForecastVisualizationPrompt(message: string): boolean {
+  const text = message.toLowerCase();
+  return (
+    isVisualizationPrompt(message) &&
+    /\b(revenue|reveneue|reveenue|sales|top line|topline)\b/.test(text) &&
+    /\b(next|forecast|project|projected|displaying|showing)\b/.test(text) &&
+    /\b\d+\s+years?\b/.test(text)
+  );
+}
+
 /* ────────── Fallback Reply Builder ────────── */
 
 async function buildFallbackReply(params: {
@@ -329,6 +344,27 @@ export async function POST(req: NextRequest) {
           route: route.intent,
           visualization: comparisonVisualization.visualization,
           sources: comparisonVisualization.visualization.notes,
+          factsCount: 0,
+        });
+      }
+
+      if (!currentModel && !currentDcf && !currentStock && isRevenueForecastVisualizationPrompt(lastUserMessage) && resolvedTicker) {
+        const demo = await generateAnalystDcfDemo({
+          prompt: lastUserMessage,
+          explicitTicker: resolvedTicker,
+        });
+        const visualization = buildRevenueForecastVisualizationFromDcf(demo.payload);
+        return NextResponse.json({
+          reply: `Here is a standalone ${demo.payload.years}-year revenue forecast chart for ${demo.payload.companyName} (${demo.payload.ticker}). ${revenueDriverSummary(demo.payload.ticker)}`,
+          fallback: false,
+          mode: 'live',
+          route: 'financial_model',
+          visualization,
+          sources: [
+            `Demo snapshot cache — ${demo.payload.source}`,
+            ...(demo.payload.asOfDate ? [`Snapshot updated ${demo.payload.asOfDate}`] : []),
+            'Deterministic forecast path used for standalone visualization',
+          ],
           factsCount: 0,
         });
       }

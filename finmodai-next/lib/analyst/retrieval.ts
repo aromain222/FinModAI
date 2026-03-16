@@ -1,12 +1,12 @@
 const COMMON_COMPANY_TICKERS: Array<{ pattern: RegExp; ticker: string }> = [
   { pattern: /\bsofi\b/i, ticker: 'SOFI' },
-  { pattern: /\balphabet\b|\bgoogle\b/i, ticker: 'GOOGL' },
-  { pattern: /\bapple\b/i, ticker: 'AAPL' },
-  { pattern: /\bmicrosoft\b/i, ticker: 'MSFT' },
-  { pattern: /\bnvidia\b/i, ticker: 'NVDA' },
-  { pattern: /\bamazon\b/i, ticker: 'AMZN' },
-  { pattern: /\bmeta\b|\bfacebook\b/i, ticker: 'META' },
-  { pattern: /\btesla\b/i, ticker: 'TSLA' },
+  { pattern: /\balphabet'?s?\b|\bgoogle'?s?\b/i, ticker: 'GOOGL' },
+  { pattern: /\bapple'?s?\b/i, ticker: 'AAPL' },
+  { pattern: /\bmicrosoft'?s?\b/i, ticker: 'MSFT' },
+  { pattern: /\bnvidia'?s?\b/i, ticker: 'NVDA' },
+  { pattern: /\bamazon'?s?\b/i, ticker: 'AMZN' },
+  { pattern: /\bmeta'?s?\b|\bfacebook'?s?\b/i, ticker: 'META' },
+  { pattern: /\btesla'?s?\b/i, ticker: 'TSLA' },
 ];
 
 type FmpQuoteRow = {
