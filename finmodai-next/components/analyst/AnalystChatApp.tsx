@@ -91,6 +91,7 @@ export function AnalystChatApp() {
   const [loadingState, setLoadingState] = useState<{ title: string; detail: string } | null>(null);
   const [sessionId, setSessionId] = useState<string>('');
   const bottomRef = useRef<HTMLDivElement>(null);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -106,6 +107,10 @@ export function AnalystChatApp() {
     const created = crypto.randomUUID();
     window.localStorage.setItem(storageKey, created);
     setSessionId(created);
+  }, []);
+
+  useEffect(() => {
+    promptRef.current?.focus();
   }, []);
 
   function getLatestGeneratedArtifact() {
@@ -230,6 +235,9 @@ export function AnalystChatApp() {
     } finally {
       setIsLoading(false);
       setLoadingState(null);
+      requestAnimationFrame(() => {
+        promptRef.current?.focus();
+      });
     }
   };
 
@@ -356,12 +364,24 @@ export function AnalystChatApp() {
         <form onSubmit={handleSubmit} className="border-t border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-4">
           <label htmlFor="analyst-prompt" className="sr-only">Ask a question</label>
           <Textarea
+            ref={promptRef}
             id="analyst-prompt"
             name="analyst-prompt"
             placeholder="Ask about valuations, KPIs, diligence follow-ups..."
             value={input}
             onChange={(event) => setInput(event.target.value)}
+            onKeyDownCapture={(event) => {
+              event.stopPropagation();
+            }}
+            onKeyUpCapture={(event) => {
+              event.stopPropagation();
+            }}
             disabled={isLoading}
+            autoFocus
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="sentences"
+            spellCheck={false}
           />
           <div className="mt-3 flex items-center justify-between text-xs text-[var(--cb-text-muted)]">
             {attachment ? (
