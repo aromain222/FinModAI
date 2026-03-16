@@ -15,7 +15,7 @@ export function classifyPrompt(prompt: string): ModelGeneratorType | null {
   if (/\bprecedent(?:s| transaction(?:s)?)\b|\bprecedent trans(?:action)?s?\b|\bprecent trxn\b/.test(text)) return 'PRECEDENTS';
   if (/\bcomps?\b|\bcomparable company\b|\btrading comps?\b/.test(text)) return 'COMPS';
   if (
-    /\bthree[-\s]?statement\b|\b3[-\s]?statement\b|\bfinancial statements?\b|\bincome statement\b|\bbalance sheet\b|\bcash flow(?: statement)?\b/.test(text)
+    /\bthree[-\s]?(?:statement|statements|statememnt|statment)\b|\b3[-\s]?(?:statement|statements|statememnt|statment)\b|\bthree[-\s]?(?:statement|statements|statememnt|statment)\s+model\b|\bfinancial statements?\b|\bincome statement\b|\bbalance sheet\b|\bcash flow(?: statement)?\b/.test(text)
   ) {
     return 'THREE_STATEMENT';
   }
