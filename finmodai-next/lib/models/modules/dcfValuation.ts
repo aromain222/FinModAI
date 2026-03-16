@@ -3,6 +3,8 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  addSheetTitle,
+  applyWorksheetChrome,
   configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
@@ -312,11 +314,11 @@ async function buildDcfValuationWorkbook(input: DcfValuationInput, output: DcfVa
   configureWorkbookForRecalc(workbook);
 
   const inputsSheet = workbook.addWorksheet('Assumptions');
+  applyWorksheetChrome(inputsSheet, { tabColor: 'FF1D4ED8' });
   inputsSheet.views = [{ state: 'frozen', ySplit: 3 }];
   inputsSheet.getColumn(1).width = 34;
   inputsSheet.getColumn(2).width = 20;
-  inputsSheet.getCell('A1').value = 'DCF Assumptions';
-  inputsSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(inputsSheet, 'DCF Assumptions', 2, 'Editable inputs are highlighted. All outputs are formula-linked.');
 
   inputsSheet.getCell('A3').value = 'Input';
   inputsSheet.getCell('B3').value = 'Value';
@@ -357,11 +359,11 @@ async function buildDcfValuationWorkbook(input: DcfValuationInput, output: DcfVa
   styleGrid(inputsSheet, 3, 3 + fields.length, 1, 2);
 
   const fcffSheet = workbook.addWorksheet('FCFF Build');
+  applyWorksheetChrome(fcffSheet, { tabColor: 'FF0F766E' });
   fcffSheet.views = [{ state: 'frozen', ySplit: 3, xSplit: 1 }];
   fcffSheet.getColumn(1).width = 26;
   output.years.forEach((_, idx) => (fcffSheet.getColumn(2 + idx).width = 14));
-  fcffSheet.getCell('A1').value = 'FCFF Forecast';
-  fcffSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(fcffSheet, 'FCFF Forecast', 1 + output.years.length, 'Forecast revenue, EBIT, NOPAT, reinvestment, and FCFF by year.');
 
   fcffSheet.getCell('A3').value = 'Metric';
   output.years.forEach((year, idx) => {
@@ -398,11 +400,11 @@ async function buildDcfValuationWorkbook(input: DcfValuationInput, output: DcfVa
   styleGrid(fcffSheet, 3, 3 + lines.length, 1, 1 + output.years.length);
 
   const waccSheet = workbook.addWorksheet('WACC');
+  applyWorksheetChrome(waccSheet, { tabColor: 'FF7C3AED' });
   waccSheet.views = [{ state: 'frozen', ySplit: 3 }];
   waccSheet.getColumn(1).width = 34;
   waccSheet.getColumn(2).width = 18;
-  waccSheet.getCell('A1').value = 'WACC Build';
-  waccSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(waccSheet, 'WACC Build', 2, 'Bridge the risk-free rate, beta, ERP, and capital structure into the effective discount rate.');
   waccSheet.getCell('A3').value = 'Metric';
   waccSheet.getCell('B3').value = 'Value';
   styleHeaderRow(waccSheet, 3, 1, 2);
@@ -428,12 +430,12 @@ async function buildDcfValuationWorkbook(input: DcfValuationInput, output: DcfVa
   styleGrid(waccSheet, 3, 3 + waccRows.length, 1, 2);
 
   const dcfSheet = workbook.addWorksheet('DCF Valuation');
+  applyWorksheetChrome(dcfSheet, { tabColor: 'FF334155' });
   dcfSheet.views = [{ state: 'frozen', ySplit: 3, xSplit: 1 }];
   dcfSheet.getColumn(1).width = 26;
   output.years.forEach((_, idx) => (dcfSheet.getColumn(2 + idx).width = 14));
   dcfSheet.getColumn(2 + output.years.length + 1).width = 20;
-  dcfSheet.getCell('A1').value = 'DCF Valuation';
-  dcfSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(dcfSheet, 'DCF Valuation', 1 + output.years.length, 'Review discounted FCFF, terminal value, and the split between stage value and terminal value.');
 
   dcfSheet.getCell('A3').value = 'Metric';
   output.years.forEach((year, idx) => {
@@ -483,12 +485,12 @@ async function buildDcfValuationWorkbook(input: DcfValuationInput, output: DcfVa
   styleGrid(dcfSheet, summaryStart, summaryStart + 3, 1, 2);
 
   const sensGSheet = workbook.addWorksheet('Sensitivity (WACC x g)');
+  applyWorksheetChrome(sensGSheet, { tabColor: 'FF475569' });
   sensGSheet.views = [{ state: 'frozen', ySplit: 5, xSplit: 2 }];
   sensGSheet.getColumn(1).width = 24;
   sensGSheet.getColumn(2).width = 14;
   output.sensitivity.gAxis.forEach((_, idx) => (sensGSheet.getColumn(3 + idx).width = 14));
-  sensGSheet.getCell('A1').value = 'Sensitivity: WACC x Terminal g';
-  sensGSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(sensGSheet, 'Sensitivity: WACC x Terminal g', 2 + output.sensitivity.gAxis.length, 'Stress enterprise value across discount-rate and terminal-growth assumptions.');
   sensGSheet.getCell('A4').value = 'WACC \\ Terminal g';
   output.sensitivity.gAxis.forEach((value, idx) => {
     sensGSheet.getCell(4, 3 + idx).value = value;
@@ -510,12 +512,12 @@ async function buildDcfValuationWorkbook(input: DcfValuationInput, output: DcfVa
   styleGrid(sensGSheet, 4, 4 + output.sensitivity.waccAxis.length, 2, 2 + output.sensitivity.gAxis.length);
 
   const sensExitSheet = workbook.addWorksheet('Sensitivity (WACC x Exit)');
+  applyWorksheetChrome(sensExitSheet, { tabColor: 'FF475569' });
   sensExitSheet.views = [{ state: 'frozen', ySplit: 5, xSplit: 2 }];
   sensExitSheet.getColumn(1).width = 24;
   sensExitSheet.getColumn(2).width = 14;
   output.sensitivity.exitAxis.forEach((_, idx) => (sensExitSheet.getColumn(3 + idx).width = 14));
-  sensExitSheet.getCell('A1').value = 'Sensitivity: WACC x Exit Multiple';
-  sensExitSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(sensExitSheet, 'Sensitivity: WACC x Exit Multiple', 2 + output.sensitivity.exitAxis.length, 'Alternative terminal framework using exit multiples rather than perpetual growth.');
   sensExitSheet.getCell('A4').value = 'WACC \\ Exit Multiple';
   output.sensitivity.exitAxis.forEach((value, idx) => {
     sensExitSheet.getCell(4, 3 + idx).value = value;
@@ -537,11 +539,11 @@ async function buildDcfValuationWorkbook(input: DcfValuationInput, output: DcfVa
   styleGrid(sensExitSheet, 4, 4 + output.sensitivity.waccAxis.length, 2, 2 + output.sensitivity.exitAxis.length);
 
   const bridgeSheet = workbook.addWorksheet('Bridge to Equity Value');
+  applyWorksheetChrome(bridgeSheet, { tabColor: 'FF0F766E' });
   bridgeSheet.views = [{ state: 'frozen', ySplit: 3 }];
   bridgeSheet.getColumn(1).width = 34;
   bridgeSheet.getColumn(2).width = 18;
-  bridgeSheet.getCell('A1').value = 'Enterprise Value to Equity Value Bridge';
-  bridgeSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(bridgeSheet, 'Enterprise Value to Equity Value Bridge', 2, 'Bridge enterprise value through net debt to implied equity value and per-share value.');
   bridgeSheet.getCell('A3').value = 'Line';
   bridgeSheet.getCell('B3').value = 'Value';
   styleHeaderRow(bridgeSheet, 3, 1, 2);
@@ -566,12 +568,12 @@ async function buildDcfValuationWorkbook(input: DcfValuationInput, output: DcfVa
   styleGrid(bridgeSheet, 3, 8, 1, 2);
 
   const checksSheet = workbook.addWorksheet('Checks');
+  applyWorksheetChrome(checksSheet, { tabColor: 'FFB45309' });
   checksSheet.views = [{ state: 'frozen', ySplit: 3 }];
   checksSheet.getColumn(1).width = 34;
   checksSheet.getColumn(2).width = 18;
   checksSheet.getColumn(3).width = 12;
-  checksSheet.getCell('A1').value = 'Checks';
-  checksSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(checksSheet, 'Checks', 3, 'Use this tab to confirm the discounting logic and value-per-share output remain valid.');
   checksSheet.getCell('A3').value = 'Check';
   checksSheet.getCell('B3').value = 'Value';
   checksSheet.getCell('C3').value = 'Status';

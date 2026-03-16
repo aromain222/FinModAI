@@ -1,6 +1,7 @@
 import type { ModelInputs } from '@/types/modelInputs';
 
-export const LIVE_DATA_FALLBACK_NOTICE = 'Live data temporarily unavailable — showing demo data.';
+export const LIVE_DATA_FALLBACK_NOTICE =
+  'Live market pull unavailable — using cached company data and fallback assumptions where needed.';
 
 type ValidationCode = 'required' | 'invalid';
 

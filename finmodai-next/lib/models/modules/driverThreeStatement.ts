@@ -3,6 +3,8 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  addSheetTitle,
+  applyWorksheetChrome,
   configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
@@ -378,12 +380,12 @@ async function buildDriverThreeStatementWorkbook(
   const allHeaders = [actualHeader, ...forecastHeaders];
 
   const controlSheet = workbook.addWorksheet('Control Panel');
+  applyWorksheetChrome(controlSheet, { tabColor: 'FF1D4ED8' });
   controlSheet.views = [{ state: 'frozen', ySplit: 3 }];
   controlSheet.getColumn(1).width = 38;
   controlSheet.getColumn(2).width = 18;
   controlSheet.getColumn(3).width = 14;
-  controlSheet.getCell('A1').value = '3-Statement Control Panel';
-  controlSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(controlSheet, '3-Statement Control Panel', 3, 'High-level controls for the operating, financing, and equity forecast.');
   controlSheet.getCell('A3').value = 'Control';
   controlSheet.getCell('B3').value = 'Value';
   controlSheet.getCell('C3').value = 'Type';
@@ -413,11 +415,11 @@ async function buildDriverThreeStatementWorkbook(
   styleGrid(controlSheet, 3, 3 + controlRows.length, 1, 3);
 
   const assumptionsSheet = workbook.addWorksheet('Assumptions');
+  applyWorksheetChrome(assumptionsSheet, { tabColor: 'FF1D4ED8' });
   assumptionsSheet.views = [{ state: 'frozen', ySplit: 3 }];
   assumptionsSheet.getColumn(1).width = 36;
   assumptionsSheet.getColumn(2).width = 20;
-  assumptionsSheet.getCell('A1').value = 'Driver-Based 3-Statement Assumptions';
-  assumptionsSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(assumptionsSheet, 'Driver-Based 3-Statement Assumptions', 2, 'Editable inputs are highlighted. All outputs are formula-linked.');
 
   assumptionsSheet.getCell('A3').value = 'Input';
   assumptionsSheet.getCell('B3').value = 'Value';
@@ -463,11 +465,11 @@ async function buildDriverThreeStatementWorkbook(
   styleGrid(assumptionsSheet, 3, 3 + inputRows.length, 1, 2);
 
   const incomeSheet = workbook.addWorksheet('Income Statement');
+  applyWorksheetChrome(incomeSheet, { tabColor: 'FF0F766E' });
   incomeSheet.views = [{ state: 'frozen', ySplit: 3, xSplit: 1 }];
   incomeSheet.getColumn(1).width = 30;
   allHeaders.forEach((_, idx) => (incomeSheet.getColumn(2 + idx).width = 14));
-  incomeSheet.getCell('A1').value = 'Income Statement';
-  incomeSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(incomeSheet, 'Income Statement', yearStartCol + allHeaders.length - 1, 'Review revenue, margin structure, operating leverage, and net income across actual and forecast periods.');
   incomeSheet.getCell('A3').value = 'Line Item';
   allHeaders.forEach((header, idx) => {
     incomeSheet.getCell(3, yearStartCol + idx).value = header;
@@ -534,11 +536,11 @@ async function buildDriverThreeStatementWorkbook(
   styleGrid(incomeSheet, 3, 13, 1, yearStartCol + allHeaders.length - 1);
 
   const cashFlowSheet = workbook.addWorksheet('Cash Flow');
+  applyWorksheetChrome(cashFlowSheet, { tabColor: 'FF0F766E' });
   cashFlowSheet.views = [{ state: 'frozen', ySplit: 3, xSplit: 1 }];
   cashFlowSheet.getColumn(1).width = 30;
   allHeaders.forEach((_, idx) => (cashFlowSheet.getColumn(2 + idx).width = 14));
-  cashFlowSheet.getCell('A1').value = 'Cash Flow Statement';
-  cashFlowSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(cashFlowSheet, 'Cash Flow Statement', yearStartCol + allHeaders.length - 1, 'Track operating cash conversion, capex burden, financing flows, and FCFF.');
   cashFlowSheet.getCell('A3').value = 'Line Item';
   allHeaders.forEach((header, idx) => {
     cashFlowSheet.getCell(3, yearStartCol + idx).value = header;
@@ -578,11 +580,11 @@ async function buildDriverThreeStatementWorkbook(
   styleGrid(cashFlowSheet, 3, 9, 1, yearStartCol + allHeaders.length - 1);
 
   const balanceSheet = workbook.addWorksheet('Balance Sheet');
+  applyWorksheetChrome(balanceSheet, { tabColor: 'FF0F766E' });
   balanceSheet.views = [{ state: 'frozen', ySplit: 3, xSplit: 1 }];
   balanceSheet.getColumn(1).width = 30;
   allHeaders.forEach((_, idx) => (balanceSheet.getColumn(2 + idx).width = 14));
-  balanceSheet.getCell('A1').value = 'Balance Sheet';
-  balanceSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(balanceSheet, 'Balance Sheet', yearStartCol + allHeaders.length - 1, 'Review asset build, debt profile, equity roll-forward, and balance-sheet integrity.');
   balanceSheet.getCell('A3').value = 'Line Item';
   allHeaders.forEach((header, idx) => {
     balanceSheet.getCell(3, yearStartCol + idx).value = header;
@@ -642,11 +644,11 @@ async function buildDriverThreeStatementWorkbook(
   styleGrid(balanceSheet, 3, 14, 1, yearStartCol + allHeaders.length - 1);
 
   const workingCapitalSheet = workbook.addWorksheet('Working Capital');
+  applyWorksheetChrome(workingCapitalSheet, { tabColor: 'FF7C3AED' });
   workingCapitalSheet.views = [{ state: 'frozen', ySplit: 3, xSplit: 1 }];
   workingCapitalSheet.getColumn(1).width = 30;
   allHeaders.forEach((_, idx) => (workingCapitalSheet.getColumn(2 + idx).width = 14));
-  workingCapitalSheet.getCell('A1').value = 'Working Capital Schedule';
-  workingCapitalSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(workingCapitalSheet, 'Working Capital Schedule', 1 + allHeaders.length, 'Track DSO, DIO, DPO, and the working-capital drag embedded in the forecast.');
   workingCapitalSheet.getCell('A3').value = 'Line Item';
   allHeaders.forEach((header, idx) => {
     workingCapitalSheet.getCell(3, 2 + idx).value = header;
@@ -686,11 +688,11 @@ async function buildDriverThreeStatementWorkbook(
   styleGrid(workingCapitalSheet, 3, 11, 1, 1 + allHeaders.length);
 
   const ppeSheet = workbook.addWorksheet('PP&E + D&A');
+  applyWorksheetChrome(ppeSheet, { tabColor: 'FF7C3AED' });
   ppeSheet.views = [{ state: 'frozen', ySplit: 3, xSplit: 1 }];
   ppeSheet.getColumn(1).width = 30;
   allHeaders.forEach((_, idx) => (ppeSheet.getColumn(2 + idx).width = 14));
-  ppeSheet.getCell('A1').value = 'PP&E and Depreciation Schedule';
-  ppeSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(ppeSheet, 'PP&E and Depreciation Schedule', 1 + allHeaders.length, 'Track PP&E roll-forward, capex intensity, and depreciation burden across the forecast.');
   ppeSheet.getCell('A3').value = 'Line Item';
   allHeaders.forEach((header, idx) => {
     ppeSheet.getCell(3, 2 + idx).value = header;
@@ -724,11 +726,11 @@ async function buildDriverThreeStatementWorkbook(
   styleGrid(ppeSheet, 3, 7, 1, 1 + allHeaders.length);
 
   const debtSheet = workbook.addWorksheet('Debt Schedule');
+  applyWorksheetChrome(debtSheet, { tabColor: 'FF7C3AED' });
   debtSheet.views = [{ state: 'frozen', ySplit: 3, xSplit: 1 }];
   debtSheet.getColumn(1).width = 30;
   allHeaders.forEach((_, idx) => (debtSheet.getColumn(2 + idx).width = 14));
-  debtSheet.getCell('A1').value = 'Debt Schedule';
-  debtSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(debtSheet, 'Debt Schedule', 1 + allHeaders.length, 'Track debt balances, interest burden, amortization, and tranche-level assumptions.');
   debtSheet.getCell('A3').value = 'Line Item';
   allHeaders.forEach((header, idx) => {
     debtSheet.getCell(3, 2 + idx).value = header;
@@ -791,11 +793,11 @@ async function buildDriverThreeStatementWorkbook(
   styleGrid(debtSheet, 3, trancheStartRow + 1 + tranchesForSheet.length, 1, 5);
 
   const equitySheet = workbook.addWorksheet('Equity Rollforward');
+  applyWorksheetChrome(equitySheet, { tabColor: 'FF7C3AED' });
   equitySheet.views = [{ state: 'frozen', ySplit: 3, xSplit: 1 }];
   equitySheet.getColumn(1).width = 32;
   allHeaders.forEach((_, idx) => (equitySheet.getColumn(2 + idx).width = 14));
-  equitySheet.getCell('A1').value = 'Equity Rollforward';
-  equitySheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(equitySheet, 'Equity Rollforward', 1 + allHeaders.length, 'Bridge common stock, retained earnings, buybacks, issuance, SBC, and share count.');
   equitySheet.getCell('A3').value = 'Line Item';
   allHeaders.forEach((header, idx) => {
     equitySheet.getCell(3, 2 + idx).value = header;
@@ -836,12 +838,12 @@ async function buildDriverThreeStatementWorkbook(
   styleGrid(equitySheet, 3, 12, 1, 1 + allHeaders.length);
 
   const checkSheet = workbook.addWorksheet('Checks');
+  applyWorksheetChrome(checkSheet, { tabColor: 'FFB45309' });
   checkSheet.views = [{ state: 'frozen', ySplit: 3 }];
   checkSheet.getColumn(1).width = 42;
   checkSheet.getColumn(2).width = 18;
   checkSheet.getColumn(3).width = 14;
-  checkSheet.getCell('A1').value = 'Model Checks';
-  checkSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(checkSheet, 'Model Checks', 3, 'Use this tab to confirm the linked statements balance and the forecast remains internally coherent.');
   checkSheet.getCell('A3').value = 'Check';
   checkSheet.getCell('B3').value = 'Value';
   checkSheet.getCell('C3').value = 'Status';

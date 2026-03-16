@@ -106,7 +106,7 @@ export async function fetchTickerSnapshot(ticker: string): Promise<TickerSnapsho
 
       if (missingRequiredFields.length > 0) {
         throw new Error(
-          `Ticker is not scenario-ready in demo dataset (${missingRequiredFields.join(', ')}).`
+          `Scenario analysis needs current price, market cap, shares outstanding, revenue, and EBITDA. Current cached company data for ${cleanTicker} is still missing: ${missingRequiredFields.join(', ')}.`
         );
       }
 

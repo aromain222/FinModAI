@@ -3,6 +3,8 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  addSheetTitle,
+  applyWorksheetChrome,
   configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
@@ -209,13 +211,13 @@ async function buildLboLiteWorkbook(input: LboLiteInput, output: LboLiteOutput):
   const firstYearCashSweep = output.debtSchedule[0]?.cashSweep ?? 0;
 
   const sourcesSheet = workbook.addWorksheet('Sources & Uses');
+  applyWorksheetChrome(sourcesSheet, { tabColor: 'FF1D4ED8' });
   sourcesSheet.views = [{ state: 'frozen', ySplit: 3 }];
   sourcesSheet.getColumn(1).width = 36;
   sourcesSheet.getColumn(2).width = 18;
   sourcesSheet.getColumn(3).width = 18;
 
-  sourcesSheet.getCell('A1').value = 'LBO Sources & Uses';
-  sourcesSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(sourcesSheet, 'LBO Sources & Uses', 3, 'Review the entry bridge from debt and sponsor equity into purchase price and transaction fees.');
   sourcesSheet.getCell('A3').value = 'Line Item';
   sourcesSheet.getCell('B3').value = 'Sources';
   sourcesSheet.getCell('C3').value = 'Uses';
@@ -304,14 +306,14 @@ async function buildLboLiteWorkbook(input: LboLiteInput, output: LboLiteOutput):
   styleGrid(sourcesSheet, 3, checkRow, 1, 3);
 
   const projectionsSheet = workbook.addWorksheet('Projections');
+  applyWorksheetChrome(projectionsSheet, { tabColor: 'FF0F766E' });
   projectionsSheet.views = [{ state: 'frozen', ySplit: 3, xSplit: 1 }];
   projectionsSheet.getColumn(1).width = 26;
   for (let col = 2; col <= 1 + input.holding_period; col += 1) {
     projectionsSheet.getColumn(col).width = 14;
   }
 
-  projectionsSheet.getCell('A1').value = 'Operating Projections';
-  projectionsSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(projectionsSheet, 'Operating Projections', 1 + input.holding_period, 'Track EBITDA, fixed charges, maintenance capex, and annual debt-paydown capacity.');
   projectionsSheet.getCell(3, 1).value = 'Line Item';
   output.debtSchedule.forEach((row, idx) => {
     projectionsSheet.getCell(3, 2 + idx).value = `Year ${row.year}`;
@@ -345,10 +347,10 @@ async function buildLboLiteWorkbook(input: LboLiteInput, output: LboLiteOutput):
   styleGrid(projectionsSheet, 3, 9, 1, 1 + input.holding_period);
 
   const debtSheet = workbook.addWorksheet('Debt Schedule');
+  applyWorksheetChrome(debtSheet, { tabColor: 'FF7C3AED' });
   debtSheet.views = [{ state: 'frozen', ySplit: 3 }];
   debtSheet.columns = [{ width: 12 }, { width: 16 }, { width: 16 }, { width: 16 }, { width: 16 }, { width: 16 }, { width: 16 }];
-  debtSheet.getCell('A1').value = 'Debt Schedule';
-  debtSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(debtSheet, 'Debt Schedule', 7, 'Track opening debt, interest burden, cash sweep, and closing balances by year.');
   ['Year', 'Debt Open', 'Debt Draw (+)', 'Repayment (-)', 'Interest', 'Cash Sweep', 'Debt Close'].forEach((header, idx) => {
     debtSheet.getCell(3, 1 + idx).value = header;
   });
@@ -372,10 +374,10 @@ async function buildLboLiteWorkbook(input: LboLiteInput, output: LboLiteOutput):
   styleGrid(debtSheet, 3, 3 + output.debtSchedule.length, 1, 7);
 
   const cashSweepSheet = workbook.addWorksheet('Cash Sweep');
+  applyWorksheetChrome(cashSweepSheet, { tabColor: 'FF7C3AED' });
   cashSweepSheet.views = [{ state: 'frozen', ySplit: 3 }];
   cashSweepSheet.columns = [{ width: 12 }, { width: 18 }, { width: 16 }, { width: 16 }, { width: 16 }, { width: 16 }];
-  cashSweepSheet.getCell('A1').value = 'Cash Sweep Mechanics';
-  cashSweepSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(cashSweepSheet, 'Cash Sweep Mechanics', 6, 'Review the EBITDA-to-cash-sweep bridge that drives deleveraging.');
   ['Year', 'EBITDA', 'Interest', 'Tax', 'Capex', 'Cash Sweep'].forEach((header, idx) => {
     cashSweepSheet.getCell(3, 1 + idx).value = header;
   });
@@ -397,6 +399,7 @@ async function buildLboLiteWorkbook(input: LboLiteInput, output: LboLiteOutput):
   styleGrid(cashSweepSheet, 3, 3 + output.debtSchedule.length, 1, 6);
 
   const returnsSheet = workbook.addWorksheet('Returns');
+  applyWorksheetChrome(returnsSheet, { tabColor: 'FF334155' });
   returnsSheet.views = [{ state: 'frozen', ySplit: 3 }];
   returnsSheet.getColumn(1).width = 34;
   returnsSheet.getColumn(2).width = 18;
@@ -404,8 +407,7 @@ async function buildLboLiteWorkbook(input: LboLiteInput, output: LboLiteOutput):
     returnsSheet.getColumn(col).width = 12;
   }
 
-  returnsSheet.getCell('A1').value = 'Returns Summary';
-  returnsSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(returnsSheet, 'Returns Summary', 10, 'Focus on entry versus exit equity, debt paydown, MOIC, IRR, and sensitivity to entry and exit multiples.');
   returnsSheet.getCell('A3').value = 'Metric';
   returnsSheet.getCell('B3').value = 'Value';
   styleHeaderRow(returnsSheet, 3, 1, 2);

@@ -149,7 +149,7 @@ export async function POST(req: NextRequest) {
           status: 'failed',
           state: 'failed',
           code: 'DEMO_NOT_FOUND',
-          message: 'This demo ticker is not in the curated demo set. Choose a demo company.',
+          message: 'This ticker is not wired in the current S&P 500 company universe for automated models yet.',
         },
         { status: 400 }
       );
@@ -1232,7 +1232,9 @@ async function buildReverseDcfModelWithAssumptions(
     unitHint: (assumptions as any)?.units === 'millions' ? 'millions' : 'auto',
   });
   if (revenueM === null || !Number.isFinite(revenueM) || revenueM <= 0) {
-    throw new Error('Reverse DCF requires positive revenue in demo dataset.');
+    throw new Error(
+      'Reverse DCF needs positive revenue in the current cached company data before it can solve for the implied growth path.'
+    );
   }
 
   const sharesM = pickFinite(
@@ -1240,7 +1242,9 @@ async function buildReverseDcfModelWithAssumptions(
     (normalizedFinancials as any)?.sharesOutstandingM
   );
   if (sharesM === null || !Number.isFinite(sharesM) || sharesM <= 0) {
-    throw new Error('Reverse DCF requires valid shares outstanding in demo dataset.');
+    throw new Error(
+      'Reverse DCF needs valid shares outstanding in the current cached company data before it can calculate an implied per-share value.'
+    );
   }
 
   const netDebtM = pickFinite(
@@ -2284,7 +2288,9 @@ async function buildCompsModelWithAssumptions(
       return buildDemoRelativeCompsFallback('no auto/custom peers available');
     }
     const fallbackPeers = isDemoMode() ? [] : ['SQ', 'PYPL', 'AFRM', 'UPST', 'HOOD'];
-    const err: any = new Error('Limited peer coverage in demo universe; unable to build comps for this ticker.');
+    const err: any = new Error(
+      'Comparable Company Analysis needs a broader usable peer set for this ticker. Try custom peer tickers or rerun once more peer financial fields are available.'
+    );
     err.code = 'no_comparable_companies';
     err.stage = 'peers';
     err.requiredInputs = [
@@ -2718,7 +2724,9 @@ async function buildCompsModelWithAssumptions(
       console.warn('[generateModel] ⚠️  No valid peers after filtering. Using demo relative comps fallback.');
       return buildDemoRelativeCompsFallback('all peers filtered out', finalPeers);
     }
-    throw new Error('Limited peer coverage in demo universe; unable to compute comps metrics.');
+    throw new Error(
+      'Comparable Company Analysis found too few usable peers after filtering for valid financial fields. Try custom peers or a different company.'
+    );
   }
 
   // Build comps model structure
@@ -3405,7 +3413,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
           state: 'failed',
           status: 'failed',
           code: 'DEMO_NOT_FOUND',
-          message: 'This demo ticker is not in the curated demo set. Choose a demo company.',
+          message: 'This ticker is not wired in the current S&P 500 company universe for automated models yet.',
         },
         { status: 400 }
       );
@@ -3547,7 +3555,8 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
             state: 'failed',
             status: 'failed',
             code: 'demo_lbo_not_ready',
-            message: 'Ticker is not LBO-ready in demo dataset',
+            message:
+              'LBO needs positive revenue and EBITDA in current cached company data. This ticker is not a clean LBO candidate in the dataset yet.',
             details: {
               revenue: readiness.revenue,
               ebitda: readiness.ebitda,
@@ -4102,7 +4111,8 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
             state: 'failed',
             status: 'failed',
             code: 'demo_reverse_dcf_missing_revenue',
-            message: 'Reverse DCF requires positive demo revenue.',
+            message:
+              'Reverse DCF needs positive revenue in cached company data before it can solve for implied expectations.',
             details: {
               missing: reverseReadiness.missing,
             },
@@ -4122,7 +4132,8 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
             state: 'failed',
             status: 'failed',
             code: 'demo_debt_capacity_not_ready',
-            message: 'Ticker is not Debt Capacity-ready in demo dataset (EBITDA must be > 0).',
+            message:
+              'Debt Capacity Lite requires positive EBITDA. Current cached company data for this ticker does not show EBITDA above 0 yet.',
           },
           { status: 400 }
         );
@@ -5080,7 +5091,8 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
               state: 'failed',
               status: 'failed',
               code: 'demo_debt_capacity_not_ready',
-              message: 'Ticker is not Debt Capacity-ready in demo dataset (EBITDA must be > 0).',
+              message:
+                'Debt Capacity Lite requires positive EBITDA. Current cached company data for this ticker does not show EBITDA above 0 yet.',
             },
             { status: 400 }
           );

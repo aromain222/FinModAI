@@ -3,6 +3,8 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  addSheetTitle,
+  applyWorksheetChrome,
   configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
@@ -91,11 +93,11 @@ async function buildWorkingCapitalScheduleWorkbook(input: WorkingCapitalSchedule
   configureWorkbookForRecalc(workbook);
 
   const assumptions = workbook.addWorksheet('Assumptions');
+  applyWorksheetChrome(assumptions, { tabColor: 'FF1D4ED8' });
   assumptions.views = [{ state: 'frozen', ySplit: 3 }];
   assumptions.getColumn(1).width = 30;
   assumptions.getColumn(2).width = 18;
-  assumptions.getCell('A1').value = 'Working Capital Assumptions';
-  assumptions.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(assumptions, 'Working Capital Assumptions', 2, 'Editable inputs are highlighted. All outputs are formula-linked.');
   assumptions.getCell('A3').value = 'Input';
   assumptions.getCell('B3').value = 'Value';
   styleHeaderRow(assumptions, 3, 1, 2);
@@ -122,11 +124,11 @@ async function buildWorkingCapitalScheduleWorkbook(input: WorkingCapitalSchedule
   styleGrid(assumptions, 3, 11, 1, 2);
 
   const schedule = workbook.addWorksheet('Working Capital');
+  applyWorksheetChrome(schedule, { tabColor: 'FF0F766E' });
   schedule.views = [{ state: 'frozen', ySplit: 3, xSplit: 1 }];
   schedule.getColumn(1).width = 22;
   output.years.forEach((_, idx) => (schedule.getColumn(2 + idx).width = 14));
-  schedule.getCell('A1').value = 'Working Capital Schedule';
-  schedule.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(schedule, 'Working Capital Schedule', 1 + output.years.length, 'Track receivables, inventory, payables, and net working capital by year.');
   schedule.getCell('A3').value = 'Metric';
   output.years.forEach((year, idx) => (schedule.getCell(3, 2 + idx).value = year));
   styleHeaderRow(schedule, 3, 1, 1 + output.years.length);
@@ -160,11 +162,11 @@ async function buildWorkingCapitalScheduleWorkbook(input: WorkingCapitalSchedule
   styleGrid(schedule, 3, 10, 1, 1 + output.years.length);
 
   const summary = workbook.addWorksheet('Summary');
+  applyWorksheetChrome(summary, { tabColor: 'FF334155' });
   summary.views = [{ state: 'frozen', ySplit: 3 }];
   summary.getColumn(1).width = 32;
   summary.getColumn(2).width = 18;
-  summary.getCell('A1').value = 'Working Capital Summary';
-  summary.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(summary, 'Working Capital Summary', 2, 'Focus on peak working capital usage and the final-year cash drag.');
   summary.getCell('A3').value = 'Metric';
   summary.getCell('B3').value = 'Value';
   styleHeaderRow(summary, 3, 1, 2);
@@ -184,12 +186,12 @@ async function buildWorkingCapitalScheduleWorkbook(input: WorkingCapitalSchedule
   styleGrid(summary, 3, 6, 1, 2);
 
   const checks = workbook.addWorksheet('Checks');
+  applyWorksheetChrome(checks, { tabColor: 'FFB45309' });
   checks.views = [{ state: 'frozen', ySplit: 3 }];
   checks.getColumn(1).width = 32;
   checks.getColumn(2).width = 18;
   checks.getColumn(3).width = 12;
-  checks.getCell('A1').value = 'Checks';
-  checks.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(checks, 'Checks', 3, 'Use this tab to confirm the working capital assumptions remain within a defensible operating range.');
   checks.getCell('A3').value = 'Check';
   checks.getCell('B3').value = 'Value';
   checks.getCell('C3').value = 'Status';
@@ -205,10 +207,10 @@ async function buildWorkingCapitalScheduleWorkbook(input: WorkingCapitalSchedule
   styleGrid(checks, 3, 5, 1, 3);
 
   const equations = workbook.addWorksheet('Equations');
+  applyWorksheetChrome(equations, { tabColor: 'FF64748B' });
   equations.getColumn(1).width = 24;
   equations.getColumn(2).width = 90;
-  equations.getCell('A1').value = 'Equations';
-  equations.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(equations, 'Equations', 2, 'Audit trail for the working capital formulas used in the workbook.');
   equations.getCell('A3').value = 'Item';
   equations.getCell('B3').value = 'Equation';
   styleHeaderRow(equations, 3, 1, 2);

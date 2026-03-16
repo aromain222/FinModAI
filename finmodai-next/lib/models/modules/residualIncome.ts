@@ -3,6 +3,8 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  addSheetTitle,
+  applyWorksheetChrome,
   configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
@@ -125,11 +127,11 @@ async function buildResidualIncomeWorkbook(input: ResidualIncomeInput, output: R
   configureWorkbookForRecalc(workbook);
 
   const assumptionsSheet = workbook.addWorksheet('Assumptions');
+  applyWorksheetChrome(assumptionsSheet, { tabColor: 'FF1D4ED8' });
   assumptionsSheet.views = [{ state: 'frozen', ySplit: 3 }];
   assumptionsSheet.getColumn(1).width = 36;
   assumptionsSheet.getColumn(2).width = 18;
-  assumptionsSheet.getCell('A1').value = 'Residual Income Assumptions';
-  assumptionsSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(assumptionsSheet, 'Residual Income Assumptions', 2, 'Editable inputs are highlighted. All outputs are formula-linked.');
   assumptionsSheet.getCell('A3').value = 'Input';
   assumptionsSheet.getCell('B3').value = 'Value';
   styleHeaderRow(assumptionsSheet, 3, 1, 2);
@@ -155,6 +157,7 @@ async function buildResidualIncomeWorkbook(input: ResidualIncomeInput, output: R
   styleGrid(assumptionsSheet, 3, 10, 1, 2);
 
   const scheduleSheet = workbook.addWorksheet('Residual Income');
+  applyWorksheetChrome(scheduleSheet, { tabColor: 'FF0F766E' });
   scheduleSheet.views = [{ state: 'frozen', ySplit: 3 }];
   scheduleSheet.columns = [
     { width: 10 },
@@ -167,8 +170,7 @@ async function buildResidualIncomeWorkbook(input: ResidualIncomeInput, output: R
     { width: 16 },
     { width: 16 },
   ];
-  scheduleSheet.getCell('A1').value = 'Residual Income Schedule';
-  scheduleSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(scheduleSheet, 'Residual Income Schedule', 9, 'Track book value, equity charge, residual income, and present value by year.');
   ['Year', 'Beg. BVPS', 'Net Income', 'Dividend', 'End BVPS', 'Equity Charge', 'Residual Income', 'Disc. Factor', 'PV RI'].forEach((header, idx) => {
     scheduleSheet.getCell(3, idx + 1).value = header;
   });
@@ -196,11 +198,11 @@ async function buildResidualIncomeWorkbook(input: ResidualIncomeInput, output: R
 
   const lastScheduleRow = 3 + output.rows.length;
   const summarySheet = workbook.addWorksheet('Summary');
+  applyWorksheetChrome(summarySheet, { tabColor: 'FF334155' });
   summarySheet.views = [{ state: 'frozen', ySplit: 3 }];
   summarySheet.getColumn(1).width = 34;
   summarySheet.getColumn(2).width = 18;
-  summarySheet.getCell('A1').value = 'Valuation Summary';
-  summarySheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(summarySheet, 'Valuation Summary', 2, 'Focus on intrinsic value per share and the split between explicit and terminal value.');
   summarySheet.getCell('A3').value = 'Metric';
   summarySheet.getCell('B3').value = 'Value';
   styleHeaderRow(summarySheet, 3, 1, 2);
@@ -224,12 +226,12 @@ async function buildResidualIncomeWorkbook(input: ResidualIncomeInput, output: R
   styleGrid(summarySheet, 3, 10, 1, 2);
 
   const checksSheet = workbook.addWorksheet('Checks');
+  applyWorksheetChrome(checksSheet, { tabColor: 'FFB45309' });
   checksSheet.views = [{ state: 'frozen', ySplit: 3 }];
   checksSheet.getColumn(1).width = 36;
   checksSheet.getColumn(2).width = 18;
   checksSheet.getColumn(3).width = 12;
-  checksSheet.getCell('A1').value = 'Checks';
-  checksSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(checksSheet, 'Checks', 3, 'Use this tab to confirm the residual income build is internally coherent.');
   checksSheet.getCell('A3').value = 'Check';
   checksSheet.getCell('B3').value = 'Value';
   checksSheet.getCell('C3').value = 'Status';
@@ -246,10 +248,10 @@ async function buildResidualIncomeWorkbook(input: ResidualIncomeInput, output: R
   styleGrid(checksSheet, 3, 5, 1, 3);
 
   const equationsSheet = workbook.addWorksheet('Equations');
+  applyWorksheetChrome(equationsSheet, { tabColor: 'FF64748B' });
   equationsSheet.getColumn(1).width = 28;
   equationsSheet.getColumn(2).width = 90;
-  equationsSheet.getCell('A1').value = 'Equations';
-  equationsSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(equationsSheet, 'Equations', 2, 'Audit trail for the core residual income formulas used in the workbook.');
   equationsSheet.getCell('A3').value = 'Item';
   equationsSheet.getCell('B3').value = 'Equation';
   styleHeaderRow(equationsSheet, 3, 1, 2);

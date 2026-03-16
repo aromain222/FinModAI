@@ -3,6 +3,8 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  addSheetTitle,
+  applyWorksheetChrome,
   configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
@@ -117,11 +119,11 @@ async function buildBuybackEpsAccretionWorkbook(input: BuybackEpsAccretionInput,
   configureWorkbookForRecalc(workbook);
 
   const assumptionsSheet = workbook.addWorksheet('Assumptions');
+  applyWorksheetChrome(assumptionsSheet, { tabColor: 'FF1D4ED8' });
   assumptionsSheet.views = [{ state: 'frozen', ySplit: 3 }];
   assumptionsSheet.getColumn(1).width = 36;
   assumptionsSheet.getColumn(2).width = 18;
-  assumptionsSheet.getCell('A1').value = 'Buyback / EPS Accretion Assumptions';
-  assumptionsSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(assumptionsSheet, 'Buyback / EPS Accretion Assumptions', 2, 'Editable inputs are highlighted. All outputs are formula-linked.');
   assumptionsSheet.getCell('A3').value = 'Input';
   assumptionsSheet.getCell('B3').value = 'Value';
   styleHeaderRow(assumptionsSheet, 3, 1, 2);
@@ -148,11 +150,11 @@ async function buildBuybackEpsAccretionWorkbook(input: BuybackEpsAccretionInput,
   styleGrid(assumptionsSheet, 3, 11, 1, 2);
 
   const bridgeSheet = workbook.addWorksheet('EPS Bridge');
+  applyWorksheetChrome(bridgeSheet, { tabColor: 'FF0F766E' });
   bridgeSheet.views = [{ state: 'frozen', ySplit: 3 }];
   bridgeSheet.getColumn(1).width = 36;
   bridgeSheet.getColumn(2).width = 18;
-  bridgeSheet.getCell('A1').value = 'EPS Accretion / Dilution Bridge';
-  bridgeSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(bridgeSheet, 'EPS Accretion / Dilution Bridge', 2, 'Bridge from funding mix and repurchase price to pro forma EPS.');
   bridgeSheet.getCell('A3').value = 'Metric';
   bridgeSheet.getCell('B3').value = 'Value';
   styleHeaderRow(bridgeSheet, 3, 1, 2);
@@ -179,11 +181,11 @@ async function buildBuybackEpsAccretionWorkbook(input: BuybackEpsAccretionInput,
   styleGrid(bridgeSheet, 3, 12, 1, 2);
 
   const sensitivitySheet = workbook.addWorksheet('Sensitivity');
+  applyWorksheetChrome(sensitivitySheet, { tabColor: 'FF7C3AED' });
   sensitivitySheet.views = [{ state: 'frozen', ySplit: 4, xSplit: 2 }];
   sensitivitySheet.getColumn(1).width = 20;
   sensitivitySheet.getColumn(2).width = 16;
-  sensitivitySheet.getCell('A1').value = 'EPS Accretion Sensitivity';
-  sensitivitySheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(sensitivitySheet, 'EPS Accretion Sensitivity', 7, 'Stress the repurchase premium and debt-funded mix to see where accretion breaks.');
   sensitivitySheet.getCell('A3').value = 'Premium';
   sensitivitySheet.getCell('B3').value = 'Debt-funded %';
   output.sensitivity.debtAxis.forEach((value, idx) => {
@@ -215,12 +217,12 @@ async function buildBuybackEpsAccretionWorkbook(input: BuybackEpsAccretionInput,
   styleGrid(sensitivitySheet, 4, 4 + output.sensitivity.priceAxis.length, 1, 2 + output.sensitivity.debtAxis.length);
 
   const checksSheet = workbook.addWorksheet('Checks');
+  applyWorksheetChrome(checksSheet, { tabColor: 'FFB45309' });
   checksSheet.views = [{ state: 'frozen', ySplit: 3 }];
   checksSheet.getColumn(1).width = 36;
   checksSheet.getColumn(2).width = 18;
   checksSheet.getColumn(3).width = 12;
-  checksSheet.getCell('A1').value = 'Checks';
-  checksSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(checksSheet, 'Checks', 3, 'Use this tab to confirm the buyback math and share count remain economically valid.');
   checksSheet.getCell('A3').value = 'Check';
   checksSheet.getCell('B3').value = 'Value';
   checksSheet.getCell('C3').value = 'Status';

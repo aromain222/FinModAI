@@ -3,6 +3,8 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  addSheetTitle,
+  applyWorksheetChrome,
   configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
@@ -112,11 +114,11 @@ async function buildDividendDiscountWorkbook(input: DividendDiscountInput, outpu
   configureWorkbookForRecalc(workbook);
 
   const assumptionsSheet = workbook.addWorksheet('Assumptions');
+  applyWorksheetChrome(assumptionsSheet, { tabColor: 'FF1D4ED8' });
   assumptionsSheet.views = [{ state: 'frozen', ySplit: 3 }];
   assumptionsSheet.getColumn(1).width = 34;
   assumptionsSheet.getColumn(2).width = 18;
-  assumptionsSheet.getCell('A1').value = 'Dividend Discount Assumptions';
-  assumptionsSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(assumptionsSheet, 'Dividend Discount Assumptions', 2, 'Editable inputs are highlighted. All outputs are formula-linked.');
   assumptionsSheet.getCell('A3').value = 'Input';
   assumptionsSheet.getCell('B3').value = 'Value';
   styleHeaderRow(assumptionsSheet, 3, 1, 2);
@@ -142,6 +144,7 @@ async function buildDividendDiscountWorkbook(input: DividendDiscountInput, outpu
   styleGrid(assumptionsSheet, 3, 10, 1, 2);
 
   const scheduleSheet = workbook.addWorksheet('Dividend Schedule');
+  applyWorksheetChrome(scheduleSheet, { tabColor: 'FF0F766E' });
   scheduleSheet.views = [{ state: 'frozen', ySplit: 3 }];
   scheduleSheet.columns = [
     { width: 12 },
@@ -150,8 +153,7 @@ async function buildDividendDiscountWorkbook(input: DividendDiscountInput, outpu
     { width: 16 },
     { width: 18 },
   ];
-  scheduleSheet.getCell('A1').value = 'Dividend Forecast';
-  scheduleSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(scheduleSheet, 'Dividend Forecast', 5, 'Forecast dividends, discount factors, and present value by year.');
   ['Year', 'Dividend / Share', 'Growth', 'Discount Factor', 'PV Dividend'].forEach((header, idx) => {
     scheduleSheet.getCell(3, idx + 1).value = header;
   });
@@ -177,11 +179,11 @@ async function buildDividendDiscountWorkbook(input: DividendDiscountInput, outpu
 
   const lastScheduleRow = 3 + output.rows.length;
   const summarySheet = workbook.addWorksheet('Summary');
+  applyWorksheetChrome(summarySheet, { tabColor: 'FF334155' });
   summarySheet.views = [{ state: 'frozen', ySplit: 3 }];
   summarySheet.getColumn(1).width = 34;
   summarySheet.getColumn(2).width = 18;
-  summarySheet.getCell('A1').value = 'Valuation Summary';
-  summarySheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(summarySheet, 'Valuation Summary', 2, 'Focus on implied value, terminal contribution, and current yield.');
   summarySheet.getCell('A3').value = 'Metric';
   summarySheet.getCell('B3').value = 'Value';
   styleHeaderRow(summarySheet, 3, 1, 2);
@@ -207,12 +209,12 @@ async function buildDividendDiscountWorkbook(input: DividendDiscountInput, outpu
   styleGrid(summarySheet, 3, 11, 1, 2);
 
   const checksSheet = workbook.addWorksheet('Checks');
+  applyWorksheetChrome(checksSheet, { tabColor: 'FFB45309' });
   checksSheet.views = [{ state: 'frozen', ySplit: 3 }];
   checksSheet.getColumn(1).width = 34;
   checksSheet.getColumn(2).width = 18;
   checksSheet.getColumn(3).width = 12;
-  checksSheet.getCell('A1').value = 'Checks';
-  checksSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(checksSheet, 'Checks', 3, 'Use this tab to confirm core model integrity before relying on the output.');
   checksSheet.getCell('A3').value = 'Check';
   checksSheet.getCell('B3').value = 'Value';
   checksSheet.getCell('C3').value = 'Status';
@@ -229,10 +231,10 @@ async function buildDividendDiscountWorkbook(input: DividendDiscountInput, outpu
   styleGrid(checksSheet, 3, 5, 1, 3);
 
   const equationsSheet = workbook.addWorksheet('Equations');
+  applyWorksheetChrome(equationsSheet, { tabColor: 'FF64748B' });
   equationsSheet.getColumn(1).width = 28;
   equationsSheet.getColumn(2).width = 90;
-  equationsSheet.getCell('A1').value = 'Equations';
-  equationsSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(equationsSheet, 'Equations', 2, 'Audit trail for the core valuation formulas used in the workbook.');
   equationsSheet.getCell('A3').value = 'Item';
   equationsSheet.getCell('B3').value = 'Equation';
   styleHeaderRow(equationsSheet, 3, 1, 2);

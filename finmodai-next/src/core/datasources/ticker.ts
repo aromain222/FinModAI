@@ -120,7 +120,7 @@ export async function hydrateFromTicker(params: TickerHydrateParams): Promise<Hy
 
     const warnings: string[] = [];
     if (mapped.metadata.liveDataFallback) {
-      warnings.push('Live data temporarily unavailable — showing demo data.');
+      warnings.push('Live market pull unavailable — using cached company data and fallback assumptions where needed.');
     }
 
     return {
@@ -136,7 +136,7 @@ export async function hydrateFromTicker(params: TickerHydrateParams): Promise<Hy
     return {
       ok: true,
       value: fallback,
-      warnings: ['Live data temporarily unavailable — showing demo data.'],
+      warnings: ['Live market pull unavailable — using cached company data and fallback assumptions where needed.'],
       issues: [
         issue(
           'ticker_hydration_failed',

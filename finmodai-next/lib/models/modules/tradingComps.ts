@@ -3,6 +3,8 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  addSheetTitle,
+  applyWorksheetChrome,
   configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
@@ -149,10 +151,10 @@ async function buildTradingCompsWorkbook(input: TradingCompsInput, output: Tradi
   configureWorkbookForRecalc(workbook);
 
   const compsSheet = workbook.addWorksheet('Comps Input');
+  applyWorksheetChrome(compsSheet, { tabColor: 'FF1D4ED8' });
   compsSheet.views = [{ state: 'frozen', ySplit: 3 }];
   compsSheet.columns = [{ width: 26 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 12 }];
-  compsSheet.getCell('A1').value = 'Trading Comps Input';
-  compsSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(compsSheet, 'Trading Comps Input', 8, 'Editable peer inputs flow through all relative-valuation outputs and checks.');
   ['Company', 'Revenue', 'EBITDA', 'Market Cap', 'Net Debt', 'EV', 'EV/Revenue', 'EV/EBITDA'].forEach((header, idx) => {
     compsSheet.getCell(3, 1 + idx).value = header;
   });
@@ -180,11 +182,11 @@ async function buildTradingCompsWorkbook(input: TradingCompsInput, output: Tradi
   styleGrid(compsSheet, 3, 3 + input.comps.length, 1, 8);
 
   const summarySheet = workbook.addWorksheet('Summary');
+  applyWorksheetChrome(summarySheet, { tabColor: 'FF334155' });
   summarySheet.views = [{ state: 'frozen', ySplit: 3 }];
   summarySheet.getColumn(1).width = 30;
   summarySheet.getColumn(2).width = 16;
-  summarySheet.getCell('A1').value = 'Multiples Summary';
-  summarySheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(summarySheet, 'Multiples Summary', 2, 'Review mean, median, and interquartile trading multiples across the peer set.');
   summarySheet.getCell('A3').value = 'Metric';
   summarySheet.getCell('B3').value = 'Value';
   styleHeaderRow(summarySheet, 3, 1, 2);
@@ -209,11 +211,11 @@ async function buildTradingCompsWorkbook(input: TradingCompsInput, output: Tradi
   styleGrid(summarySheet, 3, 11, 1, 2);
 
   const footballSheet = workbook.addWorksheet('Football Field');
+  applyWorksheetChrome(footballSheet, { tabColor: 'FF0F766E' });
   footballSheet.views = [{ state: 'frozen', ySplit: 3 }];
   footballSheet.getColumn(1).width = 30;
   footballSheet.getColumn(2).width = 16;
-  footballSheet.getCell('A1').value = 'Implied EV Range';
-  footballSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(footballSheet, 'Implied EV Range', 2, 'Translate peer multiples into an implied valuation range for the target.');
   footballSheet.getCell('A3').value = 'Metric';
   footballSheet.getCell('B3').value = 'Value';
   styleHeaderRow(footballSheet, 3, 1, 2);
@@ -244,12 +246,12 @@ async function buildTradingCompsWorkbook(input: TradingCompsInput, output: Tradi
   styleGrid(footballSheet, 3, 10, 1, 2);
 
   const checksSheet = workbook.addWorksheet('Checks');
+  applyWorksheetChrome(checksSheet, { tabColor: 'FFB45309' });
   checksSheet.views = [{ state: 'frozen', ySplit: 3 }];
   checksSheet.getColumn(1).width = 40;
   checksSheet.getColumn(2).width = 18;
   checksSheet.getColumn(3).width = 12;
-  checksSheet.getCell('A1').value = 'Checks';
-  checksSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(checksSheet, 'Checks', 3, 'Use this tab to confirm peer count, multiple quality, and basic comparability hygiene.');
   checksSheet.getCell('A3').value = 'Check';
   checksSheet.getCell('B3').value = 'Value';
   checksSheet.getCell('C3').value = 'Status';
@@ -264,10 +266,10 @@ async function buildTradingCompsWorkbook(input: TradingCompsInput, output: Tradi
   styleGrid(checksSheet, 3, 5, 1, 3);
 
   const equationsSheet = workbook.addWorksheet('Equations');
+  applyWorksheetChrome(equationsSheet, { tabColor: 'FF64748B' });
   equationsSheet.getColumn(1).width = 24;
   equationsSheet.getColumn(2).width = 90;
-  equationsSheet.getCell('A1').value = 'Equations';
-  equationsSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(equationsSheet, 'Equations', 2, 'Audit trail for the core EV and trading-multiple formulas used in the workbook.');
   equationsSheet.getCell('A3').value = 'Item';
   equationsSheet.getCell('B3').value = 'Equation';
   styleHeaderRow(equationsSheet, 3, 1, 2);

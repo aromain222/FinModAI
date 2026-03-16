@@ -3,6 +3,8 @@ import { z } from 'zod';
 import type { ModelDef } from '@/lib/models/core/types';
 import type { UISchema } from '@/lib/models/core/uiSchema';
 import {
+  addSheetTitle,
+  applyWorksheetChrome,
   configureWorkbookForRecalc,
   protectSheetIfConfigured,
   setCurrency,
@@ -116,11 +118,11 @@ async function buildPurchasePriceAllocationWorkbook(input: PurchasePriceAllocati
   configureWorkbookForRecalc(workbook);
 
   const assumptionsSheet = workbook.addWorksheet('Assumptions');
+  applyWorksheetChrome(assumptionsSheet, { tabColor: 'FF1D4ED8' });
   assumptionsSheet.views = [{ state: 'frozen', ySplit: 3 }];
   assumptionsSheet.getColumn(1).width = 38;
   assumptionsSheet.getColumn(2).width = 18;
-  assumptionsSheet.getCell('A1').value = 'Purchase Price Allocation Assumptions';
-  assumptionsSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(assumptionsSheet, 'Purchase Price Allocation Assumptions', 2, 'Editable inputs are highlighted. All outputs are formula-linked.');
   assumptionsSheet.getCell('A3').value = 'Input';
   assumptionsSheet.getCell('B3').value = 'Value';
   styleHeaderRow(assumptionsSheet, 3, 1, 2);
@@ -150,11 +152,11 @@ async function buildPurchasePriceAllocationWorkbook(input: PurchasePriceAllocati
   styleGrid(assumptionsSheet, 3, 14, 1, 2);
 
   const ppaSheet = workbook.addWorksheet('PPA Summary');
+  applyWorksheetChrome(ppaSheet, { tabColor: 'FF0F766E' });
   ppaSheet.views = [{ state: 'frozen', ySplit: 3 }];
   ppaSheet.getColumn(1).width = 36;
   ppaSheet.getColumn(2).width = 18;
-  ppaSheet.getCell('A1').value = 'Purchase Price Allocation';
-  ppaSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(ppaSheet, 'Purchase Price Allocation', 2, 'Bridge purchase price into net assets, step-ups, deferred tax liability, and goodwill.');
   ppaSheet.getCell('A3').value = 'Component';
   ppaSheet.getCell('B3').value = 'Value';
   styleHeaderRow(ppaSheet, 3, 1, 2);
@@ -179,10 +181,10 @@ async function buildPurchasePriceAllocationWorkbook(input: PurchasePriceAllocati
 
   const longestLife = output.amortizationSchedule.length;
   const amortSheet = workbook.addWorksheet('Amortization');
+  applyWorksheetChrome(amortSheet, { tabColor: 'FF7C3AED' });
   amortSheet.views = [{ state: 'frozen', ySplit: 3 }];
   amortSheet.columns = [{ width: 10 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }];
-  amortSheet.getCell('A1').value = 'Intangible Amortization Schedule';
-  amortSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(amortSheet, 'Intangible Amortization Schedule', 5, 'Track annual amortization by intangible class and total run-rate expense.');
   ['Year', 'Customer', 'Technology', 'Trade Name', 'Total'].forEach((header, idx) => {
     amortSheet.getCell(3, idx + 1).value = header;
   });
@@ -203,12 +205,12 @@ async function buildPurchasePriceAllocationWorkbook(input: PurchasePriceAllocati
   styleGrid(amortSheet, 3, 3 + longestLife, 1, 5);
 
   const checksSheet = workbook.addWorksheet('Checks');
+  applyWorksheetChrome(checksSheet, { tabColor: 'FFB45309' });
   checksSheet.views = [{ state: 'frozen', ySplit: 3 }];
   checksSheet.getColumn(1).width = 36;
   checksSheet.getColumn(2).width = 18;
   checksSheet.getColumn(3).width = 12;
-  checksSheet.getCell('A1').value = 'Checks';
-  checksSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(checksSheet, 'Checks', 3, 'Use this tab to confirm the PPA ties and goodwill remains economically plausible.');
   checksSheet.getCell('A3').value = 'Check';
   checksSheet.getCell('B3').value = 'Value';
   checksSheet.getCell('C3').value = 'Status';
@@ -225,10 +227,10 @@ async function buildPurchasePriceAllocationWorkbook(input: PurchasePriceAllocati
   styleGrid(checksSheet, 3, 5, 1, 3);
 
   const equationsSheet = workbook.addWorksheet('Equations');
+  applyWorksheetChrome(equationsSheet, { tabColor: 'FF64748B' });
   equationsSheet.getColumn(1).width = 28;
   equationsSheet.getColumn(2).width = 90;
-  equationsSheet.getCell('A1').value = 'Equations';
-  equationsSheet.getCell('A1').font = { bold: true, size: 14 };
+  addSheetTitle(equationsSheet, 'Equations', 2, 'Audit trail for the purchase accounting formulas used in the workbook.');
   equationsSheet.getCell('A3').value = 'Item';
   equationsSheet.getCell('B3').value = 'Equation';
   styleHeaderRow(equationsSheet, 3, 1, 2);

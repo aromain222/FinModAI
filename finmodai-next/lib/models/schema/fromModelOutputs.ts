@@ -1233,8 +1233,31 @@ function buildScorecardSections(params: BuildModelDocumentParams) {
     companyName: params.ticker,
     sector: null,
     asOfDate: params.asOfDate,
+    peerCount: 0,
+    availableMetricCount: 0,
+    benchmarkedMetricCount: 0,
   };
   const metrics = Array.isArray(summary?.metrics) ? summary.metrics : [];
+  const screeningNote =
+    typeof summary?.screeningNote === 'string' && summary.screeningNote.trim().length > 0
+      ? summary.screeningNote.trim()
+      : `${company.companyName || params.ticker} is being screened on profitability and balance-sheet durability rather than valued precisely. Use this output to decide whether the company deserves deeper work.`;
+  const coverageNote =
+    typeof summary?.coverageNote === 'string' && summary.coverageNote.trim().length > 0
+      ? summary.coverageNote.trim()
+      : 'Benchmark coverage is limited when underlying company data is incomplete, so blank cells should be treated as data gaps rather than a model conclusion.';
+  const peerCountDisplay =
+    typeof company.peerCount === 'number' && Number.isFinite(company.peerCount)
+      ? `${company.peerCount.toFixed(0)} peers`
+      : '—';
+  const availableMetricsDisplay =
+    typeof company.availableMetricCount === 'number' && Number.isFinite(company.availableMetricCount)
+      ? `${company.availableMetricCount.toFixed(0)} / ${metrics.length || 5}`
+      : '—';
+  const benchmarkedMetricsDisplay =
+    typeof company.benchmarkedMetricCount === 'number' && Number.isFinite(company.benchmarkedMetricCount)
+      ? `${company.benchmarkedMetricCount.toFixed(0)} / ${metrics.length || 5}`
+      : '—';
 
   const overviewTable: TableBlock = {
     type: 'table',
@@ -1275,6 +1298,30 @@ function buildScorecardSections(params: BuildModelDocumentParams) {
         cells: {
           metric: cell('As of Date', 'reported'),
           value: cell(company.asOfDate || params.asOfDate || '—', company.asOfDate ? 'reported' : 'missing'),
+        },
+      },
+      {
+        rowKey: 'overview_peer_count',
+        rowType: 'data',
+        cells: {
+          metric: cell('Peer Set', 'reported'),
+          value: cell(peerCountDisplay, peerCountDisplay === '—' ? 'missing' : 'derived'),
+        },
+      },
+      {
+        rowKey: 'overview_available_metrics',
+        rowType: 'data',
+        cells: {
+          metric: cell('Metrics Populated', 'reported'),
+          value: cell(availableMetricsDisplay, availableMetricsDisplay === '—' ? 'missing' : 'derived'),
+        },
+      },
+      {
+        rowKey: 'overview_benchmarked_metrics',
+        rowType: 'data',
+        cells: {
+          metric: cell('Benchmarked Metrics', 'reported'),
+          value: cell(benchmarkedMetricsDisplay, benchmarkedMetricsDisplay === '—' ? 'missing' : 'derived'),
         },
       },
     ],
@@ -1344,6 +1391,10 @@ function buildScorecardSections(params: BuildModelDocumentParams) {
               },
             },
           ],
+    footnotes: [
+      'Percentiles are shown only when at least five usable peer observations exist for that metric.',
+      'Blank benchmark cells reflect missing source-company or peer data rather than a workbook formula error.',
+    ],
   };
 
   return [
@@ -1353,6 +1404,8 @@ function buildScorecardSections(params: BuildModelDocumentParams) {
       sheetName: 'Scorecard',
       layout: 'fullWidth' as const,
       blocks: [
+        { type: 'text' as const, content: screeningNote },
+        { type: 'callout' as const, content: coverageNote, variant: 'note' as const },
         { type: 'text' as const, content: 'All figures in USD millions unless otherwise noted.' },
         overviewTable,
         metricTable,

@@ -1,6 +1,7 @@
 import {
   getDemoCompany,
   getDemoSnapshotsBySector,
+  getDemoSnapshot,
   type DemoSnapshotRow,
 } from '@/lib/data/providers/demoProvider';
 import type { ModelInputs } from '@/types/modelInputs';
@@ -22,8 +23,13 @@ export type ScorecardSummary = {
     companyName: string;
     sector: string | null;
     asOfDate: string | null;
+    peerCount?: number;
+    availableMetricCount?: number;
+    benchmarkedMetricCount?: number;
   };
   metrics: ScorecardMetricRow[];
+  screeningNote?: string;
+  coverageNote?: string;
 };
 
 type DerivedMetrics = {
@@ -32,6 +38,14 @@ type DerivedMetrics = {
   netDebt: number | null;
   netDebtToEbitda: number | null;
   cashToDebt: number | null;
+};
+
+type DerivedMetricFallbacks = {
+  revenue: number | null;
+  ebitda: number | null;
+  netIncome: number | null;
+  cash: number | null;
+  totalDebt: number | null;
 };
 
 const toFiniteNumber = (value: unknown): number | null => {
@@ -83,6 +97,96 @@ const deriveMetrics = (row: DemoSnapshotRow): DerivedMetrics => {
   };
 };
 
+const deriveFallbacksFromModelInputs = (modelInputs: ModelInputs | null | undefined): DerivedMetricFallbacks => {
+  if (!modelInputs) {
+    return {
+      revenue: null,
+      ebitda: null,
+      netIncome: null,
+      cash: null,
+      totalDebt: null,
+    };
+  }
+
+  const revenue =
+    Array.isArray(modelInputs.historicals?.revenue) && modelInputs.historicals.revenue.length > 0
+      ? toFiniteNumber(modelInputs.historicals.revenue[modelInputs.historicals.revenue.length - 1])
+      : null;
+  const margin =
+    typeof modelInputs.assumptions?.margin === 'number' && Number.isFinite(modelInputs.assumptions.margin)
+      ? modelInputs.assumptions.margin
+      : null;
+  const taxRate =
+    typeof modelInputs.assumptions?.taxRate === 'number' && Number.isFinite(modelInputs.assumptions.taxRate)
+      ? modelInputs.assumptions.taxRate
+      : null;
+  const ebitda = revenue !== null && margin !== null ? revenue * margin : null;
+  const netIncome =
+    revenue !== null && margin !== null && taxRate !== null ? revenue * margin * (1 - taxRate) * 0.8 : null;
+  const netDebt =
+    typeof modelInputs.capitalStructure?.netDebt === 'number' && Number.isFinite(modelInputs.capitalStructure.netDebt)
+      ? modelInputs.capitalStructure.netDebt
+      : null;
+
+  return {
+    revenue,
+    ebitda,
+    netIncome,
+    cash: netDebt !== null && netDebt < 0 ? Math.abs(netDebt) : null,
+    totalDebt: netDebt !== null && netDebt > 0 ? netDebt : null,
+  };
+};
+
+const deriveMetricsWithFallbacks = (
+  row: DemoSnapshotRow,
+  fallbackInputs?: ModelInputs | null
+): DerivedMetrics => {
+  const base = deriveMetrics(row);
+  if (
+    base.ebitdaMargin !== null &&
+    base.netMargin !== null &&
+    base.netDebt !== null &&
+    base.netDebtToEbitda !== null &&
+    base.cashToDebt !== null
+  ) {
+    return base;
+  }
+
+  const rawRevenue = toFiniteNumber(row.revenue_ltm);
+  const rawEbitda = toFiniteNumber(row.ebitda_ltm);
+  const rawNetIncome = toFiniteNumber(row.net_income_ltm);
+  const rawCash = toFiniteNumber(row.cash);
+  const rawTotalDebt = toFiniteNumber(row.total_debt);
+  const fallbacks = deriveFallbacksFromModelInputs(fallbackInputs);
+
+  const revenue = rawRevenue ?? fallbacks.revenue;
+  const ebitda = rawEbitda ?? fallbacks.ebitda;
+  const netIncome = rawNetIncome ?? fallbacks.netIncome;
+  const cash = rawCash ?? fallbacks.cash;
+  const totalDebt = rawTotalDebt ?? fallbacks.totalDebt;
+  const netDebt = cash !== null && totalDebt !== null ? totalDebt - cash : fallbacks.totalDebt;
+
+  return {
+    ebitdaMargin:
+      base.ebitdaMargin !== null ? base.ebitdaMargin : revenue !== null && revenue > 0 && ebitda !== null ? ebitda / revenue : null,
+    netMargin:
+      base.netMargin !== null ? base.netMargin : revenue !== null && revenue > 0 && netIncome !== null ? netIncome / revenue : null,
+    netDebt: base.netDebt !== null ? base.netDebt : netDebt ?? null,
+    netDebtToEbitda:
+      base.netDebtToEbitda !== null
+        ? base.netDebtToEbitda
+        : netDebt !== null && ebitda !== null && ebitda > 0
+        ? netDebt / ebitda
+        : null,
+    cashToDebt:
+      base.cashToDebt !== null
+        ? base.cashToDebt
+        : cash !== null && totalDebt !== null && totalDebt > 0
+        ? cash / totalDebt
+        : null,
+  };
+};
+
 const valuesForMetric = (
   peers: DemoSnapshotRow[],
   selector: (metrics: DerivedMetrics) => number | null
@@ -121,6 +225,9 @@ const buildManualScorecardSummary = (modelInputs: ModelInputs): ScorecardSummary
       companyName: modelInputs.company.name || 'Private Company',
       sector: null,
       asOfDate: modelInputs.metadata?.asOfDate || null,
+      peerCount: 0,
+      availableMetricCount: 3,
+      benchmarkedMetricCount: 0,
     },
     metrics: [
       {
@@ -176,6 +283,10 @@ const buildManualScorecardSummary = (modelInputs: ModelInputs): ScorecardSummary
         notes: 'Cash and total debt are not collected separately in private/manual mode.',
       },
     ],
+    screeningNote:
+      'This scorecard is a rules-based operating and balance-sheet screen for manually entered companies. It is useful for prioritizing follow-up work, not for proving valuation or underwriting quality on its own.',
+    coverageNote:
+      'Sector benchmarks are unavailable in private/manual mode, so percentile and median comparisons are intentionally left blank.',
   };
 };
 
@@ -197,10 +308,16 @@ export async function buildScorecardSummary(
     throw new Error('Demo company not found in demo_company_snapshots');
   }
 
-  const subjectMetrics = deriveMetrics(subject);
+  const subjectMetrics = deriveMetricsWithFallbacks(subject, options?.modelInputs);
   const sector = subject.sector?.trim() || null;
   const sectorRows = sector ? await getDemoSnapshotsBySector(sector) : [];
-  const peers = sectorRows.filter(
+  const mergedSectorRows = await Promise.all(
+    sectorRows.map(async (row) => {
+      const rowTicker = String(row.ticker || '').trim().toUpperCase();
+      return rowTicker ? (await getDemoSnapshot(rowTicker)) ?? row : row;
+    })
+  );
+  const peers = mergedSectorRows.filter(
     (row) => String(row.ticker || '').toUpperCase() !== cleanTicker
   );
 
@@ -259,13 +376,30 @@ export async function buildScorecardSummary(
     },
   ];
 
+  const availableMetricCount = metrics.filter((metric) => metric.value !== null).length;
+  const benchmarkedMetricCount = metrics.filter(
+    (metric) => metric.value !== null && metric.sectorMedian !== null
+  ).length;
+  const peerCount = peers.length;
+  const screeningNote =
+    `${cleanTicker} is screened against ${peerCount} ${sector || 'sector'} peers using profitability and balance-sheet durability metrics. This is a first-pass quality screen, not a standalone investment conclusion.`;
+  const coverageNote =
+    availableMetricCount === metrics.length && benchmarkedMetricCount === metrics.length
+      ? `All ${metrics.length} core metrics are populated and benchmarked against the current peer set.`
+      : `${availableMetricCount} of ${metrics.length} core metrics are populated for the subject company and ${benchmarkedMetricCount} of ${metrics.length} have usable peer benchmarks. Missing values reflect current cached company-data gaps, not a workbook error.`;
+
   return {
     company: {
       ticker: cleanTicker,
       companyName: subject.company_name || cleanTicker,
       sector,
       asOfDate: subject.as_of_date || null,
+      peerCount,
+      availableMetricCount,
+      benchmarkedMetricCount,
     },
     metrics,
+    screeningNote,
+    coverageNote,
   };
 }
