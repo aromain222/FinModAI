@@ -188,7 +188,7 @@ function fmtMillions(value: number | null | undefined): string {
 function isVisualizationPrompt(message: string): boolean {
   const text = message.toLowerCase();
   return (
-    /\b(graph|chart|visuali[sz]e|plot|trend line|show.*chart|show.*graph)\b/.test(text) &&
+    /\b(graph|chart|cgart|visuali[sz]e|plot|trend line|show.*chart|show.*graph)\b/.test(text) &&
     !/\b(download|export)\b/.test(text)
   );
 }

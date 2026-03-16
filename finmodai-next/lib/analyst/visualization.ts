@@ -4,6 +4,7 @@ import { fetchCompanyFinancials } from '@/lib/analyst/dataRetrieval';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
 import { resolveCompanyProfile } from '@/lib/data/company/resolveCompanyProfile';
 import { loadDemoSnapshots } from '@/lib/demo/demoSnapshotStore';
+import { fetchHistoricalFinancials } from '@/lib/data/historicalFinancials';
 
 type PlotTrace = Record<string, unknown>;
 type PlotLayout = Record<string, unknown>;
@@ -31,13 +32,21 @@ export type ComparisonVisualizationResult = {
   explanation: string;
 };
 
-type ComparisonMetricKey = 'revenue' | 'ebitda' | 'netIncome' | 'eps';
+type ComparisonMetricKey = 'revenue' | 'revenueGrowth' | 'ebitda' | 'netIncome' | 'eps';
 
 type CompanyComparisonSeries = {
   ticker: string;
   companyName: string;
   quarterDate: string | null;
   metrics: Record<ComparisonMetricKey, number | null>;
+  source: string;
+};
+
+type CompanyGrowthSeries = {
+  ticker: string;
+  companyName: string;
+  periods: string[];
+  revenueGrowth: number[];
   source: string;
 };
 
@@ -65,11 +74,14 @@ function normalizeCompanyName(value: string): string {
 }
 
 function hasComparisonIntent(prompt: string): boolean {
-  return /\b(compare|comparison|versus|vs\.?|against)\b/i.test(prompt);
+  return /\b(compare|comparison|comparing|compairing|compasirng|versus|vs\.?|against|with)\b/i.test(prompt);
 }
 
 function inferComparisonMetric(prompt: string): ComparisonMetricKey | 'multi' | null {
   const text = normalizePromptText(prompt);
+  if (/\b(revenue growth|sales growth|top line growth|growth in revenue|growth of revenue|revenueg growth|revenue grow(th)?|reveneue growth|reveenue growth)\b/.test(text)) {
+    return 'revenueGrowth';
+  }
   if (/\b(eps|earnings per share)\b/.test(text)) return 'eps';
   if (/\b(ebitda)\b/.test(text)) return 'ebitda';
   if (/\b(net income|net profit|profit)\b/.test(text)) return 'netIncome';
@@ -160,6 +172,7 @@ async function fetchComparisonSeries(ticker: string): Promise<CompanyComparisonS
       quarterDate: financials.latestQuarter.date,
       metrics: {
         revenue: financials.latestQuarter.revenue,
+        revenueGrowth: null,
         ebitda: financials.latestQuarter.ebitda,
         netIncome: financials.latestQuarter.netIncome,
         eps: financials.latestQuarter.eps,
@@ -177,6 +190,7 @@ async function fetchComparisonSeries(ticker: string): Promise<CompanyComparisonS
     quarterDate: profile.snapshot.asOfDate,
     metrics: {
       revenue: profile.snapshot.revenueLtm,
+      revenueGrowth: null,
       ebitda: profile.snapshot.ebitdaLtm,
       netIncome: profile.snapshot.netIncomeLtm,
       eps: null,
@@ -185,10 +199,77 @@ async function fetchComparisonSeries(ticker: string): Promise<CompanyComparisonS
   };
 }
 
+async function fetchRevenueGrowthSeries(ticker: string): Promise<CompanyGrowthSeries | null> {
+  const historical = await fetchHistoricalFinancials(ticker, 5);
+  if (historical && historical.years.length >= 3 && historical.revenue.length >= 3) {
+    const ordered = historical.years
+      .map((year, idx) => ({ year, revenue: historical.revenue[idx] }))
+      .filter((row) => typeof row.revenue === 'number' && Number.isFinite(row.revenue) && row.revenue > 0)
+      .sort((left, right) => left.year - right.year);
+
+    if (ordered.length >= 3) {
+      const periods: string[] = [];
+      const growth: number[] = [];
+      for (let idx = 1; idx < ordered.length; idx += 1) {
+        const prev = ordered[idx - 1]?.revenue ?? 0;
+        const curr = ordered[idx]?.revenue ?? 0;
+        if (prev <= 0 || curr <= 0) continue;
+        periods.push(`${ordered[idx].year}`);
+        growth.push(((curr - prev) / prev) * 100);
+      }
+
+      if (periods.length >= 2) {
+        return {
+          ticker: historical.ticker,
+          companyName: historical.ticker,
+          periods,
+          revenueGrowth: growth,
+          source: `${historical.dataSource.toLowerCase()}_historical_annual`,
+        };
+      }
+    }
+  }
+
+  const profile = await resolveCompanyProfile({ ticker });
+  const history = (profile?.snapshot as { revenueHistory?: Array<Record<string, unknown>> } | undefined)?.revenueHistory;
+  if (Array.isArray(history) && history.length >= 3) {
+    const ordered = history
+      .map((item) => ({
+        period: String(item.period ?? item.year ?? item.date ?? '').trim(),
+        revenue: typeof item.revenue === 'number' ? Number(item.revenue) : null,
+      }))
+      .filter((item) => item.period && typeof item.revenue === 'number' && Number.isFinite(item.revenue) && item.revenue > 0);
+
+    const periods: string[] = [];
+    const growth: number[] = [];
+    for (let idx = 1; idx < ordered.length; idx += 1) {
+      const prev = ordered[idx - 1]?.revenue ?? 0;
+      const curr = ordered[idx]?.revenue ?? 0;
+      if (prev <= 0 || curr <= 0) continue;
+      periods.push(ordered[idx].period);
+      growth.push(((curr - prev) / prev) * 100);
+    }
+
+    if (periods.length >= 2) {
+      return {
+        ticker: profile?.company.ticker ?? ticker,
+        companyName: profile?.company.name ?? ticker,
+        periods,
+        revenueGrowth: growth,
+        source: 'company_snapshot_revenue_history',
+      };
+    }
+  }
+
+  return null;
+}
+
 function formatMetricLabel(metric: ComparisonMetricKey): string {
   switch (metric) {
     case 'revenue':
       return 'Revenue';
+    case 'revenueGrowth':
+      return 'Revenue Growth';
     case 'ebitda':
       return 'EBITDA';
     case 'netIncome':
@@ -679,12 +760,65 @@ export async function buildComparisonVisualizationFromPrompt(prompt: string): Pr
   const tickers = resolveMentionedTickers(prompt, snapshots);
   if (tickers.length < 2) return null;
 
+  const metricPreference = inferComparisonMetric(prompt);
+  if (metricPreference === 'revenueGrowth') {
+    const growthSeries = (await Promise.all(tickers.map((ticker) => fetchRevenueGrowthSeries(ticker)))).filter(
+      (item): item is CompanyGrowthSeries => Boolean(item)
+    );
+    if (growthSeries.length < 2) return null;
+
+    const allPeriods = Array.from(new Set(growthSeries.flatMap((company) => company.periods))).sort();
+    const notes: string[] = [
+      'This chart was generated directly from the prompt, not from an existing model artifact.',
+      ...growthSeries.map((company) => `${company.ticker}: ${company.source}`),
+      ...growthSeries.map((company) => comparisonDriverSummary(company.ticker)),
+    ];
+    const explanation = `${comparisonDriverSummary(growthSeries[0].ticker)} ${comparisonDriverSummary(growthSeries[1].ticker)}`;
+
+    return {
+      explanation,
+      visualization: {
+        title: `${growthSeries[0].companyName} vs ${growthSeries[1].companyName} Revenue Growth`,
+        subtitle: 'Historical annual revenue growth comparison built from the latest available company financial history.',
+        contextType: 'stock',
+        contextLabel: `${growthSeries[0].ticker} vs ${growthSeries[1].ticker}`,
+        notes,
+        panels: [
+          {
+            id: 'comparison-revenue-growth',
+            title: 'Revenue Growth Comparison',
+            subtitle: 'Historical annual revenue growth by company.',
+            height: 300,
+            data: growthSeries.map((company, idx) => ({
+              type: 'scatter',
+              mode: 'lines+markers',
+              name: company.ticker,
+              x: allPeriods,
+              y: allPeriods.map((period) => {
+                const periodIdx = company.periods.indexOf(period);
+                return periodIdx >= 0 ? Number(company.revenueGrowth[periodIdx].toFixed(1)) : null;
+              }),
+              text: allPeriods.map(() => company.companyName),
+              line: { color: idx === 0 ? '#76b7ff' : '#7ce7ac', width: 3, shape: 'spline' },
+              marker: { color: idx === 0 ? '#76b7ff' : '#7ce7ac', size: 7 },
+              hovertemplate: '%{x}<br>%{text}<br>Revenue Growth: %{y:.1f}%<extra></extra>',
+              connectgaps: false,
+            })),
+            layout: {
+              xaxis: { type: 'category' },
+              yaxis: { ticksuffix: '%' },
+            },
+          },
+        ],
+      },
+    };
+  }
+
   const series = (await Promise.all(tickers.map((ticker) => fetchComparisonSeries(ticker)))).filter(
     (item): item is CompanyComparisonSeries => Boolean(item)
   );
   if (series.length < 2) return null;
 
-  const metricPreference = inferComparisonMetric(prompt);
   const metricOrder: ComparisonMetricKey[] =
     metricPreference && metricPreference !== 'multi'
       ? [metricPreference]
