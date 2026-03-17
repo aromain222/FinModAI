@@ -51,6 +51,14 @@ function cleanAssistantText(content: string): string {
     .trim();
 }
 
+function tryParseJson<T>(value: string): T | null {
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
+  }
+}
+
 function getLoadingMessage(prompt: string): { title: string; detail: string } {
   const text = prompt.toLowerCase();
 
@@ -172,12 +180,23 @@ export function AnalystChatApp() {
           messages: [...messages, userMessage]
         })
       });
+      const rawBody = await response.text();
+      const payload = rawBody ? tryParseJson<Record<string, unknown>>(rawBody) : null;
 
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error((payload && typeof payload.error === 'string' && payload.error) || 'Chat request failed');
+        const backendMessage =
+          (payload && typeof payload.reply === 'string' && payload.reply.trim().length > 0
+            ? payload.reply
+            : payload && typeof payload.error === 'string' && payload.error.trim().length > 0
+              ? payload.error
+              : rawBody.trim());
+        throw new Error(backendMessage || `Analyst Chat request failed (${response.status}).`);
       }
-      const payload = await response.json();
+
+      if (!payload) {
+        throw new Error(rawBody.trim() || 'Analyst Chat returned an invalid response.');
+      }
+
       const replyText =
         (payload && typeof payload.reply === 'string' && payload.reply.trim().length > 0
           ? payload.reply
@@ -226,10 +245,14 @@ export function AnalystChatApp() {
       setMessages((prev) => [...prev, reply]);
     } catch (error) {
       console.error('Chat error', error);
+      const failureMessage =
+        error instanceof Error && error.message.trim().length > 0
+          ? error.message.trim()
+          : 'Unable to generate a response at the moment.';
       const reply: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: 'Unable to generate a response at the moment.'
+        content: cleanAssistantText(failureMessage)
       };
       setMessages((prev) => [...prev, reply]);
     } finally {

@@ -17,7 +17,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { PDFParse } from 'pdf-parse';
 import type { UploadedAttachmentContext } from '@/lib/analyst/attachmentContext';
 import { routeAnalystQuery, type AnalystRoute } from '@/lib/analyst/router';
 import { retrieveDataForRoute } from '@/lib/analyst/dataRetrieval';
@@ -438,8 +437,9 @@ async function hydrateAttachmentContext(
   if (!attachment.rawBase64) return attachment;
 
   try {
+    const pdfParseModule = await import('pdf-parse');
     const pdfBuffer = Buffer.from(attachment.rawBase64, 'base64');
-    const parser = new PDFParse({ data: pdfBuffer });
+    const parser = new pdfParseModule.PDFParse({ data: pdfBuffer });
     const parsed = await parser.getText();
     await parser.destroy();
     const extractedText = parsed.text
