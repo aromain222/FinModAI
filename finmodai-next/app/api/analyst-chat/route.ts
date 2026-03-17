@@ -153,9 +153,22 @@ function isRateLimitError(error: unknown): boolean {
   return row.status === 429 || message.includes('rate limit') || row.error?.code === 'rate_limit_exceeded';
 }
 
-function classifyFailureReason(error: unknown): 'missing_key' | 'auth_failed' | 'rate_limited' | 'model_unavailable' {
+function isDataAvailabilityError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const row = error as { message?: string; error?: { message?: string } };
+  const message = String(row.message || row.error?.message || '').toLowerCase();
+  return (
+    message.includes('no matching company profile') ||
+    message.includes('cached demo financials') ||
+    message.includes('incomplete') ||
+    message.includes('no data available')
+  );
+}
+
+function classifyFailureReason(error: unknown): 'missing_key' | 'auth_failed' | 'rate_limited' | 'model_unavailable' | 'data_unavailable' {
   if (isAuthError(error)) return 'auth_failed';
   if (isRateLimitError(error)) return 'rate_limited';
+  if (isDataAvailabilityError(error)) return 'data_unavailable';
   return 'model_unavailable';
 }
 
@@ -497,13 +510,14 @@ async function buildFallbackReply(params: {
   ticker?: string;
   facts?: VerifiedFacts;
   userMessage: string;
-  reason: 'missing_key' | 'auth_failed' | 'rate_limited' | 'model_unavailable';
+  reason: 'missing_key' | 'auth_failed' | 'rate_limited' | 'model_unavailable' | 'data_unavailable';
 }): Promise<string> {
   const headerByReason: Record<typeof params.reason, string> = {
     missing_key: 'OpenAI key is not configured. Returning retrieved data context only.',
     auth_failed: 'OpenAI authentication failed. Returning retrieved data context only.',
     rate_limited: 'OpenAI rate limit exceeded. Returning retrieved data context only.',
     model_unavailable: 'OpenAI is temporarily unavailable. Returning retrieved data context only.',
+    data_unavailable: 'The requested model could not be built because company financial data is not available or complete for this ticker right now.',
   };
   const header = headerByReason[params.reason];
 
