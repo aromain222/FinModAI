@@ -86,10 +86,10 @@ export function AnalystStockCard({ payload }: { payload: StockLookupResult }) {
           <StatCard label="Cash / Debt" value={`${fmtMillions(payload.cash)} / ${fmtMillions(payload.totalDebt)}`} helper={payload.country ?? undefined} />
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[1.8fr_1fr]">
+        <div>
           <EditableFinanceChart
             title={payload.chart.kind === 'price' ? 'Recent Price Trend' : 'Fundamental Snapshot'}
-            subtitle="Editable view for annotations, zoom, and layout changes."
+            subtitle={payload.chart.kind === 'price' ? 'Recent trading range.' : 'Snapshot of key reported values.'}
             className="p-3"
             height={chartHeight}
             data={stockChartData}
@@ -98,32 +98,6 @@ export function AnalystStockCard({ payload }: { payload: StockLookupResult }) {
               yaxis: payload.chart.kind === 'price' ? { tickprefix: '$' } : { tickprefix: '$', ticksuffix: 'M' },
             }}
           />
-
-          <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
-            <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Lookup Provenance</div>
-            <div className="space-y-3 text-sm text-[var(--cb-text-primary)]">
-              <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
-                <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">Company</div>
-                <div className="mt-1">{payload.source.company ?? 'n/a'}</div>
-              </div>
-              <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
-                <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">Fundamentals</div>
-                <div className="mt-1">{payload.source.fundamentals ?? 'n/a'}</div>
-              </div>
-              <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
-                <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">Price</div>
-                <div className="mt-1">{payload.source.price ?? 'n/a'}</div>
-              </div>
-              <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
-                <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">Fallbacks Used</div>
-                <div className="mt-1 text-[var(--cb-text-muted)]">
-                  {payload.fallbackUsed.yfinance ? 'yfinance ' : ''}
-                  {payload.fallbackUsed.financedatabase ? 'financedatabase' : ''}
-                  {!payload.fallbackUsed.yfinance && !payload.fallbackUsed.financedatabase ? 'None' : ''}
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </CardContent>
     </Card>
