@@ -155,8 +155,7 @@ function EventListItem({
   href: string;
 }) {
   const leadSource = event.sources.find((source) => typeof source.imageUrl === 'string' && source.imageUrl.trim());
-  const isDemoSeed = event.sources.some((source) => source.name === 'Demo Seed');
-  const heroImage = isDemoSeed ? undefined : leadSource?.imageUrl;
+  const heroImage = leadSource?.imageUrl;
   const fallbackImage = getSpecificEventFallbackImage(event.title, event.eventType, 'thumb');
 
   return (

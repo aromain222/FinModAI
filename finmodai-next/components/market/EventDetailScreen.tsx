@@ -307,10 +307,7 @@ export default function EventDetailScreen({
   );
 
   const backHref = `/events?provider=${provider}&view=${view}`;
-  const hasDemoSeedSource = event?.sources.some((source) => source.name === 'Demo Seed') ?? false;
-  const heroImage = hasDemoSeedSource
-    ? undefined
-    : event?.sources.find((source) => typeof source.imageUrl === 'string' && source.imageUrl.trim())?.imageUrl;
+  const heroImage = event?.sources.find((source) => typeof source.imageUrl === 'string' && source.imageUrl.trim())?.imageUrl;
   const fallbackImage = getSpecificEventFallbackImage(event?.title, event?.eventType ?? 'Macro', 'hero');
   const summaryParagraph = event ? buildSummaryParagraph(event) : '';
   const whyItMattersParagraph = event ? buildWhyItMattersParagraph(event) : '';

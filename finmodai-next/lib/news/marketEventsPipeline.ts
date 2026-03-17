@@ -657,13 +657,18 @@ function buildDemoSeedEvents(): MarketEvent[] {
   const now = Date.now();
   const isoOffset = (hours: number) => new Date(now - hours * 60 * 60 * 1000).toISOString();
   const demoImageBySeed: Record<string, string> = {
-    'hormuz-oil-risk': buildSeedEventImage('Hormuz / Oil Shock', '#ef4444', 'oil'),
-    'tariff-trade-reset': buildSeedEventImage('Tariffs / Trade', '#f59e0b', 'trade'),
-    'fed-boxed-in': buildSeedEventImage('Fed / Boxed In', '#3b82f6', 'fed'),
-    'growth-confidence-cracks': buildSeedEventImage('Growth / Confidence', '#8b5cf6', 'growth'),
-    'nvidia-gtc-checkpoint': buildSeedEventImage('Nvidia / GTC', '#22c55e', 'nvidia'),
-    'software-ai-reset': buildSeedEventImage('Software / AI Reset', '#06b6d4', 'software'),
-    'memory-hbm-checkpoint': buildSeedEventImage('Memory / HBM', '#14b8a6', 'memory'),
+    'hormuz-oil-risk': 'https://commons.wikimedia.org/wiki/Special:Redirect/file/Strait%20of%20hormuz.jpg',
+    'tariff-trade-reset':
+      'https://commons.wikimedia.org/wiki/Special:Redirect/file/Port%20of%20Savannah%20Non-Intrusive%20Inspections%20%28NII%29%20and%20Cargo%20Operations%20%2853068224657%29.jpg',
+    'fed-boxed-in':
+      'https://commons.wikimedia.org/wiki/Special:Redirect/file/Federal%20Reserve%20Bank%20of%20New%20York%20Building.jpg',
+    'growth-confidence-cracks':
+      'https://commons.wikimedia.org/wiki/Special:Redirect/file/Kai%20Wei%20Supermarket%20shoppers,%20December%202018.jpg',
+    'nvidia-gtc-checkpoint':
+      'https://commons.wikimedia.org/wiki/Special:Redirect/file/Jensen%20Huang%20at%20GTC%20Japan%2020161005.jpg',
+    'software-ai-reset':
+      'https://commons.wikimedia.org/wiki/Special:Redirect/file/Facebook%20Data%20Center%20Server%20Board.jpg',
+    'memory-hbm-checkpoint': 'https://commons.wikimedia.org/wiki/Special:Redirect/file/Clean%20room.jpg',
   };
   const source = (
     seed: string,
