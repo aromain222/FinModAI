@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ExternalLink, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getSpecificEventFallbackImage } from '@/lib/macroEventImageQueries';
+import { proxiedEventImageUrl } from '@/lib/news/eventImageProxy';
 import {
   marketEventsApiResponseSchema,
   type MarketEvent,
@@ -307,7 +308,9 @@ export default function EventDetailScreen({
   );
 
   const backHref = `/events?provider=${provider}&view=${view}`;
-  const heroImage = event?.sources.find((source) => typeof source.imageUrl === 'string' && source.imageUrl.trim())?.imageUrl;
+  const heroImage = proxiedEventImageUrl(
+    event?.sources.find((source) => typeof source.imageUrl === 'string' && source.imageUrl.trim())?.imageUrl
+  );
   const fallbackImage = getSpecificEventFallbackImage(event?.title, event?.eventType ?? 'Macro', 'hero');
   const summaryParagraph = event ? buildSummaryParagraph(event) : '';
   const whyItMattersParagraph = event ? buildWhyItMattersParagraph(event) : '';

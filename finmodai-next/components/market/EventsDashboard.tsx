@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Activity, ArrowRight, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getSpecificEventFallbackImage } from '@/lib/macroEventImageQueries';
+import { proxiedEventImageUrl } from '@/lib/news/eventImageProxy';
 import {
   marketEventsApiResponseSchema,
   type MarketEvent,
@@ -155,7 +156,7 @@ function EventListItem({
   href: string;
 }) {
   const leadSource = event.sources.find((source) => typeof source.imageUrl === 'string' && source.imageUrl.trim());
-  const heroImage = leadSource?.imageUrl;
+  const heroImage = proxiedEventImageUrl(leadSource?.imageUrl);
   const fallbackImage = getSpecificEventFallbackImage(event.title, event.eventType, 'thumb');
 
   return (
