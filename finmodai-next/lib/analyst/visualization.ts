@@ -297,7 +297,7 @@ function buildModelVisualization(payload: AnalystGeneratedModelPayload): Analyst
       subtitle: 'Standalone chart generated from the current model assumptions.',
       contextType: 'model',
       contextLabel: payload.title,
-      notes: ['Edit titles, annotate the chart, or zoom into the forecast path without reopening the full model card.'],
+      notes: ['This chart isolates the forecast path so the user can read the operating assumptions without reopening the full model card.'],
       panels: [
         {
           id: 'forecast-assumptions',
@@ -352,7 +352,7 @@ function buildModelVisualization(payload: AnalystGeneratedModelPayload): Analyst
       subtitle: 'Standalone peer chart generated from the current comps output.',
       contextType: 'model',
       contextLabel: payload.title,
-      notes: ['Peer operating scale is shown separately so the chart can be edited and annotated without changing the workbook payload.'],
+      notes: ['Peer operating scale is shown separately so the user can read the comps output without carrying the full workbook payload into the thread.'],
       panels: [
         {
           id: 'peer-operating-scale',
@@ -447,7 +447,7 @@ function buildModelVisualization(payload: AnalystGeneratedModelPayload): Analyst
       subtitle: 'Standalone underwriting chart generated from the current LBO assumptions.',
       contextType: 'model',
       contextLabel: payload.title,
-      notes: ['This chart isolates the underwriting curve so it can be annotated separately from the full deal model.'],
+      notes: ['This chart isolates the underwriting curve so the user can focus on the operating path separately from the full deal model.'],
       panels: [
         {
           id: 'underwriting-growth',
@@ -541,7 +541,7 @@ function buildModelVisualization(payload: AnalystGeneratedModelPayload): Analyst
       subtitle: 'Standalone SaaS driver chart generated from the current model assumptions.',
       contextType: 'model',
       contextLabel: payload.title,
-      notes: ['This chart isolates the operating drivers so the user can visualize and annotate them separately from the workbook card.'],
+      notes: ['This chart isolates the operating drivers so the user can focus on the main SaaS levers separately from the workbook card.'],
       panels: [
         {
           id: 'saas-driver-snapshot',
