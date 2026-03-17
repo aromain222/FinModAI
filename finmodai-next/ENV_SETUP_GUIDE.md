@@ -11,7 +11,7 @@ Create a `.env.local` file in the root of the project with the following variabl
 OPENAI_API_KEY=REDACTED
 
 # Optional: Specify OpenAI model (defaults to gpt-4o-mini if not set)
-OPENAI_MODEL=gpt-4o-mini
+OPENAI_MODEL=gpt-5.4
 ```
 
 ### 🟢 **REQUIRED** for Supabase Auth:

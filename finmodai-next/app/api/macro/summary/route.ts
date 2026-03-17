@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     });
     
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
+      model: process.env.OPENAI_MODEL || 'gpt-5.4',
       messages: [
         {
           role: 'system',

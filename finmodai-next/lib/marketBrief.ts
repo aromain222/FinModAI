@@ -115,12 +115,12 @@ Rules: cite the metrics explicitly, avoid speculation, keep bullets concise. The
 
     console.log('🔥 OPENAI CALL FIRED (market brief)', {
       hasKey: !!apiKey,
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      model: process.env.OPENAI_MODEL || 'gpt-5.4',
       timestamp: new Date().toISOString(),
     });
 
     const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      model: process.env.OPENAI_MODEL || 'gpt-5.4',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.6,
       response_format: { type: 'json_object' },

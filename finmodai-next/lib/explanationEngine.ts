@@ -343,7 +343,7 @@ Rules:
 - Use the numeric inputs above directly.
 - ${dataQuality === 'low' ? 'State clearly that outputs are directional because data quality is low.' : 'Briefly mention key model limits without overstating certainty.'}`;
 
-    const modelCandidates = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-4o-mini', 'gpt-4.1-mini');
+    const modelCandidates = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-5.4-pro', 'gpt-5.4');
     let response: Awaited<ReturnType<typeof openai.chat.completions.create>> | null = null;
     let lastError: unknown = null;
     for (const model of modelCandidates) {

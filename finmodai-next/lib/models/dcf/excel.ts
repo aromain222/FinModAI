@@ -101,7 +101,7 @@ async function generateModelBriefSummary(params: {
     const prompt = `Write one paragraph only (4-6 sentences) in a structured institutional tone for an investment committee model brief. No hype, no marketing language. Clearly articulate key valuation drivers and principal risks.\n\nInputs (USD millions unless noted):\n- Company: ${params.companyName}\n- Ticker: ${params.ticker}\n- Sector: ${params.sector}\n- As of date: ${params.asOfDate}\n- Enterprise value: ${params.enterpriseValue}\n- Equity value: ${params.equityValue}\n- Implied price per share: ${params.impliedPrice}\n- Market price: ${params.marketPrice ?? 'N/A'}\n- Implied upside (%): ${params.impliedUpsidePct ?? 'N/A'}\n- WACC (%): ${(params.wacc * 100).toFixed(2)}\n- Terminal growth (%): ${(params.terminalGrowth * 100).toFixed(2)}\n- Terminal value contribution to EV (%): ${(params.terminalSharePct * 100).toFixed(2)}\n- Net debt: ${params.netDebt ?? 'N/A'}\n- Net debt source: ${params.netDebtSource}`;
 
     const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      model: process.env.OPENAI_MODEL || 'gpt-5.4',
       messages: [
         {
           role: 'system',

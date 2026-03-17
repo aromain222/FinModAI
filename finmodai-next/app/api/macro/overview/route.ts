@@ -167,7 +167,7 @@ Keep each bullet point concise (1-2 sentences max). Be analytical and actionable
     });
     
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
+      model: process.env.OPENAI_MODEL || 'gpt-5.4',
       messages: [
         {
           role: 'system',

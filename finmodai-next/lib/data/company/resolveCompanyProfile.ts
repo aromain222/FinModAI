@@ -10,6 +10,8 @@ import type {
   ResolvedCompanyProfile,
 } from '@/lib/data/company/types';
 
+const COMPANY_SUFFIXES = /\b(inc|incorporated|corp|corporation|co|company|holdings|holding|group|plc|limited|ltd|nv|sa|ag)\b/gi;
+
 function toNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string' && value.trim().length > 0) {
@@ -17,6 +19,31 @@ function toNumber(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+function normalizeCompanyName(value: string | null | undefined): string {
+  return String(value ?? '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[.,/#!$%^*;:{}=_`~()'-]/g, ' ')
+    .replace(COMPANY_SUFFIXES, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function nameMatchScore(candidate: string, query: string): number {
+  const normalizedCandidate = normalizeCompanyName(candidate);
+  const normalizedQuery = normalizeCompanyName(query);
+  if (!normalizedCandidate || !normalizedQuery) return 0;
+  if (normalizedCandidate === normalizedQuery) return 1000;
+  if (normalizedCandidate.startsWith(normalizedQuery)) return 700 - normalizedCandidate.length;
+  if (normalizedCandidate.includes(normalizedQuery)) return 500 - normalizedCandidate.length;
+
+  const queryTokens = normalizedQuery.split(' ').filter(Boolean);
+  const candidateTokens = new Set(normalizedCandidate.split(' ').filter(Boolean));
+  const overlap = queryTokens.filter((token) => candidateTokens.has(token)).length;
+  if (overlap === 0) return 0;
+  return overlap * 100 - Math.abs(candidateTokens.size - queryTokens.length) * 10;
 }
 
 function mapCompany(row: any): Company {
@@ -132,16 +159,13 @@ async function resolveCompanyId(query: { ticker?: string; companyName?: string }
       .select('*')
       .ilike('name', `%${query.companyName}%`)
       .order('updated_at', { ascending: false })
-      .limit(5);
+      .limit(25);
     if (Array.isArray(fuzzy.data) && fuzzy.data.length > 0) {
-      const lowerName = query.companyName.toLowerCase();
       const best = [...fuzzy.data].sort((left, right) => {
-        const leftName = String(left.name ?? '').toLowerCase();
-        const rightName = String(right.name ?? '').toLowerCase();
-        const leftExact = leftName === lowerName ? 1 : 0;
-        const rightExact = rightName === lowerName ? 1 : 0;
-        if (leftExact !== rightExact) return rightExact - leftExact;
-        return leftName.length - rightName.length;
+        const leftScore = nameMatchScore(String(left.name ?? ''), query.companyName ?? '');
+        const rightScore = nameMatchScore(String(right.name ?? ''), query.companyName ?? '');
+        if (leftScore !== rightScore) return rightScore - leftScore;
+        return String(right.updated_at ?? '').localeCompare(String(left.updated_at ?? ''));
       })[0];
       if (best) return mapCompany(best);
     }

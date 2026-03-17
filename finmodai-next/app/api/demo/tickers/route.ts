@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server';
-import { isDemoModeFromRequest } from '@/lib/demo/isDemoMode';
 import { getDemoUniverseTickers } from '@/lib/supabase/demoUniverse';
 
 export async function GET(req: Request) {
-  if (!isDemoModeFromRequest(req)) {
-    return NextResponse.json({ tickers: [], companies: [] });
-  }
-
   const url = new URL(req.url);
   const scenarioReadyParam = (url.searchParams.get('scenarioReady') ?? '').toLowerCase();
   const scenarioReady = scenarioReadyParam === '1' || scenarioReadyParam === 'true' || scenarioReadyParam === 'yes';

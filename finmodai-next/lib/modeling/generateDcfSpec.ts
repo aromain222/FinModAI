@@ -150,7 +150,7 @@ async function generateWithLlm(prompt: string, defaultSpec: DcfSpec): Promise<Dc
   if (!apiKey) return null;
 
   const openai = new OpenAI({ apiKey });
-  const models = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-4o-mini', 'gpt-4.1-mini');
+  const models = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-5.4-pro', 'gpt-5.4');
 
   let lastError: unknown = null;
   for (const model of models) {

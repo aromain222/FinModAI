@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDemoFundamentals } from '@/lib/data/providers/demoProvider';
+import { getDemoFundamentals, getDemoQuote } from '@/lib/data/providers/demoProvider';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,10 +10,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Missing ticker' }, { status: 400 });
     }
 
-    const fundamentals = await getDemoFundamentals(ticker);
+    const [fundamentals, quote] = await Promise.all([
+      getDemoFundamentals(ticker),
+      getDemoQuote(ticker),
+    ]);
     if (!fundamentals) {
       return NextResponse.json({ error: 'Demo company not found' }, { status: 400 });
     }
+
+    const enterpriseValue =
+      quote?.marketCap != null && fundamentals.totalDebt != null && fundamentals.cash != null
+        ? quote.marketCap + fundamentals.totalDebt - fundamentals.cash
+        : null;
 
     return NextResponse.json(
       {
@@ -28,6 +36,9 @@ export async function GET(request: NextRequest) {
         cash: fundamentals.cash,
         totalDebt: fundamentals.totalDebt,
         sharesOutstanding: fundamentals.sharesOutstanding,
+        sharePrice: quote?.price ?? null,
+        marketCap: quote?.marketCap ?? null,
+        enterpriseValue,
         source: fundamentals.source,
         provenance: fundamentals.provenance ?? {},
       },
@@ -38,4 +49,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 200 });
   }
 }
-

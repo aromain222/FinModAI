@@ -158,7 +158,7 @@ Text/HTML:
 ${textToAnalyze}`;
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: process.env.OPENAI_MODEL || 'gpt-5.4',
       messages: [
         {
           role: 'system',

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getMarketCompanyUniverse } from '@/lib/data/company/companyUniverse';
 
 type CompanyListingRow = {
   ticker: string;
@@ -23,10 +24,18 @@ function getSupabaseClient() {
 
 export async function GET(req: NextRequest) {
   const limitParam = Number(req.nextUrl.searchParams.get('limit') || '50');
-  const limit = Number.isFinite(limitParam) ? Math.max(1, Math.min(100, limitParam)) : 50;
+  const limit = Number.isFinite(limitParam) ? Math.max(1, Math.min(750, limitParam)) : 50;
   const debug = req.nextUrl.searchParams.get('debug') === '1';
 
   try {
+    const cachedCompanies = await getMarketCompanyUniverse(limit);
+    if (cachedCompanies.length > 0) {
+      return NextResponse.json(
+        { companies: cachedCompanies, count: cachedCompanies.length, source: 'company_cache', debug },
+        { status: 200 }
+      );
+    }
+
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from('demo_company_snapshots')
@@ -45,13 +54,14 @@ export async function GET(req: NextRequest) {
     const rows = (data ?? [])
       .map((row: CompanyListingRow) => ({
         ticker: String(row.ticker ?? '').trim().toUpperCase(),
-        company_name: row.company_name ?? null,
+        companyName: row.company_name ?? null,
         sector: row.sector ?? null,
         industry: row.industry ?? null,
-        updated_at: row.updated_at ?? null,
-        as_of_date: row.as_of_date ?? null,
-        revenue_ltm: row.revenue_ltm ?? null,
-        market_cap: row.market_cap ?? null,
+        updatedAt: row.updated_at ?? null,
+        asOfDate: row.as_of_date ?? null,
+        revenueLtm: row.revenue_ltm ?? null,
+        marketCap: row.market_cap ?? null,
+        source: 'demo_company_snapshots' as const,
       }))
       .filter((row) => row.ticker.length > 0);
 

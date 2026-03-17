@@ -76,7 +76,7 @@ export async function POST(request: Request) {
   );
 
   const openai = new OpenAI({ apiKey });
-  const modelCandidates = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-4o-mini', 'gpt-4.1-mini');
+  const modelCandidates = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-5.4-pro', 'gpt-5.4');
   let stream: Awaited<ReturnType<typeof openai.chat.completions.create>> | null = null;
   let lastError: unknown = null;
   for (const model of modelCandidates) {

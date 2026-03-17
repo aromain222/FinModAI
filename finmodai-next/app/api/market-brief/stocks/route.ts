@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchDailySeries, type SeriesQuality } from '@/lib/marketData/fetchDailySeries';
+import { getMarketUniverseTickers } from '@/lib/data/company/companyUniverse';
 import { getDemoTickers } from '@/lib/data/providers/demoProvider';
 
 type TimeRange = '1D' | '1W' | '1M' | '3M' | '6M' | '1Y' | '5Y' | 'YTD' | 'MAX';
@@ -100,10 +101,20 @@ export async function GET(req: NextRequest) {
   let watchlist: string[] = [];
 
   try {
-    watchlist = (await getDemoTickers()).slice(0, MAX_WATCHLIST);
+    watchlist = await getMarketUniverseTickers(MAX_WATCHLIST);
+    if (watchlist.length === 0) {
+      watchlist = (await getDemoTickers()).slice(0, MAX_WATCHLIST);
+      warnings.push('Falling back to demo ticker universe because cached company coverage was unavailable.');
+    }
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to load demo tickers.';
+    const message = err instanceof Error ? err.message : 'Failed to load cached company universe.';
     warnings.push(message);
+    try {
+      watchlist = (await getDemoTickers()).slice(0, MAX_WATCHLIST);
+      warnings.push('Falling back to demo ticker universe.');
+    } catch (fallbackErr) {
+      warnings.push(fallbackErr instanceof Error ? fallbackErr.message : 'Failed to load demo tickers.');
+    }
   }
 
   if (watchlist.length === 0) {
@@ -113,7 +124,7 @@ export async function GET(req: NextRequest) {
         asOf: endIso,
         rising: [],
         falling: [],
-        warnings: warnings.length > 0 ? warnings : ['No demo tickers found in demo_company_snapshots.'],
+        warnings: warnings.length > 0 ? warnings : ['No cached companies or demo tickers were available.'],
       } satisfies StockBreadth,
       { status: 200 }
     );

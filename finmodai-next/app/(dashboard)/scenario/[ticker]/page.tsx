@@ -1,4 +1,5 @@
 import { headers } from 'next/headers';
+import { CompanyViewTracker } from '@/components/analytics/CompanyViewTracker';
 
 type ScenarioDrivers = {
   revenueGrowth: number[];
@@ -146,6 +147,8 @@ export default async function ScenarioPage({
 
   return (
     <div className="p-8">
+      <CompanyViewTracker ticker={ticker} />
+
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-slate-900">
           {company_name || ticker} — Scenario Analysis

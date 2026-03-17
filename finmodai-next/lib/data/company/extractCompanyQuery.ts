@@ -4,12 +4,22 @@ import type { CompanyQuery } from '@/lib/data/company/types';
 const COMPANY_ALIASES: Array<{ pattern: RegExp; ticker: string; companyName: string }> = [
   { pattern: /\balphabet\b|\bgoogle\b|\bgoogl\b/i, ticker: 'GOOGL', companyName: 'Alphabet Inc.' },
   { pattern: /\bamazon\b|\bamzn\b/i, ticker: 'AMZN', companyName: 'Amazon.com, Inc.' },
+  { pattern: /\boracle\b|\borcl\b/i, ticker: 'ORCL', companyName: 'Oracle Corporation' },
+  { pattern: /\bbroadcom\b|\bavgo\b/i, ticker: 'AVGO', companyName: 'Broadcom Inc.' },
   { pattern: /\bnvidia\b|\bnvda\b/i, ticker: 'NVDA', companyName: 'NVIDIA Corporation' },
   { pattern: /\bapple\b|\baapl\b/i, ticker: 'AAPL', companyName: 'Apple Inc.' },
   { pattern: /\bmicrosoft\b|\bmsft\b/i, ticker: 'MSFT', companyName: 'Microsoft Corporation' },
   { pattern: /\bmeta\b|\bfacebook\b|\bmeta platforms\b/i, ticker: 'META', companyName: 'Meta Platforms, Inc.' },
   { pattern: /\bsnowflake\b|\bsnow\b/i, ticker: 'SNOW', companyName: 'Snowflake Inc.' },
   { pattern: /\btesla\b|\btsla\b/i, ticker: 'TSLA', companyName: 'Tesla, Inc.' },
+  { pattern: /\bmastercard\b/i, ticker: 'MA', companyName: 'Mastercard Incorporated' },
+  { pattern: /\bvisa\b/i, ticker: 'V', companyName: 'Visa Inc.' },
+  { pattern: /\bcostco\b|\bcost\b/i, ticker: 'COST', companyName: 'Costco Wholesale Corporation' },
+  { pattern: /\bwalmart\b|\bwmt\b/i, ticker: 'WMT', companyName: 'Walmart Inc.' },
+  { pattern: /\bsalesforce\b|\bcrm\b/i, ticker: 'CRM', companyName: 'Salesforce, Inc.' },
+  { pattern: /\bservicenow\b|\bservice now\b/i, ticker: 'NOW', companyName: 'ServiceNow, Inc.' },
+  { pattern: /\bnetflix\b|\bnflx\b/i, ticker: 'NFLX', companyName: 'Netflix, Inc.' },
+  { pattern: /\bjpmorgan\b|\bjp morgan\b|\bjpm\b/i, ticker: 'JPM', companyName: 'JPMorgan Chase & Co.' },
   { pattern: /\bsofi\b/i, ticker: 'SOFI', companyName: 'SoFi Technologies, Inc.' },
 ];
 

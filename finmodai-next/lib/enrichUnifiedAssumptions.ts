@@ -151,7 +151,7 @@ export async function enrichUnifiedAssumptions(
   
   // Step 2: Use OpenAI for validation and additional suggestions (optional) — service key for backend
   const apiKey = getOpenAIKey('service');
-  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  const model = process.env.OPENAI_MODEL || 'gpt-5.4';
   
   let aiSuggestions: string[] = [];
   let confidence: 'high' | 'medium' | 'low' = inferences.length > 0 ? 'high' : 'medium';

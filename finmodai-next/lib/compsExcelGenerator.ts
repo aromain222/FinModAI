@@ -100,10 +100,19 @@ function safeNumber(value: any): number | null {
   return null;
 }
 
-function toMillions(value: number | null | undefined): number | null {
+function normalizeUsdMillions(value: number | null | undefined): number | null {
   const num = safeNumber(value);
   if (num === null) return null;
-  return num / 1000000;
+  // The comps path can receive either raw USD or already-normalized USD mm values.
+  // Treat clearly large raw values as dollars; otherwise preserve the mm input.
+  return Math.abs(num) >= 10_000_000 ? num / 1_000_000 : num;
+}
+
+function normalizeSharesMillions(value: number | null | undefined): number | null {
+  const num = safeNumber(value);
+  if (num === null) return null;
+  // Shares may arrive as raw shares or already-normalized mm shares.
+  return Math.abs(num) >= 1_000_000 ? num / 1_000_000 : num;
 }
 
 function colToLetter(col: number): string {
@@ -268,8 +277,8 @@ export async function generateCompsWorkbook(data: CompsData | Record<string, any
   
   // Sort by market cap (descending)
   allComps = allComps.sort((a, b) => {
-    const aCap = safeNumber(a.marketCap) || 0;
-    const bCap = safeNumber(b.marketCap) || 0;
+    const aCap = normalizeUsdMillions(a.marketCap) || 0;
+    const bCap = normalizeUsdMillions(b.marketCap) || 0;
     return bCap - aCap;
   });
   
@@ -313,6 +322,7 @@ export async function generateCompsWorkbook(data: CompsData | Record<string, any
   const headers = [
     'Company',
     'Ticker',
+    'Sector',
     'Price / Share', // F6: Clear label
     'Shares Outstanding (mm)', // F6: Clarify units
     'Shares Source', // Shares resolution: source column
@@ -426,7 +436,7 @@ export async function generateCompsWorkbook(data: CompsData | Record<string, any
     
     // Shares Outstanding (in millions) - professional formatting
     const shares = safeNumber(comp.shares || comp.sharesOutstanding);
-    const sharesMM = shares ? toMillions(shares) : null;
+    const sharesMM = shares ? normalizeSharesMillions(shares) : null;
     if (sharesMM !== null && sharesMM > 0) {
       dataRow.getCell(COLUMNS.SHARES).value = sharesMM;
       // Use whole numbers for shares (no unnecessary decimals)
@@ -455,7 +465,7 @@ export async function generateCompsWorkbook(data: CompsData | Record<string, any
     };
     
     // Market Cap (calculate if missing: Price × Shares)
-    let marketCapMM = toMillions(comp.marketCap);
+    let marketCapMM = normalizeUsdMillions(comp.marketCap);
     if (marketCapMM === null && price !== null && sharesMM !== null && price > 0 && sharesMM > 0) {
       marketCapMM = price * sharesMM;
     }
@@ -469,7 +479,7 @@ export async function generateCompsWorkbook(data: CompsData | Record<string, any
     };
     
     // Cash (in millions)
-    const cashMM = toMillions(comp.cash);
+    const cashMM = normalizeUsdMillions(comp.cash);
     if (cashMM !== null) {
       dataRow.getCell(COLUMNS.CASH).value = cashMM;
       applyNumberFormat(dataRow.getCell(COLUMNS.CASH), 'CURRENCY');
@@ -480,7 +490,7 @@ export async function generateCompsWorkbook(data: CompsData | Record<string, any
     };
     
     // Total Debt (in millions)
-    const debtMM = toMillions(comp.debt);
+    const debtMM = normalizeUsdMillions(comp.debt);
     if (debtMM !== null) {
       dataRow.getCell(COLUMNS.DEBT).value = debtMM;
       applyNumberFormat(dataRow.getCell(COLUMNS.DEBT), 'CURRENCY');
@@ -491,7 +501,7 @@ export async function generateCompsWorkbook(data: CompsData | Record<string, any
     };
     
     // Net Debt (calculate if missing: Debt - Cash)
-    let netDebtMM = toMillions(comp.netDebt);
+    let netDebtMM = normalizeUsdMillions(comp.netDebt);
     if (netDebtMM === null && debtMM !== null && cashMM !== null) {
       netDebtMM = debtMM - cashMM;
     }
@@ -505,7 +515,7 @@ export async function generateCompsWorkbook(data: CompsData | Record<string, any
     };
     
     // Enterprise Value (calculate if missing: Market Cap + Net Debt)
-    let evMM = toMillions(comp.ev || comp.enterpriseValue);
+    let evMM = normalizeUsdMillions(comp.ev || comp.enterpriseValue);
     if (evMM === null && marketCapMM !== null && netDebtMM !== null) {
       evMM = marketCapMM + netDebtMM;
     }
@@ -519,7 +529,7 @@ export async function generateCompsWorkbook(data: CompsData | Record<string, any
     };
     
     // Revenue (in millions)
-    const revenueMM = toMillions(comp.revenue);
+    const revenueMM = normalizeUsdMillions(comp.revenue);
     if (revenueMM !== null && revenueMM > 0) {
       dataRow.getCell(COLUMNS.REVENUE).value = revenueMM;
       applyNumberFormat(dataRow.getCell(COLUMNS.REVENUE), 'CURRENCY');
@@ -530,7 +540,7 @@ export async function generateCompsWorkbook(data: CompsData | Record<string, any
     };
     
     // EBITDA (in millions) - label if user input
-    const ebitdaMM = toMillions(comp.ebitda);
+    const ebitdaMM = normalizeUsdMillions(comp.ebitda);
     const isEbitdaUserInput = comp.userInputs?.ebitda;
     if (ebitdaMM !== null && ebitdaMM > 0) {
       dataRow.getCell(COLUMNS.EBITDA).value = ebitdaMM;
@@ -547,7 +557,7 @@ export async function generateCompsWorkbook(data: CompsData | Record<string, any
     };
     
     // Net Income (in millions) - label if user input
-    const netIncomeMM = toMillions(comp.netIncome);
+    const netIncomeMM = normalizeUsdMillions(comp.netIncome);
     const isNetIncomeUserInput = comp.userInputs?.netIncome;
     if (netIncomeMM !== null) {
       dataRow.getCell(COLUMNS.NET_INCOME).value = netIncomeMM;
@@ -713,8 +723,8 @@ export async function generateCompsWorkbook(data: CompsData | Record<string, any
   // Collect multiples for stats
   const evRevenueValues = allComps
     .map(c => {
-      const ev = toMillions(c.ev || c.enterpriseValue || (c.marketCap && c.netDebt != null ? c.marketCap + c.netDebt : null));
-      const rev = toMillions(c.revenue);
+      const ev = normalizeUsdMillions(c.ev || c.enterpriseValue || (c.marketCap && c.netDebt != null ? c.marketCap + c.netDebt : null));
+      const rev = normalizeUsdMillions(c.revenue);
       if (ev !== null && rev !== null && rev > 0) return ev / rev;
       return safeNumber(c.evToRevenue);
     })
@@ -722,8 +732,8 @@ export async function generateCompsWorkbook(data: CompsData | Record<string, any
   
   const evEbitdaValues = allComps
     .map(c => {
-      const ev = toMillions(c.ev || c.enterpriseValue || (c.marketCap && c.netDebt != null ? c.marketCap + c.netDebt : null));
-      const ebitda = toMillions(c.ebitda);
+      const ev = normalizeUsdMillions(c.ev || c.enterpriseValue || (c.marketCap && c.netDebt != null ? c.marketCap + c.netDebt : null));
+      const ebitda = normalizeUsdMillions(c.ebitda);
       if (ev !== null && ebitda !== null && ebitda > 0) return ev / ebitda;
       return safeNumber(c.evToEbitda);
     })
@@ -731,8 +741,8 @@ export async function generateCompsWorkbook(data: CompsData | Record<string, any
   
   const peValues = allComps
     .map(c => {
-      const mcap = toMillions(c.marketCap);
-      const ni = toMillions(c.netIncome);
+      const mcap = normalizeUsdMillions(c.marketCap);
+      const ni = normalizeUsdMillions(c.netIncome);
       if (mcap !== null && ni !== null && ni > 0) return mcap / ni;
       return safeNumber(c.peRatio);
     })
@@ -805,14 +815,14 @@ export async function generateCompsWorkbook(data: CompsData | Record<string, any
   // ===== VALUATION & SHARE PRICE (universal block) =====
   row += 1;
   const subject = compsData.subject ?? allComps[0];
-  const subjectEbitdaMM = toMillions(subject?.ebitda);
-  const subjectRevenueMM = toMillions(subject?.revenue);
-  const subjectNetIncomeMM = toMillions(subject?.netIncome);
-  const subjectSharesMM = toMillions(subject?.shares ?? subject?.sharesOutstanding) ?? 0;
-  let subjectNetDebtMM = toMillions(subject?.netDebt);
+  const subjectEbitdaMM = normalizeUsdMillions(subject?.ebitda);
+  const subjectRevenueMM = normalizeUsdMillions(subject?.revenue);
+  const subjectNetIncomeMM = normalizeUsdMillions(subject?.netIncome);
+  const subjectSharesMM = normalizeSharesMillions(subject?.shares ?? subject?.sharesOutstanding) ?? 0;
+  let subjectNetDebtMM = normalizeUsdMillions(subject?.netDebt);
   if (subjectNetDebtMM === null && subject) {
-    const d = toMillions(subject.debt);
-    const c = toMillions(subject.cash);
+    const d = normalizeUsdMillions(subject.debt);
+    const c = normalizeUsdMillions(subject.cash);
     if (d !== null && c !== null) subjectNetDebtMM = d - c;
   }
   const subjectMarketPrice = subject ? safeNumber(subject.price) : null;
@@ -1228,15 +1238,15 @@ export async function generateCompsWorkbook(data: CompsData | Record<string, any
     peerSheet.getCell(pr, 1).value = safeString(comp.companyName ?? comp.name ?? comp.ticker ?? '');
     peerSheet.getCell(pr, 2).value = safeString(comp.ticker ?? '').toUpperCase();
     peerSheet.getCell(pr, 3).value = safeString(comp.sector ?? '') || 'N/A';
-    const revMM = toMillions(comp.revenue);
-    const ebitdaMM = toMillions(comp.ebitda);
-    const niMM = toMillions(comp.netIncome);
-    const cashMM = toMillions(comp.cash);
-    const debtMM = toMillions(comp.debt);
-    const mcapMM = toMillions(comp.marketCap);
-    let evMM = toMillions(comp.ev ?? comp.enterpriseValue);
+    const revMM = normalizeUsdMillions(comp.revenue);
+    const ebitdaMM = normalizeUsdMillions(comp.ebitda);
+    const niMM = normalizeUsdMillions(comp.netIncome);
+    const cashMM = normalizeUsdMillions(comp.cash);
+    const debtMM = normalizeUsdMillions(comp.debt);
+    const mcapMM = normalizeUsdMillions(comp.marketCap);
+    let evMM = normalizeUsdMillions(comp.ev ?? comp.enterpriseValue);
     if (evMM === null && mcapMM !== null) {
-      const netDebtVal = comp.netDebt != null ? toMillions(comp.netDebt) : (debtMM ?? 0) - (cashMM ?? 0);
+      const netDebtVal = comp.netDebt != null ? normalizeUsdMillions(comp.netDebt) : (debtMM ?? 0) - (cashMM ?? 0);
       evMM = mcapMM + (netDebtVal ?? (debtMM ?? 0) - (cashMM ?? 0));
     }
     peerSheet.getCell(pr, 4).value = revMM != null ? revMM : null;

@@ -11,24 +11,31 @@ import {
   type MarketEventType,
 } from '@/lib/news/marketEventsTypes';
 
-const CLASSIFIER_SYSTEM_PROMPT = `You are CapitalBase Events Intelligence — an institutional macro and market analyst.
+const CLASSIFIER_SYSTEM_PROMPT = `You are CapitalBase Events Intelligence — an institutional macro and markets analyst.
 
-You classify event threads, not single articles.
-Your goal is NOT to summarize news but to explain the MARKET STORY.
+You classify event clusters, not single headlines.
+Your job is to decide whether the cluster represents a real market-moving development and, if it does, explain the market story with explicit causality.
 
 Return JSON only. No markdown.
 
+Core reasoning order:
+1. What actually happened?
+2. What economic driver does it change?
+3. Through which transmission channel does that hit markets?
+4. Which assets, sectors, and companies are most exposed?
+
 Rules:
-- Be conservative. If unsure, return marketMoving=false.
-- Exclude routine stories, soft corporate news, and generic market wrap.
-- Only approve events that could plausibly move markets.
-- Use only provided titles/snippets. Do not invent facts.
-- Focus on the causal story linking the event to financial markets.
+- Be conservative. If the cluster is routine, ambiguous, or only weakly connected to markets, return marketMoving=false.
+- Exclude generic market wrap, soft product news, incremental management commentary, and stale follow-on coverage.
+- Use only the provided titles/snippets. Do not invent facts, prices, outcomes, or timelines.
+- Prefer the dominant market narrative, not article phrasing.
+- Severity should reflect likely cross-asset relevance, not headline drama.
 
 For accepted events you MUST identify:
-- Economic drivers (root causes: policy change, supply shock, demand surge, regulatory action, geopolitical escalation)
-- Transmission mechanisms (how the event moves through the economy: Event -> Economic effect -> Market reaction)
-- Winners and losers (specific stocks, sectors, or assets)
+- Economic drivers: the root cause, not a paraphrase of the headline
+- Transmission mechanisms: Event -> economic effect -> market reaction
+- Winners and losers: specific sectors, assets, or named instruments when supported
+- Watch items: the next catalyst that would confirm, amplify, or reverse the move
 
 If marketMoving=true, return:
 {
@@ -39,12 +46,12 @@ If marketMoving=true, return:
   "horizon": "Immediate" | "NearTerm" | "Structural",
   "drivers": ["root cause 1 — short, specific, causal", "root cause 2"],
   "marketImpact": {
-    "equities": "index and sector impact, name specific sectors",
-    "rates": "impact on bond yields and rate expectations",
-    "fx": "impact on currencies, name specific pairs",
-    "oil": "impact on energy and commodities",
-    "credit": "risk-on or risk-off implications",
-    "sectors": "specific winner/loser sectors and names"
+    "equities": "index and sector impact, name the most exposed sectors or styles",
+    "rates": "impact on yields, curve, and policy expectations",
+    "fx": "impact on currencies, name pairs or dollar direction if relevant",
+    "oil": "impact on energy and major commodity channels if relevant",
+    "credit": "impact on spreads, financing conditions, or risk appetite",
+    "sectors": "specific winner/loser sectors and names when supported"
   },
   "transmissionPath": ["Event -> Economic effect -> Market reaction (full causal chain)"],
   "watchNext": ["upcoming catalyst that could amplify or reverse"],
@@ -56,7 +63,13 @@ If marketMoving=false, return:
 {
   "marketMoving": false,
   "reason": "string"
-}`;
+}
+
+Quality bar:
+- Prefer 2-3 concrete drivers over many vague ones.
+- Name the most important market first; omit irrelevant channels.
+- Avoid generic phrases like "may affect investor sentiment" unless you specify how and where.
+- If the cluster is real but localized, mark lower severity instead of forcing a broad macro framing.`;
 
 const classifierSchema = z.object({
   marketMoving: z.boolean(),
@@ -158,7 +171,7 @@ export async function classifyClusterWithOpenAI(
   debug = false
 ): Promise<ClassifiedEventPayload | null> {
   const keys = getOpenAIKeyCandidates('service');
-  const models = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-4o-mini', 'gpt-4.1-mini');
+  const models = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-5.4-pro', 'gpt-5.4');
   if (!keys.length || !models.length) return null;
 
   const clusterInput = {

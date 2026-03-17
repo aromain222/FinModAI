@@ -13,7 +13,7 @@ function getOpenAIClient(): OpenAI | null {
   const apiKey = getOpenAIKey('service');
   return apiKey ? new OpenAI({ apiKey }) : null;
 }
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.4';
 
 export interface MissingFieldRequest {
   ticker: string;

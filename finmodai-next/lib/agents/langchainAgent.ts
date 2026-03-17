@@ -87,7 +87,7 @@ export async function runLangChainAgent(options: LangChainAgentOptions): Promise
 
   const llm = new ChatOpenAI({
     apiKey,
-    model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+    model: process.env.OPENAI_MODEL || 'gpt-5.4',
     temperature: 0,
   });
 

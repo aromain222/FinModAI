@@ -45,7 +45,7 @@ export async function GET() {
     }
 
     const apiKey = getOpenAIKey('service');
-    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    const model = process.env.OPENAI_MODEL || 'gpt-5.4';
     const canUseAI = Boolean(apiKey);
 
     if (!canUseAI) {

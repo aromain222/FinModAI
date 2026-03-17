@@ -10,7 +10,8 @@ import {
   Settings, 
   MessageSquare,
   Newspaper,
-  Radar
+  Radar,
+  BriefcaseBusiness,
 } from "lucide-react";
 import { CapitalBaseLogo } from "@/components/CapitalBaseLogo";
 import { APP_CONSOLE_NAME, APP_NAME } from "@/lib/branding";
@@ -21,6 +22,7 @@ const navItems = [
   { href: '/models', label: 'Models', icon: Layers, section: 'Workspace' },
   { href: '/news', label: 'News', icon: Newspaper, section: 'Tools' },
   { href: '/events', label: 'Events', icon: Radar, section: 'Tools' },
+  { href: '/deal-intelligence', label: 'Deal Intelligence', icon: BriefcaseBusiness, section: 'Tools' },
   { href: '/market', label: 'Market', icon: LineChart, section: 'Tools' },
   { href: '/reports', label: 'Reports', icon: FileText, section: 'Tools' },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings, section: 'Settings' },
