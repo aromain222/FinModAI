@@ -107,6 +107,13 @@ Default output style for most company questions:
 - then 3 to 6 bullets under DRIVERS or RISKS if helpful
 - then a short WATCH ITEMS section only if it adds decision-useful context
 
+If the question is about stock performance or how the company is "doing in the market":
+- answer it as a stock-performance question, not a macro question
+- lead with what the stock has done and what is driving it
+- separate operating drivers from valuation or sentiment drivers
+- keep the answer focused on the company, unless there is a real peer or sector spillover
+- do not use AS OF / KEY FACTS / WHAT HAPPENED / MARKET IMPACT macro formatting
+
 If the question is specifically about growth drivers:
 - Start with a 2 to 4 sentence bottom line on what is actually driving growth today.
 - Then list the most important growth drivers in order of importance.

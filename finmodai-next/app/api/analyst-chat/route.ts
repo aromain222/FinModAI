@@ -646,8 +646,12 @@ export async function POST(req: NextRequest) {
       currentStock &&
       isVisualizationPrompt(lastUserMessage) &&
       !classifyPrompt(lastUserMessage);
-    if (route.intent === 'company_question' && resolvedTicker) {
-      stockLookupPayload = await lookupStock({ prompt: lastUserMessage, ticker: resolvedTicker });
+    if (route.intent === 'company_question') {
+      stockLookupPayload = await lookupStock(
+        resolvedTicker
+          ? { prompt: lastUserMessage, ticker: resolvedTicker }
+          : { prompt: lastUserMessage }
+      );
     }
 
     const macroEventsContext = shouldInjectMacroEventsContext(route, effectiveUserMessage, attachmentContext)

@@ -13,6 +13,8 @@
  *   general_finance     – "How does a leveraged recap work?"
  */
 import { classifyPrompt } from '@/lib/model-generator/classifyPrompt';
+import { detectCoreTemplatePrompt } from '@/lib/analyst/coreModelTemplates';
+import { extractCompanyQuery } from '@/lib/data/company/extractCompanyQuery';
 
 export type AnalystIntent =
   | 'event_intelligence'
@@ -90,12 +92,15 @@ export function extractTickers(message: string): string[] {
 export function classifyIntent(message: string, tickers: string[]): AnalystIntent {
   const text = message.toLowerCase();
   const detectedModelType = classifyPrompt(message);
+  const detectedCoreTemplate = detectCoreTemplatePrompt(message);
+  const extractedCompany = extractCompanyQuery({ prompt: message });
 
   const isModelRequest =
+    detectedCoreTemplate !== null ||
     detectedModelType !== null ||
     (
       /\b(generate|build|create|draft|run|export|download|show)\b/.test(text) &&
-      /\b(model|dcf|lbo|three[- ]?statement|3[- ]?statement|financial statements?|income statement|balance sheet|cash flow(?: statement)?|comps?|financial model|merger model|operating model|cap\s?table|seed round|series a|series b|series c|pre-money|saas|arr)\b/.test(text)
+      /\b(model|dcf|lbo|three[- ]?statement|3[- ]?statement|financial statements?|income statement|balance sheet|cash flow(?: statement)?|comps?|financial model|merger model|operating model|cap\s?table|seed round|series a|series b|series c|pre-money|saas|arr|runway|burn rate|asc 606|revenue recognition|inventory|cogs|cohort|irr|moic|waterfall)\b/.test(text)
     );
   if (isModelRequest) return 'financial_model';
 
@@ -104,9 +109,17 @@ export function classifyIntent(message: string, tickers: string[]): AnalystInten
     tickers.length === 0;
   if (isEventIntelligence) return 'event_intelligence';
 
+  const isStockPerformanceQuestion =
+    /\b(how\s+is|how's|what'?s)\b.*\b(performing|trading|doing)\b/.test(text) ||
+    /\b(stock|shares?)\b.*\b(performing|trading|doing)\b/.test(text) ||
+    /\b(performance|price action|trading update)\b/.test(text);
+  if (isStockPerformanceQuestion && (tickers.length > 0 || extractedCompany.ticker || extractedCompany.companyName)) {
+    return 'company_question';
+  }
+
   const isCompanyQuestion =
-    tickers.length > 0 &&
-    /\b(earning|revenue|eps|guidance|quarter|annual|report|miss|beat|result|outlook|margin|growth|business|model|valuation|target|upgrade|downgrade|buy|sell|hold)\b/.test(text);
+    (tickers.length > 0 || Boolean(extractedCompany.ticker || extractedCompany.companyName)) &&
+    /\b(earning|revenue|eps|guidance|quarter|annual|report|miss|beat|result|outlook|margin|growth|business|model|valuation|target|upgrade|downgrade|buy|sell|hold|performing|trading|price|stock|shares?)\b/.test(text);
   if (isCompanyQuestion) return 'company_question';
 
   const isMarketQuestion =
