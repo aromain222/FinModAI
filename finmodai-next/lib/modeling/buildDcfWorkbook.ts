@@ -31,14 +31,33 @@ function col(n: number): string {
 
 function applySheetScaffold(sheet: ExcelJS.Worksheet): void {
   sheet.properties.defaultRowHeight = 20;
-  sheet.views = [{ state: 'frozen', ySplit: 3, xSplit: 2 }];
+  sheet.views = [{ state: 'frozen', ySplit: 3, xSplit: 2, showGridLines: false }];
   sheet.getColumn(1).width = 34;
-  sheet.getColumn(2).width = 18;
+  sheet.getColumn(2).width = 20;
   for (let i = 3; i <= 24; i += 1) sheet.getColumn(i).width = 14;
+  sheet.pageSetup = {
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    orientation: 'landscape',
+    margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
+  };
 }
 
 function styleTitle(cell: ExcelJS.Cell): void {
-  cell.font = { bold: true, size: 14, color: { argb: 'FF111827' } };
+  cell.font = { bold: true, size: 15, color: { argb: 'FFFFFFFF' } };
+  cell.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF1F3A56' },
+  };
+  cell.alignment = { vertical: 'middle', horizontal: 'left' };
+  cell.border = {
+    top: { style: 'thin', color: { argb: 'FF1F3A56' } },
+    left: { style: 'thin', color: { argb: 'FF1F3A56' } },
+    bottom: { style: 'thin', color: { argb: 'FF1F3A56' } },
+    right: { style: 'thin', color: { argb: 'FF1F3A56' } },
+  };
 }
 
 function styleHeaderRow(sheet: ExcelJS.Worksheet, rowNum: number, fromCol: number, toCol: number): void {
@@ -72,6 +91,97 @@ function styleBodyGrid(sheet: ExcelJS.Worksheet, rowStart: number, rowEnd: numbe
       };
     }
   }
+}
+
+function styleSectionHeader(sheet: ExcelJS.Worksheet, rowNum: number, title: string, toCol: number): void {
+  sheet.mergeCells(rowNum, 1, rowNum, toCol);
+  const cell = sheet.getCell(rowNum, 1);
+  cell.value = title;
+  cell.font = { bold: true, size: 11, color: { argb: 'FF0F172A' } };
+  cell.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFE2E8F0' },
+  };
+  cell.alignment = { vertical: 'middle', horizontal: 'left' };
+  cell.border = {
+    top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+    left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+    bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+    right: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+  };
+  sheet.getRow(rowNum).height = 22;
+}
+
+function styleLabelCell(cell: ExcelJS.Cell): void {
+  cell.font = { bold: true, color: { argb: 'FF1F2937' } };
+  cell.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFF8FAFC' },
+  };
+  cell.alignment = { vertical: 'middle', horizontal: 'left' };
+  cell.border = {
+    top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+    left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+    bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+    right: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+  };
+}
+
+function styleInputCell(cell: ExcelJS.Cell): void {
+  cell.font = { bold: true, color: { argb: 'FF0F172A' } };
+  cell.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFE0F2FE' },
+  };
+  cell.alignment = { vertical: 'middle', horizontal: 'right' };
+  cell.border = {
+    top: { style: 'thin', color: { argb: 'FFBAE6FD' } },
+    left: { style: 'thin', color: { argb: 'FFBAE6FD' } },
+    bottom: { style: 'thin', color: { argb: 'FFBAE6FD' } },
+    right: { style: 'thin', color: { argb: 'FFBAE6FD' } },
+  };
+}
+
+function styleFormulaCell(cell: ExcelJS.Cell): void {
+  cell.font = { color: { argb: 'FF111827' } };
+  cell.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFFFFFFF' },
+  };
+  cell.alignment = { vertical: 'middle', horizontal: 'right' };
+  cell.border = {
+    top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+    left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+    bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+    right: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+  };
+}
+
+function styleOutputCell(cell: ExcelJS.Cell): void {
+  cell.font = { bold: true, color: { argb: 'FF052E16' } };
+  cell.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFDCFCE7' },
+  };
+  cell.alignment = { vertical: 'middle', horizontal: 'right' };
+  cell.border = {
+    top: { style: 'thin', color: { argb: 'FF86EFAC' } },
+    left: { style: 'thin', color: { argb: 'FF86EFAC' } },
+    bottom: { style: 'thin', color: { argb: 'FF86EFAC' } },
+    right: { style: 'thin', color: { argb: 'FF86EFAC' } },
+  };
+}
+
+function applyTitleBand(sheet: ExcelJS.Worksheet, title: string, toCol: number): void {
+  sheet.mergeCells(1, 1, 1, toCol);
+  sheet.getRow(1).height = 26;
+  sheet.getCell(1, 1).value = title;
+  styleTitle(sheet.getCell(1, 1));
 }
 
 function fmtCurrency(cell: ExcelJS.Cell): void {
@@ -158,108 +268,126 @@ function buildAssumptionsSheet(workbook: ExcelJS.Workbook, spec: DcfSpec): void 
   const years = spec.periods.years;
   const firstYearCol = 3;
 
-  sheet.getCell('A1').value = 'CapitalBase DCF Model — Assumptions';
-  styleTitle(sheet.getCell('A1'));
+  applyTitleBand(sheet, 'CapitalBase DCF Model — Assumptions', firstYearCol + years - 1);
+  styleSectionHeader(sheet, 3, 'Company Setup', 2);
 
-  sheet.getCell('A3').value = 'Company Name';
-  sheet.getCell('B3').value = spec.company.name;
-  sheet.getCell('A4').value = 'Ticker';
-  sheet.getCell('B4').value = spec.company.ticker || 'N/A';
-  sheet.getCell('A5').value = 'Currency';
-  sheet.getCell('B5').value = spec.company.currency;
+  sheet.getCell('A4').value = 'Company Name';
+  sheet.getCell('B4').value = spec.company.name;
+  sheet.getCell('A5').value = 'Ticker';
+  sheet.getCell('B5').value = spec.company.ticker || 'N/A';
+  sheet.getCell('A6').value = 'Currency';
+  sheet.getCell('B6').value = spec.company.currency;
 
-  sheet.getCell('A7').value = 'Start Year';
-  sheet.getCell('B7').value = spec.periods.start_year;
-  sheet.getCell('A8').value = 'Forecast Years';
-  sheet.getCell('B8').value = years;
+  styleSectionHeader(sheet, 8, 'Forecast Setup', 2);
+  sheet.getCell('A9').value = 'Start Year';
+  sheet.getCell('B9').value = spec.periods.start_year;
+  sheet.getCell('A10').value = 'Forecast Years';
+  sheet.getCell('B10').value = years;
 
-  sheet.getCell('A10').value = 'Base Year Revenue';
-  sheet.getCell('B10').value = spec.base_year.revenue;
-  fmtCurrency(sheet.getCell('B10'));
+  styleSectionHeader(sheet, 12, 'Operating Assumptions', 2);
+  sheet.getCell('A13').value = 'Base Year Revenue';
+  sheet.getCell('B13').value = spec.base_year.revenue;
+  fmtCurrency(sheet.getCell('B13'));
 
-  sheet.getCell('A11').value = 'Base Year EBIT Margin';
-  sheet.getCell('B11').value = spec.base_year.ebit_margin;
-  fmtPercent(sheet.getCell('B11'));
-
-  sheet.getCell('A13').value = 'Tax Rate';
-  sheet.getCell('B13').value = spec.forecast.tax_rate;
-  fmtPercent(sheet.getCell('B13'));
-
-  sheet.getCell('A14').value = 'D&A % Revenue';
-  sheet.getCell('B14').value = spec.forecast.da_pct_rev;
+  sheet.getCell('A14').value = 'Base Year EBIT Margin';
+  sheet.getCell('B14').value = spec.base_year.ebit_margin;
   fmtPercent(sheet.getCell('B14'));
 
-  sheet.getCell('A15').value = 'Capex % Revenue';
-  sheet.getCell('B15').value = spec.forecast.capex_pct_rev;
-  fmtPercent(sheet.getCell('B15'));
-
-  sheet.getCell('A16').value = 'NWC % Revenue';
-  sheet.getCell('B16').value = spec.forecast.nwc_pct_rev;
+  sheet.getCell('A16').value = 'Tax Rate';
+  sheet.getCell('B16').value = spec.forecast.tax_rate;
   fmtPercent(sheet.getCell('B16'));
 
-  sheet.getCell('A18').value = 'WACC';
-  sheet.getCell('B18').value = spec.valuation.wacc;
+  sheet.getCell('A17').value = 'D&A % Revenue';
+  sheet.getCell('B17').value = spec.forecast.da_pct_rev;
+  fmtPercent(sheet.getCell('B17'));
+
+  sheet.getCell('A18').value = 'Capex % Revenue';
+  sheet.getCell('B18').value = spec.forecast.capex_pct_rev;
   fmtPercent(sheet.getCell('B18'));
 
-  sheet.getCell('A19').value = 'Terminal Method';
-  sheet.getCell('B19').value = spec.valuation.terminal.method;
+  sheet.getCell('A19').value = 'NWC % Revenue';
+  sheet.getCell('B19').value = spec.forecast.nwc_pct_rev;
+  fmtPercent(sheet.getCell('B19'));
 
-  sheet.getCell('A20').value = 'Terminal g';
-  sheet.getCell('B20').value = spec.valuation.terminal.method === 'gordon' ? spec.valuation.terminal.g : null;
-  fmtPercent(sheet.getCell('B20'));
+  styleSectionHeader(sheet, 21, 'Valuation Assumptions', 2);
+  sheet.getCell('A22').value = 'WACC';
+  sheet.getCell('B22').value = spec.valuation.wacc;
+  fmtPercent(sheet.getCell('B22'));
 
-  sheet.getCell('A21').value = 'Exit Multiple';
-  sheet.getCell('B21').value = spec.valuation.terminal.method === 'exit_multiple' ? spec.valuation.terminal.exit_multiple : null;
-  fmtMultiple(sheet.getCell('B21'));
+  sheet.getCell('A23').value = 'Terminal Method';
+  sheet.getCell('B23').value = spec.valuation.terminal.method;
 
-  sheet.getCell('A24').value = 'Forecast Path';
-  sheet.getCell('A24').font = { bold: true };
+  sheet.getCell('A24').value = 'Terminal g';
+  sheet.getCell('B24').value = spec.valuation.terminal.method === 'gordon' ? spec.valuation.terminal.g : null;
+  fmtPercent(sheet.getCell('B24'));
 
-  sheet.getCell('A25').value = 'Metric';
-  sheet.getCell('A26').value = 'Revenue Growth';
-  sheet.getCell('A30').value = 'EBIT Margin';
+  sheet.getCell('A25').value = 'Exit Multiple';
+  sheet.getCell('B25').value = spec.valuation.terminal.method === 'exit_multiple' ? spec.valuation.terminal.exit_multiple : null;
+  fmtMultiple(sheet.getCell('B25'));
+
+  styleSectionHeader(sheet, 28, 'Forecast Path', firstYearCol + years - 1);
+
+  sheet.getCell('A29').value = 'Metric';
+  sheet.getCell('A30').value = 'Revenue Growth';
+  sheet.getCell('A34').value = 'EBIT Margin';
 
   for (let i = 0; i < years; i += 1) {
     const c = firstYearCol + i;
     const y = spec.periods.start_year + i + 1;
 
-    sheet.getCell(25, c).value = y;
-    sheet.getCell(26, c).value = spec.forecast.revenue_growth[i];
-    fmtPercent(sheet.getCell(26, c));
-
-    sheet.getCell(30, c).value = spec.forecast.ebit_margin[i];
+    sheet.getCell(29, c).value = y;
+    sheet.getCell(30, c).value = spec.forecast.revenue_growth[i];
     fmtPercent(sheet.getCell(30, c));
+
+    sheet.getCell(34, c).value = spec.forecast.ebit_margin[i];
+    fmtPercent(sheet.getCell(34, c));
   }
 
-  sheet.getCell('A34').value = 'Sensitivity Inputs';
-  sheet.getCell('A34').font = { bold: true };
-  sheet.getCell('A35').value = 'WACC Range';
+  styleSectionHeader(sheet, 38, 'Sensitivity Inputs', firstYearCol + years - 1);
+  sheet.getCell('A39').value = 'WACC Range';
 
   spec.outputs.sensitivity.wacc.forEach((value, i) => {
     const c = firstYearCol + i;
-    sheet.getCell(35, c).value = value;
-    fmtPercent(sheet.getCell(35, c));
+    sheet.getCell(39, c).value = value;
+    fmtPercent(sheet.getCell(39, c));
   });
 
   if (spec.valuation.terminal.method === 'gordon') {
-    sheet.getCell('A38').value = 'Terminal g Range';
+    sheet.getCell('A42').value = 'Terminal g Range';
     (spec.outputs.sensitivity.terminal_g || []).forEach((value, i) => {
       const c = firstYearCol + i;
-      sheet.getCell(38, c).value = value;
-      fmtPercent(sheet.getCell(38, c));
+      sheet.getCell(42, c).value = value;
+      fmtPercent(sheet.getCell(42, c));
     });
   } else {
-    sheet.getCell('A38').value = 'Exit Multiple Range';
+    sheet.getCell('A42').value = 'Exit Multiple Range';
     (spec.outputs.sensitivity.exit_multiple || []).forEach((value, i) => {
       const c = firstYearCol + i;
-      sheet.getCell(38, c).value = value;
-      fmtMultiple(sheet.getCell(38, c));
+      sheet.getCell(42, c).value = value;
+      fmtMultiple(sheet.getCell(42, c));
     });
   }
 
-  styleHeaderRow(sheet, 25, 1, firstYearCol + years - 1);
-  styleBodyGrid(sheet, 26, 30, 1, firstYearCol + years - 1);
-  styleBodyGrid(sheet, 35, 35, 1, firstYearCol + Math.max(spec.outputs.sensitivity.wacc.length - 1, 0));
+  const labelRows = [4, 5, 6, 9, 10, 13, 14, 16, 17, 18, 19, 22, 23, 24, 25, 30, 34, 39, 42];
+  labelRows.forEach((row) => styleLabelCell(sheet.getCell(row, 1)));
+  [4, 5, 6, 9, 10, 13, 14, 16, 17, 18, 19, 22, 23, 24, 25].forEach((row) => styleInputCell(sheet.getCell(row, 2)));
+  styleHeaderRow(sheet, 29, 1, firstYearCol + years - 1);
+  styleBodyGrid(sheet, 30, 34, 1, firstYearCol + years - 1);
+  styleBodyGrid(sheet, 39, 39, 1, firstYearCol + Math.max(spec.outputs.sensitivity.wacc.length - 1, 0));
+  styleBodyGrid(sheet, 42, 42, 1, firstYearCol + Math.max((spec.valuation.terminal.method === 'gordon' ? (spec.outputs.sensitivity.terminal_g || []).length : (spec.outputs.sensitivity.exit_multiple || []).length) - 1, 0));
+  for (let c = firstYearCol; c < firstYearCol + years; c += 1) {
+    styleInputCell(sheet.getCell(30, c));
+    styleInputCell(sheet.getCell(34, c));
+  }
+  for (let c = firstYearCol; c < firstYearCol + spec.outputs.sensitivity.wacc.length; c += 1) {
+    styleInputCell(sheet.getCell(39, c));
+  }
+  const terminalInputLength = spec.valuation.terminal.method === 'gordon'
+    ? (spec.outputs.sensitivity.terminal_g || []).length
+    : (spec.outputs.sensitivity.exit_multiple || []).length;
+  for (let c = firstYearCol; c < firstYearCol + terminalInputLength; c += 1) {
+    styleInputCell(sheet.getCell(42, c));
+  }
 }
 
 function buildForecastSheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCase: BaseCaseResult): void {
@@ -269,8 +397,7 @@ function buildForecastSheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCase:
   const years = spec.periods.years;
   const firstYearCol = 3;
 
-  sheet.getCell('A1').value = 'Forecast';
-  styleTitle(sheet.getCell('A1'));
+  applyTitleBand(sheet, 'Forecast', firstYearCol + years - 1);
 
   sheet.getCell('A3').value = 'Metric';
   sheet.getCell('A4').value = 'Revenue';
@@ -288,19 +415,19 @@ function buildForecastSheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCase:
 
     if (i === 0) {
       sheet.getCell(4, c).value = {
-        formula: `Assumptions!$B$10*(1+Assumptions!${cLetter}26)`,
+        formula: `Assumptions!$B$13*(1+Assumptions!${cLetter}30)`,
         result: baseCase.revenue[i],
       };
     } else {
       sheet.getCell(4, c).value = {
-        formula: `${prevCLetter}4*(1+Assumptions!${cLetter}26)`,
+        formula: `${prevCLetter}4*(1+Assumptions!${cLetter}30)`,
         result: baseCase.revenue[i],
       };
     }
 
-    sheet.getCell(5, c).value = { formula: `Assumptions!${cLetter}30`, result: baseCase.ebitMargin[i] };
+    sheet.getCell(5, c).value = { formula: `Assumptions!${cLetter}34`, result: baseCase.ebitMargin[i] };
     sheet.getCell(6, c).value = { formula: `${cLetter}4*${cLetter}5`, result: baseCase.ebit[i] };
-    sheet.getCell(7, c).value = { formula: 'Assumptions!$B$13', result: spec.forecast.tax_rate };
+    sheet.getCell(7, c).value = { formula: 'Assumptions!$B$16', result: spec.forecast.tax_rate };
     sheet.getCell(8, c).value = { formula: `${cLetter}6*(1-${cLetter}7)`, result: baseCase.nopat[i] };
 
     fmtCurrency(sheet.getCell(4, c));
@@ -312,6 +439,12 @@ function buildForecastSheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCase:
 
   styleHeaderRow(sheet, 3, 1, firstYearCol + years - 1);
   styleBodyGrid(sheet, 4, 8, 1, firstYearCol + years - 1);
+  [4, 5, 6, 7, 8].forEach((row) => styleLabelCell(sheet.getCell(row, 1)));
+  for (let r = 4; r <= 8; r += 1) {
+    for (let c = firstYearCol; c <= firstYearCol + years - 1; c += 1) {
+      styleFormulaCell(sheet.getCell(r, c));
+    }
+  }
 }
 
 function buildFcffSheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCase: BaseCaseResult): void {
@@ -321,8 +454,7 @@ function buildFcffSheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCase: Bas
   const years = spec.periods.years;
   const firstYearCol = 3;
 
-  sheet.getCell('A1').value = 'FCFF';
-  styleTitle(sheet.getCell('A1'));
+  applyTitleBand(sheet, 'FCFF', firstYearCol + years - 1);
 
   sheet.getCell('A3').value = 'Metric';
   sheet.getCell('A4').value = 'EBIT';
@@ -339,13 +471,13 @@ function buildFcffSheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCase: Bas
     sheet.getCell(3, c).value = spec.periods.start_year + i + 1;
     sheet.getCell(4, c).value = { formula: `Forecast!${cLetter}6`, result: baseCase.ebit[i] };
     sheet.getCell(5, c).value = { formula: `Forecast!${cLetter}8`, result: baseCase.nopat[i] };
-    sheet.getCell(6, c).value = { formula: `Forecast!${cLetter}4*Assumptions!$B$14`, result: baseCase.da[i] };
-    sheet.getCell(7, c).value = { formula: `Forecast!${cLetter}4*Assumptions!$B$15`, result: baseCase.capex[i] };
-    sheet.getCell(8, c).value = { formula: `Forecast!${cLetter}4*Assumptions!$B$16`, result: baseCase.deltaNwc[i] };
+    sheet.getCell(6, c).value = { formula: `Forecast!${cLetter}4*Assumptions!$B$17`, result: baseCase.da[i] };
+    sheet.getCell(7, c).value = { formula: `Forecast!${cLetter}4*Assumptions!$B$18`, result: baseCase.capex[i] };
+    sheet.getCell(8, c).value = { formula: `Forecast!${cLetter}4*Assumptions!$B$19`, result: baseCase.deltaNwc[i] };
 
     // Required explicit FCFF formula: EBIT*(1-tax)+D&A-Capex-ΔNWC
     sheet.getCell(9, c).value = {
-      formula: `${cLetter}4*(1-Assumptions!$B$13)+${cLetter}6-${cLetter}7-${cLetter}8`,
+      formula: `${cLetter}4*(1-Assumptions!$B$16)+${cLetter}6-${cLetter}7-${cLetter}8`,
       result: baseCase.fcff[i],
     };
     fmtCurrency(sheet.getCell(4, c));
@@ -358,6 +490,15 @@ function buildFcffSheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCase: Bas
 
   styleHeaderRow(sheet, 3, 1, firstYearCol + years - 1);
   styleBodyGrid(sheet, 4, 9, 1, firstYearCol + years - 1);
+  [4, 5, 6, 7, 8, 9].forEach((row) => styleLabelCell(sheet.getCell(row, 1)));
+  for (let r = 4; r <= 8; r += 1) {
+    for (let c = firstYearCol; c <= firstYearCol + years - 1; c += 1) {
+      styleFormulaCell(sheet.getCell(r, c));
+    }
+  }
+  for (let c = firstYearCol; c <= firstYearCol + years - 1; c += 1) {
+    styleOutputCell(sheet.getCell(9, c));
+  }
 }
 
 function buildDcfSheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCase: BaseCaseResult): void {
@@ -369,8 +510,7 @@ function buildDcfSheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCase: Base
   const lastCol = firstYearCol + years - 1;
   const lastColLetter = col(lastCol);
 
-  sheet.getCell('A1').value = 'DCF';
-  styleTitle(sheet.getCell('A1'));
+  applyTitleBand(sheet, 'DCF Valuation', lastCol);
 
   sheet.getCell('A3').value = 'Metric';
   sheet.getCell('A4').value = 'FCFF';
@@ -384,7 +524,7 @@ function buildDcfSheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCase: Base
 
     sheet.getCell(3, c).value = spec.periods.start_year + yearNum;
     sheet.getCell(4, c).value = { formula: `FCFF!${cLetter}9`, result: baseCase.fcff[i] };
-    sheet.getCell(5, c).value = { formula: `1/(1+Assumptions!$B$18)^${yearNum}`, result: baseCase.discountFactors[i] };
+    sheet.getCell(5, c).value = { formula: `1/(1+Assumptions!$B$22)^${yearNum}`, result: baseCase.discountFactors[i] };
     sheet.getCell(6, c).value = { formula: `${cLetter}4*${cLetter}5`, result: baseCase.pvFcff[i] };
 
     fmtCurrency(sheet.getCell(4, c));
@@ -398,7 +538,7 @@ function buildDcfSheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCase: Base
 
   sheet.getCell('A9').value = 'Terminal Value';
   sheet.getCell('B9').value = {
-    formula: `IF(Assumptions!$B$19="gordon",(FCFF!${lastColLetter}9*(1+Assumptions!$B$20))/(Assumptions!$B$18-Assumptions!$B$20),Forecast!${lastColLetter}6*Assumptions!$B$21)`,
+    formula: `IF(Assumptions!$B$23="gordon",(FCFF!${lastColLetter}9*(1+Assumptions!$B$24))/(Assumptions!$B$22-Assumptions!$B$24),Forecast!${lastColLetter}6*Assumptions!$B$25)`,
     result: baseCase.terminalValue,
   };
   fmtCurrency(sheet.getCell('B9'));
@@ -410,12 +550,16 @@ function buildDcfSheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCase: Base
   sheet.getCell('A11').value = 'Enterprise Value';
   sheet.getCell('B11').value = { formula: 'B8+B10', result: baseCase.enterpriseValue };
   fmtCurrency(sheet.getCell('B11'));
-  sheet.getCell('A11').font = { bold: true };
-  sheet.getCell('B11').font = { bold: true };
-
   styleHeaderRow(sheet, 3, 1, lastCol);
   styleBodyGrid(sheet, 4, 6, 1, lastCol);
   styleBodyGrid(sheet, 8, 11, 1, 2);
+  [4, 5, 6, 8, 9, 10, 11].forEach((row) => styleLabelCell(sheet.getCell(row, 1)));
+  for (let r = 4; r <= 6; r += 1) {
+    for (let c = firstYearCol; c <= lastCol; c += 1) {
+      styleFormulaCell(sheet.getCell(r, c));
+    }
+  }
+  [8, 9, 10, 11].forEach((row) => styleOutputCell(sheet.getCell(row, 2)));
 }
 
 function buildSensitivityEnterpriseValue(spec: DcfSpec, wacc: number, terminalValueAssumption: number): number {
@@ -451,9 +595,9 @@ function buildSensitivitySheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCa
 
   const startRow = 5;
   const startCol = 3;
+  const endCol = startCol + Math.max(terminalAxis.length - 1, 0);
 
-  sheet.getCell('A1').value = 'Sensitivity (Implied Enterprise Value)';
-  styleTitle(sheet.getCell('A1'));
+  applyTitleBand(sheet, 'Sensitivity (Implied Enterprise Value)', endCol >= startCol ? endCol : startCol + 2);
 
   sheet.getCell(startRow, 1).value =
     spec.valuation.terminal.method === 'gordon' ? 'WACC \\ Terminal g' : 'WACC \\ Exit Multiple';
@@ -502,16 +646,22 @@ function buildSensitivitySheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCa
   });
 
   const endRow = startRow + waccAxis.length;
-  const endCol = startCol + Math.max(terminalAxis.length - 1, 0);
 
   styleHeaderRow(sheet, startRow, 1, endCol);
   styleBodyGrid(sheet, startRow + 1, endRow, 2, endCol);
+  styleLabelCell(sheet.getCell(startRow, 1));
+  for (let r = startRow + 1; r <= endRow; r += 1) {
+    styleInputCell(sheet.getCell(r, 2));
+    for (let c = startCol; c <= endCol; c += 1) {
+      styleOutputCell(sheet.getCell(r, c));
+    }
+  }
 
   sheet.getCell(endRow + 2, 1).value = 'Base Case EV';
   sheet.getCell(endRow + 2, 2).value = { formula: 'DCF!B11', result: baseCase.enterpriseValue };
   fmtCurrency(sheet.getCell(endRow + 2, 2));
-  sheet.getCell(endRow + 2, 1).font = { bold: true };
-  sheet.getCell(endRow + 2, 2).font = { bold: true };
+  styleLabelCell(sheet.getCell(endRow + 2, 1));
+  styleOutputCell(sheet.getCell(endRow + 2, 2));
 }
 
 export function evaluateDcfSpec(spec: DcfSpec): BaseCaseResult {
