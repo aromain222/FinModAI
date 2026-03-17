@@ -24,6 +24,7 @@ type Message = {
   meta?: {
     mode?: 'live' | 'fallback';
     reason?: string;
+    structuredRequested?: boolean;
     sources?: string[];
     retrievalWarnings?: string[];
     attachmentUsed?: string;
@@ -35,8 +36,27 @@ type Message = {
   };
 };
 
-function cleanAssistantText(content: string): string {
+function userExplicitlyWantsStructuredOutput(message: string): boolean {
+  const text = message.toLowerCase();
+  return /\b(bullets?|bullet points?|table|json|memo|sections?|headers?|outline|format|template|list)\b/.test(text);
+}
+
+function stripTemplatePhrasing(content: string): string {
   return content
+    .replace(
+      /^\s*(summary paragraph|why it matters paragraph|analysis paragraph|impacted stocks or sectors|most affected stocks\/sectors|most affected stocks and sectors|summary|impact|analysis|diagnosis|rewrite|key facts|what happened|why it matters|market impact|what to watch next|business model|key financials|growth drivers|risks|how to forecast|catalysts)\s*:\s*/gim,
+      '',
+    )
+    .replace(/(?:^|\n)\s*impacted stocks or sectors\s*\n+/gi, '\n')
+    .replace(/(?:^|\n)\s*most affected stocks\/sectors\s*\n+/gi, '\n')
+    .replace(/(?:^|\n)\s*most affected stocks and sectors\s*\n+/gi, '\n')
+    .replace(/\bTIME\.\s*$/gim, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function cleanAssistantText(content: string, preserveStructure = false): string {
+  const normalized = content
     .replace(/\r\n/g, '\n')
     .replace(/```[\s\S]*?```/g, (block) => block.replace(/```/g, '').trim())
     .replace(/\*\*(.*?)\*\*/g, '$1')
@@ -49,6 +69,8 @@ function cleanAssistantText(content: string): string {
     .replace(/\n{3,}/g, '\n\n')
     .replace(/\s+\n/g, '\n')
     .trim();
+
+  return preserveStructure ? normalized : stripTemplatePhrasing(normalized);
 }
 
 function tryParseJson<T>(value: string): T | null {
@@ -163,6 +185,7 @@ export function AnalystChatApp() {
     setInput('');
     setIsLoading(true);
     setLoadingState(getLoadingMessage(prompt));
+    const preserveStructure = userExplicitlyWantsStructuredOutput(prompt);
     const latestArtifact = getLatestGeneratedArtifact();
 
     try {
@@ -206,10 +229,11 @@ export function AnalystChatApp() {
       const reply: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: cleanAssistantText(replyText),
+        content: cleanAssistantText(replyText, preserveStructure),
         meta: {
           mode: payload?.mode === 'fallback' ? 'fallback' : 'live',
           reason: typeof payload?.reason === 'string' ? payload.reason : undefined,
+          structuredRequested: preserveStructure,
           sources: Array.isArray(payload?.sources)
             ? payload.sources.filter((item: unknown): item is string => typeof item === 'string').slice(0, 5)
             : [],
@@ -252,7 +276,10 @@ export function AnalystChatApp() {
       const reply: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: cleanAssistantText(failureMessage)
+        content: cleanAssistantText(failureMessage, preserveStructure),
+        meta: {
+          structuredRequested: preserveStructure,
+        },
       };
       setMessages((prev) => [...prev, reply]);
     } finally {
