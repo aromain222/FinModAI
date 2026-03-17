@@ -55,7 +55,7 @@ import { Search } from 'lucide-react';
 import { QUICK_LBO_DEFAULT_SUMMARY } from '@/lib/models/lbo/quick';
 import { useToast } from '@/hooks/use-toast';
 import { ToastEnhanced } from '@/components/ui/toast-enhanced';
-import { LIVE_DATA_FALLBACK_NOTICE } from '@/lib/modelInputs/defensive';
+import { trackEvent } from '@/lib/trackEvent';
 
 const MODEL_OPTIONS = [
   { value: 'three-statement', label: 'Three Statement Model', description: 'Full P&L, Balance Sheet, Cash Flow' },
@@ -575,6 +575,8 @@ function CreateModelPageInner() {
   const isPrivateMode = companyMode === 'private';
   type DemoCompany = { ticker: string; company_name: string | null; sector: string | null };
   const [demoCompanies, setDemoCompanies] = useState<DemoCompany[]>([]);
+  const [demoUniverseSource, setDemoUniverseSource] = useState<'company_cache' | 'demo_company_snapshots' | 'unknown'>('unknown');
+  const [demoUniverseCount, setDemoUniverseCount] = useState(0);
   const [demoSearch, setDemoSearch] = useState('');
   const [demoSectorFilter, setDemoSectorFilter] = useState<string>('');
   const demoTickers = useMemo(() => demoCompanies.map((c) => c.ticker.toUpperCase()), [demoCompanies]);
@@ -596,16 +598,25 @@ function CreateModelPageInner() {
     setDemoFetched(false);
     setDemoLoadError(false);
     let active = true;
-    const url = '/api/demo/tickers?demo=true';
+    const url = '/api/market-brief/companies?limit=500';
     fetch(url)
       .then((res) => res.json())
       .then((data) => {
         if (!active) return;
         const list = Array.isArray(data?.companies) ? data.companies : [];
+        setDemoUniverseCount(typeof data?.count === 'number' ? data.count : list.length);
+        setDemoUniverseSource(
+          data?.source === 'company_cache' || data?.source === 'demo_company_snapshots' ? data.source : 'unknown'
+        );
         setDemoCompanies(
-          list.map((row: { ticker?: string; company_name?: string | null; sector?: string | null }) => ({
+          list.map((row: { ticker?: string; company_name?: string | null; companyName?: string | null; sector?: string | null }) => ({
             ticker: String(row.ticker ?? '').trim().toUpperCase(),
-            company_name: row.company_name != null ? String(row.company_name) : null,
+            company_name:
+              row.company_name != null
+                ? String(row.company_name)
+                : row.companyName != null
+                  ? String(row.companyName)
+                  : null,
             sector: row.sector != null ? String(row.sector).trim() || null : null,
           }))
         );
@@ -614,6 +625,8 @@ function CreateModelPageInner() {
       .catch(() => {
         if (active) {
           setDemoCompanies([]);
+          setDemoUniverseCount(0);
+          setDemoUniverseSource('unknown');
           setDemoLoadError(true);
           setDemoFetched(true);
         }
@@ -1228,7 +1241,7 @@ function CreateModelPageInner() {
         return;
       }
       if (!isPrivateMode && demoDataActive && demoTickers.length > 0 && !demoTickers.includes(trimmedTicker)) {
-        setError('Demo Mode is active. Choose a demo company to continue.');
+        setError('Choose a wired public company to continue.');
         return;
       }
     }
@@ -1955,6 +1968,10 @@ function CreateModelPageInner() {
           Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - runStart)
         );
         setLastDurationMs(clientDuration);
+        void trackEvent('generated_model', undefined, {
+          ticker: resolvedModel.ticker,
+          model_type: 'merger',
+        });
         return;
       }
       
@@ -2020,6 +2037,10 @@ function CreateModelPageInner() {
           Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - runStart)
         );
         setLastDurationMs(clientDuration);
+        void trackEvent('generated_model', undefined, {
+          ticker: resolvedModel.ticker,
+          model_type: 'operating',
+        });
         return;
       }
       
@@ -2132,6 +2153,10 @@ function CreateModelPageInner() {
         Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - runStart)
       );
       setLastDurationMs(clientDuration);
+      void trackEvent('generated_model', undefined, {
+        ticker: resolvedModel.ticker,
+        model_type: modelType,
+      });
       // Fetch model stats for standard models
       if (!isPrivateMode && trimmedTicker) {
         fetchModelStats(trimmedTicker, metricsModelTypeParam);
@@ -2673,6 +2698,7 @@ function CreateModelPageInner() {
         anchor.click();
         anchor.remove();
         URL.revokeObjectURL(blobUrl);
+        void trackEvent('downloaded_report');
         return;
       } catch (err) {
         console.error('[handleDownloadReportPdf] core export failed, falling back', err);
@@ -2710,6 +2736,7 @@ function CreateModelPageInner() {
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(blobUrl);
+      void trackEvent('downloaded_report');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to download PDF report.';
       showToast({
@@ -2738,10 +2765,6 @@ function CreateModelPageInner() {
   );
 
   const canGenerateReport = Boolean(generatedModel);
-  const showLiveDataFallbackBanner =
-    warnings.includes(LIVE_DATA_FALLBACK_NOTICE) ||
-    (generatedModel as any)?.liveDataFallback === true;
-
   return (
     <div className="h-full overflow-y-auto bg-[var(--cb-bg)] px-6 py-10 text-[var(--cb-text-body)]">
       <div className="mx-auto max-w-5xl space-y-8 pb-8">
@@ -2768,12 +2791,6 @@ function CreateModelPageInner() {
             Choose a template, configure assumptions, and {APP_NAME} will generate both an Excel workbook and AI-powered analysis.
           </p>
         </header>
-
-        {showLiveDataFallbackBanner && (
-          <div className="rounded-lg border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
-            {LIVE_DATA_FALLBACK_NOTICE}
-          </div>
-        )}
 
         {!showResults ? (
           <>
@@ -2871,9 +2888,12 @@ function CreateModelPageInner() {
               </div>
               {demoDataActive ? (
                 <div className="space-y-2 text-xs text-[var(--cb-text-muted)]">
-                  <p>Demo Mode: choose from companies in <code className="text-[10px] bg-muted px-1 rounded">public.demo_company_snapshots</code>.</p>
+                  <p>
+                    Automated Builder now supports the wired S&P 500 company universe: {demoUniverseCount || demoCompanies.length} companies currently available for model seeding.
+                    {demoUniverseSource === 'company_cache' ? ' Using cached company data first.' : demoUniverseSource === 'demo_company_snapshots' ? ' Using snapshot fallback coverage.' : ''}
+                  </p>
                   {ticker.trim() && demoTickers.length > 0 && !demoTickers.includes(normalizedTicker) && (
-                    <p className="text-xs text-red-400">Ticker not in demo universe.</p>
+                    <p className="text-xs text-red-400">Ticker is not wired in the current company universe yet.</p>
                   )}
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                     <div className="relative flex-1">
@@ -2900,11 +2920,11 @@ function CreateModelPageInner() {
                   <ScrollArea className="h-[240px] w-full rounded-md border border-border bg-muted/20 p-2">
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 pr-3">
                       {!demoFetched ? (
-                        <span className="col-span-full text-muted-foreground py-4 text-center">Loading demo universe…</span>
+                        <span className="col-span-full text-muted-foreground py-4 text-center">Loading wired company universe…</span>
                       ) : demoLoadError ? (
-                        <span className="col-span-full text-red-500 py-4 text-center">Failed to load demo companies.</span>
+                        <span className="col-span-full text-red-500 py-4 text-center">Failed to load wired companies.</span>
                       ) : demoCompanies.length === 0 ? (
-                        <span className="col-span-full text-muted-foreground py-4 text-center">No demo companies available.</span>
+                        <span className="col-span-full text-muted-foreground py-4 text-center">No wired companies available.</span>
                       ) : demoFilteredCompanies.length === 0 ? (
                         <span className="col-span-full text-muted-foreground py-4 text-center">No matches</span>
                       ) : (
@@ -2943,7 +2963,7 @@ function CreateModelPageInner() {
                     </div>
                   </ScrollArea>
                   <p className="text-muted-foreground">
-                    Showing {demoFilteredCompanies.length} of {demoCompanies.length}
+                    Showing {demoFilteredCompanies.length} of {demoCompanies.length} wired companies
                   </p>
                   {!ticker.trim() && demoCompanies.length > 0 && (
                     <p className="text-xs text-[var(--cb-text-muted)]">
