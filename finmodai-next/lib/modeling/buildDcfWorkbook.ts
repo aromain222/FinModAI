@@ -465,8 +465,11 @@ function buildSensitivitySheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCa
     else fmtMultiple(sheet.getCell(startRow, c));
   });
 
-  const exponentLiteral = `{${Array.from({ length: years }, (_, i) => i + 1).join(',')}}`;
-  const fcffRange = `FCFF!$${col(fcffFirstCol)}$9:$${fcffLastColLetter}$9`;
+  const discountedFcffSumFormula = (waccCell: string): string =>
+    Array.from({ length: years }, (_, i) => {
+      const yearCol = col(fcffFirstCol + i);
+      return `(FCFF!$${yearCol}$9/(1+${waccCell})^${i + 1})`;
+    }).join('+');
 
   waccAxis.forEach((wacc, rowIdx) => {
     const r = startRow + 1 + rowIdx;
@@ -482,14 +485,14 @@ function buildSensitivitySheet(workbook: ExcelJS.Workbook, spec: DcfSpec, baseCa
       if (spec.valuation.terminal.method === 'gordon') {
         sheet.getCell(r, c).value = {
           formula:
-            `SUMPRODUCT(${fcffRange},1/(1+${waccCell})^${exponentLiteral})+` +
+            `${discountedFcffSumFormula(waccCell)}+` +
             `((FCFF!$${fcffLastColLetter}$9*(1+${terminalCell}))/(${waccCell}-${terminalCell}))/(1+${waccCell})^${years}`,
           result: buildSensitivityEnterpriseValue(spec, wacc, terminalAxis[colIdx]),
         };
       } else {
         sheet.getCell(r, c).value = {
           formula:
-            `SUMPRODUCT(${fcffRange},1/(1+${waccCell})^${exponentLiteral})+` +
+            `${discountedFcffSumFormula(waccCell)}+` +
             `((Forecast!$${fcffLastColLetter}$6*${terminalCell})/(1+${waccCell})^${years})`,
           result: buildSensitivityEnterpriseValue(spec, wacc, terminalAxis[colIdx]),
         };
