@@ -6,36 +6,37 @@ import { headlineEnrichmentSchema, type HeadlineEnrichment, type SectorName } fr
 import { inferEventImpact, isBroadProxyTicker } from '@/lib/news/eventImpact';
 import { assessHeadlineRelevance } from '@/lib/news/relevance';
 
-const HEADLINE_INTELLIGENCE_SYSTEM_PROMPT = `You are CapitalBase Analyst, a financial markets analyst writing structured market intelligence for investors.
+const HEADLINE_INTELLIGENCE_SYSTEM_PROMPT = `You are analyzing a business or market headline.
 
-You are not rewriting the article. You are translating a headline into a market view.
+Your job is not to summarize everything. Your job is to identify what actually changed and whether that change matters economically.
 
-Reasoning order:
-Event -> economic driver -> transmission channel -> market impact -> sector / company implications
-
-Output rules:
-- Keep the analysis causally grounded and finance-native.
-- Distinguish between what happened and why markets should care.
-- Be explicit about the channel: growth, inflation, rates, FX, commodity, credit, regulation, or positioning.
-- Use concise short sections and keep the output scannable for a dashboard.
-- Keep "why_it_matters" in a 90-140 word range and never above 140 words.
-- If the market relevance is weak, say so directly and lower confidence.
-- Do not speculate beyond what the headline supports.
-- Do not paraphrase the headline as analysis.
+Instructions:
+- State the single most important new piece of information.
+- Explain the economic mechanism clearly: revenue, margins, demand, costs, cash flow, regulation, competition, financing, or valuation.
+- Say whether the impact is fundamental, sentiment-driven, or mostly noise.
+- Identify the most exposed business line, company type, or sector.
+- If the information is incomplete or conditional, say so directly.
+- Do not overstate the importance of a weak headline.
+- Do not use generic filler or vague market language.
+- Do not invent facts not supported by the headline.
 
 Output must be valid JSON matching the schema.`;
 
-const GENERAL_INTELLIGENCE_SYSTEM_PROMPT = `You are CapitalBase Analyst, a financial markets analyst.
+const GENERAL_INTELLIGENCE_SYSTEM_PROMPT = `You are a sharp finance writer.
 
-Write concise, plain-English market intelligence focused on investor implications, not article summary.
+Your job is to convert raw business information into decision-useful analysis.
 
-Rules:
-- No bullets.
-- No markdown.
-- Lead with the market-relevant point, then explain the transmission.
-- Keep logic grounded in rates, FX, liquidity, credit, sector exposure, and valuation where relevant.
-- If relevance is weak or indirect, state that explicitly.
-- Do not speculate beyond what the headline supports.
+Always do the following:
+- identify the real driver
+- explain the economic mechanism
+- prioritize the most important fact
+- use numbers when they matter
+- say whether the takeaway is strong, weak, mixed, or noise
+- avoid empty finance phrases
+- avoid over-hedging
+- do not confuse formatting with insight
+
+Write in natural paragraph form unless another format is explicitly requested.
 
 Output must be valid JSON matching the schema.`;
 
@@ -97,14 +98,15 @@ function clipWords(text: string, maxWords: number): string {
   return `${words.slice(0, maxWords).join(' ').replace(/[.,;:!?-]+$/g, '')}.`;
 }
 
-const MACRO_SECTION_ORDER = ['SUMMARY', 'WHY IT MATTERS', 'MARKET IMPACT', 'TIME HORIZON', 'WATCH ITEMS'] as const;
+const MACRO_SECTION_ORDER = ['SUMMARY', 'IMPACT', 'ANALYSIS', 'MOST AFFECTED STOCKS/SECTORS'] as const;
 
 type MacroSectionLabel = (typeof MACRO_SECTION_ORDER)[number];
 
 const MACRO_SECTION_ALIASES: Record<MacroSectionLabel, string[]> = {
   SUMMARY: ['SUMMARY', 'EVENT', 'INVESTOR TAKEAWAY', 'MACRO EVENT'],
-  'WHY IT MATTERS': ['WHY IT MATTERS', 'DRIVERS'],
-  'MARKET IMPACT': [
+  IMPACT: ['IMPACT', 'WHY IT MATTERS', 'DRIVERS'],
+  ANALYSIS: [
+    'ANALYSIS',
     'MARKET IMPACT',
     'PREDICTION',
     'BASE CASE',
@@ -113,8 +115,16 @@ const MACRO_SECTION_ALIASES: Record<MacroSectionLabel, string[]> = {
     'SECTOR IMPACT',
     'MODEL IMPLICATIONS',
   ],
-  'TIME HORIZON': ['TIME HORIZON', 'HORIZON', 'CONFIDENCE'],
-  'WATCH ITEMS': ['WATCH ITEMS', 'WATCH NEXT', 'TICKERS TO WATCH', 'ASSETS TO WATCH', 'TICKERS / ASSETS TO WATCH', 'TICKERS/ASSETS TO WATCH'],
+  'MOST AFFECTED STOCKS/SECTORS': [
+    'MOST AFFECTED STOCKS/SECTORS',
+    'MOST AFFECTED STOCKS AND SECTORS',
+    'WATCH ITEMS',
+    'WATCH NEXT',
+    'TICKERS TO WATCH',
+    'ASSETS TO WATCH',
+    'TICKERS / ASSETS TO WATCH',
+    'TICKERS/ASSETS TO WATCH',
+  ],
 };
 
 function escapeRegExp(value: string): string {
@@ -208,17 +218,15 @@ function limitStructuredAnalysisWords(text: string, maxWords = 250): string {
   }
   const caps: Record<MacroSectionLabel, number> = {
     SUMMARY: 24,
-    'WHY IT MATTERS': 34,
-    'MARKET IMPACT': 32,
-    'TIME HORIZON': 12,
-    'WATCH ITEMS': 26,
+    IMPACT: 34,
+    ANALYSIS: 32,
+    'MOST AFFECTED STOCKS/SECTORS': 26,
   };
   const clipped = formatStructuredAnalysis({
     SUMMARY: [clipWords(parsed.SUMMARY ?? '', caps.SUMMARY)],
-    'WHY IT MATTERS': [clipWords(parsed['WHY IT MATTERS'] ?? '', caps['WHY IT MATTERS'])],
-    'MARKET IMPACT': [clipWords(parsed['MARKET IMPACT'] ?? '', caps['MARKET IMPACT'])],
-    'TIME HORIZON': [clipWords(parsed['TIME HORIZON'] ?? '', caps['TIME HORIZON'])],
-    'WATCH ITEMS': [clipWords(parsed['WATCH ITEMS'] ?? '', caps['WATCH ITEMS'])],
+    IMPACT: [clipWords(parsed.IMPACT ?? '', caps.IMPACT)],
+    ANALYSIS: [clipWords(parsed.ANALYSIS ?? '', caps.ANALYSIS)],
+    'MOST AFFECTED STOCKS/SECTORS': [clipWords(parsed['MOST AFFECTED STOCKS/SECTORS'] ?? '', caps['MOST AFFECTED STOCKS/SECTORS'])],
   });
   if (wordCount(clipped) <= maxWords) return clipped;
   return clipWords(clipped.replace(/\n+/g, ' '), maxWords);
@@ -240,78 +248,80 @@ function ensureStructuredImpact(text: string | null, fallback: HeadlineEnrichmen
   const summary =
     parseBulletItems(parsed.SUMMARY ?? legacySummary ?? fallbackParsed.SUMMARY ?? fallbackLegacySummary)[0] ??
     baseSummarySentences[0] ??
-    'Macro development with cross-asset implications.';
-  const whyItMatters = parseBulletItems(parsed['WHY IT MATTERS'] ?? fallbackParsed['WHY IT MATTERS']);
-  if (whyItMatters.length === 0 && baseSummarySentences.length > 1) {
-    whyItMatters.push(baseSummarySentences[1]);
+    'The headline introduces a real but bounded market read-through.';
+
+  const impact = parseBulletItems(
+    parsed.IMPACT ??
+      extractSectionByAliases(merged, ['WHY IT MATTERS', 'DRIVERS']) ??
+      fallbackParsed.IMPACT ??
+      extractSectionByAliases(fallback.why_it_matters ?? '', ['WHY IT MATTERS', 'DRIVERS'])
+  );
+  if (impact.length === 0 && baseSummarySentences.length > 1) {
+    impact.push(baseSummarySentences[1]);
   }
-  if (whyItMatters.length === 0) {
-    whyItMatters.push('This matters if it changes earnings durability, regulatory risk, or valuation assumptions.');
+  if (impact.length === 0) {
+    impact.push('The economic significance depends on whether this change flows through revenue, margins, financing conditions, or regulatory pressure.');
   }
 
-  const marketImpact = parseBulletItems(
-    parsed['MARKET IMPACT'] ??
+  const analysis = parseBulletItems(
+    parsed.ANALYSIS ??
+      extractSectionByAliases(merged, ['MARKET IMPACT', 'PREDICTION', 'BASE CASE', 'SECTOR IMPACT', 'MODEL IMPLICATIONS']) ??
       extractSectionByAliases(merged, ['PREDICTION', 'BASE CASE', 'SECTOR IMPACT', 'MODEL IMPLICATIONS']) ??
-      fallbackParsed['MARKET IMPACT'] ??
-      extractSectionByAliases(fallback.why_it_matters ?? '', ['PREDICTION', 'BASE CASE', 'SECTOR IMPACT', 'MODEL IMPLICATIONS'])
+      fallbackParsed.ANALYSIS ??
+      extractSectionByAliases(fallback.why_it_matters ?? '', ['MARKET IMPACT', 'PREDICTION', 'BASE CASE', 'SECTOR IMPACT', 'MODEL IMPLICATIONS'])
   );
-  if (marketImpact.length === 0) {
+  if (analysis.length === 0) {
     if (fallback.impacted_tickers.length > 0) {
-      marketImpact.push(
+      analysis.push(
         ...fallback.impacted_tickers.slice(0, 3).map((item) => {
           const directionLabel =
-            item.direction === 'up' ? 'relatively positive' : item.direction === 'down' ? 'mildly bearish near term' : 'mixed';
+            item.direction === 'up' ? 'incrementally positive' : item.direction === 'down' ? 'mildly negative' : 'mixed';
           return `${item.ticker}: ${directionLabel}${item.rationale ? `; ${item.rationale}` : ''}`;
         })
       );
     } else if (fallback.impacted_sectors.length > 0) {
-      marketImpact.push(
+      analysis.push(
         ...fallback.impacted_sectors.slice(0, 3).map((item) => `${item.sector}: ${item.direction === 'up' ? 'relatively positive' : item.direction === 'down' ? 'sentiment negative' : 'mixed reaction likely'}`)
       );
     } else {
-      marketImpact.push('Immediate market reaction should stay selective unless the development forces a real change in policy, regulation, or earnings expectations.');
+      analysis.push('The likely market reaction is selective rather than broad unless follow-through changes earnings, policy, or financing expectations.');
     }
   }
 
-  const timeHorizon = parseBulletItems(
-    parsed['TIME HORIZON'] ??
-      extractSectionByAliases(merged, ['HORIZON']) ??
-      fallbackParsed['TIME HORIZON'] ??
-      extractSectionByAliases(fallback.why_it_matters ?? '', ['HORIZON'])
+  const mostAffected = parseBulletItems(
+    parsed['MOST AFFECTED STOCKS/SECTORS'] ??
+      extractSectionByAliases(merged, ['MOST AFFECTED STOCKS/SECTORS', 'MOST AFFECTED STOCKS AND SECTORS']) ??
+      fallbackParsed['MOST AFFECTED STOCKS/SECTORS'] ??
+      extractSectionByAliases(fallback.why_it_matters ?? '', ['MOST AFFECTED STOCKS/SECTORS', 'MOST AFFECTED STOCKS AND SECTORS'])
   );
-  const confidence = parseBulletItems(
-    extractSectionByAliases(merged, ['CONFIDENCE']) ??
-      extractSectionByAliases(fallback.why_it_matters ?? '', ['CONFIDENCE'])
-  );
-  if (timeHorizon.length === 0) {
-    timeHorizon.push(`Near-term sentiment hit; confidence ${fallback.confidence ?? 'medium'}`);
-  } else if (confidence.length > 0 && !timeHorizon[0].toLowerCase().includes('confidence')) {
-    timeHorizon[0] = `${timeHorizon[0]} | confidence ${confidence[0].toLowerCase()}`;
-  }
-
-  const watchItems = parseBulletItems(
-    parsed['WATCH ITEMS'] ??
-      extractSectionByAliases(merged, ['WATCH NEXT', 'TICKERS TO WATCH']) ??
-      fallbackParsed['WATCH ITEMS'] ??
-      extractSectionByAliases(fallback.why_it_matters ?? '', ['WATCH NEXT', 'TICKERS TO WATCH'])
-  );
-  if (watchItems.length === 0) {
+  if (mostAffected.length === 0) {
     if (fallback.impacted_tickers.length > 0) {
-      watchItems.push(...fallback.impacted_tickers.slice(0, 4).map((item) => item.ticker));
+      mostAffected.push(
+        fallback.impacted_tickers
+          .slice(0, 4)
+          .map((item) => `${item.ticker}${item.rationale ? `: ${item.rationale}` : ''}`)
+          .join(', ')
+      );
+    } else if (fallback.impacted_sectors.length > 0) {
+      mostAffected.push(
+        fallback.impacted_sectors
+          .slice(0, 4)
+          .map((item) => `${item.sector}${item.rationale ? `: ${item.rationale}` : ''}`)
+          .join(', ')
+      );
     } else {
-      watchItems.push('size of fine', 'required remedies', 'whether scope broadens');
+      mostAffected.push('None beyond the directly exposed company or sector.');
     }
   }
 
   return limitStructuredAnalysisWords(
     formatStructuredAnalysis({
       SUMMARY: [summary],
-      'WHY IT MATTERS': whyItMatters.slice(0, 2),
-      'MARKET IMPACT': marketImpact.slice(0, 4),
-      'TIME HORIZON': timeHorizon.slice(0, 1),
-      'WATCH ITEMS': watchItems.slice(0, 4),
+      IMPACT: impact.slice(0, 2),
+      ANALYSIS: analysis.slice(0, 3),
+      'MOST AFFECTED STOCKS/SECTORS': mostAffected.slice(0, 2),
     }),
-    140
+    180
   );
 }
 
@@ -627,22 +637,24 @@ export function deterministicFallback(headline: {
 
   const structuredFallback = formatStructuredAnalysis({
     SUMMARY: [summaryLine],
-    'WHY IT MATTERS': [
+    IMPACT: [
       headline.description?.trim() && !isQuestionStyleTitle(headline.title)
         ? headline.description.trim()
         : `The market focus is ${theme.channel}, with the base case centered on ${theme.baseCase}.`,
       whyLine,
     ],
-    'MARKET IMPACT': [
+    ANALYSIS: [
       `Equities: ${stocksImpact}.`,
       `Rates: ${ratesImpact}.`,
       `FX: ${fxImpact}.`,
       ...marketImpactLines,
     ],
-    'TIME HORIZON': [`${horizon}; confidence ${displayedConfidence}.`],
-    'WATCH ITEMS': watchNextLines,
+    'MOST AFFECTED STOCKS/SECTORS': [
+      ...watchNextLines,
+      `${horizon}; confidence ${displayedConfidence}.`,
+    ],
   });
-  const whyItMatters = limitStructuredAnalysisWords(structuredFallback, 140);
+  const whyItMatters = limitStructuredAnalysisWords(structuredFallback, 180);
 
   return headlineEnrichmentSchema.parse({
     ai_summary: aiSummary,
@@ -997,16 +1009,19 @@ Description: ${headline.description ?? 'None'}
 
 Return JSON with these fields:
 
-"ai_summary": Concise plain-English summary in sentence form (no bullets, no markdown). Keep it brief, investor-focused, and include the core market angle.
+"ai_summary": one concise paragraph explaining the most important thing that changed. This should read like the Summary paragraph.
 
-"why_it_matters": Use this exact compact section structure:
+"why_it_matters": Use this exact section structure:
 SUMMARY
-WHY IT MATTERS
-MARKET IMPACT
-TIME HORIZON
-WATCH ITEMS
+IMPACT
+ANALYSIS
+MOST AFFECTED STOCKS/SECTORS
 
-Hard requirement: keep "why_it_matters" between 90 and 140 words, and never above 140 words.
+Hard requirement:
+- keep "why_it_matters" in compact paragraph form
+- do not use bullets
+- do not include TIME HORIZON or WATCH ITEMS
+- keep each section concrete and decision-useful
 
 IMPORTANT:
 - Do NOT rewrite the article.
@@ -1014,10 +1029,10 @@ IMPORTANT:
 - Be decisive and avoid vague language.
 - Keep language concrete and causally grounded.
 - Avoid repeating the article headline.
-- If the headline is not truly market-moving, say that clearly in WHY IT MATTERS and keep the implications narrow.
-- In MARKET IMPACT, list the exposed companies, sectors, or groups and the directional read-through in plain English.
-- In TIME HORIZON, state one bounded horizon and the confidence on the same line.
-- In WATCH ITEMS, list the specific datapoints, enforcement details, or follow-up signals that would change the view.
+- If the headline is not truly market-moving, say that clearly and keep the implications narrow.
+- In IMPACT, explain why the change matters economically.
+- In ANALYSIS, say whether the read-through is fundamental, sentiment-driven, mixed, or mostly noise.
+- In MOST AFFECTED STOCKS/SECTORS, name only the most directly exposed companies, sectors, or groups in plain English.
 
 "impacted_tickers": array of {ticker, direction, rationale}
 "impacted_sectors": array of {sector, direction, rationale}
@@ -1035,8 +1050,8 @@ Description: ${headline.description ?? 'None'}
 
 Return JSON with these fields:
 
-"ai_summary": concise sentence-form summary of the key development and the main investor implication.
-"why_it_matters": 2-4 sentence narrative in plain English explaining the transmission to markets (rates, FX, liquidity, credit, risk sentiment, sector leadership, or valuation).
+"ai_summary": concise paragraph leading with the most important takeaway.
+"why_it_matters": concise paragraph explaining the economic mechanism and whether the impact is fundamental, sentiment-driven, mixed, or mostly noise.
 "impacted_tickers": array of {ticker, direction, rationale}
 "impacted_sectors": array of {sector, direction, rationale}
   Allowed sectors: Technology, Financials, Healthcare, Consumer Discretionary, Consumer Staples, Industrials, Energy, Materials, Utilities, Real Estate, Communication Services
@@ -1048,7 +1063,8 @@ Rules:
 - No pseudo-tickers like EU, ECB, US, APAC.
 - If this headline has weak market relevance, say so and set confidence=low.
 - Do not invent facts not in the headline.
-- Explain the mechanism, not just the headline.`,
+- Explain the mechanism, not just the headline.
+- Do not sound like a generic finance chatbot.`,
             },
           ],
           text: {

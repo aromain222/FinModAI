@@ -239,11 +239,11 @@ type Section = 'none' | 'summary' | 'drivers' | 'impact' | 'impact_asset' | 'win
     const upper = line.toUpperCase().replace(/[:\s]+$/, '');
 
     if (upper === 'SUMMARY' || upper === 'BOTTOM LINE') { section = 'summary'; continue; }
-    if (upper === 'DRIVERS') { section = 'drivers'; continue; }
-    if (/^MARKET\s*IMPACT/.test(upper)) { section = 'impact'; currentAsset = null; continue; }
+    if (upper === 'DRIVERS' || upper === 'IMPACT' || upper === 'WHY IT MATTERS') { section = 'drivers'; continue; }
+    if (/^MARKET\s*IMPACT/.test(upper) || upper === 'ANALYSIS') { section = 'impact'; currentAsset = null; continue; }
     if (/^WINNERS?$/.test(upper)) { section = 'winners'; continue; }
     if (/^LOSERS?$/.test(upper)) { section = 'losers'; continue; }
-    if (/^WATCH\s*(NEXT)?$/.test(upper)) { section = 'watch'; continue; }
+    if (/^WATCH\s*(NEXT)?$/.test(upper) || /^MOST AFFECTED STOCKS(?:\/| AND )SECTORS$/.test(upper)) { section = 'watch'; continue; }
     if (/^(INVALIDATION|TRANSMISSION|HORIZON)/.test(upper)) { section = 'skip'; continue; }
 
     if ((section === 'impact' || section === 'impact_asset') && ASSET_HEADERS.test(line.replace(/[:\s]+$/, ''))) {
@@ -298,6 +298,10 @@ type MacroStructuredSection = {
 const STRUCTURED_LABELS = [
   'EVENT',
   'SUMMARY',
+  'IMPACT',
+  'ANALYSIS',
+  'MOST AFFECTED STOCKS/SECTORS',
+  'MOST AFFECTED STOCKS AND SECTORS',
   'BOTTOM LINE',
   'KEY FACTS',
   'DRIVERS',
@@ -339,7 +343,7 @@ function normalizeStructuredAnalysisText(raw: string): string {
   return raw
     .replace(/\r\n/g, '\n')
     .replace(/(?:\s*[-–—]{3,}\s*)+/g, '\n')
-    .replace(/\s+(?=(?:EVENT|SUMMARY|BOTTOM LINE|KEY FACTS|DRIVERS|WHY IT MATTERS|TRANSMISSION PATH|PREDICTION|MARKET IMPACT|WINNERS|LOSERS|HORIZON|CONFIDENCE|BASE CASE|BULL CASE|BEAR CASE|SECTOR IMPACT|TICKERS TO WATCH|MODEL IMPLICATIONS|WATCH NEXT|SOURCES|ASSETS TO WATCH|MACRO EVENT|INVESTOR TAKEAWAY|WHAT HAPPENED|WHAT ACTUALLY CHANGED|WHY MARKETS CARE|MARKET LOGIC|DIRECTIONAL SIGNAL|MARKET REACTION FRAMEWORK|MACRO SIGNAL|TICKERS \/ ASSETS TO WATCH)\b)/g, '\n')
+    .replace(/\s+(?=(?:EVENT|SUMMARY|IMPACT|ANALYSIS|MOST AFFECTED STOCKS\/SECTORS|MOST AFFECTED STOCKS AND SECTORS|BOTTOM LINE|KEY FACTS|DRIVERS|WHY IT MATTERS|TRANSMISSION PATH|PREDICTION|MARKET IMPACT|WINNERS|LOSERS|HORIZON|CONFIDENCE|BASE CASE|BULL CASE|BEAR CASE|SECTOR IMPACT|TICKERS TO WATCH|MODEL IMPLICATIONS|WATCH NEXT|SOURCES|ASSETS TO WATCH|MACRO EVENT|INVESTOR TAKEAWAY|WHAT HAPPENED|WHAT ACTUALLY CHANGED|WHY MARKETS CARE|MARKET LOGIC|DIRECTIONAL SIGNAL|MARKET REACTION FRAMEWORK|MACRO SIGNAL|TICKERS \/ ASSETS TO WATCH)\b)/g, '\n')
     .replace(new RegExp(`(?:^|\\n)\\s*[-•*]+\\s*(?=${STRUCTURED_LABEL_PATTERN}\\b)`, 'g'), '\n')
     .replace(new RegExp(`([^\\n])\\s*(?=${STRUCTURED_LABEL_PATTERN}\\b\\s*:?)`, 'g'), '$1\n')
     .replace(/\n{3,}/g, '\n\n')
@@ -362,9 +366,11 @@ function stripAnalysisNoise(text: string | null | undefined): string | null {
     .replace(/\bTIME HORIZON\s*:\s*/gi, '')
     .replace(/\bCONFIDENCE\s*:\s*/gi, '')
     .replace(/\bSUMMARY\s*:\s*/gi, '')
+    .replace(/\bIMPACT\s*:\s*/gi, '')
     .replace(/\bMARKET IMPACT\s*:\s*/gi, '')
     .replace(/\bWHY IT MATTERS\s*:\s*/gi, '')
     .replace(/\bANALYSIS\s*:\s*/gi, '')
+    .replace(/\bMOST AFFECTED STOCKS(?:\/| AND )SECTORS\s*:\s*/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
   return cleaned || null;
@@ -399,10 +405,10 @@ function parseMacroStructuredAnalysis(raw: string | null | undefined): MacroStru
 
   const labels = [
     { label: 'SUMMARY', aliases: ['SUMMARY', 'EVENT', 'INVESTOR TAKEAWAY', 'MACRO EVENT'] },
-    { label: 'WHY IT MATTERS', aliases: ['WHY IT MATTERS', 'DRIVERS'] },
-    { label: 'MARKET IMPACT', aliases: ['MARKET IMPACT', 'PREDICTION', 'BASE CASE', 'SECTOR IMPACT', 'MODEL IMPLICATIONS'] },
+    { label: 'WHY IT MATTERS', aliases: ['WHY IT MATTERS', 'DRIVERS', 'IMPACT'] },
+    { label: 'MARKET IMPACT', aliases: ['MARKET IMPACT', 'PREDICTION', 'BASE CASE', 'SECTOR IMPACT', 'MODEL IMPLICATIONS', 'ANALYSIS'] },
     { label: 'TIME HORIZON', aliases: ['TIME HORIZON', 'HORIZON', 'CONFIDENCE'] },
-    { label: 'WATCH ITEMS', aliases: ['WATCH ITEMS', 'WATCH NEXT', 'TICKERS TO WATCH', 'ASSETS TO WATCH', 'TICKERS / ASSETS TO WATCH', 'TICKERS/ASSETS TO WATCH'] },
+    { label: 'WATCH ITEMS', aliases: ['WATCH ITEMS', 'WATCH NEXT', 'TICKERS TO WATCH', 'ASSETS TO WATCH', 'TICKERS / ASSETS TO WATCH', 'TICKERS/ASSETS TO WATCH', 'MOST AFFECTED STOCKS/SECTORS', 'MOST AFFECTED STOCKS AND SECTORS'] },
   ] as const;
 
   const allAliases = labels.flatMap((item) => item.aliases);
