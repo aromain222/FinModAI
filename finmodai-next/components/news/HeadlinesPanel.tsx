@@ -355,11 +355,32 @@ function cleanStructuredLine(line: string): string {
     .trim();
 }
 
+function stripAnalysisNoise(text: string | null | undefined): string | null {
+  if (!text) return null;
+  const cleaned = text
+    .replace(/\bTIME\s*\.\s*$/i, '')
+    .replace(/\bTIME HORIZON\s*:\s*/gi, '')
+    .replace(/\bCONFIDENCE\s*:\s*/gi, '')
+    .replace(/\bSUMMARY\s*:\s*/gi, '')
+    .replace(/\bMARKET IMPACT\s*:\s*/gi, '')
+    .replace(/\bWHY IT MATTERS\s*:\s*/gi, '')
+    .replace(/\bANALYSIS\s*:\s*/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned || null;
+}
+
 function structuredSectionLines(content: string): string[] {
   return content
     .split('\n')
     .map((line) => cleanStructuredLine(line))
-    .filter(Boolean);
+    .filter((line) => {
+      if (!line) return false;
+      const upper = line.toUpperCase().replace(/[:.\s]+$/g, '');
+      if (STRUCTURED_LABELS.includes(upper as (typeof STRUCTURED_LABELS)[number])) return false;
+      if (upper === 'TIME' || upper === 'TIME HORIZON' || upper === 'CONFIDENCE') return false;
+      return true;
+    });
 }
 
 function structuredSectionParagraph(content: string, maxSentences = 3): string | null {
@@ -701,19 +722,39 @@ function buildImpactedSectorParagraph(
   return parts.length ? `${parts.join('. ')}.` : null;
 }
 
+function buildExposureParagraph(enrichment: HeadlineEnrichment): string | null {
+  const sectorParagraph = buildImpactedSectorParagraph(enrichment.impacted_sectors ?? []);
+  const tickers = (enrichment.impacted_tickers ?? [])
+    .map((item) => tickerTag(item.ticker))
+    .slice(0, 6);
+  if (sectorParagraph && tickers.length > 0) {
+    return `${sectorParagraph} Closest public-market names to watch include ${tickers.join(', ')}.`;
+  }
+  if (sectorParagraph) return sectorParagraph;
+  if (tickers.length > 0) {
+    return `Closest public-market names to watch include ${tickers.join(', ')}.`;
+  }
+  return null;
+}
+
 function MarketImpactBlock({ enrichment }: { enrichment: HeadlineEnrichment }) {
   const text = enrichment.why_it_matters ?? enrichment.ai_summary ?? 'Additional context unavailable.';
   const structured = parseMacroStructuredAnalysis(text);
-  const impactedSectorsParagraph = buildImpactedSectorParagraph(enrichment.impacted_sectors ?? []);
+  const exposureParagraph = buildExposureParagraph(enrichment);
   if (structured) {
     const getSection = (label: string) => structured.find((section) => section.label === label)?.content ?? null;
-    const summary = structuredSectionParagraph(getSection('SUMMARY') ?? getSection('EVENT') ?? '', 2);
-    const marketImpactParagraph =
-      structuredSectionParagraph(getSection('MARKET IMPACT') ?? getSection('BASE CASE') ?? '', 3) ??
-      structuredSectionParagraph(getSection('WHY IT MATTERS') ?? '', 3);
+    const summary =
+      stripAnalysisNoise(structuredSectionParagraph(getSection('SUMMARY') ?? getSection('EVENT') ?? '', 3)) ??
+      stripAnalysisNoise(formatAiSummaryText(enrichment.ai_summary));
+    const impact =
+      stripAnalysisNoise(structuredSectionParagraph(getSection('WHY IT MATTERS') ?? '', 4)) ??
+      stripAnalysisNoise(formatPlainNarrative(enrichment.why_it_matters, 4));
+    const analysis =
+      stripAnalysisNoise(structuredSectionParagraph(getSection('MARKET IMPACT') ?? getSection('BASE CASE') ?? '', 4)) ??
+      stripAnalysisNoise(structuredSectionParagraph(getSection('WHY IT MATTERS') ?? '', 3));
 
     return (
-      <div className="space-y-5">
+      <div className="space-y-6">
         {summary && (
           <div>
             <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Summary</div>
@@ -721,17 +762,24 @@ function MarketImpactBlock({ enrichment }: { enrichment: HeadlineEnrichment }) {
           </div>
         )}
 
-        {marketImpactParagraph && (
+        {impact && (
           <div>
-            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Market Impact</div>
-            <p className="text-[14px] leading-7 text-zinc-300">{marketImpactParagraph}</p>
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Impact</div>
+            <p className="text-[14px] leading-7 text-zinc-300">{impact}</p>
           </div>
         )}
 
-        {impactedSectorsParagraph && (
+        {analysis && (
           <div>
-            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Impacted Sectors</div>
-            <p className="text-[14px] leading-7 text-zinc-300">{impactedSectorsParagraph}</p>
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Analysis</div>
+            <p className="text-[14px] leading-7 text-zinc-300">{analysis}</p>
+          </div>
+        )}
+
+        {exposureParagraph && (
+          <div>
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Impacted Stocks And Sectors</div>
+            <p className="text-[14px] leading-7 text-zinc-300">{highlightTickers(exposureParagraph)}</p>
           </div>
         )}
       </div>
@@ -742,8 +790,20 @@ function MarketImpactBlock({ enrichment }: { enrichment: HeadlineEnrichment }) {
   if (!parsed) {
     return <p className="text-[13px] leading-relaxed text-zinc-400">Additional context unavailable.</p>;
   }
-  const impactParagraph = formatPlainNarrative(parsed.fallback, 5);
-  const driversParagraph = toParagraph(parsed.drivers, 2);
+  const summaryParagraph = stripAnalysisNoise(formatAiSummaryText(enrichment.ai_summary)) ?? stripAnalysisNoise(formatPlainNarrative(parsed.fallback, 3));
+  const impactParagraph =
+    stripAnalysisNoise(toParagraph(parsed.drivers, 3)) ??
+    stripAnalysisNoise(formatPlainNarrative(parsed.fallback, 4));
+  const analysisParagraph = stripAnalysisNoise(
+    toParagraph(
+      [
+        ...parsed.assetImpacts.flatMap((group) => group.bullets),
+        ...parsed.winners.map((item) => `Relative beneficiaries include ${item}`),
+        ...parsed.losers.map((item) => `Likely pressured areas include ${item}`),
+      ],
+      4
+    )
+  );
   const winnersParagraph =
     parsed.winners.length > 0
       ? sentenceCase(`Likely beneficiaries include ${parsed.winners.slice(0, 3).join(', ')}`)
@@ -760,25 +820,33 @@ function MarketImpactBlock({ enrichment }: { enrichment: HeadlineEnrichment }) {
 
   return (
     <div className="space-y-5">
-      {impactParagraph && (
+      {summaryParagraph && (
         <div>
           <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Summary</div>
-          <p className="text-[14px] leading-7 text-zinc-200">{impactParagraph}</p>
+          <p className="text-[14px] leading-7 text-zinc-200">{summaryParagraph}</p>
         </div>
       )}
 
-      {driversParagraph && (
+      {impactParagraph && (
         <div>
-          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Market Impact</div>
-          <p className="text-[14px] leading-7 text-zinc-300">{driversParagraph}</p>
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Impact</div>
+          <p className="text-[14px] leading-7 text-zinc-300">{impactParagraph}</p>
         </div>
       )}
 
-      {(impactedSectorsParagraph || parsed.assetImpacts.length > 0 || winnersParagraph || losersParagraph) && (
+      {analysisParagraph && (
         <div>
-          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Impacted Sectors</div>
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Analysis</div>
+          <p className="text-[14px] leading-7 text-zinc-300">{analysisParagraph}</p>
+        </div>
+      )}
+
+      {(exposureParagraph || parsed.assetImpacts.length > 0 || winnersParagraph || losersParagraph) && (
+        <div>
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Impacted Stocks And Sectors</div>
           <p className="text-[14px] leading-7 text-zinc-300">
-            {impactedSectorsParagraph ??
+            {highlightTickers(
+              exposureParagraph ??
               [
                 parsed.assetImpacts.length > 0
                   ? parsed.assetImpacts
@@ -789,7 +857,8 @@ function MarketImpactBlock({ enrichment }: { enrichment: HeadlineEnrichment }) {
                 losersParagraph,
               ]
                 .filter(Boolean)
-                .join(' ')}
+                .join(' ')
+            )}
           </p>
         </div>
       )}
@@ -1136,7 +1205,7 @@ export default function HeadlinesPanel({
                             {item.description}
                           </div>
                         )}
-                        {enrichment && (
+                        {enrichment && !isSelected && (
                           <p className="mt-2 line-clamp-2 text-[12px] leading-relaxed text-zinc-300">
                             {buildAnalysisLead(enrichment)}
                           </p>
@@ -1169,9 +1238,6 @@ export default function HeadlinesPanel({
                             <div className="mb-3 flex items-center justify-between gap-3">
                               <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
                                 <Eye className="h-3.5 w-3.5" />
-                                Market Impact
-                              </div>
-                              <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
                                 Investor Read-Through
                               </div>
                             </div>
