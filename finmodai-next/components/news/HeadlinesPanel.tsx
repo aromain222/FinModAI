@@ -708,21 +708,31 @@ function buildImpactedSectorParagraph(
 ): string | null {
   if (!sectors.length) return null;
 
+  const ranked = sectors.slice(0, 4);
   const groups = {
-    up: sectors.filter((sector) => sector.direction === 'up'),
-    down: sectors.filter((sector) => sector.direction === 'down'),
-    mixed: sectors.filter((sector) => sector.direction === 'mixed'),
+    up: ranked.filter((sector) => sector.direction === 'up'),
+    down: ranked.filter((sector) => sector.direction === 'down'),
+    mixed: ranked.filter((sector) => sector.direction === 'mixed'),
   };
 
   const parts: string[] = [];
   if (groups.up.length) {
-    parts.push(`Likely relative beneficiaries include ${groups.up.map((item) => item.sector).join(', ')}`);
+    const labels = groups.up.map((item) =>
+      item.rationale ? `${item.sector}, where ${item.rationale.toLowerCase()}` : item.sector
+    );
+    parts.push(`Relative beneficiaries include ${labels.join('; ')}`);
   }
   if (groups.down.length) {
-    parts.push(`Likely pressured sectors include ${groups.down.map((item) => item.sector).join(', ')}`);
+    const labels = groups.down.map((item) =>
+      item.rationale ? `${item.sector}, where ${item.rationale.toLowerCase()}` : item.sector
+    );
+    parts.push(`More exposed areas include ${labels.join('; ')}`);
   }
   if (groups.mixed.length) {
-    parts.push(`More balanced or mixed read-throughs sit in ${groups.mixed.map((item) => item.sector).join(', ')}`);
+    const labels = groups.mixed.map((item) =>
+      item.rationale ? `${item.sector}, where the read-through is mixed because ${item.rationale.toLowerCase()}` : item.sector
+    );
+    parts.push(`The read-through is more balanced in ${labels.join('; ')}`);
   }
 
   return parts.length ? `${parts.join('. ')}.` : null;
@@ -730,15 +740,23 @@ function buildImpactedSectorParagraph(
 
 function buildExposureParagraph(enrichment: HeadlineEnrichment): string | null {
   const sectorParagraph = buildImpactedSectorParagraph(enrichment.impacted_sectors ?? []);
-  const tickers = (enrichment.impacted_tickers ?? [])
-    .map((item) => tickerTag(item.ticker))
-    .slice(0, 6);
-  if (sectorParagraph && tickers.length > 0) {
-    return `${sectorParagraph} Closest public-market names to watch include ${tickers.join(', ')}.`;
+  const tickers = (enrichment.impacted_tickers ?? []).slice(0, 5);
+  const tickerParagraph =
+    tickers.length > 0
+      ? `Closest public-market names to watch include ${tickers
+          .map((item) =>
+            item.rationale
+              ? `${tickerTag(item.ticker)}, where ${item.rationale.toLowerCase()}`
+              : tickerTag(item.ticker)
+          )
+          .join('; ')}.`
+      : null;
+  if (sectorParagraph && tickerParagraph) {
+    return `${sectorParagraph} ${tickerParagraph}`;
   }
   if (sectorParagraph) return sectorParagraph;
-  if (tickers.length > 0) {
-    return `Closest public-market names to watch include ${tickers.join(', ')}.`;
+  if (tickerParagraph) {
+    return tickerParagraph;
   }
   return null;
 }
@@ -750,14 +768,14 @@ function MarketImpactBlock({ enrichment }: { enrichment: HeadlineEnrichment }) {
   if (structured) {
     const getSection = (label: string) => structured.find((section) => section.label === label)?.content ?? null;
     const summary =
-      stripAnalysisNoise(structuredSectionParagraph(getSection('SUMMARY') ?? getSection('EVENT') ?? '', 3)) ??
+      stripAnalysisNoise(structuredSectionParagraph(getSection('SUMMARY') ?? getSection('EVENT') ?? '', 4)) ??
       stripAnalysisNoise(formatAiSummaryText(enrichment.ai_summary));
     const impact =
-      stripAnalysisNoise(structuredSectionParagraph(getSection('WHY IT MATTERS') ?? '', 4)) ??
-      stripAnalysisNoise(formatPlainNarrative(enrichment.why_it_matters, 4));
+      stripAnalysisNoise(structuredSectionParagraph(getSection('WHY IT MATTERS') ?? '', 5)) ??
+      stripAnalysisNoise(formatPlainNarrative(enrichment.why_it_matters, 5));
     const analysis =
-      stripAnalysisNoise(structuredSectionParagraph(getSection('MARKET IMPACT') ?? getSection('BASE CASE') ?? '', 4)) ??
-      stripAnalysisNoise(structuredSectionParagraph(getSection('WHY IT MATTERS') ?? '', 3));
+      stripAnalysisNoise(structuredSectionParagraph(getSection('MARKET IMPACT') ?? getSection('BASE CASE') ?? '', 5)) ??
+      stripAnalysisNoise(structuredSectionParagraph(getSection('WHY IT MATTERS') ?? '', 4));
 
     return (
       <div className="space-y-6">
@@ -798,8 +816,8 @@ function MarketImpactBlock({ enrichment }: { enrichment: HeadlineEnrichment }) {
   }
   const summaryParagraph = stripAnalysisNoise(formatAiSummaryText(enrichment.ai_summary)) ?? stripAnalysisNoise(formatPlainNarrative(parsed.fallback, 3));
   const impactParagraph =
-    stripAnalysisNoise(toParagraph(parsed.drivers, 3)) ??
-    stripAnalysisNoise(formatPlainNarrative(parsed.fallback, 4));
+    stripAnalysisNoise(toParagraph(parsed.drivers, 4)) ??
+    stripAnalysisNoise(formatPlainNarrative(parsed.fallback, 5));
   const analysisParagraph = stripAnalysisNoise(
     toParagraph(
       [
@@ -807,7 +825,7 @@ function MarketImpactBlock({ enrichment }: { enrichment: HeadlineEnrichment }) {
         ...parsed.winners.map((item) => `Relative beneficiaries include ${item}`),
         ...parsed.losers.map((item) => `Likely pressured areas include ${item}`),
       ],
-      4
+      5
     )
   );
   const winnersParagraph =

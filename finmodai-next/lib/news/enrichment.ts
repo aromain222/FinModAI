@@ -210,17 +210,17 @@ function formatStructuredAnalysis(sections: Record<MacroSectionLabel, string[]>)
     .join('\n\n');
 }
 
-function limitStructuredAnalysisWords(text: string, maxWords = 250): string {
+function limitStructuredAnalysisWords(text: string, maxWords = 340): string {
   if (wordCount(text) <= maxWords) return text;
   const parsed = parseStructuredSections(text);
   if (Object.keys(parsed).length < 3) {
     return clipWords(text.replace(/\n+/g, ' '), maxWords);
   }
   const caps: Record<MacroSectionLabel, number> = {
-    SUMMARY: 24,
-    IMPACT: 34,
-    ANALYSIS: 32,
-    'MOST AFFECTED STOCKS/SECTORS': 26,
+    SUMMARY: 42,
+    IMPACT: 88,
+    ANALYSIS: 96,
+    'MOST AFFECTED STOCKS/SECTORS': 54,
   };
   const clipped = formatStructuredAnalysis({
     SUMMARY: [clipWords(parsed.SUMMARY ?? '', caps.SUMMARY)],
@@ -317,11 +317,11 @@ function ensureStructuredImpact(text: string | null, fallback: HeadlineEnrichmen
   return limitStructuredAnalysisWords(
     formatStructuredAnalysis({
       SUMMARY: [summary],
-      IMPACT: impact.slice(0, 2),
-      ANALYSIS: analysis.slice(0, 3),
-      'MOST AFFECTED STOCKS/SECTORS': mostAffected.slice(0, 2),
+      IMPACT: impact.slice(0, 3),
+      ANALYSIS: analysis.slice(0, 4),
+      'MOST AFFECTED STOCKS/SECTORS': mostAffected.slice(0, 3),
     }),
-    180
+    340
   );
 }
 
@@ -654,7 +654,7 @@ export function deterministicFallback(headline: {
       `${horizon}; confidence ${displayedConfidence}.`,
     ],
   });
-  const whyItMatters = limitStructuredAnalysisWords(structuredFallback, 180);
+  const whyItMatters = limitStructuredAnalysisWords(structuredFallback, 320);
 
   return headlineEnrichmentSchema.parse({
     ai_summary: aiSummary,
@@ -1018,10 +1018,14 @@ ANALYSIS
 MOST AFFECTED STOCKS/SECTORS
 
 Hard requirement:
-- keep "why_it_matters" in compact paragraph form
+- keep each section in natural paragraph form, not bullets
 - do not use bullets
 - do not include TIME HORIZON or WATCH ITEMS
-- keep each section concrete and decision-useful
+- keep each section concrete, decision-useful, and developed enough to stand on its own
+- SUMMARY should be 2 to 3 sentences
+- IMPACT should be 2 to 4 sentences focused on the economic mechanism
+- ANALYSIS should be 2 to 4 sentences focused on how investors should interpret the development
+- MOST AFFECTED STOCKS/SECTORS should be 1 to 3 sentences naming the clearest exposures and why
 
 IMPORTANT:
 - Do NOT rewrite the article.
