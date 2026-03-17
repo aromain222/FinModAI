@@ -1,8 +1,8 @@
 'use client';
 
 import { Badge } from '@/components/ui/badge';
+import { FinanceDataChart } from '@/components/charts/FinanceDataChart';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { EditableFinanceChart } from '@/components/charts/EditableFinanceChart';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
 
 function fmtNumber(value: number | null): string {
@@ -32,30 +32,10 @@ function StatCard(props: { label: string; value: string; helper?: string }) {
 
 export function AnalystStockCard({ payload }: { payload: StockLookupResult }) {
   const chartHeight = 220;
-  const stockChartData =
-    payload.chart.kind === 'price'
-      ? [
-          {
-            type: 'scatter',
-            mode: 'lines+markers',
-            name: payload.ticker,
-            x: payload.chart.points.map((point) => point.label),
-            y: payload.chart.points.map((point) => point.value),
-            line: { color: '#10b981', width: 2.5, shape: 'spline' },
-            marker: { color: '#10b981', size: 5 },
-            hovertemplate: '%{x}<br>Price: $%{y:.2f}<extra></extra>',
-          },
-        ]
-      : [
-          {
-            type: 'bar',
-            name: 'Value',
-            x: payload.chart.points.map((point) => point.label),
-            y: payload.chart.points.map((point) => point.value),
-            marker: { color: '#2563eb', opacity: 0.9 },
-            hovertemplate: '%{x}<br>Value: $%{y:,.0f}M<extra></extra>',
-          },
-        ];
+  const stockChartData = payload.chart.points.map((point) => ({
+    x: point.label,
+    y: point.value,
+  }));
 
   return (
     <Card className="mt-4 overflow-hidden border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
@@ -87,16 +67,20 @@ export function AnalystStockCard({ payload }: { payload: StockLookupResult }) {
         </div>
 
         <div>
-          <EditableFinanceChart
+          <FinanceDataChart
             title={payload.chart.kind === 'price' ? 'Recent Price Trend' : 'Fundamental Snapshot'}
             subtitle={payload.chart.kind === 'price' ? 'Recent trading range.' : 'Snapshot of key reported values.'}
+            xLabel={payload.chart.kind === 'price' ? 'Date' : 'Metric'}
+            yLabel={payload.chart.kind === 'price' ? 'Price' : 'Value'}
+            data={stockChartData}
+            chartType="auto"
+            valueFormat="number"
+            valuePrefix="$"
+            valueSuffix={payload.chart.kind === 'price' ? undefined : 'M'}
+            seriesLabel={payload.ticker}
+            color={payload.chart.kind === 'price' ? '#10b981' : '#2563eb'}
             className="p-3"
             height={chartHeight}
-            data={stockChartData}
-            layout={{
-              xaxis: { type: 'category' },
-              yaxis: payload.chart.kind === 'price' ? { tickprefix: '$' } : { tickprefix: '$', ticksuffix: 'M' },
-            }}
           />
         </div>
       </CardContent>
