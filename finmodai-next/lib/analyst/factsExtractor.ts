@@ -256,3 +256,118 @@ export function serializeFactsForContext(facts: VerifiedFacts): string {
 
   return sections.join('\n\n');
 }
+
+function relevantMetricLabels(userMessage: string): {
+  wantsPrice: boolean;
+  wantsRevenue: boolean;
+  wantsMargin: boolean;
+  wantsCash: boolean;
+  wantsEarnings: boolean;
+} {
+  const text = userMessage.toLowerCase();
+  return {
+    wantsPrice: /\b(price|stock|shares?|trading|valuation|multiple|market cap)\b/.test(text),
+    wantsRevenue: /\b(revenue|sales|growth|top line|topline)\b/.test(text),
+    wantsMargin: /\b(margin|profitability|gross margin|ebitda|ebit|operating margin)\b/.test(text),
+    wantsCash: /\b(cash|debt|balance sheet|liquidity|free cash flow|fcf)\b/.test(text),
+    wantsEarnings: /\b(earnings|eps|quarter|quarterly|results|net income|guidance)\b/.test(text),
+  };
+}
+
+function companyBriefLine(company: VerifiedCompany, userMessage: string): string {
+  const metrics = relevantMetricLabels(userMessage);
+  const parts: string[] = [];
+
+  if (metrics.wantsPrice && company.price !== 'n/a') {
+    parts.push(`price ${company.price}`);
+  }
+  if (metrics.wantsPrice && company.marketCap !== 'n/a') {
+    parts.push(`market cap ${company.marketCap}`);
+  }
+  if (metrics.wantsRevenue && company.quarterlyRevenue !== 'n/a') {
+    parts.push(`latest quarter revenue ${company.quarterlyRevenue}`);
+  }
+  if (metrics.wantsRevenue && company.annualRevenue !== 'n/a') {
+    parts.push(`annual revenue ${company.annualRevenue}`);
+  }
+  if (metrics.wantsMargin && company.quarterlyEbitda !== 'n/a') {
+    parts.push(`latest quarter EBITDA ${company.quarterlyEbitda}`);
+  }
+  if (metrics.wantsEarnings && company.quarterlyNetIncome !== 'n/a') {
+    parts.push(`latest quarter net income ${company.quarterlyNetIncome}`);
+  }
+  if (metrics.wantsEarnings && company.quarterlyEps !== 'n/a') {
+    parts.push(`EPS ${company.quarterlyEps}`);
+  }
+
+  if (parts.length === 0) {
+    if (company.price !== 'n/a') parts.push(`price ${company.price}`);
+    if (company.quarterlyRevenue !== 'n/a') parts.push(`latest quarter revenue ${company.quarterlyRevenue}`);
+    if (company.quarterlyEps !== 'n/a') parts.push(`EPS ${company.quarterlyEps}`);
+    if (company.annualRevenue !== 'n/a') parts.push(`annual revenue ${company.annualRevenue}`);
+  }
+
+  return `${company.ticker} (${company.companyName}): ${parts.join('; ') || 'no usable financial metrics available'}`;
+}
+
+export function serializeFactsBriefForContext(facts: VerifiedFacts, userMessage = ''): string {
+  const sections: string[] = [];
+  const isCompanyLike = facts.intent === 'company_question' || facts.intent === 'financial_model';
+  const isMarketLike = facts.intent === 'market_question' || facts.intent === 'event_intelligence';
+
+  sections.push(`As of ${fmtDate(facts.asOf)}. Use these sourced facts first. If a metric is missing, say so instead of guessing.`);
+
+  if (isCompanyLike && facts.companies.length > 0) {
+    sections.push(
+      'Company facts:\n' +
+      facts.companies
+        .slice(0, 2)
+        .map((company) => `- ${companyBriefLine(company, userMessage)}`)
+        .join('\n')
+    );
+  }
+
+  if (isMarketLike && facts.curatedHeadlines.length > 0) {
+    sections.push(
+      'Market context:\n' +
+      facts.curatedHeadlines
+        .slice(0, 3)
+        .map((headline, index) => `- ${index + 1}. [${headline.category}] ${headline.headline} — ${headline.marketImpact}`)
+        .join('\n')
+    );
+  } else if (isMarketLike && facts.events.length > 0) {
+    sections.push(
+      'Market context:\n' +
+      facts.events
+        .slice(0, 3)
+        .map((event) => `- ${event.headline} (${event.source}, ${event.date}) — ${event.keyFacts[0] ?? 'no additional detail'}`)
+        .join('\n')
+    );
+  }
+
+  if (!isCompanyLike && !isMarketLike && facts.numbers.length > 0) {
+    sections.push(
+      'Relevant numbers:\n' +
+      facts.numbers
+        .slice(0, 4)
+        .map((number) => `- ${number}`)
+        .join('\n')
+    );
+  }
+
+  if (facts.dataGaps.length > 0) {
+    sections.push(
+      'Missing or incomplete data:\n' +
+      facts.dataGaps
+        .slice(0, 2)
+        .map((gap) => `- ${gap}`)
+        .join('\n')
+    );
+  }
+
+  if (facts.sources.length > 0) {
+    sections.push(`Sources: ${facts.sources.slice(0, 4).join(' | ')}`);
+  }
+
+  return sections.join('\n\n');
+}

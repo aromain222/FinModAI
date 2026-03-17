@@ -126,13 +126,9 @@ If the question is about stock performance:
 - separate operating drivers from valuation or sentiment drivers
 - keep the answer focused on the company unless there is a real peer or sector spillover
 
-Output format:
-Summary paragraph:
-Why it matters paragraph:
-Analysis paragraph:
-Impacted stocks or sectors:
-- Include only if there is a clear read-through beyond the company itself.
-- If not, write: None beyond the company directly discussed.`;
+By default, answer in 2 to 3 short paragraphs of natural prose.
+Do not use labeled section headers or bullet lists unless the user explicitly asks for structure.
+If there is a real peer or sector read-through, mention it briefly near the end. If not, stay focused on the company itself.`;
 
 /* ── 3A. FAST POST-EARNINGS TAKE ── */
 export const EARNINGS_TAKE_PROMPT = `You are writing a fast post-earnings take for an investor.
@@ -237,13 +233,9 @@ Instructions:
 - Identify the most exposed business line, company type, sector, or asset class
 - Avoid excessive hedging
 
-Output:
-Summary paragraph:
-Why it matters paragraph:
-Analysis paragraph:
-Most affected stocks/sectors:
-- Include only the most directly exposed names or sectors.
-- If no clear read-through exists, say: None beyond the directly mentioned company or sector.`;
+By default, answer in 2 to 3 short paragraphs of natural prose.
+Do not use labeled section headers or bullet lists unless the user explicitly asks for structure.
+If direct exposures matter, mention the most affected names or sectors briefly at the end instead of forcing a separate section.`;
 
 /* ── 8A. GENERIC FINANCE WRITEUP EVALUATION / REWRITE ── */
 export const FINANCE_WRITEUP_REWRITE_PROMPT = `Evaluate the following finance writeup like a demanding buy-side analyst.

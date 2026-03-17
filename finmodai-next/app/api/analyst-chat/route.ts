@@ -20,7 +20,7 @@ import OpenAI from 'openai';
 import type { UploadedAttachmentContext } from '@/lib/analyst/attachmentContext';
 import { routeAnalystQuery, type AnalystRoute } from '@/lib/analyst/router';
 import { retrieveDataForRoute } from '@/lib/analyst/dataRetrieval';
-import { extractVerifiedFacts, serializeFactsForContext, type VerifiedFacts } from '@/lib/analyst/factsExtractor';
+import { extractVerifiedFacts, serializeFactsBriefForContext, type VerifiedFacts } from '@/lib/analyst/factsExtractor';
 import { gatherAnalystRetrievalContext, inferTickerFromPrompt } from '@/lib/analyst/retrieval';
 import { generateAnalystDcfDemo, reviseAnalystDcfDemo, type AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 import {
@@ -125,6 +125,11 @@ function isVisualizationPrompt(message: string): boolean {
     /\b(graph|chart|cgart|visuali[sz]e|plot|trend line|show.*chart|show.*graph)\b/.test(text) &&
     !/\b(download|export)\b/.test(text)
   );
+}
+
+function userExplicitlyWantsStructuredOutput(message: string): boolean {
+  const text = message.toLowerCase();
+  return /\b(bullets?|bullet points?|table|json|memo|sections?|headers?|outline|format|template|list)\b/.test(text);
 }
 
 function isRevenueForecastVisualizationPrompt(message: string): boolean {
@@ -351,7 +356,6 @@ function currentArtifactContextBlock(params: {
       `Market cap: ${params.currentStock.marketCap != null ? `$${Math.round(params.currentStock.marketCap).toLocaleString('en-US')}` : 'not available'}`,
       `Revenue / EBITDA / net income: ${params.currentStock.revenueLtm != null ? `$${Math.round(params.currentStock.revenueLtm).toLocaleString('en-US')}M` : 'n/a'} / ${params.currentStock.ebitdaLtm != null ? `$${Math.round(params.currentStock.ebitdaLtm).toLocaleString('en-US')}M` : 'n/a'} / ${params.currentStock.netIncomeLtm != null ? `$${Math.round(params.currentStock.netIncomeLtm).toLocaleString('en-US')}M` : 'n/a'}`,
       `Sector / industry: ${params.currentStock.sector ?? 'n/a'} / ${params.currentStock.industry ?? 'n/a'}`,
-      `Use this company context unless the user clearly pivots away from it.`,
     ].join('\n');
   }
 
@@ -440,7 +444,7 @@ async function buildFallbackReply(params: {
   const header = headerByReason[params.reason];
 
   if (params.facts) {
-    const factBlock = serializeFactsForContext(params.facts);
+    const factBlock = serializeFactsBriefForContext(params.facts, params.userMessage);
     return `${header}\n\n${factBlock}`;
   }
 
@@ -854,7 +858,7 @@ export async function POST(req: NextRequest) {
     /* ── Step 3: Extract verified facts ── */
     const facts = extractVerifiedFacts(route, retrievedData);
     verifiedFacts = facts;
-    const factsContext = serializeFactsForContext(facts);
+    const factsContext = serializeFactsBriefForContext(facts, lastUserMessage);
 
     if (process.env.NODE_ENV !== 'production') {
       console.debug('[analyst-chat] facts extracted:', {
@@ -890,13 +894,17 @@ export async function POST(req: NextRequest) {
     /* ── Step 4: Build LLM messages with intent-specific prompt + verified facts ── */
     const useWebTools = route.requiresLiveData && facts.events.length === 0 && facts.numbers.length === 0;
     const intentPrompt = getIntentPrompt(route.intent, lastUserMessage);
+    const styleInstruction = userExplicitlyWantsStructuredOutput(lastUserMessage)
+      ? 'Use the structure the user explicitly asked for. Keep it concise and finance-native.'
+      : 'Default to natural analyst prose in short paragraphs. Do not use labeled section headers, bullet lists, memo scaffolding, or template headings unless the user explicitly asked for them.';
 
     const inputMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
       { role: 'system', content: ANALYST_SYSTEM_PROMPT },
       ...(intentPrompt ? [{ role: 'system' as const, content: intentPrompt }] : []),
+      { role: 'system', content: styleInstruction },
       {
         role: 'system',
-        content: `VERIFIED FACTS CONTEXT (retrieved and verified before this conversation — base your analysis on these):\n\n${factsContext}`,
+        content: `Sourced context for this answer:\n\n${factsContext}`,
       },
       ...(macroEventsBlock ? [{ role: 'system' as const, content: macroEventsBlock }] : []),
       ...(currentArtifactBlock ? [{ role: 'system' as const, content: currentArtifactBlock }] : []),
