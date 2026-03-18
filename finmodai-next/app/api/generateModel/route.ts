@@ -255,6 +255,68 @@ function normalizeSharesToMillions(value: number | null): number | null {
   return value > 1_000_000 ? value / 1_000_000 : value;
 }
 
+function buildModelAssumptionPrompts(modelType: RequestModelType) {
+  switch (modelType) {
+    case 'reverse-dcf':
+      return {
+        missing: [
+          'targetPrice',
+          'revenue',
+          'ebitda_margin',
+          'tax_rate_assumption',
+          'capex_pct_revenue',
+          'nwc_pct_revenue',
+          'wacc',
+          'terminal_growth',
+          'projectionYears',
+        ],
+        requiredInputs: [
+          { key: 'targetPrice', label: 'Target Price', type: 'number', unit: 'USD', scale: 'raw', hint: 'You can also anchor with market cap or share price plus shares outstanding.' },
+          { key: 'marketCap', label: 'Market Cap', type: 'number', unit: 'USD', scale: 'raw', hint: 'Optional alternative anchor to target price.' },
+          { key: 'sharePrice', label: 'Share Price', type: 'number', unit: 'USD', scale: 'raw', hint: 'Optional alternative anchor if you also provide shares outstanding.' },
+          { key: 'shares_out_basic', label: 'Shares Outstanding', type: 'number', unit: 'Shares', scale: 'raw' },
+          { key: 'revenue', label: 'Revenue (LTM)', type: 'number', unit: 'USD', scale: 'raw' },
+          { key: 'ebitda_margin', label: 'EBITDA Margin', type: 'percent', unit: '%' },
+          { key: 'tax_rate_assumption', label: 'Tax Rate', type: 'percent', unit: '%' },
+          { key: 'capex_pct_revenue', label: 'Capex % of Revenue', type: 'percent', unit: '%' },
+          { key: 'nwc_pct_revenue', label: 'NWC % of Revenue', type: 'percent', unit: '%' },
+          { key: 'wacc', label: 'WACC', type: 'percent', unit: '%' },
+          { key: 'terminal_growth', label: 'Terminal Growth', type: 'percent', unit: '%' },
+          { key: 'projectionYears', label: 'Projection Years', type: 'number' },
+        ],
+      };
+    case 'dcf':
+      return {
+        missing: ['revenue', 'ebitda', 'tax_rate_assumption', 'wacc', 'terminal_growth', 'net_debt', 'shares_out_basic'],
+        requiredInputs: [
+          ...buildRequiredInputs(['revenue', 'ebitda', 'tax_rate_assumption', 'terminal_growth']),
+          { key: 'wacc', label: 'WACC', type: 'percent', unit: '%' },
+          ...buildRequiredInputs(['net_debt', 'shares_out_basic']),
+        ],
+      };
+    case 'three-statement':
+      return {
+        missing: ['revenue', 'ebitda', 'net_income', 'cash', 'total_debt', 'tax_rate_assumption'],
+        requiredInputs: buildRequiredInputs(['revenue', 'ebitda', 'net_income', 'cash', 'total_debt', 'tax_rate_assumption']),
+      };
+    case 'lbo':
+      return {
+        missing: ['revenue', 'ebitda', 'entry_multiple', 'exit_multiple', 'debt_percent', 'interest_rate', 'holding_period_years'],
+        requiredInputs: buildRequiredInputs(['revenue', 'ebitda', 'entry_multiple', 'exit_multiple', 'debt_percent', 'interest_rate', 'holding_period_years']),
+      };
+    case 'comps':
+      return {
+        missing: ['revenue', 'ebitda', 'net_income', 'market_cap', 'shares_out_basic', 'customPeers'],
+        requiredInputs: buildRequiredInputs(['revenue', 'ebitda', 'net_income', 'market_cap', 'shares_out_basic', 'customPeers']),
+      };
+    default:
+      return {
+        missing: ['revenue'],
+        requiredInputs: buildRequiredInputs(['revenue'], 'Real company data is unavailable; provide manual inputs to continue.'),
+      };
+  }
+}
+
 /**
  * Safely fetch financial data with error handling
  */
@@ -3103,6 +3165,27 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       normalizedModelInputs = normalizedResult.value;
       body.modelInputs = normalizedModelInputs;
 
+      if (!privateManualMode && normalizedModelInputs.metadata?.liveDataFallback === true) {
+        const promptRequirements = buildModelAssumptionPrompts(modelType);
+        return NextResponse.json(
+          {
+            ok: false,
+            state: 'assumptions_required',
+            status: 'assumptions_required',
+            code: 'real_data_required',
+            message:
+              `Prompt-to-model for ${cleanTicker} will not use seeded fallback company data. ` +
+              `Provide the required assumptions manually or retry once real company data is available.`,
+            missing: promptRequirements.missing,
+            requiredInputs: promptRequirements.requiredInputs,
+            canGenerate: false,
+            liveDataFallback: true,
+            liveDataStatus: normalizedModelInputs.metadata?.liveDataStatus || 'missing_live_data',
+          },
+          { status: 200 }
+        );
+      }
+
       if (normalizedModelInputs) {
         body.companyName = body.companyName || normalizedModelInputs.company.name;
         body.currency = body.currency || normalizedModelInputs.company.currency || 'USD';
@@ -4723,8 +4806,53 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
 
     const computabilityModelType =
       modelType === 'reverse-dcf' ? 'dcf' : modelType;
+    const reverseDcfMissing: string[] = [];
+    if (modelType === 'reverse-dcf') {
+      const hasRevenue = typeof baseInputs.revenue === 'number' && Number.isFinite(baseInputs.revenue) && baseInputs.revenue > 0;
+      const hasTargetPrice = typeof reverseDcfRawInputs?.targetPrice === 'number' && Number.isFinite(reverseDcfRawInputs.targetPrice) && reverseDcfRawInputs.targetPrice > 0;
+      const hasMarketCap = typeof baseInputs.market_cap === 'number' && Number.isFinite(baseInputs.market_cap) && baseInputs.market_cap > 0;
+      const hasSharePair =
+        typeof baseInputs.price === 'number' &&
+        Number.isFinite(baseInputs.price) &&
+        baseInputs.price > 0 &&
+        typeof baseInputs.shares_out_basic === 'number' &&
+        Number.isFinite(baseInputs.shares_out_basic) &&
+        baseInputs.shares_out_basic > 0;
+      const hasMargin =
+        (Array.isArray((sanitizedAssumptions as any)?.ebitdaMargin) &&
+          typeof (sanitizedAssumptions as any).ebitdaMargin[0] === 'number' &&
+          Number.isFinite((sanitizedAssumptions as any).ebitdaMargin[0])) ||
+        (typeof (sanitizedAssumptions as any)?.ebitdaMargin === 'number' &&
+          Number.isFinite((sanitizedAssumptions as any).ebitdaMargin)) ||
+        (typeof baseInputs.ebitda === 'number' &&
+          Number.isFinite(baseInputs.ebitda) &&
+          typeof baseInputs.revenue === 'number' &&
+          Number.isFinite(baseInputs.revenue) &&
+          baseInputs.revenue > 0);
+      const hasTaxRate =
+        typeof (sanitizedAssumptions as any)?.taxRate === 'number' ||
+        typeof baseInputs.tax_rate_assumption === 'number';
+      const hasCapexPct =
+        (Array.isArray((sanitizedAssumptions as any)?.capexPctRevenue) &&
+          typeof (sanitizedAssumptions as any).capexPctRevenue[0] === 'number') ||
+        typeof (sanitizedAssumptions as any)?.capexPctRevenue === 'number';
+      const hasNwcPct =
+        (Array.isArray((sanitizedAssumptions as any)?.nwcPctRevenue) &&
+          typeof (sanitizedAssumptions as any).nwcPctRevenue[0] === 'number') ||
+        typeof (sanitizedAssumptions as any)?.nwcPctRevenue === 'number';
+
+      if (!hasRevenue) reverseDcfMissing.push('revenue');
+      if (!hasTargetPrice && !hasMarketCap && !hasSharePair) reverseDcfMissing.push('targetPrice');
+      if (!hasMargin) reverseDcfMissing.push('ebitda_margin');
+      if (!hasTaxRate) reverseDcfMissing.push('tax_rate_assumption');
+      if (!hasCapexPct) reverseDcfMissing.push('capex_pct_revenue');
+      if (!hasNwcPct) reverseDcfMissing.push('nwc_pct_revenue');
+      if (!(typeof baseInputs.wacc === 'number' && Number.isFinite(baseInputs.wacc) && baseInputs.wacc > 0)) reverseDcfMissing.push('wacc');
+      if (!(typeof baseInputs.terminal_growth === 'number' && Number.isFinite(baseInputs.terminal_growth))) reverseDcfMissing.push('terminal_growth');
+      if (!(typeof reverseDcfRawInputs?.projectionYears === 'number' && Number.isFinite(reverseDcfRawInputs.projectionYears))) reverseDcfMissing.push('projectionYears');
+    }
     const computabilityCheck =
-      modelType === 'scorecard' || modelType === 'debt-capacity-lite' || modelType === 'reverse-dcf'
+      modelType === 'scorecard' || modelType === 'debt-capacity-lite'
         ? {
             isComputable: true,
             state: 'computable' as const,
@@ -4732,11 +4860,22 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
             estimated: estimatedInputs,
             message: undefined,
           }
-        : await checkModelComputability(
-            computabilityModelType as 'comps' | 'dcf' | 'three-statement' | 'lbo' | 'merger',
-            baseInputs,
-            estimatedInputs
-          );
+        : modelType === 'reverse-dcf'
+          ? {
+              isComputable: reverseDcfMissing.length === 0,
+              state: (reverseDcfMissing.length === 0 ? 'computable' : 'assumptions_required') as const,
+              missing: reverseDcfMissing,
+              estimated: estimatedInputs,
+              message:
+                reverseDcfMissing.length > 0
+                  ? `Reverse DCF still needs explicit assumptions: ${reverseDcfMissing.join(', ')}`
+                  : undefined,
+            }
+          : await checkModelComputability(
+              computabilityModelType as 'comps' | 'dcf' | 'three-statement' | 'lbo' | 'merger',
+              baseInputs,
+              estimatedInputs
+            );
 
     // Enhanced logging for comps model
     if (modelType === 'comps') {
@@ -4786,14 +4925,23 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
                         req.nextUrl.searchParams.get('format') === 'json';
       
       if (wantsJson) {
+        const requiredInputs =
+          modelType === 'reverse-dcf'
+            ? buildModelAssumptionPrompts('reverse-dcf').requiredInputs.filter((spec) =>
+                computabilityCheck.missing.includes(spec.key) ||
+                (spec.key === 'marketCap' && computabilityCheck.missing.includes('targetPrice')) ||
+                (spec.key === 'sharePrice' && computabilityCheck.missing.includes('targetPrice')) ||
+                (spec.key === 'shares_out_basic' && computabilityCheck.missing.includes('targetPrice'))
+              )
+            : buildRequiredInputs(
+                computabilityCheck.missing,
+                'Required to compute the model.'
+              );
         return NextResponse.json(
           {
             state: 'assumptions_required',
             missing: computabilityCheck.missing,
-            requiredInputs: buildRequiredInputs(
-              computabilityCheck.missing,
-              'Required to compute the model.'
-            ),
+            requiredInputs,
             estimated: estimatedInputs,
             message: computabilityCheck.message,
             canGenerate: false,
@@ -4804,15 +4952,24 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
 
       // For non-JSON requests, still return 200 but with error message
       // (UI should handle this and show assumptions editor)
+      const requiredInputs =
+        modelType === 'reverse-dcf'
+          ? buildModelAssumptionPrompts('reverse-dcf').requiredInputs.filter((spec) =>
+              computabilityCheck.missing.includes(spec.key) ||
+              (spec.key === 'marketCap' && computabilityCheck.missing.includes('targetPrice')) ||
+              (spec.key === 'sharePrice' && computabilityCheck.missing.includes('targetPrice')) ||
+              (spec.key === 'shares_out_basic' && computabilityCheck.missing.includes('targetPrice'))
+            )
+          : buildRequiredInputs(
+              computabilityCheck.missing,
+              'Required to compute the model.'
+            );
       return NextResponse.json(
         {
           error: 'ASSUMPTIONS_REQUIRED',
           state: 'assumptions_required',
           missing: computabilityCheck.missing,
-          requiredInputs: buildRequiredInputs(
-            computabilityCheck.missing,
-            'Required to compute the model.'
-          ),
+          requiredInputs,
           estimated: estimatedInputs,
           message: computabilityCheck.message,
         },
