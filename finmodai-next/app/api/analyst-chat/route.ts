@@ -433,6 +433,7 @@ async function buildFallbackReply(params: {
   facts?: VerifiedFacts;
   userMessage: string;
   reason: 'missing_key' | 'auth_failed' | 'rate_limited' | 'model_unavailable' | 'data_unavailable';
+  preferSilent?: boolean;
 }): Promise<string> {
   const headerByReason: Record<typeof params.reason, string> = {
     missing_key: 'OpenAI key is not configured. Returning retrieved data context only.',
@@ -442,6 +443,10 @@ async function buildFallbackReply(params: {
     data_unavailable: 'The requested model could not be built because company financial data is not available or complete for this ticker right now.',
   };
   const header = headerByReason[params.reason];
+
+  if (params.preferSilent && params.reason !== 'data_unavailable') {
+    return '';
+  }
 
   if (params.facts) {
     const factBlock = serializeFactsBriefForContext(params.facts, params.userMessage);
@@ -878,6 +883,7 @@ export async function POST(req: NextRequest) {
         facts,
         userMessage: lastUserMessage,
         reason: 'missing_key',
+        preferSilent: Boolean(stockLookupPayload),
       });
       return NextResponse.json({
         reply: fallback,
@@ -1063,6 +1069,7 @@ export async function POST(req: NextRequest) {
         facts: verifiedFacts,
         userMessage: fallbackUserMessage,
         reason: failureReason,
+        preferSilent: Boolean(stockLookupPayload),
       });
     } catch {
       // keep generic fallback

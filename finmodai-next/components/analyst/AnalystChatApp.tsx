@@ -365,11 +365,6 @@ export function AnalystChatApp() {
                 }`}
               >
                 {message.content}
-                {message.role === 'assistant' && message.meta?.mode === 'fallback' && (
-                  <div className="mt-2 text-[10px] uppercase tracking-wide text-amber-300/90">
-                    fallback mode{message.meta.reason ? ` • ${message.meta.reason}` : ''}
-                  </div>
-                )}
                 {message.role === 'assistant' && message.meta?.attachmentUsed && (
                   <div className="mt-2 text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
                     {message.meta.attachmentUsed}
