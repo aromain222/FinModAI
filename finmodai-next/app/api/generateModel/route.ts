@@ -2387,22 +2387,66 @@ async function buildCompsModelWithAssumptions(
     targetCompany.netDebt ??
     (typeof targetDebt === 'number' && typeof targetCash === 'number' ? targetDebt - targetCash : null);
 
+  const toNum = (value: unknown): number | null => {
+    if (typeof value === 'number' && isFinite(value)) return value;
+    if (typeof value === 'string' && value.trim().length > 0) {
+      const parsed = Number(value.replace(/[$,\s]/g, ''));
+      return isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  };
+
+  const modelInputs = options?.modelInputs;
+  const targetRevenue =
+    normalizedFinancials?.revenueM ??
+    targetCompany.revenue ??
+    toNum((assumptions as any).revenueLtm) ??
+    toNum((assumptions as any).revenueLTM) ??
+    toNum((assumptions as any).ltmRevenue) ??
+    toNum(modelInputs?.incomeStatement?.revenue) ??
+    toNum(modelInputs?.kpis?.arr) ??
+    null;
+  const targetEbitda =
+    normalizedFinancials?.ebitdaM ??
+    targetCompany.ebitda ??
+    toNum((assumptions as any).ebitdaLtm) ??
+    toNum((assumptions as any).ebitdaLTM) ??
+    toNum(modelInputs?.incomeStatement?.ebitda) ??
+    null;
+  const targetNetIncome =
+    normalizedFinancials?.netIncomeM ??
+    targetCompany.netIncome ??
+    toNum((assumptions as any).netIncomeLtm) ??
+    toNum((assumptions as any).netIncomeLTM) ??
+    toNum(modelInputs?.incomeStatement?.netIncome) ??
+    null;
+  const targetPrice =
+    targetCompany.price ??
+    toNum((assumptions as any).sharePrice) ??
+    toNum(modelInputs?.pricingAnchor?.sharePrice) ??
+    null;
+  const targetMarketCapResolved =
+    targetMarketCap ??
+    toNum((assumptions as any).marketCap) ??
+    toNum(modelInputs?.pricingAnchor?.marketCap) ??
+    null;
+
   const target = {
     ticker: targetCompany.ticker,
     name: targetCompany.name,
     sector: targetCompany.sector ?? null,
-    revenue: normalizedFinancials?.revenueM ?? targetCompany.revenue,
-    ebitda: normalizedFinancials?.ebitdaM ?? targetCompany.ebitda,
+    revenue: targetRevenue,
+    ebitda: targetEbitda,
     ebit: normalizedFinancials?.ebitM ?? targetCompany.ebit,
-    netIncome: targetCompany.netIncome,
+    netIncome: targetNetIncome,
     shares: targetSharesResolution.sharesOutstanding,
     sharesOutstanding: targetSharesResolution.sharesOutstanding,
     sharesSource: targetSharesResolution.source,
-    marketCap: targetMarketCap,
+    marketCap: targetMarketCapResolved,
     cash: targetCash,
     debt: targetDebt,
     netDebt: targetNetDebt,
-    price: targetCompany.price,
+    price: targetPrice,
     userInputs, // Track user inputs for Excel labeling
   };
 

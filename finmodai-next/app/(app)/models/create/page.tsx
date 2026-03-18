@@ -575,7 +575,9 @@ function CreateModelPageInner() {
   const isPrivateMode = companyMode === 'private';
   type DemoCompany = { ticker: string; company_name: string | null; sector: string | null };
   const [demoCompanies, setDemoCompanies] = useState<DemoCompany[]>([]);
-  const [demoUniverseSource, setDemoUniverseSource] = useState<'company_cache' | 'demo_company_snapshots' | 'unknown'>('unknown');
+  const [demoUniverseSource, setDemoUniverseSource] = useState<
+    'company_cache' | 'demo_company_snapshots' | 'curated_demo_universe' | 'unknown'
+  >('unknown');
   const [demoUniverseCount, setDemoUniverseCount] = useState(0);
   const [demoSearch, setDemoSearch] = useState('');
   const [demoSectorFilter, setDemoSectorFilter] = useState<string>('');
@@ -609,7 +611,11 @@ function CreateModelPageInner() {
         const list = Array.isArray(data?.companies) ? data.companies : [];
         setDemoUniverseCount(typeof data?.count === 'number' ? data.count : list.length);
         setDemoUniverseSource(
-          data?.source === 'company_cache' || data?.source === 'demo_company_snapshots' ? data.source : 'unknown'
+          data?.source === 'company_cache' ||
+            data?.source === 'demo_company_snapshots' ||
+            data?.source === 'curated_demo_universe'
+            ? data.source
+            : 'unknown'
         );
         setDemoCompanies(
           list.map(
@@ -639,7 +645,11 @@ function CreateModelPageInner() {
           const list = Array.isArray(data?.companies) ? data.companies : [];
           setDemoUniverseCount(typeof data?.count === 'number' ? data.count : list.length);
           setDemoUniverseSource(
-            data?.source === 'company_cache' || data?.source === 'demo_company_snapshots' ? data.source : 'unknown'
+            data?.source === 'company_cache' ||
+              data?.source === 'demo_company_snapshots' ||
+              data?.source === 'curated_demo_universe'
+              ? data.source
+              : 'unknown'
           );
           setDemoCompanies(
             list.map(
@@ -2932,8 +2942,14 @@ function CreateModelPageInner() {
               {demoDataActive ? (
                 <div className="space-y-2 text-xs text-[var(--cb-text-muted)]">
                   <p>
-                    Automated Builder now supports the wired S&P 500 company universe: {demoUniverseCount || demoCompanies.length} companies currently available for model seeding.
-                    {demoUniverseSource === 'company_cache' ? ' Using cached company data first.' : demoUniverseSource === 'demo_company_snapshots' ? ' Using snapshot fallback coverage.' : ''}
+                    Automated Builder currently has {demoUniverseCount || demoCompanies.length} companies available for model seeding.
+                    {demoUniverseSource === 'company_cache'
+                      ? ' Using cached company data first.'
+                      : demoUniverseSource === 'demo_company_snapshots'
+                        ? ' Using snapshot fallback coverage.'
+                        : demoUniverseSource === 'curated_demo_universe'
+                          ? ' Using curated demo coverage.'
+                          : ''}
                   </p>
                   {ticker.trim() && demoTickers.length > 0 && !demoTickers.includes(normalizedTicker) && (
                     <p className="text-xs text-red-400">Ticker is not wired in the current company universe yet.</p>
