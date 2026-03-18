@@ -1,4 +1,4 @@
-import { getSupabaseServiceClient } from '@/lib/events/store';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 export type MarketCompanyListing = {
   ticker: string;
@@ -21,8 +21,17 @@ function toNumber(value: unknown): number | null {
   return null;
 }
 
+function getCompanyUniverseClient(): SupabaseClient | null {
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+  const key = serviceKey || anonKey;
+  if (!url || !key) return null;
+  return createClient(url, key, { auth: { persistSession: false } });
+}
+
 export async function getMarketCompanyUniverse(limit = 500): Promise<MarketCompanyListing[]> {
-  const supabase = getSupabaseServiceClient();
+  const supabase = getCompanyUniverseClient();
   if (!supabase) return [];
 
   const baseLimit = Math.max(limit * 3, 100);
@@ -39,14 +48,14 @@ export async function getMarketCompanyUniverse(limit = 500): Promise<MarketCompa
     .map((row) => (typeof row.id === 'string' ? row.id : null))
     .filter((value): value is string => Boolean(value));
 
-  const [snapshotsResult] = await Promise.all([
-    supabase
-      .from('company_snapshots')
-      .select('company_id, as_of_date, revenue_ltm, market_cap, source_priority')
-      .in('company_id', companyIds)
-      .order('as_of_date', { ascending: false })
-      .order('source_priority', { ascending: false }),
-  ]);
+  const snapshotsResult = companyIds.length
+    ? await supabase
+        .from('company_snapshots')
+        .select('company_id, as_of_date, revenue_ltm, market_cap, source_priority')
+        .in('company_id', companyIds)
+        .order('as_of_date', { ascending: false })
+        .order('source_priority', { ascending: false })
+    : { data: [] };
 
   const latestSnapshotByCompany = new Map<string, Record<string, unknown>>();
   for (const row of Array.isArray(snapshotsResult.data) ? snapshotsResult.data : []) {

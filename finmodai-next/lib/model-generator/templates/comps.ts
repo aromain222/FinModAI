@@ -20,6 +20,15 @@ function dateStamp() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 export function getPreview(inputs: CompsModelInputs) {
   return {
     title: `${inputs.companyName} Comparable Company Analysis`,
@@ -43,6 +52,52 @@ export async function buildWorkbook(inputs: CompsModelInputs): Promise<ExcelJS.W
 
   const result = calculateCompsFromData(inputs.subject, inputs.peers);
   const equations: EquationRow[] = [];
+  const subjectMarketCap = result.subject.marketCap ?? toFiniteNumber(inputs.subject.marketCap);
+  const subjectRevenue = result.subject.revenue ?? toFiniteNumber(inputs.subject.revenue);
+  const subjectEbitda = result.subject.ebitda ?? toFiniteNumber(inputs.subject.ebitda);
+  const subjectNetIncome = result.subject.netIncome ?? toFiniteNumber(inputs.subject.netIncome);
+  const subjectCash = result.subject.cash ?? toFiniteNumber(inputs.subject.cash);
+  const subjectDebt = result.subject.totalDebt ?? toFiniteNumber(inputs.subject.totalDebt);
+  const subjectNetDebt =
+    result.subject.netDebt ??
+    (subjectDebt !== null && subjectCash !== null ? subjectDebt - subjectCash : null);
+  const subjectEnterpriseValue =
+    result.subject.enterpriseValue ??
+    (subjectMarketCap !== null && subjectNetDebt !== null ? subjectMarketCap + subjectNetDebt : null);
+  const subjectShares =
+    result.subject.sharesOutstanding ?? toFiniteNumber(inputs.subject.sharesOutstanding);
+  const impliedEvRevenue =
+    result.impliedValuation.byEvRevenue ??
+    (result.medianMultiples.evToRevenue !== null && subjectRevenue !== null && subjectRevenue > 0
+      ? result.medianMultiples.evToRevenue * subjectRevenue
+      : null);
+  const impliedEvEbitda =
+    result.impliedValuation.byEvEbitda ??
+    (result.medianMultiples.evToEbitda !== null && subjectEbitda !== null && subjectEbitda > 0
+      ? result.medianMultiples.evToEbitda * subjectEbitda
+      : null);
+  const impliedEquityRevenue =
+    result.impliedValuation.equityValueByEvRevenue ??
+    (impliedEvRevenue !== null && subjectNetDebt !== null ? impliedEvRevenue - subjectNetDebt : null);
+  const impliedEquityEbitda =
+    result.impliedValuation.equityValueByEvEbitda ??
+    (impliedEvEbitda !== null && subjectNetDebt !== null ? impliedEvEbitda - subjectNetDebt : null);
+  const impliedEquityPe = result.impliedValuation.equityValueByPe ?? result.impliedValuation.byPe;
+  const impliedPriceRevenue =
+    result.impliedValuation.pricePerShareByEvRevenue ??
+    (impliedEquityRevenue !== null && subjectShares !== null && subjectShares > 0
+      ? impliedEquityRevenue / subjectShares
+      : null);
+  const impliedPriceEbitda =
+    result.impliedValuation.pricePerShareByEvEbitda ??
+    (impliedEquityEbitda !== null && subjectShares !== null && subjectShares > 0
+      ? impliedEquityEbitda / subjectShares
+      : null);
+  const impliedPricePe =
+    result.impliedValuation.pricePerShareByPe ??
+    (impliedEquityPe !== null && subjectShares !== null && subjectShares > 0
+      ? impliedEquityPe / subjectShares
+      : null);
 
   summary.getCell('A1').value = `${inputs.companyName} Comparable Company Analysis`;
   summary.mergeCells('A1:F1');
@@ -67,9 +122,9 @@ export async function buildWorkbook(inputs: CompsModelInputs): Promise<ExcelJS.W
   summary.getCell('E7').value = 'Implied Price';
 
   const rows = [
-    ['EV / Revenue', result.medianMultiples.evToRevenue, result.impliedValuation.byEvRevenue, result.impliedValuation.equityValueByEvRevenue, result.impliedValuation.pricePerShareByEvRevenue],
-    ['EV / EBITDA', result.medianMultiples.evToEbitda, result.impliedValuation.byEvEbitda, result.impliedValuation.equityValueByEvEbitda, result.impliedValuation.pricePerShareByEvEbitda],
-    ['P / E', result.medianMultiples.peRatio, result.impliedValuation.byPe, result.impliedValuation.equityValueByPe, result.impliedValuation.pricePerShareByPe],
+    ['EV / Revenue', result.medianMultiples.evToRevenue, impliedEvRevenue, impliedEquityRevenue, impliedPriceRevenue],
+    ['EV / EBITDA', result.medianMultiples.evToEbitda, impliedEvEbitda, impliedEquityEbitda, impliedPriceEbitda],
+    ['P / E', result.medianMultiples.peRatio, result.impliedValuation.byPe, impliedEquityPe, impliedPricePe],
   ] as const;
 
   rows.forEach((row, index) => {
@@ -89,10 +144,10 @@ export async function buildWorkbook(inputs: CompsModelInputs): Promise<ExcelJS.W
 
   styleSectionHeader(summary, 13, 'Subject Snapshot', 4);
   const snapshotRows = [
-    ['Enterprise value', result.subject.enterpriseValue],
-    ['Revenue', result.subject.revenue],
-    ['EBITDA', result.subject.ebitda],
-    ['Net income', result.subject.netIncome],
+    ['Enterprise value', subjectEnterpriseValue],
+    ['Revenue', subjectRevenue],
+    ['EBITDA', subjectEbitda],
+    ['Net income', subjectNetIncome],
   ] as const;
   snapshotRows.forEach((row, index) => {
     const excelRow = 14 + index;

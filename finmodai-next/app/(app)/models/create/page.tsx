@@ -602,13 +602,15 @@ function CreateModelPageInner() {
     // fall back to the market-brief companies API if needed.
     const loadDemoUniverse = async () => {
       try {
-        const res = await fetch('/api/demo/tickers?scenarioReady=1&demo=true');
+        const res = await fetch('/api/demo/tickers?demo=true');
         if (!res.ok) throw new Error('demo tickers failed');
         const data = await res.json();
         if (!active) return;
         const list = Array.isArray(data?.companies) ? data.companies : [];
-        setDemoUniverseCount(list.length);
-        setDemoUniverseSource('demo_company_snapshots');
+        setDemoUniverseCount(typeof data?.count === 'number' ? data.count : list.length);
+        setDemoUniverseSource(
+          data?.source === 'company_cache' || data?.source === 'demo_company_snapshots' ? data.source : 'unknown'
+        );
         setDemoCompanies(
           list.map(
             (row: {
