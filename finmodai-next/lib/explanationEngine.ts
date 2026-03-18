@@ -4,13 +4,11 @@
  * Generates natural language explanations for scenario outcomes
  * Tone: Precise, honest, judgment-focused (not promotional)
  */
-
-import OpenAI from 'openai';
 import { type BaseAssumptions, type ScenarioAssumptions, type ValuationResult } from './frameEngine';
 import { type WaterfallData, type DriverContribution } from './attribution';
 import { type ScenarioFrame } from './scenarioFrames';
 import { safeDivide } from './dataQuality';
-import { getOpenAIKey, getOpenAIModelCandidates } from '@/lib/openaiKey';
+import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 
 /**
  * Explains valuation change between base and scenario
@@ -286,19 +284,7 @@ export async function generateAIScenarioExplanation(
   confidence: 'high' | 'medium' | 'low';
   error?: string;
 }> {
-  const openaiKey = getOpenAIKey('user') || getOpenAIKey('service');
-  
-  if (!openaiKey) {
-    return {
-      aiSummary: '',
-      confidence: 'low',
-      error: 'OpenAI API key not configured',
-    };
-  }
-  
   try {
-    const openai = new OpenAI({ apiKey: openaiKey });
-    
     const delta = scenarioValuation.enterpriseValue - baseValuation.enterpriseValue;
     const deltaPercent = safeDivide(delta, baseValuation.enterpriseValue) || 0;
     
@@ -343,37 +329,28 @@ Rules:
 - Use the numeric inputs above directly.
 - ${dataQuality === 'low' ? 'State clearly that outputs are directional because data quality is low.' : 'Briefly mention key model limits without overstating certainty.'}`;
 
-    const modelCandidates = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-5.4-pro', 'gpt-5.4');
-    let response: Awaited<ReturnType<typeof openai.chat.completions.create>> | null = null;
-    let lastError: unknown = null;
-    for (const model of modelCandidates) {
-      try {
-        response = await openai.chat.completions.create({
-          model,
-          messages: [
-            {
-              role: 'system',
-              content:
-                'You are a professional financial analyst. Use direct, plain language, short bullets, and clear reasoning. Avoid jargon-heavy writing.',
-            },
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          temperature: 0.7,
-          max_tokens: 500,
-        });
-        break;
-      } catch (error) {
-        lastError = error;
-      }
+    const response = await generateTextWithProviderFallback({
+      clientType: 'user',
+      preferredProvider: 'anthropic',
+      temperature: 0.7,
+      maxTokens: 500,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a professional financial analyst. Use direct, plain language, short bullets, and clear reasoning. Avoid jargon-heavy writing.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+    });
+
+    const aiSummary = response?.text || '';
+    if (!aiSummary) {
+      throw new Error('LLM explanation failed across all provider candidates');
     }
-    if (!response) {
-      throw (lastError instanceof Error ? lastError : new Error('OpenAI explanation failed across all model candidates'));
-    }
-    
-    const aiSummary = response.choices[0]?.message?.content || '';
     
     // Determine confidence based on data quality and response quality
     let confidence: 'high' | 'medium' | 'low' = 'medium';

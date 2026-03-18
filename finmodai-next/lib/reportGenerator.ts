@@ -1,5 +1,4 @@
-import OpenAI from 'openai';
-import { getOpenAIKey, getOpenAIModelCandidates } from '@/lib/openaiKey';
+import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 import {
   getReportWriterSystemPrompt,
   buildReportWriterUserPrompt,
@@ -1508,43 +1507,27 @@ async function maybeGenerateStructuredPayloadWithOpenAI(
   fallbackTitle: string,
   fallbackSubtitle: string
 ): Promise<StructuredReportPayload | null> {
-  const apiKey = getOpenAIKey('service');
-  if (!apiKey) return null;
-
-  const models = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-5.4-pro', 'gpt-5.4');
-  if (!models.length) return null;
-
   const fallbackSummary = buildSummaryFallback(context);
-
-  for (const model of models) {
-    try {
-      const client = new OpenAI({ apiKey });
-      const response = await client.chat.completions.create({
-        model,
-        temperature: 0.2,
-        max_tokens: 900,
-        messages: [
-          { role: 'system', content: getReportWriterSystemPrompt(context) },
-          {
-            role: 'user',
-            content: buildReportWriterUserPrompt(context),
-          },
-        ],
-      });
-
-      const content = response.choices[0]?.message?.content?.trim();
-      if (!content) continue;
-      const jsonText = extractJsonObject(content);
-      if (!jsonText) continue;
-      const parsed = JSON.parse(jsonText) as AiReportResponse;
-      const payload = coerceAiReportPayload(parsed, fallbackTitle, fallbackSubtitle, fallbackSummary);
-      if (payload) return payload;
-    } catch {
-      continue;
-    }
+  try {
+    const response = await generateTextWithProviderFallback({
+      clientType: 'service',
+      preferredProvider: 'anthropic',
+      maxTokens: 900,
+      temperature: 0.2,
+      messages: [
+        { role: 'system', content: getReportWriterSystemPrompt(context) },
+        { role: 'user', content: buildReportWriterUserPrompt(context) },
+      ],
+    });
+    const content = response?.text?.trim();
+    if (!content) return null;
+    const jsonText = extractJsonObject(content);
+    if (!jsonText) return null;
+    const parsed = JSON.parse(jsonText) as AiReportResponse;
+    return coerceAiReportPayload(parsed, fallbackTitle, fallbackSubtitle, fallbackSummary);
+  } catch {
+    return null;
   }
-
-  return null;
 }
 
 export async function generateModelReport(context: ReportContext): Promise<GeneratedModelReport> {

@@ -3,8 +3,7 @@
  * Uses AI to enhance and validate financial assumptions
  */
 
-import OpenAI from 'openai';
-import { getOpenAIKey } from '@/lib/openaiKey';
+import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 import { CAPITAL_BASE_THREE_STATEMENT_VALIDATION_SYSTEM } from '@/lib/prompts/capitalBaseThreeStatement';
 
 export interface UnifiedAssumptions {
@@ -150,20 +149,14 @@ export async function enrichUnifiedAssumptions(
   }
   
   // Step 2: Use OpenAI for validation and additional suggestions (optional) — service key for backend
-  const apiKey = getOpenAIKey('service');
-  const model = process.env.OPENAI_MODEL || 'gpt-5.4';
-  
   let aiSuggestions: string[] = [];
   let confidence: 'high' | 'medium' | 'low' = inferences.length > 0 ? 'high' : 'medium';
   
-  if (apiKey && missingFields.length > 0) {
+  if (missingFields.length > 0) {
     try {
-      const openai = new OpenAI({ apiKey });
       const prompt = buildEnrichmentPrompt(enrichedData);
       
-      console.log('🔥 OPENAI CALL FIRED (assumption validation)', {
-        hasKey: !!apiKey,
-        model,
+      console.log('🔥 LLM CALL FIRED (assumption validation)', {
         ticker: assumptions.ticker,
         missingFields: missingFields.length,
         timestamp: new Date().toISOString(),
@@ -174,27 +167,28 @@ export async function enrichUnifiedAssumptions(
         ? CAPITAL_BASE_THREE_STATEMENT_VALIDATION_SYSTEM
         : 'You are a financial analyst helping to validate and improve financial model assumptions. Provide concise, actionable suggestions.';
 
-      const completion = await openai.chat.completions.create({
-        model,
+      const response = await generateTextWithProviderFallback({
+        clientType: 'service',
+        preferredProvider: 'anthropic',
+        temperature: 0.3,
+        maxTokens: 500,
         messages: [
           { role: 'system', content: systemContent },
           { role: 'user', content: prompt }
         ],
-        temperature: 0.3,
-        max_tokens: 500
       });
 
-      console.log('✅ OPENAI CALL SUCCESS (assumption validation)', {
-        model: completion.model,
-        tokens: completion.usage?.total_tokens,
+      console.log('✅ LLM CALL SUCCESS (assumption validation)', {
+        provider: response?.provider,
+        model: response?.model,
       });
 
-      const aiResponse = completion.choices[0]?.message?.content || '';
+      const aiResponse = response?.text || '';
       aiSuggestions = parseAISuggestions(aiResponse);
       confidence = 'high';
     } catch (error) {
       console.error('[enrichUnifiedAssumptions] AI validation failed (non-blocking):', error);
-      // Continue with inference results even if OpenAI fails
+      // Continue with inference results even if provider calls fail
     }
   }
   

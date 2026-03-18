@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import OpenAI from 'openai';
 import { z } from 'zod';
-import { getOpenAIKey, getOpenAIModelCandidates } from '@/lib/openaiKey';
+import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 import { headlineEnrichmentSchema, type HeadlineEnrichment, type SectorName } from '@/lib/news/types';
 import { inferEventImpact, isBroadProxyTicker } from '@/lib/news/eventImpact';
 import { assessHeadlineRelevance } from '@/lib/news/relevance';
@@ -968,43 +967,24 @@ export async function getEnrichmentForHeadline(headline: {
     // continue to best-effort enrichment
   }
 
-  // Prefer user key for interactive headline expands; fall back to service key.
-  const userKey = getOpenAIKey('user');
-  const serviceKey = getOpenAIKey('service');
-  const apiKey = userKey ?? serviceKey;
-  if (process.env.NODE_ENV !== 'production') {
-    console.debug('[news/enrichment] key source', {
-      source: userKey ? 'user' : serviceKey ? 'service' : 'none',
-      hasUserKey: Boolean(userKey),
-      hasServiceKey: Boolean(serviceKey),
-    });
-  }
-  if (!apiKey) {
-    return deterministicFallback(headline);
-  }
-
-  const openai = new OpenAI({ apiKey });
   try {
     const mode = headline.mode ?? 'headline';
     const isHeadlineMode = mode === 'headline';
-    const models = getOpenAIModelCandidates(process.env.OPENAI_MODEL);
-    let response: Awaited<ReturnType<typeof openai.responses.create>> | null = null;
-    let lastError: unknown = null;
-    for (const model of models) {
-      try {
-        response = await openai.responses.create({
-          model,
-          temperature: 0.2,
-          input: [
-            {
-              role: 'system',
-              content: isHeadlineMode
-                ? HEADLINE_INTELLIGENCE_SYSTEM_PROMPT
-                : GENERAL_INTELLIGENCE_SYSTEM_PROMPT,
-            },
-            {
-              role: 'user',
-              content: isHeadlineMode ? `Headline: ${headline.title}
+    const response = await generateTextWithProviderFallback({
+      clientType: 'user',
+      preferredProvider: 'anthropic',
+      maxTokens: 1400,
+      temperature: 0.2,
+      messages: [
+        {
+          role: 'system',
+          content: isHeadlineMode
+            ? HEADLINE_INTELLIGENCE_SYSTEM_PROMPT
+            : GENERAL_INTELLIGENCE_SYSTEM_PROMPT,
+        },
+        {
+          role: 'user',
+          content: isHeadlineMode ? `Headline: ${headline.title}
 Description: ${headline.description ?? 'None'}
 
 Return JSON with these fields:
@@ -1069,71 +1049,14 @@ Rules:
 - Do not invent facts not in the headline.
 - Explain the mechanism, not just the headline.
 - Do not sound like a generic finance chatbot.`,
-            },
-          ],
-          text: {
-            format: {
-              type: 'json_schema',
-              name: 'headline_enrichment',
-              strict: true,
-              schema: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  ai_summary: { type: 'string' },
-                  why_it_matters: { type: 'string' },
-                  impacted_tickers: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      additionalProperties: false,
-                      properties: {
-                        ticker: { type: 'string' },
-                        direction: { type: 'string' },
-                        rationale: { type: ['string', 'null'] },
-                      },
-                      required: ['ticker', 'direction', 'rationale'],
-                    },
-                  },
-                  impacted_sectors: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      additionalProperties: false,
-                      properties: {
-                        sector: { type: 'string' },
-                        direction: { type: 'string' },
-                        rationale: { type: ['string', 'null'] },
-                      },
-                      required: ['sector', 'direction', 'rationale'],
-                    },
-                  },
-                  confidence: { type: 'string' },
-                },
-                required: ['ai_summary', 'why_it_matters', 'impacted_tickers', 'impacted_sectors', 'confidence'],
-              },
-            },
-          },
-        } as never);
-        if (process.env.NODE_ENV !== 'production') {
-          console.debug('[news/enrichment] model selected', { model });
-        }
-        break;
-      } catch (error) {
-        lastError = error;
-        if (process.env.NODE_ENV !== 'production') {
-          console.warn('[news/enrichment] model failed', {
-            model,
-            message: error instanceof Error ? error.message : String(error),
-          });
-        }
-      }
-    }
-    if (!response) {
-      throw (lastError instanceof Error ? lastError : new Error('OpenAI enrichment failed across all model candidates'));
+        },
+      ],
+    });
+    if (!response?.text) {
+      throw new Error('LLM enrichment failed across all provider candidates');
     }
 
-    const parsed = JSON.parse(response.output_text || '{}');
+    const parsed = JSON.parse(response.text || '{}');
     const enriched = ensureCompleteness(coerceToHeadlineEnrichment(parsed), headline);
     const fallback = deterministicFallback(headline);
     const enrichment = headlineEnrichmentSchema.parse({
@@ -1167,7 +1090,7 @@ Rules:
     return enrichment;
   } catch (error) {
     if (process.env.NODE_ENV !== 'production') {
-      console.error('[news/enrichment] openai enrichment failed', error);
+      console.error('[news/enrichment] llm enrichment failed', error);
     }
     return deterministicFallback(headline);
   }

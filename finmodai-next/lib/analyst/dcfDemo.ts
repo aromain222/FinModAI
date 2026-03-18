@@ -1,10 +1,10 @@
-import OpenAI from 'openai';
 import { DcfSpecSchema, type DcfSpec } from '@/lib/modeling/dcfSpec';
 import { evaluateDcfSpec } from '@/lib/modeling/buildDcfWorkbook';
 import { loadDemoSnapshots, type DemoCompanySnapshot } from '@/lib/demo/demoSnapshotStore';
 import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKey';
 import { inferTickerFromPrompt } from '@/lib/analyst/retrieval';
 import { resolveCompanyProfile } from '@/lib/data/company/resolveCompanyProfile';
+import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 
 export type AnalystDcfScenarioKey = 'base' | 'bull' | 'bear';
 
@@ -580,43 +580,41 @@ async function generateAiAssumptionPatch(params: {
     2
   );
 
-  for (const apiKey of params.apiKeys) {
-    const client = new OpenAI({ apiKey });
-    for (const model of models) {
-      try {
-        const completion = await client.chat.completions.create({
-          model,
-          temperature: 0.2,
-          response_format: { type: 'json_object' },
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-        });
-        const content = completion.choices[0]?.message?.content;
-        if (!content) continue;
-        const parsed = extractJsonObject(content) as Record<string, unknown>;
-        return {
-          revenueGrowth: Array.isArray(parsed.revenueGrowth)
-            ? parsed.revenueGrowth.filter((value): value is number => typeof value === 'number')
-            : undefined,
-          ebitMargin: Array.isArray(parsed.ebitMargin)
-            ? parsed.ebitMargin.filter((value): value is number => typeof value === 'number')
-            : undefined,
-          taxRate: typeof parsed.taxRate === 'number' ? parsed.taxRate : undefined,
-          daPctRevenue: typeof parsed.daPctRevenue === 'number' ? parsed.daPctRevenue : undefined,
-          capexPctRevenue: typeof parsed.capexPctRevenue === 'number' ? parsed.capexPctRevenue : undefined,
-          nwcPctRevenue: typeof parsed.nwcPctRevenue === 'number' ? parsed.nwcPctRevenue : undefined,
-          wacc: typeof parsed.wacc === 'number' ? parsed.wacc : undefined,
-          terminalGrowth: typeof parsed.terminalGrowth === 'number' ? parsed.terminalGrowth : undefined,
-          notes: Array.isArray(parsed.notes)
-            ? parsed.notes.filter((value): value is string => typeof value === 'string')
-            : undefined,
-        };
-      } catch {
-        // fall through to deterministic assumptions
-      }
+  try {
+    const response = await generateTextWithProviderFallback({
+      clientType: 'user',
+      preferredProvider: 'anthropic',
+      temperature: 0.2,
+      maxTokens: 900,
+      openAiModels: models,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+    });
+    const content = response?.text;
+    if (content) {
+      const parsed = extractJsonObject(content) as Record<string, unknown>;
+      return {
+        revenueGrowth: Array.isArray(parsed.revenueGrowth)
+          ? parsed.revenueGrowth.filter((value): value is number => typeof value === 'number')
+          : undefined,
+        ebitMargin: Array.isArray(parsed.ebitMargin)
+          ? parsed.ebitMargin.filter((value): value is number => typeof value === 'number')
+          : undefined,
+        taxRate: typeof parsed.taxRate === 'number' ? parsed.taxRate : undefined,
+        daPctRevenue: typeof parsed.daPctRevenue === 'number' ? parsed.daPctRevenue : undefined,
+        capexPctRevenue: typeof parsed.capexPctRevenue === 'number' ? parsed.capexPctRevenue : undefined,
+        nwcPctRevenue: typeof parsed.nwcPctRevenue === 'number' ? parsed.nwcPctRevenue : undefined,
+        wacc: typeof parsed.wacc === 'number' ? parsed.wacc : undefined,
+        terminalGrowth: typeof parsed.terminalGrowth === 'number' ? parsed.terminalGrowth : undefined,
+        notes: Array.isArray(parsed.notes)
+          ? parsed.notes.filter((value): value is string => typeof value === 'string')
+          : undefined,
+      };
     }
+  } catch {
+    // fall through to deterministic assumptions
   }
 
   return null;
@@ -811,26 +809,23 @@ async function generateAiMemo(
     2
   );
 
-  for (const apiKey of apiKeys) {
-    const client = new OpenAI({ apiKey });
-    for (const model of models) {
-      try {
-        const response = await client.responses.create({
-          model,
-          temperature: 0.4,
-          max_output_tokens: 180,
-          input: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-        });
-        if (typeof response.output_text === 'string' && response.output_text.trim().length > 0) {
-          return response.output_text.trim();
-        }
-      } catch {
-        // fall through to deterministic memo
-      }
+  try {
+    const response = await generateTextWithProviderFallback({
+      clientType: 'user',
+      preferredProvider: 'anthropic',
+      temperature: 0.4,
+      maxTokens: 180,
+      openAiModels: models,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+    });
+    if (response?.text?.trim()) {
+      return response.text.trim();
     }
+  } catch {
+    // fall through to deterministic memo
   }
 
   return null;

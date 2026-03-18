@@ -44,6 +44,7 @@ import {
   buildVisualizationFromCurrentArtifact,
   revenueDriverSummary,
 } from '@/lib/analyst/visualization';
+import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -1099,10 +1100,26 @@ export async function POST(req: NextRequest) {
     }
 
     if (!replyText) {
-      if (sawAuthError) {
-        throw new Error('OpenAI authentication failed. Verify OPENAI_API_KEY and restart.');
+      try {
+        const anthropicReply = await generateTextWithProviderFallback({
+          clientType: 'user',
+          preferredProvider: 'anthropic',
+          temperature: 0,
+          maxTokens: 800,
+          messages: inputMessages,
+          openAiModels: [],
+        });
+        replyText = anthropicReply?.text?.trim() ?? null;
+      } catch (error) {
+        lastError = error;
       }
-      throw (lastError instanceof Error ? lastError : new Error('OpenAI request failed across all model candidates'));
+    }
+
+    if (!replyText) {
+      if (sawAuthError) {
+        throw new Error('LLM authentication failed. Verify configured provider keys and restart.');
+      }
+      throw (lastError instanceof Error ? lastError : new Error('LLM request failed across all provider candidates'));
     }
 
     return NextResponse.json({

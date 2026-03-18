@@ -5,7 +5,6 @@
  */
 
 import ExcelJS from 'exceljs';
-import OpenAI from 'openai';
 import {
   createNormalStyle,
   createHeaderStyle,
@@ -33,7 +32,7 @@ import {
   bodyCell as styleKitBodyCell,
   borderBox,
 } from '../../excel/styleKit';
-import { getOpenAIKey } from '@/lib/openaiKey';
+import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 
 const MONEY_NUM_FMT = '#,##0;(#,##0)';
 const PERCENT_NUM_FMT = '0.0%';
@@ -93,15 +92,13 @@ async function generateModelBriefSummary(params: {
     params.terminalSharePct * 100
   ).toFixed(1)}% of enterprise value, which increases duration risk to discount-rate changes. Net debt is ${params.netDebt !== null ? params.netDebt.toFixed(0) : 'unavailable'} and sourced as ${params.netDebtSource}.`;
 
-  const apiKey = getOpenAIKey('service');
-  if (!apiKey) return fallback;
-
   try {
-    const openai = new OpenAI({ apiKey });
     const prompt = `Write one paragraph only (4-6 sentences) in a structured institutional tone for an investment committee model brief. No hype, no marketing language. Clearly articulate key valuation drivers and principal risks.\n\nInputs (USD millions unless noted):\n- Company: ${params.companyName}\n- Ticker: ${params.ticker}\n- Sector: ${params.sector}\n- As of date: ${params.asOfDate}\n- Enterprise value: ${params.enterpriseValue}\n- Equity value: ${params.equityValue}\n- Implied price per share: ${params.impliedPrice}\n- Market price: ${params.marketPrice ?? 'N/A'}\n- Implied upside (%): ${params.impliedUpsidePct ?? 'N/A'}\n- WACC (%): ${(params.wacc * 100).toFixed(2)}\n- Terminal growth (%): ${(params.terminalGrowth * 100).toFixed(2)}\n- Terminal value contribution to EV (%): ${(params.terminalSharePct * 100).toFixed(2)}\n- Net debt: ${params.netDebt ?? 'N/A'}\n- Net debt source: ${params.netDebtSource}`;
-
-    const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-5.4',
+    const response = await generateTextWithProviderFallback({
+      clientType: 'service',
+      preferredProvider: 'anthropic',
+      maxTokens: 220,
+      temperature: 0.2,
       messages: [
         {
           role: 'system',
@@ -109,11 +106,8 @@ async function generateModelBriefSummary(params: {
         },
         { role: 'user', content: prompt },
       ],
-      temperature: 0.2,
-      max_tokens: 220,
     });
-
-    const content = completion.choices[0]?.message?.content?.trim();
+    const content = response?.text?.trim();
     if (!content) return fallback;
     return content.replace(/\n+/g, ' ');
   } catch {

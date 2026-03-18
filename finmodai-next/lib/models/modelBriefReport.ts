@@ -1,6 +1,5 @@
 import ExcelJS from 'exceljs';
-import OpenAI from 'openai';
-import { getOpenAIKey } from '@/lib/openaiKey';
+import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 
 export type BriefModelType = 'dcf' | 'reverse-dcf' | 'comps' | 'three-statement';
 
@@ -472,9 +471,6 @@ async function generateExecutiveSummary(
 ): Promise<string> {
   const fallback = buildSummaryFallback(modelType, snapshot, modelOutputs);
 
-  const apiKey = getOpenAIKey('service');
-  if (!apiKey) return fallback;
-
   const serializedSections = sections
     .map(
       (section) =>
@@ -483,9 +479,11 @@ async function generateExecutiveSummary(
     .join('\n');
 
   try {
-    const openai = new OpenAI({ apiKey });
-    const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+    const response = await generateTextWithProviderFallback({
+      clientType: 'service',
+      preferredProvider: 'anthropic',
+      maxTokens: 220,
+      temperature: 0.2,
       messages: [
         { role: 'system', content: MODEL_BRIEF_SUMMARY_PROMPTS[modelType].trim() },
         {
@@ -493,10 +491,8 @@ async function generateExecutiveSummary(
           content: `Model Type: ${modelType}\nCompany: ${snapshot.companyName} (${snapshot.ticker})\nSector: ${snapshot.sector ?? 'N/A'}\nAs of Date: ${snapshot.asOfDate}\n\nData:\n${serializedSections}`,
         },
       ],
-      temperature: 0.2,
-      max_tokens: 220,
     });
-    const content = completion.choices[0]?.message?.content?.trim();
+    const content = response?.text?.trim();
     return content ? content.replace(/\n+/g, ' ') : fallback;
   } catch {
     return fallback;

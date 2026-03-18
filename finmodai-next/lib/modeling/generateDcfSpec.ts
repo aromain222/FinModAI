@@ -1,5 +1,4 @@
-import OpenAI from 'openai';
-import { getOpenAIKey, getOpenAIModelCandidates } from '@/lib/openaiKey';
+import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 import { applyDcfOverrides, DcfOverridesSchema, DcfSpec, DcfSpecSchema, type DcfOverrides } from '@/lib/modeling/dcfSpec';
 
 type CompanySeed = {
@@ -146,40 +145,27 @@ function buildSystemPrompt(defaultSpec: DcfSpec): string {
 }
 
 async function generateWithLlm(prompt: string, defaultSpec: DcfSpec): Promise<DcfSpec | null> {
-  const apiKey = getOpenAIKey('service') || getOpenAIKey('user');
-  if (!apiKey) return null;
-
-  const openai = new OpenAI({ apiKey });
-  const models = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-5.4-pro', 'gpt-5.4');
-
   let lastError: unknown = null;
-  for (const model of models) {
-    try {
-      const response = await openai.responses.create({
-        model,
-        temperature: 0,
-        max_output_tokens: 1400,
-        input: [
-          { role: 'system', content: buildSystemPrompt(defaultSpec) },
-          {
-            role: 'user',
-            content: `User prompt: ${prompt}\nReturn only the JSON DCF spec object.`,
-          },
-        ],
-      });
-
-      const raw = typeof response.output_text === 'string' ? response.output_text : '';
-      const parsed = JSON.parse(extractJson(raw));
-      return DcfSpecSchema.parse(parsed);
-    } catch (error) {
-      lastError = error;
-      if (process.env.NODE_ENV !== 'production') {
-        console.warn('[generateDcfSpec] model attempt failed', {
-          model,
-          message: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
+  try {
+    const response = await generateTextWithProviderFallback({
+      clientType: 'service',
+      preferredProvider: 'anthropic',
+      temperature: 0,
+      maxTokens: 1400,
+      messages: [
+        { role: 'system', content: buildSystemPrompt(defaultSpec) },
+        {
+          role: 'user',
+          content: `User prompt: ${prompt}\nReturn only the JSON DCF spec object.`,
+        },
+      ],
+    });
+    const raw = response?.text ?? '';
+    if (!raw) return null;
+    const parsed = JSON.parse(extractJson(raw));
+    return DcfSpecSchema.parse(parsed);
+  } catch (error) {
+    lastError = error;
   }
 
   if (process.env.NODE_ENV !== 'production' && lastError) {
