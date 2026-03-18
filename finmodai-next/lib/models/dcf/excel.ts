@@ -832,24 +832,24 @@ function createDCFSummarySheet(
       : undefined);
 
   const assumptions = [
-    { label: 'Revenue Growth', formula: "='Assumptions'!$E$7", value: toNumber(output.inputs.revenueGrowth, 0.08), format: 'PERCENTAGE' },
-    { label: 'EBITDA Margin', formula: "='Assumptions'!$E$8", value: toNumber(output.inputs.ebitdaMargin, 0.25), format: 'PERCENTAGE' },
-    { label: 'Capex % Revenue', formula: "='Assumptions'!$E$9", value: toNumber(output.inputs.capexPctRevenue, 0.04), format: 'PERCENTAGE' },
-    { label: 'ΔNWC % Revenue', formula: "='Assumptions'!$E$10", value: toNumber(output.inputs.nwcPctRevenue, 0.10), format: 'PERCENTAGE' },
-    { label: 'Effective Tax Rate', formula: "='Assumptions'!$B$22", value: output.inputs.taxRate || 0, format: 'PERCENTAGE' },
-    { label: 'Terminal Growth', formula: "='Assumptions'!$E$11", value: output.inputs.terminalGrowth || 0, format: 'PERCENTAGE' },
-    { label: 'Discount Rate (WACC)', formula: "='Assumptions'!$E$12", value: output.inputs.wacc || 0, format: 'PERCENTAGE' },
-    { label: 'Exit Multiple (if used)', formula: "='Assumptions'!$B$38", value: output.inputs.exitMultiple ?? 0, format: 'DECIMAL' },
-    { label: 'Forecast Horizon (Years)', formula: "='Assumptions'!$B$39", value: output.inputs.projectionYears ?? projectionYears, format: 'DECIMAL' },
+    { label: 'Revenue Growth', formula: "='Assumptions'!$E$8", value: toNumber(output.inputs.revenueGrowth, 0.08), format: 'PERCENTAGE' },
+    { label: 'EBITDA Margin', formula: "='Assumptions'!$E$9", value: toNumber(output.inputs.ebitdaMargin, 0.25), format: 'PERCENTAGE' },
+    { label: 'Capex % Revenue', formula: "='Assumptions'!$E$10", value: toNumber(output.inputs.capexPctRevenue, 0.04), format: 'PERCENTAGE' },
+    { label: 'ΔNWC % Revenue', formula: "='Assumptions'!$E$11", value: toNumber(output.inputs.nwcPctRevenue, 0.10), format: 'PERCENTAGE' },
+    { label: 'Effective Tax Rate', formula: "='Assumptions'!$B$23", value: output.inputs.taxRate || 0, format: 'PERCENTAGE' },
+    { label: 'Terminal Growth', formula: "='Assumptions'!$E$12", value: output.inputs.terminalGrowth || 0, format: 'PERCENTAGE' },
+    { label: 'Discount Rate (WACC)', formula: "='Assumptions'!$E$13", value: output.inputs.wacc || 0, format: 'PERCENTAGE' },
+    { label: 'Exit Multiple (if used)', formula: "='Assumptions'!$B$39", value: output.inputs.exitMultiple ?? 0, format: 'DECIMAL' },
+    { label: 'Forecast Horizon (Years)', formula: "='Assumptions'!$B$40", value: output.inputs.projectionYears ?? projectionYears, format: 'DECIMAL' },
     {
       label: netDebtLabel,
-      formula: "='Assumptions'!$B$31",
+      formula: "='Assumptions'!$B$32",
       value: derived.netDebt ?? null,
       format: '#,##0;(#,##0)',
       estimated: netDebtIsEstimated,
       note: netDebtSource === 'estimated_ai' ? 'Estimated via AI due to missing cash/debt fields.' : netDebtNote,
     },
-    { label: 'Shares Outstanding (mm)', formula: "='Assumptions'!$B$32", value: output.valuation.sharesOutstanding, format: 'INTEGER' },
+    { label: 'Shares Outstanding (mm)', formula: "='Assumptions'!$B$33", value: output.valuation.sharesOutstanding, format: 'INTEGER' },
   ];
 
   assumptions.forEach(assumption => {
@@ -947,6 +947,7 @@ function createDCFAssumptionsSheet(
 ): void {
   const sheet = workbook.addWorksheet('Assumptions');
   const lastDataCol = 5;
+  const hiddenFlagCol = 6;
 
   const baseGrowth = toNumber(inputs.revenueGrowth, 0.08);
   const baseMargin = toNumber(inputs.ebitdaMargin, 0.25);
@@ -1039,6 +1040,7 @@ function createDCFAssumptionsSheet(
     }
     applyNumberFormat(sheet.getCell(rowIndex, 5), 'PERCENTAGE_DECIMALS');
     sheet.getCell(rowIndex, 5).style = createFormulaStyle();
+    applyNumberFormat(sheet.getCell(rowIndex, 5), 'PERCENTAGE_DECIMALS');
   });
   zebraRows(sheet, coreStartRow, coreStartRow + coreRows.length - 1, 1, lastDataCol);
 
@@ -1099,6 +1101,7 @@ function createDCFAssumptionsSheet(
   );
   applyNumberFormat(sheet.getCell(row, 2), 'PERCENTAGE_DECIMALS');
   sheet.getCell(row, 2).style = createFormulaStyle();
+  applyNumberFormat(sheet.getCell(row, 2), 'PERCENTAGE_DECIMALS');
   row++;
 
   // WACC (Advanced)
@@ -1110,6 +1113,7 @@ function createDCFAssumptionsSheet(
   );
   applyNumberFormat(sheet.getCell(row, 2), 'PERCENTAGE_DECIMALS');
   sheet.getCell(row, 2).style = createFormulaStyle();
+  applyNumberFormat(sheet.getCell(row, 2), 'PERCENTAGE_DECIMALS');
   row += 2;
 
   // Fetched data
@@ -1176,8 +1180,8 @@ function createDCFAssumptionsSheet(
   const lastUsedRow = row;
   setColWidthsKit(sheet, [28, 18, 18, 18, 18]);
   // Hidden flags for checks (do not alter layout)
-  sheet.getCell(31, 5).value = derived.netDebtMissing;
-  sheet.getCell(32, 5).value = derived.sharesMissing;
+  sheet.getCell(32, hiddenFlagCol).value = derived.netDebtMissing;
+  sheet.getCell(33, hiddenFlagCol).value = derived.sharesMissing;
   applySheetDefaults(sheet, { freezeRow: 3, freezeCol: 1, lastCol: lastDataCol, lastRow: lastUsedRow });
   hideUnusedArea(sheet, lastDataCol, lastUsedRow);
 }
@@ -1195,13 +1199,13 @@ function createForecastSheet(
   const projectionYears = output.projections.length;
   const lastDataCol = projectionYears + 1;
   const assumptionsSheet = 'Assumptions';
-  const ltmRevenueCell = `${assumptionsSheet}!$B$30`;
-  const growthCell = `${assumptionsSheet}!$E$7`;
-  const ebitdaMarginCell = `${assumptionsSheet}!$E$8`;
-  const capexCell = `${assumptionsSheet}!$E$9`;
-  const nwcCell = `${assumptionsSheet}!$E$10`;
-  const taxRateCell = `${assumptionsSheet}!$B$22`;
-  const daCell = `${assumptionsSheet}!$B$23`;
+  const ltmRevenueCell = `${assumptionsSheet}!$B$31`;
+  const growthCell = `${assumptionsSheet}!$E$8`;
+  const ebitdaMarginCell = `${assumptionsSheet}!$E$9`;
+  const capexCell = `${assumptionsSheet}!$E$10`;
+  const nwcCell = `${assumptionsSheet}!$E$11`;
+  const taxRateCell = `${assumptionsSheet}!$B$23`;
+  const daCell = `${assumptionsSheet}!$B$24`;
 
   let row = titleBar(sheet, 'Discounted Cash Flow Analysis', lastDataCol);
   applyUnitsTitleLine(sheet);
@@ -1363,8 +1367,8 @@ function createValuationSheet(
   const valuationRows = getValuationRowMap(projectionYears);
   const waccCell = '$B$5';
   const gCell = '$B$6';
-  const useExitMultipleCell = "'Assumptions'!$B$37";
-  const exitMultipleCell = "'Assumptions'!$B$38";
+  const useExitMultipleCell = "'Assumptions'!$B$38";
+  const exitMultipleCell = "'Assumptions'!$B$39";
   const lastColLetter = colToLetter(projectionYears + 1);
   const lastDataCol = 4;
 
@@ -1378,21 +1382,21 @@ function createValuationSheet(
   row++;
 
   sheet.getCell(row, 1).value = 'WACC (Used)';
-  setFormula(sheet.getCell(row, 2), "='Assumptions'!$E$12", output.inputs.wacc ?? 0);
+  setFormula(sheet.getCell(row, 2), "='Assumptions'!$E$13", output.inputs.wacc ?? 0);
   applyNumberFormat(sheet.getCell(row, 2), 'PERCENTAGE');
   applyLabelStyle(sheet.getCell(row, 1));
   sheet.getCell(row, 2).style = createFormulaStyle();
   row++;
 
   sheet.getCell(row, 1).value = 'Terminal Growth (g)';
-  setFormula(sheet.getCell(row, 2), "='Assumptions'!$E$11", output.inputs.terminalGrowth ?? 0);
+  setFormula(sheet.getCell(row, 2), "='Assumptions'!$E$12", output.inputs.terminalGrowth ?? 0);
   applyNumberFormat(sheet.getCell(row, 2), 'PERCENTAGE');
   applyLabelStyle(sheet.getCell(row, 1));
   sheet.getCell(row, 2).style = createFormulaStyle();
   row++;
 
   sheet.getCell(row, 1).value = 'Net Debt';
-  setFormula(sheet.getCell(row, 2), "='Assumptions'!$B$31", derived.netDebt);
+  setFormula(sheet.getCell(row, 2), "='Assumptions'!$B$32", derived.netDebt);
   applyNumberFormat(sheet.getCell(row, 2), '#,##0;(#,##0)');
   sheet.getCell(row, 2).style = createFormulaStyle();
   applyLabelStyle(sheet.getCell(row, 1));
@@ -1404,7 +1408,7 @@ function createValuationSheet(
   row++;
 
   sheet.getCell(row, 1).value = 'Shares Outstanding';
-  setFormula(sheet.getCell(row, 2), "='Assumptions'!$B$32", derived.sharesOutstanding || derived.sharesSafe);
+  setFormula(sheet.getCell(row, 2), "='Assumptions'!$B$33", derived.sharesOutstanding || derived.sharesSafe);
   applyNumberFormat(sheet.getCell(row, 2), 'INTEGER');
   applyLabelStyle(sheet.getCell(row, 1));
   sheet.getCell(row, 2).style = createFormulaStyle();
@@ -1516,7 +1520,7 @@ function createValuationSheet(
   row++;
 
   sheet.getCell(row, 1).value = '(-) Net Debt';
-  setFormula(sheet.getCell(row, 2), "=-'Assumptions'!$B$31", -derived.netDebtForMath);
+  setFormula(sheet.getCell(row, 2), "=-'Assumptions'!$B$32", -derived.netDebtForMath);
   applyNumberFormat(sheet.getCell(row, 2), '#,##0;(#,##0)');
   sheet.getCell(row, 2).style = createFormulaStyle();
   applyLabelStyle(sheet.getCell(row, 1));
@@ -1530,7 +1534,7 @@ function createValuationSheet(
   row++;
 
   sheet.getCell(row, 1).value = '(/) Shares Outstanding';
-  setFormula(sheet.getCell(row, 2), "='Assumptions'!$B$32", derived.sharesOutstanding || derived.sharesSafe);
+  setFormula(sheet.getCell(row, 2), "='Assumptions'!$B$33", derived.sharesOutstanding || derived.sharesSafe);
   applyLabelStyle(sheet.getCell(row, 1));
   applyNumberFormat(sheet.getCell(row, 2), 'INTEGER');
   sheet.getCell(row, 2).style = createFormulaStyle();
@@ -1632,10 +1636,10 @@ function createSensitivitiesSheet(
   const lastColLetter = colToLetter(projectionYears + 1);
   const fcfRange = `'Forecast'!$B$12:$${lastColLetter}12`;
   const fcfLast = `'Forecast'!$${lastColLetter}$12`;
-  const netDebtCell = "'Assumptions'!$B$31";
-  const sharesCell = "'Assumptions'!$B$32";
-  const baseMarginCell = "'Assumptions'!$E$8";
-  const gCell = "'Assumptions'!$E$11";
+  const netDebtCell = "'Assumptions'!$B$32";
+  const sharesCell = "'Assumptions'!$B$33";
+  const baseMarginCell = "'Assumptions'!$E$9";
+  const gCell = "'Assumptions'!$E$12";
 
   let row = titleBar(sheet, 'Discounted Cash Flow Analysis', lastDataCol);
   applyUnitsTitleLine(sheet);
@@ -1739,12 +1743,12 @@ function createDCFChecksSheet(
   row++;
 
   const guardrails = [
-    { label: 'WACC > Terminal Growth', formula: `=IF('Assumptions'!$E$12<='Assumptions'!$E$11,"FAIL","OK")` },
-    { label: 'LTM Revenue >= $1,000mm', formula: `=IF('Assumptions'!$B$30<1000,"FAIL","OK")` },
-    { label: 'Shares Outstanding Provided', formula: `=IF('Assumptions'!$E$32=TRUE,"FAIL","OK")` },
-    { label: 'Net Debt Missing Inputs', formula: `=IF('Assumptions'!$E$31=TRUE,"WARN","OK")` },
-    { label: 'Shares Outstanding in Range', formula: `=IF(OR('Assumptions'!$B$32<1,'Assumptions'!$B$32>100000),"WARN","OK")` },
-    { label: 'Exit Multiple Required If Enabled', formula: `=IF('Assumptions'!$B$37=TRUE,IF('Assumptions'!$B$38>0,"OK","FAIL"),"OK")` },
+    { label: 'WACC > Terminal Growth', formula: `=IF('Assumptions'!$E$13<='Assumptions'!$E$12,"FAIL","OK")` },
+    { label: 'LTM Revenue >= $1,000mm', formula: `=IF('Assumptions'!$B$31<1000,"FAIL","OK")` },
+    { label: 'Shares Outstanding Provided', formula: `=IF('Assumptions'!$F$33=TRUE,"FAIL","OK")` },
+    { label: 'Net Debt Missing Inputs', formula: `=IF('Assumptions'!$F$32=TRUE,"WARN","OK")` },
+    { label: 'Shares Outstanding in Range', formula: `=IF(OR('Assumptions'!$B$33<1,'Assumptions'!$B$33>100000),"WARN","OK")` },
+    { label: 'Exit Multiple Required If Enabled', formula: `=IF('Assumptions'!$B$38=TRUE,IF('Assumptions'!$B$39>0,"OK","FAIL"),"OK")` },
     { label: 'EV Reconciles (PV FCF + PV TV)', formula: `=IF(ABS('Valuation'!$B$${valuationRows.enterpriseValueRow}-('Valuation'!$B$${valuationRows.pvFcfRow}+'Valuation'!$B$${valuationRows.pvTerminalRow}))>1,"FAIL","OK")` },
     { label: 'Price per Share <= $50,000', formula: `=IF('Valuation'!$B$${valuationRows.priceRow}>50000,"WARN","OK")` },
     { label: 'Enterprise Value >= 0', formula: `=IF('Valuation'!$B$${valuationRows.enterpriseValueRow}<0,"WARN","OK")` },
