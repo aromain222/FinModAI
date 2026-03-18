@@ -1283,7 +1283,8 @@ async function buildReverseDcfModelWithAssumptions(
     },
   });
 
-  if (!solved.converged) {
+  const boundedApproximation = !solved.converged && solved.reason === 'target_out_of_bounds';
+  if (!solved.converged && !boundedApproximation) {
     const reasonText =
       solved.reason === 'target_out_of_bounds'
         ? 'target price falls outside solvable growth range'
@@ -1329,10 +1330,17 @@ async function buildReverseDcfModelWithAssumptions(
   const years = projections.map((_, idx) => `${new Date().getFullYear() + idx + 1}`);
   const reverseLabel = 'Reverse DCF (Demo assumptions)';
   const notes = [
-    `${reverseLabel}: solved for implied revenue CAGR to match target price.`,
+    boundedApproximation
+      ? `${reverseLabel}: target price sits outside the solvable growth range, so the model uses the nearest bounded implied growth path instead of an exact match.`
+      : `${reverseLabel}: solved for implied revenue CAGR to match target price.`,
     `Target price: $${reverseInputs.targetPrice.toFixed(2)} (default market price: $${reverseInputs.marketPrice.toFixed(2)}).`,
     `Fixed assumptions: WACC ${(reverseInputs.wacc * 100).toFixed(2)}%, terminal growth ${(reverseInputs.terminalGrowth * 100).toFixed(2)}%, projection years ${reverseInputs.projectionYears}, EBITDA margin ${(ebitdaMargin * 100).toFixed(1)}%, tax rate ${(taxRate * 100).toFixed(1)}%, capex ${(capexPctRevenue * 100).toFixed(1)}% of revenue, NWC ${(nwcPctRevenue * 100).toFixed(1)}% of revenue.`,
   ];
+  if (boundedApproximation) {
+    notes.push(
+      `Nearest solvable output implies ${(solved.impliedRevenueGrowth * 100).toFixed(2)}% revenue growth and leaves a ${(solved.pricingGap >= 0 ? '+' : '')}${solved.pricingGap.toFixed(2)} per-share gap versus the requested target price.`
+    );
+  }
 
   const dcfSummary = {
     scenario: 'BASE',
@@ -1376,13 +1384,21 @@ async function buildReverseDcfModelWithAssumptions(
       targetPrice: reverseInputs.targetPrice,
       marketPrice: reverseInputs.marketPrice,
       pricingGap: solved.pricingGap,
-      converged: true,
+      converged: !boundedApproximation,
+      boundedApproximation,
       iterations: solved.iterations,
       notes,
     },
-    warnings: [`${reverseLabel} mode applied.`],
+    warnings: [
+      `${reverseLabel} mode applied.`,
+      ...(boundedApproximation
+        ? ['Target price was outside the solvable growth range; showing nearest bounded solution.']
+        : []),
+    ],
     notes,
-    formattedOutput: `${reverseLabel}: implied revenue CAGR ${(solved.impliedRevenueGrowth * 100).toFixed(2)}% to match $${reverseInputs.targetPrice.toFixed(2)} target price.`,
+    formattedOutput: boundedApproximation
+      ? `${reverseLabel}: nearest bounded implied revenue CAGR ${(solved.impliedRevenueGrowth * 100).toFixed(2)}% for requested $${reverseInputs.targetPrice.toFixed(2)} target price.`
+      : `${reverseLabel}: implied revenue CAGR ${(solved.impliedRevenueGrowth * 100).toFixed(2)}% to match $${reverseInputs.targetPrice.toFixed(2)} target price.`,
   };
 
   return {
