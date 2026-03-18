@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Area,
   Bar,
   CartesianGrid,
   Cell,
@@ -8,126 +9,76 @@ import {
   Legend,
   Line,
   ResponsiveContainer,
+  Scatter,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { AnalystVisualizationPayload } from '@/lib/analyst/visualization';
+import { validateFinanceChartSpec, type FinanceAxisFormat, type FinanceChartSpec } from '@/lib/charts/financeChartSpec';
 
-type PanelTrace = {
-  type?: string;
-  mode?: string;
-  name?: string;
-  x?: unknown[];
-  y?: unknown[];
-  text?: unknown[];
-  marker?: { color?: string | string[] };
-  line?: { color?: string };
-  yaxis?: string;
-};
-
-type PanelLayout = {
-  barmode?: string;
-  yaxis?: { tickprefix?: string; ticksuffix?: string };
-  yaxis2?: { tickprefix?: string; ticksuffix?: string };
-};
-
-type ChartSeriesConfig = {
-  key: string;
-  name: string;
-  kind: 'bar' | 'line';
-  color: string;
-  axis: 'left' | 'right';
-  barColors?: string[];
-};
-
-type ChartRow = {
-  label: string;
-  [key: string]: string | number | null | undefined;
-};
-
-function toNumber(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string') {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
+function formatValue(value: number, format?: FinanceAxisFormat, currencyCode = 'USD', decimals = 1): string {
+  if (!Number.isFinite(value)) return '—';
+  switch (format) {
+    case 'currency':
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currencyCode,
+        minimumFractionDigits: Math.abs(value) >= 100 ? 0 : Math.min(decimals, 2),
+        maximumFractionDigits: Math.abs(value) >= 100 ? 0 : Math.min(decimals, 2),
+      }).format(value);
+    case 'percent':
+      return `${value.toFixed(decimals)}%`;
+    case 'multiple':
+      return `${value.toFixed(decimals)}x`;
+    case 'date':
+    case 'string':
+      return String(value);
+    case 'number':
+    default:
+      return value.toLocaleString('en-US', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: decimals,
+      });
   }
-  return null;
 }
 
-function formatAxisValue(value: number, prefix?: string, suffix?: string): string {
-  const compact = Math.abs(value) >= 1000
-    ? value.toLocaleString('en-US', { maximumFractionDigits: 0 })
-    : value.toLocaleString('en-US', { maximumFractionDigits: 1 });
-  return `${prefix ?? ''}${compact}${suffix ?? ''}`;
-}
+function VisualizationPanel({ panel }: { panel: NonNullable<AnalystVisualizationPayload['panels']>[number] }) {
+  const spec = validateFinanceChartSpec(panel.spec);
+  if (!spec) {
+    return (
+      <div className="rounded-xl border border-amber-300/60 bg-amber-50/80 p-4 text-sm text-amber-900">
+        Chart spec is invalid for this visualization panel.
+      </div>
+    );
+  }
 
-function buildChartModel(panel: { data: Record<string, unknown>[]; layout?: Record<string, unknown> }) {
-  const traces = panel.data as PanelTrace[];
-  const layout = (panel.layout ?? {}) as PanelLayout;
-  const rows = new Map<string, ChartRow>();
-  const series: ChartSeriesConfig[] = [];
-
-  traces.forEach((trace, traceIndex) => {
-    const xValues = Array.isArray(trace.x) ? trace.x : [];
-    const yValues = Array.isArray(trace.y) ? trace.y : [];
-    const seriesKey = `series_${traceIndex}`;
-    const name = trace.name ?? `Series ${traceIndex + 1}`;
-    const kind = trace.type === 'bar' ? 'bar' : 'line';
-    const axis = trace.yaxis === 'y2' ? 'right' : 'left';
-    const color =
-      typeof trace.line?.color === 'string'
-        ? trace.line.color
-        : typeof trace.marker?.color === 'string'
-          ? trace.marker.color
-          : '#60a5fa';
-    const barColors = Array.isArray(trace.marker?.color)
-      ? trace.marker?.color.filter((item): item is string => typeof item === 'string')
-      : undefined;
-
-    series.push({ key: seriesKey, name, kind, color, axis, barColors });
-
-    xValues.forEach((rawLabel, idx) => {
-      const label = String(rawLabel ?? `Point ${idx + 1}`);
-      if (!rows.has(label)) rows.set(label, { label });
-      rows.get(label)![seriesKey] = toNumber(yValues[idx]);
-    });
-  });
-
-  return {
-    data: Array.from(rows.values()),
-    series,
-    leftAxis: layout.yaxis,
-    rightAxis: layout.yaxis2,
-  };
-}
-
-function VisualizationPanel({
-  panel,
-}: {
-  panel: NonNullable<AnalystVisualizationPayload['panels']>[number];
-}) {
-  const model = buildChartModel(panel);
-  const hasRightAxis = model.series.some((series) => series.axis === 'right');
+  const formatting = spec.formatting ?? {};
+  const leftFormat = formatting.yLeftFormat ?? spec.series.find((item) => item.axis !== 'right')?.format ?? 'number';
+  const rightFormat = formatting.yRightFormat ?? spec.series.find((item) => item.axis === 'right')?.format ?? 'number';
+  const hasRightAxis = spec.series.some((series) => series.axis === 'right');
 
   return (
     <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
       <div className="mb-4">
-        <div className="text-sm font-semibold text-[var(--cb-text-primary)]">{panel.title}</div>
-        {panel.subtitle ? (
-          <div className="mt-1 text-xs text-[var(--cb-text-muted)]">{panel.subtitle}</div>
-        ) : null}
+        <div className="text-sm font-semibold text-[var(--cb-text-primary)]">{spec.title}</div>
+        {spec.subtitle ? <div className="mt-1 text-xs text-[var(--cb-text-muted)]">{spec.subtitle}</div> : null}
       </div>
-      <div style={{ height: panel.height ?? 280 }}>
+      <div style={{ height: panel.height ?? 300 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={model.data} margin={{ top: 12, right: 16, bottom: 8, left: 4 }}>
+          <ComposedChart data={spec.data} margin={{ top: 12, right: 16, bottom: 8, left: 4 }}>
             <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
             <XAxis
-              dataKey="label"
+              dataKey="x"
               tick={{ fill: 'rgba(244,244,245,0.72)', fontSize: 11 }}
               axisLine={{ stroke: 'rgba(255,255,255,0.12)' }}
               tickLine={{ stroke: 'rgba(255,255,255,0.12)' }}
+              label={
+                spec.xLabel
+                  ? { value: spec.xLabel, position: 'insideBottom', offset: -4, fill: 'rgba(244,244,245,0.5)', fontSize: 11 }
+                  : undefined
+              }
             />
             <YAxis
               yAxisId="left"
@@ -135,7 +86,19 @@ function VisualizationPanel({
               axisLine={{ stroke: 'rgba(255,255,255,0.12)' }}
               tickLine={{ stroke: 'rgba(255,255,255,0.12)' }}
               tickFormatter={(value) =>
-                formatAxisValue(Number(value), model.leftAxis?.tickprefix, model.leftAxis?.ticksuffix)
+                formatValue(Number(value), leftFormat, formatting.currencyCode, formatting.decimals ?? 1)
+              }
+              label={
+                spec.yLabel
+                  ? {
+                      value: spec.yLabel,
+                      angle: -90,
+                      position: 'insideLeft',
+                      fill: 'rgba(244,244,245,0.5)',
+                      fontSize: 11,
+                      textAnchor: 'middle',
+                    }
+                  : undefined
               }
             />
             {hasRightAxis ? (
@@ -146,7 +109,19 @@ function VisualizationPanel({
                 axisLine={{ stroke: 'rgba(255,255,255,0.12)' }}
                 tickLine={{ stroke: 'rgba(255,255,255,0.12)' }}
                 tickFormatter={(value) =>
-                  formatAxisValue(Number(value), model.rightAxis?.tickprefix, model.rightAxis?.ticksuffix)
+                  formatValue(Number(value), rightFormat, formatting.currencyCode, formatting.decimals ?? 1)
+                }
+                label={
+                  spec.yRightLabel
+                    ? {
+                        value: spec.yRightLabel,
+                        angle: 90,
+                        position: 'insideRight',
+                        fill: 'rgba(244,244,245,0.5)',
+                        fontSize: 11,
+                        textAnchor: 'middle',
+                      }
+                    : undefined
                 }
               />
             ) : null}
@@ -158,49 +133,78 @@ function VisualizationPanel({
                 color: '#f4f4f5',
               }}
               formatter={(value, name) => {
-                const series = model.series.find((item) => item.name === name);
-                const axis = series?.axis === 'right' ? model.rightAxis : model.leftAxis;
+                const series = spec.series.find((item) => item.label === name || item.key === name);
+                const seriesFormat = series?.axis === 'right' ? rightFormat : leftFormat;
                 return [
-                  formatAxisValue(Number(value), axis?.tickprefix, axis?.ticksuffix),
-                  name,
+                  formatValue(Number(value), series?.format ?? seriesFormat, formatting.currencyCode, formatting.decimals ?? 1),
+                  series?.label ?? String(name),
                 ];
               }}
             />
             <Legend wrapperStyle={{ color: 'rgba(244,244,245,0.72)', fontSize: 12 }} />
-            {model.series.map((series) =>
-              series.kind === 'line' ? (
+            {spec.series.map((series) => {
+              const seriesType = series.renderAs ?? spec.chartType;
+              const color = series.color ?? '#60a5fa';
+              if (seriesType === 'bar') {
+                return (
+                  <Bar
+                    key={series.key}
+                    yAxisId={series.axis === 'right' ? 'right' : 'left'}
+                    dataKey={series.key}
+                    name={series.label}
+                    fill={color}
+                    radius={[6, 6, 0, 0]}
+                  >
+                    {spec.data.map((_, idx) => (
+                      <Cell key={`${series.key}-${idx}`} fill={color} />
+                    ))}
+                  </Bar>
+                );
+              }
+              if (seriesType === 'area') {
+                return (
+                  <Area
+                    key={series.key}
+                    yAxisId={series.axis === 'right' ? 'right' : 'left'}
+                    type="monotone"
+                    dataKey={series.key}
+                    name={series.label}
+                    stroke={color}
+                    fill={color}
+                    fillOpacity={0.18}
+                  />
+                );
+              }
+              if (seriesType === 'scatter') {
+                return (
+                  <Scatter
+                    key={series.key}
+                    yAxisId={series.axis === 'right' ? 'right' : 'left'}
+                    dataKey={series.key}
+                    name={series.label}
+                    fill={color}
+                  />
+                );
+              }
+              return (
                 <Line
                   key={series.key}
-                  yAxisId={series.axis}
+                  yAxisId={series.axis === 'right' ? 'right' : 'left'}
                   type="monotone"
                   dataKey={series.key}
-                  name={series.name}
-                  stroke={series.color}
+                  name={series.label}
+                  stroke={color}
                   strokeWidth={2.5}
-                  dot={{ r: 3.5, fill: series.color, strokeWidth: 0 }}
+                  dot={{ r: 3.5, fill: color, strokeWidth: 0 }}
                   activeDot={{ r: 5 }}
                   connectNulls={false}
                 />
-              ) : (
-                <Bar
-                  key={series.key}
-                  yAxisId={series.axis}
-                  dataKey={series.key}
-                  name={series.name}
-                  fill={series.color}
-                  radius={[6, 6, 0, 0]}
-                >
-                  {series.barColors?.length
-                    ? model.data.map((_, idx) => (
-                        <Cell key={`${series.key}-${idx}`} fill={series.barColors?.[idx] ?? series.color} />
-                      ))
-                    : null}
-                </Bar>
-              )
-            )}
+              );
+            })}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
+      {spec.note ? <div className="mt-3 text-xs text-[var(--cb-text-muted)]">{spec.note}</div> : null}
     </div>
   );
 }

@@ -5,16 +5,11 @@ import type { StockLookupResult } from '@/lib/data/company/lookupStock';
 import { resolveCompanyProfile } from '@/lib/data/company/resolveCompanyProfile';
 import { loadDemoSnapshots } from '@/lib/demo/demoSnapshotStore';
 import { fetchHistoricalFinancials } from '@/lib/data/historicalFinancials';
-
-type PlotTrace = Record<string, unknown>;
-type PlotLayout = Record<string, unknown>;
+import type { FinanceAxisFormat, FinanceChartSpec, FinanceSeries } from '@/lib/charts/financeChartSpec';
 
 export type AnalystVisualizationPanel = {
   id: string;
-  title: string;
-  subtitle?: string;
-  data: PlotTrace[];
-  layout?: PlotLayout;
+  spec: FinanceChartSpec;
   height?: number;
 };
 
@@ -49,6 +44,80 @@ type CompanyGrowthSeries = {
   revenueGrowth: number[];
   source: string;
 };
+
+function singleSeriesSpec(params: {
+  title: string;
+  subtitle?: string;
+  chartType: 'line' | 'bar' | 'area' | 'scatter';
+  xLabel?: string;
+  yLabel?: string;
+  seriesLabel: string;
+  seriesKey: string;
+  data: Array<{ x: string | number; y: number | null }>;
+  color?: string;
+  format?: FinanceAxisFormat;
+  note?: string;
+}): FinanceChartSpec {
+  return {
+    title: params.title,
+    subtitle: params.subtitle,
+    chartType: params.chartType,
+    xLabel: params.xLabel,
+    yLabel: params.yLabel,
+    series: [
+      {
+        key: params.seriesKey,
+        label: params.seriesLabel,
+        color: params.color,
+        axis: 'left',
+        format: params.format,
+      },
+    ],
+    data: params.data.map((point) => ({ x: point.x, [params.seriesKey]: point.y })),
+    formatting: {
+      xFormat: 'string',
+      yLeftFormat: params.format ?? 'number',
+      decimals: params.format === 'currency' ? 0 : 1,
+      currencyCode: 'USD',
+      compactNumbers: false,
+    },
+    note: params.note,
+  };
+}
+
+function multiSeriesSpec(params: {
+  title: string;
+  subtitle?: string;
+  chartType: 'line' | 'bar' | 'area' | 'scatter';
+  xLabel?: string;
+  yLabel?: string;
+  yRightLabel?: string;
+  data: Array<Record<string, string | number | null> & { x: string | number }>;
+  series: FinanceSeries[];
+  yLeftFormat?: FinanceAxisFormat;
+  yRightFormat?: FinanceAxisFormat;
+  note?: string;
+}): FinanceChartSpec {
+  return {
+    title: params.title,
+    subtitle: params.subtitle,
+    chartType: params.chartType,
+    xLabel: params.xLabel,
+    yLabel: params.yLabel,
+    yRightLabel: params.yRightLabel,
+    data: params.data,
+    series: params.series,
+    formatting: {
+      xFormat: 'string',
+      yLeftFormat: params.yLeftFormat ?? 'number',
+      yRightFormat: params.yRightFormat,
+      decimals: (params.yLeftFormat ?? 'number') === 'currency' ? 0 : 1,
+      currencyCode: 'USD',
+      compactNumbers: false,
+    },
+    note: params.note,
+  };
+}
 
 const COMPARISON_ALIASES: Array<{ ticker: string; patterns: RegExp[] }> = [
   { ticker: 'MSFT', patterns: [/\bmicrosoft'?s?\b/i, /\bmsft\b/i] },
@@ -301,35 +370,24 @@ function buildModelVisualization(payload: AnalystGeneratedModelPayload): Analyst
       panels: [
         {
           id: 'forecast-assumptions',
-          title: 'Forecast Assumption Paths',
-          subtitle: 'Revenue growth and EBIT margin by forecast year.',
           height: 280,
-          data: [
-            {
-              type: 'scatter',
-              mode: 'lines+markers',
-              name: 'Revenue Growth',
-              x: years,
-              y: years.map((_, idx) => (typeof revenueGrowth[idx] === 'number' ? Number(revenueGrowth[idx]) * 100 : 0)),
-              line: { color: '#2563eb', width: 2.5, shape: 'spline' },
-              marker: { color: '#2563eb', size: 6 },
-              hovertemplate: '%{x}<br>Revenue Growth: %{y:.1f}%<extra></extra>',
-            },
-            {
-              type: 'scatter',
-              mode: 'lines+markers',
-              name: 'EBIT Margin',
-              x: years,
-              y: years.map((_, idx) => (typeof ebitMargin[idx] === 'number' ? Number(ebitMargin[idx]) * 100 : 0)),
-              line: { color: '#16a34a', width: 2.5, shape: 'spline' },
-              marker: { color: '#16a34a', size: 6 },
-              hovertemplate: '%{x}<br>EBIT Margin: %{y:.1f}%<extra></extra>',
-            },
-          ],
-          layout: {
-            xaxis: { type: 'category' },
-            yaxis: { ticksuffix: '%' },
-          },
+          spec: multiSeriesSpec({
+            title: 'Forecast Assumption Paths',
+            subtitle: 'Revenue growth and EBIT margin by forecast year.',
+            chartType: 'line',
+            xLabel: 'Forecast Year',
+            yLabel: 'Percent',
+            yLeftFormat: 'percent',
+            data: years.map((year, idx) => ({
+              x: year,
+              revenueGrowth: typeof revenueGrowth[idx] === 'number' ? Number(revenueGrowth[idx]) * 100 : null,
+              ebitMargin: typeof ebitMargin[idx] === 'number' ? Number(ebitMargin[idx]) * 100 : null,
+            })),
+            series: [
+              { key: 'revenueGrowth', label: 'Revenue Growth', color: '#2563eb', axis: 'left', format: 'percent' },
+              { key: 'ebitMargin', label: 'EBIT Margin', color: '#16a34a', axis: 'left', format: 'percent' },
+            ],
+          }),
         },
       ],
     };
@@ -356,32 +414,20 @@ function buildModelVisualization(payload: AnalystGeneratedModelPayload): Analyst
       panels: [
         {
           id: 'peer-operating-scale',
-          title: 'Peer Operating Scale',
-          subtitle: 'Revenue and EBITDA across the selected peer set.',
           height: 300,
-          data: [
-            {
-              type: 'bar',
-              name: 'Revenue',
-              x: peerRows.map((row) => row.label),
-              y: peerRows.map((row) => row.revenue),
-              marker: { color: '#2563eb' },
-              hovertemplate: '%{x}<br>Revenue: $%{y:,.0f}M<extra></extra>',
-            },
-            {
-              type: 'bar',
-              name: 'EBITDA',
-              x: peerRows.map((row) => row.label),
-              y: peerRows.map((row) => row.ebitda),
-              marker: { color: '#16a34a' },
-              hovertemplate: '%{x}<br>EBITDA: $%{y:,.0f}M<extra></extra>',
-            },
-          ],
-          layout: {
-            barmode: 'group',
-            xaxis: { type: 'category' },
-            yaxis: { tickprefix: '$', ticksuffix: 'M' },
-          },
+          spec: multiSeriesSpec({
+            title: 'Peer Operating Scale',
+            subtitle: 'Revenue and EBITDA across the selected peer set.',
+            chartType: 'bar',
+            xLabel: 'Peer',
+            yLabel: 'USD millions',
+            yLeftFormat: 'currency',
+            data: peerRows.map((row) => ({ x: row.label, revenue: row.revenue, ebitda: row.ebitda })),
+            series: [
+              { key: 'revenue', label: 'Revenue', color: '#2563eb', axis: 'left', format: 'currency', renderAs: 'bar' },
+              { key: 'ebitda', label: 'EBITDA', color: '#16a34a', axis: 'left', format: 'currency', renderAs: 'bar' },
+            ],
+          }),
         },
       ],
     };
@@ -408,32 +454,20 @@ function buildModelVisualization(payload: AnalystGeneratedModelPayload): Analyst
       panels: [
         {
           id: 'transaction-multiples',
-          title: 'Transaction Multiples',
-          subtitle: 'EV / Revenue and EV / EBITDA across selected deals.',
           height: 300,
-          data: [
-            {
-              type: 'bar',
-              name: 'EV / Revenue',
-              x: rows.map((row) => row.label),
-              y: rows.map((row) => row.revenueMultiple),
-              marker: { color: '#2563eb' },
-              hovertemplate: '%{x}<br>EV / Revenue: %{y:.1f}x<extra></extra>',
-            },
-            {
-              type: 'bar',
-              name: 'EV / EBITDA',
-              x: rows.map((row) => row.label),
-              y: rows.map((row) => row.ebitdaMultiple),
-              marker: { color: '#f59e0b' },
-              hovertemplate: '%{x}<br>EV / EBITDA: %{y:.1f}x<extra></extra>',
-            },
-          ],
-          layout: {
-            barmode: 'group',
-            xaxis: { type: 'category' },
-            yaxis: { ticksuffix: 'x' },
-          },
+          spec: multiSeriesSpec({
+            title: 'Transaction Multiples',
+            subtitle: 'EV / Revenue and EV / EBITDA across selected deals.',
+            chartType: 'bar',
+            xLabel: 'Transaction',
+            yLabel: 'Multiple',
+            yLeftFormat: 'multiple',
+            data: rows.map((row) => ({ x: row.label, revenueMultiple: row.revenueMultiple, ebitdaMultiple: row.ebitdaMultiple })),
+            series: [
+              { key: 'revenueMultiple', label: 'EV / Revenue', color: '#2563eb', axis: 'left', format: 'multiple', renderAs: 'bar' },
+              { key: 'ebitdaMultiple', label: 'EV / EBITDA', color: '#f59e0b', axis: 'left', format: 'multiple', renderAs: 'bar' },
+            ],
+          }),
         },
       ],
     };
@@ -451,25 +485,19 @@ function buildModelVisualization(payload: AnalystGeneratedModelPayload): Analyst
       panels: [
         {
           id: 'underwriting-growth',
-          title: 'Underwriting Growth Path',
-          subtitle: 'Revenue growth by year under the current LBO case.',
           height: 280,
-          data: [
-            {
-              type: 'scatter',
-              mode: 'lines+markers',
-              name: 'Revenue Growth',
-              x: revenueGrowth.map((_, idx) => `Y${idx + 1}`),
-              y: revenueGrowth.map((value) => (typeof value === 'number' ? Number(value) * 100 : 0)),
-              line: { color: '#2563eb', width: 2.5, shape: 'spline' },
-              marker: { color: '#2563eb', size: 6 },
-              hovertemplate: '%{x}<br>Revenue Growth: %{y:.1f}%<extra></extra>',
-            },
-          ],
-          layout: {
-            xaxis: { type: 'category' },
-            yaxis: { ticksuffix: '%' },
-          },
+          spec: singleSeriesSpec({
+            title: 'Underwriting Growth Path',
+            subtitle: 'Revenue growth by year under the current LBO case.',
+            chartType: 'line',
+            xLabel: 'Forecast Year',
+            yLabel: 'Revenue Growth',
+            seriesLabel: 'Revenue Growth',
+            seriesKey: 'revenueGrowth',
+            format: 'percent',
+            color: '#2563eb',
+            data: revenueGrowth.map((value, idx) => ({ x: `Y${idx + 1}`, y: typeof value === 'number' ? Number(value) * 100 : null })),
+          }),
         },
       ],
     };
@@ -490,39 +518,20 @@ function buildModelVisualization(payload: AnalystGeneratedModelPayload): Analyst
       panels: [
         {
           id: 'financing-structure',
-          title: 'Financing Structure Snapshot',
-          subtitle: 'Founder shares, raise amount, and pre-money value in the current round.',
           height: 280,
-          data: [
-            {
-              type: 'bar',
-              name: 'Founder Shares',
-              x: ['Round'],
-              y: [founderShares],
-              marker: { color: '#2563eb' },
-              hovertemplate: 'Founder Shares: %{y:,.0f}<extra></extra>',
-            },
-            {
-              type: 'bar',
-              name: 'Raise Amount',
-              x: ['Round'],
-              y: [raiseAmount],
-              marker: { color: '#16a34a' },
-              hovertemplate: 'Raise Amount: $%{y:,.0f}<extra></extra>',
-            },
-            {
-              type: 'bar',
-              name: 'Pre-Money',
-              x: ['Round'],
-              y: [preMoney],
-              marker: { color: '#f59e0b' },
-              hovertemplate: 'Pre-Money: $%{y:,.0f}<extra></extra>',
-            },
-          ],
-          layout: {
-            barmode: 'group',
-            xaxis: { type: 'category' },
-          },
+          spec: multiSeriesSpec({
+            title: 'Financing Structure Snapshot',
+            subtitle: 'Founder shares, raise amount, and pre-money value in the current round.',
+            chartType: 'bar',
+            xLabel: 'Round',
+            data: [{ x: 'Round', founderShares, raiseAmount, preMoney }],
+            series: [
+              { key: 'founderShares', label: 'Founder Shares', color: '#2563eb', axis: 'left', format: 'number', renderAs: 'bar' },
+              { key: 'raiseAmount', label: 'Raise Amount', color: '#16a34a', axis: 'left', format: 'currency', renderAs: 'bar' },
+              { key: 'preMoney', label: 'Pre-Money', color: '#f59e0b', axis: 'left', format: 'currency', renderAs: 'bar' },
+            ],
+            yLeftFormat: 'number',
+          }),
         },
       ],
     };
@@ -545,22 +554,24 @@ function buildModelVisualization(payload: AnalystGeneratedModelPayload): Analyst
       panels: [
         {
           id: 'saas-driver-snapshot',
-          title: 'Operating Driver Snapshot',
-          subtitle: 'Growth, margin, churn, CAC, and ARPU under the current case.',
           height: 300,
-          data: [
-            {
-              type: 'bar',
-              name: 'Value',
-              x: ['Growth', 'Gross Margin', 'Churn', 'CAC', 'ARPU'],
-              y: [growthRate, grossMargin, churn, cac, arpu],
-              marker: { color: ['#2563eb', '#16a34a', '#dc2626', '#f59e0b', '#8b5cf6'] },
-              hovertemplate: '%{x}: %{y:,.1f}<extra></extra>',
-            },
-          ],
-          layout: {
-            xaxis: { type: 'category' },
-          },
+          spec: singleSeriesSpec({
+            title: 'Operating Driver Snapshot',
+            subtitle: 'Growth, margin, churn, CAC, and ARPU under the current case.',
+            chartType: 'bar',
+            xLabel: 'Driver',
+            yLabel: 'Value',
+            seriesLabel: 'Value',
+            seriesKey: 'value',
+            color: '#2563eb',
+            data: [
+              { x: 'Growth', y: growthRate },
+              { x: 'Gross Margin', y: grossMargin },
+              { x: 'Churn', y: churn },
+              { x: 'CAC', y: cac },
+              { x: 'ARPU', y: arpu },
+            ],
+          }),
         },
       ],
     };
@@ -588,71 +599,45 @@ function buildDcfVisualization(payload: AnalystDcfDemoPayload): AnalystVisualiza
     subtitle: 'Standalone chart package generated from the current DCF output.',
     contextType: 'dcf',
     contextLabel: `${payload.companyName} (${payload.ticker})`,
-    notes: ['This chart artifact is separate from the DCF card so the user can focus on the visuals without the workbook framing.'],
-    panels: [
-      {
-        id: 'dcf-forecast',
-        title: 'Base Forecast',
-        subtitle: 'Revenue and FCFF under the current base case.',
-        height: 280,
-        data: [
-          {
-            type: 'scatter',
-            mode: 'lines+markers',
-            name: 'Revenue',
-            x: payload.forecast.map((row) => row.year),
-            y: payload.forecast.map((row) => row.revenue),
-            line: { color: '#2563eb', width: 2.5, shape: 'spline' },
-            marker: { color: '#2563eb', size: 6 },
-            hovertemplate: '%{x}<br>Revenue: $%{y:,.0f}M<extra></extra>',
-            yaxis: 'y',
-          },
-          {
-            type: 'scatter',
-            mode: 'lines+markers',
-            name: 'FCFF',
-            x: payload.forecast.map((row) => row.year),
-            y: payload.forecast.map((row) => row.fcff),
-            line: { color: '#16a34a', width: 2.5, shape: 'spline' },
-            marker: { color: '#16a34a', size: 6 },
-            hovertemplate: '%{x}<br>FCFF: $%{y:,.0f}M<extra></extra>',
-            yaxis: 'y2',
-          },
-        ],
-        layout: {
-          xaxis: { type: 'category' },
-          yaxis: { tickprefix: '$', ticksuffix: 'M', title: 'Revenue' },
-          yaxis2: {
-            overlaying: 'y',
-            side: 'right',
-            tickprefix: '$',
-            ticksuffix: 'M',
-            title: 'FCFF',
-          },
+      notes: ['This chart artifact is separate from the DCF card so the user can focus on the visuals without the workbook framing.'],
+      panels: [
+        {
+          id: 'dcf-forecast',
+          height: 280,
+          spec: multiSeriesSpec({
+            title: 'Base Forecast',
+            subtitle: 'Revenue and FCFF under the current base case.',
+            chartType: 'line',
+            xLabel: 'Year',
+            yLabel: 'Revenue',
+            yRightLabel: 'FCFF',
+            yLeftFormat: 'currency',
+            yRightFormat: 'currency',
+            data: payload.forecast.map((row) => ({ x: row.year, revenue: row.revenue, fcff: row.fcff })),
+            series: [
+              { key: 'revenue', label: 'Revenue', color: '#2563eb', axis: 'left', format: 'currency' },
+              { key: 'fcff', label: 'FCFF', color: '#16a34a', axis: 'right', format: 'currency' },
+            ],
+          }),
         },
-      },
-      {
-        id: 'dcf-scenarios',
-        title: 'Scenario Value / Share',
-        subtitle: 'Bear, base, and bull value per share.',
-        height: 260,
-        data: [
-          {
-            type: 'bar',
-            name: 'Scenario Value / Share',
-            x: scenarioBars.map((entry) => entry.name),
-            y: scenarioBars.map((entry) => entry.value),
-            marker: { color: scenarioBars.map((entry) => entry.fill) },
-            hovertemplate: '%{x}<br>Value / Share: $%{y:.2f}<extra></extra>',
-          },
-        ],
-        layout: {
-          xaxis: { type: 'category' },
-          yaxis: { tickprefix: '$' },
+        {
+          id: 'dcf-scenarios',
+          height: 260,
+          spec: singleSeriesSpec({
+            title: 'Scenario Value / Share',
+            subtitle: 'Bear, base, and bull value per share.',
+            chartType: 'bar',
+            xLabel: 'Scenario',
+            yLabel: 'Value / Share',
+            seriesLabel: 'Value / Share',
+            seriesKey: 'valuePerShare',
+            color: '#2563eb',
+            format: 'currency',
+            data: scenarioBars.map((entry) => ({ x: entry.name, y: entry.value })),
+          }),
         },
-      },
-    ],
-  };
+      ],
+    };
 }
 
 export function buildRevenueForecastVisualizationFromDcf(payload: AnalystDcfDemoPayload): AnalystVisualizationPayload {
@@ -669,25 +654,19 @@ export function buildRevenueForecastVisualizationFromDcf(payload: AnalystDcfDemo
     panels: [
       {
         id: 'revenue-forecast',
-        title: 'Revenue Forecast',
-        subtitle: 'Projected revenue by forecast year.',
         height: 300,
-        data: [
-          {
-            type: 'scatter',
-            mode: 'lines+markers',
-            name: 'Revenue',
-            x: payload.forecast.map((row) => row.year),
-            y: payload.forecast.map((row) => row.revenue),
-            line: { color: '#2563eb', width: 3, shape: 'spline' },
-            marker: { color: '#76b7ff', size: 7 },
-            hovertemplate: '%{x}<br>Revenue: $%{y:,.0f}M<extra></extra>',
-          },
-        ],
-        layout: {
-          xaxis: { type: 'category' },
-          yaxis: { tickprefix: '$', ticksuffix: 'M' },
-        },
+        spec: singleSeriesSpec({
+          title: 'Revenue Forecast',
+          subtitle: 'Projected revenue by forecast year.',
+          chartType: 'line',
+          xLabel: 'Year',
+          yLabel: 'Revenue',
+          seriesLabel: 'Revenue',
+          seriesKey: 'revenue',
+          color: '#2563eb',
+          format: 'currency',
+          data: payload.forecast.map((row) => ({ x: row.year, y: row.revenue })),
+        }),
       },
     ],
   };
@@ -700,46 +679,39 @@ function buildStockVisualization(payload: StockLookupResult): AnalystVisualizati
     contextType: 'stock',
     contextLabel: `${payload.companyName ?? payload.ticker} (${payload.ticker})`,
     notes: ['This chart artifact is separate from the stock card so the user can work directly with the visual.'],
-    panels: [
-      {
-        id: 'stock-chart',
-        title: payload.chart.kind === 'price' ? 'Recent Price Trend' : 'Fundamental Snapshot',
-        subtitle:
-          payload.chart.kind === 'price'
-            ? 'Recent available price series.'
-            : 'Revenue, EBITDA, and net income snapshot.',
-        height: 260,
-        data:
-          payload.chart.kind === 'price'
-            ? [
-                {
-                  type: 'scatter',
-                  mode: 'lines+markers',
-                  name: payload.ticker,
-                  x: payload.chart.points.map((point) => point.label),
-                  y: payload.chart.points.map((point) => point.value),
-                  line: { color: '#10b981', width: 2.5, shape: 'spline' },
-                  marker: { color: '#10b981', size: 5 },
-                  hovertemplate: '%{x}<br>Price: $%{y:.2f}<extra></extra>',
-                },
-              ]
-            : [
-                {
-                  type: 'bar',
-                  name: 'Value',
-                  x: payload.chart.points.map((point) => point.label),
-                  y: payload.chart.points.map((point) => point.value),
-                  marker: { color: '#2563eb', opacity: 0.9 },
-                  hovertemplate: '%{x}<br>Value: $%{y:,.0f}M<extra></extra>',
-                },
-              ],
-        layout: {
-          xaxis: { type: 'category' },
-          yaxis: payload.chart.kind === 'price' ? { tickprefix: '$' } : { tickprefix: '$', ticksuffix: 'M' },
+      panels: [
+        {
+          id: 'stock-chart',
+          height: 260,
+          spec:
+            payload.chart.kind === 'price'
+              ? singleSeriesSpec({
+                  title: 'Recent Price Trend',
+                  subtitle: 'Recent available price series.',
+                  chartType: 'line',
+                  xLabel: 'Date',
+                  yLabel: 'Price',
+                  seriesLabel: payload.ticker,
+                  seriesKey: 'price',
+                  color: '#10b981',
+                  format: 'currency',
+                  data: payload.chart.points.map((point) => ({ x: point.label, y: point.value })),
+                })
+              : singleSeriesSpec({
+                  title: 'Fundamental Snapshot',
+                  subtitle: 'Revenue, EBITDA, and net income snapshot.',
+                  chartType: 'bar',
+                  xLabel: 'Metric',
+                  yLabel: 'USD millions',
+                  seriesLabel: 'Value',
+                  seriesKey: 'value',
+                  color: '#2563eb',
+                  format: 'currency',
+                  data: payload.chart.points.map((point) => ({ x: point.label, y: point.value })),
+                }),
         },
-      },
-    ],
-  };
+      ],
+    };
 }
 
 export function buildVisualizationFromCurrentArtifact(input: {
@@ -786,28 +758,30 @@ export async function buildComparisonVisualizationFromPrompt(prompt: string): Pr
         panels: [
           {
             id: 'comparison-revenue-growth',
-            title: 'Revenue Growth Comparison',
-            subtitle: 'Historical annual revenue growth by company.',
             height: 300,
-            data: growthSeries.map((company, idx) => ({
-              type: 'scatter',
-              mode: 'lines+markers',
-              name: company.ticker,
-              x: allPeriods,
-              y: allPeriods.map((period) => {
-                const periodIdx = company.periods.indexOf(period);
-                return periodIdx >= 0 ? Number(company.revenueGrowth[periodIdx].toFixed(1)) : null;
+            spec: multiSeriesSpec({
+              title: 'Revenue Growth Comparison',
+              subtitle: 'Historical annual revenue growth by company.',
+              chartType: 'line',
+              xLabel: 'Period',
+              yLabel: 'Revenue Growth',
+              yLeftFormat: 'percent',
+              data: allPeriods.map((period) => {
+                const row: Record<string, string | number | null> & { x: string | number } = { x: period };
+                for (const company of growthSeries) {
+                  const periodIdx = company.periods.indexOf(period);
+                  row[company.ticker] = periodIdx >= 0 ? Number(company.revenueGrowth[periodIdx].toFixed(1)) : null;
+                }
+                return row;
               }),
-              text: allPeriods.map(() => company.companyName),
-              line: { color: idx === 0 ? '#76b7ff' : '#7ce7ac', width: 3, shape: 'spline' },
-              marker: { color: idx === 0 ? '#76b7ff' : '#7ce7ac', size: 7 },
-              hovertemplate: '%{x}<br>%{text}<br>Revenue Growth: %{y:.1f}%<extra></extra>',
-              connectgaps: false,
-            })),
-            layout: {
-              xaxis: { type: 'category' },
-              yaxis: { ticksuffix: '%' },
-            },
+              series: growthSeries.map((company, idx) => ({
+                key: company.ticker,
+                label: company.ticker,
+                color: idx === 0 ? '#76b7ff' : '#7ce7ac',
+                axis: 'left',
+                format: 'percent',
+              })),
+            }),
           },
         ],
       },
@@ -845,30 +819,22 @@ export async function buildComparisonVisualizationFromPrompt(prompt: string): Pr
       notes,
       panels: availableMetrics.map((metric) => ({
         id: `comparison-${metric}`,
-        title: `${formatMetricLabel(metric)} Comparison`,
-        subtitle:
-          metric === 'eps'
-            ? 'Latest available EPS by company.'
-            : `Latest available ${formatMetricLabel(metric).toLowerCase()} by company.`,
         height: 280,
-        data: [
-          {
-            type: 'bar',
-            name: formatMetricLabel(metric),
-            x: series.map((company) => company.ticker),
-            y: series.map((company) => (typeof company.metrics[metric] === 'number' ? company.metrics[metric] : 0)),
-            text: series.map((company) => company.companyName),
-            marker: { color: ['#76b7ff', '#7ce7ac'] },
-            hovertemplate:
-              metric === 'eps'
-                ? '%{x}<br>%{text}<br>EPS: $%{y:.2f}<extra></extra>'
-                : '%{x}<br>%{text}<br>Value: $%{y:,.0f}M<extra></extra>',
-          },
-        ],
-        layout: {
-          xaxis: { type: 'category' },
-          yaxis: metric === 'eps' ? { tickprefix: '$' } : { tickprefix: '$', ticksuffix: 'M' },
-        },
+        spec: singleSeriesSpec({
+          title: `${formatMetricLabel(metric)} Comparison`,
+          subtitle:
+            metric === 'eps'
+              ? 'Latest available EPS by company.'
+              : `Latest available ${formatMetricLabel(metric).toLowerCase()} by company.`,
+          chartType: 'bar',
+          xLabel: 'Company',
+          yLabel: metric === 'eps' ? 'EPS' : formatMetricLabel(metric),
+          seriesLabel: formatMetricLabel(metric),
+          seriesKey: metric,
+          color: '#76b7ff',
+          format: metric === 'eps' ? 'currency' : 'currency',
+          data: series.map((company) => ({ x: company.ticker, y: typeof company.metrics[metric] === 'number' ? company.metrics[metric] : 0 })),
+        }),
       })),
     },
   };
