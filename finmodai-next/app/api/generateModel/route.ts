@@ -4834,11 +4834,28 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
         // Ensure all required arrays exist before calling the function
         // BUT: Only use defaults if we truly don't have data - check if we have LTM financials first
         if (!Array.isArray(sanitizedAssumptions.revenue) || sanitizedAssumptions.revenue.length === 0) {
-          // Try to recover from LTM financials if available
-          if (ltmFinancials?.revenue && ltmFinancials.revenue > 0) {
+          const recoveredBaseRevenue =
+            (typeof sanitizedAssumptions.baseRevenue === 'number' && Number.isFinite(sanitizedAssumptions.baseRevenue)
+              ? sanitizedAssumptions.baseRevenue
+              : null) ??
+            (typeof (sanitizedAssumptions as any).revenueLtm === 'number' && Number.isFinite((sanitizedAssumptions as any).revenueLtm)
+              ? (sanitizedAssumptions as any).revenueLtm
+              : null) ??
+            (typeof (sanitizedAssumptions as any).revenueLTM === 'number' && Number.isFinite((sanitizedAssumptions as any).revenueLTM)
+              ? (sanitizedAssumptions as any).revenueLTM
+              : null) ??
+            (typeof (sanitizedAssumptions as any).ltmRevenue === 'number' && Number.isFinite((sanitizedAssumptions as any).ltmRevenue)
+              ? (sanitizedAssumptions as any).ltmRevenue
+              : null) ??
+            (ltmFinancials?.revenue && ltmFinancials.revenue > 0 ? ltmFinancials.revenue : null);
+
+          // Try to recover from extracted/company revenue first, then LTM financials if available
+          if (recoveredBaseRevenue && recoveredBaseRevenue > 0) {
             const numYears = sanitizedAssumptions.years?.length || 5;
-            sanitizedAssumptions.revenue = Array(numYears).fill(ltmFinancials.revenue);
-            console.log(`[generateModel] ⚠️  Revenue array was missing, recovered from LTM financials: ${ltmFinancials.revenue} (${ltmFinancials.dataSource})`);
+            sanitizedAssumptions.revenue = Array(numYears).fill(recoveredBaseRevenue);
+            console.log(
+              `[generateModel] ⚠️  Revenue array was missing, recovered from extracted/company revenue: ${recoveredBaseRevenue}`
+            );
           } else {
             sanitizedAssumptions.revenue = [1000];
             console.log(`[generateModel] ⚠️  CRITICAL: Revenue array was missing/empty AND no LTM data available! Using default: [1000]`);
