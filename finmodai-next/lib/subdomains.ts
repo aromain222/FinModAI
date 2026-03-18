@@ -6,7 +6,6 @@ export const DEFAULT_SUBDOMAIN_ROUTES: Record<string, string> = {
   macro: '/macro',
   market: '/market',
   models: '/model-generator',
-  deals: '/deal-intelligence',
   news: '/news',
 };
 
