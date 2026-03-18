@@ -142,6 +142,42 @@ function isRevenueForecastVisualizationPrompt(message: string): boolean {
   );
 }
 
+function isTerseFollowUpQuestion(message: string): boolean {
+  const text = message.trim().toLowerCase();
+  return (
+    text.length > 0 &&
+    text.length <= 80 &&
+    /^(why|how so|explain|explain this|what matters|what changed|what stands out|walk me through|break this down|drivers?|key drivers?|risks?|what assumptions?|which assumptions?|stress this|compare this|does this hold up|is this realistic)\b/.test(text)
+  );
+}
+
+function isCurrentArtifactAnalysisPrompt(message: string): boolean {
+  const text = message.toLowerCase();
+  return (
+    isTerseFollowUpQuestion(message) ||
+    /\b(explain this|walk me through|break this down|what matters|what changed|what stands out|what is driving|driving factors|key drivers|what assumptions are doing the most work|assumptions doing the most work|which assumptions matter|key assumptions|biggest risks|stress this|sensitivity|compare this to peers|does this hold up|is this realistic|what breaks this case|where is the risk)\b/.test(
+      text,
+    )
+  );
+}
+
+function currentArtifactFollowUpInstruction(params: {
+  currentModel: AnalystGeneratedModelPayload | null;
+  currentDcf: AnalystDcfDemoPayload | null;
+  currentStock: StockLookupResult | null;
+}): string | null {
+  if (params.currentDcf) {
+    return 'This is a follow-up on the current DCF artifact. Analyze the current DCF first: focus on valuation drivers, key assumptions, sensitivity, realism, and what is doing the most work. Do not fall back to generic finance explanations unless the user explicitly asks for one.';
+  }
+  if (params.currentModel) {
+    return 'This is a follow-up on the current model artifact. Analyze the current model first: explain the drivers, assumptions, outputs, weak points, and what would change the conclusion. Do not fall back to generic finance explanations unless the user explicitly asks for one.';
+  }
+  if (params.currentStock) {
+    return 'This is a follow-up on the current company lookup artifact. Answer using the current company context first, and separate operating drivers from valuation or sentiment drivers.';
+  }
+  return null;
+}
+
 function isUploadedAttachmentContext(value: unknown): value is UploadedAttachmentContext {
   if (!value || typeof value !== 'object') return false;
   const row = value as Record<string, unknown>;
@@ -546,6 +582,14 @@ export async function POST(req: NextRequest) {
     const resolvedTicker = tickerRaw ?? tickerFromMessage ?? tickerFromAttachment ?? tickerFromCurrentArtifact;
     fallbackTicker = resolvedTicker;
     fallbackUserMessage = lastUserMessage;
+    const preferCurrentArtifact =
+      Boolean(currentModel || currentDcf || currentStock) &&
+      isCurrentArtifactAnalysisPrompt(lastUserMessage) &&
+      !isVisualizationPrompt(lastUserMessage) &&
+      !classifyPrompt(lastUserMessage);
+    const currentArtifactInstruction = preferCurrentArtifact
+      ? currentArtifactFollowUpInstruction({ currentModel, currentDcf, currentStock })
+      : null;
 
     /* ── Step 1: Route the question ── */
     const baseRoute: AnalystRoute = routeAnalystQuery(
@@ -574,11 +618,13 @@ export async function POST(req: NextRequest) {
       isVisualizationPrompt(lastUserMessage) &&
       !classifyPrompt(lastUserMessage);
     if (route.intent === 'company_question') {
-      stockLookupPayload = await lookupStock(
-        resolvedTicker
-          ? { prompt: lastUserMessage, ticker: resolvedTicker }
-          : { prompt: lastUserMessage }
-      );
+      stockLookupPayload = preferCurrentArtifact && currentStock
+        ? currentStock
+        : await lookupStock(
+            resolvedTicker
+              ? { prompt: lastUserMessage, ticker: resolvedTicker }
+              : { prompt: lastUserMessage }
+          );
     }
 
     const macroEventsContext = shouldInjectMacroEventsContext(route, effectiveUserMessage, attachmentContext)
@@ -858,10 +904,28 @@ export async function POST(req: NextRequest) {
     }
 
     /* ── Step 2: Retrieve data based on route ── */
-    const retrievedData = await retrieveDataForRoute(route, lastUserMessage);
+    const retrievalRoute = preferCurrentArtifact
+      ? {
+          ...route,
+          requiresLiveData: false,
+          requiresNews: false,
+          requiresFinancials: false,
+        }
+      : route;
+
+    const retrievedData = preferCurrentArtifact
+      ? {
+          news: [],
+          financials: [],
+          webSnippets: [],
+          curatedHeadlines: [],
+          sources: [],
+          warnings: [],
+        }
+      : await retrieveDataForRoute(route, lastUserMessage);
 
     /* ── Step 3: Extract verified facts ── */
-    const facts = extractVerifiedFacts(route, retrievedData);
+    const facts = extractVerifiedFacts(retrievalRoute, retrievedData);
     verifiedFacts = facts;
     const factsContext = serializeFactsBriefForContext(facts, lastUserMessage);
 
@@ -908,6 +972,7 @@ export async function POST(req: NextRequest) {
       { role: 'system', content: ANALYST_SYSTEM_PROMPT },
       ...(intentPrompt ? [{ role: 'system' as const, content: intentPrompt }] : []),
       { role: 'system', content: styleInstruction },
+      ...(currentArtifactInstruction ? [{ role: 'system' as const, content: currentArtifactInstruction }] : []),
       {
         role: 'system',
         content: `Sourced context for this answer:\n\n${factsContext}`,
@@ -1050,6 +1115,7 @@ export async function POST(req: NextRequest) {
         ...(macroEventsContext && macroEventsContext.events.length > 0
           ? ['CapitalBase active market event context']
           : []),
+        ...(preferCurrentArtifact && currentArtifactBlock ? ['CapitalBase current artifact context'] : []),
       ],
       factsCount: facts.numbers.length + facts.events.length,
       dataGaps: facts.dataGaps.length > 0 ? facts.dataGaps : undefined,

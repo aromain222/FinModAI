@@ -692,7 +692,7 @@ function extractFollowUpOverrides(prompt: string, existingInputs: ExtractedModel
 }
 
 export function isModelAdjustmentPrompt(prompt: string): boolean {
-  return /\b(?:adjust|update|change|set|make|rename|revise)\b/i.test(prompt);
+  return /\b(?:adjust|update|change|set|make|rename|revise|stress|sensit(?:ivity|ize)|scenario|downside|upside|bear(?: case)?|bull(?: case)?|base case|what if|assume)\b/i.test(prompt);
 }
 
 function buildAdjustedReply(modelType: StructuredModelType, overrides: Record<string, unknown>): string {
