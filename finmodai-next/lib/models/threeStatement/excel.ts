@@ -45,6 +45,15 @@ import {
 import { writeValuationBlock } from '../../excel/valuationBlock';
 
 const THREE_STATEMENT_MODEL_TITLE = 'Three-Statement Financial Model';
+const UNITS_NOTE = 'All figures in USD millions unless otherwise noted.';
+
+function writeUnitsNote(sheet: ExcelJS.Worksheet, row: number, lastCol: number): number {
+  sheet.getCell(row, 1).value = UNITS_NOTE;
+  sheet.mergeCells(row, 1, row, Math.max(2, lastCol));
+  sheet.getCell(row, 1).font = { name: 'Calibri', size: 10, italic: true, color: { argb: COLORS.muted } };
+  sheet.getCell(row, 1).alignment = { vertical: 'middle', horizontal: 'center' };
+  return row + 2;
+}
 
 export interface ThreeStatementInputs {
   ticker: string;
@@ -467,6 +476,7 @@ function createThreeStatementMainSheet(
   const numYears = years.length;
   const lastDataCol = 1 + numYears;
   let row = titleBar(sheet, THREE_STATEMENT_MODEL_TITLE, Math.max(6, lastDataCol));
+  row = writeUnitsNote(sheet, row, Math.max(6, lastDataCol));
 
   const finStartRow = row;
   sheet.getCell(row, 1).value = 'Line Item';
@@ -596,6 +606,7 @@ function createModelSummarySheet(
 ): void {
   const sheet = workbook.addWorksheet('Summary');
   let row = titleBar(sheet, THREE_STATEMENT_MODEL_TITLE, 6);
+  row = writeUnitsNote(sheet, row, 6);
 
   // KPI Strip
   const lastActual = output.incomeStatement.revenue[0];
@@ -760,6 +771,7 @@ function createAssumptionsSheet(
   const numYears = years.length;
   const lastDataCol = 1 + numYears;
   let row = titleBar(sheet, THREE_STATEMENT_MODEL_TITLE, Math.max(6, lastDataCol));
+  row = writeUnitsNote(sheet, row, Math.max(6, lastDataCol));
   const keyHeaderRow = row;
   sheet.getCell(row, 1).value = 'Metric';
   sheet.getCell(row, 2).value = 'Value';
@@ -874,6 +886,7 @@ function createSupportingSchedulesSheet(
   const sheet = workbook.addWorksheet('Supporting Schedules');
   const lastDataCol = Math.max(6, years.length + 1);
   let row = titleBar(sheet, THREE_STATEMENT_MODEL_TITLE, lastDataCol);
+  row = writeUnitsNote(sheet, row, lastDataCol);
 
   // D&A Schedule
   sheet.getCell(row, 1).value = 'Depreciation & Amortization';
