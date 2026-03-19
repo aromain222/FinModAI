@@ -29,6 +29,12 @@ export type ComparisonVisualizationResult = {
   explanation: string;
 };
 
+export type SingleCompanyVisualizationResult = {
+  visualization: AnalystVisualizationPayload;
+  explanation: string;
+  sources: string[];
+};
+
 type ComparisonMetricKey = 'revenue' | 'revenueGrowth' | 'ebitda' | 'netIncome' | 'eps';
 
 type CompanyComparisonSeries = {
@@ -285,6 +291,7 @@ async function fetchComparisonSeries(ticker: string): Promise<CompanyComparisonS
 async function fetchRevenueGrowthSeries(ticker: string): Promise<CompanyGrowthSeries | null> {
   const historical = await fetchHistoricalFinancials(ticker, 5);
   if (historical && historical.years.length >= 3 && historical.revenue.length >= 3) {
+    const profile = await resolveCompanyProfile({ ticker });
     const ordered = historical.years
       .map((year, idx) => ({ year, revenue: historical.revenue[idx] }))
       .filter((row) => typeof row.revenue === 'number' && Number.isFinite(row.revenue) && row.revenue > 0)
@@ -304,7 +311,7 @@ async function fetchRevenueGrowthSeries(ticker: string): Promise<CompanyGrowthSe
       if (periods.length >= 2) {
         return {
           ticker: historical.ticker,
-          companyName: historical.ticker,
+          companyName: profile?.company.name ?? historical.ticker,
           periods,
           revenueGrowth: growth,
           source: `${historical.dataSource.toLowerCase()}_historical_annual`,
@@ -345,6 +352,15 @@ async function fetchRevenueGrowthSeries(ticker: string): Promise<CompanyGrowthSe
   }
 
   return null;
+}
+
+function isSingleCompanyRevenueGrowthPrompt(prompt: string): boolean {
+  const text = normalizePromptText(prompt);
+  return (
+    /\b(revenue growth|sales growth|top line growth|growth in revenue|growth of revenue|revenue grow(th)?|reveneue growth|reveenue growth)\b/.test(
+      text,
+    ) && !hasComparisonIntent(prompt)
+  );
 }
 
 function formatMetricLabel(metric: ComparisonMetricKey): string {
@@ -902,6 +918,66 @@ export async function buildComparisonVisualizationFromPrompt(prompt: string): Pr
           data: series.map((company) => ({ x: company.ticker, y: typeof company.metrics[metric] === 'number' ? company.metrics[metric] : 0 })),
         }),
       })),
+    },
+  };
+}
+
+export async function buildSingleCompanyRevenueGrowthVisualization(params: {
+  prompt: string;
+  ticker?: string | null;
+}): Promise<SingleCompanyVisualizationResult | null> {
+  if (!isSingleCompanyRevenueGrowthPrompt(params.prompt)) return null;
+
+  let ticker = params.ticker?.toUpperCase() ?? null;
+  if (!ticker) {
+    const snapshots = await loadDemoSnapshots();
+    const mentioned = resolveMentionedTickers(params.prompt, snapshots);
+    ticker = mentioned[0] ?? null;
+  }
+  if (!ticker) return null;
+
+  const growthSeries = await fetchRevenueGrowthSeries(ticker);
+  if (!growthSeries || growthSeries.periods.length < 2 || growthSeries.revenueGrowth.length < 2) return null;
+
+  const notes = [
+    'This chart was generated directly from the prompt using historical company financial data.',
+    `${growthSeries.ticker}: ${growthSeries.source}`,
+    comparisonDriverSummary(growthSeries.ticker),
+  ];
+
+  return {
+    explanation: `${comparisonDriverSummary(growthSeries.ticker)} The chart uses historical annual revenue growth, not a forecast or a single LTM snapshot.`,
+    sources: [
+      `Historical financials: ${growthSeries.source}`,
+    ],
+    visualization: {
+      title: `${growthSeries.companyName} Revenue Growth`,
+      subtitle: 'Historical annual revenue growth built from the latest available company financial history.',
+      contextType: 'stock',
+      contextLabel: `${growthSeries.companyName} (${growthSeries.ticker})`,
+      notes,
+      panels: [
+        {
+          id: 'single-company-revenue-growth',
+          height: 300,
+          spec: singleSeriesSpec({
+            title: 'Revenue Growth',
+            subtitle: 'Historical annual revenue growth by period.',
+            chartType: 'line',
+            xLabel: 'Period',
+            yLabel: 'Revenue Growth',
+            seriesLabel: 'Revenue Growth',
+            seriesKey: 'revenueGrowth',
+            color: '#76b7ff',
+            format: 'percent',
+            data: growthSeries.periods.map((period, idx) => ({
+              x: period,
+              y: Number(growthSeries.revenueGrowth[idx].toFixed(1)),
+            })),
+            note: 'Historical annual revenue growth from sourced financial history.',
+          }),
+        },
+      ],
     },
   };
 }

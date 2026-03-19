@@ -42,6 +42,7 @@ import type { MarketEvent } from '@/lib/news/marketEventsTypes';
 import {
   buildComparisonVisualizationFromPrompt,
   buildRevenueForecastVisualizationFromDcf,
+  buildSingleCompanyRevenueGrowthVisualization,
   buildVisualizationFromCurrentArtifact,
   generateVisualizationSpecFromPrompt,
   revenueDriverSummary,
@@ -700,6 +701,23 @@ export async function POST(req: NextRequest) {
           route: route.intent,
           visualization: comparisonVisualization.visualization,
           sources: comparisonVisualization.visualization.notes,
+          factsCount: 0,
+          attachmentUsed: attachmentLabel,
+        });
+      }
+
+      const singleCompanyRevenueGrowthVisualization = await buildSingleCompanyRevenueGrowthVisualization({
+        prompt: lastUserMessage,
+        ticker: resolvedTicker,
+      });
+      if (singleCompanyRevenueGrowthVisualization) {
+        return NextResponse.json({
+          reply: `Here is a standalone revenue growth chart for ${singleCompanyRevenueGrowthVisualization.visualization.contextLabel}. ${singleCompanyRevenueGrowthVisualization.explanation}`,
+          fallback: false,
+          mode: 'live',
+          route: route.intent,
+          visualization: singleCompanyRevenueGrowthVisualization.visualization,
+          sources: singleCompanyRevenueGrowthVisualization.sources,
           factsCount: 0,
           attachmentUsed: attachmentLabel,
         });
