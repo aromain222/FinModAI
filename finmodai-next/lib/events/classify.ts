@@ -1,7 +1,6 @@
-import OpenAI from 'openai';
 import { z } from 'zod';
-import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKey';
 import type { EventCluster } from '@/lib/events/cluster';
+import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 import {
   marketImpactSchema,
   marketEventTypeSchema,
@@ -86,37 +85,6 @@ const classifierSchema = z.object({
   keyEntities: z.array(z.string().min(1)).max(12).optional(),
 });
 
-const jsonSchema = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    marketMoving: { type: 'boolean' },
-    reason: { type: 'string' },
-    title: { type: 'string' },
-    eventType: { type: 'string', enum: marketEventTypeSchema.options },
-    horizon: { type: 'string', enum: ['Immediate', 'NearTerm', 'Structural'] },
-    severity: { type: 'number' },
-    drivers: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 4 },
-    marketImpact: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        equities: { type: 'string' },
-        rates: { type: 'string' },
-        fx: { type: 'string' },
-        oil: { type: 'string' },
-        credit: { type: 'string' },
-        sectors: { type: 'string' },
-      },
-    },
-    transmissionPath: { type: 'array', items: { type: 'string' }, minItems: 1 },
-    status: { type: 'string', enum: ['developing', 'confirmed', 'resolved'] },
-    watchNext: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 3 },
-    keyEntities: { type: 'array', items: { type: 'string' }, maxItems: 12 },
-  },
-  required: ['marketMoving'],
-} as const;
-
 export type ClassifyDiagnostics = {
   openaiCallCount: number;
   openaiErrors: string[];
@@ -156,6 +124,18 @@ function dedupeStrings(values: string[] | undefined, fallback: string[]): string
   return out;
 }
 
+function extractJsonObject(text: string): unknown {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  const candidate = fenced?.[1]?.trim() ?? trimmed;
+  const firstBrace = candidate.indexOf('{');
+  const lastBrace = candidate.lastIndexOf('}');
+  if (firstBrace < 0 || lastBrace <= firstBrace) {
+    throw new Error('No JSON object found in classifier response.');
+  }
+  return JSON.parse(candidate.slice(firstBrace, lastBrace + 1));
+}
+
 export async function classifyClusterWithOpenAI(
   cluster: EventCluster,
   defaults: {
@@ -170,10 +150,6 @@ export async function classifyClusterWithOpenAI(
   diagnostics: ClassifyDiagnostics,
   debug = false
 ): Promise<ClassifiedEventPayload | null> {
-  const keys = getOpenAIKeyCandidates('service');
-  const models = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-5.4-pro', 'gpt-5.4');
-  if (!keys.length || !models.length) return null;
-
   const clusterInput = {
     fingerprint: cluster.fingerprint,
     gateCategory: cluster.gateCategory,
@@ -189,75 +165,63 @@ export async function classifyClusterWithOpenAI(
     })),
   };
 
-  for (const key of keys) {
-    const client = new OpenAI({ apiKey: key });
-    for (const model of models) {
-      diagnostics.openaiCallCount += 1;
-      try {
-        const response = await client.responses.create({
-          model,
-          temperature: 0.1,
-          max_output_tokens: 700,
-          input: [
-            { role: 'system', content: CLASSIFIER_SYSTEM_PROMPT },
-            {
-              role: 'user',
+  diagnostics.openaiCallCount += 1;
+  try {
+    const response = await generateTextWithProviderFallback({
+      clientType: 'service',
+      preferredProvider: 'anthropic',
+      temperature: 0.1,
+      maxTokens: 900,
+      messages: [
+        { role: 'system', content: CLASSIFIER_SYSTEM_PROMPT },
+        {
+          role: 'user',
           content:
-                'Classify this event cluster and output JSON only. If uncertain, set marketMoving=false.\n' +
-                JSON.stringify(clusterInput),
-            },
-          ],
-          text: {
-            format: {
-              type: 'json_schema',
-              name: 'capitalbase_event_classifier',
-              strict: true,
-              schema: jsonSchema,
-            },
-          },
-        } as never);
+            'Classify this event cluster and output JSON only. If uncertain, set marketMoving=false.\n' +
+            JSON.stringify(clusterInput),
+        },
+      ],
+    });
 
-        const raw = response.output_text || '{}';
-        if (debug) {
-          diagnostics.rawSamples = diagnostics.rawSamples || [];
-          if (diagnostics.rawSamples.length < 5) {
-            diagnostics.rawSamples.push(`${cluster.fingerprint.slice(0, 8)}:${raw.slice(0, 300)}`);
-          }
-        }
-
-        let parsed: z.infer<typeof classifierSchema>;
-        try {
-          parsed = classifierSchema.parse(JSON.parse(raw));
-        } catch (error) {
-          diagnostics.schemaParseFailures += 1;
-          const msg = error instanceof Error ? error.message : String(error);
-          if (diagnostics.openaiErrors.length < 8) diagnostics.openaiErrors.push(`schema_parse_failed:${msg.slice(0, 180)}`);
-          continue;
-        }
-
-        if (!parsed.marketMoving) return null;
-
-        return {
-          marketMoving: true,
-          title: parsed.title?.trim() || defaults.title,
-          eventType: parsed.eventType || defaults.eventType,
-          horizon: parsed.horizon || defaults.horizon,
-          severity: clamp(parsed.severity, defaults.severity),
-          drivers: dedupeStrings(parsed.drivers, defaults.drivers).slice(0, 4),
-          marketImpact: parsed.marketImpact || defaults.marketImpact,
-          transmissionPath: dedupeStrings(parsed.transmissionPath, defaults.transmissionPath),
-          status: parsed.status,
-          watchNext: dedupeStrings(parsed.watchNext, [
-            'Watch official confirmations and policy statements.',
-          ]).slice(0, 3),
-          keyEntities: dedupeStrings(parsed.keyEntities, cluster.keyEntities).slice(0, 12),
-        };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (diagnostics.openaiErrors.length < 8) diagnostics.openaiErrors.push(`openai_call_failed:${message.slice(0, 180)}`);
+    const raw = response?.text?.trim() || '{}';
+    if (debug) {
+      diagnostics.rawSamples = diagnostics.rawSamples || [];
+      if (diagnostics.rawSamples.length < 5) {
+        const provider = response ? `${response.provider}:${response.model}` : 'unknown';
+        diagnostics.rawSamples.push(`${cluster.fingerprint.slice(0, 8)}:${provider}:${raw.slice(0, 260)}`);
       }
     }
-  }
 
-  return null;
+    let parsed: z.infer<typeof classifierSchema>;
+    try {
+      parsed = classifierSchema.parse(extractJsonObject(raw));
+    } catch (error) {
+      diagnostics.schemaParseFailures += 1;
+      const msg = error instanceof Error ? error.message : String(error);
+      if (diagnostics.openaiErrors.length < 8) diagnostics.openaiErrors.push(`schema_parse_failed:${msg.slice(0, 180)}`);
+      return null;
+    }
+
+    if (!parsed.marketMoving) return null;
+
+    return {
+      marketMoving: true,
+      title: parsed.title?.trim() || defaults.title,
+      eventType: parsed.eventType || defaults.eventType,
+      horizon: parsed.horizon || defaults.horizon,
+      severity: clamp(parsed.severity, defaults.severity),
+      drivers: dedupeStrings(parsed.drivers, defaults.drivers).slice(0, 4),
+      marketImpact: parsed.marketImpact || defaults.marketImpact,
+      transmissionPath: dedupeStrings(parsed.transmissionPath, defaults.transmissionPath),
+      status: parsed.status,
+      watchNext: dedupeStrings(parsed.watchNext, [
+        'Watch official confirmations and policy statements.',
+      ]).slice(0, 3),
+      keyEntities: dedupeStrings(parsed.keyEntities, cluster.keyEntities).slice(0, 12),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (diagnostics.openaiErrors.length < 8) diagnostics.openaiErrors.push(`provider_call_failed:${message.slice(0, 180)}`);
+    return null;
+  }
 }
