@@ -516,10 +516,10 @@ async function buildFallbackReply(params: {
   preferSilent?: boolean;
 }): Promise<string> {
   const headerByReason: Record<typeof params.reason, string> = {
-    missing_key: 'OpenAI key is not configured. Returning retrieved data context only.',
-    auth_failed: 'OpenAI authentication failed. Returning retrieved data context only.',
-    rate_limited: 'OpenAI rate limit exceeded. Returning retrieved data context only.',
-    model_unavailable: 'OpenAI is temporarily unavailable. Returning retrieved data context only.',
+    missing_key: 'No AI provider key is configured. Returning retrieved data context only.',
+    auth_failed: 'AI provider authentication failed. Returning retrieved data context only.',
+    rate_limited: 'AI provider rate limit exceeded. Returning retrieved data context only.',
+    model_unavailable: 'AI generation is temporarily unavailable. Returning retrieved data context only.',
     data_unavailable: 'The requested model could not be built because company financial data is not available or complete for this ticker right now.',
   };
   const header = headerByReason[params.reason];
