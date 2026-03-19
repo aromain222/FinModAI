@@ -609,6 +609,10 @@ export async function POST(req: NextRequest) {
           row.content.trim().length > 0
         );
       })
+      .map((m: { role: 'user' | 'assistant' | 'system'; content: string }) => ({
+        role: m.role,
+        content: m.content,
+      }))
       .slice(-12);
 
     type SafeMessage = { role: 'user' | 'assistant' | 'system'; content: string };
