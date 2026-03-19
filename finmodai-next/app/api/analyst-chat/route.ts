@@ -32,6 +32,7 @@ import {
 import { savePromptModelRunVersion } from '@/lib/model-generator/runHistory';
 import { classifyPrompt } from '@/lib/model-generator/classifyPrompt';
 import { ANALYST_SYSTEM_PROMPT, getIntentPrompt } from '@/lib/analyst/prompts';
+import { getAnthropicKeyCandidates } from '@/lib/anthropicKey';
 import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKey';
 import { lookupStock } from '@/lib/data/company/lookupStock';
 import { detectCoreTemplatePrompt } from '@/lib/analyst/coreModelTemplates';
@@ -1052,9 +1053,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    /* ── Check for OpenAI keys ── */
+    /* ── Check for provider keys ── */
     const openAiKeys = getOpenAIKeyCandidates('user');
-    if (openAiKeys.length === 0) {
+    const anthropicKeys = getAnthropicKeyCandidates('user');
+    if (openAiKeys.length === 0 && anthropicKeys.length === 0) {
       const fallback = await buildFallbackReply({
         ticker: resolvedTicker,
         facts,
@@ -1100,7 +1102,7 @@ export async function POST(req: NextRequest) {
       inputMessages.push({ role: 'user', content: 'Provide a concise market and fundamentals summary.' });
     }
 
-    /* ── Step 5: Call OpenAI with verified facts as grounding ── */
+    /* ── Step 5: Call provider with verified facts as grounding ── */
     const models = getOpenAIModelCandidates(process.env.OPENAI_MODEL);
     let replyText: string | null = null;
     let lastError: unknown = null;
@@ -1151,79 +1153,105 @@ export async function POST(req: NextRequest) {
       return null;
     };
 
-    for (const apiKey of openAiKeys) {
-      const client = new OpenAI({ apiKey });
-      for (const model of models) {
-        try {
-          replyText = await attemptResponse(client, model, inputMessages, useWebTools);
-          if (process.env.NODE_ENV !== 'production') {
-            console.debug('[analyst-chat] model selected', { model, key: keyFingerprint(apiKey), usedWebTool: useWebTools });
-          }
-        } catch (error) {
-          lastError = error;
-          if (isAuthError(error)) { sawAuthError = true; break; }
-          if (process.env.NODE_ENV !== 'production') {
-            console.warn('[analyst-chat] responses failed', {
-              model, key: keyFingerprint(apiKey),
-              message: error instanceof Error ? redactSecrets(error.message) : redactSecrets(String(error)),
-            });
-          }
-        }
-
-        if (!replyText) {
-          try {
-            const completion = await client.chat.completions.create({
-              model,
-              messages: inputMessages,
-              temperature: 0,
-              max_tokens: 800,
-            });
-            replyText = extractReplyFromCompletions(completion);
-            if (process.env.NODE_ENV !== 'production') {
-              console.debug('[analyst-chat] completions fallback', { model, key: keyFingerprint(apiKey) });
-            }
-          } catch (error) {
-            lastError = error;
-            if (isAuthError(error)) { sawAuthError = true; break; }
-          }
-        }
-
-        if (replyText) {
-          if (hasPlaceholderNumbers(replyText)) {
-            try {
-              const repairMsgs = [
-                ...inputMessages,
-                {
-                  role: 'system' as const,
-                  content: 'Your previous draft contained placeholders (XX, $XX). Regenerate using ONLY the verified facts provided. If a number is not available in the facts context, say "not available" instead of guessing.',
-                },
-                { role: 'user' as const, content: 'Regenerate with concrete values from verified facts only.' },
-              ];
-              const repaired = await attemptResponse(client, model, repairMsgs, false);
-              if (repaired) replyText = repaired;
-            } catch {
-              // keep original reply
-            }
-          }
-          break;
-        }
-      }
-      if (replyText) break;
-    }
-
-    if (!replyText) {
+    if (!useWebTools) {
       try {
-        const anthropicReply = await generateTextWithProviderFallback({
+        const providerReply = await generateTextWithProviderFallback({
           clientType: 'user',
           preferredProvider: 'anthropic',
           temperature: 0,
           maxTokens: 800,
           messages: inputMessages,
-          openAiModels: [],
         });
-        replyText = anthropicReply?.text?.trim() ?? null;
+        replyText = providerReply?.text?.trim() ?? null;
+        if (process.env.NODE_ENV !== 'production' && providerReply) {
+          console.debug('[analyst-chat] provider selected', {
+            provider: providerReply.provider,
+            model: providerReply.model,
+            usedWebTool: false,
+          });
+        }
+        if (replyText && hasPlaceholderNumbers(replyText)) {
+          const repairMsgs = [
+            ...inputMessages,
+            {
+              role: 'system' as const,
+              content: 'Your previous draft contained placeholders (XX, $XX). Regenerate using ONLY the verified facts provided. If a number is not available in the facts context, say "not available" instead of guessing.',
+            },
+            { role: 'user' as const, content: 'Regenerate with concrete values from verified facts only.' },
+          ];
+          const repaired = await generateTextWithProviderFallback({
+            clientType: 'user',
+            preferredProvider: 'anthropic',
+            temperature: 0,
+            maxTokens: 800,
+            messages: repairMsgs,
+          });
+          if (repaired?.text?.trim()) replyText = repaired.text.trim();
+        }
       } catch (error) {
         lastError = error;
+      }
+    }
+
+    if (!replyText && openAiKeys.length > 0) {
+      for (const apiKey of openAiKeys) {
+        const client = new OpenAI({ apiKey });
+        for (const model of models) {
+          try {
+            replyText = await attemptResponse(client, model, inputMessages, useWebTools);
+            if (process.env.NODE_ENV !== 'production') {
+              console.debug('[analyst-chat] model selected', { model, key: keyFingerprint(apiKey), usedWebTool: useWebTools });
+            }
+          } catch (error) {
+            lastError = error;
+            if (isAuthError(error)) { sawAuthError = true; break; }
+            if (process.env.NODE_ENV !== 'production') {
+              console.warn('[analyst-chat] responses failed', {
+                model, key: keyFingerprint(apiKey),
+                message: error instanceof Error ? redactSecrets(error.message) : redactSecrets(String(error)),
+              });
+            }
+          }
+
+          if (!replyText && !useWebTools) {
+            try {
+              const completion = await client.chat.completions.create({
+                model,
+                messages: inputMessages,
+                temperature: 0,
+                max_tokens: 800,
+              });
+              replyText = extractReplyFromCompletions(completion);
+              if (process.env.NODE_ENV !== 'production') {
+                console.debug('[analyst-chat] completions fallback', { model, key: keyFingerprint(apiKey) });
+              }
+            } catch (error) {
+              lastError = error;
+              if (isAuthError(error)) { sawAuthError = true; break; }
+            }
+          }
+
+          if (replyText) {
+            if (hasPlaceholderNumbers(replyText)) {
+              try {
+                const repairMsgs = [
+                  ...inputMessages,
+                  {
+                    role: 'system' as const,
+                    content: 'Your previous draft contained placeholders (XX, $XX). Regenerate using ONLY the verified facts provided. If a number is not available in the facts context, say "not available" instead of guessing.',
+                  },
+                  { role: 'user' as const, content: 'Regenerate with concrete values from verified facts only.' },
+                ];
+                const repaired = await attemptResponse(client, model, repairMsgs, false);
+                if (repaired) replyText = repaired;
+              } catch {
+                // keep original reply
+              }
+            }
+            break;
+          }
+        }
+        if (replyText) break;
       }
     }
 
