@@ -616,6 +616,49 @@ function toPeerInputs(ticker: string, snapshot: DemoCompanySnapshot): CompsPeerI
   };
 }
 
+function mergeSnapshotValue<T>(primary: T | null | undefined, fallback: T | null | undefined): T | null | undefined {
+  if (primary !== null && primary !== undefined) return primary;
+  return fallback;
+}
+
+function buildMergedCompsSubjectSnapshot(params: {
+  ticker: string;
+  companyName: string;
+  companyType?: string | null;
+  storedSnapshot?: {
+    revenueLtm?: number | null;
+    ebitdaLtm?: number | null;
+    netIncomeLtm?: number | null;
+    cash?: number | null;
+    totalDebt?: number | null;
+    sharesOutstanding?: number | null;
+    marketCap?: number | null;
+    asOfDate?: string | null;
+    createdAt?: string | null;
+    source?: string | null;
+  } | null;
+  latestPrice?: {
+    close?: number | null;
+  } | null;
+  demoSnapshot?: DemoCompanySnapshot | null;
+}): DemoCompanySnapshot {
+  const { ticker, companyName, companyType, storedSnapshot, latestPrice, demoSnapshot } = params;
+  return {
+    ticker,
+    companyName: mergeSnapshotValue(storedSnapshot ? companyName : null, demoSnapshot?.companyName) ?? companyName,
+    sector: mergeSnapshotValue(companyType ?? null, demoSnapshot?.sector) ?? null,
+    revenueLtm: mergeSnapshotValue(storedSnapshot?.revenueLtm, demoSnapshot?.revenueLtm) ?? null,
+    ebitdaLtm: mergeSnapshotValue(storedSnapshot?.ebitdaLtm, demoSnapshot?.ebitdaLtm) ?? null,
+    netIncomeLtm: mergeSnapshotValue(storedSnapshot?.netIncomeLtm, demoSnapshot?.netIncomeLtm) ?? null,
+    cash: mergeSnapshotValue(storedSnapshot?.cash, demoSnapshot?.cash) ?? null,
+    totalDebt: mergeSnapshotValue(storedSnapshot?.totalDebt, demoSnapshot?.totalDebt) ?? null,
+    sharesOutstanding: mergeSnapshotValue(storedSnapshot?.sharesOutstanding, demoSnapshot?.sharesOutstanding) ?? null,
+    sharePrice: mergeSnapshotValue(latestPrice?.close, demoSnapshot?.sharePrice) ?? null,
+    marketCap: mergeSnapshotValue(storedSnapshot?.marketCap, demoSnapshot?.marketCap) ?? null,
+    updatedAt: mergeSnapshotValue(storedSnapshot?.asOfDate, demoSnapshot?.updatedAt) ?? null,
+  };
+}
+
 function buildProvenanceSummary(params: {
   source: string;
   asOfDate?: string | null;
@@ -991,7 +1034,14 @@ async function buildCompsInputs(prompt: string): Promise<ExtractInputsResult> {
   const parsedCompanyName = isInstructionContaminatedName(parsedCompanyNameRaw) ? null : parsedCompanyNameRaw;
   const companyName = stored?.company.name || resolved?.snapshot.companyName || parsedCompanyName || deriveCompanyLabel(companyType, 'Subject Company');
   const ticker = stored?.company.ticker ?? resolved?.ticker;
-  const subjectSnapshot = resolved?.snapshot ?? (ticker ? snapshots[ticker] : undefined);
+  const subjectSnapshot = buildMergedCompsSubjectSnapshot({
+    ticker: ticker ?? 'SUBJECT',
+    companyName,
+    companyType,
+    storedSnapshot: stored?.snapshot ?? null,
+    latestPrice: stored?.latestPrice ?? null,
+    demoSnapshot: resolved?.snapshot ?? (ticker ? snapshots[ticker] : undefined) ?? null,
+  });
   const subjectMarketCap =
     stored?.snapshot?.marketCap ??
     subjectSnapshot?.marketCap ??
@@ -1017,19 +1067,7 @@ async function buildCompsInputs(prompt: string): Promise<ExtractInputsResult> {
 
   const subject: CompsPeerInputs = toPeerInputs(
     ticker ?? 'SUBJECT',
-    subjectSnapshot ?? {
-      ticker: ticker ?? 'SUBJECT',
-      companyName,
-      sector: companyType ?? undefined,
-      revenueLtm: stored?.snapshot?.revenueLtm ?? null,
-      ebitdaLtm: stored?.snapshot?.ebitdaLtm ?? null,
-      netIncomeLtm: stored?.snapshot?.netIncomeLtm ?? null,
-      cash: stored?.snapshot?.cash ?? null,
-      totalDebt: stored?.snapshot?.totalDebt ?? null,
-      sharesOutstanding: stored?.snapshot?.sharesOutstanding ?? null,
-      sharePrice: stored?.latestPrice?.close ?? null,
-      marketCap: stored?.snapshot?.marketCap ?? null,
-    }
+    subjectSnapshot
   );
 
   const peerInputs = peerUniverse.map(([peerTicker, snapshot]) => toPeerInputs(peerTicker, snapshot));

@@ -48,6 +48,13 @@ function sanitizeFilename(value: string): string {
 
 function renderValue(value: unknown): string {
   if (Array.isArray(value)) return value.map((item) => renderValue(item)).join(', ');
+  if (value && typeof value === 'object') {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return '[unserializable object]';
+    }
+  }
   if (typeof value === 'number') {
     if (Math.abs(value) >= 1000) return value.toLocaleString('en-US');
     if (value > 0 && value < 1) return `${(value * 100).toFixed(1)}%`;
@@ -56,6 +63,48 @@ function renderValue(value: unknown): string {
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (value === null || value === undefined || value === '') return 'n/a';
   return String(value);
+}
+
+function flattenExtractedInputEntries(
+  value: unknown,
+  prefix = ''
+): Array<{ key: string; value: string }> {
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return [{ key: prefix, value: 'n/a' }];
+    }
+    if (value.every((item) => item && typeof item === 'object' && !Array.isArray(item))) {
+      const labels = value
+        .map((item) => {
+          const record = item as Record<string, unknown>;
+          return typeof record.ticker === 'string'
+            ? record.ticker
+            : typeof record.name === 'string'
+              ? record.name
+              : null;
+        })
+        .filter((item): item is string => Boolean(item));
+      return [
+        {
+          key: prefix,
+          value: labels.length > 0 ? `${value.length} items: ${labels.join(', ')}` : `${value.length} items`,
+        },
+      ];
+    }
+    return [{ key: prefix, value: renderValue(value) }];
+  }
+
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 0) {
+      return [{ key: prefix, value: 'n/a' }];
+    }
+    return entries.flatMap(([key, nestedValue]) =>
+      flattenExtractedInputEntries(nestedValue, prefix ? `${prefix}.${key}` : key)
+    );
+  }
+
+  return [{ key: prefix, value: renderValue(value) }];
 }
 
 function yearLabels(years: number): number[] {
@@ -151,15 +200,18 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystGenerate
   });
 
   styleSectionHeader(sheet, 8, 'Extracted Inputs', 6);
-  Object.entries(payload.extractedInputs as Record<string, unknown>).forEach(([key, value], index) => {
+  const extractedEntries = Object.entries(payload.extractedInputs as Record<string, unknown>).flatMap(
+    ([key, value]) => flattenExtractedInputEntries(value, key)
+  );
+  extractedEntries.forEach(({ key, value }, index) => {
     const row = 9 + index;
     sheet.getCell(`D${row}`).value = key;
-    sheet.getCell(`E${row}`).value = renderValue(value);
+    sheet.getCell(`E${row}`).value = value;
     styleLabel(sheet.getCell(`D${row}`));
     styleFormula(sheet.getCell(`E${row}`));
   });
 
-  const defaultsRow = Math.max(11 + payload.tabs.length, 11 + Object.keys(payload.extractedInputs).length);
+  const defaultsRow = Math.max(11 + payload.tabs.length, 11 + extractedEntries.length);
   styleSectionHeader(sheet, defaultsRow, 'Defaults Used', 4);
   const defaultEntries = Object.entries(payload.defaultsUsed);
   if (defaultEntries.length === 0) {

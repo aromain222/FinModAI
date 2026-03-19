@@ -100,6 +100,24 @@ function fmtPercent(value: number | null | undefined): string {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function describeCompsSubjectMetrics(subject: {
+  revenue: number | null;
+  ebitda: number | null;
+}): string {
+  const revenue = fmtCurrency(subject.revenue);
+  const ebitda = fmtCurrency(subject.ebitda);
+  if (revenue !== 'n/a' && ebitda !== 'n/a') {
+    return `The subject profile is seeded with revenue of ${revenue} and EBITDA of ${ebitda}`;
+  }
+  if (revenue !== 'n/a') {
+    return `The subject profile is seeded with revenue of ${revenue}`;
+  }
+  if (ebitda !== 'n/a') {
+    return `The subject profile is seeded with EBITDA of ${ebitda}`;
+  }
+  return 'Subject revenue and EBITDA are still missing, so the initial view is driven more by peer multiples than by a complete operating snapshot';
+}
+
 function extractComparableAssumptions(inputs: Record<string, unknown>): Record<string, unknown> {
   const skip = new Set(['modelType', 'source', 'companyName', 'ticker', 'companyType', 'peerSetLabel', 'subject', 'peers', 'transactions']);
   return Object.fromEntries(Object.entries(inputs).filter(([key]) => !skip.has(key)));
@@ -142,7 +160,7 @@ function buildNarrativeBlocks(modelType: StructuredModelType, inputs: ExtractedM
       return [
         {
           title: 'COMPANY OVERVIEW',
-          body: `${compsInputs.companyName} is being framed through a peer-relative valuation lens. The subject profile is seeded with revenue of ${fmtCurrency(compsInputs.subject.revenue)} and EBITDA of ${fmtCurrency(compsInputs.subject.ebitda)} across ${compsInputs.peers.length} selected peers.`,
+          body: `${compsInputs.companyName} is being framed through a peer-relative valuation lens. ${describeCompsSubjectMetrics(compsInputs.subject)} across ${compsInputs.peers.length} selected peers.`,
         },
         {
           title: 'VALUATION VIEW',

@@ -29,6 +29,14 @@ function toFiniteNumber(value: unknown): number | null {
   return null;
 }
 
+function firstFinite(...values: unknown[]): number | null {
+  for (const value of values) {
+    const numeric = toFiniteNumber(value);
+    if (numeric !== null) return numeric;
+  }
+  return null;
+}
+
 export function getPreview(inputs: CompsModelInputs) {
   return {
     title: `${inputs.companyName} Comparable Company Analysis`,
@@ -52,20 +60,26 @@ export async function buildWorkbook(inputs: CompsModelInputs): Promise<ExcelJS.W
 
   const result = calculateCompsFromData(inputs.subject, inputs.peers);
   const equations: EquationRow[] = [];
-  const subjectMarketCap = result.subject.marketCap ?? toFiniteNumber(inputs.subject.marketCap);
-  const subjectRevenue = result.subject.revenue ?? toFiniteNumber(inputs.subject.revenue);
-  const subjectEbitda = result.subject.ebitda ?? toFiniteNumber(inputs.subject.ebitda);
-  const subjectNetIncome = result.subject.netIncome ?? toFiniteNumber(inputs.subject.netIncome);
-  const subjectCash = result.subject.cash ?? toFiniteNumber(inputs.subject.cash);
-  const subjectDebt = result.subject.totalDebt ?? toFiniteNumber(inputs.subject.totalDebt);
+  const subjectMarketCap = firstFinite(
+    result.subject.marketCap,
+    inputs.subject.marketCap,
+    firstFinite(inputs.subject.price, result.subject.price) !== null && firstFinite(inputs.subject.sharesOutstanding, result.subject.sharesOutstanding) !== null
+      ? (firstFinite(inputs.subject.price, result.subject.price) as number) * (firstFinite(inputs.subject.sharesOutstanding, result.subject.sharesOutstanding) as number) / 1_000_000
+      : null
+  );
+  const subjectRevenue = firstFinite(result.subject.revenue, inputs.subject.revenue);
+  const subjectEbitda = firstFinite(result.subject.ebitda, inputs.subject.ebitda);
+  const subjectNetIncome = firstFinite(result.subject.netIncome, inputs.subject.netIncome);
+  const subjectCash = firstFinite(result.subject.cash, inputs.subject.cash);
+  const subjectDebt = firstFinite(result.subject.totalDebt, inputs.subject.totalDebt);
   const subjectNetDebt =
     result.subject.netDebt ??
     (subjectDebt !== null && subjectCash !== null ? subjectDebt - subjectCash : null);
   const subjectEnterpriseValue =
     result.subject.enterpriseValue ??
     (subjectMarketCap !== null && subjectNetDebt !== null ? subjectMarketCap + subjectNetDebt : null);
-  const subjectShares =
-    result.subject.sharesOutstanding ?? toFiniteNumber(inputs.subject.sharesOutstanding);
+  const subjectShares = firstFinite(result.subject.sharesOutstanding, inputs.subject.sharesOutstanding);
+  const subjectPrice = firstFinite(result.subject.price, inputs.subject.price);
   const impliedEvRevenue =
     result.impliedValuation.byEvRevenue ??
     (result.medianMultiples.evToRevenue !== null && subjectRevenue !== null && subjectRevenue > 0
@@ -82,7 +96,9 @@ export async function buildWorkbook(inputs: CompsModelInputs): Promise<ExcelJS.W
   const impliedEquityEbitda =
     result.impliedValuation.equityValueByEvEbitda ??
     (impliedEvEbitda !== null && subjectNetDebt !== null ? impliedEvEbitda - subjectNetDebt : null);
-  const impliedEquityPe = result.impliedValuation.equityValueByPe ?? result.impliedValuation.byPe;
+  const impliedEquityPe = firstFinite(result.impliedValuation.equityValueByPe, result.impliedValuation.byPe);
+  const impliedEvPe =
+    impliedEquityPe !== null && subjectNetDebt !== null ? impliedEquityPe + subjectNetDebt : null;
   const impliedPriceRevenue =
     result.impliedValuation.pricePerShareByEvRevenue ??
     (impliedEquityRevenue !== null && subjectShares !== null && subjectShares > 0
@@ -124,7 +140,7 @@ export async function buildWorkbook(inputs: CompsModelInputs): Promise<ExcelJS.W
   const rows = [
     ['EV / Revenue', result.medianMultiples.evToRevenue, impliedEvRevenue, impliedEquityRevenue, impliedPriceRevenue],
     ['EV / EBITDA', result.medianMultiples.evToEbitda, impliedEvEbitda, impliedEquityEbitda, impliedPriceEbitda],
-    ['P / E', result.medianMultiples.peRatio, result.impliedValuation.byPe, impliedEquityPe, impliedPricePe],
+    ['P / E', result.medianMultiples.peRatio, impliedEvPe, impliedEquityPe, impliedPricePe],
   ] as const;
 
   rows.forEach((row, index) => {
@@ -192,7 +208,7 @@ export async function buildWorkbook(inputs: CompsModelInputs): Promise<ExcelJS.W
   ['Method', 'Implied Price', 'Current Price', 'Premium / (Discount)', 'Commentary'].forEach((value, index) => {
     valuation.getCell(4, index + 1).value = value;
   });
-  const currentPrice = result.subject.price;
+  const currentPrice = subjectPrice;
   rows.forEach((row, index) => {
     const excelRow = 5 + index;
     const impliedPrice = row[4];
