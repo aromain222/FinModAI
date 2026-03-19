@@ -331,7 +331,7 @@ function extractNestedScalarOverride(prompt: string, aliases: string[], type: 'p
   for (const alias of aliases) {
     const escapedAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
     const patterns = [
-      new RegExp(`(?:set|make|change|adjust|update)\\s+(?:the\\s+)?${escapedAlias}\\s+(?:to\\s+)?([^,.;\\n]+)`, 'i'),
+      new RegExp(`(?:set|make|change|adjust|update|increase|decrease|raise|lower|reduce|cut|bump|trim)\\s+(?:the\\s+)?${escapedAlias}\\s+(?:to\\s+)?([^,.;\\n]+)`, 'i'),
       new RegExp(`${escapedAlias}\\s+(?:to\\s+)?([^,.;\\n]+)`, 'i'),
     ];
     for (const pattern of patterns) {
@@ -482,7 +482,11 @@ function toPercentString(value: unknown): string | null {
 
 function toMoneyString(value: unknown): string | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
-  return String(value);
+  return value.toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: Math.abs(value) >= 1000 ? 0 : 2,
+  });
 }
 
 function toNumberString(value: unknown): string | null {
@@ -513,6 +517,17 @@ function normalizeOverrideValue(raw: string, typeHint: 'percent' | 'money' | 'nu
   if (hasPercent) numeric = numeric > 1 ? numeric / 100 : numeric;
 
   return numeric;
+}
+
+function normalizeRelativeDeltaValue(raw: string, typeHint: 'percent' | 'money' | 'number'): number | undefined {
+  const basisPointMatch = raw.trim().match(/^(-?\d*\.?\d+)\s*(?:bp|bps|basis points?)$/i);
+  if (basisPointMatch) {
+    const parsed = Number(basisPointMatch[1]);
+    return Number.isFinite(parsed) ? parsed / 10000 : undefined;
+  }
+
+  const normalized = normalizeOverrideValue(raw, typeHint);
+  return typeof normalized === 'number' ? normalized : undefined;
 }
 
 const OVERRIDE_CONFIG: Record<string, { aliases: string[]; type: 'percent' | 'money' | 'number' | 'text' }> = {
@@ -593,6 +608,14 @@ function extraAliasesForKey(key: string): string[] {
     companyType: ['company type', 'sector', 'business type'],
     companyScale: ['company scale', 'scale', 'stage'],
     roundType: ['round type', 'financing round'],
+    baseRevenue: ['base revenue', 'starting revenue', 'revenue base', 'ltm revenue'],
+    revenue: ['revenue', 'sales'],
+    ebitda: ['ebitda'],
+    netDebt: ['net debt'],
+    sharePrice: ['share price', 'price'],
+    sharesOutstanding: ['shares outstanding', 'share count', 'shares'],
+    cash: ['cash', 'opening cash'],
+    debt: ['debt', 'opening debt'],
     startingArr: ['starting arr', 'arr'],
     growthRate: ['growth rate', 'arr growth', 'annual growth'],
     grossMargin: ['gross margin'],
@@ -601,6 +624,7 @@ function extraAliasesForKey(key: string): string[] {
     arpu: ['arpu'],
     revenueGrowth: ['revenue growth', 'growth'],
     ebitMargin: ['ebit margin', 'operating margin'],
+    ebitdaMargin: ['ebitda margin'],
     opexPctRevenue: ['opex', 'operating expense', 'opex percent'],
     daPctRevenue: ['d&a', 'depreciation', 'amortization'],
     capexPctRevenue: ['capex', 'capex percent'],
@@ -661,8 +685,31 @@ function extractOverrideForKey(key: string, currentValue: unknown, prompt: strin
         }
       }
 
+      const yearRelativeMatch = prompt.match(
+        new RegExp(`(?:increase|raise|bump|lift|decrease|lower|reduce|cut|trim)\\s+(?:year|yr)\\s*(\\d+)\\s+${escapedAlias}\\s+by\\s+([^,.;\\n]+)`, 'i')
+      ) ?? prompt.match(
+        new RegExp(`(?:year|yr)\\s*(\\d+)\\s+${escapedAlias}\\s+(?:up|down)\\s+([^,.;\\n]+)`, 'i')
+      );
+      if (yearRelativeMatch) {
+        const yearIndex = Number(yearRelativeMatch[1]) - 1;
+        if (Number.isInteger(yearIndex) && yearIndex >= 0 && yearIndex < currentValue.length) {
+          const currentItem = currentValue[yearIndex];
+          if (typeof currentItem === 'number') {
+            const delta = normalizeRelativeDeltaValue(
+              yearRelativeMatch[2],
+              type === 'percent_array' ? 'percent' : 'number'
+            );
+            if (delta !== undefined) {
+              const signedDelta =
+                /\b(?:decrease|lower|reduce|cut|trim|down)\b/i.test(yearRelativeMatch[0]) ? -delta : delta;
+              return replaceArrayAtIndex(currentValue, yearIndex, currentItem + signedDelta);
+            }
+          }
+        }
+      }
+
       const fullArrayPatterns = [
-        new RegExp(`(?:set|make|change|adjust|update)\\s+(?:the\\s+)?${escapedAlias}\\s+(?:to\\s+)?([^.;\\n]+)`, 'i'),
+        new RegExp(`(?:set|make|change|adjust|update|increase|decrease|raise|lower|reduce|cut|bump|trim)\\s+(?:the\\s+)?${escapedAlias}\\s+(?:to\\s+)?([^.;\\n]+)`, 'i'),
         new RegExp(`${escapedAlias}\\s+(?:to\\s+)?([^.;\\n]+)`, 'i'),
       ];
 
@@ -678,13 +725,31 @@ function extractOverrideForKey(key: string, currentValue: unknown, prompt: strin
     }
 
     const patterns = [
-      new RegExp(`(?:set|make|change|adjust|update|revise)\\s+(?:the\\s+)?${escapedAlias}\\s+(?:to\\s+)?([^,.;\\n]+)`, 'i'),
+      new RegExp(`(?:set|make|change|adjust|update|revise|increase|decrease|raise|lower|reduce|cut|bump|trim)\\s+(?:the\\s+)?${escapedAlias}\\s+(?:to\\s+)?([^,.;\\n]+)`, 'i'),
       new RegExp(`${escapedAlias}\\s+(?:to\\s+)?([^,.;\\n]+)`, 'i'),
     ];
     const scalarType: 'percent' | 'money' | 'number' | 'text' =
       type === 'percent' || type === 'money' || type === 'number' || type === 'text'
         ? type
         : 'text';
+    const relativePatterns = scalarType !== 'text'
+      ? [
+          new RegExp(`(?:increase|raise|bump|lift)\\s+(?:the\\s+)?${escapedAlias}\\s+by\\s+([^,.;\\n]+)`, 'i'),
+          new RegExp(`(?:decrease|lower|reduce|cut|trim)\\s+(?:the\\s+)?${escapedAlias}\\s+by\\s+([^,.;\\n]+)`, 'i'),
+          new RegExp(`${escapedAlias}\\s+(?:up|down)\\s+([^,.;\\n]+)`, 'i'),
+        ]
+      : [];
+    if (scalarType !== 'text' && typeof currentValue === 'number') {
+      for (const pattern of relativePatterns) {
+        const match = prompt.match(pattern);
+        if (!match?.[1]) continue;
+        const delta = normalizeRelativeDeltaValue(match[1], scalarType);
+        if (delta === undefined) continue;
+        const signedDelta =
+          /\b(?:decrease|lower|reduce|cut|trim|down)\b/i.test(match[0]) ? -delta : delta;
+        return currentValue + signedDelta;
+      }
+    }
     for (const pattern of patterns) {
       const match = prompt.match(pattern);
       const value = normalizeOverrideValue(match?.[1] ?? '', scalarType);
@@ -710,7 +775,7 @@ function extractFollowUpOverrides(prompt: string, existingInputs: ExtractedModel
 }
 
 export function isModelAdjustmentPrompt(prompt: string): boolean {
-  return /\b(?:adjust|update|change|set|make|rename|revise|stress|sensit(?:ivity|ize)|scenario|downside|upside|bear(?: case)?|bull(?: case)?|base case|what if|assume)\b/i.test(prompt);
+  return /\b(?:adjust|update|change|set|make|rename|revise|increase|decrease|raise|lower|reduce|cut|bump|trim|stress|sensit(?:ivity|ize)|scenario|downside|upside|bear(?: case)?|bull(?: case)?|base case|what if|assume)\b/i.test(prompt);
 }
 
 function buildAdjustedReply(modelType: StructuredModelType, overrides: Record<string, unknown>): string {
