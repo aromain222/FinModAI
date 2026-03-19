@@ -859,33 +859,39 @@ async function buildThreeStatementInputs(prompt: string): Promise<ExtractInputsR
   };
 
   const stored = await resolveStoredCompany(prompt);
-  const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt);
+  const resolved = await resolveDemoCompany(prompt);
+  const storedSnapshot = stored?.snapshot ?? null;
+  const demoSnapshot = resolved?.snapshot ?? null;
   const companyType =
     extractCompanyType(prompt) ??
     stored?.company.companyType ??
     stored?.company.sector ??
+    demoSnapshot?.sector ??
     null;
   if (companyType) providedInputs.add('companyType');
   const profile = getCompanyProfile(companyType);
 
   const parsedCompanyName = extractCompanyName(prompt);
-  if (parsedCompanyName || stored?.company.name || resolved?.snapshot.companyName) providedInputs.add('companyName');
-  const companyName = parsedCompanyName || stored?.company.name || resolved?.snapshot.companyName || deriveCompanyLabel(companyType, 'Demo Company');
+  if (parsedCompanyName || stored?.company.name || demoSnapshot?.companyName) providedInputs.add('companyName');
+  const companyName = parsedCompanyName || stored?.company.name || demoSnapshot?.companyName || deriveCompanyLabel(companyType, 'Demo Company');
 
   const baseRevenueInput = extractBaseRevenue(prompt);
   const growthInput = extractGrowthRate(prompt);
   const grossMarginInput = extractMargin(prompt, /gross\s+margin\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*%/i);
   const opexInput = extractMargin(prompt, /(?:opex|operating\s+expense(?:s)?)\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*%/i);
 
-  if (baseRevenueInput !== undefined || stored?.snapshot?.revenueLtm !== null || resolved?.snapshot.revenueLtm !== undefined || companyType) {
+  if (baseRevenueInput !== undefined || storedSnapshot?.revenueLtm != null || demoSnapshot?.revenueLtm != null || companyType) {
     providedInputs.add('baseRevenue');
   }
   if (growthInput !== undefined) providedInputs.add('revenueGrowth');
   if (grossMarginInput !== undefined) providedInputs.add('grossMargin');
   if (opexInput !== undefined) providedInputs.add('opexPctRevenue');
 
-  const baseRevenue = stored?.snapshot?.revenueLtm ?? resolved?.snapshot.revenueLtm ?? baseRevenueInput ?? THREE_STATEMENT_DEFAULTS.baseRevenue;
-  if (stored?.snapshot?.revenueLtm === null && resolved?.snapshot.revenueLtm === undefined && baseRevenueInput === undefined) {
+  const baseRevenue =
+    mergeSnapshotValue(storedSnapshot?.revenueLtm, demoSnapshot?.revenueLtm) ??
+    baseRevenueInput ??
+    THREE_STATEMENT_DEFAULTS.baseRevenue;
+  if (storedSnapshot?.revenueLtm == null && demoSnapshot?.revenueLtm == null && baseRevenueInput === undefined) {
     defaultsUsed.baseRevenue = THREE_STATEMENT_DEFAULTS.baseRevenue;
   }
 
@@ -898,8 +904,8 @@ async function buildThreeStatementInputs(prompt: string): Promise<ExtractInputsR
   if (growthInput === undefined) defaultsUsed.revenueGrowth = revenueGrowth;
 
   const snapshotGrossMargin =
-    stored?.snapshot?.grossProfitLtm && stored?.snapshot?.revenueLtm
-      ? stored.snapshot.grossProfitLtm / stored.snapshot.revenueLtm
+    storedSnapshot?.grossProfitLtm && storedSnapshot?.revenueLtm
+      ? storedSnapshot.grossProfitLtm / storedSnapshot.revenueLtm
       : null;
   const grossMargin = grossMarginInput ?? snapshotGrossMargin ?? profile.threeGrossMargin ?? THREE_STATEMENT_DEFAULTS.grossMargin;
   if (grossMarginInput === undefined) defaultsUsed.grossMargin = grossMargin;
@@ -907,15 +913,15 @@ async function buildThreeStatementInputs(prompt: string): Promise<ExtractInputsR
   const opexPctRevenue = opexInput ?? profile.threeOpexPct ?? THREE_STATEMENT_DEFAULTS.opexPctRevenue;
   if (opexInput === undefined) defaultsUsed.opexPctRevenue = opexPctRevenue;
 
-  const debt = stored?.snapshot?.totalDebt ?? resolved?.snapshot.totalDebt ?? THREE_STATEMENT_DEFAULTS.debt;
-  const cash = stored?.snapshot?.cash ?? resolved?.snapshot.cash ?? THREE_STATEMENT_DEFAULTS.cash;
-  if (stored?.snapshot?.totalDebt === null && (resolved?.snapshot.totalDebt === undefined || resolved.snapshot.totalDebt === null)) {
+  const debt = mergeSnapshotValue(storedSnapshot?.totalDebt, demoSnapshot?.totalDebt) ?? THREE_STATEMENT_DEFAULTS.debt;
+  const cash = mergeSnapshotValue(storedSnapshot?.cash, demoSnapshot?.cash) ?? THREE_STATEMENT_DEFAULTS.cash;
+  if (storedSnapshot?.totalDebt == null && demoSnapshot?.totalDebt == null) {
     defaultsUsed.debt = THREE_STATEMENT_DEFAULTS.debt;
   }
-  if (stored?.snapshot?.cash === null && (resolved?.snapshot.cash === undefined || resolved.snapshot.cash === null)) {
+  if (storedSnapshot?.cash == null && demoSnapshot?.cash == null) {
     defaultsUsed.cash = THREE_STATEMENT_DEFAULTS.cash;
   }
-  if (!parsedCompanyName && !stored?.company.name && !resolved?.snapshot.companyName && companyType) {
+  if (!parsedCompanyName && !stored?.company.name && !demoSnapshot?.companyName && companyType) {
     defaultsUsed.companyName = companyName;
   }
 
@@ -934,7 +940,7 @@ async function buildThreeStatementInputs(prompt: string): Promise<ExtractInputsR
       companyName,
       companyType: companyType ?? undefined,
       ticker: stored?.company.ticker ?? resolved?.ticker,
-      source: stored?.snapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
+      source: storedSnapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
       years: THREE_STATEMENT_DEFAULTS.years,
       baseRevenue,
       revenueGrowth,
@@ -1020,6 +1026,8 @@ async function buildCompsInputs(prompt: string): Promise<ExtractInputsResult> {
   const defaultsUsed: Record<string, unknown> = {};
   const stored = await resolveStoredCompany(prompt);
   const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt);
+  const storedSnapshot = stored?.snapshot ?? null;
+  const demoSnapshot = resolved?.snapshot ?? null;
   const snapshots = await loadDemoSnapshots();
   const subjectPrompt = sanitizeCompsSubjectPrompt(prompt);
   const explicitPeerTickers = extractExplicitPeerTickers(prompt, snapshots);
@@ -1028,11 +1036,11 @@ async function buildCompsInputs(prompt: string): Promise<ExtractInputsResult> {
     extractCompanyType(subjectPrompt) ??
     stored?.company.companyType ??
     stored?.company.sector ??
-    resolved?.snapshot.sector ??
+    demoSnapshot?.sector ??
     null;
   const parsedCompanyNameRaw = extractCompanyName(subjectPrompt) ?? extractCompanyName(prompt);
   const parsedCompanyName = isInstructionContaminatedName(parsedCompanyNameRaw) ? null : parsedCompanyNameRaw;
-  const companyName = stored?.company.name || resolved?.snapshot.companyName || parsedCompanyName || deriveCompanyLabel(companyType, 'Subject Company');
+  const companyName = stored?.company.name || demoSnapshot?.companyName || parsedCompanyName || deriveCompanyLabel(companyType, 'Subject Company');
   const ticker = stored?.company.ticker ?? resolved?.ticker;
   const subjectSnapshot = buildMergedCompsSubjectSnapshot({
     ticker: ticker ?? 'SUBJECT',
@@ -1101,9 +1109,9 @@ async function buildCompsInputs(prompt: string): Promise<ExtractInputsResult> {
     missingInputs,
     missingCriticalInputs,
     provenanceSummary: buildProvenanceSummary({
-      source: stored?.snapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
-      asOfDate: stored?.snapshot?.asOfDate ?? resolved?.snapshot.updatedAt ?? null,
-      lastSynced: stored?.snapshot?.createdAt ?? stored?.latestPrice?.createdAt ?? resolved?.snapshot.updatedAt ?? null,
+      source: storedSnapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
+      asOfDate: storedSnapshot?.asOfDate ?? demoSnapshot?.updatedAt ?? null,
+      lastSynced: storedSnapshot?.createdAt ?? stored?.latestPrice?.createdAt ?? demoSnapshot?.updatedAt ?? null,
       fallbackUsed: Object.keys(defaultsUsed),
     }),
   };
