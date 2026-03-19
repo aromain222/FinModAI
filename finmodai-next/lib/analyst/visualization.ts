@@ -1,11 +1,13 @@
 import type { AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 import type { AnalystGeneratedModelPayload } from '@/lib/analyst/modelChat';
+import { FINANCE_CHART_SPEC_PROMPT } from '@/lib/analyst/prompts';
 import { fetchCompanyFinancials } from '@/lib/analyst/dataRetrieval';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
 import { resolveCompanyProfile } from '@/lib/data/company/resolveCompanyProfile';
 import { loadDemoSnapshots } from '@/lib/demo/demoSnapshotStore';
 import { fetchHistoricalFinancials } from '@/lib/data/historicalFinancials';
-import type { FinanceAxisFormat, FinanceChartSpec, FinanceSeries } from '@/lib/charts/financeChartSpec';
+import { type FinanceAxisFormat, type FinanceChartSpec, type FinanceSeries, validateFinanceChartSpec } from '@/lib/charts/financeChartSpec';
+import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 
 export type AnalystVisualizationPanel = {
   id: string;
@@ -44,6 +46,18 @@ type CompanyGrowthSeries = {
   revenueGrowth: number[];
   source: string;
 };
+
+function extractJsonObject(text: string): unknown {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  const candidate = fenced?.[1]?.trim() ?? trimmed;
+  const firstBrace = candidate.indexOf('{');
+  const lastBrace = candidate.lastIndexOf('}');
+  if (firstBrace < 0 || lastBrace <= firstBrace) {
+    throw new Error('No JSON object found in chart spec response.');
+  }
+  return JSON.parse(candidate.slice(firstBrace, lastBrace + 1));
+}
 
 function singleSeriesSpec(params: {
   title: string;
@@ -723,6 +737,58 @@ export function buildVisualizationFromCurrentArtifact(input: {
   if (input.currentModel) return buildModelVisualization(input.currentModel);
   if (input.currentStock) return buildStockVisualization(input.currentStock);
   return null;
+}
+
+export async function generateVisualizationSpecFromPrompt(params: {
+  prompt: string;
+  factsContext?: string | null;
+  currentArtifactContext?: string | null;
+  stockLookup?: StockLookupResult | null;
+  attachmentContext?: string | null;
+  macroEventsContext?: string | null;
+}): Promise<FinanceChartSpec | null> {
+  const stockBlock = params.stockLookup
+    ? [
+        `Stock lookup context for ${params.stockLookup.companyName ?? params.stockLookup.ticker} (${params.stockLookup.ticker})`,
+        `Price: ${params.stockLookup.price ?? 'n/a'}`,
+        `Market cap: ${params.stockLookup.marketCap ?? 'n/a'}`,
+        `Revenue LTM: ${params.stockLookup.revenueLtm ?? 'n/a'}`,
+        `EBITDA LTM: ${params.stockLookup.ebitdaLtm ?? 'n/a'}`,
+        `Net income LTM: ${params.stockLookup.netIncomeLtm ?? 'n/a'}`,
+        `Chart data: ${JSON.stringify(params.stockLookup.chart.points)}`,
+      ].join('\n')
+    : null;
+
+  const result = await generateTextWithProviderFallback({
+    preferredProvider: 'anthropic',
+    clientType: 'service',
+    maxTokens: 1400,
+    temperature: 0,
+    messages: [
+      { role: 'system', content: FINANCE_CHART_SPEC_PROMPT },
+      {
+        role: 'user',
+        content: [
+          `User request: ${params.prompt}`,
+          params.factsContext ? `Sourced facts:\n${params.factsContext}` : null,
+          params.currentArtifactContext ? `Current artifact context:\n${params.currentArtifactContext}` : null,
+          stockBlock,
+          params.attachmentContext ? `Uploaded context:\n${params.attachmentContext}` : null,
+          params.macroEventsContext ? `Macro event context:\n${params.macroEventsContext}` : null,
+        ]
+          .filter((item): item is string => Boolean(item))
+          .join('\n\n'),
+      },
+    ],
+  });
+
+  if (!result?.text) return null;
+  try {
+    const parsed = extractJsonObject(result.text);
+    return validateFinanceChartSpec(parsed);
+  } catch {
+    return null;
+  }
 }
 
 export async function buildComparisonVisualizationFromPrompt(prompt: string): Promise<ComparisonVisualizationResult | null> {

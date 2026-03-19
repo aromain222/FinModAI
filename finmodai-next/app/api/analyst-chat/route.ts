@@ -42,6 +42,7 @@ import {
   buildComparisonVisualizationFromPrompt,
   buildRevenueForecastVisualizationFromDcf,
   buildVisualizationFromCurrentArtifact,
+  generateVisualizationSpecFromPrompt,
   revenueDriverSummary,
 } from '@/lib/analyst/visualization';
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
@@ -461,6 +462,47 @@ function serializeMarketEventsContext(events: MarketEvent[]): string {
         .join('\n');
     })
     .join('\n\n');
+}
+
+function visualizationContextType(params: {
+  currentModel: AnalystGeneratedModelPayload | null;
+  currentDcf: AnalystDcfDemoPayload | null;
+  currentStock: StockLookupResult | null;
+  stockLookup: StockLookupResult | null;
+}): 'dcf' | 'model' | 'stock' {
+  if (params.currentDcf) return 'dcf';
+  if (params.currentModel) return 'model';
+  if (params.currentStock || params.stockLookup) return 'stock';
+  return 'stock';
+}
+
+function visualizationContextLabel(params: {
+  currentModel: AnalystGeneratedModelPayload | null;
+  currentDcf: AnalystDcfDemoPayload | null;
+  currentStock: StockLookupResult | null;
+  stockLookup: StockLookupResult | null;
+  resolvedTicker?: string;
+}): string {
+  if (params.currentDcf) return `${params.currentDcf.companyName} (${params.currentDcf.ticker})`;
+  if (params.currentModel) {
+    const ticker =
+      params.currentModel.extractedInputs &&
+      'ticker' in params.currentModel.extractedInputs &&
+      typeof params.currentModel.extractedInputs.ticker === 'string'
+        ? params.currentModel.extractedInputs.ticker
+        : null;
+    const companyName =
+      params.currentModel.extractedInputs &&
+      'companyName' in params.currentModel.extractedInputs &&
+      typeof params.currentModel.extractedInputs.companyName === 'string'
+        ? params.currentModel.extractedInputs.companyName
+        : null;
+    if (companyName && ticker) return `${companyName} (${ticker})`;
+    return params.currentModel.title;
+  }
+  const stock = params.currentStock ?? params.stockLookup;
+  if (stock) return `${stock.companyName ?? stock.ticker} (${stock.ticker})`;
+  return params.resolvedTicker ?? 'Requested chart';
 }
 
 /* ────────── Fallback Reply Builder ────────── */
@@ -938,6 +980,76 @@ export async function POST(req: NextRequest) {
         sources: facts.sources.length,
         dataGaps: facts.dataGaps.length,
       });
+    }
+
+    if (isVisualizationPrompt(lastUserMessage)) {
+      const chartStockLookup =
+        currentStock ??
+        stockLookupPayload ??
+        (resolvedTicker ? await lookupStock({ prompt: lastUserMessage, ticker: resolvedTicker }) : null);
+      const generatedSpec = await generateVisualizationSpecFromPrompt({
+        prompt: lastUserMessage,
+        factsContext,
+        currentArtifactContext: currentArtifactBlock,
+        stockLookup: chartStockLookup,
+        attachmentContext: attachmentContext ? attachmentContextBlock(attachmentContext) : null,
+        macroEventsContext: macroEventsBlock,
+      });
+
+      if (generatedSpec) {
+        const sources = [
+          ...facts.sources.slice(0, 4),
+          chartStockLookup?.source.company ? `Company: ${chartStockLookup.source.company}` : null,
+          chartStockLookup?.source.fundamentals ? `Fundamentals: ${chartStockLookup.source.fundamentals}` : null,
+          chartStockLookup?.source.price ? `Price: ${chartStockLookup.source.price}` : null,
+          'Anthropic constrained chart spec generation',
+        ].filter((item): item is string => Boolean(item));
+
+        return NextResponse.json({
+          reply: `Here is a chart for ${visualizationContextLabel({
+            currentModel,
+            currentDcf,
+            currentStock,
+            stockLookup: chartStockLookup,
+            resolvedTicker,
+          })}.`,
+          fallback: false,
+          mode: 'live',
+          route: route.intent,
+          visualization: {
+            title: generatedSpec.title,
+            subtitle: generatedSpec.subtitle ?? 'Standalone chart generated from the current request and sourced context.',
+            contextType: visualizationContextType({
+              currentModel,
+              currentDcf,
+              currentStock,
+              stockLookup: chartStockLookup,
+            }),
+            contextLabel: visualizationContextLabel({
+              currentModel,
+              currentDcf,
+              currentStock,
+              stockLookup: chartStockLookup,
+              resolvedTicker,
+            }),
+            notes: [
+              'Chart generated from constrained FinanceChartSpec output.',
+              ...(generatedSpec.note ? [generatedSpec.note] : []),
+            ],
+            panels: [
+              {
+                id: 'llm-chart-spec',
+                height: generatedSpec.chartType === 'scatter' ? 340 : 300,
+                spec: generatedSpec,
+              },
+            ],
+          },
+          sources,
+          factsCount: facts.numbers.length + facts.events.length,
+          stockLookup: chartStockLookup,
+          attachmentUsed: attachmentLabel,
+        });
+      }
     }
 
     /* ── Check for OpenAI keys ── */
