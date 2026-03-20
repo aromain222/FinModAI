@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { parseUploadedAttachment, type UploadedAttachmentContext } from '@/lib/analyst/attachmentContext';
 import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplates';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
-import type { AnalystGeneratedModelPayload } from '@/lib/analyst/modelChat';
+import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } from '@/lib/analyst/modelChat';
 import type { AnalystVisualizationPayload } from '@/lib/analyst/visualization';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
 
@@ -349,6 +349,64 @@ export function AnalystChatApp() {
     );
   };
 
+  const handleModelAdjustment = async (
+    messageId: string,
+    payload: AnalystGeneratedModelPayload,
+    adjustment: AnalystStructuredModelAdjustment,
+  ) => {
+    const response = await fetch('/api/analyst-chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId,
+        currentModel: payload,
+        modelAdjustment: adjustment,
+      }),
+    });
+
+    const rawBody = await response.text();
+    const parsed = rawBody ? tryParseJson<Record<string, unknown>>(rawBody) : null;
+    if (!response.ok) {
+      const backendMessage =
+        (parsed && typeof parsed.reply === 'string' && parsed.reply.trim().length > 0
+          ? parsed.reply
+          : parsed && typeof parsed.error === 'string' && parsed.error.trim().length > 0
+            ? parsed.error
+            : rawBody.trim());
+      throw new Error(backendMessage || `Model adjustment failed (${response.status}).`);
+    }
+    if (!parsed) {
+      throw new Error(rawBody.trim() || 'Model adjustment returned an invalid response.');
+    }
+
+    const replyText =
+      typeof parsed.reply === 'string' && parsed.reply.trim().length > 0
+        ? parsed.reply
+        : 'Updated the model assumptions.';
+
+    setMessages((prev) =>
+      prev.map((message) => {
+        if (message.id !== messageId) return message;
+        return {
+          ...message,
+          content: cleanAssistantText(replyText, false),
+          meta: {
+            ...message.meta,
+            mode: parsed?.mode === 'fallback' ? 'fallback' : 'live',
+            reason: typeof parsed?.reason === 'string' ? parsed.reason : undefined,
+            sources: Array.isArray(parsed?.sources)
+              ? parsed.sources.filter((item: unknown): item is string => typeof item === 'string').slice(0, 5)
+              : message.meta?.sources,
+            generatedModel:
+              parsed?.generatedModel && typeof parsed.generatedModel === 'object'
+                ? (parsed.generatedModel as AnalystGeneratedModelPayload)
+                : message.meta?.generatedModel,
+          },
+        };
+      }),
+    );
+  };
+
   return (
     <Card className="flex h-full flex-col shadow-lg">
       <CardHeader className="border-b border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)]">
@@ -454,7 +512,12 @@ export function AnalystChatApp() {
                   />
                 )}
                 {message.role === 'assistant' && message.meta?.generatedModel && (
-                  <AnalystModelCard payload={message.meta.generatedModel} />
+                  <AnalystModelCard
+                    payload={message.meta.generatedModel}
+                    onAdjust={(adjustment) =>
+                      handleModelAdjustment(message.id, message.meta!.generatedModel!, adjustment)
+                    }
+                  />
                 )}
                 {message.role === 'assistant' && message.meta?.coreTemplateModel && (
                   <AnalystCoreTemplateCard payload={message.meta.coreTemplateModel} />

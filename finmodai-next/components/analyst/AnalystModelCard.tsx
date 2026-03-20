@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
 import { EditableFinanceChart } from '@/components/charts/EditableFinanceChart';
-import type { AnalystGeneratedModelPayload } from '@/lib/analyst/modelChat';
+import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } from '@/lib/analyst/modelChat';
 
 function isCurrencyKey(key?: string): boolean {
   if (!key) return false;
@@ -134,8 +136,9 @@ function inferChartSpec(payload: AnalystGeneratedModelPayload): ChartSpec | null
 
   if (payload.modelType === 'THREE_STATEMENT') {
     const revenueGrowth = Array.isArray(inputs.revenueGrowth) ? inputs.revenueGrowth : [];
-    const ebitMargin = Array.isArray(inputs.ebitMargin) ? inputs.ebitMargin : [];
-    const years = Array.from({ length: Math.max(revenueGrowth.length, ebitMargin.length) }, (_, idx) => `Y${idx + 1}`);
+    const grossMargin = typeof inputs.grossMargin === 'number' ? Number(inputs.grossMargin) * 100 : null;
+    const opexPctRevenue = typeof inputs.opexPctRevenue === 'number' ? Number(inputs.opexPctRevenue) * 100 : null;
+    const years = Array.from({ length: revenueGrowth.length }, (_, idx) => `Y${idx + 1}`);
     if (years.length > 0) {
       return {
         kind: 'line',
@@ -143,11 +146,13 @@ function inferChartSpec(payload: AnalystGeneratedModelPayload): ChartSpec | null
         data: years.map((year, index) => ({
           year,
           revenueGrowth: typeof revenueGrowth[index] === 'number' ? Number(revenueGrowth[index]) * 100 : 0,
-          ebitMargin: typeof ebitMargin[index] === 'number' ? Number(ebitMargin[index]) * 100 : 0,
+          grossMargin: grossMargin ?? 0,
+          opexPctRevenue: opexPctRevenue ?? 0,
         })),
         lines: [
           { key: 'revenueGrowth', label: 'Revenue Growth', color: '#2563eb', valueType: 'percent' },
-          { key: 'ebitMargin', label: 'EBIT Margin', color: '#16a34a', valueType: 'percent' },
+          { key: 'grossMargin', label: 'Gross Margin', color: '#16a34a', valueType: 'percent' },
+          { key: 'opexPctRevenue', label: 'Opex % Revenue', color: '#f59e0b', valueType: 'percent' },
         ],
         yType: 'percent',
       };
@@ -317,12 +322,65 @@ function ModelVisualization({ spec }: { spec: ChartSpec }) {
   );
 }
 
-export function AnalystModelCard({ payload }: { payload: AnalystGeneratedModelPayload }) {
+export function AnalystModelCard({
+  payload,
+  onAdjust,
+}: {
+  payload: AnalystGeneratedModelPayload;
+  onAdjust?: (adjustment: AnalystStructuredModelAdjustment) => Promise<void>;
+}) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  const [showControls, setShowControls] = useState(false);
+  const [isApplyingControls, setIsApplyingControls] = useState(false);
+  const [controlsError, setControlsError] = useState<string | null>(null);
   const chartSpec = inferChartSpec(payload);
+  const threeStatementInputs =
+    payload.modelType === 'THREE_STATEMENT' ? (payload.extractedInputs as Record<string, unknown>) : null;
+  const [revenueGrowthShiftBps, setRevenueGrowthShiftBps] = useState(0);
+  const [grossMarginPct, setGrossMarginPct] = useState(
+    payload.modelType === 'THREE_STATEMENT' && typeof threeStatementInputs?.grossMargin === 'number'
+      ? Number(threeStatementInputs.grossMargin) * 100
+      : 0,
+  );
+  const [opexPct, setOpexPct] = useState(
+    payload.modelType === 'THREE_STATEMENT' && typeof threeStatementInputs?.opexPctRevenue === 'number'
+      ? Number(threeStatementInputs.opexPctRevenue) * 100
+      : 0,
+  );
+  const [taxRatePct, setTaxRatePct] = useState(
+    payload.modelType === 'THREE_STATEMENT' && typeof threeStatementInputs?.taxRate === 'number'
+      ? Number(threeStatementInputs.taxRate) * 100
+      : 0,
+  );
+
+  useEffect(() => {
+    if (payload.modelType !== 'THREE_STATEMENT') return;
+    const inputs = payload.extractedInputs as Record<string, unknown>;
+    setRevenueGrowthShiftBps(0);
+    setGrossMarginPct(typeof inputs.grossMargin === 'number' ? Number(inputs.grossMargin) * 100 : 0);
+    setOpexPct(typeof inputs.opexPctRevenue === 'number' ? Number(inputs.opexPctRevenue) * 100 : 0);
+    setTaxRatePct(typeof inputs.taxRate === 'number' ? Number(inputs.taxRate) * 100 : 0);
+    setControlsError(null);
+  }, [payload]);
+
+  const adjustedThreeStatementRevenueGrowth = useMemo(() => {
+    if (payload.modelType !== 'THREE_STATEMENT') return [];
+    const inputs = payload.extractedInputs as Record<string, unknown>;
+    const revenueGrowth = Array.isArray(inputs.revenueGrowth) ? inputs.revenueGrowth : [];
+    return revenueGrowth.map((value) =>
+      Math.min(0.3, Math.max(-0.05, Number(value) + revenueGrowthShiftBps / 10000)),
+    );
+  }, [payload, revenueGrowthShiftBps]);
+
+  const hasThreeStatementControlChanges =
+    payload.modelType === 'THREE_STATEMENT' &&
+    (revenueGrowthShiftBps !== 0 ||
+      Math.abs(grossMarginPct - ((Number(threeStatementInputs?.grossMargin ?? 0)) * 100)) > 0.001 ||
+      Math.abs(opexPct - ((Number(threeStatementInputs?.opexPctRevenue ?? 0)) * 100)) > 0.001 ||
+      Math.abs(taxRatePct - ((Number(threeStatementInputs?.taxRate ?? 0)) * 100)) > 0.001);
 
   async function handleDownload() {
     if (isDownloading) return;
@@ -422,6 +480,36 @@ export function AnalystModelCard({ payload }: { payload: AnalystGeneratedModelPa
     }
   }
 
+  async function handleApplyThreeStatementControls() {
+    if (!onAdjust || payload.modelType !== 'THREE_STATEMENT' || isApplyingControls || !hasThreeStatementControlChanges) return;
+    setIsApplyingControls(true);
+    setControlsError(null);
+    try {
+      await onAdjust({
+        changes: {
+          revenueGrowth: adjustedThreeStatementRevenueGrowth,
+          grossMargin: grossMarginPct / 100,
+          opexPctRevenue: opexPct / 100,
+          taxRate: taxRatePct / 100,
+        },
+      });
+    } catch (error) {
+      setControlsError(error instanceof Error ? error.message : 'Unable to apply model controls.');
+    } finally {
+      setIsApplyingControls(false);
+    }
+  }
+
+  function handleResetThreeStatementControls() {
+    if (payload.modelType !== 'THREE_STATEMENT') return;
+    const inputs = payload.extractedInputs as Record<string, unknown>;
+    setRevenueGrowthShiftBps(0);
+    setGrossMarginPct(typeof inputs.grossMargin === 'number' ? Number(inputs.grossMargin) * 100 : 0);
+    setOpexPct(typeof inputs.opexPctRevenue === 'number' ? Number(inputs.opexPctRevenue) * 100 : 0);
+    setTaxRatePct(typeof inputs.taxRate === 'number' ? Number(inputs.taxRate) * 100 : 0);
+    setControlsError(null);
+  }
+
   return (
     <Card className="mt-4 overflow-hidden border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
       <CardHeader className="border-b border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)]">
@@ -468,6 +556,96 @@ export function AnalystModelCard({ payload }: { payload: AnalystGeneratedModelPa
           <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Key Outputs</div>
           <p className="text-sm leading-6 text-[var(--cb-text-primary)]">{payload.keyOutputs.join(', ')}</p>
         </div>
+
+        {payload.modelType === 'THREE_STATEMENT' ? (
+          <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Model Controls</div>
+                <div className="mt-1 text-sm text-[var(--cb-text-primary)]">
+                  Adjust the operating assumptions and rerender the active three-statement model.
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setShowControls((value) => !value)}>
+                  {showControls ? 'Hide Controls' : 'Adjust Assumptions'}
+                </Button>
+                {showControls ? (
+                  <Button type="button" variant="outline" size="sm" onClick={handleResetThreeStatementControls} disabled={isApplyingControls}>
+                    Reset
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+            {showControls ? (
+              <div className="mt-4 space-y-6">
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <Label>Revenue Growth Shift</Label>
+                    <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
+                      {revenueGrowthShiftBps > 0 ? '+' : ''}{(revenueGrowthShiftBps / 100).toFixed(1)}%
+                    </span>
+                  </div>
+                  <Slider value={[revenueGrowthShiftBps]} onValueChange={([value]) => setRevenueGrowthShiftBps(value)} min={-500} max={500} step={25} className="mb-1" />
+                  <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
+                    <span>-5.0%</span>
+                    <span>{adjustedThreeStatementRevenueGrowth.map((value) => `${(value * 100).toFixed(1)}%`).join(' / ')}</span>
+                    <span>+5.0%</span>
+                  </div>
+                </div>
+
+                <div className="grid gap-6 md:grid-cols-3">
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <Label>Gross Margin</Label>
+                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">{grossMarginPct.toFixed(1)}%</span>
+                    </div>
+                    <Slider value={[grossMarginPct]} onValueChange={([value]) => setGrossMarginPct(value)} min={20} max={90} step={0.5} className="mb-1" />
+                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
+                      <span>20.0%</span>
+                      <span>90.0%</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <Label>Opex % Revenue</Label>
+                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">{opexPct.toFixed(1)}%</span>
+                    </div>
+                    <Slider value={[opexPct]} onValueChange={([value]) => setOpexPct(value)} min={5} max={70} step={0.5} className="mb-1" />
+                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
+                      <span>5.0%</span>
+                      <span>70.0%</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <Label>Tax Rate</Label>
+                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">{taxRatePct.toFixed(1)}%</span>
+                    </div>
+                    <Slider value={[taxRatePct]} onValueChange={([value]) => setTaxRatePct(value)} min={5} max={35} step={0.5} className="mb-1" />
+                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
+                      <span>5.0%</span>
+                      <span>35.0%</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--cb-border-subtle)] pt-4">
+                  <div className="text-xs text-[var(--cb-text-muted)]">
+                    These controls update the current operating assumptions and rerender the active model card.
+                  </div>
+                  <Button type="button" size="sm" onClick={() => void handleApplyThreeStatementControls()} disabled={!hasThreeStatementControlChanges || isApplyingControls}>
+                    {isApplyingControls ? 'Applying…' : 'Apply Controls'}
+                  </Button>
+                </div>
+                {controlsError ? (
+                  <div className="rounded-xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.16)] px-3 py-2 text-sm text-[#fecaca]">
+                    {controlsError}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         {chartSpec ? <ModelVisualization spec={chartSpec} /> : null}
 

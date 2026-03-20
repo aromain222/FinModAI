@@ -31,8 +31,10 @@ import {
 } from '@/lib/analyst/dcfDemo';
 import {
   generateAnalystStructuredModel,
+  reviseAnalystStructuredModelFromOverrides,
   isModelAdjustmentPrompt,
   reviseAnalystStructuredModel,
+  type AnalystStructuredModelAdjustment,
   type AnalystGeneratedModelPayload,
 } from '@/lib/analyst/modelChat';
 import { savePromptModelRunVersion } from '@/lib/model-generator/runHistory';
@@ -596,6 +598,10 @@ export async function POST(req: NextRequest) {
       body?.currentModel && typeof body.currentModel === 'object'
         ? (body.currentModel as AnalystGeneratedModelPayload)
         : null;
+    const modelAdjustment =
+      body?.modelAdjustment && typeof body.modelAdjustment === 'object'
+        ? (body.modelAdjustment as AnalystStructuredModelAdjustment)
+        : null;
     const currentDcf =
       body?.currentDcf && typeof body.currentDcf === 'object'
         ? (body.currentDcf as AnalystDcfDemoPayload)
@@ -629,6 +635,33 @@ export async function POST(req: NextRequest) {
           `Demo snapshot cache — ${revisedDcf.payload.source}`,
           ...(revisedDcf.payload.asOfDate ? [`Snapshot updated ${revisedDcf.payload.asOfDate}`] : []),
           'Analyst Chat scenario controls',
+        ],
+        factsCount: 0,
+      });
+    }
+
+    if (currentModel && modelAdjustment) {
+      const revisedModel = await reviseAnalystStructuredModelFromOverrides(
+        modelAdjustment.changes,
+        currentModel,
+        sessionId,
+      );
+      if (!revisedModel) {
+        return NextResponse.json(
+          { error: 'No valid structured model control adjustments were provided.' },
+          { status: 400 },
+        );
+      }
+
+      return NextResponse.json({
+        reply: revisedModel.reply,
+        fallback: false,
+        mode: 'live',
+        route: 'financial_model',
+        generatedModel: revisedModel.payload,
+        sources: [
+          ...revisedModel.payload.provenanceSummary.sources,
+          'Analyst Chat model controls',
         ],
         factsCount: 0,
       });

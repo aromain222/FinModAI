@@ -39,6 +39,10 @@ export type AnalystGeneratedModelPayload = {
   narrativeBlocks: ModelNarrativeBlock[];
 };
 
+export type AnalystStructuredModelAdjustment = {
+  changes: Record<string, unknown>;
+};
+
 type StructuredModelType = Exclude<ModelGeneratorType, 'DCF'>;
 
 type PreviewBuilder = {
@@ -915,6 +919,60 @@ export async function reviseAnalystStructuredModel(
     },
     sessionId,
     replyPrefix: buildAdjustedReply(existingPayload.modelType, mergedOverrides),
+  });
+
+  return {
+    reply: payloadResult.reply,
+    payload: {
+      ...payloadResult.payload,
+      comparisonSummary:
+        changedKeys.length > 0
+          ? {
+              previousVersionNumber,
+              currentVersionNumber: previousVersionNumber !== null ? previousVersionNumber + 1 : null,
+              changedKeys,
+            }
+          : payloadResult.payload.comparisonSummary,
+    },
+  };
+}
+
+export async function reviseAnalystStructuredModelFromOverrides(
+  overrides: Record<string, unknown>,
+  existingPayload: AnalystGeneratedModelPayload,
+  sessionId?: string | null,
+): Promise<{ reply: string; payload: AnalystGeneratedModelPayload } | null> {
+  const safeOverrides = Object.fromEntries(
+    Object.entries(overrides).filter(([key, value]) => key in existingPayload.extractedInputs && value !== undefined),
+  );
+  if (Object.keys(safeOverrides).length === 0) return null;
+
+  const extractedInputs = {
+    ...existingPayload.extractedInputs,
+    ...safeOverrides,
+  } as ExtractedModelInputs;
+  const defaultsUsed = removeOverriddenDefaults(existingPayload.defaultsUsed, safeOverrides);
+  const fallbackUsed = Array.from(
+    new Set([...existingPayload.provenanceSummary.fallbackUsed, 'control_panel_adjustment']),
+  );
+  const currentAssumptions = extractComparableAssumptions(extractedInputs as Record<string, unknown>);
+  const previousAssumptions = extractComparableAssumptions(existingPayload.extractedInputs as Record<string, unknown>);
+  const changedKeys = computeChangedKeys(previousAssumptions, currentAssumptions);
+  const previousVersionNumber =
+    existingPayload.comparisonSummary?.currentVersionNumber ??
+    existingPayload.recentRun?.versionNumber ??
+    null;
+  const payloadResult = await buildStructuredModelPayload({
+    prompt: existingPayload.prompt,
+    modelType: existingPayload.modelType,
+    extractedInputs,
+    defaultsUsed,
+    provenanceSummary: {
+      ...existingPayload.provenanceSummary,
+      fallbackUsed,
+    },
+    sessionId,
+    replyPrefix: buildAdjustedReply(existingPayload.modelType, safeOverrides),
   });
 
   return {
