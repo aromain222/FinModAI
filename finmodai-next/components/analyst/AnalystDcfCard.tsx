@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
 import { EditableFinanceChart } from '@/components/charts/EditableFinanceChart';
-import type { AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
+import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 
 function fmtMillions(value: number): string {
   return `$${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}M`;
@@ -45,11 +47,24 @@ function ComparisonRow(props: { label: string; primary: string; comparison: stri
   );
 }
 
-export function AnalystDcfCard({ payload }: { payload: AnalystDcfDemoPayload }) {
+export function AnalystDcfCard({
+  payload,
+  onAdjust,
+}: {
+  payload: AnalystDcfDemoPayload;
+  onAdjust?: (adjustment: AnalystDcfAdjustment) => Promise<void>;
+}) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  const [showControls, setShowControls] = useState(false);
+  const [isApplyingControls, setIsApplyingControls] = useState(false);
+  const [controlsError, setControlsError] = useState<string | null>(null);
+  const [revenueGrowthShiftBps, setRevenueGrowthShiftBps] = useState(0);
+  const [marginShiftBps, setMarginShiftBps] = useState(0);
+  const [waccPct, setWaccPct] = useState(payload.assumptions.wacc * 100);
+  const [terminalGrowthPct, setTerminalGrowthPct] = useState(payload.assumptions.terminalGrowth * 100);
   const scenarioBars = [
     { name: 'Bear', value: payload.scenarios.bear.pricePerShare ?? 0, fill: '#dc2626' },
     { name: 'Base', value: payload.scenarios.base.pricePerShare ?? 0, fill: '#2563eb' },
@@ -89,6 +104,36 @@ export function AnalystDcfCard({ payload }: { payload: AnalystDcfDemoPayload }) 
       hovertemplate: '%{x}<br>Value / Share: $%{y:.2f}<extra></extra>',
     },
   ];
+
+  useEffect(() => {
+    setRevenueGrowthShiftBps(0);
+    setMarginShiftBps(0);
+    setWaccPct(payload.assumptions.wacc * 100);
+    setTerminalGrowthPct(payload.assumptions.terminalGrowth * 100);
+    setControlsError(null);
+  }, [payload]);
+
+  const adjustedRevenueGrowth = useMemo(
+    () =>
+      payload.assumptions.revenueGrowth.map((value) =>
+        Math.min(0.25, Math.max(-0.05, value + revenueGrowthShiftBps / 10000)),
+      ),
+    [payload.assumptions.revenueGrowth, revenueGrowthShiftBps],
+  );
+
+  const adjustedEbitMargin = useMemo(
+    () =>
+      payload.assumptions.ebitMargin.map((value) =>
+        Math.min(0.5, Math.max(0.05, value + marginShiftBps / 10000)),
+      ),
+    [payload.assumptions.ebitMargin, marginShiftBps],
+  );
+
+  const hasControlChanges =
+    revenueGrowthShiftBps !== 0 ||
+    marginShiftBps !== 0 ||
+    Math.abs(waccPct - payload.assumptions.wacc * 100) > 0.001 ||
+    Math.abs(terminalGrowthPct - payload.assumptions.terminalGrowth * 100) > 0.001;
 
   async function handleDownload() {
     if (isDownloading) return;
@@ -197,6 +242,34 @@ export function AnalystDcfCard({ payload }: { payload: AnalystDcfDemoPayload }) 
     }
   }
 
+  async function handleApplyControls() {
+    if (!onAdjust || isApplyingControls || !hasControlChanges) return;
+
+    setIsApplyingControls(true);
+    setControlsError(null);
+    try {
+      const adjustment: AnalystDcfAdjustment = {
+        revenueGrowth: adjustedRevenueGrowth,
+        ebitMargin: adjustedEbitMargin,
+        wacc: waccPct / 100,
+        terminalGrowth: terminalGrowthPct / 100,
+      };
+      await onAdjust(adjustment);
+    } catch (error) {
+      setControlsError(error instanceof Error ? error.message : 'Unable to apply DCF controls.');
+    } finally {
+      setIsApplyingControls(false);
+    }
+  }
+
+  function handleResetControls() {
+    setRevenueGrowthShiftBps(0);
+    setMarginShiftBps(0);
+    setWaccPct(payload.assumptions.wacc * 100);
+    setTerminalGrowthPct(payload.assumptions.terminalGrowth * 100);
+    setControlsError(null);
+  }
+
   return (
     <Card className="mt-4 overflow-hidden border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
       <CardHeader className="border-b border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)]">
@@ -231,6 +304,125 @@ export function AnalystDcfCard({ payload }: { payload: AnalystDcfDemoPayload }) 
             {reportError}
           </div>
         ) : null}
+        <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Scenario Controls</div>
+              <div className="mt-1 text-sm text-[var(--cb-text-primary)]">
+                Adjust the main valuation drivers and rerender the DCF in place.
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setShowControls((value) => !value)}>
+                {showControls ? 'Hide Controls' : 'Adjust Assumptions'}
+              </Button>
+              {showControls ? (
+                <Button type="button" variant="outline" size="sm" onClick={handleResetControls} disabled={isApplyingControls}>
+                  Reset
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          {showControls ? (
+            <div className="mt-4 space-y-6">
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <Label>Revenue Growth Shift</Label>
+                  <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
+                    {revenueGrowthShiftBps > 0 ? '+' : ''}{(revenueGrowthShiftBps / 100).toFixed(1)}%
+                  </span>
+                </div>
+                <Slider
+                  value={[revenueGrowthShiftBps]}
+                  onValueChange={([value]) => setRevenueGrowthShiftBps(value)}
+                  min={-500}
+                  max={500}
+                  step={25}
+                  className="mb-1"
+                />
+                <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
+                  <span>-5.0%</span>
+                  <span>{adjustedRevenueGrowth.map((value) => `${(value * 100).toFixed(1)}%`).join(' / ')}</span>
+                  <span>+5.0%</span>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <Label>EBIT Margin Shift</Label>
+                  <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
+                    {marginShiftBps > 0 ? '+' : ''}{(marginShiftBps / 100).toFixed(1)}%
+                  </span>
+                </div>
+                <Slider
+                  value={[marginShiftBps]}
+                  onValueChange={([value]) => setMarginShiftBps(value)}
+                  min={-500}
+                  max={500}
+                  step={25}
+                  className="mb-1"
+                />
+                <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
+                  <span>-5.0%</span>
+                  <span>{adjustedEbitMargin.map((value) => `${(value * 100).toFixed(1)}%`).join(' / ')}</span>
+                  <span>+5.0%</span>
+                </div>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <Label>WACC</Label>
+                    <span className="text-sm font-semibold text-[var(--cb-text-primary)]">{waccPct.toFixed(1)}%</span>
+                  </div>
+                  <Slider
+                    value={[waccPct]}
+                    onValueChange={([value]) => setWaccPct(value)}
+                    min={6}
+                    max={16}
+                    step={0.25}
+                    className="mb-1"
+                  />
+                  <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
+                    <span>6.0%</span>
+                    <span>16.0%</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <Label>Terminal Growth</Label>
+                    <span className="text-sm font-semibold text-[var(--cb-text-primary)]">{terminalGrowthPct.toFixed(1)}%</span>
+                  </div>
+                  <Slider
+                    value={[terminalGrowthPct]}
+                    onValueChange={([value]) => setTerminalGrowthPct(value)}
+                    min={1}
+                    max={4}
+                    step={0.25}
+                    className="mb-1"
+                  />
+                  <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
+                    <span>1.0%</span>
+                    <span>4.0%</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--cb-border-subtle)] pt-4">
+                <div className="text-xs text-[var(--cb-text-muted)]">
+                  These controls update the current DCF assumptions and rerender the valuation summary and charts.
+                </div>
+                <Button type="button" size="sm" onClick={() => void handleApplyControls()} disabled={!hasControlChanges || isApplyingControls}>
+                  {isApplyingControls ? 'Applying…' : 'Apply Controls'}
+                </Button>
+              </div>
+              {controlsError ? (
+                <div className="rounded-xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.16)] px-3 py-2 text-sm text-[#fecaca]">
+                  {controlsError}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
         <div className="grid gap-3 md:grid-cols-4">
           <StatCard
             label="Base EV"

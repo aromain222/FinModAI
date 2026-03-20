@@ -81,6 +81,13 @@ export type AnalystDcfDemoPayload = {
   comparison?: AnalystDcfComparisonPayload | null;
 };
 
+export type AnalystDcfAdjustment = {
+  revenueGrowth?: number[];
+  ebitMargin?: number[];
+  wacc?: number;
+  terminalGrowth?: number;
+};
+
 type PromptParseResult = {
   years: number;
   impliedTicker?: string;
@@ -1156,6 +1163,88 @@ export async function reviseAnalystDcfDemo(
     source: existingPayload.source,
     asOfDate: existingPayload.asOfDate,
     years: overrides.years ?? existingPayload.years,
+    baseMetrics: existingPayload.baseMetrics,
+    assumptions,
+    warnings: existingPayload.warnings,
+    comparison,
+  });
+}
+
+export async function reviseAnalystDcfDemoFromAdjustment(
+  adjustment: AnalystDcfAdjustment,
+  existingPayload: AnalystDcfDemoPayload,
+): Promise<{ reply: string; payload: AnalystDcfDemoPayload } | null> {
+  const hasAdjustment =
+    (Array.isArray(adjustment.revenueGrowth) && adjustment.revenueGrowth.length > 0) ||
+    (Array.isArray(adjustment.ebitMargin) && adjustment.ebitMargin.length > 0) ||
+    typeof adjustment.wacc === 'number' ||
+    typeof adjustment.terminalGrowth === 'number';
+  if (!hasAdjustment) return null;
+
+  const nextYears = existingPayload.years;
+  const assumptions: DeterministicAssumptions = {
+    ...existingPayload.assumptions,
+    revenueGrowth:
+      Array.isArray(adjustment.revenueGrowth) && adjustment.revenueGrowth.length === nextYears
+        ? adjustment.revenueGrowth.map((value) => clamp(value, -0.05, 0.25))
+        : existingPayload.assumptions.revenueGrowth,
+    ebitMargin:
+      Array.isArray(adjustment.ebitMargin) && adjustment.ebitMargin.length === nextYears
+        ? adjustment.ebitMargin.map((value) => clamp(value, 0.05, 0.5))
+        : existingPayload.assumptions.ebitMargin,
+    wacc:
+      typeof adjustment.wacc === 'number' ? clamp(adjustment.wacc, 0.06, 0.16) : existingPayload.assumptions.wacc,
+    terminalGrowth:
+      typeof adjustment.terminalGrowth === 'number'
+        ? clamp(adjustment.terminalGrowth, 0.01, 0.04)
+        : existingPayload.assumptions.terminalGrowth,
+    notes: [
+      ...existingPayload.notes,
+      'Updated from Analyst Chat scenario controls.',
+    ].slice(0, 4),
+  };
+
+  let comparison = existingPayload.comparison ?? null;
+  if (comparison) {
+    const normalizedComparisonAssumptions = normalizeAssumptionLength(comparison.assumptions, nextYears);
+    const rebuiltComparison = await buildAnalystDcfDemoFromPayload({
+      prompt: existingPayload.prompt,
+      ticker: comparison.ticker,
+      companyName: comparison.companyName,
+      sector: comparison.sector,
+      source: comparison.source,
+      asOfDate: comparison.asOfDate,
+      years: nextYears,
+      baseMetrics: comparison.baseMetrics,
+      assumptions: {
+        ...normalizedComparisonAssumptions,
+        notes: comparison.notes,
+      },
+      warnings: [],
+      comparison: null,
+      includeMemo: false,
+    });
+    comparison = {
+      ticker: rebuiltComparison.payload.ticker,
+      companyName: rebuiltComparison.payload.companyName,
+      sector: rebuiltComparison.payload.sector,
+      source: rebuiltComparison.payload.source,
+      asOfDate: rebuiltComparison.payload.asOfDate,
+      notes: rebuiltComparison.payload.notes,
+      baseMetrics: rebuiltComparison.payload.baseMetrics,
+      assumptions: rebuiltComparison.payload.assumptions,
+      scenarios: rebuiltComparison.payload.scenarios,
+    };
+  }
+
+  return buildAnalystDcfDemoFromPayload({
+    prompt: existingPayload.prompt,
+    ticker: existingPayload.ticker,
+    companyName: existingPayload.companyName,
+    sector: existingPayload.sector,
+    source: existingPayload.source,
+    asOfDate: existingPayload.asOfDate,
+    years: nextYears,
     baseMetrics: existingPayload.baseMetrics,
     assumptions,
     warnings: existingPayload.warnings,

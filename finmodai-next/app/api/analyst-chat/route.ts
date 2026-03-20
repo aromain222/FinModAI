@@ -22,7 +22,13 @@ import { routeAnalystQuery, type AnalystRoute } from '@/lib/analyst/router';
 import { retrieveDataForRoute } from '@/lib/analyst/dataRetrieval';
 import { extractVerifiedFacts, serializeFactsBriefForContext, type VerifiedFacts } from '@/lib/analyst/factsExtractor';
 import { gatherAnalystRetrievalContext, inferTickerFromPrompt } from '@/lib/analyst/retrieval';
-import { generateAnalystDcfDemo, reviseAnalystDcfDemo, type AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
+import {
+  generateAnalystDcfDemo,
+  reviseAnalystDcfDemo,
+  reviseAnalystDcfDemoFromAdjustment,
+  type AnalystDcfAdjustment,
+  type AnalystDcfDemoPayload,
+} from '@/lib/analyst/dcfDemo';
 import {
   generateAnalystStructuredModel,
   isModelAdjustmentPrompt,
@@ -594,11 +600,39 @@ export async function POST(req: NextRequest) {
       body?.currentDcf && typeof body.currentDcf === 'object'
         ? (body.currentDcf as AnalystDcfDemoPayload)
         : null;
+    const dcfAdjustment =
+      body?.dcfAdjustment && typeof body.dcfAdjustment === 'object'
+        ? (body.dcfAdjustment as AnalystDcfAdjustment)
+        : null;
     const currentStock =
       body?.currentStock && typeof body.currentStock === 'object'
         ? (body.currentStock as StockLookupResult)
         : null;
     const messages = Array.isArray(body?.messages) ? body.messages : [];
+
+    if (currentDcf && dcfAdjustment) {
+      const revisedDcf = await reviseAnalystDcfDemoFromAdjustment(dcfAdjustment, currentDcf);
+      if (!revisedDcf) {
+        return NextResponse.json(
+          { error: 'No valid DCF control adjustments were provided.' },
+          { status: 400 },
+        );
+      }
+
+      return NextResponse.json({
+        reply: revisedDcf.reply,
+        fallback: false,
+        mode: 'live',
+        route: 'financial_model',
+        dcfDemo: revisedDcf.payload,
+        sources: [
+          `Demo snapshot cache — ${revisedDcf.payload.source}`,
+          ...(revisedDcf.payload.asOfDate ? [`Snapshot updated ${revisedDcf.payload.asOfDate}`] : []),
+          'Analyst Chat scenario controls',
+        ],
+        factsCount: 0,
+      });
+    }
 
     const safeMessages = messages
       .filter((m: unknown): m is { role: 'user' | 'assistant' | 'system'; content: string } => {
