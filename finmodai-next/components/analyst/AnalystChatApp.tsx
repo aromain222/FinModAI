@@ -349,6 +349,64 @@ export function AnalystChatApp() {
     );
   };
 
+  const handleDcfEventShock = async (
+    messageId: string,
+    payload: AnalystDcfDemoPayload,
+    prompt: string,
+  ) => {
+    const response = await fetch('/api/analyst-chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId,
+        currentDcf: payload,
+        dcfEventShockPrompt: prompt,
+      }),
+    });
+
+    const rawBody = await response.text();
+    const parsed = rawBody ? tryParseJson<Record<string, unknown>>(rawBody) : null;
+    if (!response.ok) {
+      const backendMessage =
+        (parsed && typeof parsed.reply === 'string' && parsed.reply.trim().length > 0
+          ? parsed.reply
+          : parsed && typeof parsed.error === 'string' && parsed.error.trim().length > 0
+            ? parsed.error
+            : rawBody.trim());
+      throw new Error(backendMessage || `DCF event shock failed (${response.status}).`);
+    }
+    if (!parsed) {
+      throw new Error(rawBody.trim() || 'DCF event shock returned an invalid response.');
+    }
+
+    const replyText =
+      typeof parsed.reply === 'string' && parsed.reply.trim().length > 0
+        ? parsed.reply
+        : 'Updated the DCF with the selected event shock.';
+
+    setMessages((prev) =>
+      prev.map((message) => {
+        if (message.id !== messageId) return message;
+        return {
+          ...message,
+          content: cleanAssistantText(replyText, false),
+          meta: {
+            ...message.meta,
+            mode: parsed?.mode === 'fallback' ? 'fallback' : 'live',
+            reason: typeof parsed?.reason === 'string' ? parsed.reason : undefined,
+            sources: Array.isArray(parsed?.sources)
+              ? parsed.sources.filter((item: unknown): item is string => typeof item === 'string').slice(0, 5)
+              : message.meta?.sources,
+            dcfDemo:
+              parsed?.dcfDemo && typeof parsed.dcfDemo === 'object'
+                ? (parsed.dcfDemo as AnalystDcfDemoPayload)
+                : message.meta?.dcfDemo,
+          },
+        };
+      }),
+    );
+  };
+
   const handleModelAdjustment = async (
     messageId: string,
     payload: AnalystGeneratedModelPayload,
@@ -509,6 +567,7 @@ export function AnalystChatApp() {
                   <AnalystDcfCard
                     payload={message.meta.dcfDemo}
                     onAdjust={(adjustment) => handleDcfAdjustment(message.id, message.meta!.dcfDemo!, adjustment)}
+                    onRunEventShock={(prompt) => handleDcfEventShock(message.id, message.meta!.dcfDemo!, prompt)}
                   />
                 )}
                 {message.role === 'assistant' && message.meta?.generatedModel && (

@@ -50,9 +50,11 @@ function ComparisonRow(props: { label: string; primary: string; comparison: stri
 export function AnalystDcfCard({
   payload,
   onAdjust,
+  onRunEventShock,
 }: {
   payload: AnalystDcfDemoPayload;
   onAdjust?: (adjustment: AnalystDcfAdjustment) => Promise<void>;
+  onRunEventShock?: (prompt: string) => Promise<void>;
 }) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -61,10 +63,17 @@ export function AnalystDcfCard({
   const [showControls, setShowControls] = useState(false);
   const [isApplyingControls, setIsApplyingControls] = useState(false);
   const [controlsError, setControlsError] = useState<string | null>(null);
+  const [isApplyingEventShock, setIsApplyingEventShock] = useState(false);
   const [revenueGrowthShiftBps, setRevenueGrowthShiftBps] = useState(0);
   const [marginShiftBps, setMarginShiftBps] = useState(0);
   const [waccPct, setWaccPct] = useState(payload.assumptions.wacc * 100);
   const [terminalGrowthPct, setTerminalGrowthPct] = useState(payload.assumptions.terminalGrowth * 100);
+  const eventShockPresets = [
+    { label: 'CEO Retires', prompt: 'If the CEO retires, show me the impact on this DCF' },
+    { label: 'Rates Stay Higher', prompt: 'What if rates stay higher for longer on this DCF' },
+    { label: 'Oil Shock', prompt: 'Show me the impact of an oil shock on this DCF' },
+    { label: 'Tariff Shock', prompt: 'Stress this DCF for tariffs going up' },
+  ] as const;
   const scenarioBars = [
     { name: 'Bear', value: payload.scenarios.bear.pricePerShare ?? 0, fill: '#dc2626' },
     { name: 'Base', value: payload.scenarios.base.pricePerShare ?? 0, fill: '#2563eb' },
@@ -262,6 +271,20 @@ export function AnalystDcfCard({
     }
   }
 
+  async function handleRunEventShock(prompt: string) {
+    if (!onRunEventShock || isApplyingEventShock || isApplyingControls) return;
+
+    setIsApplyingEventShock(true);
+    setControlsError(null);
+    try {
+      await onRunEventShock(prompt);
+    } catch (error) {
+      setControlsError(error instanceof Error ? error.message : 'Unable to apply event shock.');
+    } finally {
+      setIsApplyingEventShock(false);
+    }
+  }
+
   function handleResetControls() {
     setRevenueGrowthShiftBps(0);
     setMarginShiftBps(0);
@@ -325,6 +348,27 @@ export function AnalystDcfCard({
           </div>
           {showControls ? (
             <div className="mt-4 space-y-6">
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <Label>Event Presets</Label>
+                  <span className="text-xs text-[var(--cb-text-muted)]">Apply a deterministic macro or event shock</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {eventShockPresets.map((preset) => (
+                    <Button
+                      key={preset.label}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleRunEventShock(preset.prompt)}
+                      disabled={!onRunEventShock || isApplyingEventShock || isApplyingControls}
+                    >
+                      {isApplyingEventShock ? 'Applying…' : preset.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <div className="mb-2 flex items-center justify-between">
                   <Label>Revenue Growth Shift</Label>

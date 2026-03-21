@@ -612,6 +612,10 @@ export async function POST(req: NextRequest) {
       body?.dcfAdjustment && typeof body.dcfAdjustment === 'object'
         ? (body.dcfAdjustment as AnalystDcfAdjustment)
         : null;
+    const dcfEventShockPrompt =
+      typeof body?.dcfEventShockPrompt === 'string' && body.dcfEventShockPrompt.trim().length > 0
+        ? body.dcfEventShockPrompt.trim()
+        : null;
     const currentStock =
       body?.currentStock && typeof body.currentStock === 'object'
         ? (body.currentStock as StockLookupResult)
@@ -637,6 +641,30 @@ export async function POST(req: NextRequest) {
           `Demo snapshot cache — ${revisedDcf.payload.source}`,
           ...(revisedDcf.payload.asOfDate ? [`Snapshot updated ${revisedDcf.payload.asOfDate}`] : []),
           'Analyst Chat scenario controls',
+        ],
+        factsCount: 0,
+      });
+    }
+
+    if (currentDcf && dcfEventShockPrompt) {
+      const shockedDcf = await reviseAnalystDcfDemoFromEventShock(dcfEventShockPrompt, currentDcf);
+      if (!shockedDcf) {
+        return NextResponse.json(
+          { error: 'No supported event shock was detected for the active DCF.' },
+          { status: 400 },
+        );
+      }
+
+      return NextResponse.json({
+        reply: shockedDcf.reply,
+        fallback: false,
+        mode: 'live',
+        route: 'financial_model',
+        dcfDemo: shockedDcf.payload,
+        sources: [
+          `Demo snapshot cache — ${shockedDcf.payload.source}`,
+          ...(shockedDcf.payload.asOfDate ? [`Snapshot updated ${shockedDcf.payload.asOfDate}`] : []),
+          'Deterministic event shock mapping',
         ],
         factsCount: 0,
       });
