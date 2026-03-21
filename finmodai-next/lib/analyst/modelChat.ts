@@ -41,6 +41,7 @@ export type AnalystGeneratedModelPayload = {
 
 export type AnalystStructuredModelAdjustment = {
   changes: Record<string, unknown>;
+  prompt?: string;
 };
 
 type StructuredModelType = Exclude<ModelGeneratorType, 'DCF'>;

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { EditableFinanceChart } from '@/components/charts/EditableFinanceChart';
@@ -389,6 +390,8 @@ export function AnalystModelCard({
   const [compsEbitdaShiftPct, setCompsEbitdaShiftPct] = useState(0);
   const [compsPriceShiftPct, setCompsPriceShiftPct] = useState(0);
   const [compsSharesShiftPct, setCompsSharesShiftPct] = useState(0);
+  const [compsAddPeers, setCompsAddPeers] = useState('');
+  const [compsRemovePeers, setCompsRemovePeers] = useState('');
 
   useEffect(() => {
     if (payload.modelType !== 'THREE_STATEMENT') return;
@@ -406,6 +409,8 @@ export function AnalystModelCard({
     setCompsEbitdaShiftPct(0);
     setCompsPriceShiftPct(0);
     setCompsSharesShiftPct(0);
+    setCompsAddPeers('');
+    setCompsRemovePeers('');
     setControlsError(null);
   }, [payload]);
 
@@ -469,7 +474,9 @@ export function AnalystModelCard({
     (compsRevenueShiftPct !== 0 ||
       compsEbitdaShiftPct !== 0 ||
       compsPriceShiftPct !== 0 ||
-      compsSharesShiftPct !== 0);
+      compsSharesShiftPct !== 0 ||
+      compsAddPeers.trim().length > 0 ||
+      compsRemovePeers.trim().length > 0);
 
   async function handleDownload() {
     if (isDownloading) return;
@@ -594,10 +601,17 @@ export function AnalystModelCard({
     setIsApplyingControls(true);
     setControlsError(null);
     try {
+      const peerPrompt = [
+        compsAddPeers.trim().length > 0 ? `add ${compsAddPeers.trim()} to peers` : null,
+        compsRemovePeers.trim().length > 0 ? `remove ${compsRemovePeers.trim()} from peers` : null,
+      ]
+        .filter((item): item is string => Boolean(item))
+        .join('. ');
       await onAdjust({
         changes: {
           subject: adjustedCompsSubject,
         },
+        prompt: peerPrompt || undefined,
       });
     } catch (error) {
       setControlsError(error instanceof Error ? error.message : 'Unable to apply comps controls.');
@@ -622,6 +636,8 @@ export function AnalystModelCard({
     setCompsEbitdaShiftPct(0);
     setCompsPriceShiftPct(0);
     setCompsSharesShiftPct(0);
+    setCompsAddPeers('');
+    setCompsRemovePeers('');
     setControlsError(null);
   }
 
@@ -838,9 +854,35 @@ export function AnalystModelCard({
                     </div>
                   </div>
                 </div>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <Label>Add Peers</Label>
+                      <span className="text-xs text-[var(--cb-text-muted)]">Tickers or company names</span>
+                    </div>
+                    <Input
+                      value={compsAddPeers}
+                      onChange={(event) => setCompsAddPeers(event.target.value)}
+                      placeholder="NOW, WDAY"
+                      className="h-10"
+                    />
+                  </div>
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <Label>Remove Peers</Label>
+                      <span className="text-xs text-[var(--cb-text-muted)]">Tickers or company names</span>
+                    </div>
+                    <Input
+                      value={compsRemovePeers}
+                      onChange={(event) => setCompsRemovePeers(event.target.value)}
+                      placeholder="SNOW"
+                      className="h-10"
+                    />
+                  </div>
+                </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--cb-border-subtle)] pt-4">
                   <div className="text-xs text-[var(--cb-text-muted)]">
-                    These controls update the subject snapshot and rerender implied valuation on the active comps model.
+                    These controls update the subject snapshot, adjust the peer set, and rerender implied valuation on the active comps model.
                   </div>
                   <Button type="button" size="sm" onClick={() => void handleApplyCompsControls()} disabled={!hasCompsControlChanges || isApplyingControls}>
                     {isApplyingControls ? 'Applying…' : 'Apply Controls'}

@@ -641,9 +641,21 @@ export async function POST(req: NextRequest) {
     }
 
     if (currentModel && modelAdjustment) {
+      let baseModel = currentModel;
+      if (typeof modelAdjustment.prompt === 'string' && modelAdjustment.prompt.trim().length > 0) {
+        const promptAdjustedModel = await reviseAnalystStructuredModel(
+          modelAdjustment.prompt.trim(),
+          baseModel,
+          sessionId,
+        );
+        if (promptAdjustedModel) {
+          baseModel = promptAdjustedModel.payload;
+        }
+      }
+
       const revisedModel = await reviseAnalystStructuredModelFromOverrides(
         modelAdjustment.changes,
-        currentModel,
+        baseModel,
         sessionId,
       );
       if (!revisedModel) {
