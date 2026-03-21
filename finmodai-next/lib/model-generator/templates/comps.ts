@@ -59,6 +59,9 @@ export async function buildWorkbook(inputs: CompsModelInputs): Promise<ExcelJS.W
   setupSheet(checks, { freezeRows: 3, freezeCols: 1, tabColor: 'FFB45309', columnWidths: [28, 18, 34] });
 
   const result = calculateCompsFromData(inputs.subject, inputs.peers);
+  const selectedEvRevenue = firstFinite(inputs.selectedMultiples?.evToRevenue, result.medianMultiples.evToRevenue);
+  const selectedEvEbitda = firstFinite(inputs.selectedMultiples?.evToEbitda, result.medianMultiples.evToEbitda);
+  const selectedPeRatio = firstFinite(inputs.selectedMultiples?.peRatio, result.medianMultiples.peRatio);
   const equations: EquationRow[] = [];
   const subjectMarketCap = firstFinite(
     result.subject.marketCap,
@@ -82,21 +85,34 @@ export async function buildWorkbook(inputs: CompsModelInputs): Promise<ExcelJS.W
   const subjectPrice = firstFinite(result.subject.price, inputs.subject.price);
   const impliedEvRevenue =
     result.impliedValuation.byEvRevenue ??
-    (result.medianMultiples.evToRevenue !== null && subjectRevenue !== null && subjectRevenue > 0
-      ? result.medianMultiples.evToRevenue * subjectRevenue
+    (selectedEvRevenue !== null && subjectRevenue !== null && subjectRevenue > 0
+      ? selectedEvRevenue * subjectRevenue
       : null);
   const impliedEvEbitda =
     result.impliedValuation.byEvEbitda ??
-    (result.medianMultiples.evToEbitda !== null && subjectEbitda !== null && subjectEbitda > 0
-      ? result.medianMultiples.evToEbitda * subjectEbitda
+    (selectedEvEbitda !== null && subjectEbitda !== null && subjectEbitda > 0
+      ? selectedEvEbitda * subjectEbitda
       : null);
   const impliedEquityRevenue =
-    result.impliedValuation.equityValueByEvRevenue ??
-    (impliedEvRevenue !== null && subjectNetDebt !== null ? impliedEvRevenue - subjectNetDebt : null);
+    inputs.selectedMultiples?.evToRevenue !== undefined
+      ? impliedEvRevenue !== null && subjectNetDebt !== null
+        ? impliedEvRevenue - subjectNetDebt
+        : null
+      : (result.impliedValuation.equityValueByEvRevenue ??
+        (impliedEvRevenue !== null && subjectNetDebt !== null ? impliedEvRevenue - subjectNetDebt : null));
   const impliedEquityEbitda =
-    result.impliedValuation.equityValueByEvEbitda ??
-    (impliedEvEbitda !== null && subjectNetDebt !== null ? impliedEvEbitda - subjectNetDebt : null);
-  const impliedEquityPe = firstFinite(result.impliedValuation.equityValueByPe, result.impliedValuation.byPe);
+    inputs.selectedMultiples?.evToEbitda !== undefined
+      ? impliedEvEbitda !== null && subjectNetDebt !== null
+        ? impliedEvEbitda - subjectNetDebt
+        : null
+      : (result.impliedValuation.equityValueByEvEbitda ??
+        (impliedEvEbitda !== null && subjectNetDebt !== null ? impliedEvEbitda - subjectNetDebt : null));
+  const impliedEquityPe =
+    inputs.selectedMultiples?.peRatio !== undefined
+      ? selectedPeRatio !== null && subjectNetIncome !== null && subjectNetIncome > 0
+        ? selectedPeRatio * subjectNetIncome
+        : null
+      : firstFinite(result.impliedValuation.equityValueByPe, result.impliedValuation.byPe);
   const impliedEvPe =
     impliedEquityPe !== null && subjectNetDebt !== null ? impliedEquityPe + subjectNetDebt : null;
   const impliedPriceRevenue =
@@ -138,9 +154,9 @@ export async function buildWorkbook(inputs: CompsModelInputs): Promise<ExcelJS.W
   summary.getCell('E7').value = 'Implied Price';
 
   const rows = [
-    ['EV / Revenue', result.medianMultiples.evToRevenue, impliedEvRevenue, impliedEquityRevenue, impliedPriceRevenue],
-    ['EV / EBITDA', result.medianMultiples.evToEbitda, impliedEvEbitda, impliedEquityEbitda, impliedPriceEbitda],
-    ['P / E', result.medianMultiples.peRatio, impliedEvPe, impliedEquityPe, impliedPricePe],
+    ['EV / Revenue', selectedEvRevenue, impliedEvRevenue, impliedEquityRevenue, impliedPriceRevenue],
+    ['EV / EBITDA', selectedEvEbitda, impliedEvEbitda, impliedEquityEbitda, impliedPriceEbitda],
+    ['P / E', selectedPeRatio, impliedEvPe, impliedEquityPe, impliedPricePe],
   ] as const;
 
   rows.forEach((row, index) => {

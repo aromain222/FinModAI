@@ -163,46 +163,77 @@ function inferChartSpec(payload: AnalystGeneratedModelPayload): ChartSpec | null
   if (payload.modelType === 'COMPS') {
     const subject = inputs.subject && typeof inputs.subject === 'object' ? (inputs.subject as Record<string, unknown>) : null;
     const peers = Array.isArray(inputs.peers) ? (inputs.peers as Array<Record<string, unknown>>) : [];
-    const validRevenuePeers = peers.map((peer) => Number(peer.revenue)).filter((value) => Number.isFinite(value));
-    const validEbitdaPeers = peers.map((peer) => Number(peer.ebitda)).filter((value) => Number.isFinite(value));
-    const peerMedianRevenue =
-      validRevenuePeers.length > 0
-        ? [...validRevenuePeers].sort((left, right) => left - right)[Math.floor(validRevenuePeers.length / 2)]
+    const median = (values: number[]) => {
+      if (values.length === 0) return null;
+      const sorted = [...values].sort((left, right) => left - right);
+      const mid = Math.floor(sorted.length / 2);
+      return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+    };
+    const peerMedianEvRevenue = median(
+      peers
+        .map((peer) =>
+          Number(
+            peer.evToRevenue ??
+              (peer.enterpriseValue && peer.revenue ? Number(peer.enterpriseValue) / Number(peer.revenue) : NaN),
+          ),
+        )
+        .filter(Number.isFinite),
+    );
+    const peerMedianEvEbitda = median(
+      peers
+        .map((peer) =>
+          Number(
+            peer.evToEbitda ??
+              (peer.enterpriseValue && peer.ebitda ? Number(peer.enterpriseValue) / Number(peer.ebitda) : NaN),
+          ),
+        )
+        .filter(Number.isFinite),
+    );
+    const peerMedianPe = median(
+      peers
+        .map((peer) =>
+          Number(
+            peer.peRatio ?? (peer.marketCap && peer.netIncome ? Number(peer.marketCap) / Number(peer.netIncome) : NaN),
+          ),
+        )
+        .filter(Number.isFinite),
+    );
+    const selectedMultiples =
+      inputs.selectedMultiples && typeof inputs.selectedMultiples === 'object'
+        ? (inputs.selectedMultiples as Record<string, unknown>)
         : null;
-    const peerMedianEbitda =
-      validEbitdaPeers.length > 0
-        ? [...validEbitdaPeers].sort((left, right) => left - right)[Math.floor(validEbitdaPeers.length / 2)]
-        : null;
-    const subjectRevenue = typeof subject?.revenue === 'number' ? Number(subject.revenue) : null;
-    const subjectEbitda = typeof subject?.ebitda === 'number' ? Number(subject.ebitda) : null;
-    if (
-      subject &&
-      ((typeof subjectRevenue === 'number' && Number.isFinite(subjectRevenue)) ||
-        (typeof subjectEbitda === 'number' && Number.isFinite(subjectEbitda)) ||
-        peerMedianRevenue !== null ||
-        peerMedianEbitda !== null)
-    ) {
+    const selectedEvRevenue =
+      typeof selectedMultiples?.evToRevenue === 'number' ? Number(selectedMultiples.evToRevenue) : peerMedianEvRevenue;
+    const selectedEvEbitda =
+      typeof selectedMultiples?.evToEbitda === 'number' ? Number(selectedMultiples.evToEbitda) : peerMedianEvEbitda;
+    const selectedPe = typeof selectedMultiples?.peRatio === 'number' ? Number(selectedMultiples.peRatio) : peerMedianPe;
+    if (subject && (selectedEvRevenue !== null || selectedEvEbitda !== null || selectedPe !== null)) {
       const data = [
         {
-          label: 'Revenue',
-          subject: subjectRevenue ?? 0,
-          peerMedian: peerMedianRevenue ?? 0,
+          label: 'EV / Revenue',
+          selected: selectedEvRevenue ?? 0,
+          peerMedian: peerMedianEvRevenue ?? 0,
         },
         {
-          label: 'EBITDA',
-          subject: subjectEbitda ?? 0,
-          peerMedian: peerMedianEbitda ?? 0,
+          label: 'EV / EBITDA',
+          selected: selectedEvEbitda ?? 0,
+          peerMedian: peerMedianEvEbitda ?? 0,
+        },
+        {
+          label: 'P / E',
+          selected: selectedPe ?? 0,
+          peerMedian: peerMedianPe ?? 0,
         },
       ];
       return {
         kind: 'bar',
-        title: 'Subject vs Peer Median',
+        title: 'Selected vs Peer Median Multiples',
         data,
         bars: [
-          { key: 'subject', label: 'Subject', color: '#2563eb', valueType: 'currency' },
-          { key: 'peerMedian', label: 'Peer Median', color: '#16a34a', valueType: 'currency' },
+          { key: 'selected', label: 'Selected', color: '#2563eb', valueType: 'number' },
+          { key: 'peerMedian', label: 'Peer Median', color: '#16a34a', valueType: 'number' },
         ],
-        yType: 'currency',
+        yType: 'number',
       };
     }
   }
@@ -392,6 +423,9 @@ export function AnalystModelCard({
   const [compsSharesShiftPct, setCompsSharesShiftPct] = useState(0);
   const [compsAddPeers, setCompsAddPeers] = useState('');
   const [compsRemovePeers, setCompsRemovePeers] = useState('');
+  const [compsEvRevenueMultiple, setCompsEvRevenueMultiple] = useState(0);
+  const [compsEvEbitdaMultiple, setCompsEvEbitdaMultiple] = useState(0);
+  const [compsPeMultiple, setCompsPeMultiple] = useState(0);
 
   useEffect(() => {
     if (payload.modelType !== 'THREE_STATEMENT') return;
@@ -400,17 +434,6 @@ export function AnalystModelCard({
     setGrossMarginPct(typeof inputs.grossMargin === 'number' ? Number(inputs.grossMargin) * 100 : 0);
     setOpexPct(typeof inputs.opexPctRevenue === 'number' ? Number(inputs.opexPctRevenue) * 100 : 0);
     setTaxRatePct(typeof inputs.taxRate === 'number' ? Number(inputs.taxRate) * 100 : 0);
-    setControlsError(null);
-  }, [payload]);
-
-  useEffect(() => {
-    if (payload.modelType !== 'COMPS') return;
-    setCompsRevenueShiftPct(0);
-    setCompsEbitdaShiftPct(0);
-    setCompsPriceShiftPct(0);
-    setCompsSharesShiftPct(0);
-    setCompsAddPeers('');
-    setCompsRemovePeers('');
     setControlsError(null);
   }, [payload]);
 
@@ -469,6 +492,76 @@ export function AnalystModelCard({
     compsSharesShiftPct,
   ]);
 
+  const compsMultipleBaselines = useMemo(() => {
+    if (payload.modelType !== 'COMPS') {
+      return { evToRevenue: 0, evToEbitda: 0, peRatio: 0 };
+    }
+    const peers = Array.isArray(compsInputs?.peers) ? (compsInputs.peers as Array<Record<string, unknown>>) : [];
+    const median = (values: number[]) => {
+      if (values.length === 0) return 0;
+      const sorted = [...values].sort((left, right) => left - right);
+      const mid = Math.floor(sorted.length / 2);
+      return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+    };
+    const multipleValues = {
+      evToRevenue: peers
+        .map((peer) =>
+          Number(
+            peer.evToRevenue ??
+              (peer.enterpriseValue && peer.revenue ? Number(peer.enterpriseValue) / Number(peer.revenue) : NaN),
+          ),
+        )
+        .filter(Number.isFinite),
+      evToEbitda: peers
+        .map((peer) =>
+          Number(
+            peer.evToEbitda ??
+              (peer.enterpriseValue && peer.ebitda ? Number(peer.enterpriseValue) / Number(peer.ebitda) : NaN),
+          ),
+        )
+        .filter(Number.isFinite),
+      peRatio: peers
+        .map((peer) =>
+          Number(
+            peer.peRatio ?? (peer.marketCap && peer.netIncome ? Number(peer.marketCap) / Number(peer.netIncome) : NaN),
+          ),
+        )
+        .filter(Number.isFinite),
+    };
+    const selectedMultiples =
+      compsInputs?.selectedMultiples && typeof compsInputs.selectedMultiples === 'object'
+        ? (compsInputs.selectedMultiples as Record<string, unknown>)
+        : null;
+    return {
+      evToRevenue:
+        typeof selectedMultiples?.evToRevenue === 'number'
+          ? Number(selectedMultiples.evToRevenue)
+          : median(multipleValues.evToRevenue),
+      evToEbitda:
+        typeof selectedMultiples?.evToEbitda === 'number'
+          ? Number(selectedMultiples.evToEbitda)
+          : median(multipleValues.evToEbitda),
+      peRatio:
+        typeof selectedMultiples?.peRatio === 'number'
+          ? Number(selectedMultiples.peRatio)
+          : median(multipleValues.peRatio),
+    };
+  }, [payload, compsInputs]);
+
+  useEffect(() => {
+    if (payload.modelType !== 'COMPS') return;
+    setCompsRevenueShiftPct(0);
+    setCompsEbitdaShiftPct(0);
+    setCompsPriceShiftPct(0);
+    setCompsSharesShiftPct(0);
+    setCompsAddPeers('');
+    setCompsRemovePeers('');
+    setCompsEvRevenueMultiple(compsMultipleBaselines.evToRevenue);
+    setCompsEvEbitdaMultiple(compsMultipleBaselines.evToEbitda);
+    setCompsPeMultiple(compsMultipleBaselines.peRatio);
+    setControlsError(null);
+  }, [payload, compsMultipleBaselines]);
+
   const hasCompsControlChanges =
     payload.modelType === 'COMPS' &&
     (compsRevenueShiftPct !== 0 ||
@@ -476,7 +569,10 @@ export function AnalystModelCard({
       compsPriceShiftPct !== 0 ||
       compsSharesShiftPct !== 0 ||
       compsAddPeers.trim().length > 0 ||
-      compsRemovePeers.trim().length > 0);
+      compsRemovePeers.trim().length > 0 ||
+      Math.abs(compsEvRevenueMultiple - compsMultipleBaselines.evToRevenue) > 0.0001 ||
+      Math.abs(compsEvEbitdaMultiple - compsMultipleBaselines.evToEbitda) > 0.0001 ||
+      Math.abs(compsPeMultiple - compsMultipleBaselines.peRatio) > 0.0001);
 
   async function handleDownload() {
     if (isDownloading) return;
@@ -610,6 +706,11 @@ export function AnalystModelCard({
       await onAdjust({
         changes: {
           subject: adjustedCompsSubject,
+          selectedMultiples: {
+            evToRevenue: compsEvRevenueMultiple,
+            evToEbitda: compsEvEbitdaMultiple,
+            peRatio: compsPeMultiple,
+          },
         },
         prompt: peerPrompt || undefined,
       });
@@ -638,6 +739,9 @@ export function AnalystModelCard({
     setCompsSharesShiftPct(0);
     setCompsAddPeers('');
     setCompsRemovePeers('');
+    setCompsEvRevenueMultiple(compsMultipleBaselines.evToRevenue);
+    setCompsEvEbitdaMultiple(compsMultipleBaselines.evToEbitda);
+    setCompsPeMultiple(compsMultipleBaselines.peRatio);
     setControlsError(null);
   }
 
@@ -851,6 +955,41 @@ export function AnalystModelCard({
                     <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
                       <span>-20%</span>
                       <span>+20%</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid gap-6 md:grid-cols-3">
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <Label>EV / Revenue</Label>
+                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">{compsEvRevenueMultiple.toFixed(1)}x</span>
+                    </div>
+                    <Slider value={[compsEvRevenueMultiple]} onValueChange={([value]) => setCompsEvRevenueMultiple(value)} min={1} max={25} step={0.1} className="mb-1" />
+                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
+                      <span>1.0x</span>
+                      <span>25.0x</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <Label>EV / EBITDA</Label>
+                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">{compsEvEbitdaMultiple.toFixed(1)}x</span>
+                    </div>
+                    <Slider value={[compsEvEbitdaMultiple]} onValueChange={([value]) => setCompsEvEbitdaMultiple(value)} min={1} max={50} step={0.1} className="mb-1" />
+                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
+                      <span>1.0x</span>
+                      <span>50.0x</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <Label>P / E</Label>
+                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">{compsPeMultiple.toFixed(1)}x</span>
+                    </div>
+                    <Slider value={[compsPeMultiple]} onValueChange={([value]) => setCompsPeMultiple(value)} min={1} max={80} step={0.1} className="mb-1" />
+                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
+                      <span>1.0x</span>
+                      <span>80.0x</span>
                     </div>
                   </div>
                 </div>

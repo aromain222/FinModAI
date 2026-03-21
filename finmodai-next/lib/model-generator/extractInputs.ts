@@ -85,6 +85,11 @@ export type CompsModelInputs = {
   source: string;
   peerSetLabel: string;
   valuationMultiples: string[];
+  selectedMultiples?: {
+    evToRevenue: number | null;
+    evToEbitda: number | null;
+    peRatio: number | null;
+  };
   subject: CompsPeerInputs;
   peers: CompsPeerInputs[];
 };
@@ -1102,6 +1107,7 @@ async function buildCompsInputs(prompt: string): Promise<ExtractInputsResult> {
             ? `${companyType} peers`
             : 'Selected peers',
       valuationMultiples: [...COMPS_DEFAULTS.valuationMultiples],
+      selectedMultiples: undefined,
       subject,
       peers: peerInputs,
     },
