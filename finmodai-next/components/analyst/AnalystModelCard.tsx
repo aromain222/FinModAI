@@ -160,22 +160,46 @@ function inferChartSpec(payload: AnalystGeneratedModelPayload): ChartSpec | null
   }
 
   if (payload.modelType === 'COMPS') {
+    const subject = inputs.subject && typeof inputs.subject === 'object' ? (inputs.subject as Record<string, unknown>) : null;
     const peers = Array.isArray(inputs.peers) ? (inputs.peers as Array<Record<string, unknown>>) : [];
-    if (peers.length > 0) {
-      const data = peers
-        .slice(0, 8)
-        .map((peer) => ({
-          label: String(peer.ticker ?? peer.name ?? 'Peer'),
-          revenue: typeof peer.revenue === 'number' ? Number(peer.revenue) : 0,
-          ebitda: typeof peer.ebitda === 'number' ? Number(peer.ebitda) : 0,
-        }));
+    const validRevenuePeers = peers.map((peer) => Number(peer.revenue)).filter((value) => Number.isFinite(value));
+    const validEbitdaPeers = peers.map((peer) => Number(peer.ebitda)).filter((value) => Number.isFinite(value));
+    const peerMedianRevenue =
+      validRevenuePeers.length > 0
+        ? [...validRevenuePeers].sort((left, right) => left - right)[Math.floor(validRevenuePeers.length / 2)]
+        : null;
+    const peerMedianEbitda =
+      validEbitdaPeers.length > 0
+        ? [...validEbitdaPeers].sort((left, right) => left - right)[Math.floor(validEbitdaPeers.length / 2)]
+        : null;
+    const subjectRevenue = typeof subject?.revenue === 'number' ? Number(subject.revenue) : null;
+    const subjectEbitda = typeof subject?.ebitda === 'number' ? Number(subject.ebitda) : null;
+    if (
+      subject &&
+      ((typeof subjectRevenue === 'number' && Number.isFinite(subjectRevenue)) ||
+        (typeof subjectEbitda === 'number' && Number.isFinite(subjectEbitda)) ||
+        peerMedianRevenue !== null ||
+        peerMedianEbitda !== null)
+    ) {
+      const data = [
+        {
+          label: 'Revenue',
+          subject: subjectRevenue ?? 0,
+          peerMedian: peerMedianRevenue ?? 0,
+        },
+        {
+          label: 'EBITDA',
+          subject: subjectEbitda ?? 0,
+          peerMedian: peerMedianEbitda ?? 0,
+        },
+      ];
       return {
         kind: 'bar',
-        title: 'Peer Operating Scale',
+        title: 'Subject vs Peer Median',
         data,
         bars: [
-          { key: 'revenue', label: 'Revenue', color: '#2563eb', valueType: 'currency' },
-          { key: 'ebitda', label: 'EBITDA', color: '#16a34a', valueType: 'currency' },
+          { key: 'subject', label: 'Subject', color: '#2563eb', valueType: 'currency' },
+          { key: 'peerMedian', label: 'Peer Median', color: '#16a34a', valueType: 'currency' },
         ],
         yType: 'currency',
       };
@@ -339,6 +363,12 @@ export function AnalystModelCard({
   const chartSpec = inferChartSpec(payload);
   const threeStatementInputs =
     payload.modelType === 'THREE_STATEMENT' ? (payload.extractedInputs as Record<string, unknown>) : null;
+  const compsInputs =
+    payload.modelType === 'COMPS' ? (payload.extractedInputs as Record<string, unknown>) : null;
+  const compsSubject =
+    payload.modelType === 'COMPS' && compsInputs?.subject && typeof compsInputs.subject === 'object'
+      ? (compsInputs.subject as Record<string, unknown>)
+      : null;
   const [revenueGrowthShiftBps, setRevenueGrowthShiftBps] = useState(0);
   const [grossMarginPct, setGrossMarginPct] = useState(
     payload.modelType === 'THREE_STATEMENT' && typeof threeStatementInputs?.grossMargin === 'number'
@@ -355,6 +385,10 @@ export function AnalystModelCard({
       ? Number(threeStatementInputs.taxRate) * 100
       : 0,
   );
+  const [compsRevenueShiftPct, setCompsRevenueShiftPct] = useState(0);
+  const [compsEbitdaShiftPct, setCompsEbitdaShiftPct] = useState(0);
+  const [compsPriceShiftPct, setCompsPriceShiftPct] = useState(0);
+  const [compsSharesShiftPct, setCompsSharesShiftPct] = useState(0);
 
   useEffect(() => {
     if (payload.modelType !== 'THREE_STATEMENT') return;
@@ -363,6 +397,15 @@ export function AnalystModelCard({
     setGrossMarginPct(typeof inputs.grossMargin === 'number' ? Number(inputs.grossMargin) * 100 : 0);
     setOpexPct(typeof inputs.opexPctRevenue === 'number' ? Number(inputs.opexPctRevenue) * 100 : 0);
     setTaxRatePct(typeof inputs.taxRate === 'number' ? Number(inputs.taxRate) * 100 : 0);
+    setControlsError(null);
+  }, [payload]);
+
+  useEffect(() => {
+    if (payload.modelType !== 'COMPS') return;
+    setCompsRevenueShiftPct(0);
+    setCompsEbitdaShiftPct(0);
+    setCompsPriceShiftPct(0);
+    setCompsSharesShiftPct(0);
     setControlsError(null);
   }, [payload]);
 
@@ -381,6 +424,52 @@ export function AnalystModelCard({
       Math.abs(grossMarginPct - ((Number(threeStatementInputs?.grossMargin ?? 0)) * 100)) > 0.001 ||
       Math.abs(opexPct - ((Number(threeStatementInputs?.opexPctRevenue ?? 0)) * 100)) > 0.001 ||
       Math.abs(taxRatePct - ((Number(threeStatementInputs?.taxRate ?? 0)) * 100)) > 0.001);
+
+  const adjustedCompsSubject = useMemo(() => {
+    if (payload.modelType !== 'COMPS' || !compsSubject) return null;
+    const revenue =
+      typeof compsSubject.revenue === 'number'
+        ? Number(compsSubject.revenue) * (1 + compsRevenueShiftPct / 100)
+        : compsSubject.revenue;
+    const ebitda =
+      typeof compsSubject.ebitda === 'number'
+        ? Number(compsSubject.ebitda) * (1 + compsEbitdaShiftPct / 100)
+        : compsSubject.ebitda;
+    const price =
+      typeof compsSubject.price === 'number'
+        ? Number(compsSubject.price) * (1 + compsPriceShiftPct / 100)
+        : compsSubject.price;
+    const sharesOutstanding =
+      typeof compsSubject.sharesOutstanding === 'number'
+        ? Number(compsSubject.sharesOutstanding) * (1 + compsSharesShiftPct / 100)
+        : compsSubject.sharesOutstanding;
+    const marketCap =
+      typeof price === 'number' && typeof sharesOutstanding === 'number'
+        ? (price * sharesOutstanding) / 1_000_000
+        : compsSubject.marketCap;
+    return {
+      ...compsSubject,
+      revenue,
+      ebitda,
+      price,
+      sharesOutstanding,
+      marketCap,
+    };
+  }, [
+    payload,
+    compsSubject,
+    compsRevenueShiftPct,
+    compsEbitdaShiftPct,
+    compsPriceShiftPct,
+    compsSharesShiftPct,
+  ]);
+
+  const hasCompsControlChanges =
+    payload.modelType === 'COMPS' &&
+    (compsRevenueShiftPct !== 0 ||
+      compsEbitdaShiftPct !== 0 ||
+      compsPriceShiftPct !== 0 ||
+      compsSharesShiftPct !== 0);
 
   async function handleDownload() {
     if (isDownloading) return;
@@ -500,6 +589,23 @@ export function AnalystModelCard({
     }
   }
 
+  async function handleApplyCompsControls() {
+    if (!onAdjust || payload.modelType !== 'COMPS' || isApplyingControls || !hasCompsControlChanges || !adjustedCompsSubject) return;
+    setIsApplyingControls(true);
+    setControlsError(null);
+    try {
+      await onAdjust({
+        changes: {
+          subject: adjustedCompsSubject,
+        },
+      });
+    } catch (error) {
+      setControlsError(error instanceof Error ? error.message : 'Unable to apply comps controls.');
+    } finally {
+      setIsApplyingControls(false);
+    }
+  }
+
   function handleResetThreeStatementControls() {
     if (payload.modelType !== 'THREE_STATEMENT') return;
     const inputs = payload.extractedInputs as Record<string, unknown>;
@@ -507,6 +613,15 @@ export function AnalystModelCard({
     setGrossMarginPct(typeof inputs.grossMargin === 'number' ? Number(inputs.grossMargin) * 100 : 0);
     setOpexPct(typeof inputs.opexPctRevenue === 'number' ? Number(inputs.opexPctRevenue) * 100 : 0);
     setTaxRatePct(typeof inputs.taxRate === 'number' ? Number(inputs.taxRate) * 100 : 0);
+    setControlsError(null);
+  }
+
+  function handleResetCompsControls() {
+    if (payload.modelType !== 'COMPS') return;
+    setCompsRevenueShiftPct(0);
+    setCompsEbitdaShiftPct(0);
+    setCompsPriceShiftPct(0);
+    setCompsSharesShiftPct(0);
     setControlsError(null);
   }
 
@@ -634,6 +749,100 @@ export function AnalystModelCard({
                     These controls update the current operating assumptions and rerender the active model card.
                   </div>
                   <Button type="button" size="sm" onClick={() => void handleApplyThreeStatementControls()} disabled={!hasThreeStatementControlChanges || isApplyingControls}>
+                    {isApplyingControls ? 'Applying…' : 'Apply Controls'}
+                  </Button>
+                </div>
+                {controlsError ? (
+                  <div className="rounded-xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.16)] px-3 py-2 text-sm text-[#fecaca]">
+                    {controlsError}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {payload.modelType === 'COMPS' ? (
+          <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Comps Controls</div>
+                <div className="mt-1 text-sm text-[var(--cb-text-primary)]">
+                  Stress the subject operating profile and price anchor to rerender the active comps view.
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setShowControls((value) => !value)}>
+                  {showControls ? 'Hide Controls' : 'Adjust Assumptions'}
+                </Button>
+                {showControls ? (
+                  <Button type="button" variant="outline" size="sm" onClick={handleResetCompsControls} disabled={isApplyingControls}>
+                    Reset
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+            {showControls ? (
+              <div className="mt-4 space-y-6">
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <Label>Subject Revenue Shift</Label>
+                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
+                        {compsRevenueShiftPct > 0 ? '+' : ''}{compsRevenueShiftPct.toFixed(0)}%
+                      </span>
+                    </div>
+                    <Slider value={[compsRevenueShiftPct]} onValueChange={([value]) => setCompsRevenueShiftPct(value)} min={-50} max={50} step={1} className="mb-1" />
+                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
+                      <span>-50%</span>
+                      <span>+50%</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <Label>Subject EBITDA Shift</Label>
+                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
+                        {compsEbitdaShiftPct > 0 ? '+' : ''}{compsEbitdaShiftPct.toFixed(0)}%
+                      </span>
+                    </div>
+                    <Slider value={[compsEbitdaShiftPct]} onValueChange={([value]) => setCompsEbitdaShiftPct(value)} min={-50} max={50} step={1} className="mb-1" />
+                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
+                      <span>-50%</span>
+                      <span>+50%</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <Label>Share Price Shift</Label>
+                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
+                        {compsPriceShiftPct > 0 ? '+' : ''}{compsPriceShiftPct.toFixed(0)}%
+                      </span>
+                    </div>
+                    <Slider value={[compsPriceShiftPct]} onValueChange={([value]) => setCompsPriceShiftPct(value)} min={-40} max={40} step={1} className="mb-1" />
+                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
+                      <span>-40%</span>
+                      <span>+40%</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <Label>Shares Outstanding Shift</Label>
+                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
+                        {compsSharesShiftPct > 0 ? '+' : ''}{compsSharesShiftPct.toFixed(0)}%
+                      </span>
+                    </div>
+                    <Slider value={[compsSharesShiftPct]} onValueChange={([value]) => setCompsSharesShiftPct(value)} min={-20} max={20} step={1} className="mb-1" />
+                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
+                      <span>-20%</span>
+                      <span>+20%</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--cb-border-subtle)] pt-4">
+                  <div className="text-xs text-[var(--cb-text-muted)]">
+                    These controls update the subject snapshot and rerender implied valuation on the active comps model.
+                  </div>
+                  <Button type="button" size="sm" onClick={() => void handleApplyCompsControls()} disabled={!hasCompsControlChanges || isApplyingControls}>
                     {isApplyingControls ? 'Applying…' : 'Apply Controls'}
                   </Button>
                 </div>

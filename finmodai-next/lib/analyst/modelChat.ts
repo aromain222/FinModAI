@@ -805,7 +805,19 @@ function buildAdjustedReply(modelType: StructuredModelType, overrides: Record<st
       const objectSummary = Object.entries(row)
         .filter(([, item]) => typeof item === 'string' || typeof item === 'number')
         .slice(0, 3)
-        .map(([nestedKey, nestedValue]) => `${humanizeKey(nestedKey)} ${typeof nestedValue === 'number' ? (toPercentString(nestedValue) ?? toMoneyString(nestedValue) ?? String(nestedValue)) : nestedValue}`)
+        .map(([nestedKey, nestedValue]) => {
+          if (typeof nestedValue !== 'number') return `${humanizeKey(nestedKey)} ${nestedValue}`;
+          const nestedType = inferOverrideType(nestedKey, nestedValue);
+          const formatted =
+            nestedType === 'percent'
+              ? toPercentString(nestedValue)
+              : nestedType === 'money'
+                ? toMoneyString(nestedValue)
+                : nestedType === 'number'
+                  ? toNumberString(nestedValue)
+                  : String(nestedValue);
+          return `${humanizeKey(nestedKey)} ${formatted ?? String(nestedValue)}`;
+        })
         .join(', ');
       return `${humanizeKey(key)} updated${objectSummary ? ` (${objectSummary})` : ''}`;
     }
