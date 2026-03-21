@@ -392,6 +392,7 @@ export function AnalystModelCard({
   const [showControls, setShowControls] = useState(false);
   const [isApplyingControls, setIsApplyingControls] = useState(false);
   const [controlsError, setControlsError] = useState<string | null>(null);
+  const [isApplyingEventShock, setIsApplyingEventShock] = useState(false);
   const chartSpec = inferChartSpec(payload);
   const threeStatementInputs =
     payload.modelType === 'THREE_STATEMENT' ? (payload.extractedInputs as Record<string, unknown>) : null;
@@ -426,6 +427,12 @@ export function AnalystModelCard({
   const [compsEvRevenueMultiple, setCompsEvRevenueMultiple] = useState(0);
   const [compsEvEbitdaMultiple, setCompsEvEbitdaMultiple] = useState(0);
   const [compsPeMultiple, setCompsPeMultiple] = useState(0);
+  const threeStatementEventPresets = [
+    { label: 'CEO Retires', prompt: 'If the CEO retires, stress this model' },
+    { label: 'Rates Stay Higher', prompt: 'What if rates stay higher for longer on this model' },
+    { label: 'Oil Shock', prompt: 'Show me the impact of an oil shock on this model' },
+    { label: 'Tariff Shock', prompt: 'Stress this model for tariffs going up' },
+  ] as const;
 
   useEffect(() => {
     if (payload.modelType !== 'THREE_STATEMENT') return;
@@ -692,6 +699,22 @@ export function AnalystModelCard({
     }
   }
 
+  async function handleApplyThreeStatementEventShock(prompt: string) {
+    if (!onAdjust || payload.modelType !== 'THREE_STATEMENT' || isApplyingControls || isApplyingEventShock) return;
+    setIsApplyingEventShock(true);
+    setControlsError(null);
+    try {
+      await onAdjust({
+        changes: {},
+        prompt,
+      });
+    } catch (error) {
+      setControlsError(error instanceof Error ? error.message : 'Unable to apply event shock.');
+    } finally {
+      setIsApplyingEventShock(false);
+    }
+  }
+
   async function handleApplyCompsControls() {
     if (!onAdjust || payload.modelType !== 'COMPS' || isApplyingControls || !hasCompsControlChanges || !adjustedCompsSubject) return;
     setIsApplyingControls(true);
@@ -814,6 +837,27 @@ export function AnalystModelCard({
             </div>
             {showControls ? (
               <div className="mt-4 space-y-6">
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <Label>Event Presets</Label>
+                    <span className="text-xs text-[var(--cb-text-muted)]">Apply a deterministic operating shock</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {threeStatementEventPresets.map((preset) => (
+                      <Button
+                        key={preset.label}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void handleApplyThreeStatementEventShock(preset.prompt)}
+                        disabled={!onAdjust || isApplyingControls || isApplyingEventShock}
+                      >
+                        {isApplyingEventShock ? 'Applying…' : preset.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
                 <div>
                   <div className="mb-2 flex items-center justify-between">
                     <Label>Revenue Growth Shift</Label>

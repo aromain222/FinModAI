@@ -673,6 +673,72 @@ function replaceArrayAtIndex(values: unknown[], index: number, nextValue: unknow
   return values.map((value, currentIndex) => (currentIndex === index ? nextValue : value));
 }
 
+function applyPercentArrayDelta(values: unknown, delta: number, floor: number, ceiling: number): number[] | undefined {
+  if (!Array.isArray(values)) return undefined;
+  const next = values
+    .map((value) => (typeof value === 'number' ? Math.min(ceiling, Math.max(floor, Number(value) + delta)) : null))
+    .filter((value): value is number => typeof value === 'number');
+  return next.length > 0 ? next : undefined;
+}
+
+function applyPercentScalarDelta(value: unknown, delta: number, floor: number, ceiling: number): number | undefined {
+  if (typeof value !== 'number') return undefined;
+  return Math.min(ceiling, Math.max(floor, Number(value) + delta));
+}
+
+function inferStructuredModelEventShock(
+  prompt: string,
+  payload: AnalystGeneratedModelPayload,
+): Record<string, unknown> {
+  if (payload.modelType !== 'THREE_STATEMENT') return {};
+
+  const normalized = prompt.toLowerCase();
+  const inputs = payload.extractedInputs as Record<string, unknown>;
+  const companyType = typeof inputs.companyType === 'string' ? inputs.companyType.toLowerCase() : '';
+  const isEnergyLike = /(energy|oil|gas|materials|mining)/i.test(companyType);
+  const isDurationSensitive = /(technology|software|internet|semiconductor|saas)/i.test(companyType);
+
+  if (/(ceo|chief executive|founder).*(retire|retirement|step down|leave|departure)|management transition|leadership change/i.test(normalized)) {
+    return {
+      revenueGrowth: applyPercentArrayDelta(inputs.revenueGrowth, -0.015, -0.05, 0.3),
+      grossMargin: applyPercentScalarDelta(inputs.grossMargin, -0.005, 0.1, 0.95),
+      opexPctRevenue: applyPercentScalarDelta(inputs.opexPctRevenue, 0.005, 0.01, 0.9),
+    };
+  }
+
+  if (/(higher for longer|rates stay higher|rate shock|higher rates|fed stays hawkish)/i.test(normalized)) {
+    return {
+      revenueGrowth: applyPercentArrayDelta(inputs.revenueGrowth, isDurationSensitive ? -0.01 : -0.005, -0.05, 0.3),
+      opexPctRevenue: applyPercentScalarDelta(inputs.opexPctRevenue, 0.0025, 0.01, 0.9),
+    };
+  }
+
+  if (/(oil shock|oil spike|crude spike|energy shock)/i.test(normalized)) {
+    if (isEnergyLike) {
+      return {
+        revenueGrowth: applyPercentArrayDelta(inputs.revenueGrowth, 0.01, -0.05, 0.3),
+        grossMargin: applyPercentScalarDelta(inputs.grossMargin, 0.01, 0.1, 0.95),
+      };
+    }
+
+    return {
+      revenueGrowth: applyPercentArrayDelta(inputs.revenueGrowth, -0.01, -0.05, 0.3),
+      grossMargin: applyPercentScalarDelta(inputs.grossMargin, -0.01, 0.1, 0.95),
+      opexPctRevenue: applyPercentScalarDelta(inputs.opexPctRevenue, 0.005, 0.01, 0.9),
+    };
+  }
+
+  if (/(tariff|trade war|trade shock|trade policy)/i.test(normalized)) {
+    return {
+      revenueGrowth: applyPercentArrayDelta(inputs.revenueGrowth, -0.01, -0.05, 0.3),
+      grossMargin: applyPercentScalarDelta(inputs.grossMargin, -0.015, 0.1, 0.95),
+      opexPctRevenue: applyPercentScalarDelta(inputs.opexPctRevenue, 0.005, 0.01, 0.9),
+    };
+  }
+
+  return {};
+}
+
 function extractOverrideForKey(key: string, currentValue: unknown, prompt: string): unknown {
   const type = inferOverrideType(key, currentValue);
   if (!type) return undefined;
@@ -900,9 +966,10 @@ export async function reviseAnalystStructuredModel(
   existingPayload: AnalystGeneratedModelPayload,
   sessionId?: string | null,
 ): Promise<{ reply: string; payload: AnalystGeneratedModelPayload } | null> {
+  const eventShockOverrides = inferStructuredModelEventShock(prompt, existingPayload);
   const overrides = extractFollowUpOverrides(prompt, existingPayload.extractedInputs);
   const nestedOverrides = await applyNestedModelOverrides(prompt, existingPayload);
-  const mergedOverrides = { ...overrides, ...nestedOverrides };
+  const mergedOverrides = { ...eventShockOverrides, ...overrides, ...nestedOverrides };
   if (Object.keys(mergedOverrides).length === 0) return null;
 
   const extractedInputs = {

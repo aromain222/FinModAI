@@ -672,6 +672,7 @@ export async function POST(req: NextRequest) {
 
     if (currentModel && modelAdjustment) {
       let baseModel = currentModel;
+      let promptAdjustedModelResult: Awaited<ReturnType<typeof reviseAnalystStructuredModel>> | null = null;
       if (typeof modelAdjustment.prompt === 'string' && modelAdjustment.prompt.trim().length > 0) {
         const promptAdjustedModel = await reviseAnalystStructuredModel(
           modelAdjustment.prompt.trim(),
@@ -679,6 +680,7 @@ export async function POST(req: NextRequest) {
           sessionId,
         );
         if (promptAdjustedModel) {
+          promptAdjustedModelResult = promptAdjustedModel;
           baseModel = promptAdjustedModel.payload;
         }
       }
@@ -688,6 +690,20 @@ export async function POST(req: NextRequest) {
         baseModel,
         sessionId,
       );
+      if (!revisedModel && promptAdjustedModelResult) {
+        return NextResponse.json({
+          reply: promptAdjustedModelResult.reply,
+          fallback: false,
+          mode: 'live',
+          route: 'financial_model',
+          generatedModel: promptAdjustedModelResult.payload,
+          sources: [
+            ...promptAdjustedModelResult.payload.provenanceSummary.sources,
+            'Analyst Chat model controls',
+          ],
+          factsCount: 0,
+        });
+      }
       if (!revisedModel) {
         return NextResponse.json(
           { error: 'No valid structured model control adjustments were provided.' },
