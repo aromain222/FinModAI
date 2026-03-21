@@ -88,6 +88,12 @@ export type AnalystDcfAdjustment = {
   terminalGrowth?: number;
 };
 
+type AnalystDcfEventShock = {
+  label: string;
+  assumptions: Partial<DeterministicAssumptions>;
+  notes: string[];
+};
+
 type PromptParseResult = {
   years: number;
   impliedTicker?: string;
@@ -149,6 +155,91 @@ function parsePercentLike(match: RegExpMatchArray | null): number | undefined {
   const parsed = Number(match[1]);
   if (!Number.isFinite(parsed)) return undefined;
   return parsed > 1 ? parsed / 100 : parsed;
+}
+
+export function isDcfEventShockPrompt(prompt: string): boolean {
+  const text = normalizePromptText(prompt);
+  return /\b(ceo|management|executive|retire|retires|resign|succession|rates stay higher|higher for longer|rate shock|oil spike|crude spike|tariff|trade war|trade shock)\b/.test(text);
+}
+
+function applySeriesDelta(values: number[], delta: number, min: number, max: number): number[] {
+  return values.map((value) => Number(clamp(value + delta, min, max).toFixed(4)));
+}
+
+function inferEventShock(prompt: string, payload: AnalystDcfDemoPayload): AnalystDcfEventShock | null {
+  const text = normalizePromptText(prompt);
+  const sector = normalizePromptText(payload.sector || '');
+
+  if (/\b(ceo|management|executive|succession)\b/.test(text) && /\b(retire|retires|retirement|resign|steps down|departure)\b/.test(text)) {
+    return {
+      label: 'management transition shock',
+      assumptions: {
+        revenueGrowth: payload.assumptions.revenueGrowth.map((value, index) =>
+          Number(clamp(value - (index < 2 ? 0.015 : 0.005), -0.05, 0.25).toFixed(4)),
+        ),
+        ebitMargin: payload.assumptions.ebitMargin.map((value, index) =>
+          Number(clamp(value - (index < 2 ? 0.01 : 0.003), 0.05, 0.5).toFixed(4)),
+        ),
+        wacc: Number(clamp(payload.assumptions.wacc + 0.0075, 0.06, 0.16).toFixed(4)),
+      },
+      notes: [
+        'Applied management-transition shock: lower near-term growth, modest margin pressure, and higher discount rate.',
+      ],
+    };
+  }
+
+  if (/\b(rates stay higher|higher for longer|rate shock|yields rise|rates rise|higher rates)\b/.test(text)) {
+    const durationSensitive = /(software|technology|internet|communication|real estate|consumer)/.test(sector);
+    return {
+      label: 'higher-for-longer rates shock',
+      assumptions: {
+        revenueGrowth: applySeriesDelta(payload.assumptions.revenueGrowth, durationSensitive ? -0.005 : -0.0025, -0.05, 0.25),
+        wacc: Number(clamp(payload.assumptions.wacc + (durationSensitive ? 0.015 : 0.01), 0.06, 0.16).toFixed(4)),
+        terminalGrowth: Number(clamp(payload.assumptions.terminalGrowth - 0.0025, 0.01, 0.04).toFixed(4)),
+      },
+      notes: [
+        'Applied higher-rates shock: discount rate rises and long-duration growth assumptions compress.',
+      ],
+    };
+  }
+
+  if (/\b(oil spike|crude spike|oil shock|oil prices|brent|wti|crude)\b/.test(text)) {
+    const energyBeneficiary = /(energy|materials)/.test(sector);
+    return {
+      label: 'oil shock',
+      assumptions: energyBeneficiary
+        ? {
+            revenueGrowth: applySeriesDelta(payload.assumptions.revenueGrowth, 0.01, -0.05, 0.25),
+            ebitMargin: applySeriesDelta(payload.assumptions.ebitMargin, 0.01, 0.05, 0.5),
+          }
+        : {
+            revenueGrowth: applySeriesDelta(payload.assumptions.revenueGrowth, -0.005, -0.05, 0.25),
+            ebitMargin: applySeriesDelta(payload.assumptions.ebitMargin, -0.01, 0.05, 0.5),
+            wacc: Number(clamp(payload.assumptions.wacc + 0.005, 0.06, 0.16).toFixed(4)),
+          },
+      notes: [
+        energyBeneficiary
+          ? 'Applied oil shock upside: energy-linked pricing and margin assumptions move higher.'
+          : 'Applied oil shock downside: input-cost pressure reduces margin and lifts risk premium.',
+      ],
+    };
+  }
+
+  if (/\b(tariff|tariffs|trade war|trade shock|duties|levies)\b/.test(text)) {
+    return {
+      label: 'tariff shock',
+      assumptions: {
+        revenueGrowth: applySeriesDelta(payload.assumptions.revenueGrowth, -0.0075, -0.05, 0.25),
+        ebitMargin: applySeriesDelta(payload.assumptions.ebitMargin, -0.01, 0.05, 0.5),
+        wacc: Number(clamp(payload.assumptions.wacc + 0.005, 0.06, 0.16).toFixed(4)),
+      },
+      notes: [
+        'Applied tariff shock: lower growth, weaker margin mix, and a modest valuation risk-premium increase.',
+      ],
+    };
+  }
+
+  return null;
 }
 
 export function parseDcfPrompt(prompt: string, explicitTicker?: string): PromptParseResult {
@@ -1250,6 +1341,74 @@ export async function reviseAnalystDcfDemoFromAdjustment(
     warnings: existingPayload.warnings,
     comparison,
   });
+}
+
+export async function reviseAnalystDcfDemoFromEventShock(
+  prompt: string,
+  existingPayload: AnalystDcfDemoPayload,
+): Promise<{ reply: string; payload: AnalystDcfDemoPayload } | null> {
+  const shock = inferEventShock(prompt, existingPayload);
+  if (!shock) return null;
+
+  const assumptions: DeterministicAssumptions = {
+    ...existingPayload.assumptions,
+    ...shock.assumptions,
+    revenueGrowth: shock.assumptions.revenueGrowth ?? existingPayload.assumptions.revenueGrowth,
+    ebitMargin: shock.assumptions.ebitMargin ?? existingPayload.assumptions.ebitMargin,
+    notes: [...existingPayload.notes, ...shock.notes].slice(0, 5),
+  };
+
+  let comparison = existingPayload.comparison ?? null;
+  if (comparison) {
+    const normalizedComparisonAssumptions = normalizeAssumptionLength(comparison.assumptions, existingPayload.years);
+    const rebuiltComparison = await buildAnalystDcfDemoFromPayload({
+      prompt: existingPayload.prompt,
+      ticker: comparison.ticker,
+      companyName: comparison.companyName,
+      sector: comparison.sector,
+      source: comparison.source,
+      asOfDate: comparison.asOfDate,
+      years: existingPayload.years,
+      baseMetrics: comparison.baseMetrics,
+      assumptions: {
+        ...normalizedComparisonAssumptions,
+        notes: comparison.notes,
+      },
+      warnings: [],
+      comparison: null,
+      includeMemo: false,
+    });
+    comparison = {
+      ticker: rebuiltComparison.payload.ticker,
+      companyName: rebuiltComparison.payload.companyName,
+      sector: rebuiltComparison.payload.sector,
+      source: rebuiltComparison.payload.source,
+      asOfDate: rebuiltComparison.payload.asOfDate,
+      notes: rebuiltComparison.payload.notes,
+      baseMetrics: rebuiltComparison.payload.baseMetrics,
+      assumptions: rebuiltComparison.payload.assumptions,
+      scenarios: rebuiltComparison.payload.scenarios,
+    };
+  }
+
+  const rebuilt = await buildAnalystDcfDemoFromPayload({
+    prompt: existingPayload.prompt,
+    ticker: existingPayload.ticker,
+    companyName: existingPayload.companyName,
+    sector: existingPayload.sector,
+    source: existingPayload.source,
+    asOfDate: existingPayload.asOfDate,
+    years: existingPayload.years,
+    baseMetrics: existingPayload.baseMetrics,
+    assumptions,
+    warnings: existingPayload.warnings,
+    comparison,
+  });
+
+  return {
+    reply: `Applied a ${shock.label} to the active DCF. The model now reflects the revised growth, margin, and valuation assumptions for that event path.\n\n${rebuilt.reply}`,
+    payload: rebuilt.payload,
+  };
 }
 
 export async function generateAnalystDcfDemo(params: {

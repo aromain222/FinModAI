@@ -24,8 +24,10 @@ import { extractVerifiedFacts, serializeFactsBriefForContext, type VerifiedFacts
 import { gatherAnalystRetrievalContext, inferTickerFromPrompt } from '@/lib/analyst/retrieval';
 import {
   generateAnalystDcfDemo,
+  isDcfEventShockPrompt,
   reviseAnalystDcfDemo,
   reviseAnalystDcfDemoFromAdjustment,
+  reviseAnalystDcfDemoFromEventShock,
   type AnalystDcfAdjustment,
   type AnalystDcfDemoPayload,
 } from '@/lib/analyst/dcfDemo';
@@ -733,6 +735,10 @@ export async function POST(req: NextRequest) {
       currentDcf &&
       isModelAdjustmentPrompt(lastUserMessage) &&
       !classifyPrompt(lastUserMessage);
+    const shouldApplyCurrentDcfEventShock =
+      currentDcf &&
+      isDcfEventShockPrompt(lastUserMessage) &&
+      !classifyPrompt(lastUserMessage);
     const shouldVisualizeCurrentModel =
       currentModel &&
       isVisualizationPrompt(lastUserMessage) &&
@@ -911,6 +917,26 @@ export async function POST(req: NextRequest) {
               ...revisedModel.payload.provenanceSummary.sources,
               'CapitalBase local model templates',
               'Conversation follow-up model adjustment',
+            ],
+            factsCount: 0,
+            attachmentUsed: attachmentLabel,
+          });
+        }
+      }
+
+      if (shouldApplyCurrentDcfEventShock && currentDcf) {
+        const shockedDcf = await reviseAnalystDcfDemoFromEventShock(lastUserMessage, currentDcf);
+        if (shockedDcf) {
+          return NextResponse.json({
+            reply: shockedDcf.reply,
+            fallback: false,
+            mode: 'live',
+            route: 'financial_model',
+            dcfDemo: shockedDcf.payload,
+            sources: [
+              `Demo snapshot cache — ${shockedDcf.payload.source}`,
+              ...(shockedDcf.payload.asOfDate ? [`Snapshot updated ${shockedDcf.payload.asOfDate}`] : []),
+              'Deterministic event shock mapping',
             ],
             factsCount: 0,
             attachmentUsed: attachmentLabel,
