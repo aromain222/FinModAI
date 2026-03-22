@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AssumptionsPanel } from '@/components/investment-analysis/AssumptionsPanel';
+import { EventAwareChartArea } from '@/components/investment-analysis/EventAwareChartArea';
 import { EventImpactCard, type EventImpactCardProps } from '@/components/investment-analysis/EventImpactCard';
 import { InvestmentChartArea } from '@/components/investment-analysis/InvestmentChartArea';
 import { InvestmentMemoPanel } from '@/components/investment-analysis/InvestmentMemoPanel';
@@ -15,6 +16,7 @@ import {
 } from '@/lib/investment-analysis/workspaceState';
 import type {
   InvestmentAnalysisDocument,
+  InvestmentEventChartInput,
   InvestmentMemoSections,
   InvestmentScenarioKey,
 } from '@/lib/investment-analysis/types';
@@ -22,6 +24,7 @@ import type {
 type InvestmentAnalysisWorkspaceProps = {
   initialDocument: InvestmentAnalysisDocument;
   eventImpact?: EventImpactCardProps;
+  eventChartInput?: InvestmentEventChartInput;
   onRefreshMemo?: (args: {
     document: InvestmentAnalysisDocument;
     activeScenario: InvestmentScenarioKey;
@@ -53,6 +56,7 @@ function PresetButton({
 export function InvestmentAnalysisWorkspace({
   initialDocument,
   eventImpact,
+  eventChartInput,
   onRefreshMemo,
 }: InvestmentAnalysisWorkspaceProps) {
   const [state, dispatch] = useReducer(
@@ -165,6 +169,7 @@ export function InvestmentAnalysisWorkspace({
 
         <InvestmentValuationSummary document={state.document} activeScenario={activeScenario} />
         {eventImpact ? <EventImpactCard {...eventImpact} /> : null}
+        {eventChartInput ? <EventAwareChartArea chartInput={eventChartInput} /> : null}
         <InvestmentChartArea document={chartDocument} />
         <InvestmentMemoPanel
           memo={state.document.memo}

@@ -9,6 +9,8 @@ export type {
   InvestmentAssumptionPatch,
   InvestmentChartDefinition,
   InvestmentChartDocument,
+  InvestmentEventChartBundle,
+  InvestmentEventChartInput,
   InvestmentChartPoint,
   InvestmentChartSeries,
   InvestmentSavedScenarioCharts,
@@ -121,6 +123,13 @@ export type {
 export {
   applyEventAssumptionDeltas,
 } from '@/lib/investment-analysis/eventAssumptionApplication';
+
+export {
+  buildEventAwareCharts,
+  buildEventFreeCashFlowForecastComparisonChart,
+  buildEventRevenueForecastComparisonChart,
+  buildEventValuationComparisonChart,
+} from '@/lib/investment-analysis/eventChartSeries';
 
 export {
   refreshInvestmentAnalysisModel,

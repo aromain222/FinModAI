@@ -239,3 +239,16 @@ export type InvestmentModelRefreshResult = {
   workspaceCharts: InvestmentWorkspaceCharts;
   writePayload: InvestmentModelRefreshWritePayload;
 };
+
+export type InvestmentEventChartInput = {
+  beforeScenario: InvestmentAnalysisScenarioDocument;
+  afterScenario: InvestmentAnalysisScenarioDocument;
+  refreshedDocument?: InvestmentChartDocument | null;
+};
+
+export type InvestmentEventChartBundle = {
+  revenueForecastComparison: InvestmentChartDefinition;
+  freeCashFlowForecastComparison: InvestmentChartDefinition;
+  valuationComparison: InvestmentChartDefinition;
+  scenarioComparison?: InvestmentChartDefinition | null;
+};
