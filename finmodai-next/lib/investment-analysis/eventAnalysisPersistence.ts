@@ -1,13 +1,15 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   InvestmentAnalysisDocument,
-  InvestmentEventAssumptionApplicationResult,
-  InvestmentEventClassificationResult,
-  ParsedPromptEventContext,
   InvestmentEventAnalysisRunListItem,
   InvestmentEventAnalysisRunRecord,
   SaveInvestmentEventAnalysisRunInput,
 } from '@/lib/investment-analysis/types';
+import type {
+  InvestmentEventAssumptionApplicationResult,
+  InvestmentEventClassificationResult,
+} from '@/lib/investment-analysis/eventTypes';
+import type { ParsedPromptEventContext } from '@/lib/investment-analysis/promptParser';
 
 type InvestmentEventAnalysisRunRow = {
   id: string;
