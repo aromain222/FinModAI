@@ -1,0 +1,96 @@
+export type InvestmentScenarioKey = 'base' | 'bull' | 'bear' | 'custom';
+
+export type InvestmentCompanyMetadata = {
+  ticker: string;
+  companyName: string;
+  sector?: string | null;
+  industry?: string | null;
+  currency?: string;
+  asOfDate?: string | null;
+};
+
+export type InvestmentChartFormat = 'currency' | 'percent' | 'number';
+
+export type InvestmentChartPoint = {
+  x: string | number;
+  [key: string]: string | number | null;
+};
+
+export type InvestmentChartSeries = {
+  key: string;
+  label: string;
+  color: string;
+  format: InvestmentChartFormat;
+  axis?: 'left' | 'right';
+};
+
+export type InvestmentChartDefinition = {
+  title: string;
+  subtitle?: string;
+  data: InvestmentChartPoint[];
+  series: InvestmentChartSeries[];
+};
+
+export type DeterministicValuationAssumptions = {
+  baseRevenue: number;
+  revenueGrowthByYear: number[];
+  operatingMarginByYear: number[];
+  taxRate: number;
+  capexPctRevenue: number;
+  nwcChangePctRevenue: number;
+  wacc: number;
+  terminalGrowthRate: number;
+  shareCount?: number | null;
+  netDebt?: number | null;
+};
+
+export type DeterministicForecastRow = {
+  year: number;
+  revenue: number;
+  operatingMargin: number;
+  ebit: number;
+  taxes: number;
+  nopat: number;
+  capex: number;
+  workingCapitalChange: number;
+  unleveredFreeCashFlow: number;
+  discountFactor: number;
+  presentValueOfFcff: number;
+};
+
+export type DeterministicValuationSummary = {
+  presentValueOfForecastCashFlows: number;
+  terminalValue: number;
+  presentValueOfTerminalValue: number;
+  enterpriseValue: number;
+  equityValue: number;
+  impliedPerShareValue: number | null;
+};
+
+export type DeterministicFinanceWarnings = {
+  warnings: string[];
+  assumptionsAdjusted: string[];
+};
+
+export type DeterministicValuationResult = DeterministicFinanceWarnings & {
+  company?: InvestmentCompanyMetadata;
+  scenario: {
+    key: InvestmentScenarioKey;
+    label: string;
+  };
+  assumptions: DeterministicValuationAssumptions;
+  forecast: DeterministicForecastRow[];
+  valuation: DeterministicValuationSummary;
+  charts: {
+    operatingForecast: InvestmentChartDefinition;
+    valuationBridge: InvestmentChartDefinition;
+  };
+};
+
+export type ScenarioHelperOverrides = Partial<DeterministicValuationAssumptions>;
+
+export type DeterministicScenarioSet = {
+  base: DeterministicValuationResult;
+  bull: DeterministicValuationResult;
+  bear: DeterministicValuationResult;
+};
