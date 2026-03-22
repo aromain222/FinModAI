@@ -291,3 +291,19 @@ test('event-aware memo normalization accepts the richer Claude summary schema', 
   assert.match(normalized?.analysis ?? '', /Key Risks/i);
   assert.match(normalized?.analysis ?? '', /Bull: The transition proves orderly/i);
 });
+
+test('event-aware update summary schema stays parseable and structured', () => {
+  const payload = {
+    whatChanged: 'The event-aware adjustment reduced near-term growth and raised the discount rate.',
+    whyItChanged: 'The event is being treated as an execution and risk-premium reset rather than a collapse in demand.',
+    valuationMove: 'Implied value per share fell as WACC moved higher and terminal support weakened.',
+    whatMattersNow: 'What matters now is whether the event remains a sentiment issue or starts to affect execution.',
+  };
+
+  assert.deepEqual(payload, {
+    whatChanged: 'The event-aware adjustment reduced near-term growth and raised the discount rate.',
+    whyItChanged: 'The event is being treated as an execution and risk-premium reset rather than a collapse in demand.',
+    valuationMove: 'Implied value per share fell as WACC moved higher and terminal support weakened.',
+    whatMattersNow: 'What matters now is whether the event remains a sentiment issue or starts to affect execution.',
+  });
+});

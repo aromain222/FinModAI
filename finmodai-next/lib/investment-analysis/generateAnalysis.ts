@@ -8,11 +8,13 @@ import {
   createInvestmentAnalysisDocument,
 } from '@/lib/investment-analysis/workspaceState';
 import {
+  INVESTMENT_EVENT_UPDATE_SUMMARY_SYSTEM_PROMPT,
   INVESTMENT_EVENT_SUMMARY_SYSTEM_PROMPT,
   INVESTMENT_MEMO_REFRESH_SYSTEM_PROMPT,
   INVESTMENT_MEMO_SYSTEM_PROMPT,
 } from '@/lib/investment-analysis/memoPrompts';
 import {
+  buildEventAwareDeltaSummaryPayload,
   buildEventAwareInvestmentMemoPayload,
   buildInitialInvestmentMemoPayload,
   buildInvestmentMemoRefreshPayload,
@@ -55,6 +57,13 @@ type EventAwareSummaryPayload = {
     base?: string;
     bear?: string;
   };
+};
+
+type EventAwareUpdateSummary = {
+  whatChanged?: string;
+  whyItChanged?: string;
+  valuationMove?: string;
+  whatMattersNow?: string;
 };
 
 function buildFallbackMemo(document: InvestmentAnalysisDocument, scenarioKey: InvestmentScenarioKey): InvestmentMemoSections {
@@ -255,6 +264,59 @@ export function normalizeGeneratedMemoPayload(parsed: unknown): InvestmentMemoSe
   return normalizeEventAwareSummaryMemo(candidate);
 }
 
+function normalizeEventAwareUpdateSummary(parsed: unknown): EventAwareUpdateSummary | null {
+  if (!parsed || typeof parsed !== 'object') return null;
+  const candidate = parsed as EventAwareUpdateSummary;
+
+  if (
+    typeof candidate.whatChanged !== 'string' ||
+    typeof candidate.whyItChanged !== 'string' ||
+    typeof candidate.valuationMove !== 'string' ||
+    typeof candidate.whatMattersNow !== 'string'
+  ) {
+    return null;
+  }
+
+  return {
+    whatChanged: candidate.whatChanged.trim(),
+    whyItChanged: candidate.whyItChanged.trim(),
+    valuationMove: candidate.valuationMove.trim(),
+    whatMattersNow: candidate.whatMattersNow.trim(),
+  };
+}
+
+function formatEventAwareUpdateSummary(summary: EventAwareUpdateSummary): string {
+  return [
+    `What changed: ${summary.whatChanged}`,
+    `Why it changed: ${summary.whyItChanged}`,
+    `Valuation move: ${summary.valuationMove}`,
+    `What matters now: ${summary.whatMattersNow}`,
+  ].join('\n');
+}
+
+async function generateEventAwareUpdateInterpretation(args: {
+  payload: Record<string, unknown>;
+}): Promise<string | null> {
+  try {
+    const result = await generateTextWithProviderFallback({
+      preferredProvider: 'anthropic',
+      clientType: 'service',
+      temperature: 0.1,
+      maxTokens: 500,
+      messages: [
+        { role: 'system', content: INVESTMENT_EVENT_UPDATE_SUMMARY_SYSTEM_PROMPT },
+        { role: 'user', content: JSON.stringify(args.payload, null, 2) },
+      ],
+    });
+
+    const parsed = extractJsonObject(result?.text ?? '');
+    const normalized = normalizeEventAwareUpdateSummary(parsed);
+    return normalized ? formatEventAwareUpdateSummary(normalized) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function generateInvestmentAnalysisFromPrompt(prompt: string): Promise<InvestmentAnalysisGenerationResult> {
   const normalizedPrompt = normalizePrompt(prompt);
   if (!normalizedPrompt) {
@@ -340,6 +402,14 @@ export async function generateInvestmentAnalysisFromPrompt(prompt: string): Prom
     }),
     fallback: fallbackMemo,
   });
+  const interpretationNote = await generateEventAwareUpdateInterpretation({
+    payload: buildEventAwareDeltaSummaryPayload({
+      beforeDocument: baseDocument,
+      afterDocument: refreshed.document,
+      classification,
+      application,
+    }),
+  });
 
   return {
     document: {
@@ -350,7 +420,7 @@ export async function generateInvestmentAnalysisFromPrompt(prompt: string): Prom
       classification,
       application,
       valuationStatusLabel: 'Valuation Refreshed',
-      interpretationNote: memo.summary,
+      interpretationNote: interpretationNote ?? memo.summary,
     },
     eventChartInput: {
       beforeScenario: baseDocument.scenarios.base,

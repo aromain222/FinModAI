@@ -100,3 +100,23 @@ export function buildEventAwareInvestmentMemoPayload(args: {
     },
   };
 }
+
+export function buildEventAwareDeltaSummaryPayload(args: {
+  beforeDocument: InvestmentAnalysisDocument;
+  afterDocument: InvestmentAnalysisDocument;
+  classification: InvestmentEventClassificationResult;
+  application: InvestmentEventAssumptionApplicationResult;
+}): Record<string, unknown> {
+  return {
+    company: args.afterDocument.company,
+    event: {
+      category: args.classification.category,
+      confidence: args.classification.confidence,
+      normalizedEventSummary: args.classification.normalizedEventSummary,
+    },
+    scenarioBias: args.application.scenarioBias,
+    assumptionChanges: args.application.changes,
+    valuationBefore: args.beforeDocument.scenarios.base.result.valuation,
+    valuationAfter: args.afterDocument.scenarios.base.result.valuation,
+  };
+}
