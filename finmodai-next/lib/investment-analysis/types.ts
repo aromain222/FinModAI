@@ -148,3 +148,50 @@ export type InvestmentAnalysisDocument = {
 export type InvestmentChartDocument = Pick<InvestmentAnalysisDocument, 'activeScenario' | 'scenarios'>;
 
 export type InvestmentAssumptionPatch = Partial<DeterministicValuationAssumptions>;
+
+export type InvestmentSavedScenarioCharts = {
+  revenueForecast: InvestmentChartDefinition;
+  freeCashFlowForecast: InvestmentChartDefinition;
+  sensitivity: InvestmentSensitivityTable;
+};
+
+export type SaveInvestmentScenarioInput = {
+  companyId?: string | null;
+  company: InvestmentCompanyMetadata;
+  scenarioName: string;
+  scenarioKey: InvestmentScenarioKey;
+  modelType?: 'DCF';
+  assumptions: DeterministicValuationAssumptions;
+  valuation: DeterministicValuationSummary;
+  chartPayload: InvestmentSavedScenarioCharts;
+};
+
+export type InvestmentSavedScenarioRecord = {
+  id: string;
+  userId: string;
+  companyId?: string | null;
+  companyTicker: string;
+  companyName: string;
+  modelType: 'DCF';
+  scenarioName: string;
+  scenarioKey: InvestmentScenarioKey;
+  assumptions: DeterministicValuationAssumptions;
+  valuation: DeterministicValuationSummary;
+  chartPayload: InvestmentSavedScenarioCharts;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type InvestmentSavedScenarioListItem = Pick<
+  InvestmentSavedScenarioRecord,
+  | 'id'
+  | 'companyId'
+  | 'companyTicker'
+  | 'companyName'
+  | 'modelType'
+  | 'scenarioName'
+  | 'scenarioKey'
+  | 'valuation'
+  | 'createdAt'
+  | 'updatedAt'
+>;

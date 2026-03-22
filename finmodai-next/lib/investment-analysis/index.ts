@@ -11,12 +11,16 @@ export type {
   InvestmentChartDocument,
   InvestmentChartPoint,
   InvestmentChartSeries,
+  InvestmentSavedScenarioCharts,
+  InvestmentSavedScenarioListItem,
+  InvestmentSavedScenarioRecord,
   InvestmentSensitivityCell,
   InvestmentSensitivityTable,
   InvestmentCompanyMetadata,
   InvestmentMemoSections,
   InvestmentScenarioKey,
   InvestmentValuationMetric,
+  SaveInvestmentScenarioInput,
   ScenarioHelperOverrides,
 } from '@/lib/investment-analysis/types';
 
@@ -42,3 +46,17 @@ export {
   buildScenarioComparisonChart,
   buildSensitivityTable,
 } from '@/lib/investment-analysis/chartSeries';
+
+export {
+  buildSaveScenarioInputFromDocument,
+  buildSavedScenarioChartsFromDocument,
+  getSavedInvestmentScenario,
+  listSavedInvestmentScenarios,
+  saveInvestmentScenario,
+} from '@/lib/investment-analysis/scenarioPersistence';
+
+export {
+  getSavedInvestmentScenarioViaApi,
+  listSavedInvestmentScenariosViaApi,
+  saveInvestmentScenarioViaApi,
+} from '@/lib/investment-analysis/scenarioClient';
