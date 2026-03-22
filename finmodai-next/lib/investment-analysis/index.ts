@@ -65,3 +65,13 @@ export {
   generateInvestmentAnalysisFromPrompt,
   refreshInvestmentMemo,
 } from '@/lib/investment-analysis/generateAnalysis';
+
+export type {
+  InvestmentPromptAnalysisType,
+  ParsedPromptEventContext,
+  ParsedPromptTimeHorizon,
+} from '@/lib/investment-analysis/promptParser';
+
+export {
+  parseInvestmentPromptContext,
+} from '@/lib/investment-analysis/promptParser';
