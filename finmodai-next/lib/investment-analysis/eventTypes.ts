@@ -31,6 +31,57 @@ export type InvestmentEventClassificationResult = {
   matchedSignals: string[];
 };
 
+export type InvestmentEventAssumptionLever =
+  | 'revenueGrowthByYear'
+  | 'operatingMarginByYear'
+  | 'wacc'
+  | 'terminalGrowthRate';
+
+export type InvestmentEventDeltaDirection = 'up' | 'down' | 'flat' | 'mixed';
+
+export type InvestmentEventDeltaUnit = 'bps' | 'pct_points';
+
+export type InvestmentScenarioBias = 'bullish' | 'base' | 'bearish' | 'mixed' | 'neutral';
+
+export type InvestmentEventAssumptionDelta = {
+  lever: InvestmentEventAssumptionLever;
+  direction: InvestmentEventDeltaDirection;
+  unit: InvestmentEventDeltaUnit;
+  amount: number | number[];
+  rationale: string;
+  confidence: InvestmentEventConfidence;
+};
+
+export type InvestmentEventAssumptionDeltaInput = {
+  baseAssumptions: {
+    revenueGrowthByYear: number[];
+    operatingMarginByYear: number[];
+    wacc: number;
+    terminalGrowthRate: number;
+  };
+  event: InvestmentEventClassificationResult;
+  company?: {
+    companyName?: string | null;
+    sector?: string | null;
+    industry?: string | null;
+  };
+};
+
+export type InvestmentEventAssumptionDeltaResult = {
+  eventCategory: InvestmentEventCategory;
+  confidence: InvestmentEventConfidence;
+  normalizedEventSummary: string;
+  scenarioBias: InvestmentScenarioBias;
+  deltas: InvestmentEventAssumptionDelta[];
+  adjustedAssumptions: {
+    revenueGrowthByYear: number[];
+    operatingMarginByYear: number[];
+    wacc: number;
+    terminalGrowthRate: number;
+  };
+  rationaleSummary: string;
+};
+
 export const INVESTMENT_EVENT_TAXONOMY_V1: Record<
   Exclude<InvestmentEventCategory, 'unknown'>,
   InvestmentEventTaxonomyEntry

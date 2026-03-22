@@ -91,3 +91,18 @@ export {
 export {
   classifyInvestmentEvent,
 } from '@/lib/investment-analysis/eventClassifier';
+
+export type {
+  InvestmentEventAssumptionDelta,
+  InvestmentEventAssumptionDeltaInput,
+  InvestmentEventAssumptionDeltaResult,
+  InvestmentEventAssumptionLever,
+  InvestmentEventDeltaDirection,
+  InvestmentEventDeltaUnit,
+  InvestmentScenarioBias,
+} from '@/lib/investment-analysis/eventTypes';
+
+export {
+  buildEventAdjustedAssumptions,
+  deriveEventAwareAssumptionDeltas,
+} from '@/lib/investment-analysis/eventAssumptions';
