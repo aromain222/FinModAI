@@ -99,6 +99,62 @@ function mapSnapshot(row: any): CompanySnapshot {
   };
 }
 
+function snapshotFieldCount(snapshot: CompanySnapshot): number {
+  return [
+    snapshot.revenueLtm,
+    snapshot.grossProfitLtm,
+    snapshot.ebitdaLtm,
+    snapshot.ebitLtm,
+    snapshot.netIncomeLtm,
+    snapshot.cash,
+    snapshot.totalDebt,
+    snapshot.sharesOutstanding,
+    snapshot.marketCap,
+  ].filter((value) => value !== null).length;
+}
+
+function mergeRecentSnapshots(rows: any[]): CompanySnapshot | null {
+  const mapped = rows.map(mapSnapshot);
+  if (mapped.length === 0) return null;
+
+  const sorted = [...mapped].sort((left, right) => {
+    const dateCompare = String(right.asOfDate).localeCompare(String(left.asOfDate));
+    if (dateCompare !== 0) return dateCompare;
+
+    if (right.sourcePriority !== left.sourcePriority) {
+      return right.sourcePriority - left.sourcePriority;
+    }
+
+    return snapshotFieldCount(right) - snapshotFieldCount(left);
+  });
+
+  const anchor = sorted[0];
+  const pick = <K extends keyof CompanySnapshot>(field: K): CompanySnapshot[K] => {
+    for (const snapshot of sorted) {
+      const value = snapshot[field];
+      if (value !== null && value !== undefined) {
+        return value;
+      }
+    }
+    return anchor[field];
+  };
+
+  // Keep the latest snapshot as the anchor, but backfill missing fields from
+  // nearby recent rows so one sparse provider response does not blank the profile.
+  return {
+    ...anchor,
+    revenueLtm: pick('revenueLtm'),
+    grossProfitLtm: pick('grossProfitLtm'),
+    ebitdaLtm: pick('ebitdaLtm'),
+    ebitLtm: pick('ebitLtm'),
+    netIncomeLtm: pick('netIncomeLtm'),
+    cash: pick('cash'),
+    totalDebt: pick('totalDebt'),
+    sharesOutstanding: pick('sharesOutstanding'),
+    marketCap: pick('marketCap'),
+  };
+}
+
 function mapPrice(row: any): CompanyPrice {
   return {
     id: row.id,
@@ -192,8 +248,7 @@ export async function resolveCompanyProfile(input: CompanyQuery): Promise<Resolv
       .eq('company_id', company.id)
       .order('as_of_date', { ascending: false })
       .order('source_priority', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .limit(10),
     supabase.from('company_prices').select('*').eq('company_id', company.id).order('date', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('company_kpis').select('*').eq('company_id', company.id).order('as_of_date', { ascending: false }),
   ]);
@@ -201,7 +256,7 @@ export async function resolveCompanyProfile(input: CompanyQuery): Promise<Resolv
   return {
     company,
     identifiers: Array.isArray(identifiersResult.data) ? identifiersResult.data.map(mapIdentifier) : [],
-    snapshot: snapshotResult.data ? mapSnapshot(snapshotResult.data) : null,
+    snapshot: Array.isArray(snapshotResult.data) ? mergeRecentSnapshots(snapshotResult.data) : null,
     latestPrice: priceResult.data ? mapPrice(priceResult.data) : null,
     kpis: Array.isArray(kpiResult.data) ? kpiResult.data.map(mapKpi) : [],
   };
