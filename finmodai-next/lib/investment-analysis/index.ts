@@ -11,6 +11,8 @@ export type {
   InvestmentChartDocument,
   InvestmentEventChartBundle,
   InvestmentEventChartInput,
+  InvestmentEventAnalysisRunListItem,
+  InvestmentEventAnalysisRunRecord,
   InvestmentChartPoint,
   InvestmentChartSeries,
   InvestmentSavedScenarioCharts,
@@ -26,6 +28,7 @@ export type {
   InvestmentScenarioKey,
   InvestmentValuationMetric,
   InvestmentWorkspaceCharts,
+  SaveInvestmentEventAnalysisRunInput,
   SaveInvestmentScenarioInput,
   ScenarioHelperOverrides,
 } from '@/lib/investment-analysis/types';
@@ -66,6 +69,12 @@ export {
   listSavedInvestmentScenariosViaApi,
   saveInvestmentScenarioViaApi,
 } from '@/lib/investment-analysis/scenarioClient';
+
+export {
+  getInvestmentEventAnalysisRunViaApi,
+  listInvestmentEventAnalysisRunsViaApi,
+  saveInvestmentEventAnalysisRunViaApi,
+} from '@/lib/investment-analysis/eventAnalysisClient';
 
 export {
   generateInvestmentAnalysisFromPrompt,
@@ -134,3 +143,10 @@ export {
 export {
   refreshInvestmentAnalysisModel,
 } from '@/lib/investment-analysis/modelRefresh';
+
+export {
+  buildSaveInvestmentEventAnalysisRunInput,
+  getInvestmentEventAnalysisRun,
+  listInvestmentEventAnalysisRuns,
+  saveInvestmentEventAnalysisRun,
+} from '@/lib/investment-analysis/eventAnalysisPersistence';

@@ -196,6 +196,61 @@ export type InvestmentSavedScenarioListItem = Pick<
   | 'updatedAt'
 >;
 
+export type SaveInvestmentEventAnalysisRunInput = {
+  companyId?: string | null;
+  company: InvestmentCompanyMetadata;
+  modelType?: 'DCF';
+  originalPrompt: string;
+  parsedPromptContext: Record<string, unknown>;
+  detectedEvent: Record<string, unknown> | null;
+  baseAssumptions: DeterministicValuationAssumptions;
+  assumptionDeltas: Record<string, unknown>;
+  adjustedAssumptions: DeterministicValuationAssumptions;
+  valuationOutputs: {
+    activeScenario: InvestmentScenarioKey;
+    forecast: DeterministicForecastRow[];
+    valuation: DeterministicValuationSummary;
+    scenarios?: Record<string, DeterministicValuationSummary>;
+  };
+  generatedSummary?: Record<string, unknown> | null;
+};
+
+export type InvestmentEventAnalysisRunRecord = {
+  id: string;
+  userId: string;
+  companyId?: string | null;
+  companyTicker: string;
+  companyName: string;
+  modelType: 'DCF';
+  originalPrompt: string;
+  parsedPromptContext: Record<string, unknown>;
+  eventCategory?: string | null;
+  eventConfidence?: string | null;
+  detectedEvent: Record<string, unknown> | null;
+  baseAssumptions: DeterministicValuationAssumptions;
+  assumptionDeltas: Record<string, unknown>;
+  adjustedAssumptions: DeterministicValuationAssumptions;
+  valuationOutputs: SaveInvestmentEventAnalysisRunInput['valuationOutputs'];
+  generatedSummary?: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type InvestmentEventAnalysisRunListItem = Pick<
+  InvestmentEventAnalysisRunRecord,
+  | 'id'
+  | 'companyId'
+  | 'companyTicker'
+  | 'companyName'
+  | 'modelType'
+  | 'originalPrompt'
+  | 'eventCategory'
+  | 'eventConfidence'
+  | 'valuationOutputs'
+  | 'createdAt'
+  | 'updatedAt'
+>;
+
 export type InvestmentWorkspaceCharts = {
   revenueForecast: InvestmentChartDefinition;
   freeCashFlowForecast: InvestmentChartDefinition;
