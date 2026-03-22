@@ -105,17 +105,17 @@ function hasEventSignal(text: string): boolean {
 }
 
 function extractEventContextText(prompt: string): string | null {
-  for (const pattern of EVENT_PATTERNS) {
-    const match = prompt.match(pattern);
-    if (match?.[0]) return match[0].trim();
-  }
-
   for (const cuePattern of EVENT_CUE_PATTERNS) {
     const match = prompt.match(cuePattern);
     const candidate = match?.[1]?.trim();
     if (candidate && candidate.length > 6 && hasEventSignal(candidate)) {
       return candidate.replace(/[.]+$/, '');
     }
+  }
+
+  for (const pattern of EVENT_PATTERNS) {
+    const match = prompt.match(pattern);
+    if (match?.[0]) return match[0].trim();
   }
 
   return null;

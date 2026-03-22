@@ -23,6 +23,8 @@ const COMPANY_ALIASES: Array<{ pattern: RegExp; ticker: string; companyName: str
   { pattern: /\bsofi\b/i, ticker: 'SOFI', companyName: 'SoFi Technologies, Inc.' },
 ];
 
+const NON_COMPANY_TICKER_STOPWORDS = new Set(['DCF', 'LBO', 'IPO', 'EV', 'IRR', 'MOIC']);
+
 function normalizeTicker(value: string | undefined): string | undefined {
   if (!value) return undefined;
   const cleaned = value.trim().toUpperCase();
@@ -52,7 +54,7 @@ export function extractCompanyQuery(input: CompanyQuery): { ticker?: string; com
 
   if (prompt) {
     const inferredTicker = normalizeTicker(inferTickerFromPrompt(prompt));
-    if (inferredTicker) {
+    if (inferredTicker && !NON_COMPANY_TICKER_STOPWORDS.has(inferredTicker)) {
       const alias = COMPANY_ALIASES.find((candidate) => candidate.ticker === inferredTicker);
       return {
         ticker: inferredTicker,
