@@ -82,6 +82,53 @@ export type InvestmentEventAssumptionDeltaResult = {
   rationaleSummary: string;
 };
 
+export type InvestmentEventAppliedField =
+  | 'revenueGrowthByYear'
+  | 'operatingMarginByYear'
+  | 'wacc'
+  | 'terminalGrowthRate';
+
+export type InvestmentEventAppliedAssumptionChange = {
+  field: InvestmentEventAppliedField;
+  label: string;
+  unit: 'percent' | 'bps';
+  originalValue: number | number[];
+  deltaValue: number | number[];
+  updatedValue: number | number[];
+  rationale: string;
+  confidence: InvestmentEventConfidence;
+  display: {
+    original: string;
+    delta: string;
+    updated: string;
+  };
+};
+
+export type InvestmentEventAssumptionValidationIssue = {
+  field: InvestmentEventAppliedField;
+  severity: 'warning' | 'error';
+  message: string;
+};
+
+export type InvestmentEventAssumptionApplicationResult = {
+  baseAssumptions: {
+    revenueGrowthByYear: number[];
+    operatingMarginByYear: number[];
+    wacc: number;
+    terminalGrowthRate: number;
+  };
+  adjustedAssumptions: {
+    revenueGrowthByYear: number[];
+    operatingMarginByYear: number[];
+    wacc: number;
+    terminalGrowthRate: number;
+  };
+  changes: InvestmentEventAppliedAssumptionChange[];
+  validationIssues: InvestmentEventAssumptionValidationIssue[];
+  summary: string;
+  hasMaterialChanges: boolean;
+};
+
 export const INVESTMENT_EVENT_TAXONOMY_V1: Record<
   Exclude<InvestmentEventCategory, 'unknown'>,
   InvestmentEventTaxonomyEntry

@@ -106,3 +106,14 @@ export {
   buildEventAdjustedAssumptions,
   deriveEventAwareAssumptionDeltas,
 } from '@/lib/investment-analysis/eventAssumptions';
+
+export type {
+  InvestmentEventAppliedAssumptionChange,
+  InvestmentEventAppliedField,
+  InvestmentEventAssumptionApplicationResult,
+  InvestmentEventAssumptionValidationIssue,
+} from '@/lib/investment-analysis/eventTypes';
+
+export {
+  applyEventAssumptionDeltas,
+} from '@/lib/investment-analysis/eventAssumptionApplication';
