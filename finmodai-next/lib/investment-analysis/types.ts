@@ -32,6 +32,31 @@ export type InvestmentChartDefinition = {
   series: InvestmentChartSeries[];
 };
 
+export type InvestmentValuationMetric =
+  | 'enterpriseValue'
+  | 'equityValue'
+  | 'impliedPerShareValue';
+
+export type InvestmentSensitivityCell = {
+  rowValue: number;
+  columnValue: number;
+  enterpriseValue: number;
+  equityValue: number;
+  impliedPerShareValue: number | null;
+};
+
+export type InvestmentSensitivityTable = {
+  title: string;
+  subtitle?: string;
+  rowLabel: string;
+  columnLabel: string;
+  rowValues: number[];
+  columnValues: number[];
+  metric: InvestmentValuationMetric;
+  format: InvestmentChartFormat;
+  cells: InvestmentSensitivityCell[][];
+};
+
 export type DeterministicValuationAssumptions = {
   baseRevenue: number;
   revenueGrowthByYear: number[];
@@ -119,5 +144,7 @@ export type InvestmentAnalysisDocument = {
   memo: InvestmentMemoSections;
   generatedAt: string;
 };
+
+export type InvestmentChartDocument = Pick<InvestmentAnalysisDocument, 'activeScenario' | 'scenarios'>;
 
 export type InvestmentAssumptionPatch = Partial<DeterministicValuationAssumptions>;

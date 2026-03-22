@@ -64,6 +64,13 @@ export function InvestmentAnalysisWorkspace({
     () => Array.from(new Set(activeScenario.result.warnings)),
     [activeScenario.result.warnings],
   );
+  const chartDocument = useMemo(
+    () => ({
+      activeScenario: state.document.activeScenario,
+      scenarios: state.document.scenarios,
+    }),
+    [state.document.activeScenario, state.document.scenarios],
+  );
 
   const activeScenarioSummary = {
     revenueYears: activeScenario.assumptions.revenueGrowthByYear.length,
@@ -154,7 +161,7 @@ export function InvestmentAnalysisWorkspace({
         </Card>
 
         <InvestmentValuationSummary document={state.document} activeScenario={activeScenario} />
-        <InvestmentChartArea scenario={activeScenario} />
+        <InvestmentChartArea document={chartDocument} />
         <InvestmentMemoPanel
           memo={state.document.memo}
           activeScenarioLabel={activeScenario.label}
