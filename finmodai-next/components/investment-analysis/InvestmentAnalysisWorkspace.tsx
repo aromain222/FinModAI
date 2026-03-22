@@ -78,6 +78,17 @@ export function InvestmentAnalysisWorkspace({
     }),
     [state.document.activeScenario, state.document.scenarios],
   );
+  const liveEventChartInput = useMemo(
+    () =>
+      eventChartInput
+        ? {
+            beforeScenario: eventChartInput.beforeScenario,
+            afterScenario: activeScenario,
+            refreshedDocument: chartDocument,
+          }
+        : null,
+    [activeScenario, chartDocument, eventChartInput],
+  );
 
   const activeScenarioSummary = {
     revenueYears: activeScenario.assumptions.revenueGrowthByYear.length,
@@ -169,7 +180,7 @@ export function InvestmentAnalysisWorkspace({
 
         <InvestmentValuationSummary document={state.document} activeScenario={activeScenario} />
         {eventImpact ? <EventImpactCard {...eventImpact} /> : null}
-        {eventChartInput ? <EventAwareChartArea chartInput={eventChartInput} /> : null}
+        {liveEventChartInput ? <EventAwareChartArea chartInput={liveEventChartInput} /> : null}
         <InvestmentChartArea document={chartDocument} />
         <InvestmentMemoPanel
           memo={state.document.memo}
