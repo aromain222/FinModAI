@@ -75,3 +75,19 @@ export type {
 export {
   parseInvestmentPromptContext,
 } from '@/lib/investment-analysis/promptParser';
+
+export type {
+  InvestmentEventCategory,
+  InvestmentEventClassificationInput,
+  InvestmentEventClassificationResult,
+  InvestmentEventConfidence,
+  InvestmentEventTaxonomyEntry,
+} from '@/lib/investment-analysis/eventTypes';
+
+export {
+  INVESTMENT_EVENT_TAXONOMY_V1,
+} from '@/lib/investment-analysis/eventTypes';
+
+export {
+  classifyInvestmentEvent,
+} from '@/lib/investment-analysis/eventClassifier';
