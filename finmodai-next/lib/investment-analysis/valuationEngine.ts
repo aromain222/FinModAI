@@ -236,6 +236,7 @@ function buildValuationSummary(
 
 function buildOperatingForecastChart(forecast: DeterministicForecastRow[]): InvestmentChartDefinition {
   return {
+    kind: 'line',
     title: 'Forecast Operating Profile',
     subtitle: 'Projected revenue, EBIT, and unlevered free cash flow.',
     data: forecast.map((row) => ({
@@ -254,6 +255,7 @@ function buildOperatingForecastChart(forecast: DeterministicForecastRow[]): Inve
 
 function buildValuationBridgeChart(summary: DeterministicValuationSummary): InvestmentChartDefinition {
   return {
+    kind: 'bar',
     title: 'Valuation Bridge',
     subtitle: 'Forecast PV plus terminal value roll into enterprise and equity value.',
     data: [

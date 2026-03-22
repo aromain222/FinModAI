@@ -25,6 +25,7 @@ export type InvestmentChartSeries = {
 };
 
 export type InvestmentChartDefinition = {
+  kind: 'line' | 'bar';
   title: string;
   subtitle?: string;
   data: InvestmentChartPoint[];
@@ -94,3 +95,29 @@ export type DeterministicScenarioSet = {
   bull: DeterministicValuationResult;
   bear: DeterministicValuationResult;
 };
+
+export type InvestmentMemoSections = {
+  summary: string;
+  whyItMatters: string;
+  analysis: string;
+  updatedAt?: string | null;
+};
+
+export type InvestmentAnalysisScenarioDocument = {
+  key: InvestmentScenarioKey;
+  label: string;
+  assumptions: DeterministicValuationAssumptions;
+  result: DeterministicValuationResult;
+  dirty?: boolean;
+};
+
+export type InvestmentAnalysisDocument = {
+  modelType: 'DCF';
+  company: InvestmentCompanyMetadata;
+  activeScenario: InvestmentScenarioKey;
+  scenarios: Record<InvestmentScenarioKey, InvestmentAnalysisScenarioDocument>;
+  memo: InvestmentMemoSections;
+  generatedAt: string;
+};
+
+export type InvestmentAssumptionPatch = Partial<DeterministicValuationAssumptions>;
