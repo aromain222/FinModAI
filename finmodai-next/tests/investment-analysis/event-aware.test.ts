@@ -4,7 +4,10 @@ import test from 'node:test';
 import { applyEventAssumptionDeltas } from '@/lib/investment-analysis/eventAssumptionApplication';
 import { deriveEventAwareAssumptionDeltas } from '@/lib/investment-analysis/eventAssumptions';
 import { classifyInvestmentEvent } from '@/lib/investment-analysis/eventClassifier';
-import { normalizeGeneratedMemoPayload } from '@/lib/investment-analysis/generateAnalysis';
+import {
+  buildBaseAssumptionsFromSnapshotSeed,
+  normalizeGeneratedMemoPayload,
+} from '@/lib/investment-analysis/generateAnalysis';
 import { refreshInvestmentAnalysisModel } from '@/lib/investment-analysis/modelRefresh';
 import { parseInvestmentPromptContext } from '@/lib/investment-analysis/promptParser';
 import type {
@@ -266,6 +269,30 @@ test('deterministic model refresh sanitizes invalid assumptions instead of faili
   assert.ok(refreshed.refreshedValuation.enterpriseValue !== 0);
   assert.ok(refreshed.activeScenario.result.warnings.length > 0);
   assert.ok(refreshed.activeScenario.result.assumptionsAdjusted.includes('terminalGrowthRate'));
+});
+
+test('base assumptions can be seeded from structured fallback snapshot data', () => {
+  const assumptions = buildBaseAssumptionsFromSnapshotSeed({
+    snapshotSeed: {
+      asOfDate: '2026-03-14',
+      currency: 'USD',
+      revenueLtm: 435620,
+      ebitdaLtm: 152900,
+      ebitLtm: null,
+      netIncomeLtm: 117780,
+      cash: 144800,
+      totalDebt: 90510,
+      sharesOutstanding: 14681,
+      marketCap: 3676245,
+    },
+    sector: 'Technology',
+  });
+
+  assert.equal(assumptions.baseRevenue, 435620);
+  assert.equal(assumptions.shareCount, 14681);
+  assert.equal(assumptions.netDebt, -54290);
+  assert.equal(assumptions.revenueGrowthByYear.length, 5);
+  assert.equal(assumptions.operatingMarginByYear.length, 5);
 });
 
 test('event-aware memo normalization accepts the richer Claude summary schema', () => {

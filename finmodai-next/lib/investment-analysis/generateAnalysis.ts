@@ -1,5 +1,6 @@
 import { extractCompanyQuery } from '@/lib/data/company/extractCompanyQuery';
 import { resolveCompanyProfile } from '@/lib/data/company/resolveCompanyProfile';
+import { getDemoSnapshot, type DemoCompanySnapshot } from '@/lib/demo/demoSnapshotStore';
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 import { applyEventAssumptionDeltas } from '@/lib/investment-analysis/eventAssumptionApplication';
 import { deriveEventAwareAssumptionDeltas } from '@/lib/investment-analysis/eventAssumptions';
@@ -30,6 +31,19 @@ import type {
   InvestmentScenarioKey,
 } from '@/lib/investment-analysis/types';
 import type { ResolvedCompanyProfile } from '@/lib/data/company/types';
+
+type InvestmentAnalysisSnapshotSeed = {
+  asOfDate: string | null;
+  currency: string;
+  revenueLtm: number | null;
+  ebitdaLtm: number | null;
+  ebitLtm: number | null;
+  netIncomeLtm: number | null;
+  cash: number | null;
+  totalDebt: number | null;
+  sharesOutstanding: number | null;
+  marketCap: number | null;
+};
 
 function clamp(value: number, floor: number, ceiling: number): number {
   return Math.min(ceiling, Math.max(floor, value));
@@ -137,34 +151,68 @@ function defaultMarginCurve(years: number, baseMargin: number): number[] {
   });
 }
 
-function buildCompanyMetadata(profile: ResolvedCompanyProfile): InvestmentCompanyMetadata {
+function pickDefinedNumber(...values: Array<number | null | undefined>): number | null {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+function buildSnapshotSeed(
+  profile: ResolvedCompanyProfile | null,
+  demoSnapshot: DemoCompanySnapshot | null,
+): InvestmentAnalysisSnapshotSeed {
+  const snapshot = profile?.snapshot;
   return {
-    ticker: profile.company.ticker,
-    companyName: profile.company.name,
-    sector: profile.company.sector,
-    industry: profile.company.industry,
-    currency: profile.snapshot?.currency ?? 'USD',
-    asOfDate: profile.snapshot?.asOfDate ?? profile.latestPrice?.date ?? null,
+    asOfDate: snapshot?.asOfDate ?? profile?.latestPrice?.date ?? demoSnapshot?.updatedAt ?? null,
+    currency: snapshot?.currency ?? 'USD',
+    revenueLtm: pickDefinedNumber(snapshot?.revenueLtm, demoSnapshot?.revenueLtm),
+    ebitdaLtm: pickDefinedNumber(snapshot?.ebitdaLtm, demoSnapshot?.ebitdaLtm),
+    ebitLtm: pickDefinedNumber(snapshot?.ebitLtm),
+    netIncomeLtm: pickDefinedNumber(snapshot?.netIncomeLtm, demoSnapshot?.netIncomeLtm),
+    cash: pickDefinedNumber(snapshot?.cash, demoSnapshot?.cash),
+    totalDebt: pickDefinedNumber(snapshot?.totalDebt, demoSnapshot?.totalDebt),
+    sharesOutstanding: pickDefinedNumber(snapshot?.sharesOutstanding, demoSnapshot?.sharesOutstanding),
+    marketCap: pickDefinedNumber(snapshot?.marketCap, demoSnapshot?.marketCap),
   };
 }
 
-function buildBaseAssumptions(profile: ResolvedCompanyProfile): DeterministicValuationAssumptions {
+function buildCompanyMetadata(params: {
+  profile: ResolvedCompanyProfile | null;
+  demoSnapshot: DemoCompanySnapshot | null;
+  companyQuery: { ticker?: string; companyName?: string };
+}): InvestmentCompanyMetadata {
+  const { profile, demoSnapshot, companyQuery } = params;
+  return {
+    ticker: profile?.company.ticker ?? companyQuery.ticker ?? demoSnapshot?.ticker ?? 'UNKNOWN',
+    companyName: profile?.company.name ?? demoSnapshot?.companyName ?? companyQuery.companyName ?? companyQuery.ticker ?? 'Unknown Company',
+    sector: profile?.company.sector ?? demoSnapshot?.sector ?? null,
+    industry: profile?.company.industry ?? null,
+    currency: profile?.snapshot?.currency ?? 'USD',
+    asOfDate: profile?.snapshot?.asOfDate ?? profile?.latestPrice?.date ?? demoSnapshot?.updatedAt ?? null,
+  };
+}
+
+export function buildBaseAssumptionsFromSnapshotSeed(args: {
+  snapshotSeed: InvestmentAnalysisSnapshotSeed;
+  sector: string | null;
+}): DeterministicValuationAssumptions {
   // Initial seeding is deterministic by design:
   // company snapshot -> normalized DCF assumptions -> workspace document.
   // Claude only writes the memo after the model state exists.
-  const snapshot = profile.snapshot;
-  if (!snapshot?.revenueLtm || snapshot.revenueLtm <= 0) {
+  const { snapshotSeed, sector } = args;
+  if (!snapshotSeed.revenueLtm || snapshotSeed.revenueLtm <= 0) {
     throw new Error('Structured company revenue is missing for this analysis.');
   }
 
-  const revenueLtm = snapshot.revenueLtm;
-  const normalizedSector = String(profile.company.sector ?? '').toLowerCase();
+  const revenueLtm = snapshotSeed.revenueLtm;
+  const normalizedSector = String(sector ?? '').toLowerCase();
   const years = 5;
   const daPctRevenue = /(software|internet|technology|communication)/.test(normalizedSector) ? 0.025 : 0.03;
 
-  const ebitMarginFromEbit = snapshot.ebitLtm && revenueLtm > 0 ? snapshot.ebitLtm / revenueLtm : null;
+  const ebitMarginFromEbit = snapshotSeed.ebitLtm && revenueLtm > 0 ? snapshotSeed.ebitLtm / revenueLtm : null;
   const ebitMarginFromEbitda =
-    snapshot.ebitdaLtm && revenueLtm > 0 ? (snapshot.ebitdaLtm / revenueLtm) - daPctRevenue : null;
+    snapshotSeed.ebitdaLtm && revenueLtm > 0 ? (snapshotSeed.ebitdaLtm / revenueLtm) - daPctRevenue : null;
   const baseOperatingMargin = clamp(ebitMarginFromEbit ?? ebitMarginFromEbitda ?? 0.22, 0.08, 0.4);
 
   const taxRate = /(financial|bank|insurance)/.test(normalizedSector) ? 0.23 : 0.21;
@@ -175,16 +223,26 @@ function buildBaseAssumptions(profile: ResolvedCompanyProfile): DeterministicVal
 
   return {
     baseRevenue: revenueLtm,
-    revenueGrowthByYear: defaultGrowthCurve(years, profile.company.sector, revenueLtm),
+    revenueGrowthByYear: defaultGrowthCurve(years, sector, revenueLtm),
     operatingMarginByYear: defaultMarginCurve(years, baseOperatingMargin),
     taxRate,
     capexPctRevenue,
     nwcChangePctRevenue,
     wacc,
     terminalGrowthRate,
-    shareCount: snapshot.sharesOutstanding ?? null,
-    netDebt: (snapshot.totalDebt ?? 0) - (snapshot.cash ?? 0),
+    shareCount: snapshotSeed.sharesOutstanding ?? null,
+    netDebt: (snapshotSeed.totalDebt ?? 0) - (snapshotSeed.cash ?? 0),
   };
+}
+
+function buildBaseAssumptions(
+  profile: ResolvedCompanyProfile | null,
+  demoSnapshot: DemoCompanySnapshot | null,
+): DeterministicValuationAssumptions {
+  return buildBaseAssumptionsFromSnapshotSeed({
+    snapshotSeed: buildSnapshotSeed(profile, demoSnapshot),
+    sector: profile?.company.sector ?? demoSnapshot?.sector ?? null,
+  });
 }
 
 async function generateMemoFromStructuredPayload(args: {
@@ -389,13 +447,16 @@ export async function generateInvestmentAnalysisFromPrompt(prompt: string): Prom
   }
 
   const profile = await resolveCompanyProfile({ prompt: normalizedPrompt });
-  if (!profile?.snapshot) {
+  const demoSnapshot = await getDemoSnapshot(
+    String(profile?.company.ticker ?? companyQuery.ticker ?? '').toUpperCase(),
+  );
+  if (!profile && !demoSnapshot) {
     throw new Error('No structured company snapshot was available for this analysis.');
   }
 
   const baseDocument = createInvestmentAnalysisDocument({
-    company: buildCompanyMetadata(profile),
-    assumptions: buildBaseAssumptions(profile),
+    company: buildCompanyMetadata({ profile, demoSnapshot, companyQuery }),
+    assumptions: buildBaseAssumptions(profile, demoSnapshot),
     memo: {
       summary: 'Generating memo…',
       whyItMatters: 'Generating memo…',
@@ -425,16 +486,16 @@ export async function generateInvestmentAnalysisFromPrompt(prompt: string): Prom
 
   const classification = classifyInvestmentEvent({
     rawEventText: eventText,
-    companyName: profile.company.name,
-    sector: profile.company.sector,
+    companyName: baseDocument.company.companyName,
+    sector: baseDocument.company.sector,
   });
   const deltaResult = deriveEventAwareAssumptionDeltas({
     baseAssumptions: baseDocument.scenarios.base.assumptions,
     event: classification,
     company: {
-      companyName: profile.company.name,
-      sector: profile.company.sector,
-      industry: profile.company.industry,
+      companyName: baseDocument.company.companyName,
+      sector: baseDocument.company.sector,
+      industry: baseDocument.company.industry,
     },
   });
   const application = applyEventAssumptionDeltas(
