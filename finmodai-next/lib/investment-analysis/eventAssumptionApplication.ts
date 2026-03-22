@@ -183,6 +183,7 @@ export function applyEventAssumptionDeltas(
   const validationIssues = validateAdjustedAssumptions(adjusted);
 
   return {
+    scenarioBias: deltaResult.scenarioBias,
     baseAssumptions: base,
     adjustedAssumptions: adjusted,
     changes,

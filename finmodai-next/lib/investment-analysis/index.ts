@@ -5,6 +5,7 @@ export type {
   DeterministicValuationResult,
   DeterministicValuationSummary,
   InvestmentAnalysisDocument,
+  InvestmentAnalysisGenerationResult,
   InvestmentAnalysisScenarioDocument,
   InvestmentAssumptionPatch,
   InvestmentChartDefinition,

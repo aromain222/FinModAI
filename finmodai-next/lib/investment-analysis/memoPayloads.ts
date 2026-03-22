@@ -3,6 +3,10 @@ import type {
   InvestmentMemoSections,
   InvestmentScenarioKey,
 } from '@/lib/investment-analysis/types';
+import type {
+  InvestmentEventAssumptionApplicationResult,
+  InvestmentEventClassificationResult,
+} from '@/lib/investment-analysis/eventTypes';
 
 function pickForecastHighlights(document: InvestmentAnalysisDocument, scenario: InvestmentScenarioKey) {
   const forecast = document.scenarios[scenario].result.forecast;
@@ -65,6 +69,34 @@ export function buildInvestmentMemoRefreshPayload(args: {
       base: args.document.scenarios.base.result.valuation,
       bear: args.document.scenarios.bear.result.valuation,
       custom: args.document.scenarios.custom.result.valuation,
+    },
+  };
+}
+
+export function buildEventAwareInvestmentMemoPayload(args: {
+  beforeDocument: InvestmentAnalysisDocument;
+  afterDocument: InvestmentAnalysisDocument;
+  classification: InvestmentEventClassificationResult;
+  application: InvestmentEventAssumptionApplicationResult;
+}): Record<string, unknown> {
+  return {
+    company: args.afterDocument.company,
+    event: {
+      category: args.classification.category,
+      confidence: args.classification.confidence,
+      normalizedEventSummary: args.classification.normalizedEventSummary,
+      rationale: args.classification.rationale,
+    },
+    scenarioBias: args.application.scenarioBias,
+    assumptionChanges: args.application.changes,
+    valuationBefore: args.beforeDocument.scenarios.base.result.valuation,
+    valuationAfter: args.afterDocument.scenarios.base.result.valuation,
+    forecastHighlightsBefore: pickForecastHighlights(args.beforeDocument, 'base'),
+    forecastHighlightsAfter: pickForecastHighlights(args.afterDocument, 'base'),
+    scenarios: {
+      bull: args.afterDocument.scenarios.bull.result.valuation,
+      base: args.afterDocument.scenarios.base.result.valuation,
+      bear: args.afterDocument.scenarios.bear.result.valuation,
     },
   };
 }

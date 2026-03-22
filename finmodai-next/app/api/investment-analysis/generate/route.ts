@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { generateInvestmentAnalysisFromPrompt } from '@/lib/investment-analysis/generateAnalysis';
+import type { InvestmentAnalysisGenerationResult } from '@/lib/investment-analysis/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,8 +13,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'prompt is required.' }, { status: 400 });
     }
 
-    const document = await generateInvestmentAnalysisFromPrompt(prompt);
-    return NextResponse.json({ document });
+    const result = await generateInvestmentAnalysisFromPrompt(prompt);
+    return NextResponse.json(result satisfies InvestmentAnalysisGenerationResult);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to generate investment analysis.' },

@@ -111,6 +111,7 @@ export type InvestmentEventAssumptionValidationIssue = {
 };
 
 export type InvestmentEventAssumptionApplicationResult = {
+  scenarioBias: InvestmentScenarioBias;
   baseAssumptions: {
     revenueGrowthByYear: number[];
     operatingMarginByYear: number[];

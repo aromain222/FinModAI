@@ -1,20 +1,28 @@
 import { extractCompanyQuery } from '@/lib/data/company/extractCompanyQuery';
 import { resolveCompanyProfile } from '@/lib/data/company/resolveCompanyProfile';
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
+import { applyEventAssumptionDeltas } from '@/lib/investment-analysis/eventAssumptionApplication';
+import { deriveEventAwareAssumptionDeltas } from '@/lib/investment-analysis/eventAssumptions';
+import { classifyInvestmentEvent } from '@/lib/investment-analysis/eventClassifier';
 import {
   createInvestmentAnalysisDocument,
 } from '@/lib/investment-analysis/workspaceState';
 import {
+  INVESTMENT_EVENT_SUMMARY_SYSTEM_PROMPT,
   INVESTMENT_MEMO_REFRESH_SYSTEM_PROMPT,
   INVESTMENT_MEMO_SYSTEM_PROMPT,
 } from '@/lib/investment-analysis/memoPrompts';
 import {
+  buildEventAwareInvestmentMemoPayload,
   buildInitialInvestmentMemoPayload,
   buildInvestmentMemoRefreshPayload,
 } from '@/lib/investment-analysis/memoPayloads';
+import { refreshInvestmentAnalysisModel } from '@/lib/investment-analysis/modelRefresh';
+import { parseInvestmentPromptContext } from '@/lib/investment-analysis/promptParser';
 import type {
   DeterministicValuationAssumptions,
   InvestmentAnalysisDocument,
+  InvestmentAnalysisGenerationResult,
   InvestmentCompanyMetadata,
   InvestmentMemoSections,
   InvestmentScenarioKey,
@@ -183,12 +191,13 @@ async function generateMemoFromStructuredPayload(args: {
   return args.fallback;
 }
 
-export async function generateInvestmentAnalysisFromPrompt(prompt: string): Promise<InvestmentAnalysisDocument> {
+export async function generateInvestmentAnalysisFromPrompt(prompt: string): Promise<InvestmentAnalysisGenerationResult> {
   const normalizedPrompt = normalizePrompt(prompt);
   if (!normalizedPrompt) {
     throw new Error('Prompt is required.');
   }
 
+  const parsedPromptContext = parseInvestmentPromptContext(normalizedPrompt);
   const companyQuery = extractCompanyQuery({ prompt: normalizedPrompt });
   if (!companyQuery.ticker && !companyQuery.companyName) {
     throw new Error('Could not identify the company to analyze.');
@@ -199,7 +208,7 @@ export async function generateInvestmentAnalysisFromPrompt(prompt: string): Prom
     throw new Error('No structured company snapshot was available for this analysis.');
   }
 
-  const document = createInvestmentAnalysisDocument({
+  const baseDocument = createInvestmentAnalysisDocument({
     company: buildCompanyMetadata(profile),
     assumptions: buildBaseAssumptions(profile),
     memo: {
@@ -210,16 +219,80 @@ export async function generateInvestmentAnalysisFromPrompt(prompt: string): Prom
     },
   });
 
-  const fallbackMemo = buildFallbackMemo(document, 'base');
+  const eventText = parsedPromptContext.eventContextText?.trim();
+  if (!eventText) {
+    const fallbackMemo = buildFallbackMemo(baseDocument, 'base');
+    const memo = await generateMemoFromStructuredPayload({
+      systemPrompt: INVESTMENT_MEMO_SYSTEM_PROMPT,
+      payload: buildInitialInvestmentMemoPayload(baseDocument),
+      fallback: fallbackMemo,
+    });
+
+    return {
+      document: {
+        ...baseDocument,
+        memo,
+      },
+      eventImpact: null,
+      eventChartInput: null,
+    };
+  }
+
+  const classification = classifyInvestmentEvent({
+    rawEventText: eventText,
+    companyName: profile.company.name,
+    sector: profile.company.sector,
+  });
+  const deltaResult = deriveEventAwareAssumptionDeltas({
+    baseAssumptions: baseDocument.scenarios.base.assumptions,
+    event: classification,
+    company: {
+      companyName: profile.company.name,
+      sector: profile.company.sector,
+      industry: profile.company.industry,
+    },
+  });
+  const application = applyEventAssumptionDeltas(
+    baseDocument.scenarios.base.assumptions,
+    deltaResult,
+  );
+  const refreshed = refreshInvestmentAnalysisModel({
+    company: baseDocument.company,
+    adjustedAssumptions: {
+      ...baseDocument.scenarios.base.assumptions,
+      ...application.adjustedAssumptions,
+    },
+    existingDocument: baseDocument,
+  });
+
+  const fallbackMemo = buildFallbackMemo(refreshed.document, 'base');
   const memo = await generateMemoFromStructuredPayload({
-    systemPrompt: INVESTMENT_MEMO_SYSTEM_PROMPT,
-    payload: buildInitialInvestmentMemoPayload(document),
+    systemPrompt: INVESTMENT_EVENT_SUMMARY_SYSTEM_PROMPT,
+    payload: buildEventAwareInvestmentMemoPayload({
+      beforeDocument: baseDocument,
+      afterDocument: refreshed.document,
+      classification,
+      application,
+    }),
     fallback: fallbackMemo,
   });
 
   return {
-    ...document,
-    memo,
+    document: {
+      ...refreshed.document,
+      memo,
+    },
+    eventImpact: {
+      classification,
+      application,
+      valuationStatusLabel: 'Valuation Refreshed',
+      interpretationNote: memo.summary,
+    },
+    eventChartInput: {
+      beforeScenario: baseDocument.scenarios.base,
+      afterScenario: refreshed.document.scenarios.base,
+      refreshedDocument: refreshed.document,
+    },
   };
 }
 

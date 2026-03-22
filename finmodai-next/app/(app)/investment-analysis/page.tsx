@@ -5,19 +5,29 @@ import { InvestmentAnalysisWorkspace } from '@/components/investment-analysis/In
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import type { InvestmentAnalysisDocument, InvestmentMemoSections, InvestmentScenarioKey } from '@/lib/investment-analysis/types';
+import type { EventImpactCardProps } from '@/components/investment-analysis/EventImpactCard';
+import type {
+  InvestmentAnalysisDocument,
+  InvestmentEventChartInput,
+  InvestmentMemoSections,
+  InvestmentScenarioKey,
+} from '@/lib/investment-analysis/types';
 
 const DEFAULT_PROMPT = 'Analyze Apple as an investment';
 
 export default function InvestmentAnalysisPage() {
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [document, setDocument] = useState<InvestmentAnalysisDocument | null>(null);
+  const [eventImpact, setEventImpact] = useState<EventImpactCardProps | null>(null);
+  const [eventChartInput, setEventChartInput] = useState<InvestmentEventChartInput | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, startGenerating] = useTransition();
 
   const handleGenerate = () => {
     startGenerating(async () => {
       setError(null);
+      setEventImpact(null);
+      setEventChartInput(null);
       try {
         const response = await fetch('/api/investment-analysis/generate', {
           method: 'POST',
@@ -26,11 +36,18 @@ export default function InvestmentAnalysisPage() {
           },
           body: JSON.stringify({ prompt }),
         });
-        const payload = (await response.json()) as { document?: InvestmentAnalysisDocument; error?: string };
+        const payload = (await response.json()) as {
+          document?: InvestmentAnalysisDocument;
+          eventImpact?: EventImpactCardProps | null;
+          eventChartInput?: InvestmentEventChartInput | null;
+          error?: string;
+        };
         if (!response.ok || !payload.document) {
           throw new Error(payload.error ?? 'Failed to generate investment analysis.');
         }
         setDocument(payload.document);
+        setEventImpact(payload.eventImpact ?? null);
+        setEventChartInput(payload.eventChartInput ?? null);
       } catch (generationError) {
         setError(generationError instanceof Error ? generationError.message : 'Failed to generate investment analysis.');
       }
@@ -82,7 +99,10 @@ export default function InvestmentAnalysisPage() {
 
       {document ? (
         <InvestmentAnalysisWorkspace
+          key={`${document.company.ticker}-${document.generatedAt}`}
           initialDocument={document}
+          eventImpact={eventImpact ?? undefined}
+          eventChartInput={eventChartInput ?? undefined}
           onRefreshMemo={handleRefreshMemo}
         />
       ) : null}

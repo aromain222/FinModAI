@@ -295,6 +295,17 @@ export type InvestmentModelRefreshResult = {
   writePayload: InvestmentModelRefreshWritePayload;
 };
 
+export type InvestmentAnalysisGenerationResult = {
+  document: InvestmentAnalysisDocument;
+  eventImpact?: {
+    classification: import('@/lib/investment-analysis/eventTypes').InvestmentEventClassificationResult;
+    application: import('@/lib/investment-analysis/eventTypes').InvestmentEventAssumptionApplicationResult;
+    valuationStatusLabel?: string;
+    interpretationNote?: string | null;
+  } | null;
+  eventChartInput?: InvestmentEventChartInput | null;
+};
+
 export type InvestmentEventChartInput = {
   beforeScenario: InvestmentAnalysisScenarioDocument;
   afterScenario: InvestmentAnalysisScenarioDocument;
