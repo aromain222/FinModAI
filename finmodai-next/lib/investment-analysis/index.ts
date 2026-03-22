@@ -60,3 +60,8 @@ export {
   listSavedInvestmentScenariosViaApi,
   saveInvestmentScenarioViaApi,
 } from '@/lib/investment-analysis/scenarioClient';
+
+export {
+  generateInvestmentAnalysisFromPrompt,
+  refreshInvestmentMemo,
+} from '@/lib/investment-analysis/generateAnalysis';

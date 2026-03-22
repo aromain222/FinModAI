@@ -27,7 +27,7 @@ export function InvestmentMemoPanel({
           </div>
           {onRefresh ? (
             <Button type="button" variant="outline" size="sm" onClick={() => void onRefresh()} disabled={isRefreshing}>
-              {isRefreshing ? 'Refreshing…' : 'Refresh Memo'}
+              {isRefreshing ? 'Refreshing…' : 'Refresh Summary'}
             </Button>
           ) : null}
         </div>
