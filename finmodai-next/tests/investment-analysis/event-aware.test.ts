@@ -4,6 +4,7 @@ import test from 'node:test';
 import { applyEventAssumptionDeltas } from '@/lib/investment-analysis/eventAssumptionApplication';
 import { deriveEventAwareAssumptionDeltas } from '@/lib/investment-analysis/eventAssumptions';
 import { classifyInvestmentEvent } from '@/lib/investment-analysis/eventClassifier';
+import { normalizeGeneratedMemoPayload } from '@/lib/investment-analysis/generateAnalysis';
 import { refreshInvestmentAnalysisModel } from '@/lib/investment-analysis/modelRefresh';
 import { parseInvestmentPromptContext } from '@/lib/investment-analysis/promptParser';
 import type {
@@ -265,4 +266,28 @@ test('deterministic model refresh sanitizes invalid assumptions instead of faili
   assert.ok(refreshed.refreshedValuation.enterpriseValue !== 0);
   assert.ok(refreshed.activeScenario.result.warnings.length > 0);
   assert.ok(refreshed.activeScenario.result.assumptionsAdjusted.includes('terminalGrowthRate'));
+});
+
+test('event-aware memo normalization accepts the richer Claude summary schema', () => {
+  const normalized = normalizeGeneratedMemoPayload({
+    executiveSummary: 'The event weakens the case mainly through a higher risk premium.',
+    investmentView: 'The business remains solid, but the valuation is less supported after the event-aware adjustment.',
+    whyEventMatters: 'The event matters because it raises near-term execution risk more than it changes long-run demand.',
+    keyRisks: [
+      'The discount-rate move could prove too harsh if execution remains intact.',
+      'Terminal value still drives a large share of value.',
+    ],
+    scenarioCommentary: {
+      bull: 'The transition proves orderly and valuation support recovers.',
+      base: 'Execution risk is manageable, but the stock looks less attractive.',
+      bear: 'Risk premium stays elevated and valuation compresses further.',
+    },
+  });
+
+  assert.ok(normalized);
+  assert.match(normalized?.summary ?? '', /event weakens the case/i);
+  assert.match(normalized?.whyItMatters ?? '', /raises near-term execution risk/i);
+  assert.match(normalized?.analysis ?? '', /Scenario Commentary/i);
+  assert.match(normalized?.analysis ?? '', /Key Risks/i);
+  assert.match(normalized?.analysis ?? '', /Bull: The transition proves orderly/i);
 });

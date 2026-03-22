@@ -45,6 +45,18 @@ function extractJsonObject(raw: string): unknown {
   return JSON.parse(slice);
 }
 
+type EventAwareSummaryPayload = {
+  executiveSummary?: string;
+  investmentView?: string;
+  whyEventMatters?: string;
+  keyRisks?: string[];
+  scenarioCommentary?: {
+    bull?: string;
+    base?: string;
+    bear?: string;
+  };
+};
+
 function buildFallbackMemo(document: InvestmentAnalysisDocument, scenarioKey: InvestmentScenarioKey): InvestmentMemoSections {
   const scenario = document.scenarios[scenarioKey];
   const valuation = scenario.result.valuation;
@@ -170,25 +182,77 @@ async function generateMemoFromStructuredPayload(args: {
       ],
     });
 
-    const parsed = extractJsonObject(result?.text ?? '') as Partial<InvestmentMemoSections>;
-    if (
-      parsed &&
-      typeof parsed.summary === 'string' &&
-      typeof parsed.whyItMatters === 'string' &&
-      typeof parsed.analysis === 'string'
-    ) {
-      return {
-        summary: parsed.summary.trim(),
-        whyItMatters: parsed.whyItMatters.trim(),
-        analysis: parsed.analysis.trim(),
-        updatedAt: new Date().toISOString(),
-      };
-    }
+    const parsed = extractJsonObject(result?.text ?? '');
+    const normalized = normalizeGeneratedMemoPayload(parsed);
+    if (normalized) return normalized;
   } catch {
     // fall through to deterministic fallback memo
   }
 
   return args.fallback;
+}
+
+function normalizeEventAwareSummaryMemo(
+  parsed: EventAwareSummaryPayload,
+): InvestmentMemoSections | null {
+  if (
+    typeof parsed.executiveSummary !== 'string' ||
+    typeof parsed.investmentView !== 'string' ||
+    typeof parsed.whyEventMatters !== 'string'
+  ) {
+    return null;
+  }
+
+  const scenarioCommentary = parsed.scenarioCommentary ?? {};
+  const scenarioParts = [
+    typeof scenarioCommentary.bull === 'string' ? `Bull: ${scenarioCommentary.bull.trim()}` : null,
+    typeof scenarioCommentary.base === 'string' ? `Base: ${scenarioCommentary.base.trim()}` : null,
+    typeof scenarioCommentary.bear === 'string' ? `Bear: ${scenarioCommentary.bear.trim()}` : null,
+  ].filter((value): value is string => Boolean(value));
+
+  const riskParts = Array.isArray(parsed.keyRisks)
+    ? parsed.keyRisks
+        .map((risk) => (typeof risk === 'string' ? risk.trim() : ''))
+        .filter(Boolean)
+    : [];
+
+  const analysisSections = [parsed.investmentView.trim()];
+
+  if (scenarioParts.length > 0) {
+    analysisSections.push(`Scenario Commentary\n${scenarioParts.join('\n')}`);
+  }
+
+  if (riskParts.length > 0) {
+    analysisSections.push(`Key Risks\n${riskParts.map((risk) => `- ${risk}`).join('\n')}`);
+  }
+
+  return {
+    summary: parsed.executiveSummary.trim(),
+    whyItMatters: parsed.whyEventMatters.trim(),
+    analysis: analysisSections.join('\n\n'),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function normalizeGeneratedMemoPayload(parsed: unknown): InvestmentMemoSections | null {
+  if (!parsed || typeof parsed !== 'object') return null;
+
+  const candidate = parsed as Partial<InvestmentMemoSections> & EventAwareSummaryPayload;
+
+  if (
+    typeof candidate.summary === 'string' &&
+    typeof candidate.whyItMatters === 'string' &&
+    typeof candidate.analysis === 'string'
+  ) {
+    return {
+      summary: candidate.summary.trim(),
+      whyItMatters: candidate.whyItMatters.trim(),
+      analysis: candidate.analysis.trim(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  return normalizeEventAwareSummaryMemo(candidate);
 }
 
 export async function generateInvestmentAnalysisFromPrompt(prompt: string): Promise<InvestmentAnalysisGenerationResult> {
