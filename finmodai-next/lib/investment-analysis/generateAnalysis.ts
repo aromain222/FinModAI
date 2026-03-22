@@ -59,6 +59,19 @@ type EventAwareSummaryPayload = {
   };
 };
 
+type FullInvestmentMemoPayload = {
+  summary?: string;
+  whyItMatters?: string;
+  valuationSnapshot?: string;
+  scenarioCase?: {
+    bull?: string;
+    base?: string;
+    bear?: string;
+  };
+  risks?: string[];
+  investmentView?: string;
+};
+
 type EventAwareUpdateSummary = {
   whatChanged?: string;
   whyItChanged?: string;
@@ -243,10 +256,53 @@ function normalizeEventAwareSummaryMemo(
   };
 }
 
+function normalizeFullInvestmentMemo(
+  parsed: FullInvestmentMemoPayload,
+): InvestmentMemoSections | null {
+  if (
+    typeof parsed.summary !== 'string' ||
+    typeof parsed.whyItMatters !== 'string' ||
+    typeof parsed.valuationSnapshot !== 'string' ||
+    typeof parsed.investmentView !== 'string'
+  ) {
+    return null;
+  }
+
+  const scenarioCase = parsed.scenarioCase ?? {};
+  const scenarioParts = [
+    typeof scenarioCase.bull === 'string' ? `Bull: ${scenarioCase.bull.trim()}` : null,
+    typeof scenarioCase.base === 'string' ? `Base: ${scenarioCase.base.trim()}` : null,
+    typeof scenarioCase.bear === 'string' ? `Bear: ${scenarioCase.bear.trim()}` : null,
+  ].filter((value): value is string => Boolean(value));
+
+  const riskParts = Array.isArray(parsed.risks)
+    ? parsed.risks.map((risk) => (typeof risk === 'string' ? risk.trim() : '')).filter(Boolean)
+    : [];
+
+  const analysisSections = [parsed.valuationSnapshot.trim()];
+
+  if (scenarioParts.length > 0) {
+    analysisSections.push(`Bull / Base / Bear\n${scenarioParts.join('\n')}`);
+  }
+
+  if (riskParts.length > 0) {
+    analysisSections.push(`Risks\n${riskParts.map((risk) => `- ${risk}`).join('\n')}`);
+  }
+
+  analysisSections.push(`Investment View\n${parsed.investmentView.trim()}`);
+
+  return {
+    summary: parsed.summary.trim(),
+    whyItMatters: parsed.whyItMatters.trim(),
+    analysis: analysisSections.join('\n\n'),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export function normalizeGeneratedMemoPayload(parsed: unknown): InvestmentMemoSections | null {
   if (!parsed || typeof parsed !== 'object') return null;
 
-  const candidate = parsed as Partial<InvestmentMemoSections> & EventAwareSummaryPayload;
+  const candidate = parsed as Partial<InvestmentMemoSections> & EventAwareSummaryPayload & FullInvestmentMemoPayload;
 
   if (
     typeof candidate.summary === 'string' &&
@@ -260,6 +316,9 @@ export function normalizeGeneratedMemoPayload(parsed: unknown): InvestmentMemoSe
       updatedAt: new Date().toISOString(),
     };
   }
+
+  const normalizedFullMemo = normalizeFullInvestmentMemo(candidate);
+  if (normalizedFullMemo) return normalizedFullMemo;
 
   return normalizeEventAwareSummaryMemo(candidate);
 }

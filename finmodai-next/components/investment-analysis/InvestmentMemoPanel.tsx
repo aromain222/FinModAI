@@ -35,15 +35,15 @@ export function InvestmentMemoPanel({
       <CardContent className="space-y-5 p-6">
         <section>
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Summary</div>
-          <p className="text-sm leading-6 text-[var(--cb-text-primary)]">{memo.summary}</p>
+          <p className="whitespace-pre-line text-sm leading-6 text-[var(--cb-text-primary)]">{memo.summary}</p>
         </section>
         <section>
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Why It Matters</div>
-          <p className="text-sm leading-6 text-[var(--cb-text-primary)]">{memo.whyItMatters}</p>
+          <p className="whitespace-pre-line text-sm leading-6 text-[var(--cb-text-primary)]">{memo.whyItMatters}</p>
         </section>
         <section>
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Analysis</div>
-          <p className="text-sm leading-6 text-[var(--cb-text-primary)]">{memo.analysis}</p>
+          <p className="whitespace-pre-line text-sm leading-6 text-[var(--cb-text-primary)]">{memo.analysis}</p>
         </section>
       </CardContent>
     </Card>

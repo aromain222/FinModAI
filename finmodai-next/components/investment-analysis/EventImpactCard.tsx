@@ -144,7 +144,7 @@ export function EventImpactCard({
               <p className="mt-1 text-sm leading-6 text-[var(--cb-text-primary)]">{application.summary}</p>
               <p className="mt-2 text-xs leading-5 text-[var(--cb-text-muted)]">{classification.rationale}</p>
               {interpretationNote ? (
-                <p className="mt-2 text-xs leading-5 text-[var(--cb-text-muted)]">{interpretationNote}</p>
+                <p className="mt-2 whitespace-pre-line text-xs leading-5 text-[var(--cb-text-muted)]">{interpretationNote}</p>
               ) : null}
             </div>
           </div>

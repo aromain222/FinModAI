@@ -307,3 +307,28 @@ test('event-aware update summary schema stays parseable and structured', () => {
     whatMattersNow: 'What matters now is whether the event remains a sentiment issue or starts to affect execution.',
   });
 });
+
+test('full investment memo normalization accepts the richer six-section memo schema', () => {
+  const normalized = normalizeGeneratedMemoPayload({
+    summary: 'The stock screens as mixed under the current assumptions.',
+    whyItMatters: 'The main support comes from cash flow durability rather than aggressive growth.',
+    valuationSnapshot: 'The current valuation depends heavily on terminal value support.',
+    scenarioCase: {
+      bull: 'The upside case requires growth to hold for longer.',
+      base: 'The base case assumes moderate growth with stable margins.',
+      bear: 'The downside case reflects slower demand and lower valuation support.',
+    },
+    risks: [
+      'The valuation is sensitive to discount-rate assumptions.',
+      'Margin compression would matter more than a modest growth miss.',
+    ],
+    investmentView: 'The business is solid, but the stock is not obviously cheap.',
+  });
+
+  assert.ok(normalized);
+  assert.match(normalized?.summary ?? '', /stock screens as mixed/i);
+  assert.match(normalized?.whyItMatters ?? '', /cash flow durability/i);
+  assert.match(normalized?.analysis ?? '', /Bull \/ Base \/ Bear/i);
+  assert.match(normalized?.analysis ?? '', /Risks/i);
+  assert.match(normalized?.analysis ?? '', /Investment View/i);
+});
