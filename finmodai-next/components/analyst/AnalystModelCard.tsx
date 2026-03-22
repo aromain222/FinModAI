@@ -389,7 +389,7 @@ export function AnalystModelCard({
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
-  const [showControls, setShowControls] = useState(false);
+  const [showControls, setShowControls] = useState(true);
   const [isApplyingControls, setIsApplyingControls] = useState(false);
   const [controlsError, setControlsError] = useState<string | null>(null);
   const [isApplyingEventShock, setIsApplyingEventShock] = useState(false);
@@ -821,12 +821,12 @@ export function AnalystModelCard({
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Model Controls</div>
                 <div className="mt-1 text-sm text-[var(--cb-text-primary)]">
-                  Adjust the operating assumptions and rerender the active three-statement model.
+                  Edit the operating assumptions here, then apply the changes to rerender the active three-statement model.
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => setShowControls((value) => !value)}>
-                  {showControls ? 'Hide Controls' : 'Adjust Assumptions'}
+                  {showControls ? 'Hide Controls' : 'Show Controls'}
                 </Button>
                 {showControls ? (
                   <Button type="button" variant="outline" size="sm" onClick={handleResetThreeStatementControls} disabled={isApplyingControls}>
@@ -910,10 +910,11 @@ export function AnalystModelCard({
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--cb-border-subtle)] pt-4">
                   <div className="text-xs text-[var(--cb-text-muted)]">
-                    These controls update the current operating assumptions and rerender the active model card.
+                    Changes are staged locally while you edit. Apply them to update the current operating assumptions and
+                    rerender the active model card.
                   </div>
                   <Button type="button" size="sm" onClick={() => void handleApplyThreeStatementControls()} disabled={!hasThreeStatementControlChanges || isApplyingControls}>
-                    {isApplyingControls ? 'Applying…' : 'Apply Controls'}
+                    {isApplyingControls ? 'Applying…' : 'Apply Changes'}
                   </Button>
                 </div>
                 {controlsError ? (
@@ -932,12 +933,12 @@ export function AnalystModelCard({
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Comps Controls</div>
                 <div className="mt-1 text-sm text-[var(--cb-text-primary)]">
-                  Stress the subject operating profile and price anchor to rerender the active comps view.
+                  Edit the subject profile and price anchor here, then apply the changes to rerender the active comps view.
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => setShowControls((value) => !value)}>
-                  {showControls ? 'Hide Controls' : 'Adjust Assumptions'}
+                  {showControls ? 'Hide Controls' : 'Show Controls'}
                 </Button>
                 {showControls ? (
                   <Button type="button" variant="outline" size="sm" onClick={handleResetCompsControls} disabled={isApplyingControls}>
@@ -1065,10 +1066,11 @@ export function AnalystModelCard({
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--cb-border-subtle)] pt-4">
                   <div className="text-xs text-[var(--cb-text-muted)]">
-                    These controls update the subject snapshot, adjust the peer set, and rerender implied valuation on the active comps model.
+                    Changes are staged locally while you edit. Apply them to update the subject snapshot, adjust the peer
+                    set, and rerender implied valuation on the active comps model.
                   </div>
                   <Button type="button" size="sm" onClick={() => void handleApplyCompsControls()} disabled={!hasCompsControlChanges || isApplyingControls}>
-                    {isApplyingControls ? 'Applying…' : 'Apply Controls'}
+                    {isApplyingControls ? 'Applying…' : 'Apply Changes'}
                   </Button>
                 </div>
                 {controlsError ? (
