@@ -195,3 +195,47 @@ export type InvestmentSavedScenarioListItem = Pick<
   | 'createdAt'
   | 'updatedAt'
 >;
+
+export type InvestmentWorkspaceCharts = {
+  revenueForecast: InvestmentChartDefinition;
+  freeCashFlowForecast: InvestmentChartDefinition;
+  scenarioComparison: InvestmentChartDefinition;
+  sensitivity: InvestmentSensitivityTable;
+};
+
+export type InvestmentModelRefreshInput = {
+  company: InvestmentCompanyMetadata;
+  adjustedAssumptions: DeterministicValuationAssumptions;
+  existingDocument?: InvestmentAnalysisDocument | null;
+  generatedAt?: string;
+};
+
+export type InvestmentModelRefreshWritePayload = {
+  company: InvestmentCompanyMetadata;
+  activeScenario: InvestmentScenarioKey;
+  assumptions: DeterministicValuationAssumptions;
+  valuation: DeterministicValuationSummary;
+  forecastHighlights: Array<{
+    year: number;
+    revenue: number;
+    ebit: number;
+    unleveredFreeCashFlow: number;
+  }>;
+  scenarios: {
+    base: DeterministicValuationSummary;
+    bull: DeterministicValuationSummary;
+    bear: DeterministicValuationSummary;
+    custom: DeterministicValuationSummary;
+  };
+  warnings: string[];
+  assumptionsAdjusted: string[];
+};
+
+export type InvestmentModelRefreshResult = {
+  document: InvestmentAnalysisDocument;
+  activeScenario: InvestmentAnalysisScenarioDocument;
+  refreshedForecast: DeterministicForecastRow[];
+  refreshedValuation: DeterministicValuationSummary;
+  workspaceCharts: InvestmentWorkspaceCharts;
+  writePayload: InvestmentModelRefreshWritePayload;
+};

@@ -18,8 +18,12 @@ export type {
   InvestmentSensitivityTable,
   InvestmentCompanyMetadata,
   InvestmentMemoSections,
+  InvestmentModelRefreshInput,
+  InvestmentModelRefreshResult,
+  InvestmentModelRefreshWritePayload,
   InvestmentScenarioKey,
   InvestmentValuationMetric,
+  InvestmentWorkspaceCharts,
   SaveInvestmentScenarioInput,
   ScenarioHelperOverrides,
 } from '@/lib/investment-analysis/types';
@@ -117,3 +121,7 @@ export type {
 export {
   applyEventAssumptionDeltas,
 } from '@/lib/investment-analysis/eventAssumptionApplication';
+
+export {
+  refreshInvestmentAnalysisModel,
+} from '@/lib/investment-analysis/modelRefresh';
