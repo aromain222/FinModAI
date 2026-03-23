@@ -9,6 +9,7 @@ import { Slider } from '@/components/ui/slider';
 import { EditableFinanceChart } from '@/components/charts/EditableFinanceChart';
 import { FormattedTextBlock } from '@/components/ui/formatted-text-block';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
+import { buildAnalystDcfPreviewPayload } from '@/lib/analyst/dcfPreview';
 
 function fmtMillions(value: number): string {
   return `$${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}M`;
@@ -76,17 +77,17 @@ export function AnalystDcfCard({
     { label: 'Tariff Shock', prompt: 'Stress this DCF for tariffs going up' },
   ] as const;
   const scenarioBars = [
-    { name: 'Bear', value: payload.scenarios.bear.pricePerShare ?? 0, fill: '#dc2626' },
-    { name: 'Base', value: payload.scenarios.base.pricePerShare ?? 0, fill: '#2563eb' },
-    { name: 'Bull', value: payload.scenarios.bull.pricePerShare ?? 0, fill: '#16a34a' },
+    { name: 'Bear', value: displayPayload.scenarios.bear.pricePerShare ?? 0, fill: '#dc2626' },
+    { name: 'Base', value: displayPayload.scenarios.base.pricePerShare ?? 0, fill: '#2563eb' },
+    { name: 'Bull', value: displayPayload.scenarios.bull.pricePerShare ?? 0, fill: '#16a34a' },
   ];
   const forecastChartData = [
     {
       type: 'scatter',
       mode: 'lines+markers',
       name: 'Revenue',
-      x: payload.forecast.map((row) => row.year),
-      y: payload.forecast.map((row) => row.revenue),
+      x: displayPayload.forecast.map((row) => row.year),
+      y: displayPayload.forecast.map((row) => row.revenue),
       line: { color: '#2563eb', width: 2.5, shape: 'spline' },
       marker: { color: '#2563eb', size: 6 },
       hovertemplate: '%{x}<br>Revenue: $%{y:,.0f}M<extra></extra>',
@@ -96,8 +97,8 @@ export function AnalystDcfCard({
       type: 'scatter',
       mode: 'lines+markers',
       name: 'FCFF',
-      x: payload.forecast.map((row) => row.year),
-      y: payload.forecast.map((row) => row.fcff),
+      x: displayPayload.forecast.map((row) => row.year),
+      y: displayPayload.forecast.map((row) => row.fcff),
       line: { color: '#16a34a', width: 2.5, shape: 'spline' },
       marker: { color: '#16a34a', size: 6 },
       hovertemplate: '%{x}<br>FCFF: $%{y:,.0f}M<extra></extra>',
@@ -144,6 +145,21 @@ export function AnalystDcfCard({
     marginShiftBps !== 0 ||
     Math.abs(waccPct - payload.assumptions.wacc * 100) > 0.001 ||
     Math.abs(terminalGrowthPct - payload.assumptions.terminalGrowth * 100) > 0.001;
+
+  const stagedAdjustment = useMemo<AnalystDcfAdjustment>(
+    () => ({
+      revenueGrowth: adjustedRevenueGrowth,
+      ebitMargin: adjustedEbitMargin,
+      wacc: waccPct / 100,
+      terminalGrowth: terminalGrowthPct / 100,
+    }),
+    [adjustedEbitMargin, adjustedRevenueGrowth, terminalGrowthPct, waccPct],
+  );
+
+  const displayPayload = useMemo(
+    () => (hasControlChanges ? buildAnalystDcfPreviewPayload(payload, stagedAdjustment) : payload),
+    [hasControlChanges, payload, stagedAdjustment],
+  );
 
   async function handleDownload() {
     if (isDownloading) return;
@@ -258,13 +274,7 @@ export function AnalystDcfCard({
     setIsApplyingControls(true);
     setControlsError(null);
     try {
-      const adjustment: AnalystDcfAdjustment = {
-        revenueGrowth: adjustedRevenueGrowth,
-        ebitMargin: adjustedEbitMargin,
-        wacc: waccPct / 100,
-        terminalGrowth: terminalGrowthPct / 100,
-      };
-      await onAdjust(adjustment);
+      await onAdjust(stagedAdjustment);
     } catch (error) {
       setControlsError(error instanceof Error ? error.message : 'Unable to apply DCF controls.');
     } finally {
@@ -333,7 +343,7 @@ export function AnalystDcfCard({
             <div>
               <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Scenario Controls</div>
               <div className="mt-1 text-sm text-[var(--cb-text-primary)]">
-                Edit the main valuation drivers here, then apply the changes to rerender the DCF in place.
+                Edit the main valuation drivers here. Charts and valuation preview live while you drag, and Apply Changes commits the model.
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -454,8 +464,9 @@ export function AnalystDcfCard({
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--cb-border-subtle)] pt-4">
                 <div className="text-xs text-[var(--cb-text-muted)]">
-                  Changes are staged locally while you edit. Apply them to update the current DCF assumptions, valuation
-                  summary, and charts.
+                  {hasControlChanges
+                    ? 'Preview mode is live. Apply Changes commits the current assumptions, valuation summary, and memo.'
+                    : 'Drag any slider to preview the valuation impact live. Apply Changes commits the updated model.'}
                 </div>
                 <Button type="button" size="sm" onClick={() => void handleApplyControls()} disabled={!hasControlChanges || isApplyingControls}>
                   {isApplyingControls ? 'Applying…' : 'Apply Changes'}
@@ -472,23 +483,27 @@ export function AnalystDcfCard({
         <div className="grid gap-3 md:grid-cols-4">
           <StatCard
             label="Base EV"
-            value={fmtMillions(payload.scenarios.base.enterpriseValue)}
-            helper={`Equity ${fmtMillions(payload.scenarios.base.equityValue)}`}
+            value={fmtMillions(displayPayload.scenarios.base.enterpriseValue)}
+            helper={
+              hasControlChanges
+                ? `Preview equity ${fmtMillions(displayPayload.scenarios.base.equityValue)}`
+                : `Equity ${fmtMillions(displayPayload.scenarios.base.equityValue)}`
+            }
           />
           <StatCard
             label="Implied Price"
-            value={fmtPrice(payload.scenarios.base.pricePerShare)}
-            helper="Base case per share"
+            value={fmtPrice(displayPayload.scenarios.base.pricePerShare)}
+            helper={hasControlChanges ? 'Preview base case per share' : 'Base case per share'}
           />
           <StatCard
             label="Cached Price"
-            value={fmtPrice(payload.baseMetrics.sharePrice)}
+            value={fmtPrice(displayPayload.baseMetrics.sharePrice)}
             helper={payload.asOfDate ? `As of ${payload.asOfDate.slice(0, 10)}` : 'Demo snapshot'}
           />
           <StatCard
             label="Upside / Downside"
-            value={fmtPct(payload.scenarios.base.upsidePct)}
-            helper={`Bull ${fmtPrice(payload.scenarios.bull.pricePerShare)} | Bear ${fmtPrice(payload.scenarios.bear.pricePerShare)}`}
+            value={fmtPct(displayPayload.scenarios.base.upsidePct)}
+            helper={`Bull ${fmtPrice(displayPayload.scenarios.bull.pricePerShare)} | Bear ${fmtPrice(displayPayload.scenarios.bear.pricePerShare)}`}
           />
         </div>
 
@@ -510,42 +525,42 @@ export function AnalystDcfCard({
               />
               <ComparisonRow
                 label="Base Implied Value"
-                primary={fmtPrice(payload.scenarios.base.pricePerShare)}
+                primary={fmtPrice(displayPayload.scenarios.base.pricePerShare)}
                 comparison={fmtPrice(payload.comparison.scenarios.base.pricePerShare)}
                 primaryTicker={payload.ticker}
                 comparisonTicker={payload.comparison.ticker}
               />
               <ComparisonRow
                 label="Base Upside / Downside"
-                primary={fmtPct(payload.scenarios.base.upsidePct)}
+                primary={fmtPct(displayPayload.scenarios.base.upsidePct)}
                 comparison={fmtPct(payload.comparison.scenarios.base.upsidePct)}
                 primaryTicker={payload.ticker}
                 comparisonTicker={payload.comparison.ticker}
               />
               <ComparisonRow
                 label="Base Enterprise Value"
-                primary={fmtMillions(payload.scenarios.base.enterpriseValue)}
+                primary={fmtMillions(displayPayload.scenarios.base.enterpriseValue)}
                 comparison={fmtMillions(payload.comparison.scenarios.base.enterpriseValue)}
                 primaryTicker={payload.ticker}
                 comparisonTicker={payload.comparison.ticker}
               />
               <ComparisonRow
                 label="Year 1 Revenue Growth"
-                primary={`${((payload.assumptions.revenueGrowth[0] ?? 0) * 100).toFixed(1)}%`}
+                primary={`${((displayPayload.assumptions.revenueGrowth[0] ?? 0) * 100).toFixed(1)}%`}
                 comparison={`${((payload.comparison.assumptions.revenueGrowth[0] ?? 0) * 100).toFixed(1)}%`}
                 primaryTicker={payload.ticker}
                 comparisonTicker={payload.comparison.ticker}
               />
               <ComparisonRow
                 label="Year 1 EBIT Margin"
-                primary={`${((payload.assumptions.ebitMargin[0] ?? 0) * 100).toFixed(1)}%`}
+                primary={`${((displayPayload.assumptions.ebitMargin[0] ?? 0) * 100).toFixed(1)}%`}
                 comparison={`${((payload.comparison.assumptions.ebitMargin[0] ?? 0) * 100).toFixed(1)}%`}
                 primaryTicker={payload.ticker}
                 comparisonTicker={payload.comparison.ticker}
               />
               <ComparisonRow
                 label="WACC / Terminal g"
-                primary={`${(payload.assumptions.wacc * 100).toFixed(1)}% / ${(payload.assumptions.terminalGrowth * 100).toFixed(1)}%`}
+                primary={`${(displayPayload.assumptions.wacc * 100).toFixed(1)}% / ${(displayPayload.assumptions.terminalGrowth * 100).toFixed(1)}%`}
                 comparison={`${(payload.comparison.assumptions.wacc * 100).toFixed(1)}% / ${(payload.comparison.assumptions.terminalGrowth * 100).toFixed(1)}%`}
                 primaryTicker={payload.ticker}
                 comparisonTicker={payload.comparison.ticker}
@@ -557,7 +572,7 @@ export function AnalystDcfCard({
         <div className="grid gap-4 lg:grid-cols-[1.8fr_1fr]">
           <EditableFinanceChart
             title="Base Forecast"
-            subtitle="Editable forecast view across revenue and FCFF."
+            subtitle={hasControlChanges ? 'Live preview of revenue and FCFF under staged assumptions.' : 'Editable forecast view across revenue and FCFF.'}
             className="p-3"
             height={256}
             data={forecastChartData}
@@ -576,7 +591,7 @@ export function AnalystDcfCard({
 
           <EditableFinanceChart
             title="Scenario Value / Share"
-            subtitle="Editable scenario framing for bear, base, and bull."
+            subtitle={hasControlChanges ? 'Live preview of bear, base, and bull value per share.' : 'Editable scenario framing for bear, base, and bull.'}
             className="p-3"
             height={256}
             data={scenarioChartData}
@@ -590,24 +605,24 @@ export function AnalystDcfCard({
         <div className="grid gap-3 md:grid-cols-3">
           <StatCard
             label="Revenue Growth"
-            value={payload.assumptions.revenueGrowth.map((value) => `${(value * 100).toFixed(1)}%`).join(' / ')}
+            value={displayPayload.assumptions.revenueGrowth.map((value) => `${(value * 100).toFixed(1)}%`).join(' / ')}
             helper="Year 1 through terminal year"
           />
           <StatCard
             label="EBIT Margin"
-            value={payload.assumptions.ebitMargin.map((value) => `${(value * 100).toFixed(1)}%`).join(' / ')}
+            value={displayPayload.assumptions.ebitMargin.map((value) => `${(value * 100).toFixed(1)}%`).join(' / ')}
             helper="Modeled operating leverage path"
           />
           <StatCard
             label="WACC / Terminal g"
-            value={`${(payload.assumptions.wacc * 100).toFixed(1)}% / ${(payload.assumptions.terminalGrowth * 100).toFixed(1)}%`}
-            helper={`Tax ${(payload.assumptions.taxRate * 100).toFixed(1)}% | Capex ${(payload.assumptions.capexPctRevenue * 100).toFixed(1)}%`}
+            value={`${(displayPayload.assumptions.wacc * 100).toFixed(1)}% / ${(displayPayload.assumptions.terminalGrowth * 100).toFixed(1)}%`}
+            helper={`Tax ${(displayPayload.assumptions.taxRate * 100).toFixed(1)}% | Capex ${(displayPayload.assumptions.capexPctRevenue * 100).toFixed(1)}%`}
           />
         </div>
 
         <div className="grid gap-3 lg:grid-cols-3">
           {(['bear', 'base', 'bull'] as const).map((key) => {
-            const scenario = payload.scenarios[key];
+            const scenario = displayPayload.scenarios[key];
             return (
               <div key={key} className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
                 <div className="text-[11px] uppercase tracking-wide text-[var(--cb-text-muted)]">{scenario.name} Case</div>
