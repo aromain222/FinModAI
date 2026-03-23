@@ -94,8 +94,19 @@ export function classifyIntent(message: string, tickers: string[]): AnalystInten
   const detectedModelType = classifyPrompt(message);
   const detectedCoreTemplate = detectCoreTemplatePrompt(message);
   const extractedCompany = extractCompanyQuery({ prompt: message });
+  const hasCompanyContext = tickers.length > 0 || Boolean(extractedCompany.ticker || extractedCompany.companyName);
+  const isInvestmentAnalysisRequest =
+    hasCompanyContext &&
+    (
+      /\b(as an investment|investment case|investment view|bull case|bear case|base case|intrinsic value|undervalued|overvalued|worth)\b/.test(text) ||
+      (
+        /\b(analy[sz]e|evaluate|assess|underwrite|frame)\b/.test(text) &&
+        /\b(if|assuming|assume|under|knowing|scenario|next\s+\d+\s+years?|for\s+the\s+next\s+\d+\s+years?)\b/.test(text)
+      )
+    );
 
   const isModelRequest =
+    isInvestmentAnalysisRequest ||
     detectedCoreTemplate !== null ||
     detectedModelType !== null ||
     (
@@ -113,12 +124,12 @@ export function classifyIntent(message: string, tickers: string[]): AnalystInten
     /\b(how\s+is|how's|what'?s)\b.*\b(performing|trading|doing)\b/.test(text) ||
     /\b(stock|shares?)\b.*\b(performing|trading|doing)\b/.test(text) ||
     /\b(performance|price action|trading update)\b/.test(text);
-  if (isStockPerformanceQuestion && (tickers.length > 0 || extractedCompany.ticker || extractedCompany.companyName)) {
+  if (isStockPerformanceQuestion && hasCompanyContext) {
     return 'company_question';
   }
 
   const isCompanyQuestion =
-    (tickers.length > 0 || Boolean(extractedCompany.ticker || extractedCompany.companyName)) &&
+    hasCompanyContext &&
     /\b(earning|revenue|eps|guidance|quarter|annual|report|miss|beat|result|outlook|margin|growth|business|model|valuation|target|upgrade|downgrade|buy|sell|hold|performing|trading|price|stock|shares?)\b/.test(text);
   if (isCompanyQuestion) return 'company_question';
 
