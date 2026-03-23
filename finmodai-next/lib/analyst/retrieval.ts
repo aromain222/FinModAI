@@ -1,6 +1,6 @@
 const COMMON_COMPANY_TICKERS: Array<{ pattern: RegExp; ticker: string }> = [
   { pattern: /\bsofi\b/i, ticker: 'SOFI' },
-  { pattern: /\balphabet'?s?\b|\bgoogle'?s?\b/i, ticker: 'GOOGL' },
+  { pattern: /\balphabet'?s?\b|\bgoogle'?s?\b|\bgoogl\b|\bgoog\b/i, ticker: 'GOOGL' },
   { pattern: /\bapple'?s?\b/i, ticker: 'AAPL' },
   { pattern: /\bmicrosoft'?s?\b/i, ticker: 'MSFT' },
   { pattern: /\bnvidia'?s?\b/i, ticker: 'NVDA' },
@@ -8,6 +8,30 @@ const COMMON_COMPANY_TICKERS: Array<{ pattern: RegExp; ticker: string }> = [
   { pattern: /\bmeta'?s?\b|\bfacebook'?s?\b/i, ticker: 'META' },
   { pattern: /\btesla'?s?\b/i, ticker: 'TSLA' },
 ];
+
+const NON_COMPANY_UPPERCASE_TOKENS = new Set([
+  'AI',
+  'CEO',
+  'CFO',
+  'COO',
+  'CPI',
+  'DCF',
+  'DOJ',
+  'EPS',
+  'EV',
+  'FDA',
+  'FOMC',
+  'FTC',
+  'GDP',
+  'IPO',
+  'IRR',
+  'IRS',
+  'LBO',
+  'MOIC',
+  'OPEC',
+  'PCE',
+  'SEC',
+]);
 
 type FmpQuoteRow = {
   price?: number;
@@ -88,13 +112,18 @@ async function fetchJson(url: string, timeoutMs = 4500): Promise<unknown | null>
 export function inferTickerFromPrompt(prompt: string): string | undefined {
   if (!prompt) return undefined;
 
-  const upperMatches = prompt.match(/\b[A-Z]{1,5}\b/g) ?? [];
-  const tickerLike = upperMatches.find((symbol) => symbol.length >= 2 && symbol.length <= 5);
-  if (tickerLike) return tickerLike;
-
   for (const item of COMMON_COMPANY_TICKERS) {
     if (item.pattern.test(prompt)) return item.ticker;
   }
+
+  const upperMatches = prompt.match(/\b[A-Z]{1,5}\b/g) ?? [];
+  const tickerLike = upperMatches.find(
+    (symbol) =>
+      symbol.length >= 1 &&
+      symbol.length <= 5 &&
+      !NON_COMPANY_UPPERCASE_TOKENS.has(symbol.toUpperCase()),
+  );
+  if (tickerLike) return tickerLike;
   return undefined;
 }
 
