@@ -1,7 +1,7 @@
 import { DcfSpecSchema, type DcfSpec } from '@/lib/modeling/dcfSpec';
 import { evaluateDcfSpec } from '@/lib/modeling/buildDcfWorkbook';
 import { loadDemoSnapshots, type DemoCompanySnapshot } from '@/lib/demo/demoSnapshotStore';
-import { buildSeededFallbackLtm } from '@/lib/modelInputs/adapters';
+import { buildSeededFallbackLtm } from '@/lib/demo/seededTickerFallback';
 import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKey';
 import { inferTickerFromPrompt } from '@/lib/analyst/retrieval';
 import { resolveCompanyProfile } from '@/lib/data/company/resolveCompanyProfile';

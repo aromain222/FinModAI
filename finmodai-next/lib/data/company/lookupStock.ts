@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { extractCompanyQuery } from '@/lib/data/company/extractCompanyQuery';
 import { resolveCompanyProfile } from '@/lib/data/company/resolveCompanyProfile';
+import { getDemoFundamentals, getDemoQuote } from '@/lib/data/providers/demoProvider';
 import type { CompanyQuery } from '@/lib/data/company/types';
 import { runPythonJson } from '@/lib/integrations/python/runPythonJson';
 import { getSupabaseServiceClient } from '@/lib/events/store';
@@ -80,6 +81,10 @@ export async function lookupStock(input: CompanyQuery): Promise<StockLookupResul
   const resolvedTicker = profile?.company.ticker ?? query.ticker;
   if (!resolvedTicker) return null;
 
+  const useDemoFundamentalsFallback =
+    !profile?.snapshot ||
+    !(typeof profile.snapshot.revenueLtm === 'number' && Number.isFinite(profile.snapshot.revenueLtm) && profile.snapshot.revenueLtm > 0);
+
   const useYfinanceFallback =
     !profile?.latestPrice ||
     isStale(profile.latestPrice.date, 3) ||
@@ -95,7 +100,9 @@ export async function lookupStock(input: CompanyQuery): Promise<StockLookupResul
   const yfinanceScript = path.join(process.cwd(), 'scripts/providers/yfinance_quote.py');
   const financeDatabaseScript = path.join(process.cwd(), 'scripts/providers/financedatabase_metadata.py');
 
-  const [yfinanceFallback, financedatabaseFallback] = await Promise.all([
+  const [demoFundamentals, demoQuote, yfinanceFallback, financedatabaseFallback] = await Promise.all([
+    useDemoFundamentalsFallback ? getDemoFundamentals(resolvedTicker).catch(() => null) : Promise.resolve(null),
+    useDemoFundamentalsFallback ? getDemoQuote(resolvedTicker).catch(() => null) : Promise.resolve(null),
     useYfinanceFallback
       ? runPythonJson<PythonFallbackRow>(yfinanceScript, [resolvedTicker])
       : Promise.resolve(null),
@@ -106,14 +113,15 @@ export async function lookupStock(input: CompanyQuery): Promise<StockLookupResul
 
   const companyName =
     profile?.company.name ??
+    demoFundamentals?.companyName ??
     financedatabaseFallback?.companyName ??
     yfinanceFallback?.companyName ??
     query.companyName ??
     null;
 
-  const price = pickNumber(profile?.latestPrice?.close, yfinanceFallback?.price);
-  const marketCap = pickNumber(profile?.snapshot?.marketCap, yfinanceFallback?.marketCap);
-  const sharesOutstanding = pickNumber(profile?.snapshot?.sharesOutstanding, yfinanceFallback?.sharesOutstanding);
+  const price = pickNumber(profile?.latestPrice?.close, pickNumber(demoQuote?.price ?? null, yfinanceFallback?.price));
+  const marketCap = pickNumber(profile?.snapshot?.marketCap, pickNumber(demoQuote?.marketCap ?? null, yfinanceFallback?.marketCap));
+  const sharesOutstanding = pickNumber(profile?.snapshot?.sharesOutstanding, pickNumber(demoQuote?.sharesOutstanding ?? null, yfinanceFallback?.sharesOutstanding));
   const priceRows =
     profile?.company.id && supabase
       ? await supabase
@@ -136,39 +144,41 @@ export async function lookupStock(input: CompanyQuery): Promise<StockLookupResul
       : [];
 
   const fundamentalPoints = [
-    { label: 'Revenue', value: profile?.snapshot?.revenueLtm ?? NaN },
-    { label: 'EBITDA', value: profile?.snapshot?.ebitdaLtm ?? NaN },
-    { label: 'Net Inc.', value: profile?.snapshot?.netIncomeLtm ?? NaN },
+    { label: 'Revenue', value: pickNumber(profile?.snapshot?.revenueLtm, demoFundamentals?.revenueLTM ?? null) ?? NaN },
+    { label: 'EBITDA', value: pickNumber(profile?.snapshot?.ebitdaLtm, demoFundamentals?.ebitdaLTM ?? null) ?? NaN },
+    { label: 'Net Inc.', value: pickNumber(profile?.snapshot?.netIncomeLtm, demoFundamentals?.netIncomeLTM ?? null) ?? NaN },
   ].filter((row) => Number.isFinite(row.value));
 
   return {
     ticker: resolvedTicker,
     companyName,
-    sector: profile?.company.sector ?? financedatabaseFallback?.sector ?? yfinanceFallback?.sector ?? null,
+    sector: profile?.company.sector ?? demoFundamentals?.sector ?? financedatabaseFallback?.sector ?? yfinanceFallback?.sector ?? null,
     industry: profile?.company.industry ?? financedatabaseFallback?.industry ?? yfinanceFallback?.industry ?? null,
     exchange: profile?.company.exchange ?? financedatabaseFallback?.exchange ?? yfinanceFallback?.exchange ?? null,
     country: profile?.company.country ?? financedatabaseFallback?.country ?? yfinanceFallback?.country ?? null,
-    currency: profile?.snapshot?.currency ?? yfinanceFallback?.currency ?? 'USD',
+    currency: profile?.snapshot?.currency ?? demoFundamentals?.currency ?? yfinanceFallback?.currency ?? 'USD',
     price,
     marketCap,
     sharesOutstanding,
-    revenueLtm: profile?.snapshot?.revenueLtm ?? null,
-    ebitdaLtm: profile?.snapshot?.ebitdaLtm ?? null,
-    netIncomeLtm: profile?.snapshot?.netIncomeLtm ?? null,
-    cash: profile?.snapshot?.cash ?? null,
-    totalDebt: profile?.snapshot?.totalDebt ?? null,
+    revenueLtm: pickNumber(profile?.snapshot?.revenueLtm, demoFundamentals?.revenueLTM ?? null),
+    ebitdaLtm: pickNumber(profile?.snapshot?.ebitdaLtm, demoFundamentals?.ebitdaLTM ?? null),
+    netIncomeLtm: pickNumber(profile?.snapshot?.netIncomeLtm, demoFundamentals?.netIncomeLTM ?? null),
+    cash: pickNumber(profile?.snapshot?.cash, demoFundamentals?.cash ?? null),
+    totalDebt: pickNumber(profile?.snapshot?.totalDebt, demoFundamentals?.totalDebt ?? null),
     asOfDate: profile?.snapshot?.asOfDate ?? null,
     priceAsOfDate: profile?.latestPrice?.date ?? (price !== null ? new Date().toISOString().slice(0, 10) : null),
     source: {
       company: profile?.company.name
         ? 'company_cache'
+        : demoFundamentals?.companyName
+          ? 'demo_snapshots'
         : financedatabaseFallback?.companyName
           ? 'financedatabase'
           : yfinanceFallback?.companyName
             ? 'yfinance'
             : null,
-      fundamentals: profile?.snapshot?.source ?? null,
-      price: profile?.latestPrice?.source ?? (price !== null ? 'yfinance' : null),
+      fundamentals: profile?.snapshot?.source ?? demoFundamentals?.source ?? null,
+      price: profile?.latestPrice?.source ?? demoQuote?.source ?? (price !== null ? 'yfinance' : null),
     },
     chart:
       recentPricePoints.length > 1

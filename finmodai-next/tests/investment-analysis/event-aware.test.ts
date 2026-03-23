@@ -8,7 +8,7 @@ import {
   buildBaseAssumptionsFromSnapshotSeed,
   normalizeGeneratedMemoPayload,
 } from '@/lib/investment-analysis/generateAnalysis';
-import { buildSeededFallbackLtm } from '@/lib/modelInputs/adapters';
+import { buildSeededFallbackLtm } from '@/lib/demo/seededTickerFallback';
 import { refreshInvestmentAnalysisModel } from '@/lib/investment-analysis/modelRefresh';
 import { parseInvestmentPromptContext } from '@/lib/investment-analysis/promptParser';
 import type {

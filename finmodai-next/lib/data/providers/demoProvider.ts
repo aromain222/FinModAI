@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { NormalizedFundamentals, NormalizedQuote } from '@/lib/data/types';
+import { buildSeededFallbackLtm } from '@/lib/demo/seededTickerFallback';
 import { normalizeDemoQuote, normalizeDemoSnapshot } from '@/lib/demo/normalizeDemoSnapshot';
 
 export type DemoSnapshotRow = {
@@ -156,6 +157,51 @@ function mergeDemoWithStored(row: DemoSnapshotRow, stored: StoredCompanyOverlay 
   };
 }
 
+function applySeededFallback(row: DemoSnapshotRow): DemoSnapshotRow {
+  const normalizedTicker = row.ticker.toUpperCase().trim();
+  const revenue = typeof row.revenue_ltm === 'number' ? row.revenue_ltm : Number(row.revenue_ltm ?? NaN);
+  if (Number.isFinite(revenue) && revenue > 0) {
+    return row;
+  }
+
+  const seeded = buildSeededFallbackLtm(normalizedTicker);
+  const sharePrice =
+    typeof seeded.marketCap === 'number' &&
+    typeof seeded.sharesOutstanding === 'number' &&
+    seeded.sharesOutstanding > 0
+      ? seeded.marketCap / seeded.sharesOutstanding
+      : null;
+
+  return {
+    ...row,
+    company_name: row.company_name ?? seeded.companyName ?? normalizedTicker,
+    sector: row.sector ?? seeded.sector ?? null,
+    revenue_ltm: seeded.revenue,
+    ebitda_ltm: seeded.ebitda ?? null,
+    net_income_ltm: seeded.netIncome ?? null,
+    cash: seeded.cash ?? null,
+    total_debt: seeded.totalDebt ?? null,
+    shares_outstanding: seeded.sharesOutstanding ?? null,
+    share_price: sharePrice,
+    market_cap: seeded.marketCap ?? null,
+    enterprise_value:
+      typeof seeded.marketCap === 'number' && typeof seeded.totalDebt === 'number' && typeof seeded.cash === 'number'
+        ? seeded.marketCap + seeded.totalDebt - seeded.cash
+        : row.enterprise_value ?? null,
+    source_map: {
+      ...(row.source_map ?? {}),
+      revenueLtm: 'demo_seed_fallback',
+      ebitdaLtm: 'demo_seed_fallback',
+      netIncomeLtm: 'demo_seed_fallback',
+      cash: 'demo_seed_fallback',
+      totalDebt: 'demo_seed_fallback',
+      sharesOutstanding: 'demo_seed_fallback',
+      marketCap: 'demo_seed_fallback',
+      sharePrice: 'demo_seed_fallback',
+    },
+  };
+}
+
 export async function getDemoSnapshot(ticker: string): Promise<DemoSnapshotRow | null> {
   const supabase = getSupabaseClient();
   const cleanTicker = ticker.toUpperCase().trim();
@@ -173,7 +219,7 @@ export async function getDemoSnapshot(ticker: string): Promise<DemoSnapshotRow |
   const stored = await getStoredCompanyOverlay(cleanTicker);
   const row = baseRow ? mergeDemoWithStored(baseRow, stored) : null;
   if (!row) return null;
-  return row;
+  return applySeededFallback(row);
 }
 
 export async function getDemoFundamentals(ticker: string): Promise<NormalizedFundamentals | null> {
