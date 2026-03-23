@@ -56,6 +56,34 @@ function stripTemplatePhrasing(content: string): string {
     .trim();
 }
 
+function stripInlineCitations(content: string): string {
+  return content
+    .replace(/\s*\(\s*\[[^\]]+\]\((https?:\/\/[^)]+)\)\s*\)/g, '')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '$1')
+    .replace(/\s*\((https?:\/\/[^)\s]+)\)/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function getSourceHref(source: string): string | null {
+  const trimmed = source.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  const match = trimmed.match(/https?:\/\/\S+/i);
+  return match ? match[0] : null;
+}
+
+function getSourceLabel(source: string): string {
+  const href = getSourceHref(source);
+  if (!href) return source;
+
+  try {
+    const url = new URL(href);
+    return url.hostname.replace(/^www\./, '');
+  } catch {
+    return source;
+  }
+}
+
 function cleanAssistantText(content: string, preserveStructure = false): string {
   const normalized = content
     .replace(/\r\n/g, '\n')
@@ -71,7 +99,8 @@ function cleanAssistantText(content: string, preserveStructure = false): string 
     .replace(/\s+\n/g, '\n')
     .trim();
 
-  return preserveStructure ? normalized : stripTemplatePhrasing(normalized);
+  const withoutInlineCitations = stripInlineCitations(normalized);
+  return preserveStructure ? withoutInlineCitations : stripTemplatePhrasing(withoutInlineCitations);
 }
 
 function tryParseJson<T>(value: string): T | null {
@@ -554,14 +583,32 @@ export function AnalystChatApp() {
                   </div>
                 )}
                 {message.role === 'assistant' && message.meta?.sources && message.meta.sources.length > 0 && (
-                  <div className="mt-3 border-t border-[var(--cb-border-subtle)] pt-2 text-[11px] text-[var(--cb-text-muted)]">
-                    <div className="mb-1 uppercase tracking-wide">Sources</div>
-                    <div className="space-y-1">
-                      {message.meta.sources.map((source) => (
-                        <div key={source} className="truncate">
-                          {source}
-                        </div>
-                      ))}
+                  <div className="mt-3 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3 text-[11px] text-[var(--cb-text-muted)]">
+                    <div className="mb-2 uppercase tracking-wide">Sources</div>
+                    <div className="space-y-2">
+                      {message.meta.sources.map((source) => {
+                        const href = getSourceHref(source);
+                        const label = getSourceLabel(source);
+                        return (
+                          <div key={source} className="min-w-0">
+                            {href ? (
+                              <a
+                                href={href}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block truncate text-[var(--cb-text-primary)] underline decoration-[var(--cb-border-strong)] underline-offset-4 hover:text-[var(--cb-green)]"
+                                title={source}
+                              >
+                                {label}
+                              </a>
+                            ) : (
+                              <div className="truncate text-[var(--cb-text-primary)]" title={source}>
+                                {source}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

@@ -237,7 +237,7 @@ export function AnalystDcfCard({
             notes: payload.notes,
           },
           reportInput: {
-            highLevelNotes: payload.memo,
+            highLevelNotes: `Prompt run: ${payload.prompt}\nMemo summary: ${payload.memo}`,
           },
         }),
       });
@@ -258,7 +258,7 @@ export function AnalystDcfCard({
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `${payload.ticker}_capitalbase_dcf_report.pdf`;
+      anchor.download = `${payload.ticker}_capitalbase_dcf_memo.pdf`;
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (error) {
@@ -319,7 +319,7 @@ export function AnalystDcfCard({
             <Badge variant="outline">{payload.currency}</Badge>
             <Badge variant="outline">{payload.source}</Badge>
             <Button type="button" variant="outline" size="sm" onClick={() => void handleGenerateReport()} disabled={isGeneratingReport}>
-              {isGeneratingReport ? 'Generating Report…' : 'Generate Report'}
+              {isGeneratingReport ? 'Generating Memo PDF…' : 'Generate Memo PDF'}
             </Button>
             <Button type="button" variant="outline" size="sm" onClick={() => void handleDownload()} disabled={isDownloading}>
               {isDownloading ? 'Preparing Excel…' : 'Download Excel'}
