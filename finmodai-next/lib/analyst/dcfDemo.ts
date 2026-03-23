@@ -1,6 +1,7 @@
 import { DcfSpecSchema, type DcfSpec } from '@/lib/modeling/dcfSpec';
 import { evaluateDcfSpec } from '@/lib/modeling/buildDcfWorkbook';
 import { loadDemoSnapshots, type DemoCompanySnapshot } from '@/lib/demo/demoSnapshotStore';
+import { buildSeededFallbackLtm } from '@/lib/modelInputs/adapters';
 import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKey';
 import { inferTickerFromPrompt } from '@/lib/analyst/retrieval';
 import { resolveCompanyProfile } from '@/lib/data/company/resolveCompanyProfile';
@@ -433,6 +434,40 @@ function mapStoredProfileToSnapshot(
   };
 }
 
+function buildSeededResolvedCompany(params: {
+  ticker: string;
+  snapshot?: DemoCompanySnapshot | null;
+  asOfDate?: string | null;
+}): ResolvedCompany {
+  const ltm = buildSeededFallbackLtm(params.ticker.toUpperCase());
+  const sharePrice =
+    typeof ltm.marketCap === 'number' &&
+    typeof ltm.sharesOutstanding === 'number' &&
+    ltm.sharesOutstanding > 0
+      ? ltm.marketCap / ltm.sharesOutstanding
+      : null;
+
+  return {
+    ticker: params.ticker.toUpperCase(),
+    source: 'demo_seed_fallback',
+    asOfDate: params.asOfDate ?? ltm.lastUpdated.slice(0, 10),
+    snapshot: {
+      ticker: params.ticker.toUpperCase(),
+      companyName: params.snapshot?.companyName ?? ltm.companyName ?? params.ticker.toUpperCase(),
+      sector: params.snapshot?.sector ?? ltm.sector ?? null,
+      revenueLtm: ltm.revenue,
+      ebitdaLtm: ltm.ebitda ?? null,
+      netIncomeLtm: ltm.netIncome ?? null,
+      cash: ltm.cash ?? null,
+      totalDebt: ltm.totalDebt ?? null,
+      sharesOutstanding: ltm.sharesOutstanding ?? null,
+      sharePrice,
+      marketCap: ltm.marketCap ?? null,
+      updatedAt: params.asOfDate ?? ltm.lastUpdated.slice(0, 10),
+    },
+  };
+}
+
 async function resolveCompanyForDcf(prompt: string, explicitTicker?: string): Promise<ResolvedCompany | null> {
   const stored = await resolveCompanyProfile({ prompt, ticker: explicitTicker });
   const storedResolved = mapStoredProfileToSnapshot(stored);
@@ -441,7 +476,26 @@ async function resolveCompanyForDcf(prompt: string, explicitTicker?: string): Pr
   }
 
   const snapshots = await loadDemoSnapshots();
-  return resolveCompanyFromPrompt(prompt, explicitTicker, snapshots);
+  const demoResolved = resolveCompanyFromPrompt(prompt, explicitTicker, snapshots);
+  if (demoResolved?.snapshot.revenueLtm && demoResolved.snapshot.revenueLtm > 0) {
+    return demoResolved;
+  }
+
+  if (demoResolved) {
+    return buildSeededResolvedCompany({
+      ticker: demoResolved.ticker,
+      snapshot: demoResolved.snapshot,
+      asOfDate: demoResolved.asOfDate,
+    });
+  }
+
+  const parsed = parseDcfPrompt(prompt, explicitTicker);
+  const fallbackTicker = explicitTicker?.trim().toUpperCase() || parsed.impliedTicker;
+  if (fallbackTicker) {
+    return buildSeededResolvedCompany({ ticker: fallbackTicker });
+  }
+
+  return null;
 }
 
 async function hydrateResolvedCompany(seed: ResolvedCompany): Promise<ResolvedCompany> {
@@ -452,6 +506,13 @@ async function hydrateResolvedCompany(seed: ResolvedCompany): Promise<ResolvedCo
   const storedResolved = mapStoredProfileToSnapshot(stored);
   if (storedResolved?.snapshot.revenueLtm && storedResolved.snapshot.revenueLtm > 0) {
     return storedResolved;
+  }
+  if (!(seed.snapshot.revenueLtm && seed.snapshot.revenueLtm > 0)) {
+    return buildSeededResolvedCompany({
+      ticker: seed.ticker,
+      snapshot: seed.snapshot,
+      asOfDate: seed.asOfDate ?? seed.snapshot.updatedAt ?? null,
+    });
   }
   return seed;
 }

@@ -8,6 +8,7 @@ import {
   buildBaseAssumptionsFromSnapshotSeed,
   normalizeGeneratedMemoPayload,
 } from '@/lib/investment-analysis/generateAnalysis';
+import { buildSeededFallbackLtm } from '@/lib/modelInputs/adapters';
 import { refreshInvestmentAnalysisModel } from '@/lib/investment-analysis/modelRefresh';
 import { parseInvestmentPromptContext } from '@/lib/investment-analysis/promptParser';
 import type {
@@ -293,6 +294,16 @@ test('base assumptions can be seeded from structured fallback snapshot data', ()
   assert.equal(assumptions.netDebt, -54290);
   assert.equal(assumptions.revenueGrowthByYear.length, 5);
   assert.equal(assumptions.operatingMarginByYear.length, 5);
+});
+
+test('seeded ticker fallback produces non-zero demo-safe financials for sparse tickers', () => {
+  const fallback = buildSeededFallbackLtm('RTX');
+
+  assert.equal(fallback.ticker, 'RTX');
+  assert.ok(fallback.revenue > 0);
+  assert.ok((fallback.ebitda ?? 0) > 0);
+  assert.ok((fallback.marketCap ?? 0) > 0);
+  assert.equal(fallback.dataSource, 'demo_seed_fallback');
 });
 
 test('event-aware memo normalization accepts the richer Claude summary schema', () => {

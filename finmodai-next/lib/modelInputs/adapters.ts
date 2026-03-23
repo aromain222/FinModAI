@@ -84,7 +84,7 @@ const SEEDED_TICKER_FALLBACKS: Record<string, Partial<LTMFinancials>> = {
 const deterministicSeedFromTicker = (ticker: string): number =>
   ticker.split('').reduce((acc, char, idx) => acc + char.charCodeAt(0) * (idx + 7), 0);
 
-const buildSeededFallbackLtm = (ticker: string): LTMFinancials => {
+export const buildSeededFallbackLtm = (ticker: string): LTMFinancials => {
   const seeded = SEEDED_TICKER_FALLBACKS[ticker];
   if (seeded?.revenue && seeded.revenue > 0) {
     return {
