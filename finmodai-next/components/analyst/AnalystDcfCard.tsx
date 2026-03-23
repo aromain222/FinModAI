@@ -76,45 +76,6 @@ export function AnalystDcfCard({
     { label: 'Oil Shock', prompt: 'Show me the impact of an oil shock on this DCF' },
     { label: 'Tariff Shock', prompt: 'Stress this DCF for tariffs going up' },
   ] as const;
-  const scenarioBars = [
-    { name: 'Bear', value: displayPayload.scenarios.bear.pricePerShare ?? 0, fill: '#dc2626' },
-    { name: 'Base', value: displayPayload.scenarios.base.pricePerShare ?? 0, fill: '#2563eb' },
-    { name: 'Bull', value: displayPayload.scenarios.bull.pricePerShare ?? 0, fill: '#16a34a' },
-  ];
-  const forecastChartData = [
-    {
-      type: 'scatter',
-      mode: 'lines+markers',
-      name: 'Revenue',
-      x: displayPayload.forecast.map((row) => row.year),
-      y: displayPayload.forecast.map((row) => row.revenue),
-      line: { color: '#2563eb', width: 2.5, shape: 'spline' },
-      marker: { color: '#2563eb', size: 6 },
-      hovertemplate: '%{x}<br>Revenue: $%{y:,.0f}M<extra></extra>',
-      yaxis: 'y',
-    },
-    {
-      type: 'scatter',
-      mode: 'lines+markers',
-      name: 'FCFF',
-      x: displayPayload.forecast.map((row) => row.year),
-      y: displayPayload.forecast.map((row) => row.fcff),
-      line: { color: '#16a34a', width: 2.5, shape: 'spline' },
-      marker: { color: '#16a34a', size: 6 },
-      hovertemplate: '%{x}<br>FCFF: $%{y:,.0f}M<extra></extra>',
-      yaxis: 'y2',
-    },
-  ];
-  const scenarioChartData = [
-    {
-      type: 'bar',
-      name: 'Scenario Value / Share',
-      x: scenarioBars.map((entry) => entry.name),
-      y: scenarioBars.map((entry) => entry.value),
-      marker: { color: scenarioBars.map((entry) => entry.fill) },
-      hovertemplate: '%{x}<br>Value / Share: $%{y:.2f}<extra></extra>',
-    },
-  ];
 
   useEffect(() => {
     setRevenueGrowthShiftBps(0);
@@ -160,6 +121,46 @@ export function AnalystDcfCard({
     () => (hasControlChanges ? buildAnalystDcfPreviewPayload(payload, stagedAdjustment) : payload),
     [hasControlChanges, payload, stagedAdjustment],
   );
+
+  const scenarioBars = [
+    { name: 'Bear', value: displayPayload.scenarios.bear.pricePerShare ?? 0, fill: '#dc2626' },
+    { name: 'Base', value: displayPayload.scenarios.base.pricePerShare ?? 0, fill: '#2563eb' },
+    { name: 'Bull', value: displayPayload.scenarios.bull.pricePerShare ?? 0, fill: '#16a34a' },
+  ];
+  const forecastChartData = [
+    {
+      type: 'scatter',
+      mode: 'lines+markers',
+      name: 'Revenue',
+      x: displayPayload.forecast.map((row) => row.year),
+      y: displayPayload.forecast.map((row) => row.revenue),
+      line: { color: '#2563eb', width: 2.5, shape: 'spline' },
+      marker: { color: '#2563eb', size: 6 },
+      hovertemplate: '%{x}<br>Revenue: $%{y:,.0f}M<extra></extra>',
+      yaxis: 'y',
+    },
+    {
+      type: 'scatter',
+      mode: 'lines+markers',
+      name: 'FCFF',
+      x: displayPayload.forecast.map((row) => row.year),
+      y: displayPayload.forecast.map((row) => row.fcff),
+      line: { color: '#16a34a', width: 2.5, shape: 'spline' },
+      marker: { color: '#16a34a', size: 6 },
+      hovertemplate: '%{x}<br>FCFF: $%{y:,.0f}M<extra></extra>',
+      yaxis: 'y2',
+    },
+  ];
+  const scenarioChartData = [
+    {
+      type: 'bar',
+      name: 'Scenario Value / Share',
+      x: scenarioBars.map((entry) => entry.name),
+      y: scenarioBars.map((entry) => entry.value),
+      marker: { color: scenarioBars.map((entry) => entry.fill) },
+      hovertemplate: '%{x}<br>Value / Share: $%{y:.2f}<extra></extra>',
+    },
+  ];
 
   async function handleDownload() {
     if (isDownloading) return;
