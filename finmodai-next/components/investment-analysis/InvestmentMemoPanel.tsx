@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { FormattedTextBlock } from '@/components/ui/formatted-text-block';
 import type { InvestmentMemoSections } from '@/lib/investment-analysis/types';
 
 export function InvestmentMemoPanel({
@@ -35,15 +36,15 @@ export function InvestmentMemoPanel({
       <CardContent className="space-y-5 p-6">
         <section>
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Summary</div>
-          <p className="whitespace-pre-line text-sm leading-6 text-[var(--cb-text-primary)]">{memo.summary}</p>
+          <FormattedTextBlock content={memo.summary} />
         </section>
         <section>
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Why It Matters</div>
-          <p className="whitespace-pre-line text-sm leading-6 text-[var(--cb-text-primary)]">{memo.whyItMatters}</p>
+          <FormattedTextBlock content={memo.whyItMatters} />
         </section>
         <section>
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Analysis</div>
-          <p className="whitespace-pre-line text-sm leading-6 text-[var(--cb-text-primary)]">{memo.analysis}</p>
+          <FormattedTextBlock content={memo.analysis} />
         </section>
       </CardContent>
     </Card>

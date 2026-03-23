@@ -2,6 +2,7 @@
 
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { FormattedTextBlock } from '@/components/ui/formatted-text-block';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import {
@@ -144,7 +145,11 @@ export function EventImpactCard({
               <p className="mt-1 text-sm leading-6 text-[var(--cb-text-primary)]">{application.summary}</p>
               <p className="mt-2 text-xs leading-5 text-[var(--cb-text-muted)]">{classification.rationale}</p>
               {interpretationNote ? (
-                <p className="mt-2 whitespace-pre-line text-xs leading-5 text-[var(--cb-text-muted)]">{interpretationNote}</p>
+                <FormattedTextBlock
+                  content={interpretationNote}
+                  className="mt-2 space-y-2"
+                  paragraphClassName="text-xs leading-5 text-[var(--cb-text-muted)]"
+                />
               ) : null}
             </div>
           </div>

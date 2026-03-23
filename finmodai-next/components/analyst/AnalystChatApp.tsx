@@ -6,6 +6,7 @@ import { AnalystCoreTemplateCard } from '@/components/analyst/AnalystCoreTemplat
 import { AnalystModelCard } from '@/components/analyst/AnalystModelCard';
 import { AnalystStockCard } from '@/components/analyst/AnalystStockCard';
 import { AnalystVisualizationCard } from '@/components/analyst/AnalystVisualizationCard';
+import { FormattedTextBlock } from '@/components/ui/formatted-text-block';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -538,7 +539,15 @@ export function AnalystChatApp() {
                     : 'block max-w-full border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] text-[var(--cb-text-primary)] whitespace-pre-wrap leading-7'
                 }`}
               >
-                {message.content}
+                {message.role === 'assistant' ? (
+                  <FormattedTextBlock
+                    content={message.content}
+                    className="space-y-4"
+                    paragraphClassName="text-[var(--cb-text-primary)] leading-7"
+                  />
+                ) : (
+                  message.content
+                )}
                 {message.role === 'assistant' && message.meta?.attachmentUsed && (
                   <div className="mt-2 text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
                     {message.meta.attachmentUsed}

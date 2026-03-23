@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { EditableFinanceChart } from '@/components/charts/EditableFinanceChart';
+import { FormattedTextBlock } from '@/components/ui/formatted-text-block';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 
 function fmtMillions(value: number): string {
@@ -621,7 +622,7 @@ export function AnalystDcfCard({
 
         <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Investment Memo</div>
-          <p className="text-sm leading-6 text-[var(--cb-text-primary)]">{payload.memo}</p>
+          <FormattedTextBlock content={payload.memo} />
         </div>
 
         {payload.notes.length > 0 && (
