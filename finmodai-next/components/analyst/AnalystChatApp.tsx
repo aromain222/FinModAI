@@ -149,6 +149,7 @@ export function AnalystChatApp() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingState, setLoadingState] = useState<{ title: string; detail: string } | null>(null);
+  const [memoPdfLoadingId, setMemoPdfLoadingId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string>('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
@@ -188,6 +189,13 @@ export function AnalystChatApp() {
     return { generatedModel: null, dcfDemo: null, stockLookup: null };
   }
 
+  function getPromptForAssistantMessage(index: number): string | undefined {
+    for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+      if (messages[cursor]?.role === 'user') return messages[cursor]?.content;
+    }
+    return undefined;
+  }
+
   const handleAttachment = async (file: File | null) => {
     if (!file) {
       setAttachment(null);
@@ -202,6 +210,42 @@ export function AnalystChatApp() {
       console.error('Attachment parse error', error);
       setAttachment(null);
       setAttachmentError('Unable to parse the uploaded file.');
+    }
+  };
+
+  const handleDownloadMemoPdf = async (messageId: string, content: string, prompt?: string, sources?: string[]) => {
+    if (memoPdfLoadingId) return;
+
+    setMemoPdfLoadingId(messageId);
+    try {
+      const response = await fetch('/api/analyst-chat/memo-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: prompt ? `CapitalBase Memo - ${prompt.slice(0, 72)}` : 'CapitalBase Analyst Memo',
+          prompt,
+          content,
+          sources,
+        }),
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || 'Failed to generate memo PDF.');
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get('Content-Disposition');
+      const filenameMatch = disposition?.match(/filename="?([^"]+)"?/i);
+      const filename = filenameMatch?.[1] || 'capitalbase_analyst_memo.pdf';
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setMemoPdfLoadingId(null);
     }
   };
 
@@ -559,8 +603,11 @@ export function AnalystChatApp() {
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-4 bg-[var(--cb-surface-subtle)] p-0">
         <div className="flex-1 space-y-4 overflow-y-auto px-4 py-6 text-sm">
-          {messages.map((message) => (
+          {messages.map((message, index) => (
             <div key={message.id} className={message.role === 'user' ? 'text-right' : 'text-left'}>
+              {(() => {
+                const prompt = getPromptForAssistantMessage(index);
+                return (
               <div
                 className={`inline-block rounded-2xl px-4 py-3 ${
                   message.role === 'user'
@@ -582,6 +629,31 @@ export function AnalystChatApp() {
                     {message.meta.attachmentUsed}
                   </div>
                 )}
+                {message.role === 'assistant' &&
+                  !message.meta?.dcfDemo &&
+                  !message.meta?.generatedModel &&
+                  !message.meta?.coreTemplateModel &&
+                  !message.meta?.stockLookup &&
+                  !message.meta?.visualization && (
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          void handleDownloadMemoPdf(
+                            message.id,
+                            message.content,
+                            prompt,
+                            message.meta?.sources,
+                          )
+                        }
+                        disabled={memoPdfLoadingId === message.id}
+                      >
+                        {memoPdfLoadingId === message.id ? 'Generating Memo PDF…' : 'Download Memo PDF'}
+                      </Button>
+                    </div>
+                  )}
                 {message.role === 'assistant' && message.meta?.sources && message.meta.sources.length > 0 && (
                   <div className="mt-3 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3 text-[11px] text-[var(--cb-text-muted)]">
                     <div className="mb-2 uppercase tracking-wide">Sources</div>
@@ -644,6 +716,8 @@ export function AnalystChatApp() {
                   <AnalystVisualizationCard payload={message.meta.visualization} />
                 )}
               </div>
+                );
+              })()}
             </div>
           ))}
           {isLoading && loadingState && (
