@@ -13,6 +13,8 @@ import {
 import { resolveCompanyProfile } from '@/lib/data/company/resolveCompanyProfile';
 import { evaluateCriticalInputs } from '@/lib/model-generator/inputRequirements';
 import { loadDemoSnapshots, type DemoCompanySnapshot } from '@/lib/demo/demoSnapshotStore';
+import { DEMO_COMPANY_META, DEMO_TICKERS } from '@/lib/demo/demoUniverse';
+import { buildSeededFallbackLtm } from '@/lib/demo/seededTickerFallback';
 
 export type DcfModelInputs = {
   modelType: 'DCF';
@@ -351,9 +353,37 @@ function normalizeText(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function buildSeededDemoSnapshots(baseSnapshots: Record<string, DemoCompanySnapshot>): Record<string, DemoCompanySnapshot> {
+  const merged = { ...baseSnapshots };
+
+  for (const ticker of DEMO_TICKERS) {
+    if (merged[ticker]) continue;
+
+    const seeded = buildSeededFallbackLtm(ticker);
+    const meta = DEMO_COMPANY_META[ticker];
+    merged[ticker] = {
+      ticker,
+      companyName: meta?.name ?? seeded.companyName ?? ticker,
+      sector: meta?.sector ?? seeded.sector ?? null,
+      revenueLtm: seeded.revenue ?? null,
+      ebitdaLtm: seeded.ebitda ?? null,
+      netIncomeLtm: seeded.netIncome ?? null,
+      cash: seeded.cash ?? null,
+      totalDebt: seeded.totalDebt ?? null,
+      sharesOutstanding: seeded.sharesOutstanding ?? null,
+      marketCap: seeded.marketCap ?? null,
+      sharePrice:
+        seeded.marketCap && seeded.sharesOutstanding ? seeded.marketCap / seeded.sharesOutstanding : null,
+      updatedAt: seeded.lastUpdated ?? null,
+    };
+  }
+
+  return merged;
+}
+
 function extractEntityList(raw: string): string[] {
   return raw
-    .split(/\band\b|,|;/i)
+    .split(/\band\b|\bversus\b|\bvs\.?\b|\bagainst\b|,|;/i)
     .map((part) => part.trim())
     .filter(Boolean);
 }
@@ -399,6 +429,7 @@ function extractExplicitPeerTickers(prompt: string, snapshots: Record<string, De
     /add\s+(.+?)\s+to\s+(?:its|the)\s+peers?/i,
     /(?:set|replace|change|update)\s+(?:its|the)\s+peers?\s+(?:to|with)\s+([^.\n]+)/i,
     /peer group\s+(?:with|including)\s+([^.\n]+)/i,
+    /compare\s+(.+?)(?:\s+as\s+investments?\b|\s+on\s+valuation\b|\s+and\s+tell\s+me\b|\s+assuming\b|\s+under\b|$)/i,
   ];
 
   for (const pattern of patterns) {
@@ -702,7 +733,7 @@ async function resolveStoredCompany(prompt: string) {
 }
 
 async function resolveDemoCompany(prompt: string): Promise<{ snapshot: DemoCompanySnapshot; ticker: string } | null> {
-  const snapshots = await loadDemoSnapshots();
+  const snapshots = buildSeededDemoSnapshots(await loadDemoSnapshots());
   const ticker = inferTickerFromPrompt(prompt);
   if (ticker && snapshots[ticker]) {
     return { snapshot: snapshots[ticker], ticker };
@@ -1033,41 +1064,61 @@ async function buildCompsInputs(prompt: string): Promise<ExtractInputsResult> {
   const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt);
   const storedSnapshot = stored?.snapshot ?? null;
   const demoSnapshot = resolved?.snapshot ?? null;
-  const snapshots = await loadDemoSnapshots();
+  const snapshots = buildSeededDemoSnapshots(await loadDemoSnapshots());
   const subjectPrompt = sanitizeCompsSubjectPrompt(prompt);
   const explicitPeerTickers = extractExplicitPeerTickers(prompt, snapshots);
+  const isComparePrompt = /\b(compare|comparison|versus|vs\.?|against)\b/i.test(prompt);
+  const explicitSubjectTicker =
+    isComparePrompt && explicitPeerTickers.length > 0
+      ? explicitPeerTickers[0]
+      : !stored?.company.ticker && !resolved?.ticker && explicitPeerTickers.length > 0
+        ? explicitPeerTickers[0]
+        : null;
+  const explicitPeerUniverseTickers = explicitSubjectTicker ? explicitPeerTickers.slice(1) : explicitPeerTickers;
+  const explicitSubjectSnapshot = explicitSubjectTicker ? snapshots[explicitSubjectTicker] ?? null : null;
+  const subjectStoredSnapshot = explicitSubjectTicker ? null : stored?.snapshot ?? null;
+  const subjectLatestPrice = explicitSubjectTicker ? null : stored?.latestPrice ?? null;
+  const subjectResolvedSnapshot = explicitSubjectTicker ? explicitSubjectSnapshot : resolved?.snapshot ?? null;
 
   const companyType =
     extractCompanyType(subjectPrompt) ??
     stored?.company.companyType ??
     stored?.company.sector ??
+    explicitSubjectSnapshot?.sector ??
     demoSnapshot?.sector ??
     null;
   const parsedCompanyNameRaw = extractCompanyName(subjectPrompt) ?? extractCompanyName(prompt);
   const parsedCompanyName = isInstructionContaminatedName(parsedCompanyNameRaw) ? null : parsedCompanyNameRaw;
-  const companyName = stored?.company.name || demoSnapshot?.companyName || parsedCompanyName || deriveCompanyLabel(companyType, 'Subject Company');
-  const ticker = stored?.company.ticker ?? resolved?.ticker;
+  const ticker = explicitSubjectTicker ?? stored?.company.ticker ?? resolved?.ticker ?? undefined;
+  const companyName =
+    stored?.company.name ||
+    explicitSubjectSnapshot?.companyName ||
+    demoSnapshot?.companyName ||
+    parsedCompanyName ||
+    deriveCompanyLabel(companyType, 'Subject Company');
   const subjectSnapshot = buildMergedCompsSubjectSnapshot({
     ticker: ticker ?? 'SUBJECT',
     companyName,
     companyType,
-    storedSnapshot: stored?.snapshot ?? null,
-    latestPrice: stored?.latestPrice ?? null,
-    demoSnapshot: resolved?.snapshot ?? (ticker ? snapshots[ticker] : undefined) ?? null,
+    storedSnapshot: subjectStoredSnapshot,
+    latestPrice: subjectLatestPrice,
+    demoSnapshot: subjectResolvedSnapshot ?? (ticker ? snapshots[ticker] : undefined) ?? null,
   });
   const subjectMarketCap =
-    stored?.snapshot?.marketCap ??
+    subjectStoredSnapshot?.marketCap ??
     subjectSnapshot?.marketCap ??
-    (stored?.latestPrice?.close && stored?.snapshot?.sharesOutstanding
-      ? stored.latestPrice.close * stored.snapshot.sharesOutstanding
+    (subjectLatestPrice?.close && subjectStoredSnapshot?.sharesOutstanding
+      ? subjectLatestPrice.close * subjectStoredSnapshot.sharesOutstanding
       : null);
   if (companyType) providedInputs.add('companyType');
-  if (parsedCompanyName || stored?.company.name || resolved?.snapshot.companyName) providedInputs.add('companyName');
-  if (explicitPeerTickers.length > 0) providedInputs.add('peerSet');
+  if (parsedCompanyName || stored?.company.name || explicitSubjectSnapshot?.companyName || resolved?.snapshot.companyName) {
+    providedInputs.add('companyName');
+  }
+  if (explicitPeerUniverseTickers.length > 0) providedInputs.add('peerSet');
 
   const peerUniverse =
-    explicitPeerTickers.length > 0
-      ? explicitPeerTickers
+    explicitPeerUniverseTickers.length > 0
+      ? explicitPeerUniverseTickers
           .filter((peerTicker) => peerTicker !== ticker && snapshots[peerTicker])
           .map((peerTicker) => [peerTicker, snapshots[peerTicker]] as const)
       : pickRankedCompsPeers({
@@ -1084,7 +1135,9 @@ async function buildCompsInputs(prompt: string): Promise<ExtractInputsResult> {
   );
 
   const peerInputs = peerUniverse.map(([peerTicker, snapshot]) => toPeerInputs(peerTicker, snapshot));
-  if (peerInputs.length === 0) defaultsUsed.peerSet = explicitPeerTickers.length > 0 ? 'requested_peers_unavailable' : 'demo_peer_universe_unavailable';
+  if (peerInputs.length === 0) {
+    defaultsUsed.peerSet = explicitPeerUniverseTickers.length > 0 ? 'requested_peers_unavailable' : 'demo_peer_universe_unavailable';
+  }
   defaultsUsed.valuationMultiples = COMPS_DEFAULTS.valuationMultiples;
 
   const missingInputs = buildMissingList([
@@ -1099,9 +1152,11 @@ async function buildCompsInputs(prompt: string): Promise<ExtractInputsResult> {
       companyName,
       companyType: companyType ?? undefined,
       ticker,
-      source: stored?.snapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
+      source:
+        subjectStoredSnapshot?.source ??
+        (subjectResolvedSnapshot ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
       peerSetLabel:
-        explicitPeerTickers.length > 0
+        explicitPeerUniverseTickers.length > 0
           ? `${peerInputs.length} requested peers`
           : companyType
             ? `${companyType} peers`
@@ -1115,9 +1170,11 @@ async function buildCompsInputs(prompt: string): Promise<ExtractInputsResult> {
     missingInputs,
     missingCriticalInputs,
     provenanceSummary: buildProvenanceSummary({
-      source: storedSnapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
-      asOfDate: storedSnapshot?.asOfDate ?? demoSnapshot?.updatedAt ?? null,
-      lastSynced: storedSnapshot?.createdAt ?? stored?.latestPrice?.createdAt ?? demoSnapshot?.updatedAt ?? null,
+      source:
+        subjectStoredSnapshot?.source ??
+        (subjectResolvedSnapshot ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
+      asOfDate: subjectStoredSnapshot?.asOfDate ?? subjectResolvedSnapshot?.updatedAt ?? null,
+      lastSynced: subjectStoredSnapshot?.createdAt ?? subjectLatestPrice?.createdAt ?? subjectResolvedSnapshot?.updatedAt ?? null,
       fallbackUsed: Object.keys(defaultsUsed),
     }),
   };
