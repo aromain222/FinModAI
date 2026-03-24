@@ -340,6 +340,7 @@ function deriveContextFromModelData(modelData: any): Partial<ReportContext> {
   return {
     companyName: threeStatement?.companyName ?? undefined,
     keyOutputs,
+    scenarioContext: modelData.scenarioContext ?? undefined,
     highLevelNotes: notes.length ? notes.join(' ') : undefined,
     macro: modelData.macroContext ?? modelData.macro ?? undefined,
     sector: modelData.sectorContext ?? modelData.sector ?? undefined,
@@ -359,6 +360,7 @@ function mergeContexts(base: ReportContext, ...partials: Array<Partial<ReportCon
     if (partial.sector) acc.sector = partial.sector;
     if (partial.risks) acc.risks = partial.risks;
     if (partial.upside) acc.upside = partial.upside;
+    if (partial.scenarioContext) acc.scenarioContext = partial.scenarioContext;
     if (partial.highLevelNotes) {
       acc.highLevelNotes = acc.highLevelNotes
         ? `${acc.highLevelNotes}\n${partial.highLevelNotes}`

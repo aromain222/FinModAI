@@ -503,6 +503,14 @@ function buildCompsSections(context: ReportContext): GeneratedReportSection[] {
   ];
 }
 
+function buildScenarioContextSection(context: ReportContext): GeneratedReportSection | null {
+  if (!context.scenarioContext) return null;
+  return {
+    title: 'Scenario Context',
+    body: `This report is framed under the scenario that ${context.scenarioContext.toLowerCase()}`,
+  };
+}
+
 function buildPrecedentsSections(_context: ReportContext): GeneratedReportSection[] {
   return [
     {
@@ -1408,7 +1416,10 @@ function buildSections(context: ReportContext): GeneratedReportSection[] {
     next: buildNextStepsSection(context),
   };
 
+  const scenarioSection = buildScenarioContextSection(context);
+
   return [
+    ...(scenarioSection ? [scenarioSection] : []),
     ...primarySections,
     ...MODEL_NARRATIVE_CONFIG[context.modelType].order.map((sectionId) => narrativeSections[sectionId]),
   ];

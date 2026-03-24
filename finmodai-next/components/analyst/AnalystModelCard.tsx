@@ -707,8 +707,10 @@ export function AnalystModelCard({
             narrativeBlocks: payload.narrativeBlocks,
             provenanceSummary: payload.provenanceSummary,
             comparisonSummary: payload.comparisonSummary,
+            scenarioContext: payload.scenarioContext,
           },
           reportInput: {
+            scenarioContext: payload.scenarioContext ?? undefined,
             highLevelNotes: [
               payload.scenarioContext ? `Scenario context: ${payload.scenarioContext}` : null,
               `Prompt run: ${payload.prompt}`,
@@ -840,6 +842,12 @@ export function AnalystModelCard({
           <div className="space-y-1">
             <CardTitle className="text-base">Prompt-to-Model Demo</CardTitle>
             <CardDescription>{payload.title}</CardDescription>
+            {payload.modelType === 'COMPS' && payload.scenarioContext ? (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <Badge variant="outline">Scenario</Badge>
+                <span className="text-xs text-[var(--cb-text-muted)]">{payload.scenarioContext}</span>
+              </div>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">{payload.modelType}</Badge>

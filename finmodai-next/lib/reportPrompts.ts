@@ -35,6 +35,7 @@ export interface ReportContext {
   sector?: string;
   risks?: string;
   upside?: string;
+  scenarioContext?: string;
   highLevelNotes?: string;
   data: Record<string, any>;
 }
@@ -1025,6 +1026,7 @@ export function buildReportWriterUserPrompt(context: ReportContext): string {
       `Debt Capacity Inputs JSON: ${JSON.stringify(context.data?.debtCapacityLite ?? {}, null, 2)}`,
       `Canonical Financials JSON: ${JSON.stringify(context.data?.canonicalFinancials ?? {}, null, 2)}`,
       `Key Outputs JSON: ${JSON.stringify(context.keyOutputs?.debtCapacity ?? context.keyOutputs ?? {}, null, 2)}`,
+      context.scenarioContext ? `Scenario Context: ${context.scenarioContext}` : '',
       context.highLevelNotes ? `Additional Notes: ${context.highLevelNotes}` : '',
     ]
       .filter(Boolean)
@@ -1046,6 +1048,7 @@ export function buildReportWriterUserPrompt(context: ReportContext): string {
     `Meeting Objective: produce a report that can be dropped directly into an internal investor, management, or deal review without cleanup.`,
     `Key Outputs JSON: ${JSON.stringify(context.keyOutputs || {}, null, 2)}`,
     `Supporting Data JSON: ${JSON.stringify(context.data || {}, null, 2)}`,
+    context.scenarioContext ? `Scenario Context: ${context.scenarioContext}` : '',
     context.highLevelNotes ? `Additional Notes: ${context.highLevelNotes}` : '',
     context.risks ? `Known Risks: ${context.risks}` : '',
     context.upside ? `Upside Considerations: ${context.upside}` : '',
