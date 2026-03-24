@@ -10,6 +10,13 @@ import { Slider } from '@/components/ui/slider';
 import { EditableFinanceChart } from '@/components/charts/EditableFinanceChart';
 import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } from '@/lib/analyst/modelChat';
 
+type CompsTickerAdjustment = {
+  revenueShiftPct: number;
+  ebitdaShiftPct: number;
+  priceShiftPct: number;
+  sharesShiftPct: number;
+};
+
 function isCurrencyKey(key?: string): boolean {
   if (!key) return false;
   return /(revenue|income|cash|debt|price|value|equity|ebitda|ebit|ev|capex|nwc|inventory|dividend|book|ppe|burn|fundraise|purchase|goodwill|assets|liab|sales|cogs|arr|arpu|cac|marketcap|valuation|proceeds|amount|principal|interest|expense|balance|amortization|buyback|repurchase|cashflow|fcf)/i.test(
@@ -113,6 +120,68 @@ function formatAxisValue(value: number, type: 'currency' | 'percent' | 'number' 
   }
   if (type === 'percent') return `${value.toFixed(0)}%`;
   return value.toLocaleString('en-US', { maximumFractionDigits: 1 });
+}
+
+function defaultCompsTickerAdjustment(): CompsTickerAdjustment {
+  return {
+    revenueShiftPct: 0,
+    ebitdaShiftPct: 0,
+    priceShiftPct: 0,
+    sharesShiftPct: 0,
+  };
+}
+
+function buildCompsTickerAdjustmentState(
+  subject: Record<string, unknown> | null,
+  peers: Array<Record<string, unknown>>,
+): Record<string, CompsTickerAdjustment> {
+  const next: Record<string, CompsTickerAdjustment> = {};
+  const rows = [subject, ...peers].filter((row): row is Record<string, unknown> => Boolean(row));
+
+  for (const row of rows) {
+    const ticker = typeof row.ticker === 'string' ? row.ticker : null;
+    if (!ticker) continue;
+    next[ticker] = defaultCompsTickerAdjustment();
+  }
+
+  return next;
+}
+
+function applyCompsTickerAdjustment(
+  row: Record<string, unknown>,
+  adjustment: CompsTickerAdjustment | undefined,
+): Record<string, unknown> {
+  if (!adjustment) return row;
+
+  const revenue =
+    typeof row.revenue === 'number'
+      ? Number(row.revenue) * (1 + adjustment.revenueShiftPct / 100)
+      : row.revenue;
+  const ebitda =
+    typeof row.ebitda === 'number'
+      ? Number(row.ebitda) * (1 + adjustment.ebitdaShiftPct / 100)
+      : row.ebitda;
+  const price =
+    typeof row.price === 'number'
+      ? Number(row.price) * (1 + adjustment.priceShiftPct / 100)
+      : row.price;
+  const sharesOutstanding =
+    typeof row.sharesOutstanding === 'number'
+      ? Number(row.sharesOutstanding) * (1 + adjustment.sharesShiftPct / 100)
+      : row.sharesOutstanding;
+  const marketCap =
+    typeof price === 'number' && typeof sharesOutstanding === 'number'
+      ? (price * sharesOutstanding) / 1_000_000
+      : row.marketCap;
+
+  return {
+    ...row,
+    revenue,
+    ebitda,
+    price,
+    sharesOutstanding,
+    marketCap,
+  };
 }
 
 function normalizeModelTypeForReport(modelType: AnalystGeneratedModelPayload['modelType']): string {
@@ -389,7 +458,7 @@ export function AnalystModelCard({
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
-  const [showControls, setShowControls] = useState(true);
+  const [showControls, setShowControls] = useState(payload.modelType !== 'COMPS');
   const [isApplyingControls, setIsApplyingControls] = useState(false);
   const [controlsError, setControlsError] = useState<string | null>(null);
   const [isApplyingEventShock, setIsApplyingEventShock] = useState(false);
@@ -402,6 +471,13 @@ export function AnalystModelCard({
     payload.modelType === 'COMPS' && compsInputs?.subject && typeof compsInputs.subject === 'object'
       ? (compsInputs.subject as Record<string, unknown>)
       : null;
+  const compsPeers = useMemo(
+    () =>
+      payload.modelType === 'COMPS' && Array.isArray(compsInputs?.peers)
+        ? (compsInputs.peers as Array<Record<string, unknown>>)
+        : [],
+    [payload.modelType, compsInputs],
+  );
   const [revenueGrowthShiftBps, setRevenueGrowthShiftBps] = useState(0);
   const [grossMarginPct, setGrossMarginPct] = useState(
     payload.modelType === 'THREE_STATEMENT' && typeof threeStatementInputs?.grossMargin === 'number'
@@ -418,10 +494,7 @@ export function AnalystModelCard({
       ? Number(threeStatementInputs.taxRate) * 100
       : 0,
   );
-  const [compsRevenueShiftPct, setCompsRevenueShiftPct] = useState(0);
-  const [compsEbitdaShiftPct, setCompsEbitdaShiftPct] = useState(0);
-  const [compsPriceShiftPct, setCompsPriceShiftPct] = useState(0);
-  const [compsSharesShiftPct, setCompsSharesShiftPct] = useState(0);
+  const [compsTickerAdjustments, setCompsTickerAdjustments] = useState<Record<string, CompsTickerAdjustment>>({});
   const [compsAddPeers, setCompsAddPeers] = useState('');
   const [compsRemovePeers, setCompsRemovePeers] = useState('');
   const [compsEvRevenueMultiple, setCompsEvRevenueMultiple] = useState(0);
@@ -462,42 +535,17 @@ export function AnalystModelCard({
 
   const adjustedCompsSubject = useMemo(() => {
     if (payload.modelType !== 'COMPS' || !compsSubject) return null;
-    const revenue =
-      typeof compsSubject.revenue === 'number'
-        ? Number(compsSubject.revenue) * (1 + compsRevenueShiftPct / 100)
-        : compsSubject.revenue;
-    const ebitda =
-      typeof compsSubject.ebitda === 'number'
-        ? Number(compsSubject.ebitda) * (1 + compsEbitdaShiftPct / 100)
-        : compsSubject.ebitda;
-    const price =
-      typeof compsSubject.price === 'number'
-        ? Number(compsSubject.price) * (1 + compsPriceShiftPct / 100)
-        : compsSubject.price;
-    const sharesOutstanding =
-      typeof compsSubject.sharesOutstanding === 'number'
-        ? Number(compsSubject.sharesOutstanding) * (1 + compsSharesShiftPct / 100)
-        : compsSubject.sharesOutstanding;
-    const marketCap =
-      typeof price === 'number' && typeof sharesOutstanding === 'number'
-        ? (price * sharesOutstanding) / 1_000_000
-        : compsSubject.marketCap;
-    return {
-      ...compsSubject,
-      revenue,
-      ebitda,
-      price,
-      sharesOutstanding,
-      marketCap,
-    };
-  }, [
-    payload,
-    compsSubject,
-    compsRevenueShiftPct,
-    compsEbitdaShiftPct,
-    compsPriceShiftPct,
-    compsSharesShiftPct,
-  ]);
+    const ticker = typeof compsSubject.ticker === 'string' ? compsSubject.ticker : '';
+    return applyCompsTickerAdjustment(compsSubject, compsTickerAdjustments[ticker]);
+  }, [payload, compsSubject, compsTickerAdjustments]);
+
+  const adjustedCompsPeers = useMemo(() => {
+    if (payload.modelType !== 'COMPS') return [];
+    return compsPeers.map((peer) => {
+      const ticker = typeof peer.ticker === 'string' ? peer.ticker : '';
+      return applyCompsTickerAdjustment(peer, compsTickerAdjustments[ticker]);
+    });
+  }, [payload, compsPeers, compsTickerAdjustments]);
 
   const compsMultipleBaselines = useMemo(() => {
     if (payload.modelType !== 'COMPS') {
@@ -557,29 +605,42 @@ export function AnalystModelCard({
 
   useEffect(() => {
     if (payload.modelType !== 'COMPS') return;
-    setCompsRevenueShiftPct(0);
-    setCompsEbitdaShiftPct(0);
-    setCompsPriceShiftPct(0);
-    setCompsSharesShiftPct(0);
+    setShowControls(false);
+    setCompsTickerAdjustments(buildCompsTickerAdjustmentState(compsSubject, compsPeers));
     setCompsAddPeers('');
     setCompsRemovePeers('');
     setCompsEvRevenueMultiple(compsMultipleBaselines.evToRevenue);
     setCompsEvEbitdaMultiple(compsMultipleBaselines.evToEbitda);
     setCompsPeMultiple(compsMultipleBaselines.peRatio);
     setControlsError(null);
-  }, [payload, compsMultipleBaselines]);
+  }, [payload, compsMultipleBaselines, compsSubject, compsPeers]);
 
   const hasCompsControlChanges =
     payload.modelType === 'COMPS' &&
-    (compsRevenueShiftPct !== 0 ||
-      compsEbitdaShiftPct !== 0 ||
-      compsPriceShiftPct !== 0 ||
-      compsSharesShiftPct !== 0 ||
+    (Object.values(compsTickerAdjustments).some((adjustment) =>
+      adjustment.revenueShiftPct !== 0 ||
+      adjustment.ebitdaShiftPct !== 0 ||
+      adjustment.priceShiftPct !== 0 ||
+      adjustment.sharesShiftPct !== 0
+    ) ||
       compsAddPeers.trim().length > 0 ||
       compsRemovePeers.trim().length > 0 ||
       Math.abs(compsEvRevenueMultiple - compsMultipleBaselines.evToRevenue) > 0.0001 ||
       Math.abs(compsEvEbitdaMultiple - compsMultipleBaselines.evToEbitda) > 0.0001 ||
       Math.abs(compsPeMultiple - compsMultipleBaselines.peRatio) > 0.0001);
+
+  function updateCompsTickerAdjustment(
+    ticker: string,
+    patch: Partial<CompsTickerAdjustment>,
+  ) {
+    setCompsTickerAdjustments((current) => ({
+      ...current,
+      [ticker]: {
+        ...(current[ticker] ?? defaultCompsTickerAdjustment()),
+        ...patch,
+      },
+    }));
+  }
 
   async function handleDownload() {
     if (isDownloading) return;
@@ -729,6 +790,7 @@ export function AnalystModelCard({
       await onAdjust({
         changes: {
           subject: adjustedCompsSubject,
+          peers: adjustedCompsPeers,
           selectedMultiples: {
             evToRevenue: compsEvRevenueMultiple,
             evToEbitda: compsEvEbitdaMultiple,
@@ -756,10 +818,7 @@ export function AnalystModelCard({
 
   function handleResetCompsControls() {
     if (payload.modelType !== 'COMPS') return;
-    setCompsRevenueShiftPct(0);
-    setCompsEbitdaShiftPct(0);
-    setCompsPriceShiftPct(0);
-    setCompsSharesShiftPct(0);
+    setCompsTickerAdjustments(buildCompsTickerAdjustmentState(compsSubject, compsPeers));
     setCompsAddPeers('');
     setCompsRemovePeers('');
     setCompsEvRevenueMultiple(compsMultipleBaselines.evToRevenue);
@@ -933,7 +992,7 @@ export function AnalystModelCard({
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Comps Controls</div>
                 <div className="mt-1 text-sm text-[var(--cb-text-primary)]">
-                  Edit the subject profile and price anchor here, then apply the changes to rerender the active comps view.
+                  Controls start collapsed. Open them to adjust the subject and each peer directly, then apply the changes to rerender the active comps view.
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -949,58 +1008,84 @@ export function AnalystModelCard({
             </div>
             {showControls ? (
               <div className="mt-4 space-y-6">
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <Label>Subject Revenue Shift</Label>
-                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
-                        {compsRevenueShiftPct > 0 ? '+' : ''}{compsRevenueShiftPct.toFixed(0)}%
-                      </span>
-                    </div>
-                    <Slider value={[compsRevenueShiftPct]} onValueChange={([value]) => setCompsRevenueShiftPct(value)} min={-50} max={50} step={1} className="mb-1" />
-                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
-                      <span>-50%</span>
-                      <span>+50%</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <Label>Subject EBITDA Shift</Label>
-                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
-                        {compsEbitdaShiftPct > 0 ? '+' : ''}{compsEbitdaShiftPct.toFixed(0)}%
-                      </span>
-                    </div>
-                    <Slider value={[compsEbitdaShiftPct]} onValueChange={([value]) => setCompsEbitdaShiftPct(value)} min={-50} max={50} step={1} className="mb-1" />
-                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
-                      <span>-50%</span>
-                      <span>+50%</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <Label>Share Price Shift</Label>
-                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
-                        {compsPriceShiftPct > 0 ? '+' : ''}{compsPriceShiftPct.toFixed(0)}%
-                      </span>
-                    </div>
-                    <Slider value={[compsPriceShiftPct]} onValueChange={([value]) => setCompsPriceShiftPct(value)} min={-40} max={40} step={1} className="mb-1" />
-                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
-                      <span>-40%</span>
-                      <span>+40%</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <Label>Shares Outstanding Shift</Label>
-                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
-                        {compsSharesShiftPct > 0 ? '+' : ''}{compsSharesShiftPct.toFixed(0)}%
-                      </span>
-                    </div>
-                    <Slider value={[compsSharesShiftPct]} onValueChange={([value]) => setCompsSharesShiftPct(value)} min={-20} max={20} step={1} className="mb-1" />
-                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
-                      <span>-20%</span>
-                      <span>+20%</span>
-                    </div>
+                <div className="space-y-4">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Per-Ticker Controls</div>
+                  <div className="grid gap-4">
+                    {[adjustedCompsSubject, ...adjustedCompsPeers]
+                      .filter((row): row is Record<string, unknown> => Boolean(row))
+                      .map((row) => {
+                        const ticker = typeof row.ticker === 'string' ? row.ticker : 'TICKER';
+                        const name = typeof row.name === 'string' ? row.name : ticker;
+                        const adjustment = compsTickerAdjustments[ticker] ?? defaultCompsTickerAdjustment();
+                        const isSubject = ticker === (typeof adjustedCompsSubject?.ticker === 'string' ? adjustedCompsSubject.ticker : null);
+
+                        return (
+                          <div key={ticker} className="rounded-xl border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-4">
+                            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <div className="text-sm font-semibold text-[var(--cb-text-primary)]">{name}</div>
+                                <div className="text-xs text-[var(--cb-text-muted)]">
+                                  {ticker}{isSubject ? ' • Subject' : ' • Peer'}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="grid gap-6 md:grid-cols-2">
+                              <div>
+                                <div className="mb-2 flex items-center justify-between">
+                                  <Label>Revenue Shift</Label>
+                                  <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
+                                    {adjustment.revenueShiftPct > 0 ? '+' : ''}{adjustment.revenueShiftPct.toFixed(0)}%
+                                  </span>
+                                </div>
+                                <Slider value={[adjustment.revenueShiftPct]} onValueChange={([value]) => updateCompsTickerAdjustment(ticker, { revenueShiftPct: value })} min={-50} max={50} step={1} className="mb-1" />
+                                <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
+                                  <span>-50%</span>
+                                  <span>+50%</span>
+                                </div>
+                              </div>
+                              <div>
+                                <div className="mb-2 flex items-center justify-between">
+                                  <Label>EBITDA Shift</Label>
+                                  <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
+                                    {adjustment.ebitdaShiftPct > 0 ? '+' : ''}{adjustment.ebitdaShiftPct.toFixed(0)}%
+                                  </span>
+                                </div>
+                                <Slider value={[adjustment.ebitdaShiftPct]} onValueChange={([value]) => updateCompsTickerAdjustment(ticker, { ebitdaShiftPct: value })} min={-50} max={50} step={1} className="mb-1" />
+                                <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
+                                  <span>-50%</span>
+                                  <span>+50%</span>
+                                </div>
+                              </div>
+                              <div>
+                                <div className="mb-2 flex items-center justify-between">
+                                  <Label>Share Price Shift</Label>
+                                  <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
+                                    {adjustment.priceShiftPct > 0 ? '+' : ''}{adjustment.priceShiftPct.toFixed(0)}%
+                                  </span>
+                                </div>
+                                <Slider value={[adjustment.priceShiftPct]} onValueChange={([value]) => updateCompsTickerAdjustment(ticker, { priceShiftPct: value })} min={-40} max={40} step={1} className="mb-1" />
+                                <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
+                                  <span>-40%</span>
+                                  <span>+40%</span>
+                                </div>
+                              </div>
+                              <div>
+                                <div className="mb-2 flex items-center justify-between">
+                                  <Label>Shares Outstanding Shift</Label>
+                                  <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
+                                    {adjustment.sharesShiftPct > 0 ? '+' : ''}{adjustment.sharesShiftPct.toFixed(0)}%
+                                  </span>
+                                </div>
+                                <Slider value={[adjustment.sharesShiftPct]} onValueChange={([value]) => updateCompsTickerAdjustment(ticker, { sharesShiftPct: value })} min={-20} max={20} step={1} className="mb-1" />
+                                <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
+                                  <span>-20%</span>
+                                  <span>+20%</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                   </div>
                 </div>
                 <div className="grid gap-6 md:grid-cols-3">

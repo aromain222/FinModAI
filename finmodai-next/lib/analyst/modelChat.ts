@@ -123,6 +123,45 @@ function describeCompsSubjectMetrics(subject: {
   return 'Subject revenue and EBITDA are still missing, so the initial view is driven more by peer multiples than by a complete operating snapshot';
 }
 
+function buildCompsFoundationParagraph(inputs: {
+  companyName: string;
+  subject: CompsPeerInputs;
+  peers: CompsPeerInputs[];
+}): string {
+  const leadPeer = inputs.peers[0] ?? null;
+  if (!leadPeer) {
+    return `${inputs.companyName} is being framed through a peer-relative lens first. The immediate question is whether the current subject profile justifies a premium, discount, or neutral valuation stance versus the chosen peer set.`;
+  }
+
+  const subjectRevenue = typeof inputs.subject.revenue === 'number' ? inputs.subject.revenue : null;
+  const peerRevenue = typeof leadPeer.revenue === 'number' ? leadPeer.revenue : null;
+  const subjectEbitda = typeof inputs.subject.ebitda === 'number' ? inputs.subject.ebitda : null;
+  const peerEbitda = typeof leadPeer.ebitda === 'number' ? leadPeer.ebitda : null;
+
+  const scaleLeader =
+    subjectRevenue !== null && peerRevenue !== null
+      ? subjectRevenue >= peerRevenue
+        ? inputs.companyName
+        : leadPeer.name
+      : null;
+  const profitabilityLeader =
+    subjectEbitda !== null && peerEbitda !== null
+      ? subjectEbitda >= peerEbitda
+        ? inputs.companyName
+        : leadPeer.name
+      : null;
+
+  if (scaleLeader && profitabilityLeader && scaleLeader === profitabilityLeader) {
+    return `${scaleLeader} starts from the stronger operating base in this comparison, so the first question is whether the current market price already captures that scale and earnings advantage or still leaves room for relative upside.`;
+  }
+
+  if (scaleLeader && profitabilityLeader && scaleLeader !== profitabilityLeader) {
+    return `${scaleLeader} screens larger on revenue while ${profitabilityLeader} screens stronger on EBITDA, so this comparison is really about whether investors should pay for scale, profitability, or the possibility of convergence between the two.`;
+  }
+
+  return `${inputs.companyName} should be judged here through relative scale, profitability, and trading multiples rather than a standalone narrative. The main job of the comps view is to show whether the current price is asking investors to underwrite too much or too little versus ${leadPeer.name}.`;
+}
+
 function extractComparableAssumptions(inputs: Record<string, unknown>): Record<string, unknown> {
   const skip = new Set(['modelType', 'source', 'companyName', 'ticker', 'companyType', 'peerSetLabel', 'subject', 'peers', 'transactions']);
   return Object.fromEntries(Object.entries(inputs).filter(([key]) => !skip.has(key)));
@@ -163,6 +202,14 @@ function buildNarrativeBlocks(modelType: StructuredModelType, inputs: ExtractedM
         subject: { revenue: number | null; ebitda: number | null; price: number | null };
       };
       return [
+        {
+          title: 'FOUNDATIONAL VIEW',
+          body: buildCompsFoundationParagraph({
+            companyName: compsInputs.companyName,
+            subject: compsInputs.subject,
+            peers: compsInputs.peers,
+          }),
+        },
         {
           title: 'COMPANY OVERVIEW',
           body: `${compsInputs.companyName} is being framed through a peer-relative valuation lens. ${describeCompsSubjectMetrics(compsInputs.subject)} across ${compsInputs.peers.length} selected peers.`,
