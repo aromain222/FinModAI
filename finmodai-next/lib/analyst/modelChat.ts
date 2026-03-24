@@ -26,6 +26,7 @@ export type AnalystGeneratedModelPayload = {
   title: string;
   tabs: string[];
   keyOutputs: string[];
+  scenarioContext: string | null;
   extractedInputs: ExtractedModelInputs;
   defaultsUsed: Record<string, unknown>;
   provenanceSummary: ProvenanceSummary;
@@ -123,14 +124,44 @@ function describeCompsSubjectMetrics(subject: {
   return 'Subject revenue and EBITDA are still missing, so the initial view is driven more by peer multiples than by a complete operating snapshot';
 }
 
+function normalizeScenarioContext(value: string): string {
+  const cleaned = value
+    .replace(/\s+/g, ' ')
+    .replace(/^[,.:;\-\s]+/, '')
+    .replace(/[.]+$/, '')
+    .trim();
+  if (!cleaned) return '';
+  return cleaned.endsWith('.') ? cleaned : `${cleaned}.`;
+}
+
+function extractScenarioContext(prompt: string): string | null {
+  const patterns = [
+    /\bassuming\s+(.+)$/i,
+    /\bunder\s+(.+?)\s+scenario$/i,
+    /\bunder\s+(.+)$/i,
+    /\bknowing\s+(.+)$/i,
+    /\bif\s+(.+)$/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = prompt.match(pattern);
+    const candidate = normalizeScenarioContext(match?.[1] ?? '');
+    if (candidate) return candidate;
+  }
+
+  return null;
+}
+
 function buildCompsFoundationParagraph(inputs: {
   companyName: string;
   subject: CompsPeerInputs;
   peers: CompsPeerInputs[];
+  scenarioContext: string | null;
 }): string {
   const leadPeer = inputs.peers[0] ?? null;
+  const scenarioLead = inputs.scenarioContext ? `Under the scenario that ${inputs.scenarioContext.toLowerCase()} ` : '';
   if (!leadPeer) {
-    return `${inputs.companyName} is being framed through a peer-relative lens first. The immediate question is whether the current subject profile justifies a premium, discount, or neutral valuation stance versus the chosen peer set.`;
+    return `${scenarioLead}${inputs.companyName} is being framed through a peer-relative lens first. The immediate question is whether the current subject profile justifies a premium, discount, or neutral valuation stance versus the chosen peer set.`;
   }
 
   const subjectRevenue = typeof inputs.subject.revenue === 'number' ? inputs.subject.revenue : null;
@@ -152,14 +183,14 @@ function buildCompsFoundationParagraph(inputs: {
       : null;
 
   if (scaleLeader && profitabilityLeader && scaleLeader === profitabilityLeader) {
-    return `${scaleLeader} starts from the stronger operating base in this comparison, so the first question is whether the current market price already captures that scale and earnings advantage or still leaves room for relative upside.`;
+    return `${scenarioLead}${scaleLeader} starts from the stronger operating base in this comparison, so the first question is whether the current market price already captures that scale and earnings advantage or still leaves room for relative upside.`;
   }
 
   if (scaleLeader && profitabilityLeader && scaleLeader !== profitabilityLeader) {
-    return `${scaleLeader} screens larger on revenue while ${profitabilityLeader} screens stronger on EBITDA, so this comparison is really about whether investors should pay for scale, profitability, or the possibility of convergence between the two.`;
+    return `${scenarioLead}${scaleLeader} screens larger on revenue while ${profitabilityLeader} screens stronger on EBITDA, so this comparison is really about whether investors should pay for scale, profitability, or the possibility of convergence between the two.`;
   }
 
-  return `${inputs.companyName} should be judged here through relative scale, profitability, and trading multiples rather than a standalone narrative. The main job of the comps view is to show whether the current price is asking investors to underwrite too much or too little versus ${leadPeer.name}.`;
+  return `${scenarioLead}${inputs.companyName} should be judged here through relative scale, profitability, and trading multiples rather than a standalone narrative. The main job of the comps view is to show whether the current price is asking investors to underwrite too much or too little versus ${leadPeer.name}.`;
 }
 
 function extractComparableAssumptions(inputs: Record<string, unknown>): Record<string, unknown> {
@@ -193,7 +224,18 @@ function buildRecentRunSummary(recentRun: PromptRunRecord | null) {
   };
 }
 
-function buildNarrativeBlocks(modelType: StructuredModelType, inputs: ExtractedModelInputs): ModelNarrativeBlock[] {
+function buildNarrativeBlocks(
+  modelType: StructuredModelType,
+  inputs: ExtractedModelInputs,
+  scenarioContext: string | null,
+): ModelNarrativeBlock[] {
+  const scenarioBlock = scenarioContext
+    ? [{
+        title: 'SCENARIO CONTEXT',
+        body: `This run is framed under the scenario that ${scenarioContext.toLowerCase()}`,
+      }]
+    : [];
+
   switch (modelType) {
     case 'COMPS': {
       const compsInputs = inputs as ExtractedModelInputs & {
@@ -202,12 +244,14 @@ function buildNarrativeBlocks(modelType: StructuredModelType, inputs: ExtractedM
         subject: { revenue: number | null; ebitda: number | null; price: number | null };
       };
       return [
+        ...scenarioBlock,
         {
           title: 'FOUNDATIONAL VIEW',
           body: buildCompsFoundationParagraph({
             companyName: compsInputs.companyName,
             subject: compsInputs.subject,
             peers: compsInputs.peers,
+            scenarioContext,
           }),
         },
         {
@@ -236,6 +280,7 @@ function buildNarrativeBlocks(modelType: StructuredModelType, inputs: ExtractedM
           ? precedentsInputs.transactions.reduce((sum, transaction) => sum + transaction.premium, 0) / precedentsInputs.transactions.length
           : null;
       return [
+        ...scenarioBlock,
         {
           title: 'COMPANY SNAPSHOT',
           body: `${precedentsInputs.companyName} is being benchmarked against precedent transactions using subject revenue of ${fmtCurrency(precedentsInputs.subjectRevenue)} and EBITDA of ${fmtCurrency(precedentsInputs.subjectEbitda)}.`,
@@ -276,6 +321,7 @@ function buildNarrativeBlocks(modelType: StructuredModelType, inputs: ExtractedM
       ];
       const score = Math.round(scoreComponents.reduce((sum, value) => sum + value, 0));
       return [
+        ...scenarioBlock,
         {
           title: 'ASSET OVERVIEW',
           body: `${lboInputs.companyName} is seeded with revenue of ${fmtCurrency(lboInputs.revenue)} and EBITDA of ${fmtCurrency(lboInputs.ebitda)}. The base case assumes entry at ${lboInputs.entryMultiple.toFixed(1)}x EBITDA, exit at ${lboInputs.exitMultiple.toFixed(1)}x, and a ${lboInputs.holdingPeriodYears}-year hold.`,
@@ -292,6 +338,7 @@ function buildNarrativeBlocks(modelType: StructuredModelType, inputs: ExtractedM
     }
     case 'THREE_STATEMENT':
       return [
+        ...scenarioBlock,
         {
           title: 'MODEL FRAME',
           body: 'This three-statement model links the income statement, balance sheet, and cash flow statement into a reusable operating case that can be rerun as assumptions change.',
@@ -299,6 +346,7 @@ function buildNarrativeBlocks(modelType: StructuredModelType, inputs: ExtractedM
       ];
     case 'CAP_TABLE':
       return [
+        ...scenarioBlock,
         {
           title: 'ROUND SUMMARY',
           body: 'This cap table frames a financing round with dilution, post-money ownership, and option pool effects laid out for board or investor review.',
@@ -306,6 +354,7 @@ function buildNarrativeBlocks(modelType: StructuredModelType, inputs: ExtractedM
       ];
     case 'SAAS_OPERATING_MODEL':
       return [
+        ...scenarioBlock,
         {
           title: 'OPERATING MODEL',
           body: 'This SaaS model organizes ARR growth, churn, gross margin, and unit economics into a repeatable operating forecast with editable assumptions.',
@@ -968,6 +1017,7 @@ async function buildStructuredModelPayload(params: {
   const preview = TEMPLATE_MAP[modelType].getPreview(extractedInputs);
   const modelLabel = labelForModelType(modelType);
   const defaultsSummary = summarizeDefaults(defaultsUsed);
+  const scenarioContext = extractScenarioContext(prompt);
   const recentRun = await getLatestComparableRun({
     surface: 'analyst_chat',
     sessionId: sessionId ?? null,
@@ -984,20 +1034,22 @@ async function buildStructuredModelPayload(params: {
           changedKeys: computeChangedKeys(recentRun.latestVersion.assumptions, currentAssumptions),
         }
       : null;
-  const narrativeBlocks = buildNarrativeBlocks(modelType, extractedInputs);
+  const narrativeBlocks = buildNarrativeBlocks(modelType, extractedInputs, scenarioContext);
 
   return {
     reply: [
       replyPrefix ?? `Built a demo-ready ${modelLabel} model from your prompt. The workbook includes ${preview.tabs.join(', ')} so the output is immediately downloadable and reviewable in Excel.`,
+      scenarioContext ? `Scenario context: ${scenarioContext}` : null,
       `${defaultsSummary} Key outputs in the workbook are ${KEY_OUTPUTS[modelType].join(', ')}. Use the attached card to download the model file.`,
       narrativeBlocks.map((block) => `${block.title}\n${block.body}`).join('\n\n'),
-    ].join('\n\n'),
+    ].filter((item): item is string => Boolean(item)).join('\n\n'),
     payload: {
       prompt,
       modelType,
       title: preview.title,
       tabs: preview.tabs,
       keyOutputs: KEY_OUTPUTS[modelType],
+      scenarioContext,
       extractedInputs,
       defaultsUsed,
       provenanceSummary,

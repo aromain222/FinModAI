@@ -709,7 +709,13 @@ export function AnalystModelCard({
             comparisonSummary: payload.comparisonSummary,
           },
           reportInput: {
-            highLevelNotes: payload.narrativeBlocks.map((block) => `${block.title}: ${block.body}`).join(' '),
+            highLevelNotes: [
+              payload.scenarioContext ? `Scenario context: ${payload.scenarioContext}` : null,
+              `Prompt run: ${payload.prompt}`,
+              payload.narrativeBlocks.map((block) => `${block.title}: ${block.body}`).join(' '),
+            ]
+              .filter((item): item is string => Boolean(item))
+              .join(' '),
           },
         }),
       });
