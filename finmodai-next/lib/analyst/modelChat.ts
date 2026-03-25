@@ -8,6 +8,8 @@ import {
 import type { ComparisonSummary, PromptRunRecord, ProvenanceSummary } from '@/lib/model-generator/runHistory';
 import { getLatestComparableRun } from '@/lib/model-generator/runHistory';
 import * as compsTemplate from '@/lib/model-generator/templates/comps';
+import { calculateDebtCapacityPreview } from '@/lib/model-generator/debtCapacitySummary';
+import * as debtCapacityLiteTemplate from '@/lib/model-generator/templates/debtCapacityLite';
 import * as footballFieldTemplate from '@/lib/model-generator/templates/footballField';
 import { calculateMergerSummary } from '@/lib/model-generator/mergerSummary';
 import * as mergerTemplate from '@/lib/model-generator/templates/merger';
@@ -56,6 +58,7 @@ type PreviewBuilder = {
 
 const TEMPLATE_MAP: Record<StructuredModelType, PreviewBuilder> = {
   COMPS: compsTemplate as PreviewBuilder,
+  DEBT_CAPACITY_LITE: debtCapacityLiteTemplate as PreviewBuilder,
   FOOTBALL_FIELD: footballFieldTemplate as PreviewBuilder,
   MERGER: mergerTemplate as PreviewBuilder,
   PRECEDENTS: precedentsTemplate as PreviewBuilder,
@@ -67,6 +70,7 @@ const TEMPLATE_MAP: Record<StructuredModelType, PreviewBuilder> = {
 
 const KEY_OUTPUTS: Record<StructuredModelType, string[]> = {
   COMPS: ['Peer Trading Multiples', 'Implied Valuation Range', 'Premium / Discount View', 'Peer Set Summary'],
+  DEBT_CAPACITY_LITE: ['Leverage-Based Cap', 'Coverage-Based Cap', 'Selected Max Debt', 'Headroom vs Current Net Debt'],
   FOOTBALL_FIELD: ['Trading Range', 'Precedent Range', 'Equity Value Bridge', 'Implied Share Price Range'],
   MERGER: ['Deal Consideration Mix', 'Pro Forma EPS', 'EPS Accretion / Dilution', 'Sensitivity Framing'],
   PRECEDENTS: ['Transaction Multiples', 'Control Premium', 'Implied Valuation Range', 'Pitch Summary'],
@@ -80,6 +84,8 @@ function labelForModelType(modelType: StructuredModelType): string {
   switch (modelType) {
     case 'COMPS':
       return 'comparable company analysis';
+    case 'DEBT_CAPACITY_LITE':
+      return 'debt capacity';
     case 'FOOTBALL_FIELD':
       return 'football field';
     case 'MERGER':
@@ -284,6 +290,34 @@ function buildNarrativeBlocks(
         {
           title: 'WATCH NEXT',
           body: 'Refine the peer set, pressure-test outliers, and rerun the workbook after adjusting multiples or replacing low-quality peers.',
+        },
+      ];
+    }
+    case 'DEBT_CAPACITY_LITE': {
+      const debtInputs = inputs as ExtractedModelInputs & {
+        companyName: string;
+        ebitda: number | null;
+        currentNetDebt: number | null;
+        maxLeverage: number;
+        minInterestCoverage: number;
+        interestRate: number;
+      };
+      const summary = calculateDebtCapacityPreview(debtInputs as any);
+      return [
+        ...scenarioBlock,
+        {
+          title: 'CREDIT FRAME',
+          body: `${debtInputs.companyName} is being screened through a debt-capacity lens to see whether leverage or coverage sets the tighter ceiling on incremental debt.`,
+        },
+        {
+          title: 'UNDERWRITING ASSUMPTIONS',
+          body: `The current case uses EBITDA of ${fmtCurrency(debtInputs.ebitda)}, max leverage of ${debtInputs.maxLeverage.toFixed(1)}x, minimum interest coverage of ${debtInputs.minInterestCoverage.toFixed(1)}x, and an interest rate of ${fmtPercent(debtInputs.interestRate)}.`,
+        },
+        {
+          title: 'CAPACITY READ',
+          body: summary
+            ? `The model selects max debt of ${fmtCurrency(summary.maxDebt)}, with ${summary.bindingConstraint} currently binding. Headroom versus current net debt is ${fmtCurrency(summary.headroomVsNetDebt)}.`
+            : 'The current company snapshot does not yet provide enough EBITDA to support a usable debt-capacity conclusion.',
         },
       ];
     }

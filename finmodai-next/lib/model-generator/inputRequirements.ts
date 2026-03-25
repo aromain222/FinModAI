@@ -50,6 +50,13 @@ export const MODEL_INPUT_REQUIREMENTS: Record<ModelGeneratorType, ModelInputRequ
     criticalRules: [{ anyOf: ['companyName', 'companyType'] }],
     defaults: getModelDefaults('COMPS') as Record<string, unknown>,
   },
+  DEBT_CAPACITY_LITE: {
+    requiredInputs: ['companyName', 'ebitda'],
+    optionalInputs: ['maxLeverage', 'minInterestCoverage', 'interestRate'],
+    criticalInputs: ['companyName', 'ebitda'],
+    criticalRules: [{ anyOf: ['companyName', 'companyType'] }, { allOf: ['ebitda'] }],
+    defaults: getModelDefaults('DEBT_CAPACITY_LITE') as Record<string, unknown>,
+  },
   FOOTBALL_FIELD: {
     requiredInputs: ['companyName', 'companyType'],
     optionalInputs: ['peerSet', 'revenue', 'ebitda', 'sharePrice', 'netDebt'],

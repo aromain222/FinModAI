@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplates';
 import type { ModelGeneratorType } from '@/lib/model-generator/classifyPrompt';
+import { calculateDebtCapacityPreview } from '@/lib/model-generator/debtCapacitySummary';
 import { calculateMergerSummary } from '@/lib/model-generator/mergerSummary';
 import type { ComparisonSummary, ProvenanceSummary } from '@/lib/model-generator/runHistory';
 import { cn } from '@/lib/utils';
@@ -67,6 +68,7 @@ type RecentRun = {
 const EXAMPLE_PROMPTS = [
   'Generate a DCF model for Nvidia',
   'Build a comparable company analysis for Snowflake',
+  'Create a debt capacity model for Netflix',
   'Build an accretion dilution model for Microsoft acquiring Salesforce at $95B',
   'Build a football field for Salesforce',
   'Create a precedent transactions view for Mastercard',
@@ -244,6 +246,39 @@ function renderModelSpecificReview(preview: PreviewResponse) {
           values={previewDeals}
           emptyMessage="No precedent transactions resolved yet."
         />
+      </div>
+    );
+  }
+
+  if (preview.modelType === 'DEBT_CAPACITY_LITE') {
+    const extracted = preview.extractedInputs as Record<string, unknown>;
+    const summary = calculateDebtCapacityPreview(extracted as any);
+    return (
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Credit Anchor</div>
+          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
+            <div>EBITDA: {formatModelMoney(extracted.ebitda)}</div>
+            <div>Current Net Debt: {formatModelMoney(extracted.currentNetDebt)}</div>
+            <div>Company: {String(extracted.companyName ?? 'n/a')}</div>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Underwriting Assumptions</div>
+          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
+            <div>Max Leverage: {formatCompactMetric(extracted.maxLeverage, 'multiple')}</div>
+            <div>Min Interest Coverage: {formatCompactMetric(extracted.minInterestCoverage, 'multiple')}</div>
+            <div>Interest Rate: {formatCompactMetric(extracted.interestRate, 'percent')}</div>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Capacity Read</div>
+          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
+            <div>Selected Max Debt: {summary ? formatModelMoney(summary.maxDebt) : 'n/a'}</div>
+            <div>Binding Constraint: {summary ? String(summary.bindingConstraint) : 'n/a'}</div>
+            <div>Headroom vs Net Debt: {summary ? formatModelMoney(summary.headroomVsNetDebt) : 'n/a'}</div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -567,7 +602,7 @@ export function PromptToModel() {
       !preview.handoffOnly &&
       !preview.needsClarification &&
       !reportLoading &&
-      (preview?.modelType === 'FOOTBALL_FIELD' || preview?.modelType === 'MERGER')
+      (preview?.modelType === 'FOOTBALL_FIELD' || preview?.modelType === 'MERGER' || preview?.modelType === 'DEBT_CAPACITY_LITE')
   );
 
   useEffect(() => {
@@ -704,7 +739,7 @@ export function PromptToModel() {
                 {generateLoading ? 'Generating Workbook…' : 'Generate Model'}
               </Button>
             )}
-            {preview?.modelType === 'FOOTBALL_FIELD' || preview?.modelType === 'MERGER' ? (
+            {preview?.modelType === 'FOOTBALL_FIELD' || preview?.modelType === 'MERGER' || preview?.modelType === 'DEBT_CAPACITY_LITE' ? (
               <Button variant="outline" onClick={() => void handleGenerateReport()} disabled={!canGenerateReport}>
                 {reportLoading ? 'Generating Report PDF…' : 'Generate Report PDF'}
               </Button>
@@ -874,7 +909,7 @@ export function PromptToModel() {
                   </div>
                   <div className="flex items-center gap-2 rounded-full border border-[rgba(118,138,161,0.16)] bg-[rgba(255,255,255,0.03)] px-3 py-1.5 text-xs font-medium text-[var(--cb-text-secondary)]">
                     <FileSpreadsheet className="h-4 w-4" />
-                    {preview?.modelType === 'FOOTBALL_FIELD' || preview?.modelType === 'MERGER'
+                    {preview?.modelType === 'FOOTBALL_FIELD' || preview?.modelType === 'MERGER' || preview?.modelType === 'DEBT_CAPACITY_LITE'
                       ? 'Excel + memo-ready path'
                       : 'Excel-ready path'}
                   </div>

@@ -31,6 +31,7 @@ const MODEL_TYPE_MAP: Record<string, ReportModelType> = {
   MERGER: 'merger',
   PRECEDENTS: 'precedents',
   LBO: 'lbo',
+  DEBT_CAPACITY_LITE: 'debt-capacity-lite',
   CAP_TABLE: 'cap-table',
   SAAS_OPERATING_MODEL: 'saas-operating-model',
   'cap-table': 'cap-table',

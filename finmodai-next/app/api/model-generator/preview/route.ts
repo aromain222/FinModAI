@@ -9,6 +9,7 @@ import * as threeStatementTemplate from '@/lib/model-generator/templates/threeSt
 import * as capTableTemplate from '@/lib/model-generator/templates/capTable';
 import * as saasOperatingTemplate from '@/lib/model-generator/templates/saasOperating';
 import * as compsTemplate from '@/lib/model-generator/templates/comps';
+import * as debtCapacityLiteTemplate from '@/lib/model-generator/templates/debtCapacityLite';
 import * as footballFieldTemplate from '@/lib/model-generator/templates/footballField';
 import * as mergerTemplate from '@/lib/model-generator/templates/merger';
 import * as precedentsTemplate from '@/lib/model-generator/templates/precedents';
@@ -28,6 +29,7 @@ const TEMPLATE_MAP: Record<ModelGeneratorType, PreviewBuilder> = {
   CAP_TABLE: capTableTemplate as PreviewBuilder,
   SAAS_OPERATING_MODEL: saasOperatingTemplate as PreviewBuilder,
   COMPS: compsTemplate as PreviewBuilder,
+  DEBT_CAPACITY_LITE: debtCapacityLiteTemplate as PreviewBuilder,
   FOOTBALL_FIELD: footballFieldTemplate as PreviewBuilder,
   MERGER: mergerTemplate as PreviewBuilder,
   PRECEDENTS: precedentsTemplate as PreviewBuilder,
@@ -40,6 +42,7 @@ const KEY_OUTPUTS: Record<ModelGeneratorType, string[]> = {
   CAP_TABLE: ['Post-Money Valuation', 'Founder Dilution', 'New Investor Ownership', 'Option Pool Impact'],
   SAAS_OPERATING_MODEL: ['ARR Growth', 'Gross Margin', 'CAC Payback', 'LTV:CAC'],
   COMPS: ['Peer Trading Multiples', 'Implied Valuation Range', 'Premium / Discount View', 'Peer Set Summary'],
+  DEBT_CAPACITY_LITE: ['Leverage-Based Cap', 'Coverage-Based Cap', 'Selected Max Debt', 'Headroom vs Current Net Debt'],
   FOOTBALL_FIELD: ['Trading Range', 'Precedent Range', 'Equity Value Bridge', 'Implied Share Price Range'],
   MERGER: ['Deal Consideration Mix', 'Pro Forma EPS', 'EPS Accretion / Dilution', 'Sensitivity Framing'],
   PRECEDENTS: ['Transaction Multiples', 'Control Premium', 'Implied Valuation Range', 'Pitch Summary'],
@@ -78,6 +81,11 @@ const MODEL_PLAYBOOKS: Record<
     decisionQuestion: 'Where should the company trade versus peers once scale, quality, and multiple selection are normalized?',
     whatToEditFirst: ['Peer set quality', 'Selected EV / Revenue and EV / EBITDA multiples', 'Price anchor and share count'],
     reviewStandard: 'Treat the peer table as the audit trail and challenge outliers before accepting the implied range.',
+  },
+  DEBT_CAPACITY_LITE: {
+    decisionQuestion: 'How much debt can the company support before leverage or interest coverage becomes the binding constraint?',
+    whatToEditFirst: ['EBITDA anchor', 'Max leverage', 'Minimum interest coverage', 'Interest rate'],
+    reviewStandard: 'Use this as a first-pass credit screen. The binding constraint and headroom should be credible before you trust the output.',
   },
   FOOTBALL_FIELD: {
     decisionQuestion: 'What valuation range is defensible once trading and transaction framing are lined up side by side?',
@@ -176,7 +184,7 @@ export async function POST(req: NextRequest) {
         return coreTemplateResponse;
       }
       return buildUnsupportedResponse(
-        'Unsupported prompt. Direct prompt generation currently supports DCF, three-statement, cap table, SaaS operating, comps, football field, merger / accretion-dilution, precedents, and LBO. Broader finance-native models should route into their dedicated CapitalBase workflows.'
+        'Unsupported prompt. Direct prompt generation currently supports DCF, three-statement, cap table, SaaS operating, comps, debt capacity, football field, merger / accretion-dilution, precedents, and LBO. Broader finance-native models should route into their dedicated CapitalBase workflows.'
       );
     }
 

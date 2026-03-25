@@ -5,6 +5,7 @@ import {
   CAP_TABLE_DEFAULTS,
   COMPS_DEFAULTS,
   DCF_DEFAULTS,
+  DEBT_CAPACITY_LITE_DEFAULTS,
   FOOTBALL_FIELD_DEFAULTS,
   LBO_DEFAULTS,
   MERGER_DEFAULTS,
@@ -96,6 +97,19 @@ export type CompsModelInputs = {
   };
   subject: CompsPeerInputs;
   peers: CompsPeerInputs[];
+};
+
+export type DebtCapacityLiteModelInputs = {
+  modelType: 'DEBT_CAPACITY_LITE';
+  companyName: string;
+  companyType?: string;
+  ticker?: string;
+  source: string;
+  ebitda: number | null;
+  currentNetDebt: number | null;
+  maxLeverage: number;
+  minInterestCoverage: number;
+  interestRate: number;
 };
 
 export type FootballFieldRangeInputs = {
@@ -232,6 +246,7 @@ export type ExtractedModelInputs =
   | ThreeStatementModelInputs
   | CapTableModelInputs
   | CompsModelInputs
+  | DebtCapacityLiteModelInputs
   | FootballFieldModelInputs
   | MergerModelInputs
   | PrecedentsModelInputs
@@ -394,6 +409,9 @@ export async function extractInputs(
       break;
     case 'COMPS':
       result = await buildCompsInputs(fullPrompt);
+      break;
+    case 'DEBT_CAPACITY_LITE':
+      result = await buildDebtCapacityLiteInputs(fullPrompt);
       break;
     case 'FOOTBALL_FIELD':
       result = await buildFootballFieldInputs(fullPrompt);
@@ -929,14 +947,20 @@ async function resolveDemoCompany(prompt: string): Promise<{ snapshot: DemoCompa
   }
 
   const normalizedPrompt = normalizeText(prompt);
+  const promptTokens = normalizedPrompt.split(' ').filter((token) => token.length >= 3);
   let best: { snapshot: DemoCompanySnapshot; ticker: string; score: number } | null = null;
 
   for (const [candidateTicker, snapshot] of Object.entries(snapshots)) {
     const name = normalizeText(snapshot.companyName || '');
     if (!name) continue;
-    if (!normalizedPrompt.includes(name)) continue;
-    if (!best || name.length > best.score) {
-      best = { snapshot, ticker: candidateTicker, score: name.length };
+    const matchesFullName = normalizedPrompt.includes(name);
+    const matchesEntityTokens =
+      promptTokens.length > 0 && promptTokens.every((token) => name.includes(token));
+    if (!matchesFullName && !matchesEntityTokens) continue;
+
+    const score = matchesFullName ? name.length + 1000 : promptTokens.join(' ').length;
+    if (!best || score > best.score) {
+      best = { snapshot, ticker: candidateTicker, score };
     }
   }
 
@@ -1535,6 +1559,86 @@ async function buildFootballFieldInputs(prompt: string): Promise<ExtractInputsRe
     missingCriticalInputs,
     provenanceSummary: buildProvenanceSummary({
       source: 'demo_football_field_framework',
+      fallbackUsed: Object.keys(defaultsUsed),
+    }),
+  };
+}
+
+async function buildDebtCapacityLiteInputs(prompt: string): Promise<ExtractInputsResult> {
+  const providedInputs = new Set<string>();
+  const defaultsUsed: Record<string, unknown> = {};
+  const parsedCompanyName = extractCompanyName(prompt);
+  const resolutionPrompt = parsedCompanyName ?? prompt;
+  const stored = await resolveStoredCompany(resolutionPrompt);
+  const resolved =
+    stored?.snapshot
+      ? null
+      : (await resolveDemoCompany(resolutionPrompt)) ??
+        (resolutionPrompt === prompt ? null : await resolveDemoCompany(prompt));
+
+  const companyType =
+    extractCompanyType(prompt) ??
+    stored?.company.companyType ??
+    stored?.company.sector ??
+    resolved?.snapshot.sector ??
+    null;
+  const companyName =
+    parsedCompanyName || stored?.company.name || resolved?.snapshot.companyName || deriveCompanyLabel(companyType, 'Credit Subject');
+  const ticker = stored?.company.ticker ?? resolved?.ticker;
+
+  if (companyType) providedInputs.add('companyType');
+  if (parsedCompanyName || stored?.company.name || resolved?.snapshot.companyName) providedInputs.add('companyName');
+
+  const ebitda = stored?.snapshot?.ebitdaLtm ?? resolved?.snapshot.ebitdaLtm ?? null;
+  const currentNetDebt =
+    (stored?.snapshot?.totalDebt ?? resolved?.snapshot.totalDebt ?? 0) - (stored?.snapshot?.cash ?? resolved?.snapshot.cash ?? 0);
+  if (ebitda !== null) providedInputs.add('ebitda');
+
+  const maxLeverageInput =
+    extractMultiple(prompt, /max leverage\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*x?/i) ??
+    extractMultiple(prompt, /(\d+(?:\.\d+)?)\s*x\s*(?:max )?leverage/i);
+  const minCoverageInput =
+    extractMultiple(prompt, /min(?:imum)? interest coverage\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*x?/i) ??
+    extractMultiple(prompt, /(\d+(?:\.\d+)?)\s*x\s*(?:minimum )?interest coverage/i);
+  const interestRateInput = extractMargin(prompt, /interest rate\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*%/i);
+
+  const maxLeverage = maxLeverageInput ?? DEBT_CAPACITY_LITE_DEFAULTS.maxLeverage;
+  const minInterestCoverage = minCoverageInput ?? DEBT_CAPACITY_LITE_DEFAULTS.minInterestCoverage;
+  const interestRate = interestRateInput ?? DEBT_CAPACITY_LITE_DEFAULTS.interestRate;
+
+  if (maxLeverageInput !== undefined) providedInputs.add('maxLeverage');
+  else defaultsUsed.maxLeverage = DEBT_CAPACITY_LITE_DEFAULTS.maxLeverage;
+  if (minCoverageInput !== undefined) providedInputs.add('minInterestCoverage');
+  else defaultsUsed.minInterestCoverage = DEBT_CAPACITY_LITE_DEFAULTS.minInterestCoverage;
+  if (interestRateInput !== undefined) providedInputs.add('interestRate');
+  else defaultsUsed.interestRate = DEBT_CAPACITY_LITE_DEFAULTS.interestRate;
+
+  const missingInputs = buildMissingList([
+    ['companyName or companyType', providedInputs.has('companyName') || providedInputs.has('companyType')],
+    ['EBITDA anchor', ebitda !== null],
+  ]);
+  const missingCriticalInputs = evaluateCriticalInputs('DEBT_CAPACITY_LITE', providedInputs);
+
+  return {
+    extractedInputs: {
+      modelType: 'DEBT_CAPACITY_LITE',
+      companyName,
+      companyType: companyType ?? undefined,
+      ticker,
+      source: stored?.snapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
+      ebitda,
+      currentNetDebt: Number.isFinite(currentNetDebt) ? currentNetDebt : null,
+      maxLeverage,
+      minInterestCoverage,
+      interestRate,
+    },
+    defaultsUsed,
+    missingInputs,
+    missingCriticalInputs,
+    provenanceSummary: buildProvenanceSummary({
+      source: stored?.snapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
+      asOfDate: stored?.snapshot?.asOfDate ?? resolved?.snapshot.updatedAt ?? null,
+      lastSynced: stored?.snapshot?.createdAt ?? stored?.latestPrice?.createdAt ?? resolved?.snapshot.updatedAt ?? null,
       fallbackUsed: Object.keys(defaultsUsed),
     }),
   };

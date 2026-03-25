@@ -5,6 +5,7 @@ import {
   type CompsModelInputs,
   extractInputs,
   type CapTableModelInputs,
+  type DebtCapacityLiteModelInputs,
   type DcfModelInputs,
   type FootballFieldModelInputs,
   type LboModelInputs,
@@ -19,6 +20,7 @@ import * as threeStatementTemplate from '@/lib/model-generator/templates/threeSt
 import * as capTableTemplate from '@/lib/model-generator/templates/capTable';
 import * as saasOperatingTemplate from '@/lib/model-generator/templates/saasOperating';
 import * as compsTemplate from '@/lib/model-generator/templates/comps';
+import * as debtCapacityLiteTemplate from '@/lib/model-generator/templates/debtCapacityLite';
 import * as footballFieldTemplate from '@/lib/model-generator/templates/footballField';
 import * as mergerTemplate from '@/lib/model-generator/templates/merger';
 import * as precedentsTemplate from '@/lib/model-generator/templates/precedents';
@@ -36,6 +38,7 @@ type WorkbookBuilder = {
       | CapTableModelInputs
       | SaasOperatingModelInputs
       | CompsModelInputs
+      | DebtCapacityLiteModelInputs
       | FootballFieldModelInputs
       | MergerModelInputs
       | PrecedentsModelInputs
@@ -51,6 +54,7 @@ const TEMPLATE_MAP: Record<ModelGeneratorType, WorkbookBuilder> = {
   CAP_TABLE: capTableTemplate as WorkbookBuilder,
   SAAS_OPERATING_MODEL: saasOperatingTemplate as WorkbookBuilder,
   COMPS: compsTemplate as WorkbookBuilder,
+  DEBT_CAPACITY_LITE: debtCapacityLiteTemplate as WorkbookBuilder,
   FOOTBALL_FIELD: footballFieldTemplate as WorkbookBuilder,
   MERGER: mergerTemplate as WorkbookBuilder,
   PRECEDENTS: precedentsTemplate as WorkbookBuilder,
@@ -69,6 +73,7 @@ function buildFilename(
     | CapTableModelInputs
     | SaasOperatingModelInputs
     | CompsModelInputs
+    | DebtCapacityLiteModelInputs
     | FootballFieldModelInputs
     | MergerModelInputs
     | PrecedentsModelInputs
@@ -80,6 +85,9 @@ function buildFilename(
   const base = 'companyName' in inputs ? inputs.companyName : modelType;
   if (modelType === 'COMPS') {
     return `CapitalBase_${sanitizeFilename(base)}_Comparable_Analysis.xlsx`;
+  }
+  if (modelType === 'DEBT_CAPACITY_LITE') {
+    return `CapitalBase_${sanitizeFilename(base)}_Debt_Capacity.xlsx`;
   }
   if (modelType === 'FOOTBALL_FIELD') {
     return `CapitalBase_${sanitizeFilename(base)}_Football_Field.xlsx`;
@@ -114,7 +122,7 @@ export async function POST(req: NextRequest) {
     const modelType = classifyPrompt(prompt);
     if (!modelType) {
       return NextResponse.json(
-        { error: 'Unsupported prompt. This MVP supports DCF, three-statement, cap table, SaaS operating, comps, football field, merger / accretion-dilution, precedents, and LBO models.' },
+        { error: 'Unsupported prompt. This MVP supports DCF, three-statement, cap table, SaaS operating, comps, debt capacity, football field, merger / accretion-dilution, precedents, and LBO models.' },
         { status: 400 }
       );
     }

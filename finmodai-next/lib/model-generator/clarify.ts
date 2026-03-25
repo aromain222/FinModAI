@@ -39,6 +39,11 @@ export function getClarificationDecision(
         needsClarification: true,
         clarificationQuestion: 'What company or business type should I use for the comps set?',
       };
+    case 'DEBT_CAPACITY_LITE':
+      return {
+        needsClarification: true,
+        clarificationQuestion: 'What company should I anchor the debt capacity screen on, and do you want specific leverage, coverage, or rate assumptions?',
+      };
     case 'FOOTBALL_FIELD':
       return {
         needsClarification: true,
