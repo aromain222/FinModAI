@@ -8,6 +8,7 @@ import {
 import type { ComparisonSummary, PromptRunRecord, ProvenanceSummary } from '@/lib/model-generator/runHistory';
 import { getLatestComparableRun } from '@/lib/model-generator/runHistory';
 import * as compsTemplate from '@/lib/model-generator/templates/comps';
+import * as footballFieldTemplate from '@/lib/model-generator/templates/footballField';
 import * as precedentsTemplate from '@/lib/model-generator/templates/precedents';
 import * as lboTemplate from '@/lib/model-generator/templates/lbo';
 import * as threeStatementTemplate from '@/lib/model-generator/templates/threeStatement';
@@ -53,6 +54,7 @@ type PreviewBuilder = {
 
 const TEMPLATE_MAP: Record<StructuredModelType, PreviewBuilder> = {
   COMPS: compsTemplate as PreviewBuilder,
+  FOOTBALL_FIELD: footballFieldTemplate as PreviewBuilder,
   PRECEDENTS: precedentsTemplate as PreviewBuilder,
   LBO: lboTemplate as PreviewBuilder,
   THREE_STATEMENT: threeStatementTemplate as PreviewBuilder,
@@ -62,6 +64,7 @@ const TEMPLATE_MAP: Record<StructuredModelType, PreviewBuilder> = {
 
 const KEY_OUTPUTS: Record<StructuredModelType, string[]> = {
   COMPS: ['Peer Trading Multiples', 'Implied Valuation Range', 'Premium / Discount View', 'Peer Set Summary'],
+  FOOTBALL_FIELD: ['Trading Range', 'Precedent Range', 'Equity Value Bridge', 'Implied Share Price Range'],
   PRECEDENTS: ['Transaction Multiples', 'Control Premium', 'Implied Valuation Range', 'Pitch Summary'],
   LBO: ['MOIC', 'IRR', 'Exit Equity Value', 'Debt Paydown'],
   THREE_STATEMENT: ['Revenue CAGR', 'EBITDA Margin', 'Ending Cash', 'Debt Balance'],
@@ -73,6 +76,8 @@ function labelForModelType(modelType: StructuredModelType): string {
   switch (modelType) {
     case 'COMPS':
       return 'comparable company analysis';
+    case 'FOOTBALL_FIELD':
+      return 'football field';
     case 'PRECEDENTS':
       return 'precedent transactions';
     case 'LBO':
@@ -194,7 +199,7 @@ function buildCompsFoundationParagraph(inputs: {
 }
 
 function extractComparableAssumptions(inputs: Record<string, unknown>): Record<string, unknown> {
-  const skip = new Set(['modelType', 'source', 'companyName', 'ticker', 'companyType', 'peerSetLabel', 'subject', 'peers', 'transactions']);
+  const skip = new Set(['modelType', 'source', 'companyName', 'ticker', 'companyType', 'peerSetLabel', 'subject', 'peers', 'transactions', 'ranges']);
   return Object.fromEntries(Object.entries(inputs).filter(([key]) => !skip.has(key)));
 }
 
@@ -265,6 +270,24 @@ function buildNarrativeBlocks(
         {
           title: 'WATCH NEXT',
           body: 'Refine the peer set, pressure-test outliers, and rerun the workbook after adjusting multiples or replacing low-quality peers.',
+        },
+      ];
+    }
+    case 'FOOTBALL_FIELD': {
+      const footballInputs = inputs as ExtractedModelInputs & {
+        companyName: string;
+        ranges: Array<{ label: string; midValue: number | null; midPrice: number | null }>;
+      };
+      const populatedCount = footballInputs.ranges.filter((range) => typeof range.midValue === 'number').length;
+      return [
+        ...scenarioBlock,
+        {
+          title: 'VALUATION FRAME',
+          body: `${footballInputs.companyName} is being framed through a banker-style football field with ${populatedCount} populated valuation methods. The output is designed to compare where trading and transaction ranges overlap, not to collapse everything into one blended answer.`,
+        },
+        {
+          title: 'METHOD READ',
+          body: 'Use the field to show spread and overlap between methods, then challenge the weakest underlying method first. Large gaps usually mean peer selection, control-value framing, or subject denominators need to be revisited.',
         },
       ];
     }

@@ -205,6 +205,88 @@ function createLBOSummarySheet(
     valueCol: 2,
   });
 
+  const exitDebt = output.debtSchedule[output.debtSchedule.length - 1]?.endingBalance ?? 0;
+  const exitExcessCash = output.debtSchedule[output.debtSchedule.length - 1]?.excessCash ?? 0;
+  const exitEbitda = output.projections[output.projections.length - 1]?.ebitda ?? output.inputs.ebitda;
+  const sponsorEquity = output.sourcesAndUses.sources.sponsorEquity;
+  const debtPaydown = totalDebt - exitDebt;
+  const operatingValueAtEntryMultiple = exitEbitda * entryMultiple;
+  const ebitdaGrowthEffect = operatingValueAtEntryMultiple - output.returns.entryEV;
+  const multipleExpansionEffect = output.returns.exitEV - operatingValueAtEntryMultiple;
+
+  row = (sheet.lastRow?.number ?? row) + 2;
+  sectionHeader(sheet, row, 'Sponsor Case Overview', lastDataCol);
+  row++;
+  sheet.mergeCells(row, 1, row, lastDataCol);
+  sheet.getCell(row, 1).value =
+    'Start on this sheet to judge whether the entry price, leverage package, and exit underwriting support the target return. Then move into Sources & Uses, Debt Schedule, and Returns before changing the case.';
+  sheet.getCell(row, 1).font = { name: 'Aptos', size: 10, color: { argb: 'FF475569' } };
+  sheet.getCell(row, 1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFF8FAFC' },
+  };
+  sheet.getCell(row, 1).alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+  row += 2;
+
+  sectionHeader(sheet, row, 'Leverage & Exit Profile', lastDataCol);
+  row++;
+  const leverageStartRow = row;
+  const leverageRows: Array<{ label: string; value: number; format: string }> = [
+    { label: 'Entry Debt', value: totalDebt, format: MONEY_FMT },
+    { label: 'Exit Debt', value: exitDebt, format: MONEY_FMT },
+    { label: 'Debt Paydown', value: debtPaydown, format: MONEY_FMT },
+    { label: 'Exit Excess Cash', value: exitExcessCash, format: MONEY_FMT },
+    { label: 'Exit EBITDA', value: exitEbitda, format: MONEY_FMT },
+    { label: 'Exit Debt / EBITDA', value: exitEbitda > 0 ? exitDebt / exitEbitda : 0, format: MULTIPLE_FMT },
+  ];
+  leverageRows.forEach((item) => {
+    sheet.getCell(row, 1).value = item.label;
+    applyLabelStyle(sheet.getCell(row, 1));
+    const valueCell = sheet.getCell(row, 2);
+    valueCell.value = item.value;
+    fmt(valueCell, item.format);
+    styleKitOutputCell(valueCell);
+    row++;
+  });
+  zebraRows(sheet, leverageStartRow, row - 1, 1, 2);
+  borderBox(sheet, leverageStartRow - 1, 1, row - 1, 2);
+
+  row += 1;
+  sectionHeader(sheet, row, 'Value Driver View', lastDataCol);
+  row++;
+  const driverStartRow = row;
+  const driverRows: Array<{ label: string; value: number; format: string }> = [
+    { label: 'Entry Sponsor Equity', value: sponsorEquity, format: MONEY_FMT },
+    { label: 'EBITDA Growth Effect', value: ebitdaGrowthEffect, format: MONEY_FMT },
+    { label: 'Multiple Shift Effect', value: multipleExpansionEffect, format: MONEY_FMT },
+    { label: 'Debt Paydown Effect', value: debtPaydown, format: MONEY_FMT },
+    { label: 'Exit Equity Value', value: output.returns.exitEquityValue, format: MONEY_FMT },
+  ];
+  driverRows.forEach((item) => {
+    sheet.getCell(row, 1).value = item.label;
+    applyLabelStyle(sheet.getCell(row, 1));
+    const valueCell = sheet.getCell(row, 2);
+    valueCell.value = item.value;
+    fmt(valueCell, item.format);
+    styleKitOutputCell(valueCell);
+    row++;
+  });
+  zebraRows(sheet, driverStartRow, row - 1, 1, 2);
+  borderBox(sheet, driverStartRow - 1, 1, row - 1, 2);
+
+  row += 1;
+  sheet.mergeCells(row, 1, row, lastDataCol);
+  sheet.getCell(row, 1).value =
+    'The value-driver view is directional. Use Returns and the Debt Schedule for the exact sponsor payoff mechanics, especially when fees or excess cash are material.';
+  sheet.getCell(row, 1).font = { name: 'Aptos', size: 10, color: { argb: 'FF64748B' } };
+  sheet.getCell(row, 1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFF8FAFC' },
+  };
+  sheet.getCell(row, 1).alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+
   const lastUsedRow = sheet.lastRow?.number ?? row;
   setColWidthsKit(sheet, [34, 22, 18]);
   applySheetDefaults(sheet, { freezeRow: 3, freezeCol: 1, headerRowCount: 3, lastCol: lastDataCol, lastRow: lastUsedRow });
@@ -653,6 +735,56 @@ function createReturnsSheet(
 
   zebraRows(sheet, cfHeader + 1, row - 1, 1, lastDataCol);
   borderBox(sheet, cfHeader, 1, row - 1, lastDataCol);
+
+  row += 2;
+  sectionHeader(sheet, row, 'Sponsor Return Bridge', lastDataCol);
+  row++;
+
+  const entryMultiple = output.returns.entryEV / output.inputs.ebitda;
+  const totalDebt = output.sourcesAndUses.sources.seniorDebt + output.sourcesAndUses.sources.subordinatedDebt;
+  const exitDebt = output.debtSchedule[output.debtSchedule.length - 1]?.endingBalance ?? 0;
+  const exitCash = output.returns.exitExcessCash ?? 0;
+  const exitEbitda = output.projections[output.projections.length - 1]?.ebitda ?? output.inputs.ebitda;
+  const exitValueAtEntryMultiple = exitEbitda * entryMultiple;
+  const ebitdaGrowthEffect = exitValueAtEntryMultiple - output.returns.entryEV;
+  const multipleShiftEffect = output.returns.exitEV - exitValueAtEntryMultiple;
+  const deleveragingEffect = totalDebt - exitDebt;
+  const bridgeStartRow = row;
+  const bridgeRows: Array<{ label: string; value: number; format: string }> = [
+    { label: 'Entry Sponsor Equity', value: output.sourcesAndUses.sources.sponsorEquity, format: MONEY_FMT },
+    { label: 'EBITDA Growth Effect', value: ebitdaGrowthEffect, format: MONEY_FMT },
+    { label: 'Multiple Shift Effect', value: multipleShiftEffect, format: MONEY_FMT },
+    { label: 'Debt Paydown Effect', value: deleveragingEffect, format: MONEY_FMT },
+    { label: 'Exit Excess Cash', value: exitCash, format: MONEY_FMT },
+    { label: 'Exit Equity Value', value: output.returns.exitEquityValue, format: MONEY_FMT },
+  ];
+  bridgeRows.forEach((item, index) => {
+    sheet.getCell(row, 1).value = item.label;
+    applyLabelStyle(sheet.getCell(row, 1));
+    const valueCell = sheet.getCell(row, 2);
+    valueCell.value = item.value;
+    fmt(valueCell, item.format);
+    if (index === bridgeRows.length - 1) {
+      valueCell.style = createTotalStyle();
+    } else {
+      styleKitOutputCell(valueCell);
+    }
+    row++;
+  });
+  zebraRows(sheet, bridgeStartRow, row - 1, 1, 2);
+  borderBox(sheet, bridgeStartRow - 1, 1, row - 1, 2);
+
+  row += 1;
+  sheet.mergeCells(row, 1, row, lastDataCol);
+  sheet.getCell(row, 1).value =
+    'Use the bridge to separate operating improvement from multiple movement and deleveraging. The sponsor payoff should not be treated as a single black-box IRR output.';
+  sheet.getCell(row, 1).font = { name: 'Aptos', size: 10, color: { argb: 'FF64748B' } };
+  sheet.getCell(row, 1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFF8FAFC' },
+  };
+  sheet.getCell(row, 1).alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
 
   const lastUsedRow = row - 1;
   setColWidthsKit(sheet, [10, 22, 28]);

@@ -3,6 +3,7 @@ export type ReportModelType =
   | 'reverse-dcf'
   | 'lbo'
   | 'comps'
+  | 'football-field'
   | 'precedents'
   | 'merger'
   | 'ma-accretion-dilution'

@@ -17,6 +17,7 @@ export type ModelType =
   | 'lbo'
   | 'three-statement'
   | 'comps'
+  | 'football-field'
   | 'merger'
   | 'operating'
   | 'scorecard';

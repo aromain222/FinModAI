@@ -65,6 +65,7 @@ function humanModelLabel(modelType: string): string {
   const map: Record<string, string> = {
     DCF: 'DCF',
     COMPS: 'Comparable Company Analysis',
+    FOOTBALL_FIELD: 'Football Field',
     PRECEDENTS: 'Precedent Transactions Analysis',
     LBO: 'LBO',
     THREE_STATEMENT: 'Three-Statement Model',
@@ -81,6 +82,7 @@ function buildTitle(data: ModelRunReportData): string {
     THREE_STATEMENT: `${company} Integrated Forecast Review`,
     DCF: `${company} Valuation Review`,
     COMPS: `${company} Comparable Valuation Review`,
+    FOOTBALL_FIELD: `${company} Football Field Review`,
     PRECEDENTS: `${company} Transaction Benchmark Review`,
     LBO: `${company} LBO Underwriting Review`,
     SCORECARD: `${company} Fundamentals Review`,

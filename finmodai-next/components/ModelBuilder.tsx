@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { Building2, CheckCircle2, FileSpreadsheet, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -24,6 +25,12 @@ type BuilderResult = {
   filename: string;
   summary: Summary | null;
 };
+
+const BUILDER_STEPS = [
+  { title: 'Define Company', description: 'Describe the company and model request.', icon: Building2 },
+  { title: 'Set Overrides', description: 'Tighten the valuation inputs only when needed.', icon: SlidersHorizontal },
+  { title: 'Generate Workbook', description: 'Produce the Excel file and download-ready summary.', icon: CheckCircle2 },
+] as const;
 
 function parseContentDispositionFilename(value: string | null): string | null {
   if (!value) return null;
@@ -65,6 +72,10 @@ export function ModelBuilder() {
   }, [result?.fileUrl]);
 
   const canGenerate = useMemo(() => prompt.trim().length >= 3 && !loading, [prompt, loading]);
+  const overrideCount = useMemo(
+    () => [years, wacc, terminalG, terminalMethod, exitMultiple].filter((value) => String(value).trim().length > 0).length,
+    [years, wacc, terminalG, terminalMethod, exitMultiple]
+  );
 
   const handleGenerate = async () => {
     if (!canGenerate) return;
@@ -118,11 +129,57 @@ export function ModelBuilder() {
 
   return (
     <div className="space-y-6">
+      <Card className="overflow-hidden border-[rgba(118,138,161,0.18)] bg-[linear-gradient(180deg,rgba(11,14,19,0.98),rgba(14,18,24,0.92))] shadow-[0_24px_70px_rgba(0,0,0,0.35)]">
+        <CardHeader className="border-b border-[rgba(118,138,161,0.14)]">
+          <CardTitle className="text-xl text-[var(--cb-text-primary)]">Build the DCF in three steps</CardTitle>
+          <CardDescription>
+            Keep the prompt as the primary input, use overrides sparingly, then export a finance-native workbook with a quick valuation summary.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5 p-6">
+          <div className="flex flex-wrap gap-2">
+            <div className="rounded-full border border-[rgba(118,138,161,0.18)] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 text-xs font-medium text-[var(--cb-text-secondary)]">
+              Prompt status: {prompt.trim() ? 'Defined' : 'Waiting'}
+            </div>
+            <div className="rounded-full border border-[rgba(118,138,161,0.18)] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 text-xs font-medium text-[var(--cb-text-secondary)]">
+              Overrides: {overrideCount} active
+            </div>
+            <div className="rounded-full border border-[rgba(118,138,161,0.18)] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 text-xs font-medium text-[var(--cb-text-secondary)]">
+              Output: Excel workbook
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            {BUILDER_STEPS.map((step, index) => {
+              const Icon = step.icon;
+              return (
+                <div
+                  key={step.title}
+                  className="rounded-2xl border border-[rgba(118,138,161,0.16)] bg-[rgba(255,255,255,0.02)] p-4"
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[rgba(16,36,62,0.8)] text-white">
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">
+                      Step {index + 1}
+                    </div>
+                  </div>
+                  <div className="text-sm font-semibold text-[var(--cb-text-primary)]">{step.title}</div>
+                  <div className="mt-1 text-sm text-[var(--cb-text-secondary)]">{step.description}</div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
         <CardHeader>
-          <CardTitle>DCF Model Generator</CardTitle>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Step 1</div>
+          <CardTitle>Define Company And Model Request</CardTitle>
           <CardDescription>
-            Prompt the copilot in plain English. It produces a validated DCF spec, then generates an investor-grade Excel workbook.
+            Prompt the copilot in plain English. This stays as the main input to the generator.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -136,76 +193,91 @@ export function ModelBuilder() {
               placeholder="Generate a DCF model for Google"
             />
           </div>
+        </CardContent>
+      </Card>
 
-          <details className="rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
-            <summary className="cursor-pointer list-none text-sm font-medium text-[var(--cb-text-primary)]">
-              Advanced Overrides (optional)
-            </summary>
-            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="override-years">Forecast Years</Label>
-                <Input
-                  id="override-years"
-                  type="number"
-                  inputMode="numeric"
-                  value={years}
-                  onChange={(e) => setYears(e.target.value)}
-                  placeholder="5"
-                />
-              </div>
+      <Card className="border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
+        <CardHeader>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Step 2</div>
+          <CardTitle>Set Assumption Overrides</CardTitle>
+          <CardDescription>
+            Use only when you want to force a known valuation input instead of relying on the extracted defaults.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="override-years">Forecast Years</Label>
+            <Input
+              id="override-years"
+              type="number"
+              inputMode="numeric"
+              value={years}
+              onChange={(e) => setYears(e.target.value)}
+              placeholder="5"
+            />
+          </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="override-wacc">WACC (decimal)</Label>
-                <Input
-                  id="override-wacc"
-                  type="number"
-                  step="0.001"
-                  value={wacc}
-                  onChange={(e) => setWacc(e.target.value)}
-                  placeholder="0.10"
-                />
-              </div>
+          <div className="space-y-2">
+            <Label htmlFor="override-wacc">WACC (decimal)</Label>
+            <Input
+              id="override-wacc"
+              type="number"
+              step="0.001"
+              value={wacc}
+              onChange={(e) => setWacc(e.target.value)}
+              placeholder="0.10"
+            />
+          </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="override-terminal-method">Terminal Method</Label>
-                <select
-                  id="override-terminal-method"
-                  value={terminalMethod}
-                  onChange={(e) => setTerminalMethod((e.target.value as 'gordon' | 'exit_multiple' | '') || '')}
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">Use model default</option>
-                  <option value="gordon">gordon</option>
-                  <option value="exit_multiple">exit_multiple</option>
-                </select>
-              </div>
+          <div className="space-y-2">
+            <Label htmlFor="override-terminal-method">Terminal Method</Label>
+            <select
+              id="override-terminal-method"
+              value={terminalMethod}
+              onChange={(e) => setTerminalMethod((e.target.value as 'gordon' | 'exit_multiple' | '') || '')}
+              className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">Use model default</option>
+              <option value="gordon">gordon</option>
+              <option value="exit_multiple">exit_multiple</option>
+            </select>
+          </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="override-terminal-g">Terminal g (decimal)</Label>
-                <Input
-                  id="override-terminal-g"
-                  type="number"
-                  step="0.001"
-                  value={terminalG}
-                  onChange={(e) => setTerminalG(e.target.value)}
-                  placeholder="0.025"
-                />
-              </div>
+          <div className="space-y-2">
+            <Label htmlFor="override-terminal-g">Terminal g (decimal)</Label>
+            <Input
+              id="override-terminal-g"
+              type="number"
+              step="0.001"
+              value={terminalG}
+              onChange={(e) => setTerminalG(e.target.value)}
+              placeholder="0.025"
+            />
+          </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="override-exit-multiple">Exit Multiple (if exit_multiple method)</Label>
-                <Input
-                  id="override-exit-multiple"
-                  type="number"
-                  step="0.1"
-                  value={exitMultiple}
-                  onChange={(e) => setExitMultiple(e.target.value)}
-                  placeholder="12"
-                />
-              </div>
-            </div>
-          </details>
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="override-exit-multiple">Exit Multiple (if exit_multiple method)</Label>
+            <Input
+              id="override-exit-multiple"
+              type="number"
+              step="0.1"
+              value={exitMultiple}
+              onChange={(e) => setExitMultiple(e.target.value)}
+              placeholder="12"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
+      <Card className="border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
+        <CardHeader>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Step 3</div>
+          <CardTitle>Generate Workbook Output</CardTitle>
+          <CardDescription>
+            Build the DCF workbook, then review the valuation summary and download the Excel file.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
             <Button disabled={!canGenerate} onClick={handleGenerate}>
               {loading ? 'Generating DCF…' : 'Generate DCF'}
@@ -218,6 +290,10 @@ export function ModelBuilder() {
       {result?.summary && (
         <Card className="border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
           <CardHeader>
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">
+              <FileSpreadsheet className="h-4 w-4" />
+              Workbook Output
+            </div>
             <CardTitle>Model Summary</CardTitle>
             <CardDescription>
               {result.summary.company} ({result.summary.ticker})

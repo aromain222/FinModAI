@@ -41,6 +41,7 @@ const SUPPORTED_MODEL_TYPES = new Set([
   'three-statement',
   'lbo',
   'comps',
+  'football-field',
   'scorecard',
 ]);
 
@@ -123,6 +124,38 @@ function buildCorePreview(outputs: any) {
       ['Equity Value', outputs?.summary?.equityValue ?? null],
       ['Implied Share Price', outputs?.summary?.impliedSharePrice ?? null],
     ],
+  };
+}
+
+function buildFootballFieldPreview(inputs: {
+  companyName: string;
+  netDebt: number | null;
+  sharesOutstanding: number | null;
+  ranges: Array<{
+    label: string;
+    lowValue: number | null;
+    midValue: number | null;
+    highValue: number | null;
+  }>;
+}) {
+  const toPrice = (enterpriseValue: number | null) => {
+    if (enterpriseValue === null) return null;
+    if (inputs.sharesOutstanding === null || inputs.sharesOutstanding <= 0) return null;
+    return (enterpriseValue - (inputs.netDebt ?? 0)) / inputs.sharesOutstanding;
+  };
+
+  return {
+    sheetName: 'Football Field',
+    columns: ['Method', 'Low EV', 'Mid EV', 'High EV', 'Low Price', 'Mid Price', 'High Price'],
+    rows: inputs.ranges.map((range) => [
+      range.label,
+      range.lowValue,
+      range.midValue,
+      range.highValue,
+      toPrice(range.lowValue),
+      toPrice(range.midValue),
+      toPrice(range.highValue),
+    ]),
   };
 }
 
@@ -284,6 +317,7 @@ export async function generateRunForModelType({
   const ticker = String(body?.ticker || (isPrivateMode ? privateTickerFallback : '')).trim().toUpperCase();
   const asOfDate = String(body?.asOfDate || new Date().toISOString().slice(0, 10));
   let modelInputs: ModelInputs | null = null;
+  let payloadForHash: unknown = null;
 
   if (!ticker && !isPrivateMode) {
     return NextResponse.json(
@@ -314,39 +348,62 @@ export async function generateRunForModelType({
     }
   }
 
-  try {
-    const rawInputs = isPrivateMode
-      ? fromManual(manualPayloadFromRequest({ ...body, ticker }) as any)
-      : await fromTicker(ticker);
-    const normalized = normalizeModelInputs(rawInputs, { modelType });
-    if (!normalized.ok || !normalized.value) {
+  if (modelType === 'football-field') {
+    if (isPrivateMode) {
+      return NextResponse.json(
+        {
+          ok: true,
+          status: 'assumptions_required',
+          state: 'assumptions_required',
+          missingInputs: ['ticker'],
+          message: 'Football Field currently requires a public ticker in the main wizard backend.',
+        },
+        { status: 200 }
+      );
+    }
+
+    payloadForHash = {
+      modelType,
+      ticker,
+      asOfDate,
+      inputs: body,
+      prompt: `Build a football field for ${ticker}`,
+    };
+  } else {
+    try {
+      const rawInputs = isPrivateMode
+        ? fromManual(manualPayloadFromRequest({ ...body, ticker }) as any)
+        : await fromTicker(ticker);
+      const normalized = normalizeModelInputs(rawInputs, { modelType });
+      if (!normalized.ok || !normalized.value) {
+        return errorResponse(
+          400,
+          'model_inputs_invalid',
+          normalized.issues.map((issue) => issue.message).join(' ') || 'Model inputs are invalid.',
+          'validate'
+        );
+      }
+      modelInputs = normalized.value;
+    } catch (normalizationError: any) {
       return errorResponse(
         400,
-        'model_inputs_invalid',
-        normalized.issues.map((issue) => issue.message).join(' ') || 'Model inputs are invalid.',
+        isPrivateMode ? 'manual_inputs_invalid' : 'ticker_inputs_invalid',
+        normalizationError?.message ||
+          (isPrivateMode
+            ? 'Manual inputs are incomplete or invalid.'
+            : `Unable to normalize ticker inputs for ${ticker}.`),
         'validate'
       );
     }
-    modelInputs = normalized.value;
-  } catch (normalizationError: any) {
-    return errorResponse(
-      400,
-      isPrivateMode ? 'manual_inputs_invalid' : 'ticker_inputs_invalid',
-      normalizationError?.message ||
-        (isPrivateMode
-          ? 'Manual inputs are incomplete or invalid.'
-          : `Unable to normalize ticker inputs for ${ticker}.`),
-      'validate'
-    );
-  }
 
-  const payloadForHash = {
-    modelType,
-    ticker,
-    asOfDate,
-    inputs: body,
-    modelInputs,
-  };
+    payloadForHash = {
+      modelType,
+      ticker,
+      asOfDate,
+      inputs: body,
+      modelInputs,
+    };
+  }
   const inputsHash = hashInputs(payloadForHash);
 
   const existing = findRunByHash(inputsHash);
@@ -377,6 +434,111 @@ export async function generateRunForModelType({
   console.log('[model-run] status transition', { runId: run.id, from: 'new', to: 'generating', ticker, modelType });
 
   try {
+    if (modelType === 'football-field') {
+      const { extractInputs } = await import('@/lib/model-generator/extractInputs');
+      const { buildWorkbook } = await import('@/lib/model-generator/templates/footballField');
+
+      const prompt = `Build a football field for ${ticker}`;
+      const extracted = await extractInputs(prompt, 'FOOTBALL_FIELD');
+      const footballFieldInputs = extracted.extractedInputs;
+
+      if (extracted.missingCriticalInputs.length > 0) {
+        updateRun(run.id, {
+          status: 'assumptions_required',
+          result: {
+            missingInputs: extracted.missingCriticalInputs,
+            requiredInputs: extracted.missingCriticalInputs,
+          },
+        });
+        return NextResponse.json({
+          ok: true,
+          status: 'assumptions_required',
+          state: 'assumptions_required',
+          runId: run.id,
+          missingInputs: extracted.missingCriticalInputs,
+          message: 'Football Field requires more company anchors before generation.',
+        });
+      }
+
+      if (footballFieldInputs.modelType !== 'FOOTBALL_FIELD') {
+        updateRun(run.id, {
+          status: 'failed',
+          errorMessage: 'Football field extraction returned the wrong model type.',
+        });
+        return errorResponse(500, 'football_field_extraction_failed', 'Football field extraction failed.', 'generate');
+      }
+
+      const workbook = await buildWorkbook(footballFieldInputs);
+      const workbookBufferRaw = await workbook.xlsx.writeBuffer();
+      const workbookBuffer = Buffer.isBuffer(workbookBufferRaw) ? workbookBufferRaw : Buffer.from(workbookBufferRaw);
+      const dataUri = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${workbookBuffer.toString('base64')}`;
+
+      let storageKey: string | undefined;
+      let dataUrl: string | undefined;
+
+      if (isObjectStoreConfigured()) {
+        storageKey = `models/${run.id}.xlsx`;
+        await uploadBufferAndSign({
+          key: storageKey,
+          buffer: workbookBuffer,
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          expiresInSeconds: 900,
+        });
+
+        const exists = await objectExists(storageKey);
+        console.log('[model-run] upload confirmation', { runId: run.id, storageKey, exists });
+        if (!exists) {
+          updateRun(run.id, { status: 'failed', errorMessage: 'Workbook upload verification failed' });
+          return errorResponse(500, 'upload_verification_failed', 'Workbook upload verification failed', 'upload');
+        }
+      } else {
+        dataUrl = dataUri;
+      }
+
+      const preview = buildFootballFieldPreview(footballFieldInputs);
+      const modelDocument = buildDocumentFromPreview(preview, {
+        ticker: footballFieldInputs.ticker || ticker,
+        modelType: 'football-field',
+        asOfDate,
+        currency: 'USD',
+        units: 'millions',
+      });
+
+      const generatedResult: GeneratedPayload = {
+        preview,
+        modelDocument,
+        assumptions: footballFieldInputs,
+        diagnostics: [],
+        warnings: extracted.missingInputs.length > 0 ? [`Missing optional inputs: ${extracted.missingInputs.join(', ')}`] : [],
+        appliedDefaults: Object.entries(extracted.defaultsUsed).map(([key, value]) => ({ key, value })),
+      };
+
+      updateRun(run.id, {
+        status: 'generated',
+        storageKey,
+        dataUrl,
+        fileSize: workbookBuffer.length,
+        result: generatedResult as Record<string, unknown>,
+      });
+      console.log('[model-run] status transition', {
+        runId: run.id,
+        from: 'generating',
+        to: 'generated',
+        storageKey: storageKey || null,
+        engine: 'football-field',
+      });
+
+      return NextResponse.json({
+        ok: true,
+        status: 'generated',
+        state: 'generated',
+        runId: run.id,
+        storageKey,
+        downloadUrl: null,
+        ...generatedResult,
+      });
+    }
+
     if (modelType === 'dcf') {
       const dataSourceId = isPrivateMode ? 'manual' : 'ticker';
       const coreParams = isPrivateMode

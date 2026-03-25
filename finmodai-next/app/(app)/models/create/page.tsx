@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Home, ArrowLeft, TrendingUp, TrendingDown, Activity } from 'lucide-react';
+import { Home, ArrowLeft, TrendingUp, TrendingDown, Activity, Building2, FileSpreadsheet, SlidersHorizontal, CheckCircle2 } from 'lucide-react';
 import { DownloadWorkbookButton } from '@/components/models/DownloadWorkbookButton';
 import { ModelResultsShell } from '@/components/models/ModelResultsShell';
 import { AssumptionsPanel } from '@/components/models/AssumptionsPanel';
@@ -63,6 +63,8 @@ const MODEL_OPTIONS = [
   { value: 'reverse-dcf', label: 'Reverse DCF (Demo)', description: 'Solve implied growth from price and DCF assumptions' },
   { value: 'debt-capacity-lite', label: 'Debt Capacity Lite', description: 'Quick max debt estimate from EBITDA constraints' },
   { value: 'comps', label: 'Trading Comps Model', description: 'Peer group valuation multiples' },
+  { value: 'football-field', label: 'Football Field', description: 'Valuation range bridge across market methods' },
+  { value: 'precedents', label: 'Precedent Transactions', description: 'Control-value range from relevant deal comps' },
   { value: 'scorecard', label: 'Fundamentals Scorecard', description: 'Deterministic ratio scorecard with sector context' },
   // Merger and Operating remain hidden from UI
   { value: 'lbo', label: 'Leveraged Buyout (LBO)', description: 'Returns analysis with debt paydown' },
@@ -78,8 +80,43 @@ const CREATE_MODEL_OPTIONS = MODEL_OPTIONS.filter(
     o.value === 'reverse-dcf' ||
     o.value === 'debt-capacity-lite' ||
     o.value === 'comps' ||
-    o.value === 'scorecard'
+    o.value === 'football-field' ||
+    o.value === 'precedents' ||
+    o.value === 'scorecard' ||
+    o.value === 'lbo'
 );
+
+const MODEL_WORKFLOW_NOTES: Partial<
+  Record<
+    ModelType,
+    {
+      decisionQuestion: string;
+      primaryDrivers: string[];
+      outputPackage: string[];
+    }
+  >
+> = {
+  comps: {
+    decisionQuestion: 'Where should the company trade relative to the peer set once scale, quality, and margin profile are normalized?',
+    primaryDrivers: ['Peer set quality', 'Selected trading multiples', 'Price anchor and share count'],
+    outputPackage: ['Summary sheet', 'Peer table', 'Premium / discount view', 'Checks and equations'],
+  },
+  'football-field': {
+    decisionQuestion: 'What valuation range does the market support when trading comps and transaction-style methods are laid out side by side?',
+    primaryDrivers: ['Subject revenue and EBITDA anchors', 'Peer trading ranges', 'Equity bridge from EV to price per share'],
+    outputPackage: ['Summary sheet', 'Football field range view', 'Equations tab', 'Checks tab'],
+  },
+  precedents: {
+    decisionQuestion: 'What control-value range does the current precedent set support for the subject today?',
+    primaryDrivers: ['Relevant transactions', 'Median vs outlier multiples', 'Control premium dispersion'],
+    outputPackage: ['Summary sheet', 'Transaction table', 'Valuation range', 'Checks and equations'],
+  },
+  lbo: {
+    decisionQuestion: 'Can a sponsor underwrite the deal to an acceptable IRR and MOIC under realistic leverage and exit assumptions?',
+    primaryDrivers: ['Entry multiple', 'Leverage and financing mix', 'Operating case and exit multiple'],
+    outputPackage: ['LBO summary', 'Sources & uses', 'Debt schedule', 'Returns and sensitivities'],
+  },
+};
 
 const REPORTS_ENABLED = false;
 
@@ -129,6 +166,7 @@ const PRIVATE_REQUIRED_FIELDS_BY_MODEL: Partial<Record<ModelType, ManualInputFie
   ],
   'debt-capacity-lite': ['companyName', 'revenue'],
   comps: ['companyName', 'revenue'],
+  precedents: ['companyName', 'revenue', 'ebitda'],
   scorecard: ['companyName', 'revenue'],
 };
 
@@ -255,6 +293,29 @@ const SCENARIO_LABELS: Record<ScenarioName, string> = {
   bull: 'Bull Case',
   bear: 'Bear Case',
 };
+
+const WIZARD_STEPS = [
+  {
+    title: 'Choose Template',
+    detail: 'Pick the model framework',
+    icon: FileSpreadsheet,
+  },
+  {
+    title: 'Select Company',
+    detail: 'Public ticker or private inputs',
+    icon: Building2,
+  },
+  {
+    title: 'Set Assumptions',
+    detail: 'Scenarios, peers, and overrides',
+    icon: SlidersHorizontal,
+  },
+  {
+    title: 'Generate Output',
+    detail: 'Workbook, preview, and analysis',
+    icon: CheckCircle2,
+  },
+] as const;
 
 type ScenarioSliderConfig = {
   key: keyof ScenarioInputs;
@@ -2818,6 +2879,12 @@ function CreateModelPageInner() {
   );
 
   const canGenerateReport = Boolean(generatedModel);
+  const selectedModelOption = CREATE_MODEL_OPTIONS.find((option) => option.value === modelType);
+  const selectedWorkflowNote = MODEL_WORKFLOW_NOTES[modelType];
+  const footballFieldSelected = modelType === 'football-field';
+  const companySelectionLabel = isPrivateMode
+    ? manualInputs.companyName.trim() || 'Private company'
+    : normalizedTicker || 'No company selected';
   return (
     <div className="h-full overflow-y-auto bg-[var(--cb-bg)] px-6 py-10 text-[var(--cb-text-body)]">
       <div className="mx-auto max-w-5xl space-y-8 pb-8">
@@ -2852,53 +2919,146 @@ function CreateModelPageInner() {
               onSubmit={handleSubmit}
               className="space-y-6 rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-6 shadow-sm"
             >
-            {/* Model Type Selection */}
-            <div className="space-y-3">
-              <Label htmlFor="model-type">Model Type</Label>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {CREATE_MODEL_OPTIONS.map((option) => (
-                  <div
-                    key={option.value}
-                    onClick={() => setModelType(option.value)}
-                    className={cn(
-                      'cursor-pointer rounded-xl border px-4 py-4 transition-all',
-                      modelType === option.value
-                        ? 'border-[var(--cb-green)] bg-[var(--cb-surface-alt)] text-[var(--cb-text-primary)] shadow-[0_0_20px_rgba(0,227,135,0.08)]'
-                        : 'border-[var(--cb-border-subtle)] bg-[var(--cb-surface-subtle)] text-[var(--cb-text-body)] hover:border-[var(--cb-border-strong)] hover:bg-[var(--cb-surface)]'
-                    )}
-                  >
-                    <div className="text-sm font-semibold text-[var(--cb-text-primary)] md:text-base">
-                      {option.label}
-                    </div>
-                    <div className="mt-1 text-xs text-[var(--cb-text-muted)] md:text-sm">{option.description}</div>
+            <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] p-5">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Wizard Flow</p>
+                    <h2 className="mt-1 text-xl font-semibold text-[var(--cb-text-primary)]">Build the model in four steps</h2>
+                    <p className="mt-1 text-sm text-[var(--cb-text-secondary)]">
+                      Pick the template, anchor it to a company, set the core assumptions, then generate the workbook and preview.
+                    </p>
                   </div>
-                ))}
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] px-4 py-3">
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Selected Template</div>
+                      <div className="mt-1 text-sm font-semibold text-[var(--cb-text-primary)]">{selectedModelOption?.label ?? 'Model'}</div>
+                    </div>
+                    <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] px-4 py-3">
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Company Mode</div>
+                      <div className="mt-1 text-sm font-semibold text-[var(--cb-text-primary)]">{isPrivateMode ? 'Private / Manual' : 'Public / Ticker'}</div>
+                    </div>
+                    <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] px-4 py-3">
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Current Target</div>
+                      <div className="mt-1 text-sm font-semibold text-[var(--cb-text-primary)]">{companySelectionLabel}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-4">
+                  {WIZARD_STEPS.map((step, index) => {
+                    const Icon = step.icon;
+                    return (
+                      <div
+                        key={step.title}
+                        className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] px-4 py-3"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)]">
+                            <Icon className="h-4 w-4 text-[var(--cb-text-primary)]" />
+                          </div>
+                          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">
+                            Step {index + 1}
+                          </div>
+                        </div>
+                        <div className="mt-3 text-sm font-semibold text-[var(--cb-text-primary)]">{step.title}</div>
+                        <div className="mt-1 text-xs text-[var(--cb-text-secondary)]">{step.detail}</div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Company Type</Label>
-              <div className="inline-flex rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-subtle)] p-1">
-                <Button
-                  type="button"
-                  variant={companyMode === 'public' ? 'default' : 'ghost'}
-                  size="sm"
-                  className="h-8"
-                  onClick={() => setCompanyMode('public')}
-                >
-                  Public (Ticker)
-                </Button>
-                <Button
-                  type="button"
-                  variant={companyMode === 'private' ? 'default' : 'ghost'}
-                  size="sm"
-                  className="h-8"
-                  onClick={() => setCompanyMode('private')}
-                >
-                  Private (Manual)
-                </Button>
-              </div>
-            </div>
+            <Card className="border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
+              <CardHeader className="border-b border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)]/50">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Step 1</p>
+                <CardTitle className="text-lg text-[var(--cb-text-primary)]">Choose Template</CardTitle>
+                <CardDescription>
+                  Start with the model structure you want to build. This choice determines the assumption wizard, checks, and workbook layout.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-5">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {CREATE_MODEL_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setModelType(option.value)}
+                      className={cn(
+                        'rounded-xl border px-4 py-4 text-left transition-all',
+                        modelType === option.value
+                          ? 'border-[var(--cb-green)] bg-[var(--cb-surface-alt)] text-[var(--cb-text-primary)] shadow-[0_0_20px_rgba(0,227,135,0.08)]'
+                          : 'border-[var(--cb-border-subtle)] bg-[var(--cb-surface-subtle)] text-[var(--cb-text-body)] hover:border-[var(--cb-border-strong)] hover:bg-[var(--cb-surface)]'
+                      )}
+                    >
+                      <div className="text-sm font-semibold text-[var(--cb-text-primary)] md:text-base">
+                        {option.label}
+                      </div>
+                      <div className="mt-1 text-xs text-[var(--cb-text-muted)] md:text-sm">{option.description}</div>
+                    </button>
+                  ))}
+                </div>
+                {selectedWorkflowNote ? (
+                  <div className="mt-5 grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr]">
+                    <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-subtle)] p-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Decision Question</div>
+                      <p className="mt-2 text-sm text-[var(--cb-text-secondary)]">{selectedWorkflowNote.decisionQuestion}</p>
+                    </div>
+                    <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-subtle)] p-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Primary Drivers</div>
+                      <ul className="mt-2 space-y-2 text-sm text-[var(--cb-text-secondary)]">
+                        {selectedWorkflowNote.primaryDrivers.map((item) => (
+                          <li key={item}>• {item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-subtle)] p-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Output Package</div>
+                      <ul className="mt-2 space-y-2 text-sm text-[var(--cb-text-secondary)]">
+                        {selectedWorkflowNote.outputPackage.map((item) => (
+                          <li key={item}>• {item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+
+            <Card className="border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
+              <CardHeader className="border-b border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)]/50">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Step 2</p>
+                <CardTitle className="text-lg text-[var(--cb-text-primary)]">Select Company</CardTitle>
+                <CardDescription>
+                  {footballFieldSelected
+                    ? 'Football Field is currently wired for public-company ticker runs in the main wizard.'
+                    : 'Choose a public ticker from the wired universe or switch to private mode for manual company inputs.'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-5">
+                <div className="space-y-2">
+                  <Label>Company Type</Label>
+                  <div className="inline-flex rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-subtle)] p-1">
+                    <Button
+                      type="button"
+                      variant={companyMode === 'public' ? 'default' : 'ghost'}
+                      size="sm"
+                      className="h-8"
+                      onClick={() => setCompanyMode('public')}
+                    >
+                      Public (Ticker)
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={companyMode === 'private' ? 'default' : 'ghost'}
+                      size="sm"
+                      className="h-8"
+                      onClick={() => setCompanyMode('private')}
+                    >
+                      Private (Manual)
+                    </Button>
+                  </div>
+                </div>
 
             {/* Ticker Input */}
             {!isPrivateMode && (
@@ -3037,10 +3197,13 @@ function CreateModelPageInner() {
               )}
             </div>
             )}
+              </CardContent>
+            </Card>
 
             {isPrivateMode && (
               <Card className="border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)]">
                 <CardHeader>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Step 2A</p>
                   <CardTitle className="text-base text-[var(--cb-text-primary)]">Private Company Inputs</CardTitle>
                   <CardDescription>
                     Private mode uses manual inputs; market data auto-fetch is disabled.
@@ -3394,7 +3557,11 @@ function CreateModelPageInner() {
             {modelType === 'comps' && (
               <Card className="border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
                 <CardHeader>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Step 3</p>
                   <CardTitle className="text-base text-[var(--cb-text-primary)]">Custom Comparables (Optional)</CardTitle>
+                  <CardDescription>
+                    Tighten the peer set before generation if you already know the best reference names.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -3444,10 +3611,13 @@ function CreateModelPageInner() {
 
             {/* Scenario Configuration */}
             {scenarioFeatureEnabled && (
-              <Card>
-                <CardHeader>
+              <Card className="border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
+                <CardHeader className="border-b border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)]/50">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <CardTitle className="text-lg">Scenario Configuration</CardTitle>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Step 3</p>
+                      <CardTitle className="text-lg">Scenario Configuration</CardTitle>
+                    </div>
                     <div className="flex flex-wrap items-center gap-3">
                       <button
                         type="button"
@@ -3583,6 +3753,7 @@ function CreateModelPageInner() {
             {modelType === 'reverse-dcf' && (
               <Card className="border-[var(--cb-border-subtle)]">
                 <CardHeader>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Step 3</p>
                   <CardTitle className="text-lg">Reverse DCF Inputs (Demo)</CardTitle>
                   <CardDescription>
                     Solve implied revenue CAGR from market price using fixed DCF assumptions.
@@ -3808,6 +3979,7 @@ function CreateModelPageInner() {
             {modelType === 'debt-capacity-lite' && (
               <Card className="border-[var(--cb-border-subtle)]">
                 <CardHeader>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Step 3</p>
                   <CardTitle className="text-lg">Debt Capacity Lite Inputs (Demo)</CardTitle>
                   <CardDescription>
                     Estimate max debt from EBITDA with leverage and coverage constraints.
@@ -3884,6 +4056,7 @@ function CreateModelPageInner() {
               <Card className="border-[var(--cb-border-subtle)]">
                 <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Step 3</p>
                     <CardTitle className="text-lg">Advanced DCF Inputs (Optional)</CardTitle>
                     <CardDescription>
                       Optional overrides for WACC components. Leave blank to use default discounting.
@@ -4501,21 +4674,36 @@ function CreateModelPageInner() {
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{globalFormError}</div>
             )}
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Button 
-                type="submit" 
-                disabled={loading || 
-                         (modelType === 'merger' && !mergerInputsValid) ||
-                         (modelType === 'operating' && !operatingInputsValid) ||
-                         (scenarioFeatureEnabled && Object.keys(assumptionErrors).length > 0) ||
-                         (demoDataActive && !demoTickerAllowed)} 
-                className="flex-1"
-              >
-                {loading ? 'Generating Model…' : 'Generate Model'}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => router.push('/app')}>
-                Cancel
-              </Button>
+            <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Step 4</p>
+                  <h3 className="mt-1 text-lg font-semibold text-[var(--cb-text-primary)]">Generate Output</h3>
+                  <p className="mt-1 text-sm text-[var(--cb-text-secondary)]">
+                    {footballFieldSelected
+                      ? 'Generate the football field workbook and preview directly from the current wizard state.'
+                      : 'Generate the workbook, preview, and model narrative from the current wizard state.'}
+                  </p>
+                </div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <Button 
+                    type="submit" 
+                    disabled={loading || 
+                             (modelType === 'merger' && !mergerInputsValid) ||
+                             (modelType === 'operating' && !operatingInputsValid) ||
+                             (scenarioFeatureEnabled && Object.keys(assumptionErrors).length > 0) ||
+                             (demoDataActive && !demoTickerAllowed)} 
+                    className="min-w-[220px]"
+                  >
+                    {loading
+                      ? 'Generating Model…'
+                      : 'Generate Model'}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => router.push('/app')}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
             </div>
 
             {loading && (() => {

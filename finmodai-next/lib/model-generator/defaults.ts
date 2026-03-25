@@ -53,6 +53,13 @@ export const COMPS_DEFAULTS = {
   valuationMultiples: ['EV / Revenue', 'EV / EBITDA', 'P / E'],
 } as const;
 
+export const FOOTBALL_FIELD_DEFAULTS = {
+  peerCount: 5,
+  includeTradingComps: true,
+  includePrecedents: true,
+  controlPremiumUplift: 0.15,
+} as const;
+
 export const PRECEDENTS_DEFAULTS = {
   transactionCount: 5,
   revenueMultiple: 4.5,
@@ -84,6 +91,7 @@ export const MODEL_GENERATOR_DEFAULTS = {
   CAP_TABLE: CAP_TABLE_DEFAULTS,
   SAAS_OPERATING_MODEL: SAAS_OPERATING_DEFAULTS,
   COMPS: COMPS_DEFAULTS,
+  FOOTBALL_FIELD: FOOTBALL_FIELD_DEFAULTS,
   PRECEDENTS: PRECEDENTS_DEFAULTS,
   LBO: LBO_DEFAULTS,
 } as const;

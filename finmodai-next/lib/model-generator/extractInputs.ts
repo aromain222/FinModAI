@@ -5,6 +5,7 @@ import {
   CAP_TABLE_DEFAULTS,
   COMPS_DEFAULTS,
   DCF_DEFAULTS,
+  FOOTBALL_FIELD_DEFAULTS,
   LBO_DEFAULTS,
   PRECEDENTS_DEFAULTS,
   SAAS_OPERATING_DEFAULTS,
@@ -96,6 +97,33 @@ export type CompsModelInputs = {
   peers: CompsPeerInputs[];
 };
 
+export type FootballFieldRangeInputs = {
+  label: string;
+  basis: 'revenue' | 'ebitda';
+  lowMultiple: number | null;
+  midMultiple: number | null;
+  highMultiple: number | null;
+  lowValue: number | null;
+  midValue: number | null;
+  highValue: number | null;
+  commentary: string;
+};
+
+export type FootballFieldModelInputs = {
+  modelType: 'FOOTBALL_FIELD';
+  companyName: string;
+  companyType?: string;
+  ticker?: string;
+  source: string;
+  sharePrice: number | null;
+  sharesOutstanding: number | null;
+  netDebt: number | null;
+  revenue: number | null;
+  ebitda: number | null;
+  peerSetLabel: string;
+  ranges: FootballFieldRangeInputs[];
+};
+
 export type PrecedentTransactionInputs = {
   transaction: string;
   target: string;
@@ -167,6 +195,7 @@ export type ExtractedModelInputs =
   | ThreeStatementModelInputs
   | CapTableModelInputs
   | CompsModelInputs
+  | FootballFieldModelInputs
   | PrecedentsModelInputs
   | LboModelInputs
   | SaasOperatingModelInputs;
@@ -327,6 +356,9 @@ export async function extractInputs(
       break;
     case 'COMPS':
       result = await buildCompsInputs(fullPrompt);
+      break;
+    case 'FOOTBALL_FIELD':
+      result = await buildFootballFieldInputs(fullPrompt);
       break;
     case 'PRECEDENTS':
       result = await buildPrecedentsInputs(fullPrompt);
@@ -1175,6 +1207,177 @@ async function buildCompsInputs(prompt: string): Promise<ExtractInputsResult> {
         (subjectResolvedSnapshot ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
       asOfDate: subjectStoredSnapshot?.asOfDate ?? subjectResolvedSnapshot?.updatedAt ?? null,
       lastSynced: subjectStoredSnapshot?.createdAt ?? subjectLatestPrice?.createdAt ?? subjectResolvedSnapshot?.updatedAt ?? null,
+      fallbackUsed: Object.keys(defaultsUsed),
+    }),
+  };
+}
+
+function medianNumber(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+function percentileNumber(values: number[], percentile: number): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = (sorted.length - 1) * percentile;
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+  if (lower === upper) return sorted[lower];
+  const weight = index - lower;
+  return sorted[lower] * (1 - weight) + sorted[upper] * weight;
+}
+
+async function buildFootballFieldInputs(prompt: string): Promise<ExtractInputsResult> {
+  const providedInputs = new Set<string>();
+  const defaultsUsed: Record<string, unknown> = {};
+  const stored = await resolveStoredCompany(prompt);
+  const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt);
+  const snapshots = await loadDemoSnapshots();
+
+  const companyType =
+    extractCompanyType(prompt) ??
+    stored?.company.companyType ??
+    stored?.company.sector ??
+    resolved?.snapshot.sector ??
+    null;
+  const parsedCompanyName = extractCompanyName(prompt);
+  const companyName = parsedCompanyName || stored?.company.name || resolved?.snapshot.companyName || deriveCompanyLabel(companyType, 'Subject Company');
+  const ticker = stored?.company.ticker ?? resolved?.ticker;
+  if (companyType) providedInputs.add('companyType');
+  if (parsedCompanyName || stored?.company.name || resolved?.snapshot.companyName) providedInputs.add('companyName');
+
+  const subjectRevenue = stored?.snapshot?.revenueLtm ?? resolved?.snapshot.revenueLtm ?? null;
+  const subjectEbitda = stored?.snapshot?.ebitdaLtm ?? resolved?.snapshot.ebitdaLtm ?? null;
+  const subjectCash = stored?.snapshot?.cash ?? resolved?.snapshot.cash ?? null;
+  const subjectDebt = stored?.snapshot?.totalDebt ?? resolved?.snapshot.totalDebt ?? null;
+  const subjectNetDebt =
+    subjectDebt !== null && subjectCash !== null
+      ? subjectDebt - subjectCash
+      : stored?.snapshot?.totalDebt ?? resolved?.snapshot.totalDebt ?? null;
+  const subjectPrice = stored?.snapshot?.sharePrice ?? resolved?.snapshot.sharePrice ?? null;
+  const subjectShares = stored?.snapshot?.sharesOutstanding ?? resolved?.snapshot.sharesOutstanding ?? null;
+
+  if (subjectRevenue !== null) providedInputs.add('revenue');
+  if (subjectEbitda !== null) providedInputs.add('ebitda');
+  if (subjectPrice !== null) providedInputs.add('sharePrice');
+
+  const peerUniverse = Object.entries(snapshots)
+    .filter(([candidateTicker, snapshot]) => candidateTicker !== ticker && (!companyType || snapshot.sector === companyType))
+    .sort(([, left], [, right]) => (right.marketCap ?? 0) - (left.marketCap ?? 0))
+    .slice(0, FOOTBALL_FIELD_DEFAULTS.peerCount);
+
+  const evRevenueValues: number[] = [];
+  const evEbitdaValues: number[] = [];
+  peerUniverse.forEach(([, snapshot]) => {
+    const enterpriseValue = (snapshot.marketCap ?? 0) + (snapshot.totalDebt ?? 0) - (snapshot.cash ?? 0);
+    if (enterpriseValue > 0 && (snapshot.revenueLtm ?? 0) > 0) {
+      evRevenueValues.push(enterpriseValue / (snapshot.revenueLtm as number));
+    }
+    if (enterpriseValue > 0 && (snapshot.ebitdaLtm ?? 0) > 0) {
+      evEbitdaValues.push(enterpriseValue / (snapshot.ebitdaLtm as number));
+    }
+  });
+
+  const tradingRevenueLow = percentileNumber(evRevenueValues, 0.25);
+  const tradingRevenueMid = medianNumber(evRevenueValues);
+  const tradingRevenueHigh = percentileNumber(evRevenueValues, 0.75);
+  const tradingEbitdaLow = percentileNumber(evEbitdaValues, 0.25);
+  const tradingEbitdaMid = medianNumber(evEbitdaValues);
+  const tradingEbitdaHigh = percentileNumber(evEbitdaValues, 0.75);
+
+  const controlPremiumUplift = FOOTBALL_FIELD_DEFAULTS.controlPremiumUplift;
+  defaultsUsed.controlPremiumUplift = controlPremiumUplift;
+  defaultsUsed.peerCount = FOOTBALL_FIELD_DEFAULTS.peerCount;
+
+  const makeRange = (
+    label: string,
+    basis: 'revenue' | 'ebitda',
+    lowMultiple: number | null,
+    midMultiple: number | null,
+    highMultiple: number | null,
+    driver: number | null,
+    commentary: string
+  ): FootballFieldRangeInputs => ({
+    label,
+    basis,
+    lowMultiple,
+    midMultiple,
+    highMultiple,
+    lowValue: lowMultiple !== null && driver !== null ? lowMultiple * driver : null,
+    midValue: midMultiple !== null && driver !== null ? midMultiple * driver : null,
+    highValue: highMultiple !== null && driver !== null ? highMultiple * driver : null,
+    commentary,
+  });
+
+  const ranges: FootballFieldRangeInputs[] = [
+    makeRange(
+      'Trading Comps EV / Revenue',
+      'revenue',
+      tradingRevenueLow,
+      tradingRevenueMid,
+      tradingRevenueHigh,
+      subjectRevenue,
+      'Uses peer-trading quartiles to frame where the subject could trade on topline scale.'
+    ),
+    makeRange(
+      'Trading Comps EV / EBITDA',
+      'ebitda',
+      tradingEbitdaLow,
+      tradingEbitdaMid,
+      tradingEbitdaHigh,
+      subjectEbitda,
+      'Uses peer-trading quartiles to frame where the subject could trade on operating earnings.'
+    ),
+    makeRange(
+      'Precedents EV / Revenue',
+      'revenue',
+      tradingRevenueLow !== null ? tradingRevenueLow * (1 + controlPremiumUplift) : null,
+      tradingRevenueMid !== null ? tradingRevenueMid * (1 + controlPremiumUplift) : null,
+      tradingRevenueHigh !== null ? tradingRevenueHigh * (1 + controlPremiumUplift) : null,
+      subjectRevenue,
+      'Applies a control-premium uplift to trading revenue ranges to approximate transaction framing.'
+    ),
+    makeRange(
+      'Precedents EV / EBITDA',
+      'ebitda',
+      tradingEbitdaLow !== null ? tradingEbitdaLow * (1 + controlPremiumUplift) : null,
+      tradingEbitdaMid !== null ? tradingEbitdaMid * (1 + controlPremiumUplift) : null,
+      tradingEbitdaHigh !== null ? tradingEbitdaHigh * (1 + controlPremiumUplift) : null,
+      subjectEbitda,
+      'Applies a control-premium uplift to trading EBITDA ranges to approximate sponsor / strategic transaction framing.'
+    ),
+  ];
+
+  const missingInputs = buildMissingList([
+    ['companyName or companyType', providedInputs.has('companyName') || providedInputs.has('companyType')],
+    ['revenue or EBITDA anchors', subjectRevenue !== null || subjectEbitda !== null],
+    ['valuation range set', ranges.some((range) => range.midValue !== null)],
+  ]);
+  const missingCriticalInputs = evaluateCriticalInputs('FOOTBALL_FIELD', providedInputs);
+
+  return {
+    extractedInputs: {
+      modelType: 'FOOTBALL_FIELD',
+      companyName,
+      companyType: companyType ?? undefined,
+      ticker,
+      source: 'demo_football_field_framework',
+      sharePrice: subjectPrice,
+      sharesOutstanding: subjectShares,
+      netDebt: subjectNetDebt,
+      revenue: subjectRevenue,
+      ebitda: subjectEbitda,
+      peerSetLabel: `${peerUniverse.length} selected peers`,
+      ranges,
+    },
+    defaultsUsed,
+    missingInputs,
+    missingCriticalInputs,
+    provenanceSummary: buildProvenanceSummary({
+      source: 'demo_football_field_framework',
       fallbackUsed: Object.keys(defaultsUsed),
     }),
   };

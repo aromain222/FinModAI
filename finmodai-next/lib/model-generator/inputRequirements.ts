@@ -50,6 +50,13 @@ export const MODEL_INPUT_REQUIREMENTS: Record<ModelGeneratorType, ModelInputRequ
     criticalRules: [{ anyOf: ['companyName', 'companyType'] }],
     defaults: getModelDefaults('COMPS') as Record<string, unknown>,
   },
+  FOOTBALL_FIELD: {
+    requiredInputs: ['companyName', 'companyType'],
+    optionalInputs: ['peerSet', 'revenue', 'ebitda', 'sharePrice', 'netDebt'],
+    criticalInputs: ['companyName', 'companyType'],
+    criticalRules: [{ anyOf: ['companyName', 'companyType'] }],
+    defaults: getModelDefaults('FOOTBALL_FIELD') as Record<string, unknown>,
+  },
   PRECEDENTS: {
     requiredInputs: ['companyName', 'companyType'],
     optionalInputs: ['transactionCount', 'revenueMultiple', 'ebitdaMultiple'],

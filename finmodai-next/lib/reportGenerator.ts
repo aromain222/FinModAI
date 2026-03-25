@@ -101,6 +101,14 @@ const MODEL_NARRATIVE_CONFIG: Record<ReportModelType, ModelNarrativeConfig> = {
     riskLens: 'Focus on peer-set quality, multiple regime change, and weak comparability.',
     order: ['decision', 'risks', 'next'],
   },
+  'football-field': {
+    decisionTitle: 'Range Framing',
+    riskTitle: 'Range Risks',
+    nextTitle: 'Range Workplan',
+    decisionToMake: 'Decide whether the valuation methods cluster tightly enough to support a usable market-value frame.',
+    riskLens: 'Focus on method dispersion, denominator quality, and whether the field is being driven by weak peer or transaction anchors.',
+    order: ['decision', 'risks', 'next'],
+  },
   precedents: {
     decisionTitle: 'Transaction Framing',
     riskTitle: 'Precedent Risks',
@@ -503,6 +511,48 @@ function buildCompsSections(context: ReportContext): GeneratedReportSection[] {
   ];
 }
 
+function buildFootballFieldSections(context: ReportContext): GeneratedReportSection[] {
+  const extractedInputs = (context.data?.extractedInputs ?? {}) as Record<string, any>;
+  const ranges = Array.isArray(extractedInputs.ranges) ? extractedInputs.ranges : [];
+  const subjectRevenue = fmtNumber(firstFinite(extractedInputs.revenue));
+  const subjectEbitda = fmtNumber(firstFinite(extractedInputs.ebitda));
+
+  const methodLines = ranges
+    .map((range) => {
+      const label = normalizeString(range?.label) || 'Method';
+      const midValue = fmtNumber(firstFinite(range?.midValue));
+      const midPrice = fmtNumber(firstFinite(range?.midPrice));
+      if (!midValue && !midPrice) return null;
+      return `${label}: ${midValue ? `mid EV ${midValue}` : 'mid EV unavailable'}${midPrice ? `; mid price ${midPrice}` : ''}.`;
+    })
+    .filter((item): item is string => Boolean(item));
+
+  return [
+    {
+      title: 'Valuation Range Snapshot',
+      body: buildBulletBody(
+        [
+          subjectRevenue ? `Subject revenue anchor: ${subjectRevenue}.` : null,
+          subjectEbitda ? `Subject EBITDA anchor: ${subjectEbitda}.` : null,
+          ...methodLines.slice(0, 4),
+        ],
+        'Football field ranges were generated from the current trading and transaction-style methods.'
+      ),
+    },
+    {
+      title: 'Interpretation',
+      body: buildBulletBody(
+        [
+          'The football field is a range-comparison tool, not a single-point valuation answer.',
+          'Wide dispersion across methods usually means the peer framing, transaction uplift, or subject denominators need to be challenged before using the output externally.',
+          'The cleanest read comes when trading and transaction-style methods cluster around a similar mid-point.',
+        ],
+        'Read the football field as a market-value framing tool rather than a standalone valuation conclusion.'
+      ),
+    },
+  ];
+}
+
 function buildScenarioContextSection(context: ReportContext): GeneratedReportSection | null {
   if (!context.scenarioContext) return null;
   return {
@@ -659,6 +709,10 @@ function buildRiskConstraintSection(context: ReportContext): GeneratedReportSect
       'The range is only as defensible as the peer set; weak comparability makes the output fragile.',
       'Fast multiple re-rating in the market can stale the conclusion quickly.',
     ],
+    'football-field': [
+      'A football field can look authoritative even when the underlying methods disagree materially.',
+      'Weak subject anchors or thin peer and transaction ranges can make the spread look more precise than it really is.',
+    ],
     precedents: [
       'A precedent range can mislead if the deal set mixes different cycles, strategic contexts, or premium regimes.',
       'Control values should not be treated as direct trading marks.',
@@ -772,6 +826,11 @@ function buildNextStepsSection(context: ReportContext): GeneratedReportSection {
       'Tighten the peer set and remove weak comparables.',
       'Check where the subject screens on growth, margin, and balance-sheet quality versus the selected peers.',
       'Reframe the range under current market multiples if the sector has re-rated recently.',
+    ],
+    'football-field': [
+      'Check whether the trading and transaction-style methods are using defensible subject denominators.',
+      'Remove weak methods or outlier ranges that are widening the field without adding decision value.',
+      'Use the next pass to explain why the high and low ends of the range differ before putting the output in front of management or investors.',
     ],
     precedents: [
       'Cull transactions that are temporally or strategically weak comparables.',
@@ -1372,6 +1431,8 @@ function buildSections(context: ReportContext): GeneratedReportSection[] {
       return buildLboSections(context);
     case 'comps':
       return buildCompsSections(context);
+    case 'football-field':
+      return buildFootballFieldSections(context);
     case 'precedents':
       return buildPrecedentsSections(context);
     case 'three-statement':
@@ -1449,6 +1510,8 @@ function buildSummaryFallback(context: ReportContext): string {
       return `${company} has been evaluated under an LBO framework where returns are driven by entry price, leverage, deleveraging, and exit valuation. The investment case is most exposed to cash conversion and multiple discipline. Small changes in operating execution or exit assumptions can move sponsor returns materially.`;
     case 'comps':
       return `${company} has been evaluated on a relative basis against a comparable set. The implied range is useful for framing, but it remains highly sensitive to peer selection and market multiple stability. The output should be treated as a relative valuation reference rather than intrinsic value.`;
+    case 'football-field':
+      return `${company} has been evaluated through a football field that lines up multiple market-value methods into one range view. The output is most useful for seeing whether trading and transaction-style methods cluster around a defendable value frame. It should be treated as valuation framing, not as a substitute for the underlying comps, precedents, or DCF work.`;
     case 'precedents':
       return `${company} has been evaluated against a precedent transaction set to frame control-value support and transaction context. The output is only as good as the deal set, premium normalization, and strategic comparability of the selected transactions. This should be treated as transaction framing, not a substitute for full live precedents coverage.`;
     case 'three-statement': {

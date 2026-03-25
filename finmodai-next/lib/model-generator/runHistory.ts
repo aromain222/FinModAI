@@ -96,7 +96,7 @@ function mapRun(row: any): PromptRunRecord {
 }
 
 function extractComparableAssumptions(inputs: Record<string, unknown>): Record<string, unknown> {
-  const skip = new Set(['modelType', 'source', 'companyName', 'ticker', 'companyType', 'peerTickers', 'peerSet', 'transactions', 'sourceType']);
+  const skip = new Set(['modelType', 'source', 'companyName', 'ticker', 'companyType', 'peerTickers', 'peerSet', 'transactions', 'ranges', 'sourceType']);
   return Object.fromEntries(Object.entries(inputs).filter(([key]) => !skip.has(key)));
 }
 

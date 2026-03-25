@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { AnalystCoreTemplateCard } from '@/components/analyst/AnalystCoreTemplateCard';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { CheckCircle2, FileSpreadsheet, Search, SlidersHorizontal } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,11 +14,15 @@ import { Textarea } from '@/components/ui/textarea';
 import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplates';
 import type { ModelGeneratorType } from '@/lib/model-generator/classifyPrompt';
 import type { ComparisonSummary, ProvenanceSummary } from '@/lib/model-generator/runHistory';
+import { cn } from '@/lib/utils';
 
 type PreviewSummary = {
   modelName: string;
   tabs: string[];
   keyOutputs: string[];
+  decisionQuestion?: string;
+  whatToEditFirst?: string[];
+  reviewStandard?: string;
 };
 
 type PreviewResponse = {
@@ -60,11 +66,18 @@ type RecentRun = {
 const EXAMPLE_PROMPTS = [
   'Generate a DCF model for Nvidia',
   'Build a comparable company analysis for Snowflake',
+  'Build a football field for Salesforce',
   'Create a precedent transactions view for Mastercard',
   'Build an LBO model for Oracle',
   'Build a revenue recognition ASC 606 model',
   'Create a debt capacity model for Netflix',
 ];
+
+const WIZARD_STEPS = [
+  { title: 'Describe The Model', description: 'Write the request in plain English.', icon: Search },
+  { title: 'Review Preview', description: 'Confirm extracted inputs, provenance, and missing items.', icon: SlidersHorizontal },
+  { title: 'Generate Workbook', description: 'Export the Excel file or hand off to the stronger native wizard.', icon: CheckCircle2 },
+] as const;
 
 function isCurrencyKey(key?: string): boolean {
   if (!key) return false;
@@ -147,7 +160,155 @@ function StringListCard(props: { title: string; values: string[]; emptyMessage: 
   );
 }
 
+function formatCompactMetric(value: unknown, kind: 'currency' | 'percent' | 'multiple' | 'number' = 'number'): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
+  if (kind === 'currency') {
+    return `$${value.toLocaleString('en-US', { maximumFractionDigits: Math.abs(value) >= 1000 ? 0 : 1 })}`;
+  }
+  if (kind === 'percent') {
+    const percentValue = Math.abs(value) <= 1 ? value * 100 : value;
+    return `${percentValue.toLocaleString('en-US', { maximumFractionDigits: 1 })}%`;
+  }
+  if (kind === 'multiple') {
+    return `${value.toLocaleString('en-US', { maximumFractionDigits: 1 })}x`;
+  }
+  return value.toLocaleString('en-US', { maximumFractionDigits: 1 });
+}
+
+function renderModelSpecificReview(preview: PreviewResponse) {
+  if (!preview.modelType) return null;
+
+  if (preview.modelType === 'COMPS') {
+    const extracted = preview.extractedInputs as Record<string, unknown>;
+    const subject = (extracted.subject ?? {}) as Record<string, unknown>;
+    const peers = Array.isArray(extracted.peers) ? (extracted.peers as Array<Record<string, unknown>>) : [];
+    const selectedMultiples = (extracted.selectedMultiples ?? {}) as Record<string, unknown>;
+    return (
+      <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr_1fr]">
+        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Subject Snapshot</div>
+          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
+            <div><span className="font-medium text-[var(--cb-text-primary)]">{String(subject.name ?? extracted.companyName ?? 'Subject')}</span>{subject.ticker ? ` (${String(subject.ticker)})` : ''}</div>
+            <div>Revenue: {formatCompactMetric(subject.revenue, 'currency')}</div>
+            <div>EBITDA: {formatCompactMetric(subject.ebitda, 'currency')}</div>
+            <div>Price: {formatCompactMetric(subject.price, 'currency')}</div>
+          </div>
+        </div>
+        <StringListCard
+          title="Peer Set"
+          values={peers.map((peer) => `${String(peer.ticker ?? '')}${peer.name ? ` — ${String(peer.name)}` : ''}`).filter((value) => value.trim().length > 0)}
+          emptyMessage="No peers resolved yet."
+        />
+        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Selected Multiples</div>
+          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
+            <div>EV / Revenue: {formatCompactMetric(selectedMultiples.evToRevenue, 'multiple')}</div>
+            <div>EV / EBITDA: {formatCompactMetric(selectedMultiples.evToEbitda, 'multiple')}</div>
+            <div>P / E: {formatCompactMetric(selectedMultiples.peRatio, 'multiple')}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (preview.modelType === 'PRECEDENTS') {
+    const extracted = preview.extractedInputs as Record<string, unknown>;
+    const transactions = Array.isArray(extracted.transactions) ? (extracted.transactions as Array<Record<string, unknown>>) : [];
+    const previewDeals = transactions.slice(0, 4).map((transaction) => {
+      const revenueMultiple = formatCompactMetric(transaction.revenueMultiple, 'multiple');
+      const ebitdaMultiple = formatCompactMetric(transaction.ebitdaMultiple, 'multiple');
+      const premium = formatCompactMetric(transaction.premium, 'percent');
+      return `${String(transaction.target ?? 'Target')} / ${String(transaction.acquirer ?? 'Buyer')} — ${revenueMultiple} EV/Rev, ${ebitdaMultiple} EV/EBITDA, ${premium} premium`;
+    });
+    return (
+      <div className="grid gap-4 lg:grid-cols-[1fr_1.35fr]">
+        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Transaction Set</div>
+          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
+            <div>Subject Revenue: {formatCompactMetric(extracted.subjectRevenue, 'currency')}</div>
+            <div>Subject EBITDA: {formatCompactMetric(extracted.subjectEbitda, 'currency')}</div>
+            <div>Transaction Count: {formatCompactMetric(extracted.transactionCount, 'number')}</div>
+            <div>Anchor Revenue Multiple: {formatCompactMetric(extracted.revenueMultiple, 'multiple')}</div>
+            <div>Anchor EBITDA Multiple: {formatCompactMetric(extracted.ebitdaMultiple, 'multiple')}</div>
+          </div>
+        </div>
+        <StringListCard
+          title="Selected Transactions"
+          values={previewDeals}
+          emptyMessage="No precedent transactions resolved yet."
+        />
+      </div>
+    );
+  }
+
+  if (preview.modelType === 'FOOTBALL_FIELD') {
+    const extracted = preview.extractedInputs as Record<string, unknown>;
+    const ranges = Array.isArray(extracted.ranges) ? (extracted.ranges as Array<Record<string, unknown>>) : [];
+    const previewRanges = ranges.map((range) => {
+      const midValue = formatCompactMetric(range.midValue, 'currency');
+      const midPrice = formatCompactMetric(range.midPrice, 'currency');
+      return `${String(range.label ?? 'Method')} — mid EV ${midValue}${midPrice !== 'n/a' ? `, mid price ${midPrice}` : ''}`;
+    });
+    return (
+      <div className="grid gap-4 lg:grid-cols-[1fr_1.4fr]">
+        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Subject Anchor</div>
+          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
+            <div>Revenue: {formatCompactMetric(extracted.revenue, 'currency')}</div>
+            <div>EBITDA: {formatCompactMetric(extracted.ebitda, 'currency')}</div>
+            <div>Net Debt: {formatCompactMetric(extracted.netDebt, 'currency')}</div>
+            <div>Current Price: {formatCompactMetric(extracted.sharePrice, 'currency')}</div>
+          </div>
+        </div>
+        <StringListCard
+          title="Valuation Methods"
+          values={previewRanges}
+          emptyMessage="No valuation methods resolved yet."
+        />
+      </div>
+    );
+  }
+
+  if (preview.modelType === 'LBO') {
+    const extracted = preview.extractedInputs as Record<string, unknown>;
+    return (
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Entry Case</div>
+          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
+            <div>Revenue: {formatCompactMetric(extracted.revenue, 'currency')}</div>
+            <div>EBITDA: {formatCompactMetric(extracted.ebitda, 'currency')}</div>
+            <div>Entry Multiple: {formatCompactMetric(extracted.entryMultiple, 'multiple')}</div>
+            <div>Net Debt: {formatCompactMetric(extracted.netDebt, 'currency')}</div>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Financing Mix</div>
+          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
+            <div>Debt: {formatCompactMetric(extracted.debtPercent, 'percent')}</div>
+            <div>Equity: {formatCompactMetric(extracted.equityPercent, 'percent')}</div>
+            <div>Interest Rate: {formatCompactMetric(extracted.interestRate, 'percent')}</div>
+            <div>Cash Sweep: {formatCompactMetric(extracted.cashSweepPercent, 'percent')}</div>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Exit Underwrite</div>
+          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
+            <div>Exit Multiple: {formatCompactMetric(extracted.exitMultiple, 'multiple')}</div>
+            <div>Hold Period: {formatCompactMetric(extracted.holdingPeriodYears, 'number')} years</div>
+            <div>Revenue Growth: {Array.isArray(extracted.revenueGrowth) ? (extracted.revenueGrowth as number[]).map((value) => formatCompactMetric(value, 'percent')).join(', ') : 'n/a'}</div>
+            <div>EBITDA Margin: {formatCompactMetric(extracted.ebitdaMargin, 'percent')}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 export function PromptToModel() {
+  const searchParams = useSearchParams();
   const [prompt, setPrompt] = useState(EXAMPLE_PROMPTS[0]);
   const [clarificationAnswer, setClarificationAnswer] = useState('');
   const [inputOverridesText, setInputOverridesText] = useState('');
@@ -156,8 +317,11 @@ export function PromptToModel() {
   const [recentRuns, setRecentRuns] = useState<RecentRun[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [generateLoading, setGenerateLoading] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
   const [runsLoading, setRunsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const hydratedPromptRef = useRef<string | null>(null);
 
   useEffect(() => {
     const existing = window.localStorage.getItem('capitalbase-model-session');
@@ -175,14 +339,16 @@ export function PromptToModel() {
     void loadRecentRuns(sessionId);
   }, [sessionId]);
 
-  function parseOverrides(value: string = inputOverridesText): Record<string, unknown> | undefined {
+  const prefilledPrompt = searchParams.get('prompt')?.trim() ?? '';
+
+  const parseOverrides = useCallback((value: string = inputOverridesText): Record<string, unknown> | undefined => {
     if (!value.trim()) return undefined;
     const parsed = JSON.parse(value) as unknown;
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new Error('Assumption overrides must be a JSON object.');
     }
     return parsed as Record<string, unknown>;
-  }
+  }, [inputOverridesText]);
 
   async function loadRecentRuns(activeSessionId: string) {
     setRunsLoading(true);
@@ -197,7 +363,7 @@ export function PromptToModel() {
     }
   }
 
-  async function requestPreview(nextPrompt?: string, nextClarification?: string, nextOverridesText?: string) {
+  const requestPreview = useCallback(async (nextPrompt?: string, nextClarification?: string, nextOverridesText?: string) => {
     const activePrompt = (nextPrompt ?? prompt).trim();
     const activeClarification = (nextClarification ?? clarificationAnswer).trim();
     if (!activePrompt) return;
@@ -229,7 +395,7 @@ export function PromptToModel() {
     } finally {
       setPreviewLoading(false);
     }
-  }
+  }, [clarificationAnswer, inputOverridesText, parseOverrides, prompt, sessionId]);
 
   async function handleGenerate() {
     const activePrompt = prompt.trim();
@@ -281,13 +447,133 @@ export function PromptToModel() {
     }
   }
 
+  async function handleGenerateReport() {
+    if (!preview?.supported || preview.handoffOnly || preview.needsClarification || reportLoading || !preview.modelType) return;
+
+    setReportLoading(true);
+    setReportError(null);
+
+    try {
+      const extractedInputs = preview.extractedInputs as Record<string, unknown>;
+      const response = await fetch('/api/generateReport', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticker: typeof extractedInputs.ticker === 'string' ? extractedInputs.ticker : undefined,
+          companyName:
+            typeof extractedInputs.companyName === 'string'
+              ? extractedInputs.companyName
+              : typeof extractedInputs.name === 'string'
+                ? extractedInputs.name
+                : undefined,
+          asOfDate: preview.provenanceSummary?.asOfDate,
+          modelType: preview.modelType,
+          modelData: {
+            extractedInputs: preview.extractedInputs,
+            defaultsUsed: preview.defaultsUsed,
+            provenanceSummary: preview.provenanceSummary,
+            comparisonSummary: preview.comparisonSummary,
+          },
+          reportInput: {
+            highLevelNotes: `Prompt run: ${prompt.trim()}`,
+          },
+        }),
+      });
+
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(body?.error || 'Failed to generate report PDF.');
+      }
+
+      const pdfBase64 = typeof body?.pdfBase64 === 'string' ? body.pdfBase64 : null;
+      if (!pdfBase64) {
+        throw new Error('Report generated but PDF output was missing.');
+      }
+
+      const binary = atob(pdfBase64);
+      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${preview.modelType.toLowerCase()}_capitalbase_report.pdf`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setReportError(err instanceof Error ? err.message : 'Unable to generate report.');
+    } finally {
+      setReportLoading(false);
+    }
+  }
+
   const canGenerate = Boolean(preview?.supported && !preview.handoffOnly && !preview.needsClarification && !previewLoading && !generateLoading);
+  const resolvedModelLabel = preview?.previewSummary?.modelName ?? preview?.modelType ?? 'Waiting';
+  const canGenerateReport = Boolean(
+    preview?.supported && !preview.handoffOnly && !preview.needsClarification && !reportLoading && preview?.modelType === 'FOOTBALL_FIELD'
+  );
+
+  useEffect(() => {
+    if (!prefilledPrompt) return;
+    if (hydratedPromptRef.current === prefilledPrompt) return;
+    hydratedPromptRef.current = prefilledPrompt;
+    setPrompt(prefilledPrompt);
+    setClarificationAnswer('');
+    setPreview(null);
+    setError(null);
+    void requestPreview(prefilledPrompt, '', '');
+  }, [prefilledPrompt, requestPreview]);
 
   return (
     <div className="space-y-6">
+      <Card className="overflow-hidden border-[rgba(118,138,161,0.18)] bg-[linear-gradient(180deg,rgba(11,14,19,0.98),rgba(14,18,24,0.92))] shadow-[0_24px_70px_rgba(0,0,0,0.35)]">
+        <CardHeader className="border-b border-[rgba(118,138,161,0.14)]">
+          <CardTitle className="text-xl text-[var(--cb-text-primary)]">Build the model in three steps</CardTitle>
+          <CardDescription>
+            Keep the flow structured: define the request, inspect the deterministic preview, then generate the workbook or route into the stronger native wizard.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5 p-6">
+          <div className="flex flex-wrap gap-2">
+            <div className="rounded-full border border-[rgba(118,138,161,0.18)] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 text-xs font-medium text-[var(--cb-text-secondary)]">
+              Model: {resolvedModelLabel}
+            </div>
+            <div className="rounded-full border border-[rgba(118,138,161,0.18)] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 text-xs font-medium text-[var(--cb-text-secondary)]">
+              Session runs: {recentRuns.length}
+            </div>
+            <div className="rounded-full border border-[rgba(118,138,161,0.18)] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 text-xs font-medium text-[var(--cb-text-secondary)]">
+              Output: Excel workbook
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            {WIZARD_STEPS.map((step, index) => {
+              const Icon = step.icon;
+              return (
+                <div
+                  key={step.title}
+                  className="rounded-2xl border border-[rgba(118,138,161,0.16)] bg-[rgba(255,255,255,0.02)] p-4"
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[rgba(16,36,62,0.8)] text-white">
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">
+                      Step {index + 1}
+                    </div>
+                  </div>
+                  <div className="text-sm font-semibold text-[var(--cb-text-primary)]">{step.title}</div>
+                  <div className="mt-1 text-sm text-[var(--cb-text-secondary)]">{step.description}</div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="overflow-hidden border-[rgba(118,138,161,0.18)] bg-[linear-gradient(180deg,rgba(11,14,19,0.98),rgba(14,18,24,0.92))] shadow-[0_30px_90px_rgba(0,0,0,0.45)]">
         <CardHeader className="border-b border-[rgba(118,138,161,0.14)]">
-          <CardTitle className="text-xl text-[var(--cb-text-primary)]">Prompt to Model</CardTitle>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Step 1</div>
+          <CardTitle className="text-xl text-[var(--cb-text-primary)]">Describe The Model Request</CardTitle>
           <CardDescription>
             Deterministic prompt parsing, visible provenance, saved reruns, downloadable finance-native Excel workbooks, and direct routing into the broader CapitalBase model catalog when a dedicated workflow already exists.
           </CardDescription>
@@ -360,7 +646,13 @@ export function PromptToModel() {
                 {generateLoading ? 'Generating Workbook…' : 'Generate Model'}
               </Button>
             )}
+            {preview?.modelType === 'FOOTBALL_FIELD' ? (
+              <Button variant="outline" onClick={() => void handleGenerateReport()} disabled={!canGenerateReport}>
+                {reportLoading ? 'Generating Report PDF…' : 'Generate Report PDF'}
+              </Button>
+            ) : null}
             {error ? <p className="text-sm text-[#fda4af]">{error}</p> : null}
+            {reportError ? <p className="text-sm text-[#fda4af]">{reportError}</p> : null}
           </div>
         </CardContent>
       </Card>
@@ -368,7 +660,8 @@ export function PromptToModel() {
       <Card className="border-[rgba(118,138,161,0.18)] bg-[rgba(11,14,19,0.9)]">
         <CardHeader>
           <div className="flex flex-wrap items-center gap-3">
-            <CardTitle className="text-lg text-[var(--cb-text-primary)]">Preview</CardTitle>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Step 2</div>
+            <CardTitle className="text-lg text-[var(--cb-text-primary)]">Review Structured Preview</CardTitle>
             {preview?.modelType ? <Badge variant="outline">{preview.modelType}</Badge> : null}
             {preview?.handoffOnly ? <Badge variant="outline">Workflow Handoff</Badge> : null}
             {preview?.supported ? <Badge>Supported</Badge> : <Badge variant="secondary">Waiting</Badge>}
@@ -397,27 +690,53 @@ export function PromptToModel() {
               {preview.coreTemplateModel ? <AnalystCoreTemplateCard payload={preview.coreTemplateModel} /> : null}
 
               {preview.previewSummary ? (
-                <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-                  <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
-                    <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Model Preview</div>
-                    <div className="space-y-3">
-                      <div>
-                        <div className="text-[11px] uppercase tracking-wide text-[var(--cb-text-muted)]">Model Name</div>
-                        <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{preview.previewSummary.modelName}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] uppercase tracking-wide text-[var(--cb-text-muted)]">Workbook Tabs</div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {preview.previewSummary.tabs.map((tab) => (
-                            <Badge key={tab} variant="outline" className="border-[rgba(118,138,161,0.22)] text-[var(--cb-text-secondary)]">
-                              {tab}
-                            </Badge>
-                          ))}
+                <div className="space-y-4">
+                  <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+                    <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
+                      <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Model Preview</div>
+                      <div className="space-y-3">
+                        <div>
+                          <div className="text-[11px] uppercase tracking-wide text-[var(--cb-text-muted)]">Model Name</div>
+                          <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{preview.previewSummary.modelName}</div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] uppercase tracking-wide text-[var(--cb-text-muted)]">Workbook Tabs</div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {preview.previewSummary.tabs.map((tab) => (
+                              <Badge key={tab} variant="outline" className="border-[rgba(118,138,161,0.22)] text-[var(--cb-text-secondary)]">
+                                {tab}
+                              </Badge>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
+                    <StringListCard title="Key Outputs" values={preview.previewSummary.keyOutputs} emptyMessage="No key outputs available." />
                   </div>
-                  <StringListCard title="Key Outputs" values={preview.previewSummary.keyOutputs} emptyMessage="No key outputs available." />
+
+                  {(preview.previewSummary.decisionQuestion || preview.previewSummary.reviewStandard || preview.previewSummary.whatToEditFirst?.length) ? (
+                    <div className="grid gap-4 lg:grid-cols-3">
+                      <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
+                        <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Decision Question</div>
+                        <p className="text-sm leading-6 text-[var(--cb-text-secondary)]">
+                          {preview.previewSummary.decisionQuestion ?? 'No decision framing available.'}
+                        </p>
+                      </div>
+                      <StringListCard
+                        title="Edit First"
+                        values={preview.previewSummary.whatToEditFirst ?? []}
+                        emptyMessage="No priority edits listed."
+                      />
+                      <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
+                        <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Review Standard</div>
+                        <p className="text-sm leading-6 text-[var(--cb-text-secondary)]">
+                          {preview.previewSummary.reviewStandard ?? 'No review guidance available.'}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {renderModelSpecificReview(preview)}
                 </div>
               ) : null}
 
@@ -485,6 +804,22 @@ export function PromptToModel() {
                 <ObjectGrid title="Defaults Added" values={preview.defaultsUsed} emptyMessage="No defaults were required." />
               </div>
               <StringListCard title="Missing Inputs" values={preview.missingInputs} emptyMessage="No material inputs are missing from the prompt." />
+
+              <div className="rounded-2xl border border-[rgba(118,138,161,0.18)] bg-[rgba(255,255,255,0.02)] p-4">
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Step 3</div>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-[var(--cb-text-primary)]">Generate Workbook Output</div>
+                      <div className="mt-1 text-sm text-[var(--cb-text-secondary)]">
+                        Use the structured preview as the gating check. When it looks right, export the workbook or open the stronger native workflow.
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-full border border-[rgba(118,138,161,0.16)] bg-[rgba(255,255,255,0.03)] px-3 py-1.5 text-xs font-medium text-[var(--cb-text-secondary)]">
+                    <FileSpreadsheet className="h-4 w-4" />
+                    {preview?.modelType === 'FOOTBALL_FIELD' ? 'Excel + memo-ready path' : 'Excel-ready path'}
+                  </div>
+                </div>
+              </div>
             </>
           ) : (
             <div className="rounded-2xl border border-dashed border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-6 text-sm text-[var(--cb-text-muted)]">
@@ -496,6 +831,7 @@ export function PromptToModel() {
 
       <Card className="border-[rgba(118,138,161,0.18)] bg-[rgba(11,14,19,0.9)]">
         <CardHeader>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Run History</div>
           <CardTitle className="text-lg text-[var(--cb-text-primary)]">Recent Runs</CardTitle>
           <CardDescription>Generated workbooks saved for this browser session. Load assumptions back into the workflow and rerun with explicit overrides.</CardDescription>
         </CardHeader>
@@ -515,7 +851,9 @@ export function PromptToModel() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="outline">{run.modelType}</Badge>
+                        <Badge variant="outline" className={cn(run.modelType === preview?.modelType && 'border-[var(--cb-green)] text-[var(--cb-text-primary)]')}>
+                          {run.modelType}
+                        </Badge>
                         {run.latestVersion?.versionNumber ? <Badge>v{run.latestVersion.versionNumber}</Badge> : null}
                       </div>
                       <div className="text-sm font-medium text-[var(--cb-text-primary)]">{run.companyName || run.prompt}</div>

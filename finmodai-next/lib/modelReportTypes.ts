@@ -6,6 +6,7 @@ export type ModelKind =
   | 'dcf'
   | 'lbo'
   | 'comps'
+  | 'football-field'
   | 'merger'
   | 'operating'
   | 'three-statement'

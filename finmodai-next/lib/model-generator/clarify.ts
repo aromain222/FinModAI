@@ -39,6 +39,11 @@ export function getClarificationDecision(
         needsClarification: true,
         clarificationQuestion: 'What company or business type should I use for the comps set?',
       };
+    case 'FOOTBALL_FIELD':
+      return {
+        needsClarification: true,
+        clarificationQuestion: 'What company or business type should I anchor the football field on?',
+      };
     case 'PRECEDENTS':
       return {
         needsClarification: true,

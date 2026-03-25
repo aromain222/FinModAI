@@ -9,6 +9,7 @@ import * as threeStatementTemplate from '@/lib/model-generator/templates/threeSt
 import * as capTableTemplate from '@/lib/model-generator/templates/capTable';
 import * as saasOperatingTemplate from '@/lib/model-generator/templates/saasOperating';
 import * as compsTemplate from '@/lib/model-generator/templates/comps';
+import * as footballFieldTemplate from '@/lib/model-generator/templates/footballField';
 import * as precedentsTemplate from '@/lib/model-generator/templates/precedents';
 import * as lboTemplate from '@/lib/model-generator/templates/lbo';
 
@@ -26,6 +27,7 @@ const TEMPLATE_MAP: Record<ModelGeneratorType, PreviewBuilder> = {
   CAP_TABLE: capTableTemplate as PreviewBuilder,
   SAAS_OPERATING_MODEL: saasOperatingTemplate as PreviewBuilder,
   COMPS: compsTemplate as PreviewBuilder,
+  FOOTBALL_FIELD: footballFieldTemplate as PreviewBuilder,
   PRECEDENTS: precedentsTemplate as PreviewBuilder,
   LBO: lboTemplate as PreviewBuilder,
 };
@@ -36,8 +38,59 @@ const KEY_OUTPUTS: Record<ModelGeneratorType, string[]> = {
   CAP_TABLE: ['Post-Money Valuation', 'Founder Dilution', 'New Investor Ownership', 'Option Pool Impact'],
   SAAS_OPERATING_MODEL: ['ARR Growth', 'Gross Margin', 'CAC Payback', 'LTV:CAC'],
   COMPS: ['Peer Trading Multiples', 'Implied Valuation Range', 'Premium / Discount View', 'Peer Set Summary'],
+  FOOTBALL_FIELD: ['Trading Range', 'Precedent Range', 'Equity Value Bridge', 'Implied Share Price Range'],
   PRECEDENTS: ['Transaction Multiples', 'Control Premium', 'Implied Valuation Range', 'Pitch Summary'],
   LBO: ['MOIC', 'IRR', 'Exit Equity Value', 'Debt Paydown'],
+};
+
+const MODEL_PLAYBOOKS: Record<
+  ModelGeneratorType,
+  {
+    decisionQuestion: string;
+    whatToEditFirst: string[];
+    reviewStandard: string;
+  }
+> = {
+  DCF: {
+    decisionQuestion: 'What intrinsic value does the cash flow profile support under explicit operating and discount-rate assumptions?',
+    whatToEditFirst: ['Revenue growth path', 'Margin path', 'WACC', 'Terminal growth'],
+    reviewStandard: 'Check value-driver mix, sensitivity, and terminal-value dependence before relying on the share-price output.',
+  },
+  THREE_STATEMENT: {
+    decisionQuestion: 'How do revenue, margins, cash conversion, and financing decisions flow through the full financial statements?',
+    whatToEditFirst: ['Revenue growth', 'Margin path', 'Working capital', 'Capex and debt assumptions'],
+    reviewStandard: 'Review statement integrity, cash-bridge logic, and balance-sheet consistency before using the forecast.',
+  },
+  CAP_TABLE: {
+    decisionQuestion: 'How does a financing round change ownership, dilution, and post-money economics?',
+    whatToEditFirst: ['Raise amount', 'Pre-money valuation', 'Option pool', 'Security terms'],
+    reviewStandard: 'Check ownership roll-forward, dilution math, and scenario comparison before exporting the cap table.',
+  },
+  SAAS_OPERATING_MODEL: {
+    decisionQuestion: 'Which growth, retention, and efficiency assumptions drive ARR and cash runway?',
+    whatToEditFirst: ['Starting ARR', 'Net retention / churn', 'Gross margin', 'CAC and hiring pace'],
+    reviewStandard: 'Pressure-test the ARR bridge, unit economics, and runway outputs before relying on the plan.',
+  },
+  COMPS: {
+    decisionQuestion: 'Where should the company trade versus peers once scale, quality, and multiple selection are normalized?',
+    whatToEditFirst: ['Peer set quality', 'Selected EV / Revenue and EV / EBITDA multiples', 'Price anchor and share count'],
+    reviewStandard: 'Treat the peer table as the audit trail and challenge outliers before accepting the implied range.',
+  },
+  FOOTBALL_FIELD: {
+    decisionQuestion: 'What valuation range is defensible once trading and transaction framing are lined up side by side?',
+    whatToEditFirst: ['Peer-set quality', 'Revenue and EBITDA anchors', 'Net debt and diluted shares'],
+    reviewStandard: 'Use the field to compare ranges, not to hide weak underlying assumptions. Large spreads should force a challenge to method quality.',
+  },
+  PRECEDENTS: {
+    decisionQuestion: 'What control-value range does the current deal set support for the subject today?',
+    whatToEditFirst: ['Transaction set relevance', 'Revenue and EBITDA multiples', 'Control premium outliers'],
+    reviewStandard: 'Review transaction timing, strategic fit, and premium dispersion before using the range in banker materials.',
+  },
+  LBO: {
+    decisionQuestion: 'Can a sponsor underwrite the deal to an acceptable IRR and MOIC under realistic leverage and exit assumptions?',
+    whatToEditFirst: ['Entry multiple', 'Leverage mix', 'Operating case', 'Exit multiple and holding period'],
+    reviewStandard: 'Check sources & uses, debt paydown, minimum cash, and value-creation drivers before trusting sponsor returns.',
+  },
 };
 
 function buildUnsupportedResponse(message: string, status = 400) {
@@ -115,7 +168,7 @@ export async function POST(req: NextRequest) {
         return coreTemplateResponse;
       }
       return buildUnsupportedResponse(
-        'Unsupported prompt. Direct prompt generation currently supports DCF, three-statement, cap table, SaaS operating, comps, precedents, and LBO. Broader finance-native models should route into their dedicated CapitalBase workflows.'
+        'Unsupported prompt. Direct prompt generation currently supports DCF, three-statement, cap table, SaaS operating, comps, football field, precedents, and LBO. Broader finance-native models should route into their dedicated CapitalBase workflows.'
       );
     }
 
@@ -153,6 +206,9 @@ export async function POST(req: NextRequest) {
         modelName: templatePreview.title,
         tabs: templatePreview.tabs,
         keyOutputs: KEY_OUTPUTS[modelType],
+        decisionQuestion: MODEL_PLAYBOOKS[modelType].decisionQuestion,
+        whatToEditFirst: MODEL_PLAYBOOKS[modelType].whatToEditFirst,
+        reviewStandard: MODEL_PLAYBOOKS[modelType].reviewStandard,
       },
       recentRun: latestRun
         ? {

@@ -4,6 +4,7 @@ export type ModelGeneratorType =
   | 'CAP_TABLE'
   | 'SAAS_OPERATING_MODEL'
   | 'COMPS'
+  | 'FOOTBALL_FIELD'
   | 'PRECEDENTS'
   | 'LBO';
 
@@ -17,6 +18,7 @@ export function classifyPrompt(prompt: string): ModelGeneratorType | null {
 
   if (/\bdcf\b/.test(text)) return 'DCF';
   if (/\blbo\b|\bleveraged buyout\b/.test(text)) return 'LBO';
+  if (/\bfootball field\b|\bvaluation football field\b/.test(text)) return 'FOOTBALL_FIELD';
   if (/\bprecedent(?:s| transaction(?:s)?)\b|\bprecedent trans(?:action)?s?\b|\bprecent trxn\b/.test(text)) return 'PRECEDENTS';
   if (/\bcomps?\b|\bcomparable company\b|\btrading comps?\b/.test(text) || compareCompsPattern) return 'COMPS';
   if (
