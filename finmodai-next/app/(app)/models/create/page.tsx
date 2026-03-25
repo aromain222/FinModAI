@@ -62,14 +62,14 @@ const MODEL_OPTIONS = [
   { value: 'three-statement', label: 'Three Statement Model', description: 'Full P&L, Balance Sheet, Cash Flow' },
   { value: 'dcf', label: 'Discounted Cash Flow (DCF)', description: 'Intrinsic valuation with terminal value' },
   { value: 'reverse-dcf', label: 'Reverse DCF (Demo)', description: 'Solve implied growth from price and DCF assumptions' },
-  { value: 'debt-capacity-lite', label: 'Debt Capacity Lite', description: 'Quick max debt estimate from EBITDA constraints' },
-  { value: 'comps', label: 'Trading Comps Model', description: 'Peer group valuation multiples' },
-  { value: 'football-field', label: 'Football Field', description: 'Valuation range bridge across market methods' },
-  { value: 'precedents', label: 'Precedent Transactions', description: 'Control-value range from relevant deal comps' },
+  { value: 'debt-capacity-lite', label: 'Debt Capacity / Credit Stats', description: 'Leverage and coverage-based debt sizing' },
+  { value: 'comps', label: 'Trading Comparables', description: 'Subject versus peer valuation framing' },
+  { value: 'football-field', label: 'Football Field Valuation', description: 'Range bridge across trading and transaction methods' },
+  { value: 'precedents', label: 'Precedent Transactions', description: 'Control-value range from comparable deal comps' },
   { value: 'scorecard', label: 'Fundamentals Scorecard', description: 'Deterministic ratio scorecard with sector context' },
   // Merger and Operating remain hidden from UI
-  { value: 'lbo', label: 'Leveraged Buyout (LBO)', description: 'Returns analysis with debt paydown' },
-  { value: 'merger', label: 'Merger Model', description: 'Combined IS + EPS bridge + accretion/dilution' },
+  { value: 'lbo', label: 'LBO Underwriting', description: 'Sponsor returns analysis with debt paydown' },
+  { value: 'merger', label: 'Merger / Accretion Dilution', description: 'Combined IS + EPS bridge + accretion / dilution' },
   { value: 'operating', label: 'Operating Model', description: 'Monthly FP&A + cash runway + variance analysis' }
 ] as const;
 
@@ -98,24 +98,24 @@ const MODEL_WORKFLOW_NOTES: Partial<
   >
 > = {
   comps: {
-    decisionQuestion: 'Where should the company trade relative to the peer set once scale, quality, and margin profile are normalized?',
+    decisionQuestion: 'Where should the subject trade versus the peer set once growth, margin, and scale are normalized?',
     primaryDrivers: ['Peer set quality', 'Selected trading multiples', 'Price anchor and share count'],
-    outputPackage: ['Summary sheet', 'Peer table', 'Premium / discount view', 'Checks and equations'],
+    outputPackage: ['Valuation summary', 'Peer table', 'Premium / discount view', 'Checks and equations'],
   },
   'football-field': {
-    decisionQuestion: 'What valuation range does the market support when trading comps and transaction-style methods are laid out side by side?',
+    decisionQuestion: 'What valuation range can you defend in a pitch or fairness-style discussion once market and transaction methods are laid out side by side?',
     primaryDrivers: ['Subject revenue and EBITDA anchors', 'Peer trading ranges', 'Equity bridge from EV to price per share'],
-    outputPackage: ['Summary sheet', 'Football field range view', 'Equations tab', 'Checks tab'],
+    outputPackage: ['Valuation summary', 'Football field range view', 'Equations tab', 'Checks tab'],
   },
   precedents: {
-    decisionQuestion: 'What control-value range does the current precedent set support for the subject today?',
+    decisionQuestion: 'What control-value range does the relevant deal set support for the subject today?',
     primaryDrivers: ['Relevant transactions', 'Median vs outlier multiples', 'Control premium dispersion'],
-    outputPackage: ['Summary sheet', 'Transaction table', 'Valuation range', 'Checks and equations'],
+    outputPackage: ['Transaction summary', 'Selected deal table', 'Control-value range', 'Checks and equations'],
   },
   lbo: {
     decisionQuestion: 'Can a sponsor underwrite the deal to an acceptable IRR and MOIC under realistic leverage and exit assumptions?',
     primaryDrivers: ['Entry multiple', 'Leverage and financing mix', 'Operating case and exit multiple'],
-    outputPackage: ['LBO summary', 'Sources & uses', 'Debt schedule', 'Returns and sensitivities'],
+    outputPackage: ['Underwriting summary', 'Sources & uses', 'Debt schedule', 'Returns and sensitivities'],
   },
 };
 
@@ -297,23 +297,23 @@ const SCENARIO_LABELS: Record<ScenarioName, string> = {
 
 const WIZARD_STEPS = [
   {
-    title: 'Choose Template',
-    detail: 'Pick the model framework',
+    title: 'Choose Workstream',
+    detail: 'Pick the valuation or deal framework',
     icon: FileSpreadsheet,
   },
   {
-    title: 'Select Company',
-    detail: 'Public ticker or private inputs',
+    title: 'Choose Subject',
+    detail: 'Public ticker or private-company inputs',
     icon: Building2,
   },
   {
-    title: 'Set Assumptions',
-    detail: 'Scenarios, peers, and overrides',
+    title: 'Set Market Inputs',
+    detail: 'Scenarios, peers, and underwriting assumptions',
     icon: SlidersHorizontal,
   },
   {
-    title: 'Generate Output',
-    detail: 'Workbook, preview, and analysis',
+    title: 'Generate Banker Output',
+    detail: 'Workbook, preview, and memo',
     icon: CheckCircle2,
   },
 ] as const;
@@ -3968,9 +3968,9 @@ function CreateModelPageInner() {
               <Card className="border-[var(--cb-border-subtle)]">
                 <CardHeader>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Step 3</p>
-                  <CardTitle className="text-lg">Debt Capacity Lite Inputs (Demo)</CardTitle>
+                  <CardTitle className="text-lg">Debt Capacity / Credit Inputs</CardTitle>
                   <CardDescription>
-                    Estimate max debt from EBITDA with leverage and coverage constraints.
+                    Size max debt from EBITDA using leverage and coverage constraints you would use in a first-pass credit screen.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-3">
@@ -4666,11 +4666,11 @@ function CreateModelPageInner() {
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Step 4</p>
-                  <h3 className="mt-1 text-lg font-semibold text-[var(--cb-text-primary)]">Generate Output</h3>
+                  <h3 className="mt-1 text-lg font-semibold text-[var(--cb-text-primary)]">Generate Banker Output</h3>
                   <p className="mt-1 text-sm text-[var(--cb-text-secondary)]">
                     {footballFieldSelected
-                      ? 'Generate the football field workbook and preview directly from the current wizard state.'
-                      : 'Generate the workbook, preview, and model narrative from the current wizard state.'}
+                      ? 'Generate the football field workbook, valuation preview, and memo-ready output from the current wizard state.'
+                      : 'Generate the workbook, preview, and banker-style narrative from the current wizard state.'}
                   </p>
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -4684,8 +4684,8 @@ function CreateModelPageInner() {
                     className="min-w-[220px]"
                   >
                     {loading
-                      ? 'Generating Model…'
-                      : 'Generate Model'}
+                      ? 'Generating Banker Output…'
+                      : 'Generate Banker Output'}
                   </Button>
                   <Button type="button" variant="outline" onClick={() => router.push('/app')}>
                     Cancel
@@ -5093,7 +5093,7 @@ function CreateModelPageInner() {
               return (
                 <section className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-6">
                   <div className="mb-4">
-                    <h2 className="text-lg font-semibold text-[var(--cb-text-primary)]">Precedent Range</h2>
+                    <h2 className="text-lg font-semibold text-[var(--cb-text-primary)]">Precedent Valuation Readout</h2>
                     <p className="text-sm text-[var(--cb-text-secondary)]">
                       Control-value framing built from the selected transaction set and the subject&apos;s current revenue and EBITDA anchors.
                     </p>
@@ -5183,7 +5183,7 @@ function CreateModelPageInner() {
               return (
                 <section className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-6">
                   <div className="mb-4">
-                    <h2 className="text-lg font-semibold text-[var(--cb-text-primary)]">Merger Output</h2>
+                    <h2 className="text-lg font-semibold text-[var(--cb-text-primary)]">Accretion / Dilution Readout</h2>
                     <p className="text-sm text-[var(--cb-text-secondary)]">
                       Pro forma transaction read-through across deal value, consideration mix, and EPS accretion / dilution.
                     </p>

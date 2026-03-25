@@ -66,21 +66,20 @@ type RecentRun = {
 };
 
 const EXAMPLE_PROMPTS = [
-  'Generate a DCF model for Nvidia',
-  'Build a comparable company analysis for Snowflake',
-  'Create a debt capacity model for Netflix',
-  'Build an accretion dilution model for Microsoft acquiring Salesforce at $95B',
-  'Build a football field for Salesforce',
-  'Create a precedent transactions view for Mastercard',
-  'Build an LBO model for Oracle',
+  'Value Nvidia on a DCF basis',
+  'Run a trading comps analysis for Snowflake versus cloud software peers',
+  'Size debt capacity for Netflix at 5.0x leverage and 2.5x minimum coverage',
+  'Run accretion / dilution for Microsoft acquiring Salesforce at $95B with 60% cash and 40% stock',
+  'Build a banker-style football field for Salesforce',
+  'Frame a precedent transactions range for Mastercard',
+  'Underwrite an LBO for Oracle',
   'Build a revenue recognition ASC 606 model',
-  'Create a debt capacity model for Netflix',
 ];
 
 const WIZARD_STEPS = [
-  { title: 'Describe The Model', description: 'Write the request in plain English.', icon: Search },
-  { title: 'Review Preview', description: 'Confirm extracted inputs, provenance, and missing items.', icon: SlidersHorizontal },
-  { title: 'Generate Workbook', description: 'Export the Excel file or hand off to the stronger native wizard.', icon: CheckCircle2 },
+  { title: 'Frame The Ask', description: 'State the valuation, deal, or underwriting question in banker language.', icon: Search },
+  { title: 'Review Extracted Workstream', description: 'Check the subject, valuation anchors, provenance, and missing items.', icon: SlidersHorizontal },
+  { title: 'Generate Banker Output', description: 'Export the workbook and memo-ready package once the extracted setup is right.', icon: CheckCircle2 },
 ] as const;
 
 function isCurrencyKey(key?: string): boolean {
@@ -620,9 +619,9 @@ export function PromptToModel() {
     <div className="space-y-6">
       <Card className="overflow-hidden border-[rgba(118,138,161,0.18)] bg-[linear-gradient(180deg,rgba(11,14,19,0.98),rgba(14,18,24,0.92))] shadow-[0_24px_70px_rgba(0,0,0,0.35)]">
         <CardHeader className="border-b border-[rgba(118,138,161,0.14)]">
-          <CardTitle className="text-xl text-[var(--cb-text-primary)]">Build the model in three steps</CardTitle>
+          <CardTitle className="text-xl text-[var(--cb-text-primary)]">Build the banker workflow in three steps</CardTitle>
           <CardDescription>
-            Keep the flow structured: define the request, inspect the deterministic preview, then generate the workbook or route into the stronger native wizard.
+            Keep the flow structured: frame the workstream, inspect the deterministic preview, then generate the workbook or route into the stronger native wizard.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5 p-6">
@@ -666,14 +665,14 @@ export function PromptToModel() {
       <Card className="overflow-hidden border-[rgba(118,138,161,0.18)] bg-[linear-gradient(180deg,rgba(11,14,19,0.98),rgba(14,18,24,0.92))] shadow-[0_30px_90px_rgba(0,0,0,0.45)]">
         <CardHeader className="border-b border-[rgba(118,138,161,0.14)]">
           <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Step 1</div>
-          <CardTitle className="text-xl text-[var(--cb-text-primary)]">Describe The Model Request</CardTitle>
+          <CardTitle className="text-xl text-[var(--cb-text-primary)]">Describe The Banker Ask</CardTitle>
           <CardDescription>
-            Deterministic prompt parsing, visible provenance, saved reruns, downloadable finance-native Excel workbooks, and direct routing into the broader CapitalBase model catalog when a dedicated workflow already exists.
+            Deterministic prompt parsing, visible provenance, saved reruns, downloadable finance-native workbooks, and direct routing into the broader CapitalBase model catalog when a dedicated workflow already exists.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5 p-6">
           <div className="space-y-2">
-            <Label htmlFor="model-generator-prompt">Prompt</Label>
+            <Label htmlFor="model-generator-prompt">Banking Prompt</Label>
             <Textarea
               id="model-generator-prompt"
               value={prompt}
@@ -683,13 +682,13 @@ export function PromptToModel() {
                 setClarificationAnswer('');
                 setError(null);
               }}
-              placeholder="Describe the model you want to generate"
+              placeholder="Example: Run a trading comps analysis for Snowflake versus cloud software peers"
               className="min-h-[140px]"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="model-generator-overrides">Assumption Overrides (JSON)</Label>
+            <Label htmlFor="model-generator-overrides">Underwriting Overrides (JSON)</Label>
             <Textarea
               id="model-generator-overrides"
               value={inputOverridesText}
@@ -726,7 +725,7 @@ export function PromptToModel() {
 
           <div className="flex flex-wrap items-center gap-3">
             <Button onClick={() => void requestPreview()} disabled={previewLoading || !prompt.trim()}>
-              {previewLoading ? 'Analyzing Prompt…' : 'Preview Model'}
+              {previewLoading ? 'Analyzing Banker Prompt…' : 'Preview Workstream'}
             </Button>
             {preview?.handoffOnly && preview.coreTemplateModel ? (
               <Button asChild variant="outline">
@@ -736,7 +735,7 @@ export function PromptToModel() {
               </Button>
             ) : (
               <Button variant="outline" onClick={() => void handleGenerate()} disabled={!canGenerate}>
-                {generateLoading ? 'Generating Workbook…' : 'Generate Model'}
+                {generateLoading ? 'Generating Banker Output…' : 'Generate Banker Output'}
               </Button>
             )}
             {preview?.modelType === 'FOOTBALL_FIELD' || preview?.modelType === 'MERGER' || preview?.modelType === 'DEBT_CAPACITY_LITE' ? (
@@ -754,7 +753,7 @@ export function PromptToModel() {
         <CardHeader>
           <div className="flex flex-wrap items-center gap-3">
             <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Step 2</div>
-            <CardTitle className="text-lg text-[var(--cb-text-primary)]">Review Structured Preview</CardTitle>
+            <CardTitle className="text-lg text-[var(--cb-text-primary)]">Review Structured Workstream</CardTitle>
             {preview?.modelType ? <Badge variant="outline">{preview.modelType}</Badge> : null}
             {preview?.handoffOnly ? <Badge variant="outline">Workflow Handoff</Badge> : null}
             {preview?.supported ? <Badge>Supported</Badge> : <Badge variant="secondary">Waiting</Badge>}
