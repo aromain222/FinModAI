@@ -6,7 +6,17 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import type { ModelKind } from '@/lib/modelReportTypes';
 import { generateModelReport } from '@/lib/modelReport';
 
-const ALLOWED_MODELS: ModelKind[] = ['dcf', 'lbo', 'comps', 'football-field', 'three-statement', 'scorecard', 'debt-capacity-lite'];
+const ALLOWED_MODELS: ModelKind[] = [
+  'dcf',
+  'lbo',
+  'comps',
+  'football-field',
+  'precedents',
+  'merger',
+  'three-statement',
+  'scorecard',
+  'debt-capacity-lite',
+];
 
 interface RequestBody {
   ticker?: string;

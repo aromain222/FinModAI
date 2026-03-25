@@ -2020,75 +2020,6 @@ function CreateModelPageInner() {
       }
       setLastRequestBody(requestBody);
       
-      // For merger models, use the merger-specific API
-      if (modelType === 'merger') {
-        const mergerResponse = await fetch('/api/models/merger', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(mergerInputs),
-        });
-        
-        if (!mergerResponse.ok) {
-          const errorData = await mergerResponse.json().catch(() => ({}));
-          throw new Error(errorData.error || 'Failed to generate merger model');
-        }
-        
-        const mergerData = await mergerResponse.json();
-        
-        // Store applied defaults and warnings
-        setAppliedDefaults(mergerData.appliedDefaults || []);
-        setWarnings(mergerData.warnings || []);
-        setBlocks(mergerData.blocks || []);
-        
-        // If blocks exist, show error
-        if (mergerData.blocks && mergerData.blocks.length > 0) {
-          setError(`Model generation blocked: ${mergerData.blocks.join('; ')}`);
-          return;
-        }
-        
-        // Download Excel
-        const downloadResponse = await fetch('/api/models/merger/download', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(mergerInputs),
-        });
-        
-        if (downloadResponse.ok) {
-          const blob = await downloadResponse.blob();
-          const url = URL.createObjectURL(blob);
-          const anchor = document.createElement('a');
-          anchor.href = url;
-          anchor.download = `Merger_Model_${mergerInputs.acquirerTicker}_${mergerInputs.targetTicker}.xlsx`;
-          document.body.appendChild(anchor);
-          anchor.click();
-          anchor.remove();
-          URL.revokeObjectURL(url);
-        }
-        
-        // Set generated model
-        const resolvedModel: EnrichedModelResponse = {
-          modelId: mergerData.modelId || `merger-${Date.now()}`,
-          ticker: mergerData.ticker || `${mergerInputs.acquirerTicker}/${mergerInputs.targetTicker}`,
-          modelType: 'merger',
-          createdAt: new Date().toISOString(),
-          downloadUrl: mergerData.downloadUrl || '',
-          preview: mergerData.preview || EMPTY_PREVIEW,
-          summaryText: mergerData.report?.sections?.[0]?.body || `Merger model generated for ${mergerInputs.acquirerTicker}/${mergerInputs.targetTicker}`,
-        };
-        setGeneratedModel(resolvedModel);
-        setShowResults(true);
-        const clientDuration = Math.max(
-          0,
-          Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - runStart)
-        );
-        setLastDurationMs(clientDuration);
-        void trackEvent('generated_model', undefined, {
-          ticker: resolvedModel.ticker,
-          model_type: 'merger',
-        });
-        return;
-      }
-      
       // For operating models, use the operating-specific API
       if (modelType === 'operating') {
         const operatingResponse = await fetch('/api/models/operating', {
@@ -2158,7 +2089,7 @@ function CreateModelPageInner() {
         return;
       }
       
-      // For standard models (DCF, LBO, 3-Statement, Comps), use idempotent generate route
+      // For native wizard models, use the idempotent shared generate route.
       if (process.env.NODE_ENV === 'development') {
         console.log('[generate retry payload keys]', Object.keys(requestBody), {
           missingOverrides: missingInputOverridesRef.current,

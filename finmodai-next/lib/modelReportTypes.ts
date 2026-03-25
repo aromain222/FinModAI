@@ -7,6 +7,7 @@ export type ModelKind =
   | 'lbo'
   | 'comps'
   | 'football-field'
+  | 'precedents'
   | 'merger'
   | 'operating'
   | 'three-statement'

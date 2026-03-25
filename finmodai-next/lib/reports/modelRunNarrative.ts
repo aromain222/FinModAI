@@ -68,6 +68,7 @@ function humanModelLabel(modelType: string): string {
     FOOTBALL_FIELD: 'Football Field',
     PRECEDENTS: 'Precedent Transactions Analysis',
     LBO: 'LBO',
+    MERGER: 'Merger Model',
     THREE_STATEMENT: 'Three-Statement Model',
     SCORECARD: 'Fundamentals Scorecard',
     DEBT_CAPACITY_LITE: 'Debt Capacity Review',
@@ -85,6 +86,7 @@ function buildTitle(data: ModelRunReportData): string {
     FOOTBALL_FIELD: `${company} Football Field Review`,
     PRECEDENTS: `${company} Transaction Benchmark Review`,
     LBO: `${company} LBO Underwriting Review`,
+    MERGER: `${company} Merger Model Review`,
     SCORECARD: `${company} Fundamentals Review`,
     DEBT_CAPACITY_LITE: `${company} Debt Capacity Review`,
   };

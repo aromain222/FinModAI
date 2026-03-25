@@ -18,6 +18,7 @@ export type ModelType =
   | 'three-statement'
   | 'comps'
   | 'football-field'
+  | 'precedents'
   | 'merger'
   | 'operating'
   | 'scorecard';

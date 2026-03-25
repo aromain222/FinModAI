@@ -1,5 +1,5 @@
 import type { MergerModelInputs } from '@/lib/model-generator/extractInputs';
-import { generateMergerWorkbook } from '@/lib/models/merger/excel';
+import { generateMergerWorkbook, type MergerInputs } from '@/lib/models/merger/excel';
 
 export function getPreview(inputs: MergerModelInputs) {
   return {
@@ -18,8 +18,8 @@ export function getPreview(inputs: MergerModelInputs) {
   };
 }
 
-export async function buildWorkbook(inputs: MergerModelInputs) {
-  return generateMergerWorkbook({
+export function toWorkbookInputs(inputs: MergerModelInputs): MergerInputs {
+  return {
     acquirerTicker: inputs.acquirerTicker ?? inputs.acquirerName.slice(0, 5).toUpperCase(),
     acquirerName: inputs.acquirerName,
     acquirerRevenue: inputs.acquirerRevenue ?? undefined,
@@ -48,5 +48,9 @@ export async function buildWorkbook(inputs: MergerModelInputs) {
     synergies: inputs.synergies || undefined,
     oneTimeCosts: inputs.oneTimeCosts || undefined,
     taxRate: inputs.taxRate,
-  });
+  };
+}
+
+export async function buildWorkbook(inputs: MergerModelInputs) {
+  return generateMergerWorkbook(toWorkbookInputs(inputs));
 }

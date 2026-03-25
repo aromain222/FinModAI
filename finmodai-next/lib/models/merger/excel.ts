@@ -146,7 +146,7 @@ export interface MergerOutput {
 /**
  * Calculate M&A model from inputs
  */
-function calculateMergerModel(inputs: MergerInputs): MergerOutput {
+export function calculateMergerModel(inputs: MergerInputs): MergerOutput {
   // Determine deal value
   const dealValue = inputs.dealValue || inputs.purchasePrice || 
     (inputs.offerPrice && inputs.targetShares ? inputs.offerPrice * inputs.targetShares : 0);

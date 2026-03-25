@@ -53,9 +53,12 @@ type RunResult = {
 const MODEL_LABELS: Record<string, string> = {
   dcf: 'DCF',
   comps: 'COMPS',
+  'football-field': 'FOOTBALL_FIELD',
+  precedents: 'PRECEDENTS',
   'three-statement': 'THREE_STATEMENT',
   scorecard: 'SCORECARD',
   lbo: 'LBO',
+  merger: 'MERGER',
   'debt-capacity-lite': 'DEBT_CAPACITY_LITE',
 };
 
@@ -315,6 +318,25 @@ function extractDebtCapacitySnapshot(result: RunResult): SnapshotItem[] {
   ].filter((item) => item.value !== null) as SnapshotItem[];
 }
 
+function extractPreviewRowSnapshot(doc: ModelDocument | null, labels: Array<{ label: string; matcher: RegExp; format: SnapshotValueFormat }>) {
+  const table = getTableBlocks(doc)[0];
+  if (!table) return [];
+
+  return labels
+    .map<SnapshotItem | null>((config) => {
+      const row = table.rows.find((candidate) => config.matcher.test(rowLabel(candidate)));
+      if (!row) return null;
+      const value = valueFromRow(row);
+      if (value === null) return null;
+      return {
+        label: config.label,
+        value,
+        format: config.format,
+      };
+    })
+    .filter((item): item is SnapshotItem => item !== null);
+}
+
 function extractSnapshotItems(
   modelType: string,
   doc: ModelDocument | null,
@@ -322,9 +344,37 @@ function extractSnapshotItems(
 ): SnapshotItem[] {
   if (modelType === 'dcf') return extractDcfSnapshot(result);
   if (modelType === 'comps') return extractCompsSnapshot(doc);
+  if (modelType === 'football-field') {
+    return extractPreviewRowSnapshot(doc, [
+      { label: 'Trading Mid EV', matcher: /^trading mid ev$/i, format: 'money' },
+      { label: 'Precedent Mid EV', matcher: /^precedent mid ev$/i, format: 'money' },
+      { label: 'Trading Mid Price', matcher: /^trading mid price$/i, format: 'money' },
+      { label: 'Precedent Mid Price', matcher: /^precedent mid price$/i, format: 'money' },
+    ]);
+  }
+  if (modelType === 'precedents') {
+    return extractPreviewRowSnapshot(doc, [
+      { label: 'Subject Revenue', matcher: /^subject revenue$/i, format: 'money' },
+      { label: 'Subject EBITDA', matcher: /^subject ebitda$/i, format: 'money' },
+      { label: 'Median EV / Revenue', matcher: /^median ev \/ revenue$/i, format: 'multiple' },
+      { label: 'Median EV / EBITDA', matcher: /^median ev \/ ebitda$/i, format: 'multiple' },
+      { label: 'Implied EV (Revenue)', matcher: /^implied ev \(revenue\)$/i, format: 'money' },
+      { label: 'Implied EV (EBITDA)', matcher: /^implied ev \(ebitda\)$/i, format: 'money' },
+    ]);
+  }
   if (modelType === 'three-statement') return extractThreeStatementSnapshot(doc);
   if (modelType === 'scorecard') return extractScorecardSnapshot(result);
   if (modelType === 'debt-capacity-lite') return extractDebtCapacitySnapshot(result);
+  if (modelType === 'merger') {
+    return extractPreviewRowSnapshot(doc, [
+      { label: 'Deal Value', matcher: /^deal value$/i, format: 'money' },
+      { label: 'Standalone EPS', matcher: /^standalone eps$/i, format: 'money' },
+      { label: 'Pro Forma Revenue', matcher: /^pro forma revenue$/i, format: 'money' },
+      { label: 'Pro Forma EBITDA', matcher: /^pro forma ebitda$/i, format: 'money' },
+      { label: 'Pro Forma EPS', matcher: /^pro forma eps$/i, format: 'money' },
+      { label: 'EPS Accretion / Dilution', matcher: /^eps accretion \/ dilution$/i, format: 'percent' },
+    ]);
+  }
   return [];
 }
 
@@ -334,6 +384,9 @@ function keyTableIdsForModel(modelType: string): string[] {
   }
   if (modelType === 'comps') {
     return ['comps_peer_table', 'comps_multiples_summary', 'comps_implied_valuation'];
+  }
+  if (modelType === 'football-field' || modelType === 'precedents' || modelType === 'merger') {
+    return ['sheet_1'];
   }
   if (modelType === 'three-statement') {
     return ['three_statement_income_table', 'three_statement_balance_table', 'three_statement_cashflow_table'];

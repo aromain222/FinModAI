@@ -12,6 +12,7 @@ export interface ModelMeta {
   modelType:
     | 'comps'
     | 'football-field'
+    | 'precedents'
     | 'dcf'
     | 'reverse-dcf'
     | 'debt-capacity-lite'

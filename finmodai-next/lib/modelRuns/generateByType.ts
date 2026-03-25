@@ -42,6 +42,8 @@ const SUPPORTED_MODEL_TYPES = new Set([
   'lbo',
   'comps',
   'football-field',
+  'precedents',
+  'merger',
   'scorecard',
 ]);
 
@@ -156,6 +158,70 @@ function buildFootballFieldPreview(inputs: {
       toPrice(range.midValue),
       toPrice(range.highValue),
     ]),
+  };
+}
+
+function buildPrecedentsPreview(inputs: {
+  companyName: string;
+  subjectRevenue: number | null;
+  subjectEbitda: number | null;
+  revenueMultiple: number;
+  ebitdaMultiple: number;
+  transactions: Array<{
+    transaction: string;
+    announcementYear: number;
+    revenueMultiple: number;
+    ebitdaMultiple: number;
+    premium: number;
+  }>;
+}) {
+  const impliedRevenueEv =
+    inputs.subjectRevenue !== null ? inputs.subjectRevenue * inputs.revenueMultiple : null;
+  const impliedEbitdaEv =
+    inputs.subjectEbitda !== null ? inputs.subjectEbitda * inputs.ebitdaMultiple : null;
+
+  return {
+    sheetName: 'Precedent Summary',
+    columns: ['Metric', 'Value', 'Context'],
+    rows: [
+      ['Subject', inputs.companyName, `${inputs.transactions.length} transactions selected`],
+      ['Subject Revenue', inputs.subjectRevenue, 'Revenue anchor used for EV / Revenue framing'],
+      ['Subject EBITDA', inputs.subjectEbitda, 'EBITDA anchor used for EV / EBITDA framing'],
+      ['Median EV / Revenue', inputs.revenueMultiple, 'Median precedent revenue multiple'],
+      ['Median EV / EBITDA', inputs.ebitdaMultiple, 'Median precedent EBITDA multiple'],
+      ['Implied EV (Revenue)', impliedRevenueEv, 'Revenue-based control value read-through'],
+      ['Implied EV (EBITDA)', impliedEbitdaEv, 'EBITDA-based control value read-through'],
+      [],
+      ['Recent Transaction', 'Year', 'Premium'],
+      ...inputs.transactions.slice(0, 5).map((item) => [item.transaction, item.announcementYear, item.premium]),
+    ],
+  };
+}
+
+function buildMergerPreview(summary: {
+  acquirerTicker: string;
+  targetTicker: string;
+  dealValue: number;
+  consideration: { cash: number; stock: number; debt: number };
+  proForma: { revenue: number; ebitda: number; eps: number };
+  standalone: { acquirer: { eps: number } };
+  accretionDilution: { epsAccretion: number; epsAccretionPct: number };
+}) {
+  return {
+    sheetName: 'Merger Summary',
+    columns: ['Metric', 'Value', 'Context'],
+    rows: [
+      ['Transaction', `${summary.acquirerTicker} / ${summary.targetTicker}`, 'Acquirer and target'],
+      ['Deal Value', summary.dealValue, 'Total consideration value'],
+      ['Cash Consideration', summary.consideration.cash, 'Cash-funded portion'],
+      ['Stock Consideration', summary.consideration.stock, 'Stock-funded portion'],
+      ['Debt Consideration', summary.consideration.debt, 'Debt-funded portion'],
+      ['Standalone EPS', summary.standalone.acquirer.eps, 'Acquirer standalone EPS'],
+      ['Pro Forma Revenue', summary.proForma.revenue, 'Combined topline after year-one adjustments'],
+      ['Pro Forma EBITDA', summary.proForma.ebitda, 'Combined EBITDA after year-one adjustments'],
+      ['Pro Forma EPS', summary.proForma.eps, 'Combined earnings per share'],
+      ['EPS Accretion / Dilution', summary.accretionDilution.epsAccretionPct, 'Positive = accretive'],
+    ],
   };
 }
 
@@ -315,11 +381,20 @@ export async function generateRunForModelType({
     ? privateCompanyName.replace(/[^A-Za-z0-9]/g, '').slice(0, 8).toUpperCase() || 'PRIVATE'
     : 'PRIVATE';
   const ticker = String(body?.ticker || (isPrivateMode ? privateTickerFallback : '')).trim().toUpperCase();
+  const mergerInputsRaw = body?.mergerInputs && typeof body.mergerInputs === 'object' ? body.mergerInputs : body;
+  const mergerRunTicker =
+    modelType === 'merger'
+      ? [mergerInputsRaw?.acquirerTicker, mergerInputsRaw?.targetTicker]
+          .filter((value) => typeof value === 'string' && value.trim().length > 0)
+          .map((value) => String(value).trim().toUpperCase())
+          .join('/')
+      : '';
+  const runTicker = mergerRunTicker || ticker;
   const asOfDate = String(body?.asOfDate || new Date().toISOString().slice(0, 10));
   let modelInputs: ModelInputs | null = null;
   let payloadForHash: unknown = null;
 
-  if (!ticker && !isPrivateMode) {
+  if (!runTicker && !isPrivateMode && modelType !== 'merger') {
     return NextResponse.json(
       {
         ok: true,
@@ -332,8 +407,8 @@ export async function generateRunForModelType({
     );
   }
 
-  if (isDemoMode() && !isPrivateMode) {
-    const demoAllowed = await isDemoTickerAvailable(ticker);
+  if (isDemoMode() && !isPrivateMode && modelType !== 'merger') {
+    const demoAllowed = await isDemoTickerAvailable(runTicker);
     if (!demoAllowed) {
     return NextResponse.json(
       {
@@ -368,6 +443,21 @@ export async function generateRunForModelType({
       asOfDate,
       inputs: body,
       prompt: `Build a football field for ${ticker}`,
+    };
+  } else if (modelType === 'precedents') {
+    payloadForHash = {
+      modelType,
+      ticker: runTicker,
+      asOfDate,
+      inputs: body,
+      prompt: `Create a precedent transactions view for ${isPrivateMode ? (privateCompanyName || 'the company') : runTicker}`,
+    };
+  } else if (modelType === 'merger') {
+    payloadForHash = {
+      modelType,
+      ticker: runTicker,
+      asOfDate,
+      inputs: mergerInputsRaw,
     };
   } else {
     try {
@@ -426,12 +516,12 @@ export async function generateRunForModelType({
   const run = createRun({
     userId: null,
     modelType,
-    ticker,
+    ticker: runTicker,
     asOfDate,
     inputsHash,
     status: 'generating',
   });
-  console.log('[model-run] status transition', { runId: run.id, from: 'new', to: 'generating', ticker, modelType });
+  console.log('[model-run] status transition', { runId: run.id, from: 'new', to: 'generating', ticker: runTicker, modelType });
 
   try {
     if (modelType === 'football-field') {
@@ -526,6 +616,288 @@ export async function generateRunForModelType({
         to: 'generated',
         storageKey: storageKey || null,
         engine: 'football-field',
+      });
+
+      return NextResponse.json({
+        ok: true,
+        status: 'generated',
+        state: 'generated',
+        runId: run.id,
+        storageKey,
+        downloadUrl: null,
+        ...generatedResult,
+      });
+    }
+
+    if (modelType === 'precedents') {
+      const { extractInputs } = await import('@/lib/model-generator/extractInputs');
+      const { buildWorkbook } = await import('@/lib/model-generator/templates/precedents');
+
+      const prompt = `Create a precedent transactions view for ${isPrivateMode ? (privateCompanyName || 'the company') : runTicker}`;
+      const overrideSource = body?.manualInputs && typeof body.manualInputs === 'object' ? body.manualInputs : body;
+      const extracted = await extractInputs(prompt, 'PRECEDENTS', {
+        inputOverrides: {
+          companyName: isPrivateMode ? (privateCompanyName || 'Private Company') : undefined,
+          ticker: isPrivateMode ? privateTickerFallback : runTicker,
+          subjectRevenue:
+            typeof overrideSource?.revenue === 'number'
+              ? overrideSource.revenue
+              : typeof body?.revenue === 'number'
+                ? body.revenue
+                : undefined,
+          subjectEbitda:
+            typeof overrideSource?.ebitda === 'number'
+              ? overrideSource.ebitda
+              : typeof body?.ebitda === 'number'
+                ? body.ebitda
+                : undefined,
+        },
+      });
+      const precedentsInputs = extracted.extractedInputs;
+
+      if (extracted.missingCriticalInputs.length > 0 || precedentsInputs.modelType !== 'PRECEDENTS') {
+        const missingInputs =
+          precedentsInputs.modelType === 'PRECEDENTS'
+            ? extracted.missingCriticalInputs
+            : ['companyName', 'revenue', 'ebitda'];
+        updateRun(run.id, {
+          status: 'assumptions_required',
+          result: {
+            missingInputs,
+            requiredInputs: missingInputs,
+          },
+        });
+        return NextResponse.json({
+          ok: true,
+          status: 'assumptions_required',
+          state: 'assumptions_required',
+          runId: run.id,
+          missingInputs,
+          message: 'Precedent transactions requires company, revenue, and EBITDA anchors before generation.',
+        });
+      }
+
+      const workbook = await buildWorkbook(precedentsInputs);
+      const workbookBufferRaw = await workbook.xlsx.writeBuffer();
+      const workbookBuffer = Buffer.isBuffer(workbookBufferRaw) ? workbookBufferRaw : Buffer.from(workbookBufferRaw);
+      const dataUri = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${workbookBuffer.toString('base64')}`;
+
+      let storageKey: string | undefined;
+      let dataUrl: string | undefined;
+
+      if (isObjectStoreConfigured()) {
+        storageKey = `models/${run.id}.xlsx`;
+        await uploadBufferAndSign({
+          key: storageKey,
+          buffer: workbookBuffer,
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          expiresInSeconds: 900,
+        });
+
+        const exists = await objectExists(storageKey);
+        console.log('[model-run] upload confirmation', { runId: run.id, storageKey, exists });
+        if (!exists) {
+          updateRun(run.id, { status: 'failed', errorMessage: 'Workbook upload verification failed' });
+          return errorResponse(500, 'upload_verification_failed', 'Workbook upload verification failed', 'upload');
+        }
+      } else {
+        dataUrl = dataUri;
+      }
+
+      const preview = buildPrecedentsPreview(precedentsInputs);
+      const modelDocument = buildDocumentFromPreview(preview, {
+        ticker: precedentsInputs.ticker || runTicker || privateTickerFallback,
+        modelType: 'precedents',
+        asOfDate,
+        currency: 'USD',
+        units: 'millions',
+      });
+
+      const generatedResult: GeneratedPayload = {
+        preview,
+        modelDocument,
+        assumptions: precedentsInputs,
+        diagnostics: [],
+        warnings: extracted.missingInputs.length > 0 ? [`Missing optional inputs: ${extracted.missingInputs.join(', ')}`] : [],
+        appliedDefaults: Object.entries(extracted.defaultsUsed).map(([key, value]) => ({ key, value })),
+      };
+
+      updateRun(run.id, {
+        status: 'generated',
+        storageKey,
+        dataUrl,
+        fileSize: workbookBuffer.length,
+        result: generatedResult as Record<string, unknown>,
+      });
+      console.log('[model-run] status transition', {
+        runId: run.id,
+        from: 'generating',
+        to: 'generated',
+        storageKey: storageKey || null,
+        engine: 'precedents',
+      });
+
+      return NextResponse.json({
+        ok: true,
+        status: 'generated',
+        state: 'generated',
+        runId: run.id,
+        storageKey,
+        downloadUrl: null,
+        ...generatedResult,
+      });
+    }
+
+    if (modelType === 'merger') {
+      const { MergerModelInputSchema, getMissingMergerInputs } = await import('@/lib/models/merger/schema');
+      const { extractInputs } = await import('@/lib/model-generator/extractInputs');
+      const { buildWorkbook, toWorkbookInputs } = await import('@/lib/model-generator/templates/merger');
+      const { calculateMergerModel } = await import('@/lib/models/merger/excel');
+
+      const missing = getMissingMergerInputs(mergerInputsRaw);
+      if (missing.length > 0) {
+        updateRun(run.id, {
+          status: 'assumptions_required',
+          result: {
+            missingInputs: missing,
+            requiredInputs: missing,
+          },
+        });
+        return NextResponse.json({
+          ok: true,
+          status: 'assumptions_required',
+          state: 'assumptions_required',
+          runId: run.id,
+          missingInputs: missing,
+          message: 'Merger model requires acquirer, target, and deal terms before generation.',
+        });
+      }
+
+      const parsedMerger = MergerModelInputSchema.safeParse(mergerInputsRaw);
+      if (!parsedMerger.success) {
+        const invalidInputs = parsedMerger.error.errors.map((entry) => entry.path.join('.') || entry.message);
+        updateRun(run.id, {
+          status: 'assumptions_required',
+          result: {
+            missingInputs: invalidInputs,
+            requiredInputs: invalidInputs,
+          },
+        });
+        return NextResponse.json({
+          ok: true,
+          status: 'assumptions_required',
+          state: 'assumptions_required',
+          runId: run.id,
+          missingInputs: invalidInputs,
+          message: 'Merger inputs are incomplete or invalid.',
+        });
+      }
+
+      const mergerData = parsedMerger.data;
+      const mergerPromptParts = [
+        `Build an accretion dilution model for ${mergerData.acquirerTicker} acquiring ${mergerData.targetTicker}`,
+        `at $${mergerData.purchasePrice}M`,
+        mergerData.cashPct !== undefined ? `with ${(mergerData.cashPct * 100).toFixed(0)}% cash` : null,
+        mergerData.stockPct !== undefined ? `and ${(mergerData.stockPct * 100).toFixed(0)}% stock` : null,
+        mergerData.debtPct !== undefined ? `and ${(mergerData.debtPct * 100).toFixed(0)}% debt` : null,
+      ].filter(Boolean);
+      const extracted = await extractInputs(mergerPromptParts.join(' '), 'MERGER', {
+        inputOverrides: {
+          purchasePrice: mergerData.purchasePrice,
+          cashPct: mergerData.cashPct,
+          stockPct: mergerData.stockPct,
+          debtPct: mergerData.debtPct,
+          forecastYears: mergerData.forecastYears,
+          newDebt: mergerData.newDebt,
+          newDebtRate: mergerData.newDebtRate,
+          synergies: mergerData.synergies,
+          oneTimeCosts: mergerData.oneTimeCosts,
+          taxRate: mergerData.taxRate,
+        },
+      });
+      const mergerInputs = extracted.extractedInputs;
+
+      if (extracted.missingCriticalInputs.length > 0 || mergerInputs.modelType !== 'MERGER') {
+        const missingInputs =
+          mergerInputs.modelType === 'MERGER'
+            ? extracted.missingCriticalInputs
+            : ['acquirerTicker', 'targetTicker', 'purchasePrice'];
+        updateRun(run.id, {
+          status: 'assumptions_required',
+          result: {
+            missingInputs,
+            requiredInputs: missingInputs,
+          },
+        });
+        return NextResponse.json({
+          ok: true,
+          status: 'assumptions_required',
+          state: 'assumptions_required',
+          runId: run.id,
+          missingInputs,
+          message: 'Merger model requires complete acquirer, target, and purchase price inputs.',
+        });
+      }
+
+      const workbook = await buildWorkbook(mergerInputs);
+      const workbookBufferRaw = await workbook.xlsx.writeBuffer();
+      const workbookBuffer = Buffer.isBuffer(workbookBufferRaw) ? workbookBufferRaw : Buffer.from(workbookBufferRaw);
+      const dataUri = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${workbookBuffer.toString('base64')}`;
+
+      let storageKey: string | undefined;
+      let dataUrl: string | undefined;
+
+      if (isObjectStoreConfigured()) {
+        storageKey = `models/${run.id}.xlsx`;
+        await uploadBufferAndSign({
+          key: storageKey,
+          buffer: workbookBuffer,
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          expiresInSeconds: 900,
+        });
+
+        const exists = await objectExists(storageKey);
+        console.log('[model-run] upload confirmation', { runId: run.id, storageKey, exists });
+        if (!exists) {
+          updateRun(run.id, { status: 'failed', errorMessage: 'Workbook upload verification failed' });
+          return errorResponse(500, 'upload_verification_failed', 'Workbook upload verification failed', 'upload');
+        }
+      } else {
+        dataUrl = dataUri;
+      }
+
+      const mergerSummary = calculateMergerModel(toWorkbookInputs(mergerInputs));
+      const preview = buildMergerPreview(mergerSummary);
+      const modelDocument = buildDocumentFromPreview(preview, {
+        ticker: mergerRunTicker || mergerInputs.acquirerTicker || runTicker || 'MERGER',
+        modelType: 'merger',
+        asOfDate,
+        currency: 'USD',
+        units: 'millions',
+      });
+
+      const generatedResult: GeneratedPayload = {
+        preview,
+        modelDocument,
+        assumptions: mergerInputs,
+        diagnostics: [],
+        warnings: extracted.missingInputs.length > 0 ? [`Missing optional inputs: ${extracted.missingInputs.join(', ')}`] : [],
+        appliedDefaults: Object.entries(extracted.defaultsUsed).map(([key, value]) => ({ key, value })),
+      };
+
+      updateRun(run.id, {
+        status: 'generated',
+        storageKey,
+        dataUrl,
+        fileSize: workbookBuffer.length,
+        result: generatedResult as Record<string, unknown>,
+      });
+      console.log('[model-run] status transition', {
+        runId: run.id,
+        from: 'generating',
+        to: 'generated',
+        storageKey: storageKey || null,
+        engine: 'merger',
       });
 
       return NextResponse.json({
