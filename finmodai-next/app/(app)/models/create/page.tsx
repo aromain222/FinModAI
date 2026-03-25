@@ -56,6 +56,7 @@ import { QUICK_LBO_DEFAULT_SUMMARY } from '@/lib/models/lbo/quick';
 import { useToast } from '@/hooks/use-toast';
 import { ToastEnhanced } from '@/components/ui/toast-enhanced';
 import { trackEvent } from '@/lib/trackEvent';
+import type { ModelDocument, TableBlock } from '@/lib/models/schema/ModelDocument';
 
 const MODEL_OPTIONS = [
   { value: 'three-statement', label: 'Three Statement Model', description: 'Full P&L, Balance Sheet, Cash Flow' },
@@ -586,6 +587,62 @@ const getHeatColor = (
   const hue = 8 + ratio * 132; // red -> green
   return `hsl(${hue.toFixed(0)} 72% 86%)`;
 };
+
+function getPrimaryPreviewTable(doc: ModelDocument | null | undefined): TableBlock | null {
+  if (!doc) return null;
+  for (const section of doc.sections) {
+    const table = section.blocks.find((block): block is TableBlock => block.type === 'table');
+    if (table) return table;
+  }
+  return null;
+}
+
+function getPreviewMetricValue(
+  doc: ModelDocument | null | undefined,
+  matcher: RegExp
+): string | number | null {
+  const table = getPrimaryPreviewTable(doc);
+  if (!table) return null;
+
+  const row = table.rows.find((candidate) => {
+    const label = typeof candidate.labelCell === 'string' ? candidate.labelCell : '';
+    return matcher.test(label);
+  });
+  if (!row) return null;
+
+  const entries = Object.values(row.cells);
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const cell = entries[index];
+    if (cell?.display !== undefined && cell.display !== null && cell.display !== '') return cell.display;
+    if (cell?.value !== undefined && cell.value !== null && cell.value !== '') return cell.value;
+  }
+
+  return null;
+}
+
+function formatResultMetric(
+  value: string | number | null | undefined,
+  kind: 'money' | 'percent' | 'multiple' | 'text' = 'text'
+): string {
+  if (value === null || value === undefined || value === '') return 'N/A';
+  if (typeof value === 'string') return value;
+  if (!Number.isFinite(value)) return 'N/A';
+
+  if (kind === 'money') {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+  if (kind === 'percent') {
+    return `${(Math.abs(value) <= 1 ? value * 100 : value).toFixed(1)}%`;
+  }
+  if (kind === 'multiple') {
+    return `${value.toFixed(2)}x`;
+  }
+  return value.toLocaleString('en-US');
+}
 
 
 function CreateModelPageInner() {
@@ -5022,6 +5079,187 @@ function CreateModelPageInner() {
                 </div>
               </section>
             )}
+
+            {generatedModel && generatedModel.modelType === 'precedents' && (() => {
+              const assumptions = (generatedModel as any).assumptions || {};
+              const subjectRevenue = getPreviewMetricValue(generatedModel.modelDocument, /^subject revenue$/i);
+              const subjectEbitda = getPreviewMetricValue(generatedModel.modelDocument, /^subject ebitda$/i);
+              const medianRevenue = getPreviewMetricValue(generatedModel.modelDocument, /^median ev \/ revenue$/i);
+              const medianEbitda = getPreviewMetricValue(generatedModel.modelDocument, /^median ev \/ ebitda$/i);
+              const impliedRevenue = getPreviewMetricValue(generatedModel.modelDocument, /^implied ev \(revenue\)$/i);
+              const impliedEbitda = getPreviewMetricValue(generatedModel.modelDocument, /^implied ev \(ebitda\)$/i);
+              const transactions = Array.isArray(assumptions.transactions) ? assumptions.transactions.slice(0, 5) : [];
+
+              return (
+                <section className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-6">
+                  <div className="mb-4">
+                    <h2 className="text-lg font-semibold text-[var(--cb-text-primary)]">Precedent Range</h2>
+                    <p className="text-sm text-[var(--cb-text-secondary)]">
+                      Control-value framing built from the selected transaction set and the subject&apos;s current revenue and EBITDA anchors.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Subject Revenue</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">{formatResultMetric(subjectRevenue, 'money')}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Subject EBITDA</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">{formatResultMetric(subjectEbitda, 'money')}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Transaction Count</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">
+                        {typeof assumptions.transactionCount === 'number' ? assumptions.transactionCount : transactions.length || 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Median EV / Revenue</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">{formatResultMetric(medianRevenue, 'multiple')}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Median EV / EBITDA</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">{formatResultMetric(medianEbitda, 'multiple')}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Revenue vs EBITDA Read</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">
+                        {formatResultMetric(impliedRevenue, 'money')} / {formatResultMetric(impliedEbitda, 'money')}
+                      </p>
+                    </div>
+                  </div>
+
+                  {transactions.length > 0 && (
+                    <div className="mt-5 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
+                      <div className="mb-3">
+                        <h3 className="text-sm font-semibold text-[var(--cb-text-primary)]">Selected Transactions</h3>
+                        <p className="text-xs text-[var(--cb-text-secondary)]">
+                          Use these as the first challenge set before relying on the implied control range.
+                        </p>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-left text-xs">
+                          <thead className="text-[var(--cb-text-muted)]">
+                            <tr>
+                              <th className="pb-2 pr-4 font-medium">Transaction</th>
+                              <th className="pb-2 pr-4 font-medium">Year</th>
+                              <th className="pb-2 pr-4 font-medium">EV / Revenue</th>
+                              <th className="pb-2 pr-4 font-medium">EV / EBITDA</th>
+                              <th className="pb-2 font-medium">Premium</th>
+                            </tr>
+                          </thead>
+                          <tbody className="text-[var(--cb-text-primary)]">
+                            {transactions.map((transaction: any, index: number) => (
+                              <tr key={`${transaction.transaction || 'tx'}-${index}`} className="border-t border-[var(--cb-border-subtle)]">
+                                <td className="py-2 pr-4">{transaction.transaction || transaction.target || 'Transaction'}</td>
+                                <td className="py-2 pr-4">{transaction.announcementYear ?? '—'}</td>
+                                <td className="py-2 pr-4 font-mono">{formatResultMetric(transaction.revenueMultiple ?? null, 'multiple')}</td>
+                                <td className="py-2 pr-4 font-mono">{formatResultMetric(transaction.ebitdaMultiple ?? null, 'multiple')}</td>
+                                <td className="py-2 font-mono">{formatResultMetric(transaction.premium ?? null, 'percent')}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </section>
+              );
+            })()}
+
+            {generatedModel && generatedModel.modelType === 'merger' && (() => {
+              const assumptions = (generatedModel as any).assumptions || {};
+              const dealValue = getPreviewMetricValue(generatedModel.modelDocument, /^deal value$/i);
+              const standaloneEps = getPreviewMetricValue(generatedModel.modelDocument, /^standalone eps$/i);
+              const proFormaRevenue = getPreviewMetricValue(generatedModel.modelDocument, /^pro forma revenue$/i);
+              const proFormaEbitda = getPreviewMetricValue(generatedModel.modelDocument, /^pro forma ebitda$/i);
+              const proFormaEps = getPreviewMetricValue(generatedModel.modelDocument, /^pro forma eps$/i);
+              const epsAccretion = getPreviewMetricValue(generatedModel.modelDocument, /^eps accretion \/ dilution$/i);
+              const cashPct = typeof assumptions.cashPct === 'number' ? assumptions.cashPct : null;
+              const stockPct = typeof assumptions.stockPct === 'number' ? assumptions.stockPct : null;
+              const debtPct = typeof assumptions.debtPct === 'number' ? assumptions.debtPct : null;
+
+              return (
+                <section className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-6">
+                  <div className="mb-4">
+                    <h2 className="text-lg font-semibold text-[var(--cb-text-primary)]">Merger Output</h2>
+                    <p className="text-sm text-[var(--cb-text-secondary)]">
+                      Pro forma transaction read-through across deal value, consideration mix, and EPS accretion / dilution.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Deal Value</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">{formatResultMetric(dealValue, 'money')}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Standalone EPS</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">{formatResultMetric(standaloneEps, 'money')}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Pro Forma EPS</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">{formatResultMetric(proFormaEps, 'money')}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">EPS Accretion / Dilution</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">{formatResultMetric(epsAccretion, 'percent')}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Pro Forma Revenue</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">{formatResultMetric(proFormaRevenue, 'money')}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Pro Forma EBITDA</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">{formatResultMetric(proFormaEbitda, 'money')}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
+                      <h3 className="mb-2 text-sm font-semibold text-[var(--cb-text-primary)]">Consideration Mix</h3>
+                      <div className="space-y-2 text-sm text-[var(--cb-text-primary)]">
+                        <div className="flex items-center justify-between">
+                          <span>Cash</span>
+                          <span className="font-mono">{formatResultMetric(cashPct, 'percent')}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Stock</span>
+                          <span className="font-mono">{formatResultMetric(stockPct, 'percent')}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Debt</span>
+                          <span className="font-mono">{formatResultMetric(debtPct, 'percent')}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
+                      <h3 className="mb-2 text-sm font-semibold text-[var(--cb-text-primary)]">Deal Mechanics</h3>
+                      <div className="space-y-2 text-sm text-[var(--cb-text-primary)]">
+                        <div className="flex items-center justify-between">
+                          <span>New Debt Rate</span>
+                          <span className="font-mono">{formatResultMetric(assumptions.newDebtRate ?? null, 'percent')}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Synergies</span>
+                          <span className="font-mono">{formatResultMetric(assumptions.synergies ?? null, 'money')}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>One-Time Costs</span>
+                          <span className="font-mono">{formatResultMetric(assumptions.oneTimeCosts ?? null, 'money')}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Tax Rate</span>
+                          <span className="font-mono">{formatResultMetric(assumptions.taxRate ?? null, 'percent')}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              );
+            })()}
 
             {generatedModel && (generatedModel.modelType === 'dcf' || generatedModel.modelType === 'lbo') && (() => {
               const isDcfSensitivity = generatedModel.modelType === 'dcf';
