@@ -164,26 +164,67 @@ export async function buildWorkbook(inputs: CompsModelInputs): Promise<ExcelJS.W
   ['A3', 'A4', 'D3', 'D4'].forEach((ref) => styleLabel(summary.getCell(ref)));
   ['B3', 'B4', 'E3', 'E4'].forEach((ref) => styleFormula(summary.getCell(ref)));
 
-  styleSectionHeader(summary, 6, 'Decision Frame', 6);
-  summary.getCell('A7').value = 'Selected peers';
-  summary.getCell('B7').value = result.peers.length;
-  summary.getCell('C7').value = 'Current price';
-  summary.getCell('D7').value = subjectPrice;
-  summary.getCell('E7').value = 'Current EV';
-  summary.getCell('F7').value = subjectEnterpriseValue;
-  ['A7', 'C7', 'E7'].forEach((ref) => styleLabel(summary.getCell(ref)));
-  styleFormula(summary.getCell('B7'), 'number');
-  styleAccentOutput(summary.getCell('D7'), 'currency');
-  styleAccentOutput(summary.getCell('F7'), 'currency');
-  styleThinGrid(summary, 7, 7, 1, 6);
+  const currentPriceForTakeaway = subjectPrice;
+  const impliedPrices = [impliedPriceRevenue, impliedPriceEbitda, impliedPricePe].filter(
+    (value): value is number => value !== null && Number.isFinite(value)
+  );
+  const medianImpliedPrice =
+    impliedPrices.length === 0
+      ? null
+      : impliedPrices.sort((a, b) => a - b)[Math.floor(impliedPrices.length / 2)];
+  const valuationRead =
+    currentPriceForTakeaway == null || medianImpliedPrice == null
+      ? 'Peer output is incomplete. Fix the denominators or widen the peer set before using this in a pitch.'
+      : medianImpliedPrice / currentPriceForTakeaway - 1 > 0.1
+        ? 'Subject screens below the comp-based range. Pressure-test whether that discount is earned or a setup for rerating.'
+        : medianImpliedPrice / currentPriceForTakeaway - 1 < -0.1
+          ? 'Subject screens above the comp-based range. The premium needs to be justified by growth, quality, or scarcity.'
+          : 'Subject screens broadly in line with the comp range. The debate is about which selected multiple best captures quality.'
+  ;
 
-  styleSectionHeader(summary, 10, 'Valuation Range', 5);
-  styleTableHeader(summary, 11, 1, 5);
-  summary.getCell('A11').value = 'Method';
-  summary.getCell('B11').value = 'Selected Multiple';
-  summary.getCell('C11').value = 'Implied EV';
-  summary.getCell('D11').value = 'Implied Equity';
-  summary.getCell('E11').value = 'Implied Price';
+  styleSectionHeader(summary, 6, 'Banker Takeaway', 6);
+  summary.getCell('A7').value = valuationRead;
+  summary.mergeCells('A7:F7');
+  styleNarrativeBlock(summary, 7, 1, 6);
+
+  styleSectionHeader(summary, 9, 'Selected Methodology', 6);
+  summary.getCell('A10').value = 'Primary lens';
+  summary.getCell('B10').value =
+    selectedEvEbitda !== null
+      ? 'EV / EBITDA'
+      : selectedEvRevenue !== null
+        ? 'EV / Revenue'
+        : selectedPeRatio !== null
+          ? 'P / E'
+          : 'Peer median review';
+  summary.getCell('C10').value = 'Edit first';
+  summary.getCell('D10').value = 'Peer set and selected multiples';
+  summary.getCell('E10').value = 'Pitch use';
+  summary.getCell('F10').value = 'Premium / discount framing';
+  ['A10', 'C10', 'E10'].forEach((ref) => styleLabel(summary.getCell(ref)));
+  ['B10', 'D10', 'F10'].forEach((ref) => styleFormula(summary.getCell(ref)));
+  styleThinGrid(summary, 10, 10, 1, 6);
+
+  styleSectionHeader(summary, 12, 'Decision Frame', 6);
+  summary.getCell('A13').value = 'Selected peers';
+  summary.getCell('B13').value = result.peers.length;
+  summary.getCell('C13').value = 'Current price';
+  summary.getCell('D13').value = subjectPrice;
+  summary.getCell('E13').value = 'Current EV';
+  summary.getCell('F13').value = subjectEnterpriseValue;
+  ['A13', 'C13', 'E13'].forEach((ref) => styleLabel(summary.getCell(ref)));
+  styleFormula(summary.getCell('B13'), 'number');
+  styleAccentOutput(summary.getCell('D13'), 'currency');
+  styleAccentOutput(summary.getCell('F13'), 'currency');
+  styleThinGrid(summary, 13, 13, 1, 6);
+
+  styleSectionHeader(summary, 16, 'Valuation Range', 5);
+  styleTableHeader(summary, 17, 1, 5);
+  summary.getCell('A17').value = 'Method';
+  summary.getCell('B17').value = 'Selected Multiple';
+  summary.getCell('C17').value = 'Implied EV';
+  summary.getCell('D17').value = 'Implied Equity';
+  summary.getCell('E17').value = 'Implied Price';
 
   const rows = [
     ['EV / Revenue', selectedEvRevenue, impliedEvRevenue, impliedEquityRevenue, impliedPriceRevenue],
@@ -192,7 +233,7 @@ export async function buildWorkbook(inputs: CompsModelInputs): Promise<ExcelJS.W
   ] as const;
 
   rows.forEach((row, index) => {
-    const excelRow = 12 + index;
+    const excelRow = 18 + index;
     summary.getCell(excelRow, 1).value = row[0];
     summary.getCell(excelRow, 2).value = row[1];
     summary.getCell(excelRow, 3).value = row[2];
@@ -204,9 +245,9 @@ export async function buildWorkbook(inputs: CompsModelInputs): Promise<ExcelJS.W
     styleOutput(summary.getCell(excelRow, 4), 'currency');
     styleAccentOutput(summary.getCell(excelRow, 5), 'currency');
   });
-  styleThinGrid(summary, 11, 14, 1, 5);
+  styleThinGrid(summary, 17, 20, 1, 5);
 
-  styleSectionHeader(summary, 17, 'Subject Snapshot', 4);
+  styleSectionHeader(summary, 23, 'Subject Snapshot', 4);
   const snapshotRows = [
     ['Enterprise value', subjectEnterpriseValue],
     ['Revenue', subjectRevenue],
@@ -214,16 +255,16 @@ export async function buildWorkbook(inputs: CompsModelInputs): Promise<ExcelJS.W
     ['Net income', subjectNetIncome],
   ] as const;
   snapshotRows.forEach((row, index) => {
-    const excelRow = 18 + index;
+    const excelRow = 24 + index;
     summary.getCell(excelRow, 1).value = row[0];
     summary.getCell(excelRow, 2).value = row[1];
     styleLabel(summary.getCell(excelRow, 1));
     styleFormula(summary.getCell(excelRow, 2), 'currency');
   });
-  styleSectionHeader(summary, 24, 'Subject vs Peer Median', 4);
-  styleTableHeader(summary, 25, 1, 4);
+  styleSectionHeader(summary, 30, 'Subject vs Peer Median', 4);
+  styleTableHeader(summary, 31, 1, 4);
   ['Metric', 'Subject', 'Peer Median', 'Premium / (Discount)'].forEach((value, index) => {
-    summary.getCell(25, index + 1).value = value;
+    summary.getCell(31, index + 1).value = value;
   });
   const comparisonRows = [
     ['EV / Revenue', subjectEvRevenueMultiple, result.medianMultiples.evToRevenue],
@@ -231,7 +272,7 @@ export async function buildWorkbook(inputs: CompsModelInputs): Promise<ExcelJS.W
     ['P / E', subjectPeMultiple, result.medianMultiples.peRatio],
   ] as const;
   comparisonRows.forEach((row, index) => {
-    const excelRow = 26 + index;
+    const excelRow = 32 + index;
     const premium =
       row[1] !== null && row[2] !== null && row[2] !== 0
         ? row[1] / row[2] - 1
@@ -245,12 +286,12 @@ export async function buildWorkbook(inputs: CompsModelInputs): Promise<ExcelJS.W
     styleFormula(summary.getCell(excelRow, 3), 'multiple');
     styleOutput(summary.getCell(excelRow, 4), 'percent');
   });
-  styleThinGrid(summary, 25, 28, 1, 4);
+  styleThinGrid(summary, 31, 34, 1, 4);
 
-  summary.getCell('A30').value =
-    'Use the subject-vs-median bridge to decide whether the premium or discount is earned. Then inspect the peer table for denominator quality and obvious trading outliers.';
-  summary.mergeCells('A30:F30');
-  styleNarrativeBlock(summary, 30, 1, 6);
+  summary.getCell('A36').value =
+    'Use the subject-vs-median bridge to decide whether the premium or discount is earned. Then inspect the peer table for denominator quality, outliers, and any names that should be excluded from the book.';
+  summary.mergeCells('A36:F36');
+  styleNarrativeBlock(summary, 36, 1, 6);
 
   peers.getCell('A1').value = `${inputs.companyName} Peer Set`;
   peers.mergeCells('A1:I1');

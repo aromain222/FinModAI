@@ -79,10 +79,36 @@ export async function buildWorkbook(inputs: PrecedentsModelInputs): Promise<Exce
   ['A3', 'A4', 'D3'].forEach((ref) => styleLabel(summary.getCell(ref)));
   ['B3', 'B4', 'E3'].forEach((ref) => styleFormula(summary.getCell(ref)));
 
-  styleSectionHeader(summary, 6, 'Market Range', 4);
-  styleTableHeader(summary, 7, 1, 4);
+  const controlTakeaway =
+    medianPremium == null
+      ? 'Control premium context is incomplete. Fix the precedent set before using this range in a banker deck.'
+      : medianPremium > 0.3
+        ? 'The precedent set implies a high-control premium outcome. Make sure the buyer mix and cycle line up with the subject.'
+        : medianPremium > 0.15
+          ? 'The precedent set implies a normal strategic premium. The main question is whether the subject deserves to clear the median.'
+          : 'The precedent set screens on the low end for control premium. Pressure-test whether timing or deal mix is distorting the read-through.'
+  ;
+
+  styleSectionHeader(summary, 6, 'Banker Takeaway', 5);
+  summary.getCell('A7').value = controlTakeaway;
+  summary.mergeCells('A7:E7');
+  styleNarrativeBlock(summary, 7, 1, 5);
+
+  styleSectionHeader(summary, 9, 'Selected Methodology', 5);
+  summary.getCell('A10').value = 'Primary lens';
+  summary.getCell('B10').value = medianEbitdaMultiple !== null ? 'EV / EBITDA precedents' : 'EV / Revenue precedents';
+  summary.getCell('C10').value = 'Edit first';
+  summary.getCell('D10').value = 'Transaction set comparability and premium dispersion';
+  summary.getCell('E10').value = 'Pitch use';
+  summary.getCell('E11').value = 'Board / fairness range';
+  ['A10', 'C10', 'E10'].forEach((ref) => styleLabel(summary.getCell(ref)));
+  ['B10', 'D10', 'E11'].forEach((ref) => styleFormula(summary.getCell(ref)));
+  styleThinGrid(summary, 10, 11, 1, 5);
+
+  styleSectionHeader(summary, 13, 'Market Range', 4);
+  styleTableHeader(summary, 14, 1, 4);
   ['Metric', 'Median', 'Implied EV', 'Commentary'].forEach((value, index) => {
-    summary.getCell(7, index + 1).value = value;
+    summary.getCell(14, index + 1).value = value;
   });
   const summaryRows = [
     ['EV / Revenue', medianRevenueMultiple, impliedEvRevenue, 'Benchmarks control valuations off topline scale'],
@@ -90,7 +116,7 @@ export async function buildWorkbook(inputs: PrecedentsModelInputs): Promise<Exce
     ['Control premium', medianPremium, null, 'Median premium paid across precedent set'],
   ] as const;
   summaryRows.forEach((row, index) => {
-    const excelRow = 8 + index;
+    const excelRow = 15 + index;
     summary.getCell(excelRow, 1).value = row[0];
     summary.getCell(excelRow, 2).value = row[1];
     summary.getCell(excelRow, 3).value = row[2];
@@ -100,25 +126,25 @@ export async function buildWorkbook(inputs: PrecedentsModelInputs): Promise<Exce
     styleAccentOutput(summary.getCell(excelRow, 3), 'currency');
     styleFormula(summary.getCell(excelRow, 4));
   });
-  styleThinGrid(summary, 7, 10, 1, 4);
+  styleThinGrid(summary, 14, 17, 1, 4);
 
-  styleSectionHeader(summary, 12, 'Decision Frame', 5);
-  summary.getCell('A13').value =
+  styleSectionHeader(summary, 19, 'Decision Frame', 5);
+  summary.getCell('A20').value =
     'Use the transaction medians to frame the control value range, then pressure-test whether the selected deal set is still representative for the subject today.';
-  summary.mergeCells('A13:E13');
-  styleNarrativeBlock(summary, 13, 1, 5);
+  summary.mergeCells('A20:E20');
+  styleNarrativeBlock(summary, 20, 1, 5);
 
-  styleSectionHeader(summary, 15, 'Control Value Range', 5);
-  styleTableHeader(summary, 16, 1, 5);
+  styleSectionHeader(summary, 22, 'Control Value Range', 5);
+  styleTableHeader(summary, 23, 1, 5);
   ['Method', 'Low Multiple', 'Median Multiple', 'High Multiple', 'Implied EV Range'].forEach((value, index) => {
-    summary.getCell(16, index + 1).value = value;
+    summary.getCell(23, index + 1).value = value;
   });
   const rangeRows = [
     ['EV / Revenue', minRevenueMultiple, medianRevenueMultiple, maxRevenueMultiple, inputs.subjectRevenue],
     ['EV / EBITDA', minEbitdaMultiple, medianEbitdaMultiple, maxEbitdaMultiple, inputs.subjectEbitda],
   ] as const;
   rangeRows.forEach((row, index) => {
-    const excelRow = 17 + index;
+    const excelRow = 24 + index;
     const lowValue = row[1] !== null && row[4] ? row[1] * row[4] : null;
     const highValue = row[3] !== null && row[4] ? row[3] * row[4] : null;
     summary.getCell(excelRow, 1).value = row[0];
@@ -135,7 +161,7 @@ export async function buildWorkbook(inputs: PrecedentsModelInputs): Promise<Exce
     styleOutput(summary.getCell(excelRow, 4), 'multiple');
     styleFormula(summary.getCell(excelRow, 5));
   });
-  styleThinGrid(summary, 16, 18, 1, 5);
+  styleThinGrid(summary, 23, 25, 1, 5);
 
   transactionsSheet.getCell('A1').value = `${inputs.companyName} Transaction Set`;
   transactionsSheet.mergeCells('A1:H1');

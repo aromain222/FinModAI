@@ -86,7 +86,38 @@ export async function buildWorkbook(inputs: FootballFieldModelInputs): Promise<E
   ['A3', 'D3', 'A4', 'D4'].forEach((ref) => styleLabel(summary.getCell(ref)));
   ['B3', 'E3', 'B4', 'E4'].forEach((ref) => styleFormula(summary.getCell(ref)));
 
-  styleSectionHeader(summary, 6, 'Subject Anchor', 5);
+  const midpointPrices = rangesWithShareValues
+    .map((range) => range.midPrice)
+    .filter((value): value is number => value !== null && Number.isFinite(value));
+  const midpointAverage =
+    midpointPrices.length === 0 ? null : midpointPrices.reduce((total, value) => total + value, 0) / midpointPrices.length;
+  const footballFieldTakeaway =
+    midpointAverage == null || inputs.sharePrice == null
+      ? 'The range set is incomplete. Fill the valuation methods and current share-price anchor before this goes into a banker book.'
+      : midpointAverage / inputs.sharePrice - 1 > 0.1
+        ? 'The midpoints screen above the current share price. Focus on whether the trading and transaction methods support the same upside case.'
+        : midpointAverage / inputs.sharePrice - 1 < -0.1
+          ? 'The midpoints screen below the current share price. The burden is on method selection and control-value framing to justify a premium read.'
+          : 'The valuation methods cluster near the current share price. The key debate is spread, not direction.'
+  ;
+
+  styleSectionHeader(summary, 6, 'Banker Takeaway', 6);
+  summary.getCell('A7').value = footballFieldTakeaway;
+  summary.mergeCells('A7:F7');
+  styleNarrativeBlock(summary, 7, 1, 6);
+
+  styleSectionHeader(summary, 9, 'Selected Methodology', 6);
+  summary.getCell('A10').value = 'Primary lens';
+  summary.getCell('B10').value = 'Cross-check trading vs transaction ranges';
+  summary.getCell('C10').value = 'Edit first';
+  summary.getCell('D10').value = 'Method spread, net debt, and diluted shares';
+  summary.getCell('E10').value = 'Pitch use';
+  summary.getCell('F10').value = 'Board / banker valuation range';
+  ['A10', 'C10', 'E10'].forEach((ref) => styleLabel(summary.getCell(ref)));
+  ['B10', 'D10', 'F10'].forEach((ref) => styleFormula(summary.getCell(ref)));
+  styleThinGrid(summary, 10, 10, 1, 6);
+
+  styleSectionHeader(summary, 12, 'Subject Anchor', 5);
   const anchorRows = [
     ['Revenue', inputs.revenue],
     ['EBITDA', inputs.ebitda],
@@ -94,20 +125,20 @@ export async function buildWorkbook(inputs: FootballFieldModelInputs): Promise<E
     ['Current Price', inputs.sharePrice],
   ] as const;
   anchorRows.forEach((row, index) => {
-    const excelRow = 7 + index;
+    const excelRow = 13 + index;
     summary.getCell(excelRow, 1).value = row[0];
     summary.getCell(excelRow, 2).value = row[1];
     styleLabel(summary.getCell(excelRow, 1));
     styleAccentOutput(summary.getCell(excelRow, 2), 'currency');
   });
 
-  styleSectionHeader(summary, 13, 'Range Snapshot', 6);
-  styleTableHeader(summary, 14, 1, 6);
+  styleSectionHeader(summary, 19, 'Range Snapshot', 6);
+  styleTableHeader(summary, 20, 1, 6);
   ['Method', 'Low EV', 'Mid EV', 'High EV', 'Mid Equity', 'Mid Price / Share'].forEach((value, index) => {
-    summary.getCell(14, index + 1).value = value;
+    summary.getCell(20, index + 1).value = value;
   });
   rangesWithShareValues.forEach((range, index) => {
-    const row = 15 + index;
+    const row = 21 + index;
     summary.getCell(row, 1).value = range.label;
     summary.getCell(row, 2).value = range.lowValue;
     summary.getCell(row, 3).value = range.midValue;
@@ -117,8 +148,8 @@ export async function buildWorkbook(inputs: FootballFieldModelInputs): Promise<E
     styleLabel(summary.getCell(row, 1));
     [2, 3, 4, 5, 6].forEach((column) => styleOutput(summary.getCell(row, column), 'currency'));
   });
-  styleThinGrid(summary, 14, 14 + rangesWithShareValues.length, 1, 6);
-  const summaryNarrativeRow = 16 + rangesWithShareValues.length;
+  styleThinGrid(summary, 20, 20 + rangesWithShareValues.length, 1, 6);
+  const summaryNarrativeRow = 22 + rangesWithShareValues.length;
   summary.getCell(`A${summaryNarrativeRow}`).value =
     'Read this as a range-comparison sheet: trading ranges show where the market could price the subject, while precedent-style ranges show where control value may frame a deal discussion.';
   summary.mergeCells(`A${summaryNarrativeRow}:F${summaryNarrativeRow}`);

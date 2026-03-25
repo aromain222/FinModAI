@@ -126,6 +126,59 @@ function createLBOSummarySheet(
   sheet.getCell(2, 1).value = UNITS_TITLE;
   row += 1;
 
+  const entryMultiple = output.returns.entryEV / output.inputs.ebitda;
+  const lastProj = output.projections[output.projections.length - 1];
+  const exitMultiple = output.returns.exitEV / lastProj.ebitda;
+  const totalDebt = output.sourcesAndUses.sources.seniorDebt + output.sourcesAndUses.sources.subordinatedDebt;
+  const leverageMultiple = totalDebt / output.inputs.ebitda;
+  const exitDebt = output.debtSchedule[output.debtSchedule.length - 1]?.endingBalance ?? 0;
+  const exitExcessCash = output.debtSchedule[output.debtSchedule.length - 1]?.excessCash ?? 0;
+  const exitEbitda = output.projections[output.projections.length - 1]?.ebitda ?? output.inputs.ebitda;
+  const sponsorEquity = output.sourcesAndUses.sources.sponsorEquity;
+  const debtPaydown = totalDebt - exitDebt;
+  const operatingValueAtEntryMultiple = exitEbitda * entryMultiple;
+  const ebitdaGrowthEffect = operatingValueAtEntryMultiple - output.returns.entryEV;
+  const multipleExpansionEffect = output.returns.exitEV - operatingValueAtEntryMultiple;
+  const irrRead =
+    output.returns.irr >= 0.2
+      ? 'Underwritten returns clear a typical sponsor hurdle. Pressure-test whether the exit multiple and margin case are doing too much of the work.'
+      : output.returns.irr >= 0.15
+        ? 'Returns are workable but not clean. The underwriting likely depends on execution discipline and debt paydown.'
+        : 'Sponsor returns screen light. Revisit entry price, leverage, or the operating case before taking this further.'
+  ;
+
+  sectionHeader(sheet, row, 'Banker Takeaway', lastDataCol);
+  row++;
+  sheet.mergeCells(row, 1, row, lastDataCol);
+  sheet.getCell(row, 1).value = irrRead;
+  sheet.getCell(row, 1).font = { name: 'Aptos', size: 10, color: { argb: 'FF475569' } };
+  sheet.getCell(row, 1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFF8FAFC' },
+  };
+  sheet.getCell(row, 1).alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+  row += 2;
+
+  sectionHeader(sheet, row, 'Selected Methodology', lastDataCol);
+  row++;
+  sheet.getCell(row, 1).value = 'Primary lens';
+  applyLabelStyle(sheet.getCell(row, 1));
+  sheet.getCell(row, 2).value = 'Sponsor IRR / MOIC underwriting';
+  styleKitOutputCell(sheet.getCell(row, 2));
+  sheet.getCell(row, 3).value = 'Use in IC / lender framing';
+  styleKitBodyCell(sheet.getCell(row, 3));
+  row++;
+  sheet.getCell(row, 1).value = 'Edit first';
+  applyLabelStyle(sheet.getCell(row, 1));
+  sheet.getCell(row, 2).value = 'Entry multiple, leverage, and exit multiple';
+  styleKitOutputCell(sheet.getCell(row, 2));
+  sheet.getCell(row, 3).value = 'Then pressure-test debt paydown and EBITDA build';
+  styleKitBodyCell(sheet.getCell(row, 3));
+  borderBox(sheet, row - 1, 1, row, lastDataCol);
+  zebraRows(sheet, row - 1, row, 1, lastDataCol);
+  row += 2;
+
   sectionHeader(sheet, row, 'Key Returns', lastDataCol);
   row++;
   const returnsStartRow = row;
@@ -155,12 +208,6 @@ function createLBOSummarySheet(
   sectionHeader(sheet, row, 'Key Assumptions', lastDataCol);
   row++;
   const assumptionsStartRow = row;
-
-  const entryMultiple = output.returns.entryEV / output.inputs.ebitda;
-  const lastProj = output.projections[output.projections.length - 1];
-  const exitMultiple = output.returns.exitEV / lastProj.ebitda;
-  const totalDebt = output.sourcesAndUses.sources.seniorDebt + output.sourcesAndUses.sources.subordinatedDebt;
-  const leverageMultiple = totalDebt / output.inputs.ebitda;
 
   const assumptions: Array<{ label: string; value: number; format: string }> = [
     { label: 'Entry Multiple (EV/EBITDA)', value: entryMultiple, format: MULTIPLE_FMT },
@@ -204,15 +251,6 @@ function createLBOSummarySheet(
     useFormulas: false,
     valueCol: 2,
   });
-
-  const exitDebt = output.debtSchedule[output.debtSchedule.length - 1]?.endingBalance ?? 0;
-  const exitExcessCash = output.debtSchedule[output.debtSchedule.length - 1]?.excessCash ?? 0;
-  const exitEbitda = output.projections[output.projections.length - 1]?.ebitda ?? output.inputs.ebitda;
-  const sponsorEquity = output.sourcesAndUses.sources.sponsorEquity;
-  const debtPaydown = totalDebt - exitDebt;
-  const operatingValueAtEntryMultiple = exitEbitda * entryMultiple;
-  const ebitdaGrowthEffect = operatingValueAtEntryMultiple - output.returns.entryEV;
-  const multipleExpansionEffect = output.returns.exitEV - operatingValueAtEntryMultiple;
 
   row = (sheet.lastRow?.number ?? row) + 2;
   sectionHeader(sheet, row, 'Sponsor Case Overview', lastDataCol);
