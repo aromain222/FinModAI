@@ -7,6 +7,7 @@ import {
   DCF_DEFAULTS,
   FOOTBALL_FIELD_DEFAULTS,
   LBO_DEFAULTS,
+  MERGER_DEFAULTS,
   PRECEDENTS_DEFAULTS,
   SAAS_OPERATING_DEFAULTS,
   THREE_STATEMENT_DEFAULTS,
@@ -124,6 +125,42 @@ export type FootballFieldModelInputs = {
   ranges: FootballFieldRangeInputs[];
 };
 
+export type MergerModelInputs = {
+  modelType: 'MERGER';
+  companyName: string;
+  ticker?: string;
+  source: string;
+  acquirerTicker: string | null;
+  acquirerName: string;
+  acquirerRevenue: number | null;
+  acquirerEbitda: number | null;
+  acquirerEbit: number | null;
+  acquirerNetIncome: number | null;
+  acquirerShares: number | null;
+  acquirerMarketCap: number | null;
+  acquirerPrice: number | null;
+  targetTicker: string | null;
+  targetName: string;
+  targetRevenue: number | null;
+  targetEbitda: number | null;
+  targetEbit: number | null;
+  targetNetIncome: number | null;
+  targetShares: number | null;
+  targetMarketCap: number | null;
+  targetPrice: number | null;
+  purchasePrice: number | null;
+  dealStructure: 'cash' | 'stock' | 'mixed';
+  cashPct: number;
+  stockPct: number;
+  debtPct: number;
+  forecastYears: number;
+  newDebt: number;
+  newDebtRate: number;
+  synergies: number;
+  oneTimeCosts: number;
+  taxRate: number;
+};
+
 export type PrecedentTransactionInputs = {
   transaction: string;
   target: string;
@@ -196,6 +233,7 @@ export type ExtractedModelInputs =
   | CapTableModelInputs
   | CompsModelInputs
   | FootballFieldModelInputs
+  | MergerModelInputs
   | PrecedentsModelInputs
   | LboModelInputs
   | SaasOperatingModelInputs;
@@ -360,6 +398,9 @@ export async function extractInputs(
     case 'FOOTBALL_FIELD':
       result = await buildFootballFieldInputs(fullPrompt);
       break;
+    case 'MERGER':
+      result = await buildMergerInputs(fullPrompt);
+      break;
     case 'PRECEDENTS':
       result = await buildPrecedentsInputs(fullPrompt);
       break;
@@ -442,6 +483,122 @@ function resolveDemoTickersFromList(raw: string, snapshots: Record<string, DemoC
   }
 
   return Array.from(resolved);
+}
+
+function resolveDemoTickerFromEntity(entity: string, snapshots: Record<string, DemoCompanySnapshot>): string | null {
+  const direct = resolveDemoTickersFromList(entity, snapshots);
+  return direct[0] ?? null;
+}
+
+function sanitizeEntityCandidate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const cleaned = value
+    .replace(/\b(build|create|generate|analyze)\b/gi, ' ')
+    .replace(/\b(?:a|an|the)\s+(?:merger|m&a|accretion(?:\s*\/\s*|\s+and\s+|\s+)dilution)\s+model\b/gi, ' ')
+    .replace(/\bmodel\b/gi, ' ')
+    .replace(/[.,]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned || null;
+}
+
+function extractMergerEntities(prompt: string): { acquirerRaw: string | null; targetRaw: string | null } {
+  const patterns = [
+    /\bfor\s+(.+?)\s+(?:acquiring|to acquire|acquire|buying|to buy|buy|merging with|merge with)\s+(.+?)(?:\s+(?:at|for|with|using|assuming|under)\b|$)/i,
+    /\b(.+?)\s+(?:acquiring|to acquire|acquire|buying|to buy|buy|merging with|merge with)\s+(.+?)(?:\s+(?:at|for|with|using|assuming|under)\b|$)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = prompt.match(pattern);
+    const acquirerRaw = sanitizeEntityCandidate(match?.[1] ?? null);
+    const targetRaw = sanitizeEntityCandidate(match?.[2] ?? null);
+    if (acquirerRaw && targetRaw) {
+      return { acquirerRaw, targetRaw };
+    }
+  }
+
+  return { acquirerRaw: null, targetRaw: null };
+}
+
+function extractDealValue(text: string): number | undefined {
+  const match =
+    text.match(/(?:purchase\s+price|deal\s+value)\s+(?:of\s+)?\$?([\d.,]+(?:\.\d+)?\s*[kmb]?)/i) ||
+    text.match(/\b(?:at|for)\s+\$?([\d.,]+(?:\.\d+)?\s*[kmb]?)(?:\s+purchase price|\s+deal value)?/i);
+  return parseMoneyToken(match?.[1]);
+}
+
+type ResolvedMergerParty = {
+  ticker: string | null;
+  companyName: string | null;
+  companyType: string | null;
+  revenue: number | null;
+  ebitda: number | null;
+  ebit: number | null;
+  netIncome: number | null;
+  sharesOutstanding: number | null;
+  cash: number | null;
+  totalDebt: number | null;
+  marketCap: number | null;
+  sharePrice: number | null;
+  source: string;
+  asOfDate: string | null;
+  lastSynced: string | null;
+};
+
+async function resolveMergerParty(
+  entity: string | null,
+  snapshots: Record<string, DemoCompanySnapshot>
+): Promise<ResolvedMergerParty | null> {
+  if (!entity) return null;
+
+  const stored = await resolveCompanyProfile({ prompt: entity });
+  if (stored?.company) {
+    return {
+      ticker: stored.company.ticker,
+      companyName: stored.company.name,
+      companyType: stored.company.companyType ?? stored.company.sector ?? null,
+      revenue: stored.snapshot?.revenueLtm ?? null,
+      ebitda: stored.snapshot?.ebitdaLtm ?? null,
+      ebit: stored.snapshot?.ebitLtm ?? null,
+      netIncome: stored.snapshot?.netIncomeLtm ?? null,
+      sharesOutstanding: stored.snapshot?.sharesOutstanding ?? null,
+      cash: stored.snapshot?.cash ?? null,
+      totalDebt: stored.snapshot?.totalDebt ?? null,
+      marketCap: stored.snapshot?.marketCap ?? null,
+      sharePrice:
+        stored.latestPrice?.close ??
+        (stored.snapshot?.marketCap && stored.snapshot?.sharesOutstanding
+          ? stored.snapshot.marketCap / stored.snapshot.sharesOutstanding
+          : null),
+      source: stored.snapshot?.source ?? 'company_snapshots',
+      asOfDate: stored.snapshot?.asOfDate ?? null,
+      lastSynced: stored.snapshot?.createdAt ?? stored.latestPrice?.createdAt ?? null,
+    };
+  }
+
+  const fallbackTicker = resolveDemoTickerFromEntity(entity, snapshots);
+  if (!fallbackTicker) return null;
+  const snapshot = snapshots[fallbackTicker];
+  const sharePrice =
+    snapshot.sharePrice ??
+    (snapshot.marketCap && snapshot.sharesOutstanding ? snapshot.marketCap / snapshot.sharesOutstanding : null);
+  return {
+    ticker: fallbackTicker,
+    companyName: snapshot.companyName ?? fallbackTicker,
+    companyType: snapshot.sector ?? null,
+    revenue: snapshot.revenueLtm ?? null,
+    ebitda: snapshot.ebitdaLtm ?? null,
+    ebit: snapshot.ebitdaLtm !== null ? Number((snapshot.ebitdaLtm * 0.9).toFixed(2)) : null,
+    netIncome: snapshot.netIncomeLtm ?? null,
+    sharesOutstanding: snapshot.sharesOutstanding ?? null,
+    cash: snapshot.cash ?? null,
+    totalDebt: snapshot.totalDebt ?? null,
+    marketCap: snapshot.marketCap ?? null,
+    sharePrice,
+    source: 'demo_company_snapshots',
+    asOfDate: snapshot.updatedAt ?? null,
+    lastSynced: snapshot.updatedAt ?? null,
+  };
 }
 
 function sanitizeCompsSubjectPrompt(prompt: string): string {
@@ -1379,6 +1536,160 @@ async function buildFootballFieldInputs(prompt: string): Promise<ExtractInputsRe
     provenanceSummary: buildProvenanceSummary({
       source: 'demo_football_field_framework',
       fallbackUsed: Object.keys(defaultsUsed),
+    }),
+  };
+}
+
+async function buildMergerInputs(prompt: string): Promise<ExtractInputsResult> {
+  const providedInputs = new Set<string>();
+  const defaultsUsed: Record<string, unknown> = {};
+  const snapshots = buildSeededDemoSnapshots(await loadDemoSnapshots());
+  const toModelMoney = (value: number | undefined): number | undefined =>
+    value !== undefined ? Number((value / 1_000_000).toFixed(2)) : undefined;
+  const { acquirerRaw, targetRaw } = extractMergerEntities(prompt);
+  const acquirer = await resolveMergerParty(acquirerRaw, snapshots);
+  const target = await resolveMergerParty(targetRaw, snapshots);
+
+  if (acquirer?.ticker) providedInputs.add('acquirerTicker');
+  if (target?.ticker) providedInputs.add('targetTicker');
+
+  const purchasePriceInput = toModelMoney(extractDealValue(prompt));
+  const cashPctInput = extractMargin(prompt, /(\d+(?:\.\d+)?)\s*%\s*cash/i);
+  const stockPctInput = extractMargin(prompt, /(\d+(?:\.\d+)?)\s*%\s*stock/i);
+  const debtPctInput = extractMargin(prompt, /(\d+(?:\.\d+)?)\s*%\s*debt/i);
+  const newDebtInput = toModelMoney(
+    parseMoneyToken(prompt.match(/new debt\s+(?:of\s+)?\$?([\d.,]+(?:\.\d+)?\s*[kmb]?)/i)?.[1]) ?? undefined
+  );
+  const newDebtRateInput = extractMargin(prompt, /new debt(?:\s+rate)?\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*%/i);
+  const synergyInput = toModelMoney(
+    parseMoneyToken(prompt.match(/(?:synergies|cost savings)\s+(?:of\s+)?\$?([\d.,]+(?:\.\d+)?\s*[kmb]?)/i)?.[1]) ??
+      undefined
+  );
+  const oneTimeCostsInput = toModelMoney(
+    parseMoneyToken(prompt.match(/(?:one[- ]time costs|integration costs)\s+(?:of\s+)?\$?([\d.,]+(?:\.\d+)?\s*[kmb]?)/i)?.[1]) ??
+      undefined
+  );
+
+  const purchasePrice = purchasePriceInput ?? null;
+  if (purchasePrice !== null) providedInputs.add('purchasePrice');
+
+  let cashPct = cashPctInput;
+  let stockPct = stockPctInput;
+  let debtPct = debtPctInput;
+
+  if (cashPct === undefined && stockPct === undefined && debtPct === undefined) {
+    if (/\ball[-\s]?cash\b/i.test(prompt)) {
+      cashPct = 1;
+      stockPct = 0;
+      debtPct = 0;
+    } else if (/\ball[-\s]?stock\b/i.test(prompt)) {
+      cashPct = 0;
+      stockPct = 1;
+      debtPct = 0;
+    }
+  }
+
+  if (cashPct === undefined) {
+    cashPct = MERGER_DEFAULTS.cashPct;
+    defaultsUsed.cashPct = MERGER_DEFAULTS.cashPct;
+  } else {
+    providedInputs.add('cashPct');
+  }
+  if (stockPct === undefined) {
+    stockPct = MERGER_DEFAULTS.stockPct;
+    defaultsUsed.stockPct = MERGER_DEFAULTS.stockPct;
+  } else {
+    providedInputs.add('stockPct');
+  }
+  if (debtPct === undefined) {
+    debtPct = MERGER_DEFAULTS.debtPct;
+    defaultsUsed.debtPct = MERGER_DEFAULTS.debtPct;
+  } else {
+    providedInputs.add('debtPct');
+  }
+
+  const totalMix = cashPct + stockPct + debtPct;
+  if (totalMix > 0 && Math.abs(totalMix - 1) > 0.0001) {
+    cashPct = cashPct / totalMix;
+    stockPct = stockPct / totalMix;
+    debtPct = debtPct / totalMix;
+  }
+
+  const dealStructure =
+    stockPct >= 0.999 ? 'stock' : cashPct >= 0.999 && debtPct < 0.001 ? 'cash' : 'mixed';
+  const newDebt = newDebtInput ?? 0;
+  const newDebtRate = newDebtRateInput ?? MERGER_DEFAULTS.newDebtRate;
+  const synergies = synergyInput ?? MERGER_DEFAULTS.synergies;
+  const oneTimeCosts = oneTimeCostsInput ?? MERGER_DEFAULTS.oneTimeCosts;
+
+  if (newDebtInput !== undefined) providedInputs.add('newDebt');
+  else defaultsUsed.newDebt = 0;
+  if (newDebtRateInput !== undefined) providedInputs.add('newDebtRate');
+  else defaultsUsed.newDebtRate = MERGER_DEFAULTS.newDebtRate;
+  if (synergyInput !== undefined) providedInputs.add('synergies');
+  else defaultsUsed.synergies = MERGER_DEFAULTS.synergies;
+  if (oneTimeCostsInput !== undefined) providedInputs.add('oneTimeCosts');
+  else defaultsUsed.oneTimeCosts = MERGER_DEFAULTS.oneTimeCosts;
+
+  defaultsUsed.forecastYears = MERGER_DEFAULTS.forecastYears;
+  defaultsUsed.taxRate = MERGER_DEFAULTS.taxRate;
+
+  const companyName = [acquirer?.companyName, target?.companyName].filter(Boolean).join(' / ') || 'Merger Model';
+  const ticker = [acquirer?.ticker, target?.ticker].filter(Boolean).join('/') || undefined;
+  const source = [acquirer?.source, target?.source].filter(Boolean).join('+') || 'demo_merger_framework';
+  const fallbackUsed = Object.keys(defaultsUsed);
+
+  const missingInputs = buildMissingList([
+    ['acquirer', Boolean(acquirer?.ticker)],
+    ['target', Boolean(target?.ticker)],
+    ['purchase price', purchasePrice !== null],
+  ]);
+  const missingCriticalInputs = evaluateCriticalInputs('MERGER', providedInputs);
+
+  return {
+    extractedInputs: {
+      modelType: 'MERGER',
+      companyName,
+      ticker,
+      source,
+      acquirerTicker: acquirer?.ticker ?? null,
+      acquirerName: acquirer?.companyName ?? acquirerRaw ?? 'Acquirer',
+      acquirerRevenue: acquirer?.revenue ?? null,
+      acquirerEbitda: acquirer?.ebitda ?? null,
+      acquirerEbit: acquirer?.ebit ?? null,
+      acquirerNetIncome: acquirer?.netIncome ?? null,
+      acquirerShares: acquirer?.sharesOutstanding ?? null,
+      acquirerMarketCap: acquirer?.marketCap ?? null,
+      acquirerPrice: acquirer?.sharePrice ?? null,
+      targetTicker: target?.ticker ?? null,
+      targetName: target?.companyName ?? targetRaw ?? 'Target',
+      targetRevenue: target?.revenue ?? null,
+      targetEbitda: target?.ebitda ?? null,
+      targetEbit: target?.ebit ?? null,
+      targetNetIncome: target?.netIncome ?? null,
+      targetShares: target?.sharesOutstanding ?? null,
+      targetMarketCap: target?.marketCap ?? null,
+      targetPrice: target?.sharePrice ?? null,
+      purchasePrice,
+      dealStructure,
+      cashPct,
+      stockPct,
+      debtPct,
+      forecastYears: MERGER_DEFAULTS.forecastYears,
+      newDebt,
+      newDebtRate,
+      synergies,
+      oneTimeCosts,
+      taxRate: MERGER_DEFAULTS.taxRate,
+    },
+    defaultsUsed,
+    missingInputs,
+    missingCriticalInputs,
+    provenanceSummary: buildProvenanceSummary({
+      source,
+      asOfDate: acquirer?.asOfDate ?? target?.asOfDate ?? null,
+      lastSynced: acquirer?.lastSynced ?? target?.lastSynced ?? null,
+      fallbackUsed,
     }),
   };
 }

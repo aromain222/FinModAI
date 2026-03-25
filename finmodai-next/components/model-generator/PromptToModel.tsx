@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplates';
 import type { ModelGeneratorType } from '@/lib/model-generator/classifyPrompt';
+import { calculateMergerSummary } from '@/lib/model-generator/mergerSummary';
 import type { ComparisonSummary, ProvenanceSummary } from '@/lib/model-generator/runHistory';
 import { cn } from '@/lib/utils';
 
@@ -66,6 +67,7 @@ type RecentRun = {
 const EXAMPLE_PROMPTS = [
   'Generate a DCF model for Nvidia',
   'Build a comparable company analysis for Snowflake',
+  'Build an accretion dilution model for Microsoft acquiring Salesforce at $95B',
   'Build a football field for Salesforce',
   'Create a precedent transactions view for Mastercard',
   'Build an LBO model for Oracle',
@@ -175,6 +177,11 @@ function formatCompactMetric(value: unknown, kind: 'currency' | 'percent' | 'mul
   return value.toLocaleString('en-US', { maximumFractionDigits: 1 });
 }
 
+function formatModelMoney(value: unknown): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
+  return `$${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}M`;
+}
+
 function renderModelSpecificReview(preview: PreviewResponse) {
   if (!preview.modelType) return null;
 
@@ -265,6 +272,42 @@ function renderModelSpecificReview(preview: PreviewResponse) {
           values={previewRanges}
           emptyMessage="No valuation methods resolved yet."
         />
+      </div>
+    );
+  }
+
+  if (preview.modelType === 'MERGER') {
+    const extracted = preview.extractedInputs as Record<string, unknown>;
+    const mergerSummary = calculateMergerSummary(extracted as any);
+    return (
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Deal Terms</div>
+          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
+            <div>Acquirer: {String(extracted.acquirerName ?? 'n/a')}{extracted.acquirerTicker ? ` (${String(extracted.acquirerTicker)})` : ''}</div>
+            <div>Target: {String(extracted.targetName ?? 'n/a')}{extracted.targetTicker ? ` (${String(extracted.targetTicker)})` : ''}</div>
+            <div>Purchase Price: {formatModelMoney(extracted.purchasePrice)}</div>
+            <div>Structure: {String(extracted.dealStructure ?? 'n/a')}</div>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Financing Mix</div>
+          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
+            <div>Cash: {formatCompactMetric(extracted.cashPct, 'percent')}</div>
+            <div>Stock: {formatCompactMetric(extracted.stockPct, 'percent')}</div>
+            <div>Debt: {formatCompactMetric(extracted.debtPct, 'percent')}</div>
+            <div>New Debt Rate: {formatCompactMetric(extracted.newDebtRate, 'percent')}</div>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">EPS Bridge</div>
+          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
+            <div>Standalone EPS: {formatCompactMetric(mergerSummary.standaloneEps, 'number')}</div>
+            <div>Pro Forma EPS: {formatCompactMetric(mergerSummary.proFormaEps, 'number')}</div>
+            <div>Accretion / Dilution: {formatCompactMetric(mergerSummary.epsAccretionPct, 'percent')}</div>
+            <div>Pro Forma EBITDA: {formatModelMoney(mergerSummary.proFormaEbitda)}</div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -459,13 +502,24 @@ export function PromptToModel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ticker: typeof extractedInputs.ticker === 'string' ? extractedInputs.ticker : undefined,
+          ticker:
+            typeof extractedInputs.ticker === 'string'
+              ? extractedInputs.ticker
+              : typeof extractedInputs.acquirerTicker === 'string' && typeof extractedInputs.targetTicker === 'string'
+                ? `${extractedInputs.acquirerTicker}/${extractedInputs.targetTicker}`
+                : undefined,
           companyName:
             typeof extractedInputs.companyName === 'string'
               ? extractedInputs.companyName
-              : typeof extractedInputs.name === 'string'
-                ? extractedInputs.name
-                : undefined,
+              : typeof extractedInputs.acquirerName === 'string' && typeof extractedInputs.targetName === 'string'
+                ? `${extractedInputs.acquirerName} / ${extractedInputs.targetName}`
+                : typeof extractedInputs.acquirerName === 'string'
+                  ? extractedInputs.acquirerName
+                  : typeof extractedInputs.targetName === 'string'
+                    ? extractedInputs.targetName
+                    : typeof extractedInputs.name === 'string'
+                      ? extractedInputs.name
+                      : undefined,
           asOfDate: preview.provenanceSummary?.asOfDate,
           modelType: preview.modelType,
           modelData: {
@@ -509,7 +563,11 @@ export function PromptToModel() {
   const canGenerate = Boolean(preview?.supported && !preview.handoffOnly && !preview.needsClarification && !previewLoading && !generateLoading);
   const resolvedModelLabel = preview?.previewSummary?.modelName ?? preview?.modelType ?? 'Waiting';
   const canGenerateReport = Boolean(
-    preview?.supported && !preview.handoffOnly && !preview.needsClarification && !reportLoading && preview?.modelType === 'FOOTBALL_FIELD'
+    preview?.supported &&
+      !preview.handoffOnly &&
+      !preview.needsClarification &&
+      !reportLoading &&
+      (preview?.modelType === 'FOOTBALL_FIELD' || preview?.modelType === 'MERGER')
   );
 
   useEffect(() => {
@@ -646,7 +704,7 @@ export function PromptToModel() {
                 {generateLoading ? 'Generating Workbook…' : 'Generate Model'}
               </Button>
             )}
-            {preview?.modelType === 'FOOTBALL_FIELD' ? (
+            {preview?.modelType === 'FOOTBALL_FIELD' || preview?.modelType === 'MERGER' ? (
               <Button variant="outline" onClick={() => void handleGenerateReport()} disabled={!canGenerateReport}>
                 {reportLoading ? 'Generating Report PDF…' : 'Generate Report PDF'}
               </Button>
@@ -816,7 +874,9 @@ export function PromptToModel() {
                   </div>
                   <div className="flex items-center gap-2 rounded-full border border-[rgba(118,138,161,0.16)] bg-[rgba(255,255,255,0.03)] px-3 py-1.5 text-xs font-medium text-[var(--cb-text-secondary)]">
                     <FileSpreadsheet className="h-4 w-4" />
-                    {preview?.modelType === 'FOOTBALL_FIELD' ? 'Excel + memo-ready path' : 'Excel-ready path'}
+                    {preview?.modelType === 'FOOTBALL_FIELD' || preview?.modelType === 'MERGER'
+                      ? 'Excel + memo-ready path'
+                      : 'Excel-ready path'}
                   </div>
                 </div>
               </div>

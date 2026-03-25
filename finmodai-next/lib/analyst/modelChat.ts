@@ -9,6 +9,8 @@ import type { ComparisonSummary, PromptRunRecord, ProvenanceSummary } from '@/li
 import { getLatestComparableRun } from '@/lib/model-generator/runHistory';
 import * as compsTemplate from '@/lib/model-generator/templates/comps';
 import * as footballFieldTemplate from '@/lib/model-generator/templates/footballField';
+import { calculateMergerSummary } from '@/lib/model-generator/mergerSummary';
+import * as mergerTemplate from '@/lib/model-generator/templates/merger';
 import * as precedentsTemplate from '@/lib/model-generator/templates/precedents';
 import * as lboTemplate from '@/lib/model-generator/templates/lbo';
 import * as threeStatementTemplate from '@/lib/model-generator/templates/threeStatement';
@@ -55,6 +57,7 @@ type PreviewBuilder = {
 const TEMPLATE_MAP: Record<StructuredModelType, PreviewBuilder> = {
   COMPS: compsTemplate as PreviewBuilder,
   FOOTBALL_FIELD: footballFieldTemplate as PreviewBuilder,
+  MERGER: mergerTemplate as PreviewBuilder,
   PRECEDENTS: precedentsTemplate as PreviewBuilder,
   LBO: lboTemplate as PreviewBuilder,
   THREE_STATEMENT: threeStatementTemplate as PreviewBuilder,
@@ -65,6 +68,7 @@ const TEMPLATE_MAP: Record<StructuredModelType, PreviewBuilder> = {
 const KEY_OUTPUTS: Record<StructuredModelType, string[]> = {
   COMPS: ['Peer Trading Multiples', 'Implied Valuation Range', 'Premium / Discount View', 'Peer Set Summary'],
   FOOTBALL_FIELD: ['Trading Range', 'Precedent Range', 'Equity Value Bridge', 'Implied Share Price Range'],
+  MERGER: ['Deal Consideration Mix', 'Pro Forma EPS', 'EPS Accretion / Dilution', 'Sensitivity Framing'],
   PRECEDENTS: ['Transaction Multiples', 'Control Premium', 'Implied Valuation Range', 'Pitch Summary'],
   LBO: ['MOIC', 'IRR', 'Exit Equity Value', 'Debt Paydown'],
   THREE_STATEMENT: ['Revenue CAGR', 'EBITDA Margin', 'Ending Cash', 'Debt Balance'],
@@ -78,6 +82,8 @@ function labelForModelType(modelType: StructuredModelType): string {
       return 'comparable company analysis';
     case 'FOOTBALL_FIELD':
       return 'football field';
+    case 'MERGER':
+      return 'merger / accretion-dilution';
     case 'PRECEDENTS':
       return 'precedent transactions';
     case 'LBO':
@@ -104,6 +110,14 @@ function fmtCurrency(value: number | null | undefined): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
   if (Math.abs(value) >= 1000) return `$${value.toLocaleString('en-US')}M`;
   return `$${value.toFixed(1)}M`;
+}
+
+function fmtAbsoluteCurrency(value: number | null | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(1)}B`;
+  if (abs >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
+  return `$${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
 function fmtPercent(value: number | null | undefined): string {
@@ -288,6 +302,34 @@ function buildNarrativeBlocks(
         {
           title: 'METHOD READ',
           body: 'Use the field to show spread and overlap between methods, then challenge the weakest underlying method first. Large gaps usually mean peer selection, control-value framing, or subject denominators need to be revisited.',
+        },
+      ];
+    }
+    case 'MERGER': {
+      const mergerInputs = inputs as ExtractedModelInputs & {
+        acquirerName: string;
+        targetName: string;
+        purchasePrice: number | null;
+        cashPct: number;
+        stockPct: number;
+        debtPct: number;
+        synergies: number;
+        newDebtRate: number;
+      };
+      const summary = calculateMergerSummary(mergerInputs as any);
+      return [
+        ...scenarioBlock,
+        {
+          title: 'FOUNDATIONAL VIEW',
+          body: `${mergerInputs.acquirerName} acquiring ${mergerInputs.targetName} is being framed as an EPS accretion / dilution problem first. The immediate question is whether the purchase price and financing mix preserve pro forma earnings power or simply manufacture optical accretion.`,
+        },
+        {
+          title: 'DEAL STRUCTURE',
+          body: `The current case assumes a purchase price of ${fmtAbsoluteCurrency(mergerInputs.purchasePrice)}, funded ${fmtPercent(mergerInputs.cashPct)} cash, ${fmtPercent(mergerInputs.stockPct)} stock, and ${fmtPercent(mergerInputs.debtPct)} debt, with incremental debt priced at ${fmtPercent(mergerInputs.newDebtRate)}.`,
+        },
+        {
+          title: 'ACCRETION READ',
+          body: `On the current inputs, pro forma EPS screens at ${summary.proFormaEps.toFixed(2)} versus standalone EPS of ${summary.standaloneEps.toFixed(2)}, implying ${fmtPercent(summary.epsAccretionPct)} accretion / dilution before any deeper integration work. Modeled synergies are ${fmtAbsoluteCurrency(mergerInputs.synergies)}.`,
         },
       ];
     }

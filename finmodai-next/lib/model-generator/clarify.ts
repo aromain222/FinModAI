@@ -44,6 +44,11 @@ export function getClarificationDecision(
         needsClarification: true,
         clarificationQuestion: 'What company or business type should I anchor the football field on?',
       };
+    case 'MERGER':
+      return {
+        needsClarification: true,
+        clarificationQuestion: 'Which acquirer, which target, and what purchase price should I use for the merger model?',
+      };
     case 'PRECEDENTS':
       return {
         needsClarification: true,

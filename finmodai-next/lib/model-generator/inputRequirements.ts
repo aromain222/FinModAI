@@ -57,6 +57,13 @@ export const MODEL_INPUT_REQUIREMENTS: Record<ModelGeneratorType, ModelInputRequ
     criticalRules: [{ anyOf: ['companyName', 'companyType'] }],
     defaults: getModelDefaults('FOOTBALL_FIELD') as Record<string, unknown>,
   },
+  MERGER: {
+    requiredInputs: ['acquirerTicker', 'targetTicker', 'purchasePrice'],
+    optionalInputs: ['cashPct', 'stockPct', 'debtPct', 'newDebtRate', 'synergies'],
+    criticalInputs: ['acquirerTicker', 'targetTicker', 'purchasePrice'],
+    criticalRules: [{ allOf: ['acquirerTicker', 'targetTicker', 'purchasePrice'] }],
+    defaults: getModelDefaults('MERGER') as Record<string, unknown>,
+  },
   PRECEDENTS: {
     requiredInputs: ['companyName', 'companyType'],
     optionalInputs: ['transactionCount', 'revenueMultiple', 'ebitdaMultiple'],

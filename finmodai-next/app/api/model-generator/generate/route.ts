@@ -8,6 +8,7 @@ import {
   type DcfModelInputs,
   type FootballFieldModelInputs,
   type LboModelInputs,
+  type MergerModelInputs,
   type PrecedentsModelInputs,
   type SaasOperatingModelInputs,
   type ThreeStatementModelInputs,
@@ -19,6 +20,7 @@ import * as capTableTemplate from '@/lib/model-generator/templates/capTable';
 import * as saasOperatingTemplate from '@/lib/model-generator/templates/saasOperating';
 import * as compsTemplate from '@/lib/model-generator/templates/comps';
 import * as footballFieldTemplate from '@/lib/model-generator/templates/footballField';
+import * as mergerTemplate from '@/lib/model-generator/templates/merger';
 import * as precedentsTemplate from '@/lib/model-generator/templates/precedents';
 import * as lboTemplate from '@/lib/model-generator/templates/lbo';
 
@@ -35,6 +37,7 @@ type WorkbookBuilder = {
       | SaasOperatingModelInputs
       | CompsModelInputs
       | FootballFieldModelInputs
+      | MergerModelInputs
       | PrecedentsModelInputs
       | LboModelInputs
   ) => Promise<{
@@ -49,6 +52,7 @@ const TEMPLATE_MAP: Record<ModelGeneratorType, WorkbookBuilder> = {
   SAAS_OPERATING_MODEL: saasOperatingTemplate as WorkbookBuilder,
   COMPS: compsTemplate as WorkbookBuilder,
   FOOTBALL_FIELD: footballFieldTemplate as WorkbookBuilder,
+  MERGER: mergerTemplate as WorkbookBuilder,
   PRECEDENTS: precedentsTemplate as WorkbookBuilder,
   LBO: lboTemplate as WorkbookBuilder,
 };
@@ -66,6 +70,7 @@ function buildFilename(
     | SaasOperatingModelInputs
     | CompsModelInputs
     | FootballFieldModelInputs
+    | MergerModelInputs
     | PrecedentsModelInputs
     | LboModelInputs
 ): string {
@@ -78,6 +83,9 @@ function buildFilename(
   }
   if (modelType === 'FOOTBALL_FIELD') {
     return `CapitalBase_${sanitizeFilename(base)}_Football_Field.xlsx`;
+  }
+  if (modelType === 'MERGER') {
+    return `CapitalBase_${sanitizeFilename(base)}_Accretion_Dilution.xlsx`;
   }
   if (modelType === 'PRECEDENTS') {
     return `CapitalBase_${sanitizeFilename(base)}_Precedent_Transactions.xlsx`;
@@ -106,7 +114,7 @@ export async function POST(req: NextRequest) {
     const modelType = classifyPrompt(prompt);
     if (!modelType) {
       return NextResponse.json(
-        { error: 'Unsupported prompt. This MVP supports DCF, three-statement, cap table, SaaS operating, comps, football field, precedents, and LBO models.' },
+        { error: 'Unsupported prompt. This MVP supports DCF, three-statement, cap table, SaaS operating, comps, football field, merger / accretion-dilution, precedents, and LBO models.' },
         { status: 400 }
       );
     }

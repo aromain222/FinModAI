@@ -5,6 +5,7 @@ export type ModelGeneratorType =
   | 'SAAS_OPERATING_MODEL'
   | 'COMPS'
   | 'FOOTBALL_FIELD'
+  | 'MERGER'
   | 'PRECEDENTS'
   | 'LBO';
 
@@ -19,6 +20,12 @@ export function classifyPrompt(prompt: string): ModelGeneratorType | null {
   if (/\bdcf\b/.test(text)) return 'DCF';
   if (/\blbo\b|\bleveraged buyout\b/.test(text)) return 'LBO';
   if (/\bfootball field\b|\bvaluation football field\b/.test(text)) return 'FOOTBALL_FIELD';
+  if (
+    /\b(?:merger model|m&a model|accretion(?:\s*\/\s*|\s+and\s+|\s+)\s*dilution|accretive|dilutive)\b/.test(text) ||
+    (/\b(?:acquir(?:e|es|ing)|buy(?:ing)?|merg(?:er|ing with))\b/.test(text) && /\b(?:for|at)\s+\$?\d/.test(text))
+  ) {
+    return 'MERGER';
+  }
   if (/\bprecedent(?:s| transaction(?:s)?)\b|\bprecedent trans(?:action)?s?\b|\bprecent trxn\b/.test(text)) return 'PRECEDENTS';
   if (/\bcomps?\b|\bcomparable company\b|\btrading comps?\b/.test(text) || compareCompsPattern) return 'COMPS';
   if (

@@ -60,6 +60,17 @@ export const FOOTBALL_FIELD_DEFAULTS = {
   controlPremiumUplift: 0.15,
 } as const;
 
+export const MERGER_DEFAULTS = {
+  forecastYears: 5,
+  taxRate: 0.25,
+  cashPct: 0.5,
+  stockPct: 0.5,
+  debtPct: 0,
+  newDebtRate: 0.06,
+  synergies: 0,
+  oneTimeCosts: 0,
+} as const;
+
 export const PRECEDENTS_DEFAULTS = {
   transactionCount: 5,
   revenueMultiple: 4.5,
@@ -92,6 +103,7 @@ export const MODEL_GENERATOR_DEFAULTS = {
   SAAS_OPERATING_MODEL: SAAS_OPERATING_DEFAULTS,
   COMPS: COMPS_DEFAULTS,
   FOOTBALL_FIELD: FOOTBALL_FIELD_DEFAULTS,
+  MERGER: MERGER_DEFAULTS,
   PRECEDENTS: PRECEDENTS_DEFAULTS,
   LBO: LBO_DEFAULTS,
 } as const;

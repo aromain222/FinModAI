@@ -10,6 +10,7 @@ import * as capTableTemplate from '@/lib/model-generator/templates/capTable';
 import * as saasOperatingTemplate from '@/lib/model-generator/templates/saasOperating';
 import * as compsTemplate from '@/lib/model-generator/templates/comps';
 import * as footballFieldTemplate from '@/lib/model-generator/templates/footballField';
+import * as mergerTemplate from '@/lib/model-generator/templates/merger';
 import * as precedentsTemplate from '@/lib/model-generator/templates/precedents';
 import * as lboTemplate from '@/lib/model-generator/templates/lbo';
 
@@ -28,6 +29,7 @@ const TEMPLATE_MAP: Record<ModelGeneratorType, PreviewBuilder> = {
   SAAS_OPERATING_MODEL: saasOperatingTemplate as PreviewBuilder,
   COMPS: compsTemplate as PreviewBuilder,
   FOOTBALL_FIELD: footballFieldTemplate as PreviewBuilder,
+  MERGER: mergerTemplate as PreviewBuilder,
   PRECEDENTS: precedentsTemplate as PreviewBuilder,
   LBO: lboTemplate as PreviewBuilder,
 };
@@ -39,6 +41,7 @@ const KEY_OUTPUTS: Record<ModelGeneratorType, string[]> = {
   SAAS_OPERATING_MODEL: ['ARR Growth', 'Gross Margin', 'CAC Payback', 'LTV:CAC'],
   COMPS: ['Peer Trading Multiples', 'Implied Valuation Range', 'Premium / Discount View', 'Peer Set Summary'],
   FOOTBALL_FIELD: ['Trading Range', 'Precedent Range', 'Equity Value Bridge', 'Implied Share Price Range'],
+  MERGER: ['Deal Consideration Mix', 'Pro Forma EPS', 'EPS Accretion / Dilution', 'Sensitivity Framing'],
   PRECEDENTS: ['Transaction Multiples', 'Control Premium', 'Implied Valuation Range', 'Pitch Summary'],
   LBO: ['MOIC', 'IRR', 'Exit Equity Value', 'Debt Paydown'],
 };
@@ -80,6 +83,11 @@ const MODEL_PLAYBOOKS: Record<
     decisionQuestion: 'What valuation range is defensible once trading and transaction framing are lined up side by side?',
     whatToEditFirst: ['Peer-set quality', 'Revenue and EBITDA anchors', 'Net debt and diluted shares'],
     reviewStandard: 'Use the field to compare ranges, not to hide weak underlying assumptions. Large spreads should force a challenge to method quality.',
+  },
+  MERGER: {
+    decisionQuestion: 'Does the deal stay accretive once financing mix, integration drag, and synergy assumptions are made explicit?',
+    whatToEditFirst: ['Purchase price', 'Cash / stock / debt mix', 'New debt cost', 'Synergy and one-time cost assumptions'],
+    reviewStandard: 'Treat the EPS bridge as an audit trail. If accretion depends on heroic synergies or cheap financing, the underwriting is weak.',
   },
   PRECEDENTS: {
     decisionQuestion: 'What control-value range does the current deal set support for the subject today?',
@@ -168,7 +176,7 @@ export async function POST(req: NextRequest) {
         return coreTemplateResponse;
       }
       return buildUnsupportedResponse(
-        'Unsupported prompt. Direct prompt generation currently supports DCF, three-statement, cap table, SaaS operating, comps, football field, precedents, and LBO. Broader finance-native models should route into their dedicated CapitalBase workflows.'
+        'Unsupported prompt. Direct prompt generation currently supports DCF, three-statement, cap table, SaaS operating, comps, football field, merger / accretion-dilution, precedents, and LBO. Broader finance-native models should route into their dedicated CapitalBase workflows.'
       );
     }
 

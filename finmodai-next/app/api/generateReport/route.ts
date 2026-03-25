@@ -28,6 +28,7 @@ const MODEL_TYPE_MAP: Record<string, ReportModelType> = {
   THREE_STATEMENT: 'three-statement',
   COMPS: 'comps',
   FOOTBALL_FIELD: 'football-field',
+  MERGER: 'merger',
   PRECEDENTS: 'precedents',
   LBO: 'lbo',
   CAP_TABLE: 'cap-table',
