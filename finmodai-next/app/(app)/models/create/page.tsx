@@ -25,9 +25,11 @@ import { MissingInputsModal } from '@/components/models/MissingInputsModal';
 import { buildMissingInputSpecs, type MissingInputSpec } from '@/lib/models/shared/missingInputSpecs';
 import { validateModelInputs } from '@/lib/modelInputValidation';
 import { MergerInputsPanel } from '@/components/models/MergerInputsPanel';
+import { FootballFieldRangeChart } from '@/components/models/FootballFieldRangeChart';
 import { getMissingMergerInputs } from '@/lib/models/merger/schema';
 import type { MergerModelInput } from '@/lib/models/merger/schema';
 import { OperatingInputsPanel } from '@/components/models/OperatingInputsPanel';
+import { CompsPeerTableCard } from '@/components/models/CompsPeerTableCard';
 import { getMissingOperatingInputs } from '@/lib/models/operating/schema';
 import type { OperatingModelInput } from '@/lib/models/operating/schema';
 import { AppliedDefaultsList, AppliedDefaultBadge } from '@/components/models/AppliedDefaultBadge';
@@ -5171,6 +5173,10 @@ function CreateModelPageInner() {
                       </div>
                     </div>
                   </div>
+
+                  <div className="mt-5">
+                    <CompsPeerTableCard peers={Array.isArray(assumptions.peers) ? assumptions.peers : []} />
+                  </div>
                 </section>
               );
             })()}
@@ -5274,6 +5280,50 @@ function CreateModelPageInner() {
                         </div>
                       </div>
                     </div>
+                  </div>
+
+                  <div className="mt-5">
+                    <FootballFieldRangeChart
+                      ranges={topMethods.map((method) => ({
+                        label: method.label,
+                        lowPrice:
+                          typeof currentPrice === 'number' &&
+                          typeof assumptions.sharesOutstanding === 'number' &&
+                          assumptions.sharesOutstanding > 0
+                            ? null
+                            : null,
+                        midPrice: method.midPrice,
+                        highPrice:
+                          typeof method.midEv === 'number' &&
+                          typeof assumptions.sharesOutstanding === 'number' &&
+                          assumptions.sharesOutstanding > 0
+                            ? null
+                            : null,
+                      })).map((method, index) => {
+                        const source = ranges[index];
+                        const lowPrice =
+                          typeof source?.lowValue === 'number' &&
+                          typeof assumptions.sharesOutstanding === 'number' &&
+                          assumptions.sharesOutstanding > 0
+                            ? (source.lowValue - (typeof assumptions.netDebt === 'number' ? assumptions.netDebt : 0)) /
+                              assumptions.sharesOutstanding
+                            : null;
+                        const highPrice =
+                          typeof source?.highValue === 'number' &&
+                          typeof assumptions.sharesOutstanding === 'number' &&
+                          assumptions.sharesOutstanding > 0
+                            ? (source.highValue - (typeof assumptions.netDebt === 'number' ? assumptions.netDebt : 0)) /
+                              assumptions.sharesOutstanding
+                            : null;
+                        return {
+                          label: method.label,
+                          lowPrice,
+                          midPrice: method.midPrice,
+                          highPrice,
+                        };
+                      })}
+                      currentPrice={typeof currentPrice === 'number' ? currentPrice : null}
+                    />
                   </div>
                 </section>
               );
