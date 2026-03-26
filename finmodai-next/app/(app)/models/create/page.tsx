@@ -5195,7 +5195,11 @@ function CreateModelPageInner() {
                 : null;
               const currentPrice = assumptions.sharePrice ?? assumptions.price ?? null;
               const methodCount = ranges.length;
-              const topMethods = ranges
+              const topMethods: Array<{
+                label: string;
+                midEv: number | null;
+                midPrice: number | null;
+              }> = ranges
                 .slice(0, 4)
                 .map((range: any) => ({
                   label: typeof range?.label === 'string' ? range.label : 'Method',
