@@ -204,10 +204,6 @@ function normalizeModelTypeForReport(modelType: AnalystGeneratedModelPayload['mo
       return 'merger';
     case 'DEBT_CAPACITY_LITE':
       return 'debt-capacity-lite';
-    case 'REVERSE_DCF':
-      return 'reverse-dcf';
-    case 'SCORECARD':
-      return 'scorecard';
     default:
       return String(modelType).toLowerCase().replace(/_/g, '-');
   }
