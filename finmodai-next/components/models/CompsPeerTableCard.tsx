@@ -1,3 +1,8 @@
+"use client";
+
+import { useEffect, useMemo, useState } from 'react';
+import { Switch } from '@/components/ui/switch';
+
 type CompsPeerRow = {
   ticker?: string | null;
   name?: string | null;
@@ -67,6 +72,16 @@ function buildOutlierSet(peers: CompsPeerRow[], key: 'evToRevenue' | 'evToEbitda
 }
 
 export function CompsPeerTableCard({ peers }: CompsPeerTableCardProps) {
+  const peerIds = useMemo(
+    () => peers.map((peer, index) => String(peer.ticker || peer.name || `peer-${index}`)),
+    [peers]
+  );
+  const [includedPeerIds, setIncludedPeerIds] = useState<string[]>(peerIds);
+
+  useEffect(() => {
+    setIncludedPeerIds(peerIds);
+  }, [peerIds]);
+
   if (!Array.isArray(peers) || peers.length === 0) {
     return (
       <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
@@ -78,12 +93,25 @@ export function CompsPeerTableCard({ peers }: CompsPeerTableCardProps) {
     );
   }
 
-  const revenueOutliers = buildOutlierSet(peers, 'evToRevenue');
-  const ebitdaOutliers = buildOutlierSet(peers, 'evToEbitda');
-  const totalFlagged = peers.filter((peer) => {
+  const includedPeers = peers.filter((peer, index) => includedPeerIds.includes(peerIds[index]));
+  const revenueOutliers = buildOutlierSet(includedPeers, 'evToRevenue');
+  const ebitdaOutliers = buildOutlierSet(includedPeers, 'evToEbitda');
+  const totalFlagged = includedPeers.filter((peer) => {
     const id = String(peer.ticker || peer.name || 'peer');
     return revenueOutliers.has(id) || ebitdaOutliers.has(id);
   }).length;
+
+  const togglePeer = (id: string, checked: boolean) => {
+    setIncludedPeerIds((current) =>
+      checked ? [...new Set([...current, id])] : current.filter((candidate) => candidate !== id)
+    );
+  };
+
+  const excludeFlagged = () => {
+    setIncludedPeerIds((current) =>
+      current.filter((id) => !revenueOutliers.has(id) && !ebitdaOutliers.has(id))
+    );
+  };
 
   return (
     <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
@@ -94,8 +122,24 @@ export function CompsPeerTableCard({ peers }: CompsPeerTableCardProps) {
             Deterministic outlier flags use an IQR screen on EV / Revenue and EV / EBITDA.
           </p>
         </div>
-        <div className="text-xs text-[var(--cb-text-secondary)]">
-          {peers.length} peers • {totalFlagged} flagged
+        <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--cb-text-secondary)]">
+          <button
+            type="button"
+            onClick={() => setIncludedPeerIds(peerIds)}
+            className="rounded-full border border-[var(--cb-border-subtle)] px-2 py-1 text-[var(--cb-text-primary)]"
+          >
+            Include all
+          </button>
+          <button
+            type="button"
+            onClick={excludeFlagged}
+            className="rounded-full border border-[var(--cb-border-subtle)] px-2 py-1 text-[var(--cb-text-primary)]"
+          >
+            Exclude flagged
+          </button>
+          <span>
+            {includedPeers.length} included / {peers.length} total • {totalFlagged} flagged
+          </span>
         </div>
       </div>
 
@@ -103,6 +147,7 @@ export function CompsPeerTableCard({ peers }: CompsPeerTableCardProps) {
         <table className="min-w-full text-left text-xs">
           <thead className="text-[var(--cb-text-muted)]">
             <tr>
+              <th className="pb-2 pr-4 font-medium">Include</th>
               <th className="pb-2 pr-4 font-medium">Ticker</th>
               <th className="pb-2 pr-4 font-medium">Name</th>
               <th className="pb-2 pr-4 font-medium">Price</th>
@@ -113,21 +158,32 @@ export function CompsPeerTableCard({ peers }: CompsPeerTableCardProps) {
           </thead>
           <tbody className="text-[var(--cb-text-primary)]">
             {peers.map((peer, index) => {
-              const id = String(peer.ticker || peer.name || `peer-${index}`);
+              const id = peerIds[index];
+              const included = includedPeerIds.includes(id);
               const flags = [
                 revenueOutliers.has(id) ? 'Revenue outlier' : null,
                 ebitdaOutliers.has(id) ? 'EBITDA outlier' : null,
               ].filter((flag): flag is string => Boolean(flag));
 
               return (
-                <tr key={`${id}-${index}`} className="border-t border-[var(--cb-border-subtle)]">
+                <tr
+                  key={`${id}-${index}`}
+                  className={`border-t border-[var(--cb-border-subtle)] ${included ? '' : 'opacity-50'}`}
+                >
+                  <td className="py-2 pr-4">
+                    <div className="flex items-center gap-2">
+                      <Switch checked={included} onCheckedChange={(checked) => togglePeer(id, checked)} />
+                    </div>
+                  </td>
                   <td className="py-2 pr-4 font-mono">{peer.ticker || 'N/A'}</td>
                   <td className="py-2 pr-4">{peer.name || 'Peer'}</td>
                   <td className="py-2 pr-4 font-mono">{formatMoney(finite(peer.price))}</td>
                   <td className="py-2 pr-4 font-mono">{formatMultiple(finite(peer.evToRevenue))}</td>
                   <td className="py-2 pr-4 font-mono">{formatMultiple(finite(peer.evToEbitda))}</td>
                   <td className="py-2">
-                    {flags.length > 0 ? (
+                    {!included ? (
+                      <span className="text-[var(--cb-text-secondary)]">Excluded</span>
+                    ) : flags.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
                         {flags.map((flag) => (
                           <span

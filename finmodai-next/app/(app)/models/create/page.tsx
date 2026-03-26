@@ -26,6 +26,7 @@ import { buildMissingInputSpecs, type MissingInputSpec } from '@/lib/models/shar
 import { validateModelInputs } from '@/lib/modelInputValidation';
 import { MergerInputsPanel } from '@/components/models/MergerInputsPanel';
 import { FootballFieldRangeChart } from '@/components/models/FootballFieldRangeChart';
+import { FootballFieldReviewCard } from '@/components/models/FootballFieldReviewCard';
 import { getMissingMergerInputs } from '@/lib/models/merger/schema';
 import type { MergerModelInput } from '@/lib/models/merger/schema';
 import { OperatingInputsPanel } from '@/components/models/OperatingInputsPanel';
@@ -5283,46 +5284,13 @@ function CreateModelPageInner() {
                   </div>
 
                   <div className="mt-5">
-                    <FootballFieldRangeChart
-                      ranges={topMethods.map((method) => ({
-                        label: method.label,
-                        lowPrice:
-                          typeof currentPrice === 'number' &&
-                          typeof assumptions.sharesOutstanding === 'number' &&
-                          assumptions.sharesOutstanding > 0
-                            ? null
-                            : null,
-                        midPrice: method.midPrice,
-                        highPrice:
-                          typeof method.midEv === 'number' &&
-                          typeof assumptions.sharesOutstanding === 'number' &&
-                          assumptions.sharesOutstanding > 0
-                            ? null
-                            : null,
-                      })).map((method, index) => {
-                        const source = ranges[index];
-                        const lowPrice =
-                          typeof source?.lowValue === 'number' &&
-                          typeof assumptions.sharesOutstanding === 'number' &&
-                          assumptions.sharesOutstanding > 0
-                            ? (source.lowValue - (typeof assumptions.netDebt === 'number' ? assumptions.netDebt : 0)) /
-                              assumptions.sharesOutstanding
-                            : null;
-                        const highPrice =
-                          typeof source?.highValue === 'number' &&
-                          typeof assumptions.sharesOutstanding === 'number' &&
-                          assumptions.sharesOutstanding > 0
-                            ? (source.highValue - (typeof assumptions.netDebt === 'number' ? assumptions.netDebt : 0)) /
-                              assumptions.sharesOutstanding
-                            : null;
-                        return {
-                          label: method.label,
-                          lowPrice,
-                          midPrice: method.midPrice,
-                          highPrice,
-                        };
-                      })}
+                    <FootballFieldReviewCard
+                      ranges={ranges}
                       currentPrice={typeof currentPrice === 'number' ? currentPrice : null}
+                      netDebt={typeof assumptions.netDebt === 'number' ? assumptions.netDebt : null}
+                      sharesOutstanding={
+                        typeof assumptions.sharesOutstanding === 'number' ? assumptions.sharesOutstanding : null
+                      }
                     />
                   </div>
                 </section>

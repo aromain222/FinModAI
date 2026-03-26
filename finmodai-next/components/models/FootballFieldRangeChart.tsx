@@ -8,6 +8,8 @@ type FootballFieldRange = {
 type FootballFieldRangeChartProps = {
   ranges: FootballFieldRange[];
   currentPrice?: number | null;
+  highlightLabel?: string | null;
+  weightedMidpoint?: number | null;
 };
 
 function isFiniteNumber(value: unknown): value is number {
@@ -26,6 +28,8 @@ function formatMoney(value: number | null): string {
 export function FootballFieldRangeChart({
   ranges,
   currentPrice = null,
+  highlightLabel = null,
+  weightedMidpoint = null,
 }: FootballFieldRangeChartProps) {
   const populatedRanges = ranges.filter(
     (range) =>
@@ -37,6 +41,7 @@ export function FootballFieldRangeChart({
 
   const values = populatedRanges.flatMap((range) => [range.lowPrice, range.midPrice, range.highPrice]);
   if (isFiniteNumber(currentPrice)) values.push(currentPrice);
+  if (isFiniteNumber(weightedMidpoint)) values.push(weightedMidpoint);
 
   if (populatedRanges.length === 0 || values.length === 0) {
     return (
@@ -69,6 +74,10 @@ export function FootballFieldRangeChart({
             Midpoint
           </span>
           <span className="flex items-center gap-1">
+            <span className="h-3 w-px bg-fuchsia-500" />
+            Weighted midpoint
+          </span>
+          <span className="flex items-center gap-1">
             <span className="h-3 w-px bg-amber-500" />
             Current price
           </span>
@@ -86,15 +95,19 @@ export function FootballFieldRangeChart({
           const low = range.lowPrice as number;
           const mid = range.midPrice as number;
           const high = range.highPrice as number;
+          const highlighted = highlightLabel === range.label;
           const lowPct = toPercent(low);
           const highPct = toPercent(high);
           const midPct = toPercent(mid);
           const currentPct = isFiniteNumber(currentPrice) ? toPercent(currentPrice) : null;
+          const weightedPct = isFiniteNumber(weightedMidpoint) ? toPercent(weightedMidpoint) : null;
 
           return (
             <div key={range.label} className="grid grid-cols-[140px_minmax(0,1fr)_120px] items-center gap-3">
-              <div className="text-sm font-medium text-[var(--cb-text-primary)]">{range.label}</div>
-              <div className="relative h-8 rounded-lg bg-[var(--cb-surface)]">
+              <div className={`text-sm font-medium ${highlighted ? 'text-[var(--cb-text-primary)]' : 'text-[var(--cb-text-secondary)]'}`}>
+                {range.label}
+              </div>
+              <div className={`relative h-8 rounded-lg ${highlighted ? 'bg-[var(--cb-surface)] ring-1 ring-[var(--cb-accent)]/30' : 'bg-[var(--cb-surface)]'}`}>
                 <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-[var(--cb-border-subtle)]" />
                 {currentPct !== null ? (
                   <div
@@ -102,8 +115,14 @@ export function FootballFieldRangeChart({
                     style={{ left: `${currentPct}%` }}
                   />
                 ) : null}
+                {weightedPct !== null ? (
+                  <div
+                    className="absolute top-0 bottom-0 z-10 w-px bg-fuchsia-500/90"
+                    style={{ left: `${weightedPct}%` }}
+                  />
+                ) : null}
                 <div
-                  className="absolute top-1/2 h-3 -translate-y-1/2 rounded-full bg-[var(--cb-accent)]/25"
+                  className={`absolute top-1/2 h-3 -translate-y-1/2 rounded-full ${highlighted ? 'bg-[var(--cb-accent)]/35' : 'bg-[var(--cb-accent)]/20'}`}
                   style={{ left: `${lowPct}%`, width: `${Math.max(highPct - lowPct, 1)}%` }}
                 />
                 <div
