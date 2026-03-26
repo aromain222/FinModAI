@@ -9,7 +9,7 @@ import { MergerModelInputSchema, getMissingMergerInputs } from '@/lib/models/mer
 import { generateMergerWorkbook } from '@/lib/models/merger/excel';
 import { getLTMFinancials } from '@/lib/getLTMFinancials';
 import { isDemoMode } from '@/lib/demo/isDemoMode';
-import { isDemoTickerAvailable } from '@/lib/data/providers/demoProvider';
+import { isDemoOrQualityTickerAvailable } from '@/lib/data/providers/demoProvider';
 
 export const runtime = 'nodejs';
 
@@ -117,19 +117,19 @@ export async function POST(req: Request) {
     let buyerLTM = null;
     let targetLTM = null;
     if (buyerTickerRaw) {
-      const demoAllowed = await isDemoTickerAvailable(buyerTickerRaw);
+      const demoAllowed = await isDemoOrQualityTickerAvailable(buyerTickerRaw);
       if (!demoAllowed) {
         return NextResponse.json(
-          { error: 'This demo ticker is not in the curated demo set. Choose a demo company.' },
+          { error: 'This ticker is not available in the current public demo universe. Choose a synced public company.' },
           { status: 400 }
         );
       }
     }
     if (body.targetTicker) {
-      const demoAllowed = await isDemoTickerAvailable(body.targetTicker);
+      const demoAllowed = await isDemoOrQualityTickerAvailable(body.targetTicker);
       if (!demoAllowed) {
         return NextResponse.json(
-          { error: 'This demo ticker is not in the curated demo set. Choose a demo company.' },
+          { error: 'This ticker is not available in the current public demo universe. Choose a synced public company.' },
           { status: 400 }
         );
       }

@@ -3099,7 +3099,7 @@ function CreateModelPageInner() {
                       : demoUniverseSource === 'demo_company_snapshots'
                         ? ' Using snapshot fallback coverage.'
                         : demoUniverseSource === 'curated_demo_universe'
-                          ? ' Using curated demo coverage.'
+                          ? ' Using curated fallback coverage.'
                           : ''}
                   </p>
                   {ticker.trim() && demoTickers.length > 0 && !demoTickers.includes(normalizedTicker) && (
@@ -3177,13 +3177,13 @@ function CreateModelPageInner() {
                   </p>
                   {!ticker.trim() && demoCompanies.length > 0 && (
                     <p className="text-xs text-[var(--cb-text-muted)]">
-                      Demo Mode is active. Choose a demo company to continue.
+                      Demo Mode is active. Choose a public company to continue.
                     </p>
                   )}
                 </div>
               ) : (
                 <p className="text-xs text-[var(--cb-text-muted)]">
-                  Demo mode is not enabled for this session. Enable demo mode to load curated demo tickers.
+                  Demo mode is not enabled for this session. Enable demo mode to load the public demo universe.
                 </p>
               )}
             </div>

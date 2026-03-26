@@ -1,11 +1,12 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { DEMO_COMPANY_META, DEMO_TICKERS } from '../lib/demo/demoUniverse';
+import { getQualityPublicTickers } from '../lib/data/company/companyUniverse';
 import { syncCompanyFromFmp } from '../lib/integrations/fmp/syncCompany';
 import { syncPricesFromPolygon } from '../lib/integrations/polygon/syncPrices';
 import { syncCompanyFactsFromSec } from '../lib/integrations/sec/syncCompanyFacts';
 
 type RefreshOptions = {
-  source: 'demo' | 'sp500' | 'tickers';
+  source: 'demo' | 'sp500' | 'quality-public' | 'tickers';
   tickers: string[];
   limit: number | null;
   offset: number;
@@ -102,6 +103,7 @@ function parseArgs(argv: string[]): RefreshOptions {
 
   for (const arg of argv) {
     if (arg === '--source=sp500') source = 'sp500';
+    else if (arg === '--source=quality-public') source = 'quality-public';
     else if (arg === '--source=demo') source = 'demo';
     else if (arg === '--skip-sec') skipSec = true;
     else if (arg === '--skip-sync') skipSync = true;
@@ -171,11 +173,14 @@ async function fetchSp500Tickers(): Promise<string[]> {
   return Array.from(new Set(tickers));
 }
 
-async function resolveUniverse(options: RefreshOptions): Promise<string[]> {
+async function resolveUniverse(options: RefreshOptions, supabase: SupabaseClient): Promise<string[]> {
   let tickers: string[] = [];
 
   if (options.source === 'sp500') {
     tickers = await fetchSp500Tickers();
+  } else if (options.source === 'quality-public') {
+    void supabase;
+    tickers = await getQualityPublicTickers(options.limit ?? 1000);
   } else if (options.source === 'tickers') {
     tickers = options.tickers;
   } else {
@@ -323,7 +328,7 @@ async function main() {
   const supabase = getSupabaseAdminClient();
   const snapshots: DemoSnapshotRow[] = [];
   const failures: Record<string, string> = {};
-  const universe = await resolveUniverse(options);
+  const universe = await resolveUniverse(options, supabase);
 
   if (universe.length === 0) {
     throw new Error('No tickers resolved for refresh.');

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -198,6 +198,126 @@ function normalizeModelTypeForReport(modelType: AnalystGeneratedModelPayload['mo
       return 'precedents';
     case 'LBO':
       return 'lbo';
+  }
+}
+
+function displayWorkspaceTitle(modelType: AnalystGeneratedModelPayload['modelType']): string {
+  switch (modelType) {
+    case 'THREE_STATEMENT':
+      return 'Forecast Model Workspace';
+    case 'COMPS':
+      return 'Trading Comparables Workspace';
+    case 'FOOTBALL_FIELD':
+      return 'Football Field Workspace';
+    case 'LBO':
+      return 'LBO Underwriting Workspace';
+    default:
+      return 'Model Template Workspace';
+  }
+}
+
+function displayModelBadge(modelType: AnalystGeneratedModelPayload['modelType']): string {
+  switch (modelType) {
+    case 'THREE_STATEMENT':
+      return 'FORECAST MODEL';
+    case 'COMPS':
+      return 'TRADING COMPARABLES';
+    case 'FOOTBALL_FIELD':
+      return 'FOOTBALL FIELD';
+    case 'LBO':
+      return 'LBO UNDERWRITING';
+    default:
+      return modelType;
+  }
+}
+
+function displayModelTitle(payload: AnalystGeneratedModelPayload): string {
+  switch (payload.modelType) {
+    case 'THREE_STATEMENT':
+      return payload.title.replace(/Three-Statement Model/gi, 'Forecast Model');
+    case 'COMPS':
+      return payload.title.replace(/Comparable Company Analysis/gi, 'Trading Comparables');
+    case 'FOOTBALL_FIELD':
+      return payload.title.replace(/Football Field/gi, 'Valuation Football Field');
+    case 'LBO':
+      return payload.title.replace(/\bLBO\b/gi, 'LBO Underwriting');
+    default:
+      return payload.title;
+  }
+}
+
+function defaultWorkbookFilename(payload: AnalystGeneratedModelPayload): string {
+  switch (payload.modelType) {
+    case 'THREE_STATEMENT':
+      return 'forecast_model_analyst_chat.xlsx';
+    case 'COMPS':
+      return 'trading_comparables_analyst_chat.xlsx';
+    case 'FOOTBALL_FIELD':
+      return 'valuation_football_field_analyst_chat.xlsx';
+    case 'LBO':
+      return 'lbo_underwriting_analyst_chat.xlsx';
+    default:
+      return `${payload.modelType}_Analyst_Chat.xlsx`;
+  }
+}
+
+function defaultReportFilename(payload: AnalystGeneratedModelPayload): string {
+  switch (payload.modelType) {
+    case 'THREE_STATEMENT':
+      return 'forecast_model_capitalbase_report.pdf';
+    case 'COMPS':
+      return 'trading_comparables_capitalbase_report.pdf';
+    case 'FOOTBALL_FIELD':
+      return 'valuation_football_field_capitalbase_report.pdf';
+    case 'LBO':
+      return 'lbo_underwriting_capitalbase_report.pdf';
+    default:
+      return `${payload.modelType.toLowerCase()}_capitalbase_report.pdf`;
+  }
+}
+
+function artifactTypeNote(modelType: AnalystGeneratedModelPayload['modelType']): string | null {
+  switch (modelType) {
+    case 'THREE_STATEMENT':
+      return 'Artifact type: Forecast model.';
+    case 'COMPS':
+      return 'Artifact type: Trading comparables.';
+    case 'FOOTBALL_FIELD':
+      return 'Artifact type: Valuation football field.';
+    case 'LBO':
+      return 'Artifact type: LBO underwriting.';
+    default:
+      return null;
+  }
+}
+
+function pdfActionLabel(modelType: AnalystGeneratedModelPayload['modelType']): string {
+  switch (modelType) {
+    case 'THREE_STATEMENT':
+      return 'Download Forecast PDF';
+    case 'COMPS':
+      return 'Download Comps PDF';
+    case 'FOOTBALL_FIELD':
+      return 'Download Football Field PDF';
+    case 'LBO':
+      return 'Download LBO PDF';
+    default:
+      return 'Download PDF Report';
+  }
+}
+
+function excelActionLabel(modelType: AnalystGeneratedModelPayload['modelType']): string {
+  switch (modelType) {
+    case 'THREE_STATEMENT':
+      return 'Download Forecast Excel';
+    case 'COMPS':
+      return 'Download Comps Excel';
+    case 'FOOTBALL_FIELD':
+      return 'Download Football Field Excel';
+    case 'LBO':
+      return 'Download LBO Excel';
+    default:
+      return 'Download Excel';
   }
 }
 
@@ -667,7 +787,7 @@ export function AnalystModelCard({
 
       const blob = await response.blob();
       const filenameMatch = response.headers.get('Content-Disposition')?.match(/filename="?([^"]+)"?/i);
-      const filename = filenameMatch?.[1] || `${payload.modelType}_Analyst_Chat.xlsx`;
+      const filename = filenameMatch?.[1] || defaultWorkbookFilename(payload);
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
@@ -712,6 +832,7 @@ export function AnalystModelCard({
           reportInput: {
             scenarioContext: payload.scenarioContext ?? undefined,
             highLevelNotes: [
+              artifactTypeNote(payload.modelType),
               payload.scenarioContext ? `Scenario context: ${payload.scenarioContext}` : null,
               `Prompt run: ${payload.prompt}`,
               payload.narrativeBlocks.map((block) => `${block.title}: ${block.body}`).join(' '),
@@ -738,7 +859,7 @@ export function AnalystModelCard({
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `${payload.modelType.toLowerCase()}_capitalbase_report.pdf`;
+      anchor.download = defaultReportFilename(payload);
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (error) {
@@ -837,11 +958,11 @@ export function AnalystModelCard({
 
   return (
     <Card className="mt-4 overflow-hidden border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
-      <CardHeader className="border-b border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)]">
+      <CardHeader className="border-b border-[var(--cb-border-subtle)] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))]">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
-            <CardTitle className="text-base">Prompt-to-Model Demo</CardTitle>
-            <CardDescription>{payload.title}</CardDescription>
+            <CardTitle className="text-base">{displayWorkspaceTitle(payload.modelType)}</CardTitle>
+            <CardDescription>{displayModelTitle(payload)}</CardDescription>
             {payload.modelType === 'COMPS' && payload.scenarioContext ? (
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <Badge variant="outline">Scenario</Badge>
@@ -850,12 +971,12 @@ export function AnalystModelCard({
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">{payload.modelType}</Badge>
+            <Badge variant="outline">{displayModelBadge(payload.modelType)}</Badge>
             <Button type="button" variant="outline" size="sm" onClick={() => void handleGenerateReport()} disabled={isGeneratingReport}>
-              {isGeneratingReport ? 'Generating Report…' : 'Generate Report'}
+              {isGeneratingReport ? 'Generating PDF…' : pdfActionLabel(payload.modelType)}
             </Button>
             <Button type="button" variant="outline" size="sm" onClick={() => void handleDownload()} disabled={isDownloading}>
-              {isDownloading ? 'Preparing Excel…' : 'Download Excel'}
+              {isDownloading ? 'Preparing Excel…' : excelActionLabel(payload.modelType)}
             </Button>
           </div>
         </div>
@@ -873,7 +994,7 @@ export function AnalystModelCard({
         ) : null}
 
         <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
-          <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Workbook Tabs</div>
+          <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Template Layout</div>
           <div className="flex flex-wrap gap-2">
             {payload.tabs.map((tab) => (
               <Badge key={tab} variant="outline" className="border-[var(--cb-border-subtle)] text-[var(--cb-text-secondary)]">
@@ -884,7 +1005,7 @@ export function AnalystModelCard({
         </div>
 
         <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
-          <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Key Outputs</div>
+          <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Decision Outputs</div>
           <p className="text-sm leading-6 text-[var(--cb-text-primary)]">{payload.keyOutputs.join(', ')}</p>
         </div>
 
@@ -892,7 +1013,7 @@ export function AnalystModelCard({
           <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Model Controls</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Live Model Controls</div>
                 <div className="mt-1 text-sm text-[var(--cb-text-primary)]">
                   Edit the operating assumptions here, then apply the changes to rerender the active three-statement model.
                 </div>
@@ -1004,7 +1125,7 @@ export function AnalystModelCard({
           <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Comps Controls</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Live Comps Controls</div>
                 <div className="mt-1 text-sm text-[var(--cb-text-primary)]">
                   Controls start collapsed. Open them to adjust the subject and each peer directly, then apply the changes to rerender the active comps view.
                 </div>

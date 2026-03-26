@@ -4,6 +4,8 @@ import type {
   ScorecardSummary,
   ScorecardMetricRow,
 } from '@/lib/models/scorecard/buildScorecardSummary';
+import type { MacroAssumptionContext } from '@/lib/models/shared/macroAssumptions';
+import type { CompanyCatalystContext } from '@/lib/models/shared/companyCatalystContext';
 import {
   INCOME_STATEMENT_ROW_SCHEMA,
   BALANCE_SHEET_ROW_SCHEMA,
@@ -44,6 +46,8 @@ type BuildModelDocumentParams = {
   } | null;
   compsSummary?: any;
   scorecardSummary?: ScorecardSummary | null;
+  macroContext?: MacroAssumptionContext | null;
+  companyCatalystContext?: CompanyCatalystContext | null;
 };
 
 type LegacyPreview = {
@@ -1483,6 +1487,134 @@ function buildDefaultSections(params: BuildModelDocumentParams) {
   ];
 }
 
+function buildMacroSection(context: MacroAssumptionContext) {
+  return {
+    id: 'macro_context',
+    title: 'Market Context',
+    layout: 'fullWidth' as const,
+    blocks: [
+      {
+        type: 'callout' as const,
+        content: context.summary,
+        variant: 'note' as const,
+      },
+      {
+        type: 'table' as const,
+        tableId: 'macro_context_table',
+        title: 'Macro Assumptions',
+        columns: [
+          { key: 'assumption', label: 'Assumption', type: 'text' as const, align: 'left' as const, width: 24 },
+          { key: 'value', label: 'Value', type: 'text' as const, align: 'right' as const, width: 14 },
+          { key: 'relevance', label: 'Relevance', type: 'text' as const, align: 'center' as const, width: 12 },
+          { key: 'source', label: 'Source', type: 'text' as const, align: 'left' as const, width: 30 },
+        ],
+        rows: context.items.map((item, index) => ({
+          rowKey: `macro_${index}`,
+          rowType: 'data' as const,
+          cells: {
+            assumption: cell(item.label, 'reported'),
+            value: cell(item.displayValue, item.status === 'missing' ? 'missing' : 'reported'),
+            relevance: cell(item.relevance, 'reported'),
+            source: cell(item.source, 'reported'),
+          },
+        })),
+        grid: { hideGridlines: false, freezePanes: { row: 1, column: 1 } },
+      },
+    ],
+  };
+}
+
+function buildCompanyCatalystSection(context: CompanyCatalystContext) {
+  return {
+    id: 'company_catalyst_context',
+    title: 'Company Catalyst Context',
+    layout: 'fullWidth' as const,
+    blocks: [
+      {
+        type: 'callout' as const,
+        content: context.summary,
+        variant: 'note' as const,
+      },
+      ...(context.calendarItems.length > 0
+        ? [
+            {
+              type: 'table' as const,
+              tableId: 'company_catalyst_calendar_table',
+              title: 'Catalyst Calendar',
+              columns: [
+                { key: 'event', label: 'Event', type: 'text' as const, align: 'left' as const, width: 26 },
+                { key: 'date', label: 'Date', type: 'text' as const, align: 'right' as const, width: 14 },
+                { key: 'relevance', label: 'Relevance', type: 'text' as const, align: 'center' as const, width: 12 },
+                { key: 'source', label: 'Source', type: 'text' as const, align: 'left' as const, width: 28 },
+              ],
+              rows: context.calendarItems.map((item, index) => ({
+                rowKey: `calendar_${index}`,
+                rowType: 'data' as const,
+                cells: {
+                  event: cell(item.title, 'reported'),
+                  date: cell(item.displayDate, item.status === 'missing' ? 'missing' : 'reported'),
+                  relevance: cell(item.relevance, 'reported'),
+                  source: cell(item.source, 'reported'),
+                },
+              })),
+              grid: { hideGridlines: false, freezePanes: { row: 1, column: 1 } },
+            },
+          ]
+        : []),
+      ...(context.ownershipItems.length > 0
+        ? [
+            {
+              type: 'table' as const,
+              tableId: 'company_catalyst_ownership_table',
+              title: 'Ownership / Insider / Buyback',
+              columns: [
+                { key: 'signal', label: 'Signal', type: 'text' as const, align: 'left' as const, width: 26 },
+                { key: 'value', label: 'Value', type: 'text' as const, align: 'right' as const, width: 18 },
+                { key: 'relevance', label: 'Relevance', type: 'text' as const, align: 'center' as const, width: 12 },
+                { key: 'source', label: 'Source', type: 'text' as const, align: 'left' as const, width: 28 },
+              ],
+              rows: context.ownershipItems.map((item, index) => ({
+                rowKey: `ownership_${index}`,
+                rowType: 'data' as const,
+                cells: {
+                  signal: cell(item.label, 'reported'),
+                  value: cell(item.displayValue, item.status === 'missing' ? 'missing' : 'reported'),
+                  relevance: cell(item.relevance, 'reported'),
+                  source: cell(item.source, 'reported'),
+                },
+              })),
+              grid: { hideGridlines: false, freezePanes: { row: 1, column: 1 } },
+            },
+          ]
+        : []),
+      ...(context.transcriptItems.length > 0
+        ? [
+            {
+              type: 'table' as const,
+              tableId: 'company_catalyst_transcript_table',
+              title: 'Transcript Catalyst Context',
+              columns: [
+                { key: 'label', label: 'Catalyst', type: 'text' as const, align: 'left' as const, width: 24 },
+                { key: 'excerpt', label: 'Excerpt', type: 'text' as const, align: 'left' as const, width: 56 },
+                { key: 'source', label: 'Source', type: 'text' as const, align: 'left' as const, width: 24 },
+              ],
+              rows: context.transcriptItems.map((item, index) => ({
+                rowKey: `transcript_${index}`,
+                rowType: 'data' as const,
+                cells: {
+                  label: cell(item.label, 'reported'),
+                  excerpt: cell(item.excerpt, item.status === 'missing' ? 'missing' : 'reported'),
+                  source: cell(item.source, 'reported'),
+                },
+              })),
+              grid: { hideGridlines: false, freezePanes: { row: 1, column: 1 } },
+            },
+          ]
+        : []),
+    ],
+  };
+}
+
 export function buildDocumentFromModelOutputs(params: BuildModelDocumentParams): ModelDocument {
   const meta = {
     modelType: params.modelType === 'operating' ? 'operating' : params.modelType,
@@ -1506,8 +1638,20 @@ export function buildDocumentFromModelOutputs(params: BuildModelDocumentParams):
           : params.modelType === 'comps'
             ? buildCompsSections(params)
             : params.modelType === 'scorecard'
-              ? buildScorecardSections(params)
+            ? buildScorecardSections(params)
             : buildDefaultSections(params);
+
+  if (params.macroContext && params.macroContext.items.length > 0) {
+    sections.push(buildMacroSection(params.macroContext));
+  }
+  if (
+    params.companyCatalystContext &&
+    (params.companyCatalystContext.calendarItems.length > 0 ||
+      params.companyCatalystContext.ownershipItems.length > 0 ||
+      params.companyCatalystContext.transcriptItems.length > 0)
+  ) {
+    sections.push(buildCompanyCatalystSection(params.companyCatalystContext));
+  }
 
   return { meta, sections };
 }

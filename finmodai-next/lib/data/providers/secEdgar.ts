@@ -20,6 +20,7 @@ export type SecAnnualFundamentals = {
   totalDebt: number | null;
   fiscalYear: number | null;
   period: string | null;
+  reportEndDate: string | null;
 };
 
 const cikCache = new Map<string, string>();
@@ -255,6 +256,17 @@ export async function fetchSecEdgarAnnualFundamentals(
     longDebtEntry?.fp ||
     null
   ) as string | null;
+  const reportEndDate = (
+    revenueEntry?.end ||
+    grossProfitEntry?.end ||
+    ebitEntry?.end ||
+    depreciationAmortizationEntry?.end ||
+    netIncomeEntry?.end ||
+    cashEntry?.end ||
+    shortDebtEntry?.end ||
+    longDebtEntry?.end ||
+    null
+  ) as string | null;
 
   return {
     ok: true,
@@ -271,6 +283,7 @@ export async function fetchSecEdgarAnnualFundamentals(
       totalDebt: Number.isFinite(totalDebt) ? totalDebt : null,
       fiscalYear: Number.isFinite(fiscalYear as number) ? (fiscalYear as number) : null,
       period,
+      reportEndDate,
     },
     raw: res.data,
     latencyMs: res.latencyMs,

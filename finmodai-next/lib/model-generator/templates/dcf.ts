@@ -3,6 +3,7 @@ import type { DcfModelInputs } from '@/lib/model-generator/extractInputs';
 import { finalizeChecksSheet, writeCheckRow } from '@/lib/model-generator/excel/checks';
 import { addEquationsSheet, type EquationRow } from '@/lib/model-generator/excel/equations';
 import {
+  styleAccentOutput,
   applyWorkbookMeta,
   col,
   enableWorkbookRecalculation,
@@ -12,8 +13,10 @@ import {
   styleInput,
   styleLabel,
   styleModelMeta,
+  styleNarrativeBlock,
   styleOutput,
   styleSectionHeader,
+  styleSubtitle,
   styleSubTotal,
   styleTableHeader,
   styleThinGrid,
@@ -77,110 +80,127 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
   coverSheet.getCell('A1').value = `${inputs.companyName} Discounted Cash Flow`;
   mergeAndCenter(coverSheet, 'A1:H1');
   styleTitle(coverSheet.getCell('A1'));
-  styleModelMeta(coverSheet, 3, 'Company', inputs.companyName);
-  styleModelMeta(coverSheet, 4, 'Ticker', inputs.ticker || 'N/A');
-  styleModelMeta(coverSheet, 5, 'Generated', formatDate(generatedAt));
-  styleModelMeta(coverSheet, 6, 'Source', inputs.source);
-  styleModelMeta(coverSheet, 7, 'Input legend', 'Blue cells are editable inputs. Green cells are key outputs.');
+  coverSheet.getCell('A2').value =
+    'Decision-useful DCF template with a single assumptions panel, linked operating forecast, valuation bridge, sensitivity, equations, and checks.';
+  mergeAndCenter(coverSheet, 'A2:H2');
+  styleSubtitle(coverSheet.getCell('A2'));
+  styleModelMeta(coverSheet, 4, 'Company', inputs.companyName);
+  styleModelMeta(coverSheet, 5, 'Ticker', inputs.ticker || 'N/A');
+  styleModelMeta(coverSheet, 6, 'Generated', formatDate(generatedAt));
+  styleModelMeta(coverSheet, 7, 'Source', inputs.source);
+  styleModelMeta(coverSheet, 8, 'Input legend', 'Blue cells are editable inputs. Green cells are formula-driven outputs.');
 
-  styleSectionHeader(coverSheet, 9, 'Assumption Snapshot', 3);
-  coverSheet.getCell('A10').value = 'Forecast years';
-  coverSheet.getCell('B10').value = { formula: '=ForecastYears' };
-  coverSheet.getCell('A11').value = 'WACC';
-  coverSheet.getCell('B11').value = { formula: '=WACC' };
-  coverSheet.getCell('A12').value = 'Terminal growth';
-  coverSheet.getCell('B12').value = { formula: '=TerminalGrowth' };
-  coverSheet.getCell('A13').value = 'Exit multiple';
-  coverSheet.getCell('B13').value = { formula: '=ExitMultiple' };
-  coverSheet.getCell('A14').value = 'Terminal method';
-  coverSheet.getCell('B14').value = { formula: '=TerminalMethod' };
-  ['A10', 'A11', 'A12', 'A13', 'A14'].forEach((ref) => styleLabel(coverSheet.getCell(ref)));
-  styleFormula(coverSheet.getCell('B10'), 'number');
-  styleFormula(coverSheet.getCell('B11'), 'percent');
+  styleSectionHeader(coverSheet, 10, 'Assumption Snapshot', 3);
+  coverSheet.getCell('A11').value = 'Forecast years';
+  coverSheet.getCell('B11').value = { formula: '=ForecastYears' };
+  coverSheet.getCell('A12').value = 'WACC';
+  coverSheet.getCell('B12').value = { formula: '=WACC' };
+  coverSheet.getCell('A13').value = 'Terminal growth';
+  coverSheet.getCell('B13').value = { formula: '=TerminalGrowth' };
+  coverSheet.getCell('A14').value = 'Exit multiple';
+  coverSheet.getCell('B14').value = { formula: '=ExitMultiple' };
+  coverSheet.getCell('A15').value = 'Terminal method';
+  coverSheet.getCell('B15').value = { formula: '=TerminalMethod' };
+  ['A11', 'A12', 'A13', 'A14', 'A15'].forEach((ref) => styleLabel(coverSheet.getCell(ref)));
+  styleFormula(coverSheet.getCell('B11'), 'number');
   styleFormula(coverSheet.getCell('B12'), 'percent');
-  styleFormula(coverSheet.getCell('B13'), 'multiple');
-  styleFormula(coverSheet.getCell('B14'));
+  styleFormula(coverSheet.getCell('B13'), 'percent');
+  styleFormula(coverSheet.getCell('B14'), 'multiple');
+  styleFormula(coverSheet.getCell('B15'));
 
-  styleSectionHeader(coverSheet, 9, 'Valuation Snapshot', 7);
-  coverSheet.getCell('E10').value = 'Enterprise Value';
-  coverSheet.getCell('F10').value = { formula: '=EnterpriseValue' };
-  coverSheet.getCell('E11').value = 'Equity Value';
-  coverSheet.getCell('F11').value = { formula: '=EquityValue' };
-  coverSheet.getCell('E12').value = 'Implied Share Price';
-  coverSheet.getCell('F12').value = { formula: '=ImpliedSharePrice' };
-  coverSheet.getCell('E13').value = 'PV of Explicit FCF';
-  coverSheet.getCell('F13').value = { formula: '=PVExplicitFCF' };
-  coverSheet.getCell('E14').value = 'PV of Terminal Value';
-  coverSheet.getCell('F14').value = { formula: '=PVTerminalValue' };
-  ['E10', 'E11', 'E12', 'E13', 'E14'].forEach((ref) => styleLabel(coverSheet.getCell(ref)));
-  ['F10', 'F11', 'F12', 'F13', 'F14'].forEach((ref) => styleOutput(coverSheet.getCell(ref), 'currency'));
-  styleThinGrid(coverSheet, 10, 14, 1, 2);
-  styleThinGrid(coverSheet, 10, 14, 5, 6);
+  styleSectionHeader(coverSheet, 10, 'Valuation Snapshot', 7);
+  coverSheet.getCell('E11').value = 'Enterprise Value';
+  coverSheet.getCell('F11').value = { formula: '=EnterpriseValue' };
+  coverSheet.getCell('E12').value = 'Equity Value';
+  coverSheet.getCell('F12').value = { formula: '=EquityValue' };
+  coverSheet.getCell('E13').value = 'Implied Share Price';
+  coverSheet.getCell('F13').value = { formula: '=ImpliedSharePrice' };
+  coverSheet.getCell('E14').value = 'PV of Explicit FCF';
+  coverSheet.getCell('F14').value = { formula: '=PVExplicitFCF' };
+  coverSheet.getCell('E15').value = 'PV of Terminal Value';
+  coverSheet.getCell('F15').value = { formula: '=PVTerminalValue' };
+  ['E11', 'E12', 'E13', 'E14', 'E15'].forEach((ref) => styleLabel(coverSheet.getCell(ref)));
+  styleAccentOutput(coverSheet.getCell('F11'), 'currency');
+  styleAccentOutput(coverSheet.getCell('F12'), 'currency');
+  styleAccentOutput(coverSheet.getCell('F13'), 'currency');
+  styleOutput(coverSheet.getCell('F14'), 'currency');
+  styleOutput(coverSheet.getCell('F15'), 'currency');
+  styleThinGrid(coverSheet, 11, 15, 1, 2);
+  styleThinGrid(coverSheet, 11, 15, 5, 6);
 
-  styleSectionHeader(coverSheet, 17, 'Valuation Bridge', 3);
-  coverSheet.getCell('A18').value = 'PV of Explicit FCF';
-  coverSheet.getCell('B18').value = { formula: '=PVExplicitFCF' };
-  coverSheet.getCell('A19').value = 'PV of Terminal Value';
-  coverSheet.getCell('B19').value = { formula: '=PVTerminalValue' };
-  coverSheet.getCell('A20').value = 'Enterprise Value';
-  coverSheet.getCell('B20').value = { formula: '=EnterpriseValue' };
-  coverSheet.getCell('A21').value = 'Net debt / (cash)';
-  coverSheet.getCell('B21').value = { formula: '=NetDebt' };
-  coverSheet.getCell('A22').value = 'Equity Value';
-  coverSheet.getCell('B22').value = { formula: '=EquityValue' };
-  ['A18', 'A19', 'A20', 'A21', 'A22'].forEach((ref) => styleLabel(coverSheet.getCell(ref)));
-  ['B18', 'B19', 'B20', 'B21', 'B22'].forEach((ref, index) =>
+  styleSectionHeader(coverSheet, 18, 'Valuation Bridge', 3);
+  coverSheet.getCell('A19').value = 'PV of Explicit FCF';
+  coverSheet.getCell('B19').value = { formula: '=PVExplicitFCF' };
+  coverSheet.getCell('A20').value = 'PV of Terminal Value';
+  coverSheet.getCell('B20').value = { formula: '=PVTerminalValue' };
+  coverSheet.getCell('A21').value = 'Enterprise Value';
+  coverSheet.getCell('B21').value = { formula: '=EnterpriseValue' };
+  coverSheet.getCell('A22').value = 'Net debt / (cash)';
+  coverSheet.getCell('B22').value = { formula: '=NetDebt' };
+  coverSheet.getCell('A23').value = 'Equity Value';
+  coverSheet.getCell('B23').value = { formula: '=EquityValue' };
+  ['A19', 'A20', 'A21', 'A22', 'A23'].forEach((ref) => styleLabel(coverSheet.getCell(ref)));
+  ['B19', 'B20', 'B21', 'B22', 'B23'].forEach((ref, index) =>
     index === 2 || index === 4 ? styleOutput(coverSheet.getCell(ref), 'currency') : styleFormula(coverSheet.getCell(ref), 'currency')
   );
 
-  styleSectionHeader(coverSheet, 17, 'Sensitivity Snapshot', 8);
-  coverSheet.getCell('E18').value = 'Implied Share Price';
-  coverSheet.getCell('F18').value = { formula: '=ImpliedSharePrice' };
-  coverSheet.getCell('E19').value = 'Current Share Price';
-  coverSheet.getCell('F19').value = { formula: '=CurrentSharePrice' };
-  coverSheet.getCell('E20').value = 'Upside / (Downside)';
-  coverSheet.getCell('F20').value = { formula: '=IF(CurrentSharePrice>0,ImpliedSharePrice/CurrentSharePrice-1,"")' };
-  coverSheet.getCell('E21').value = 'Low Sensitivity Price';
-  coverSheet.getCell('F21').value = { formula: '=MIN(Sensitivity!C5:G9)' };
-  coverSheet.getCell('E22').value = 'High Sensitivity Price';
-  coverSheet.getCell('F22').value = { formula: '=MAX(Sensitivity!C5:G9)' };
-  ['E18', 'E19', 'E20', 'E21', 'E22'].forEach((ref) => styleLabel(coverSheet.getCell(ref)));
-  styleOutput(coverSheet.getCell('F18'), 'currency');
-  styleFormula(coverSheet.getCell('F19'), 'currency');
-  styleOutput(coverSheet.getCell('F20'), 'percent');
-  styleFormula(coverSheet.getCell('F21'), 'currency');
+  styleSectionHeader(coverSheet, 18, 'Sensitivity Snapshot', 8);
+  coverSheet.getCell('E19').value = 'Implied Share Price';
+  coverSheet.getCell('F19').value = { formula: '=ImpliedSharePrice' };
+  coverSheet.getCell('E20').value = 'Current Share Price';
+  coverSheet.getCell('F20').value = { formula: '=CurrentSharePrice' };
+  coverSheet.getCell('E21').value = 'Upside / (Downside)';
+  coverSheet.getCell('F21').value = { formula: '=IF(CurrentSharePrice>0,ImpliedSharePrice/CurrentSharePrice-1,"")' };
+  coverSheet.getCell('E22').value = 'Low Sensitivity Price';
+  coverSheet.getCell('F22').value = { formula: '=MIN(Sensitivity!C5:G9)' };
+  coverSheet.getCell('E23').value = 'High Sensitivity Price';
+  coverSheet.getCell('F23').value = { formula: '=MAX(Sensitivity!C5:G9)' };
+  ['E19', 'E20', 'E21', 'E22', 'E23'].forEach((ref) => styleLabel(coverSheet.getCell(ref)));
+  styleAccentOutput(coverSheet.getCell('F19'), 'currency');
+  styleFormula(coverSheet.getCell('F20'), 'currency');
+  styleAccentOutput(coverSheet.getCell('F21'), 'percent');
   styleFormula(coverSheet.getCell('F22'), 'currency');
-  styleThinGrid(coverSheet, 18, 22, 1, 2);
-  styleThinGrid(coverSheet, 18, 22, 5, 6);
+  styleFormula(coverSheet.getCell('F23'), 'currency');
+  styleThinGrid(coverSheet, 19, 23, 1, 2);
+  styleThinGrid(coverSheet, 19, 23, 5, 6);
+
+  coverSheet.getCell('A26').value =
+    'Read the cover sheet first, then challenge the assumptions tab, inspect the FCF build, and only then rely on the valuation range. Terminal value should not do all the work.';
+  mergeAndCenter(coverSheet, 'A26:H26');
+  styleNarrativeBlock(coverSheet, 26, 1, 8);
 
   assumptionsSheet.getCell('A1').value = `${inputs.companyName} Valuation Assumptions`;
   mergeAndCenter(assumptionsSheet, 'A1:I1');
   styleTitle(assumptionsSheet.getCell('A1'));
-  styleModelMeta(assumptionsSheet, 3, 'Base year', `${baseYear}A`);
-  styleModelMeta(assumptionsSheet, 4, 'Model type', 'Unlevered DCF');
+  assumptionsSheet.getCell('A2').value =
+    'Single source of truth for model inputs. Change assumptions here and follow the linked forecast, valuation, sensitivity, equations, and checks tabs.';
+  mergeAndCenter(assumptionsSheet, 'A2:I2');
+  styleSubtitle(assumptionsSheet.getCell('A2'));
+  styleModelMeta(assumptionsSheet, 4, 'Base year', `${baseYear}A`);
+  styleModelMeta(assumptionsSheet, 5, 'Model type', 'Unlevered DCF');
 
-  styleSectionHeader(assumptionsSheet, 6, 'Operating Inputs', 4);
-  assumptionsSheet.getCell('A7').value = 'Forecast years';
-  assumptionsSheet.getCell('B7').value = inputs.years;
-  assumptionsSheet.getCell('A8').value = 'Base revenue';
-  assumptionsSheet.getCell('B8').value = inputs.baseRevenue;
-  assumptionsSheet.getCell('A9').value = 'Cash';
-  assumptionsSheet.getCell('B9').value = inputs.cash;
-  assumptionsSheet.getCell('A10').value = 'Debt';
-  assumptionsSheet.getCell('B10').value = inputs.debt;
-  assumptionsSheet.getCell('A11').value = 'Shares outstanding';
-  assumptionsSheet.getCell('B11').value = inputs.sharesOutstanding;
-  assumptionsSheet.getCell('A12').value = 'Current share price';
-  assumptionsSheet.getCell('B12').value = sharePrice;
-  ['A7', 'A8', 'A9', 'A10', 'A11', 'A12'].forEach((ref) => styleLabel(assumptionsSheet.getCell(ref)));
-  styleInput(assumptionsSheet.getCell('B7'), 'number');
-  styleInput(assumptionsSheet.getCell('B8'), 'currency');
+  styleSectionHeader(assumptionsSheet, 7, 'Operating Inputs', 4);
+  assumptionsSheet.getCell('A8').value = 'Forecast years';
+  assumptionsSheet.getCell('B8').value = inputs.years;
+  assumptionsSheet.getCell('A9').value = 'Base revenue';
+  assumptionsSheet.getCell('B9').value = inputs.baseRevenue;
+  assumptionsSheet.getCell('A10').value = 'Cash';
+  assumptionsSheet.getCell('B10').value = inputs.cash;
+  assumptionsSheet.getCell('A11').value = 'Debt';
+  assumptionsSheet.getCell('B11').value = inputs.debt;
+  assumptionsSheet.getCell('A12').value = 'Shares outstanding';
+  assumptionsSheet.getCell('B12').value = inputs.sharesOutstanding;
+  assumptionsSheet.getCell('A13').value = 'Current share price';
+  assumptionsSheet.getCell('B13').value = sharePrice;
+  ['A8', 'A9', 'A10', 'A11', 'A12', 'A13'].forEach((ref) => styleLabel(assumptionsSheet.getCell(ref)));
+  styleInput(assumptionsSheet.getCell('B8'), 'number');
   styleInput(assumptionsSheet.getCell('B9'), 'currency');
   styleInput(assumptionsSheet.getCell('B10'), 'currency');
-  styleInput(assumptionsSheet.getCell('B11'), 'number');
-  styleInput(assumptionsSheet.getCell('B12'), 'currency');
+  styleInput(assumptionsSheet.getCell('B11'), 'currency');
+  styleInput(assumptionsSheet.getCell('B12'), 'number');
+  styleInput(assumptionsSheet.getCell('B13'), 'currency');
 
-  styleSectionHeader(assumptionsSheet, 14, 'Valuation Inputs', 4);
+  styleSectionHeader(assumptionsSheet, 15, 'Valuation Inputs', 4);
   assumptionsSheet.getCell('A15').value = 'WACC';
   assumptionsSheet.getCell('B15').value = inputs.wacc;
   assumptionsSheet.getCell('A16').value = 'Terminal growth';
@@ -230,12 +250,12 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
   });
 
   defineNamedCells(workbook, assumptionsSheet, [
-    { name: 'ForecastYears', cellRef: 'B7' },
-    { name: 'BaseRevenue', cellRef: 'B8' },
-    { name: 'CashBalance', cellRef: 'B9' },
-    { name: 'DebtBalance', cellRef: 'B10' },
-    { name: 'SharesOutstanding', cellRef: 'B11' },
-    { name: 'CurrentSharePrice', cellRef: 'B12' },
+    { name: 'ForecastYears', cellRef: 'B8' },
+    { name: 'BaseRevenue', cellRef: 'B9' },
+    { name: 'CashBalance', cellRef: 'B10' },
+    { name: 'DebtBalance', cellRef: 'B11' },
+    { name: 'SharesOutstanding', cellRef: 'B12' },
+    { name: 'CurrentSharePrice', cellRef: 'B13' },
     { name: 'WACC', cellRef: 'B15' },
     { name: 'TerminalGrowth', cellRef: 'B16' },
     { name: 'ExitMultiple', cellRef: 'B17' },

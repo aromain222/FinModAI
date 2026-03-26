@@ -42,14 +42,14 @@ function firstFinite(...values: unknown[]): number | null {
 
 export function getPreview(inputs: CompsModelInputs) {
   return {
-    title: `${inputs.companyName} Comparable Company Analysis`,
+    title: `${inputs.companyName} Trading Comparables`,
     tabs: ['Summary', 'Peer Set', 'Valuation', 'Equations', 'Checks'],
   };
 }
 
 export async function buildWorkbook(inputs: CompsModelInputs): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
-  applyWorkbookMeta(workbook, `${inputs.companyName} Comparable Company Analysis`);
+  applyWorkbookMeta(workbook, `${inputs.companyName} Trading Comparables`);
   enableWorkbookRecalculation(workbook);
 
   const summary = workbook.addWorksheet('Summary');

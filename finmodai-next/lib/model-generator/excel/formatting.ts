@@ -2,17 +2,19 @@ import ExcelJS from 'exceljs';
 
 const COLORS = {
   ink: 'FF0F172A',
-  slate: 'FF475569',
-  grid: 'FFD7DEE7',
-  headerBg: 'FFE5E7EB',
-  titleBg: 'FF111827',
+  slate: 'FF526072',
+  grid: 'FFD9E2EC',
+  headerBg: 'FFEFF3F8',
+  titleBg: 'FF10243E',
+  titleSubBg: 'FFF4F7FB',
   inputBg: 'FFDCEBFF',
-  formulaBg: 'FFF8FAFC',
-  outputBg: 'FFE7F6EC',
-  checkBg: 'FFFEF3C7',
+  formulaBg: 'FFFAFBFC',
+  outputBg: 'FFE7F4EC',
+  checkBg: 'FFFFF4D6',
   passBg: 'FFDCFCE7',
   failBg: 'FFFEE2E2',
   accent: 'FF0F766E',
+  accentSoft: 'FFE5F3EF',
   danger: 'FFB91C1C',
 } as const;
 
@@ -86,16 +88,32 @@ export function formatCell(cell: ExcelJS.Cell, kind: CellKind) {
 }
 
 export function styleTitle(cell: ExcelJS.Cell) {
-  cell.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+  cell.font = { bold: true, size: 18, color: { argb: 'FFFFFFFF' } };
   cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.titleBg } };
-  cell.alignment = { vertical: 'middle' };
+  cell.alignment = { vertical: 'middle', horizontal: 'center' };
+}
+
+export function styleSubtitle(cell: ExcelJS.Cell) {
+  cell.font = { size: 10, color: { argb: COLORS.slate }, italic: true };
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.titleSubBg } };
+  cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+}
+
+export function styleNarrativeBlock(sheet: ExcelJS.Worksheet, row: number, startCol: number, endCol: number) {
+  for (let column = startCol; column <= endCol; column += 1) {
+    const cell = sheet.getCell(row, column);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.titleSubBg } };
+    cell.font = { color: { argb: COLORS.slate }, size: 10 };
+    cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
+    applyBorder(cell);
+  }
 }
 
 export function styleModelMeta(sheet: ExcelJS.Worksheet, row: number, label: string, value: string) {
   sheet.getCell(row, 1).value = label;
-  sheet.getCell(row, 1).font = { bold: true, color: { argb: COLORS.slate } };
+  sheet.getCell(row, 1).font = { bold: true, color: { argb: COLORS.slate }, size: 10 };
   sheet.getCell(row, 2).value = value;
-  sheet.getCell(row, 2).font = { color: { argb: COLORS.ink } };
+  sheet.getCell(row, 2).font = { color: { argb: COLORS.ink }, size: 10 };
 }
 
 export function styleSectionHeader(sheet: ExcelJS.Worksheet, row: number, title: string, endCol = 8) {
@@ -103,8 +121,8 @@ export function styleSectionHeader(sheet: ExcelJS.Worksheet, row: number, title:
   for (let column = 1; column <= endCol; column += 1) {
     const cell = sheet.getCell(row, column);
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.titleBg } };
-    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    cell.alignment = { vertical: 'middle' };
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+    cell.alignment = { vertical: 'middle', horizontal: column === 1 ? 'left' : 'center' };
     applyBorder(cell);
   }
 }
@@ -120,7 +138,7 @@ export function styleTableHeader(sheet: ExcelJS.Worksheet, row: number, startCol
 }
 
 export function styleLabel(cell: ExcelJS.Cell) {
-  cell.font = { color: { argb: COLORS.ink } };
+  cell.font = { color: { argb: COLORS.ink }, size: 10 };
 }
 
 export function styleInput(cell: ExcelJS.Cell, kind: CellKind = 'text') {
@@ -142,6 +160,14 @@ export function styleFormula(cell: ExcelJS.Cell, kind: CellKind = 'text') {
 export function styleOutput(cell: ExcelJS.Cell, kind: CellKind = 'text') {
   cell.font = { color: { argb: COLORS.accent }, bold: true };
   cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.outputBg } };
+  cell.protection = { locked: true };
+  applyBorder(cell);
+  formatCell(cell, kind);
+}
+
+export function styleAccentOutput(cell: ExcelJS.Cell, kind: CellKind = 'text') {
+  cell.font = { color: { argb: COLORS.titleBg }, bold: true, size: 11 };
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.accentSoft } };
   cell.protection = { locked: true };
   applyBorder(cell);
   formatCell(cell, kind);

@@ -64,12 +64,12 @@ function findTableValue(tables: ReportTable[], matcher: RegExp): number | null {
 function humanModelLabel(modelType: string): string {
   const map: Record<string, string> = {
     DCF: 'DCF',
-    COMPS: 'Comparable Company Analysis',
-    FOOTBALL_FIELD: 'Football Field',
+    COMPS: 'Trading Comparables',
+    FOOTBALL_FIELD: 'Valuation Football Field',
     PRECEDENTS: 'Precedent Transactions Analysis',
-    LBO: 'LBO',
+    LBO: 'LBO Underwriting',
     MERGER: 'Merger Model',
-    THREE_STATEMENT: 'Three-Statement Model',
+    THREE_STATEMENT: 'Forecast Model',
     SCORECARD: 'Fundamentals Scorecard',
     DEBT_CAPACITY_LITE: 'Debt Capacity Review',
   };
@@ -80,10 +80,10 @@ function humanModelLabel(modelType: string): string {
 function buildTitle(data: ModelRunReportData): string {
   const company = data.companyName || data.ticker;
   const map: Record<string, string> = {
-    THREE_STATEMENT: `${company} Integrated Forecast Review`,
+    THREE_STATEMENT: `${company} Forecast Model Review`,
     DCF: `${company} Valuation Review`,
-    COMPS: `${company} Comparable Valuation Review`,
-    FOOTBALL_FIELD: `${company} Football Field Review`,
+    COMPS: `${company} Trading Comparables Review`,
+    FOOTBALL_FIELD: `${company} Valuation Football Field Review`,
     PRECEDENTS: `${company} Transaction Benchmark Review`,
     LBO: `${company} LBO Underwriting Review`,
     MERGER: `${company} Merger Model Review`,

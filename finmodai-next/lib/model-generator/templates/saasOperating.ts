@@ -8,13 +8,16 @@ import {
   enableWorkbookRecalculation,
   mergeAndCenter,
   setupSheet,
+  styleAccentOutput,
   styleFormula,
   styleInput,
   styleLabel,
   styleModelMeta,
+  styleNarrativeBlock,
   styleOutput,
   styleSectionHeader,
   styleSubTotal,
+  styleSubtitle,
   styleTableHeader,
   styleThinGrid,
   styleTitle,
@@ -69,6 +72,9 @@ export async function buildWorkbook(inputs: SaasOperatingModelInputs): Promise<E
   assumptionsSheet.getCell('A1').value = `${inputs.companyName} SaaS Assumptions`;
   mergeAndCenter(assumptionsSheet, 'A1:F1');
   styleTitle(assumptionsSheet.getCell('A1'));
+  assumptionsSheet.getCell('A2').value = 'Primary control sheet for recurring revenue growth, churn, unit economics, and opex assumptions.';
+  mergeAndCenter(assumptionsSheet, 'A2:F2');
+  styleSubtitle(assumptionsSheet.getCell('A2'));
   styleModelMeta(assumptionsSheet, 3, 'Company', inputs.companyName);
   styleModelMeta(assumptionsSheet, 4, 'Generated', formatDate(generatedAt));
   styleModelMeta(assumptionsSheet, 5, 'Source', inputs.source);
@@ -115,6 +121,9 @@ export async function buildWorkbook(inputs: SaasOperatingModelInputs): Promise<E
   arrSheet.getCell('A1').value = 'ARR Bridge';
   mergeAndCenter(arrSheet, 'A1:G1');
   styleTitle(arrSheet.getCell('A1'));
+  arrSheet.getCell('A2').value = 'ARR walk from starting base to forecast ending ARR, separating new business, churn, and expansion.';
+  mergeAndCenter(arrSheet, 'A2:G2');
+  styleSubtitle(arrSheet.getCell('A2'));
   styleTableHeader(arrSheet, 4, 1, 2 + inputs.years);
   arrSheet.getCell('A4').value = 'Line Item';
   arrSheet.getCell('B4').value = actualYear;
@@ -182,6 +191,9 @@ export async function buildWorkbook(inputs: SaasOperatingModelInputs): Promise<E
   revenueSheet.getCell('A1').value = 'Revenue Forecast';
   mergeAndCenter(revenueSheet, 'A1:G1');
   styleTitle(revenueSheet.getCell('A1'));
+  revenueSheet.getCell('A2').value = 'Revenue and EBITDA build anchored to the ARR bridge and recurring gross profit structure.';
+  mergeAndCenter(revenueSheet, 'A2:G2');
+  styleSubtitle(revenueSheet.getCell('A2'));
   styleTableHeader(revenueSheet, 4, 1, 2 + inputs.years);
   revenueSheet.getCell('A4').value = 'Line Item';
   revenueSheet.getCell('B4').value = actualYear;
@@ -245,6 +257,9 @@ export async function buildWorkbook(inputs: SaasOperatingModelInputs): Promise<E
   unitSheet.getCell('A1').value = 'Unit Economics';
   mergeAndCenter(unitSheet, 'A1:G1');
   styleTitle(unitSheet.getCell('A1'));
+  unitSheet.getCell('A2').value = 'Customer-level efficiency metrics intended to keep CAC, payback, and lifetime value transparent by period.';
+  mergeAndCenter(unitSheet, 'A2:G2');
+  styleSubtitle(unitSheet.getCell('A2'));
   styleTableHeader(unitSheet, 4, 1, 2 + inputs.years);
   unitSheet.getCell('A4').value = 'Line Item';
   unitSheet.getCell('B4').value = actualYear;
@@ -299,6 +314,9 @@ export async function buildWorkbook(inputs: SaasOperatingModelInputs): Promise<E
   hiringSheet.getCell('A1').value = 'Hiring and Opex';
   mergeAndCenter(hiringSheet, 'A1:G1');
   styleTitle(hiringSheet.getCell('A1'));
+  hiringSheet.getCell('A2').value = 'Headcount and payroll view tied back to revenue scale and opex intensity assumptions.';
+  mergeAndCenter(hiringSheet, 'A2:G2');
+  styleSubtitle(hiringSheet.getCell('A2'));
   styleTableHeader(hiringSheet, 4, 1, 2 + inputs.years);
   hiringSheet.getCell('A4').value = 'Line Item';
   hiringSheet.getCell('B4').value = actualYear;
@@ -351,6 +369,9 @@ export async function buildWorkbook(inputs: SaasOperatingModelInputs): Promise<E
   dashboardSheet.getCell('A1').value = `${inputs.companyName} SaaS Dashboard`;
   mergeAndCenter(dashboardSheet, 'A1:F1');
   styleTitle(dashboardSheet.getCell('A1'));
+  dashboardSheet.getCell('A2').value = 'Decision summary focused on ARR progression, efficiency, and recurring gross profit quality.';
+  mergeAndCenter(dashboardSheet, 'A2:F2');
+  styleSubtitle(dashboardSheet.getCell('A2'));
   styleModelMeta(dashboardSheet, 3, 'Company', inputs.companyName);
   styleModelMeta(dashboardSheet, 4, 'Generated', formatDate(generatedAt));
   styleModelMeta(dashboardSheet, 5, 'Lens', 'Recurring revenue and unit economics');
@@ -371,13 +392,13 @@ export async function buildWorkbook(inputs: SaasOperatingModelInputs): Promise<E
   dashboardSheet.getCell('D11').value = 'CAC Payback';
   dashboardSheet.getCell('E11').value = { formula: `AVERAGE('Unit Economics'!C9:${col(2 + inputs.years)}9)` };
   ['A8', 'A9', 'A10', 'D8', 'D9', 'D10', 'D11'].forEach((ref) => styleLabel(dashboardSheet.getCell(ref)));
-  styleOutput(dashboardSheet.getCell('B8'), 'currency');
-  styleOutput(dashboardSheet.getCell('B9'), 'currency');
-  styleOutput(dashboardSheet.getCell('B10'), 'percent');
-  styleOutput(dashboardSheet.getCell('E8'), 'percent');
-  styleOutput(dashboardSheet.getCell('E9'), 'percent');
-  styleOutput(dashboardSheet.getCell('E10'), 'multiple');
-  styleOutput(dashboardSheet.getCell('E11'), 'number');
+  styleAccentOutput(dashboardSheet.getCell('B8'), 'currency');
+  styleAccentOutput(dashboardSheet.getCell('B9'), 'currency');
+  styleAccentOutput(dashboardSheet.getCell('B10'), 'percent');
+  styleAccentOutput(dashboardSheet.getCell('E8'), 'percent');
+  styleAccentOutput(dashboardSheet.getCell('E9'), 'percent');
+  styleAccentOutput(dashboardSheet.getCell('E10'), 'multiple');
+  styleAccentOutput(dashboardSheet.getCell('E11'), 'number');
   styleThinGrid(dashboardSheet, 8, 10, 1, 2);
   styleThinGrid(dashboardSheet, 8, 11, 4, 5);
 
@@ -394,7 +415,7 @@ export async function buildWorkbook(inputs: SaasOperatingModelInputs): Promise<E
   dashboardSheet.getCell('B18').value = { formula: `='ARR Bridge'!${col(2 + inputs.years)}9` };
   ['A14', 'A15', 'A16', 'A17', 'A18'].forEach((ref) => styleLabel(dashboardSheet.getCell(ref)));
   ['B14', 'B15', 'B16', 'B17'].forEach((ref) => styleFormula(dashboardSheet.getCell(ref), 'currency'));
-  styleOutput(dashboardSheet.getCell('B18'), 'currency');
+  styleAccentOutput(dashboardSheet.getCell('B18'), 'currency');
 
   styleSectionHeader(dashboardSheet, 13, 'Forecast Snapshot', 7);
   styleTableHeader(dashboardSheet, 14, 4, 6);
@@ -431,8 +452,12 @@ export async function buildWorkbook(inputs: SaasOperatingModelInputs): Promise<E
   dashboardSheet.getCell('B26').value = { formula: `='Unit Economics'!${col(2 + inputs.years)}9` };
   ['A22', 'A23', 'A24', 'A25', 'A26'].forEach((ref) => styleLabel(dashboardSheet.getCell(ref)));
   ['B22', 'B23', 'B24', 'B25'].forEach((ref) => styleOutput(dashboardSheet.getCell(ref), 'currency'));
-  styleOutput(dashboardSheet.getCell('B26'), 'number');
+  styleAccentOutput(dashboardSheet.getCell('B26'), 'number');
   styleThinGrid(dashboardSheet, 22, 26, 1, 2);
+  dashboardSheet.getCell('A29').value =
+    'The clean read is whether ARR growth remains efficient after churn and CAC are considered. If LTV:CAC and payback weaken while growth stays high, the model should be treated more cautiously.';
+  dashboardSheet.mergeCells('A29:F31');
+  styleNarrativeBlock(dashboardSheet, 29, 1, 6);
 
   equations.push(
     {

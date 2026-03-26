@@ -15,7 +15,7 @@ export default function ModelGeneratorPage() {
               Prompt-to-model generation for direct workbook builders plus clean routing into the broader CapitalBase finance model catalog, with visible provenance, saved reruns, and downloadable finance-native Excel outputs where the generic generator is the right engine.
             </p>
             <div className="inline-flex items-center rounded-full border border-[var(--cb-green)]/25 bg-[rgba(0,227,135,0.08)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--cb-green)]">
-              Supports the wired S&amp;P 500 company universe
+              Supports the quality-gated 1,000-company public universe
             </div>
           </header>
           <Button asChild variant="outline">

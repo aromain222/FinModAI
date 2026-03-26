@@ -307,12 +307,12 @@ export function AnalystDcfCard({
 
   return (
     <Card className="mt-4 overflow-hidden border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
-      <CardHeader className="border-b border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)]">
+      <CardHeader className="border-b border-[var(--cb-border-subtle)] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))]">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
-            <CardTitle className="text-base">Prompt-to-DCF Demo</CardTitle>
+            <CardTitle className="text-base">DCF Model Workspace</CardTitle>
             <CardDescription>
-              {payload.companyName} ({payload.ticker}) using cached demo fundamentals and local DCF math.
+              {payload.companyName} ({payload.ticker}) with deterministic valuation math, editable live preview, and export-ready workbook output.
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -342,7 +342,7 @@ export function AnalystDcfCard({
         <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Scenario Controls</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Live Model Controls</div>
               <div className="mt-1 text-sm text-[var(--cb-text-primary)]">
                 Edit the main valuation drivers here. Charts and valuation preview live while you drag, and Apply Changes commits the model.
               </div>
@@ -572,8 +572,8 @@ export function AnalystDcfCard({
 
         <div className="grid gap-4 lg:grid-cols-[1.8fr_1fr]">
           <EditableFinanceChart
-            title="Base Forecast"
-            subtitle={hasControlChanges ? 'Live preview of revenue and FCFF under staged assumptions.' : 'Editable forecast view across revenue and FCFF.'}
+            title="Live Forecast Preview"
+            subtitle={hasControlChanges ? 'Live preview of revenue and FCFF under staged assumptions.' : 'Revenue and FCFF preview from the current committed model.'}
             className="p-3"
             height={256}
             data={forecastChartData}
@@ -591,8 +591,8 @@ export function AnalystDcfCard({
           />
 
           <EditableFinanceChart
-            title="Scenario Value / Share"
-            subtitle={hasControlChanges ? 'Live preview of bear, base, and bull value per share.' : 'Editable scenario framing for bear, base, and bull.'}
+            title="Live Valuation Preview"
+            subtitle={hasControlChanges ? 'Live preview of bear, base, and bull value per share.' : 'Bear, base, and bull valuation framing from the current committed model.'}
             className="p-3"
             height={256}
             data={scenarioChartData}

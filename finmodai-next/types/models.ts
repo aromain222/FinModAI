@@ -9,6 +9,8 @@ import type { ModelDocument } from '@/lib/models/schema';
 import type { CanonicalFinancials } from '@/lib/canonicalFinancials';
 import type { ConsistencyWarning } from '@/lib/modelConsistency';
 import type { MissingInputSpec } from '@/lib/models/shared/missingInputSpecs';
+import type { MacroAssumptionContext, MacroAssumptionItem } from '@/lib/models/shared/macroAssumptions';
+import type { CompanyCatalystContext } from '@/lib/models/shared/companyCatalystContext';
 
 export type ModelType =
   | 'dcf'
@@ -78,6 +80,11 @@ export type GenerateModelResponse = {
   diagnostics?: DataDiagnostics[];  // Data quality diagnostics
   missingInputs?: string[];
   requiredInputs?: MissingInputSpec[];
+  macroContext?: string;
+  macroAssumptions?: MacroAssumptionItem[];
+  macroAssumptionContext?: MacroAssumptionContext;
+  catalystContext?: string;
+  companyCatalystContext?: CompanyCatalystContext;
   
   // DCF Valuation Engine v7.0 Output
   dcfSummary?: DcfScenarioSummary;

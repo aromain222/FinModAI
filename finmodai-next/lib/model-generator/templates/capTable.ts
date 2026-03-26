@@ -7,12 +7,15 @@ import {
   enableWorkbookRecalculation,
   mergeAndCenter,
   setupSheet,
+  styleAccentOutput,
   styleFormula,
   styleInput,
   styleLabel,
   styleModelMeta,
+  styleNarrativeBlock,
   styleOutput,
   styleSectionHeader,
+  styleSubtitle,
   styleTableHeader,
   styleThinGrid,
   styleTitle,
@@ -71,6 +74,9 @@ export async function buildWorkbook(inputs: CapTableModelInputs): Promise<ExcelJ
   inputSheet.getCell('A1').value = `${inputs.roundType} Financing Model`;
   mergeAndCenter(inputSheet, 'A1:F1');
   styleTitle(inputSheet.getCell('A1'));
+  inputSheet.getCell('A2').value = 'Primary control sheet for ownership transition, round sizing, dilution, and post-money mechanics.';
+  mergeAndCenter(inputSheet, 'A2:F2');
+  styleSubtitle(inputSheet.getCell('A2'));
   styleModelMeta(inputSheet, 3, 'Round type', inputs.roundType);
   styleModelMeta(inputSheet, 4, 'Generated', formatDate(generatedAt));
   styleModelMeta(inputSheet, 5, 'Note', 'Blue cells are editable assumptions for the financing case.');
@@ -117,13 +123,20 @@ export async function buildWorkbook(inputs: CapTableModelInputs): Promise<ExcelJ
   inputSheet.getCell('D13').value = 'Option pool post %';
   inputSheet.getCell('E13').value = { formula: `='Post-Round Ownership'!E8` };
   ['D8', 'D9', 'D10', 'D11', 'D12', 'D13'].forEach((ref) => styleLabel(inputSheet.getCell(ref)));
-  ['E8', 'E9', 'E10'].forEach((ref) => styleOutput(inputSheet.getCell(ref), ref === 'E9' ? 'currency' : ref === 'E10' ? 'number' : 'currency'));
-  ['E11', 'E12', 'E13'].forEach((ref) => styleOutput(inputSheet.getCell(ref), 'percent'));
+  ['E8', 'E9', 'E10'].forEach((ref) => styleAccentOutput(inputSheet.getCell(ref), ref === 'E9' ? 'currency' : ref === 'E10' ? 'number' : 'currency'));
+  ['E11', 'E12', 'E13'].forEach((ref) => styleAccentOutput(inputSheet.getCell(ref), 'percent'));
   styleThinGrid(inputSheet, 8, 13, 4, 5);
+  inputSheet.getCell('D15').value =
+    'Keep this sheet as the single source of truth for round assumptions. Ownership tables and dilution summaries should flow from these inputs rather than duplicate them elsewhere.';
+  inputSheet.mergeCells('D15:F18');
+  styleNarrativeBlock(inputSheet, 15, 4, 6);
 
   preRoundSheet.getCell('A1').value = 'Pre-Round Ownership';
   mergeAndCenter(preRoundSheet, 'A1:E1');
   styleTitle(preRoundSheet.getCell('A1'));
+  preRoundSheet.getCell('A2').value = 'Fully diluted ownership before the financing event, including founders, investors, and the existing option pool.';
+  mergeAndCenter(preRoundSheet, 'A2:E2');
+  styleSubtitle(preRoundSheet.getCell('A2'));
   styleTableHeader(preRoundSheet, 4, 1, 4);
   ['Stakeholder', 'Shares', 'Ownership %', 'Implied Value'].forEach((label, index) => {
     preRoundSheet.getCell(4, 1 + index).value = label;
@@ -150,6 +163,9 @@ export async function buildWorkbook(inputs: CapTableModelInputs): Promise<ExcelJ
   financingSheet.getCell('A1').value = 'Financing Round';
   mergeAndCenter(financingSheet, 'A1:E1');
   styleTitle(financingSheet.getCell('A1'));
+  financingSheet.getCell('A2').value = 'Round mechanics showing price per share, new shares issued, and any option pool true-up required to reach the target pool.';
+  mergeAndCenter(financingSheet, 'A2:E2');
+  styleSubtitle(financingSheet.getCell('A2'));
   styleSectionHeader(financingSheet, 4, 'Round Mechanics', 4);
   [
     ['Pre-money share price', '=PreMoney/PreRoundFDShareCount', 'currency'],
@@ -176,6 +192,9 @@ export async function buildWorkbook(inputs: CapTableModelInputs): Promise<ExcelJ
   postRoundSheet.getCell('A1').value = 'Post-Round Ownership';
   mergeAndCenter(postRoundSheet, 'A1:E1');
   styleTitle(postRoundSheet.getCell('A1'));
+  postRoundSheet.getCell('A2').value = 'Post-money fully diluted ownership after primary issuance and option pool refresh.';
+  mergeAndCenter(postRoundSheet, 'A2:E2');
+  styleSubtitle(postRoundSheet.getCell('A2'));
   styleTableHeader(postRoundSheet, 4, 1, 5);
   ['Stakeholder', 'Existing Shares', 'New Shares', 'Fully Diluted Shares', 'Ownership %'].forEach((label, index) => {
     postRoundSheet.getCell(4, 1 + index).value = label;
@@ -202,6 +221,9 @@ export async function buildWorkbook(inputs: CapTableModelInputs): Promise<ExcelJ
   dilutionSheet.getCell('A1').value = 'Dilution Summary';
   mergeAndCenter(dilutionSheet, 'A1:E1');
   styleTitle(dilutionSheet.getCell('A1'));
+  dilutionSheet.getCell('A2').value = 'Founder, investor, and option pool movement across the financing event, with explicit bridge rows for ownership changes.';
+  mergeAndCenter(dilutionSheet, 'A2:E2');
+  styleSubtitle(dilutionSheet.getCell('A2'));
   styleSectionHeader(dilutionSheet, 3, 'Key Dilution Outputs', 5);
   [
     ['Founder ownership pre', '=FounderShares/PreRoundFDShareCount', 'percent'],
@@ -215,7 +237,7 @@ export async function buildWorkbook(inputs: CapTableModelInputs): Promise<ExcelJ
     dilutionSheet.getCell(`A${row}`).value = label;
     dilutionSheet.getCell(`B${row}`).value = { formula };
     styleLabel(dilutionSheet.getCell(`A${row}`));
-    styleOutput(dilutionSheet.getCell(`B${row}`), kind as 'percent');
+    styleAccentOutput(dilutionSheet.getCell(`B${row}`), kind as 'percent');
   });
   styleThinGrid(dilutionSheet, 4, 9, 1, 2);
 
@@ -240,10 +262,17 @@ export async function buildWorkbook(inputs: CapTableModelInputs): Promise<ExcelJ
     styleOutput(dilutionSheet.getCell(`D${row}`), 'percent');
   });
   styleThinGrid(dilutionSheet, 14, 17, 1, 4);
+  dilutionSheet.getCell('A20').value =
+    'The clean read is whether dilution comes mainly from the new money itself or from the option pool expansion needed to support future hiring.';
+  dilutionSheet.mergeCells('A20:E22');
+  styleNarrativeBlock(dilutionSheet, 20, 1, 5);
 
   scenarioSheet.getCell('A1').value = 'Scenario View';
   mergeAndCenter(scenarioSheet, 'A1:F1');
   styleTitle(scenarioSheet.getCell('A1'));
+  scenarioSheet.getCell('A2').value = 'Simple financing case comparison showing how valuation, round size, and pool sizing shift the post-money cap table.';
+  mergeAndCenter(scenarioSheet, 'A2:F2');
+  styleSubtitle(scenarioSheet.getCell('A2'));
   styleTableHeader(scenarioSheet, 4, 1, 6);
   ['Case', 'Pre-money', 'Raise', 'Option Pool %', 'Founder %', 'New Investor %'].forEach((label, index) => {
     scenarioSheet.getCell(4, 1 + index).value = label;

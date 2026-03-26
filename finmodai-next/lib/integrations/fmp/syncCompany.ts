@@ -203,6 +203,16 @@ export async function syncCompanyFromFmp(ticker: string): Promise<CompanySyncSum
   const annualIncomeRows = annualIncomeResult.ok && Array.isArray(annualIncomeResult.data) ? annualIncomeResult.data : [];
   const balanceRow = latestBalanceResult.ok && Array.isArray(latestBalanceResult.data) ? latestBalanceResult.data[0] ?? {} : {};
 
+  if (!quarterlyIncomeResult.ok) {
+    warnings.push(`FMP quarterly income statement unavailable: ${quarterlyIncomeResult.error.message}`);
+  }
+  if (!annualIncomeResult.ok) {
+    warnings.push(`FMP annual income statement unavailable: ${annualIncomeResult.error.message}`);
+  }
+  if (!latestBalanceResult.ok) {
+    warnings.push(`FMP balance sheet unavailable: ${latestBalanceResult.error.message}`);
+  }
+
   const revenueLtm = toMillions(sumLtm(incomeRows, 'revenue') ?? pickLatest(annualIncomeRows, 'revenue'));
   const grossProfitLtm = toMillions(sumLtm(incomeRows, 'grossProfit') ?? pickLatest(annualIncomeRows, 'grossProfit'));
   const ebitdaLtm = toMillions(sumLtm(incomeRows, 'ebitda') ?? pickLatest(annualIncomeRows, 'ebitda'));

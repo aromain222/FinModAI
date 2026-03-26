@@ -13,3 +13,14 @@ test('investment-style company prompts route into deterministic model generation
   assert.equal(eventRoute.intent, 'financial_model');
 });
 
+test('forecast-model prompts route into deterministic model generation', () => {
+  const forecastRoute = routeAnalystQuery(
+    'Build a 5-year three-statement forecast model for Nvidia (NVDA). Output a structured model, not narrative prose. Include yearly revenue, EBITDA, EBIT, net income, capex, working capital, debt, and ending cash.',
+  );
+
+  assert.equal(forecastRoute.intent, 'financial_model');
+  assert.ok(
+    forecastRoute.tickers.includes('NVDA'),
+    'expected NVDA to be resolved for the forecast-model request',
+  );
+});

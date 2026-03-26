@@ -140,35 +140,64 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystDcfDemoP
     freezeRows: 3,
     freezeCols: 1,
     tabColor: 'FF1D4ED8',
-    columnWidths: [26, 18, 18, 18, 18, 18, 24],
+    columnWidths: [28, 18, 28, 28, 18, 28],
   });
 
-  sheet.getCell('A1').value = `${payload.companyName} Prompt-to-DCF Summary`;
-  mergeAndCenter(sheet, 'A1:G1');
+  sheet.getCell('A1').value = `${payload.companyName} DCF Demo Summary`;
+  mergeAndCenter(sheet, 'A1:F1');
   styleTitle(sheet.getCell('A1'));
 
-  sheet.getCell('A3').value = 'Prompt';
-  sheet.getCell('B3').value = payload.prompt;
-  sheet.getCell('A4').value = 'Ticker';
-  sheet.getCell('B4').value = payload.ticker;
-  sheet.getCell('A5').value = 'Generated';
-  sheet.getCell('B5').value = formatDate(new Date());
-  sheet.getCell('A6').value = 'As of date';
-  sheet.getCell('B6').value = payload.asOfDate ? payload.asOfDate.slice(0, 10) : 'n/a';
-  sheet.getCell('A7').value = 'Source';
-  sheet.getCell('B7').value = payload.source;
-  ['A3', 'A4', 'A5', 'A6', 'A7'].forEach((ref) => styleLabel(sheet.getCell(ref)));
-  ['B3', 'B4', 'B5', 'B6', 'B7'].forEach((ref) => styleFormula(sheet.getCell(ref)));
+  styleSectionHeader(sheet, 3, 'Run Context', 6);
+  [
+    ['Prompt', payload.prompt, 'Prompt run from Analyst Chat'],
+    ['Ticker', payload.ticker, payload.companyName],
+    ['Generated', formatDate(new Date()), 'Workbook export date'],
+    ['As of date', payload.asOfDate ? payload.asOfDate.slice(0, 10) : 'n/a', 'Snapshot reference date'],
+    ['Source', payload.source, 'Analyst Chat demo payload source'],
+  ].forEach(([label, value, context], index) => {
+    const row = 4 + index;
+    sheet.getCell(`A${row}`).value = label;
+    sheet.getCell(`B${row}`).value = value;
+    sheet.getCell(`C${row}`).value = context;
+    styleLabel(sheet.getCell(`A${row}`));
+    styleFormula(sheet.getCell(`B${row}`));
+    styleFormula(sheet.getCell(`C${row}`));
+  });
+  styleThinGrid(sheet, 4, 8, 1, 3);
 
-  styleSectionHeader(sheet, 9, 'Scenario Summary', 7);
-  styleTableHeader(sheet, 10, 1, 6);
+  styleSectionHeader(sheet, 10, 'Valuation Readout', 6);
+  styleTableHeader(sheet, 11, 1, 6);
+  ['Metric', 'Value', 'Context', 'Metric', 'Value', 'Context'].forEach((label, index) => {
+    sheet.getCell(11, 1 + index).value = label;
+  });
+  [
+    ['Base EV', payload.scenarios.base.enterpriseValue, 'currency', 'Base enterprise value'],
+    ['Base Equity Value', payload.scenarios.base.equityValue, 'currency', 'Base equity value'],
+    ['Base Value / Share', payload.scenarios.base.pricePerShare, 'currency', 'Base implied share price'],
+    ['Cached Price', payload.baseMetrics.sharePrice, 'currency', 'Current price anchor'],
+    ['Upside / Downside', payload.scenarios.base.upsidePct, 'percent', 'Base case vs cached price'],
+    ['Terminal Mix', payload.scenarios.base.terminalValueWeight, 'percent', 'Terminal value as % of EV'],
+  ].forEach(([label, value, kind, context], index) => {
+    const row = 12 + Math.floor(index / 2);
+    const colOffset = index % 2 === 0 ? 0 : 3;
+    sheet.getCell(row, 1 + colOffset).value = label;
+    sheet.getCell(row, 2 + colOffset).value = value ?? 'n/a';
+    sheet.getCell(row, 3 + colOffset).value = context;
+    styleLabel(sheet.getCell(row, 1 + colOffset));
+    styleFormula(sheet.getCell(row, 2 + colOffset), value === null ? undefined : (kind as 'currency' | 'percent'));
+    styleFormula(sheet.getCell(row, 3 + colOffset));
+  });
+  styleThinGrid(sheet, 11, 14, 1, 6);
+
+  styleSectionHeader(sheet, 16, 'Scenario Summary', 6);
+  styleTableHeader(sheet, 17, 1, 6);
   ['Scenario', 'EV', 'Equity Value', 'Value / Share', 'Upside / Downside', 'Terminal Mix'].forEach((label, index) => {
-    sheet.getCell(10, 1 + index).value = label;
+    sheet.getCell(17, 1 + index).value = label;
   });
 
   (['bear', 'base', 'bull'] as const).forEach((key, index) => {
     const scenario = payload.scenarios[key];
-    const row = 11 + index;
+    const row = 18 + index;
     sheet.getCell(`A${row}`).value = scenario.name;
     sheet.getCell(`B${row}`).value = scenario.enterpriseValue;
     sheet.getCell(`C${row}`).value = scenario.equityValue;
@@ -179,50 +208,65 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystDcfDemoP
     ['B', 'C', 'D'].forEach((col) => styleOutput(sheet.getCell(`${col}${row}`), 'currency'));
     ['E', 'F'].forEach((col) => styleOutput(sheet.getCell(`${col}${row}`), 'percent'));
   });
-  styleThinGrid(sheet, 10, 13, 1, 6);
+  styleThinGrid(sheet, 17, 20, 1, 6);
 
-  styleSectionHeader(sheet, 15, 'Base Metrics', 3);
-  styleTableHeader(sheet, 16, 1, 2);
-  [
-    ['LTM Revenue', payload.baseMetrics.revenueLtm, 'currency'],
-    ['LTM EBITDA', payload.baseMetrics.ebitdaLtm, 'currency'],
-    ['Net Income', payload.baseMetrics.netIncomeLtm, 'currency'],
-    ['Cash', payload.baseMetrics.cash, 'currency'],
-    ['Total Debt', payload.baseMetrics.totalDebt, 'currency'],
-    ['Net Debt', payload.baseMetrics.netDebt, 'currency'],
-    ['Shares Outstanding', payload.baseMetrics.sharesOutstanding, 'number'],
-    ['Cached Price', payload.baseMetrics.sharePrice, 'currency'],
-  ].forEach(([label, value, kind], index) => {
-    const row = 17 + index;
-    sheet.getCell(`A${row}`).value = label;
-    sheet.getCell(`B${row}`).value = value;
-    styleLabel(sheet.getCell(`A${row}`));
-    styleFormula(sheet.getCell(`B${row}`), kind as 'currency' | 'number');
+  styleSectionHeader(sheet, 22, 'Base Metrics', 6);
+  styleTableHeader(sheet, 23, 1, 6);
+  ['Metric', 'Value', 'Context', 'Metric', 'Value', 'Context'].forEach((label, index) => {
+    sheet.getCell(23, 1 + index).value = label;
   });
-
-  styleSectionHeader(sheet, 15, 'Key Assumptions', 3);
   [
-    ['WACC', payload.assumptions.wacc, 'percent'],
-    ['Terminal Growth', payload.assumptions.terminalGrowth, 'percent'],
-    ['Tax Rate', payload.assumptions.taxRate, 'percent'],
-    ['D&A % Revenue', payload.assumptions.daPctRevenue, 'percent'],
-    ['Capex % Revenue', payload.assumptions.capexPctRevenue, 'percent'],
-    ['NWC % Revenue', payload.assumptions.nwcPctRevenue, 'percent'],
-  ].forEach(([label, value, kind], index) => {
-    const row = 17 + index;
-    sheet.getCell(`D${row}`).value = label;
-    sheet.getCell(`E${row}`).value = value;
-    styleLabel(sheet.getCell(`D${row}`));
-    styleFormula(sheet.getCell(`E${row}`), kind as 'percent');
+    ['LTM Revenue', payload.baseMetrics.revenueLtm, 'currency', 'Revenue base year'],
+    ['LTM EBITDA', payload.baseMetrics.ebitdaLtm, 'currency', 'EBITDA anchor'],
+    ['Net Income', payload.baseMetrics.netIncomeLtm, 'currency', 'Latest net income'],
+    ['Cash', payload.baseMetrics.cash, 'currency', 'Cash balance'],
+    ['Total Debt', payload.baseMetrics.totalDebt, 'currency', 'Gross debt balance'],
+    ['Net Debt', payload.baseMetrics.netDebt, 'currency', 'Debt less cash'],
+    ['Shares Outstanding', payload.baseMetrics.sharesOutstanding, 'number', 'Diluted share count'],
+    ['Cached Price', payload.baseMetrics.sharePrice, 'currency', 'Snapshot share price'],
+  ].forEach(([label, value, kind, context], index) => {
+    const row = 24 + Math.floor(index / 2);
+    const colOffset = index % 2 === 0 ? 0 : 3;
+    sheet.getCell(row, 1 + colOffset).value = label;
+    sheet.getCell(row, 2 + colOffset).value = value ?? 'n/a';
+    sheet.getCell(row, 3 + colOffset).value = context;
+    styleLabel(sheet.getCell(row, 1 + colOffset));
+    styleFormula(sheet.getCell(row, 2 + colOffset), value === null ? undefined : (kind as 'currency' | 'number'));
+    styleFormula(sheet.getCell(row, 3 + colOffset));
   });
+  styleThinGrid(sheet, 23, 27, 1, 6);
 
-  styleSectionHeader(sheet, 26, 'Forecast Snapshot', 7);
-  styleTableHeader(sheet, 27, 1, 4);
+  styleSectionHeader(sheet, 29, 'Key Assumptions', 6);
+  styleTableHeader(sheet, 30, 1, 6);
+  ['Metric', 'Value', 'Context', 'Metric', 'Value', 'Context'].forEach((label, index) => {
+    sheet.getCell(30, 1 + index).value = label;
+  });
+  [
+    ['WACC', payload.assumptions.wacc, 'percent', 'Discount rate'],
+    ['Terminal Growth', payload.assumptions.terminalGrowth, 'percent', 'Perpetuity growth'],
+    ['Tax Rate', payload.assumptions.taxRate, 'percent', 'Modeled tax rate'],
+    ['D&A % Revenue', payload.assumptions.daPctRevenue, 'percent', 'Depreciation and amortization'],
+    ['Capex % Revenue', payload.assumptions.capexPctRevenue, 'percent', 'Capital intensity'],
+    ['NWC % Revenue', payload.assumptions.nwcPctRevenue, 'percent', 'Working capital drag'],
+  ].forEach(([label, value, kind, context], index) => {
+    const row = 31 + Math.floor(index / 2);
+    const colOffset = index % 2 === 0 ? 0 : 3;
+    sheet.getCell(row, 1 + colOffset).value = label;
+    sheet.getCell(row, 2 + colOffset).value = value;
+    sheet.getCell(row, 3 + colOffset).value = context;
+    styleLabel(sheet.getCell(row, 1 + colOffset));
+    styleFormula(sheet.getCell(row, 2 + colOffset), kind as 'percent');
+    styleFormula(sheet.getCell(row, 3 + colOffset));
+  });
+  styleThinGrid(sheet, 30, 33, 1, 6);
+
+  styleSectionHeader(sheet, 35, 'Forecast Snapshot', 4);
+  styleTableHeader(sheet, 36, 1, 4);
   ['Year', 'Revenue', 'EBIT', 'FCFF'].forEach((label, index) => {
-    sheet.getCell(27, 1 + index).value = label;
+    sheet.getCell(36, 1 + index).value = label;
   });
   payload.forecast.forEach((row, index) => {
-    const excelRow = 28 + index;
+    const excelRow = 37 + index;
     sheet.getCell(`A${excelRow}`).value = row.year;
     sheet.getCell(`B${excelRow}`).value = row.revenue;
     sheet.getCell(`C${excelRow}`).value = row.ebit;
@@ -232,11 +276,11 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystDcfDemoP
     styleFormula(sheet.getCell(`C${excelRow}`), 'currency');
     styleFormula(sheet.getCell(`D${excelRow}`), 'currency');
   });
-  styleThinGrid(sheet, 27, 27 + payload.forecast.length, 1, 4);
+  styleThinGrid(sheet, 36, 36 + payload.forecast.length, 1, 4);
 
-  const notesStartRow = 28 + payload.forecast.length + 2;
-  styleSectionHeader(sheet, notesStartRow, 'Memo & Notes', 7);
-  sheet.mergeCells(`A${notesStartRow + 1}:G${notesStartRow + 3}`);
+  const notesStartRow = 37 + payload.forecast.length + 2;
+  styleSectionHeader(sheet, notesStartRow, 'Memo & Notes', 6);
+  sheet.mergeCells(`A${notesStartRow + 1}:F${notesStartRow + 3}`);
   sheet.getCell(`A${notesStartRow + 1}`).value = payload.memo;
   styleFormula(sheet.getCell(`A${notesStartRow + 1}`));
   sheet.getCell(`A${notesStartRow + 1}`).alignment = { wrapText: true, vertical: 'top' };
@@ -247,7 +291,7 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystDcfDemoP
     styleLabel(sheet.getCell(`A${rowPointer}`));
     rowPointer += 1;
     payload.notes.forEach((note) => {
-      sheet.mergeCells(`A${rowPointer}:G${rowPointer}`);
+      sheet.mergeCells(`A${rowPointer}:F${rowPointer}`);
       sheet.getCell(`A${rowPointer}`).value = `- ${note}`;
       styleFormula(sheet.getCell(`A${rowPointer}`));
       rowPointer += 1;
@@ -260,7 +304,7 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystDcfDemoP
     styleLabel(sheet.getCell(`A${rowPointer}`));
     rowPointer += 1;
     payload.warnings.forEach((warning) => {
-      sheet.mergeCells(`A${rowPointer}:G${rowPointer}`);
+      sheet.mergeCells(`A${rowPointer}:F${rowPointer}`);
       sheet.getCell(`A${rowPointer}`).value = `- ${warning}`;
       styleFormula(sheet.getCell(`A${rowPointer}`));
       rowPointer += 1;
@@ -280,6 +324,7 @@ export async function buildAnalystDcfDemoWorkbook(payload: AnalystDcfDemoPayload
     ...normalizedPayload,
     forecast: ensureForecast(normalizedPayload, spec),
   });
+  workbook.views = [{ activeTab: workbook.worksheets.findIndex((sheet) => sheet.name === 'Demo Summary') }];
   return workbook;
 }
 

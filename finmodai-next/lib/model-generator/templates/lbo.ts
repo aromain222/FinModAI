@@ -5,7 +5,7 @@ import type { LboModelInputs } from '@/lib/model-generator/extractInputs';
 
 export function getPreview(inputs: LboModelInputs) {
   return {
-    title: `${inputs.companyName} LBO`,
+    title: `${inputs.companyName} LBO Underwriting`,
     tabs: ['LBO Summary', 'Assumptions', 'Sources & Uses', 'Operating Forecast', 'Debt Schedule', 'Returns', 'Sensitivities', 'Checks', 'Sources & Notes'],
   };
 }

@@ -47,6 +47,31 @@ type PreviewResponse = {
   handoffOnly?: boolean;
   coreTemplateModel?: AnalystCoreTemplatePayload | null;
   message?: string;
+  macroContext?: string;
+  macroAssumptions?: Array<{
+    key: string;
+    label: string;
+    displayValue: string;
+    relevance: string;
+    source: string;
+  }>;
+  catalystContext?: string | null;
+  companyCatalystContext?: {
+    calendarItems: Array<{
+      title: string;
+      displayDate: string;
+      relevance: string;
+    }>;
+    ownershipItems: Array<{
+      label: string;
+      displayValue: string;
+      relevance: string;
+    }>;
+    transcriptItems: Array<{
+      label: string;
+      excerpt: string;
+    }>;
+  } | null;
 };
 
 type RecentRun = {
@@ -824,6 +849,63 @@ export function PromptToModel() {
                         <p className="text-sm leading-6 text-[var(--cb-text-secondary)]">
                           {preview.previewSummary.reviewStandard ?? 'No review guidance available.'}
                         </p>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {preview.macroContext || (preview.macroAssumptions && preview.macroAssumptions.length > 0) ? (
+                    <div className="grid gap-4 lg:grid-cols-[1.1fr_1.4fr]">
+                      <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
+                        <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Market Context</div>
+                        <p className="text-sm leading-6 text-[var(--cb-text-secondary)]">
+                          {preview.macroContext ?? 'No shared macro assumptions available.'}
+                        </p>
+                      </div>
+                      <ObjectGrid
+                        title="Macro Assumptions"
+                        values={Object.fromEntries(
+                          (preview.macroAssumptions ?? []).map((item) => [
+                            item.label,
+                            `${item.displayValue} (${item.relevance})`,
+                          ]),
+                        )}
+                        emptyMessage="No macro assumptions available."
+                      />
+                    </div>
+                  ) : null}
+
+                  {preview.catalystContext || preview.companyCatalystContext ? (
+                    <div className="space-y-4">
+                      <div className="grid gap-4 lg:grid-cols-[1.1fr_1.4fr]">
+                        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
+                          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Company Catalyst Context</div>
+                          <p className="text-sm leading-6 text-[var(--cb-text-secondary)]">
+                            {preview.catalystContext ?? 'No company-specific catalyst context available.'}
+                          </p>
+                        </div>
+                        <StringListCard
+                          title="Catalyst Calendar"
+                          values={(preview.companyCatalystContext?.calendarItems ?? []).map(
+                            (item) => `${item.title} — ${item.displayDate} (${item.relevance})`,
+                          )}
+                          emptyMessage="No catalyst calendar items available."
+                        />
+                      </div>
+                      <div className="grid gap-4 lg:grid-cols-2">
+                        <StringListCard
+                          title="Ownership / Insider / Buyback"
+                          values={(preview.companyCatalystContext?.ownershipItems ?? []).map(
+                            (item) => `${item.label}: ${item.displayValue} (${item.relevance})`,
+                          )}
+                          emptyMessage="No ownership or buyback context available."
+                        />
+                        <StringListCard
+                          title="Transcript Catalysts"
+                          values={(preview.companyCatalystContext?.transcriptItems ?? []).map(
+                            (item) => `${item.label}: ${item.excerpt}`,
+                          )}
+                          emptyMessage="No transcript catalyst excerpts available."
+                        />
                       </div>
                     </div>
                   ) : null}

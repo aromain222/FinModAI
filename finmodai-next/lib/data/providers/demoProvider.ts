@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { NormalizedFundamentals, NormalizedQuote } from '@/lib/data/types';
+import { isQualityPublicTicker } from '@/lib/data/company/companyUniverse';
 import { buildSeededFallbackLtm } from '@/lib/demo/seededTickerFallback';
 import { normalizeDemoQuote, normalizeDemoSnapshot } from '@/lib/demo/normalizeDemoSnapshot';
 
@@ -405,6 +406,18 @@ export async function isDemoTickerAvailable(ticker: string): Promise<boolean> {
   }
 
   return !!data;
+}
+
+export async function isDemoOrQualityTickerAvailable(ticker: string): Promise<boolean> {
+  const normalized = ticker.trim().toUpperCase();
+  if (!normalized) return false;
+
+  const [demoAvailable, qualityAvailable] = await Promise.all([
+    isDemoTickerAvailable(normalized).catch(() => false),
+    isQualityPublicTicker(normalized).catch(() => false),
+  ]);
+
+  return demoAvailable || qualityAvailable;
 }
 
 /** Top N companies by revenue_ltm desc for Market Brief landing. */

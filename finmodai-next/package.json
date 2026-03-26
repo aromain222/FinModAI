@@ -8,6 +8,7 @@
     "lint": "next lint",
     "start": "next start",
     "demo:refresh": "tsx scripts/refresh-demo-snapshots.ts",
+    "universe:sync:quality": "tsx scripts/sync-quality-public-universe.ts",
     "test:investment-analysis": "node --import tsx --test tests/investment-analysis/*.test.ts"
   },
   "dependencies": {

@@ -34,14 +34,14 @@ function pricePerShare(equityValue: number | null, sharesOutstanding: number | n
 
 export function getPreview(inputs: FootballFieldModelInputs) {
   return {
-    title: `${inputs.companyName} Football Field`,
+    title: `${inputs.companyName} Valuation Football Field`,
     tabs: ['Summary', 'Football Field', 'Equations', 'Checks'],
   };
 }
 
 export async function buildWorkbook(inputs: FootballFieldModelInputs): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
-  applyWorkbookMeta(workbook, `${inputs.companyName} Football Field`);
+  applyWorkbookMeta(workbook, `${inputs.companyName} Valuation Football Field`);
   enableWorkbookRecalculation(workbook);
 
   const summary = workbook.addWorksheet('Summary');

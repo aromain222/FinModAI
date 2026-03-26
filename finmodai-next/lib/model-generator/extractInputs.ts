@@ -14,6 +14,10 @@ import {
   THREE_STATEMENT_DEFAULTS,
 } from '@/lib/model-generator/defaults';
 import { resolveCompanyProfile } from '@/lib/data/company/resolveCompanyProfile';
+import {
+  getQualityPublicCompanyUniverse,
+  type MarketCompanyListing,
+} from '@/lib/data/company/companyUniverse';
 import { evaluateCriticalInputs } from '@/lib/model-generator/inputRequirements';
 import { loadDemoSnapshots, type DemoCompanySnapshot } from '@/lib/demo/demoSnapshotStore';
 import { DEMO_COMPANY_META, DEMO_TICKERS } from '@/lib/demo/demoUniverse';
@@ -264,6 +268,8 @@ export type ExtractInputsResult = {
 export type ExtractInputsOptions = {
   clarificationAnswer?: string;
   inputOverrides?: Record<string, unknown>;
+  demoSnapshotsOverride?: Record<string, DemoCompanySnapshot>;
+  marketCompanyUniverseOverride?: MarketCompanyListing[];
 };
 
 type CompanyProfile = {
@@ -389,6 +395,9 @@ const SCALE_PROFILES: Record<string, ScaleProfile> = {
   },
 };
 
+const MARKET_UNIVERSE_CACHE_TTL_MS = 5 * 60 * 1000;
+let marketUniverseCache: { loadedAt: number; rows: MarketCompanyListing[] } | null = null;
+
 export async function extractInputs(
   prompt: string,
   modelType: ModelGeneratorType,
@@ -399,31 +408,31 @@ export async function extractInputs(
   let result: ExtractInputsResult;
   switch (modelType) {
     case 'DCF':
-      result = await buildDcfInputs(fullPrompt);
+      result = await buildDcfInputs(fullPrompt, options);
       break;
     case 'THREE_STATEMENT':
-      result = await buildThreeStatementInputs(fullPrompt);
+      result = await buildThreeStatementInputs(fullPrompt, options);
       break;
     case 'CAP_TABLE':
       result = await buildCapTableInputs(fullPrompt);
       break;
     case 'COMPS':
-      result = await buildCompsInputs(fullPrompt);
+      result = await buildCompsInputs(fullPrompt, options);
       break;
     case 'DEBT_CAPACITY_LITE':
       result = await buildDebtCapacityLiteInputs(fullPrompt);
       break;
     case 'FOOTBALL_FIELD':
-      result = await buildFootballFieldInputs(fullPrompt);
+      result = await buildFootballFieldInputs(fullPrompt, options);
       break;
     case 'MERGER':
-      result = await buildMergerInputs(fullPrompt);
+      result = await buildMergerInputs(fullPrompt, options);
       break;
     case 'PRECEDENTS':
-      result = await buildPrecedentsInputs(fullPrompt);
+      result = await buildPrecedentsInputs(fullPrompt, options);
       break;
     case 'LBO':
-      result = await buildLboInputs(fullPrompt);
+      result = await buildLboInputs(fullPrompt, options);
       break;
     case 'SAAS_OPERATING_MODEL':
       result = await buildSaasInputs(fullPrompt);
@@ -470,6 +479,112 @@ function buildSeededDemoSnapshots(baseSnapshots: Record<string, DemoCompanySnaps
   }
 
   return merged;
+}
+
+function marketListingToDemoSnapshot(row: MarketCompanyListing): DemoCompanySnapshot {
+  return {
+    ticker: row.ticker,
+    companyName: row.companyName ?? row.ticker,
+    sector: row.sector ?? row.companyType ?? null,
+    revenueLtm: row.revenueLtm ?? null,
+    ebitdaLtm: row.ebitdaLtm ?? null,
+    netIncomeLtm: row.netIncomeLtm ?? null,
+    cash: row.cash ?? null,
+    totalDebt: row.totalDebt ?? null,
+    sharesOutstanding: row.sharesOutstanding ?? null,
+    sharePrice: row.sharePrice ?? null,
+    marketCap: row.marketCap ?? null,
+    updatedAt: row.updatedAt ?? row.asOfDate ?? null,
+    sourceMap: {
+      listing: row.source,
+    },
+  };
+}
+
+function preferSnapshotMetric<T extends string | number>(
+  primary: T | null | undefined,
+  fallback: T | null | undefined,
+  options: { requirePositive?: boolean } = {}
+): T | null | undefined {
+  if (typeof primary === 'number') {
+    if (Number.isFinite(primary) && (!options.requirePositive || primary > 0)) return primary;
+  } else if (typeof primary === 'string' && primary.trim().length > 0) {
+    return primary;
+  }
+
+  if (typeof fallback === 'number') {
+    if (Number.isFinite(fallback) && (!options.requirePositive || fallback > 0)) return fallback;
+  } else if (typeof fallback === 'string' && fallback.trim().length > 0) {
+    return fallback;
+  }
+
+  return primary ?? fallback;
+}
+
+function mergeMarketListingsIntoDemoSnapshots(
+  baseSnapshots: Record<string, DemoCompanySnapshot>,
+  listings: MarketCompanyListing[]
+): Record<string, DemoCompanySnapshot> {
+  const merged = buildSeededDemoSnapshots(baseSnapshots);
+
+  for (const listing of listings) {
+    const ticker = listing.ticker.trim().toUpperCase();
+    if (!ticker) continue;
+    const current = merged[ticker];
+    const candidate = marketListingToDemoSnapshot(listing);
+
+    merged[ticker] = {
+      ticker,
+      companyName: preferSnapshotMetric(candidate.companyName, current?.companyName) ?? ticker,
+      sector: preferSnapshotMetric(candidate.sector, current?.sector) ?? null,
+      revenueLtm: preferSnapshotMetric(candidate.revenueLtm, current?.revenueLtm, { requirePositive: true }) ?? null,
+      ebitdaLtm: preferSnapshotMetric(candidate.ebitdaLtm, current?.ebitdaLtm) ?? null,
+      netIncomeLtm: preferSnapshotMetric(candidate.netIncomeLtm, current?.netIncomeLtm) ?? null,
+      cash: preferSnapshotMetric(candidate.cash, current?.cash) ?? null,
+      totalDebt: preferSnapshotMetric(candidate.totalDebt, current?.totalDebt) ?? null,
+      sharesOutstanding:
+        preferSnapshotMetric(candidate.sharesOutstanding, current?.sharesOutstanding, { requirePositive: true }) ?? null,
+      sharePrice: preferSnapshotMetric(candidate.sharePrice, current?.sharePrice, { requirePositive: true }) ?? null,
+      marketCap: preferSnapshotMetric(candidate.marketCap, current?.marketCap, { requirePositive: true }) ?? null,
+      updatedAt: preferSnapshotMetric(candidate.updatedAt, current?.updatedAt) ?? null,
+      sourceMap: {
+        ...(current?.sourceMap ?? {}),
+        ...(candidate.sourceMap ?? {}),
+      },
+    };
+  }
+
+  return merged;
+}
+
+async function loadQualityMarketUniverse(
+  options: ExtractInputsOptions = {}
+): Promise<MarketCompanyListing[]> {
+  if (options.marketCompanyUniverseOverride) {
+    return options.marketCompanyUniverseOverride;
+  }
+
+  if (marketUniverseCache && Date.now() - marketUniverseCache.loadedAt < MARKET_UNIVERSE_CACHE_TTL_MS) {
+    return marketUniverseCache.rows;
+  }
+
+  const rows = await getQualityPublicCompanyUniverse(1000);
+  marketUniverseCache = {
+    loadedAt: Date.now(),
+    rows,
+  };
+  return rows;
+}
+
+async function loadExpandedModelUniverseSnapshots(
+  options: ExtractInputsOptions = {}
+): Promise<Record<string, DemoCompanySnapshot>> {
+  const [baseSnapshots, marketUniverse] = await Promise.all([
+    options.demoSnapshotsOverride ? Promise.resolve(options.demoSnapshotsOverride) : loadDemoSnapshots(),
+    loadQualityMarketUniverse(options),
+  ]);
+
+  return mergeMarketListingsIntoDemoSnapshots(baseSnapshots, marketUniverse);
 }
 
 function extractEntityList(raw: string): string[] {
@@ -939,14 +1054,22 @@ async function resolveStoredCompany(prompt: string) {
   return resolveCompanyProfile({ prompt });
 }
 
-async function resolveDemoCompany(prompt: string): Promise<{ snapshot: DemoCompanySnapshot; ticker: string } | null> {
-  const snapshots = buildSeededDemoSnapshots(await loadDemoSnapshots());
+async function resolveDemoCompany(
+  prompt: string,
+  options: ExtractInputsOptions = {}
+): Promise<{ snapshot: DemoCompanySnapshot; ticker: string } | null> {
+  const snapshots = await loadExpandedModelUniverseSnapshots(options);
   const ticker = inferTickerFromPrompt(prompt);
   if (ticker && snapshots[ticker]) {
     return { snapshot: snapshots[ticker], ticker };
   }
 
-  const normalizedPrompt = normalizeText(prompt);
+  const entityCandidate =
+    extractCompanyName(prompt) ??
+    sanitizeCompsSubjectPrompt(prompt) ??
+    sanitizeEntityCandidate(prompt) ??
+    prompt;
+  const normalizedPrompt = normalizeText(entityCandidate);
   const promptTokens = normalizedPrompt.split(' ').filter((token) => token.length >= 3);
   let best: { snapshot: DemoCompanySnapshot; ticker: string; score: number } | null = null;
 
@@ -971,7 +1094,7 @@ function buildMissingList(fields: Array<[key: string, isProvided: boolean]>): st
   return fields.filter(([, isProvided]) => !isProvided).map(([key]) => key);
 }
 
-async function buildDcfInputs(prompt: string): Promise<ExtractInputsResult> {
+async function buildDcfInputs(prompt: string, options: ExtractInputsOptions = {}): Promise<ExtractInputsResult> {
   const providedInputs = new Set<string>();
   const defaultsUsed: Record<string, unknown> = {
     years: DCF_DEFAULTS.years,
@@ -982,7 +1105,7 @@ async function buildDcfInputs(prompt: string): Promise<ExtractInputsResult> {
   };
 
   const stored = await resolveStoredCompany(prompt);
-  const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt);
+  const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt, options);
   const companyType =
     extractCompanyType(prompt) ??
     stored?.company.companyType ??
@@ -1098,7 +1221,7 @@ async function buildDcfInputs(prompt: string): Promise<ExtractInputsResult> {
   };
 }
 
-async function buildThreeStatementInputs(prompt: string): Promise<ExtractInputsResult> {
+async function buildThreeStatementInputs(prompt: string, options: ExtractInputsOptions = {}): Promise<ExtractInputsResult> {
   const providedInputs = new Set<string>();
   const defaultsUsed: Record<string, unknown> = {
     years: THREE_STATEMENT_DEFAULTS.years,
@@ -1108,7 +1231,7 @@ async function buildThreeStatementInputs(prompt: string): Promise<ExtractInputsR
   };
 
   const stored = await resolveStoredCompany(prompt);
-  const resolved = await resolveDemoCompany(prompt);
+  const resolved = await resolveDemoCompany(prompt, options);
   const storedSnapshot = stored?.snapshot ?? null;
   const demoSnapshot = resolved?.snapshot ?? null;
   const companyType =
@@ -1270,14 +1393,14 @@ async function buildCapTableInputs(prompt: string): Promise<ExtractInputsResult>
   };
 }
 
-async function buildCompsInputs(prompt: string): Promise<ExtractInputsResult> {
+async function buildCompsInputs(prompt: string, options: ExtractInputsOptions = {}): Promise<ExtractInputsResult> {
   const providedInputs = new Set<string>();
   const defaultsUsed: Record<string, unknown> = {};
   const stored = await resolveStoredCompany(prompt);
-  const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt);
+  const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt, options);
   const storedSnapshot = stored?.snapshot ?? null;
   const demoSnapshot = resolved?.snapshot ?? null;
-  const snapshots = buildSeededDemoSnapshots(await loadDemoSnapshots());
+  const snapshots = await loadExpandedModelUniverseSnapshots(options);
   const subjectPrompt = sanitizeCompsSubjectPrompt(prompt);
   const explicitPeerTickers = extractExplicitPeerTickers(prompt, snapshots);
   const isComparePrompt = /\b(compare|comparison|versus|vs\.?|against)\b/i.test(prompt);
@@ -1411,12 +1534,12 @@ function percentileNumber(values: number[], percentile: number): number | null {
   return sorted[lower] * (1 - weight) + sorted[upper] * weight;
 }
 
-async function buildFootballFieldInputs(prompt: string): Promise<ExtractInputsResult> {
+async function buildFootballFieldInputs(prompt: string, options: ExtractInputsOptions = {}): Promise<ExtractInputsResult> {
   const providedInputs = new Set<string>();
   const defaultsUsed: Record<string, unknown> = {};
   const stored = await resolveStoredCompany(prompt);
-  const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt);
-  const snapshots = await loadDemoSnapshots();
+  const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt, options);
+  const snapshots = await loadExpandedModelUniverseSnapshots(options);
 
   const companyType =
     extractCompanyType(prompt) ??
@@ -1564,7 +1687,7 @@ async function buildFootballFieldInputs(prompt: string): Promise<ExtractInputsRe
   };
 }
 
-async function buildDebtCapacityLiteInputs(prompt: string): Promise<ExtractInputsResult> {
+async function buildDebtCapacityLiteInputs(prompt: string, options: ExtractInputsOptions = {}): Promise<ExtractInputsResult> {
   const providedInputs = new Set<string>();
   const defaultsUsed: Record<string, unknown> = {};
   const parsedCompanyName = extractCompanyName(prompt);
@@ -1573,8 +1696,8 @@ async function buildDebtCapacityLiteInputs(prompt: string): Promise<ExtractInput
   const resolved =
     stored?.snapshot
       ? null
-      : (await resolveDemoCompany(resolutionPrompt)) ??
-        (resolutionPrompt === prompt ? null : await resolveDemoCompany(prompt));
+      : (await resolveDemoCompany(resolutionPrompt, options)) ??
+        (resolutionPrompt === prompt ? null : await resolveDemoCompany(prompt, options));
 
   const companyType =
     extractCompanyType(prompt) ??
@@ -1644,10 +1767,10 @@ async function buildDebtCapacityLiteInputs(prompt: string): Promise<ExtractInput
   };
 }
 
-async function buildMergerInputs(prompt: string): Promise<ExtractInputsResult> {
+async function buildMergerInputs(prompt: string, options: ExtractInputsOptions = {}): Promise<ExtractInputsResult> {
   const providedInputs = new Set<string>();
   const defaultsUsed: Record<string, unknown> = {};
-  const snapshots = buildSeededDemoSnapshots(await loadDemoSnapshots());
+  const snapshots = await loadExpandedModelUniverseSnapshots(options);
   const toModelMoney = (value: number | undefined): number | undefined =>
     value !== undefined ? Number((value / 1_000_000).toFixed(2)) : undefined;
   const { acquirerRaw, targetRaw } = extractMergerEntities(prompt);
@@ -1798,12 +1921,12 @@ async function buildMergerInputs(prompt: string): Promise<ExtractInputsResult> {
   };
 }
 
-async function buildPrecedentsInputs(prompt: string): Promise<ExtractInputsResult> {
+async function buildPrecedentsInputs(prompt: string, options: ExtractInputsOptions = {}): Promise<ExtractInputsResult> {
   const providedInputs = new Set<string>();
   const defaultsUsed: Record<string, unknown> = {};
   const stored = await resolveStoredCompany(prompt);
-  const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt);
-  const snapshots = await loadDemoSnapshots();
+  const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt, options);
+  const snapshots = await loadExpandedModelUniverseSnapshots(options);
 
   const companyType =
     extractCompanyType(prompt) ??
@@ -1870,11 +1993,11 @@ async function buildPrecedentsInputs(prompt: string): Promise<ExtractInputsResul
   };
 }
 
-async function buildLboInputs(prompt: string): Promise<ExtractInputsResult> {
+async function buildLboInputs(prompt: string, options: ExtractInputsOptions = {}): Promise<ExtractInputsResult> {
   const providedInputs = new Set<string>();
   const defaultsUsed: Record<string, unknown> = {};
   const stored = await resolveStoredCompany(prompt);
-  const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt);
+  const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt, options);
 
   const companyType =
     extractCompanyType(prompt) ??

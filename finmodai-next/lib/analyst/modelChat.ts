@@ -83,19 +83,19 @@ const KEY_OUTPUTS: Record<StructuredModelType, string[]> = {
 function labelForModelType(modelType: StructuredModelType): string {
   switch (modelType) {
     case 'COMPS':
-      return 'comparable company analysis';
+      return 'trading comparables';
     case 'DEBT_CAPACITY_LITE':
       return 'debt capacity';
     case 'FOOTBALL_FIELD':
-      return 'football field';
+      return 'valuation football field';
     case 'MERGER':
       return 'merger / accretion-dilution';
     case 'PRECEDENTS':
       return 'precedent transactions';
     case 'LBO':
-      return 'LBO';
+      return 'LBO underwriting';
     case 'THREE_STATEMENT':
-      return 'three-statement';
+      return 'forecast model';
     case 'CAP_TABLE':
       return 'cap table';
     case 'SAAS_OPERATING_MODEL':
@@ -439,8 +439,8 @@ function buildNarrativeBlocks(
       return [
         ...scenarioBlock,
         {
-          title: 'MODEL FRAME',
-          body: 'This three-statement model links the income statement, balance sheet, and cash flow statement into a reusable operating case that can be rerun as assumptions change.',
+          title: 'FORECAST FRAME',
+          body: 'This three-statement forecast model links the income statement, balance sheet, and cash flow statement into a reusable operating case. The card is built to show yearly revenue, EBITDA, EBIT, net income, capex, working capital, debt, and ending cash in one rerunnable artifact.',
         },
       ];
     case 'CAP_TABLE':

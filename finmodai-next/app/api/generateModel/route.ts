@@ -18,6 +18,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import ExcelJS from 'exceljs';
 import crypto from 'crypto';
 import { APP_NAME } from '@/lib/branding';
+import { isDemoOrQualityTickerAvailable } from '@/lib/data/providers/demoProvider';
 import type { ModelType as RequestModelType } from '@/types/models';
 import { enrichUnifiedAssumptions } from '@/lib/enrichUnifiedAssumptions';
 import { 
@@ -69,7 +70,6 @@ import type { ModelStateInfo } from '@/lib/models/shared/modelState';
 import { fetchLboIngestion, mapLboIngestionToLtmFinancials, hasLboIngestionData } from '@/lib/lboIngestion';
 import { isDemoMode, isDemoModeFromRequest } from '@/lib/demo/isDemoMode';
 import { runWithDemoMode } from '@/lib/demo/demoContext';
-import { isDemoTickerAvailable } from '@/lib/data/providers/demoProvider';
 import { hasAnyOpenAIKey } from '@/lib/openaiKey';
 import {
   assessDemoLboReadiness,
@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
   const requestedTicker =
     typeof body?.ticker === 'string' ? body.ticker.trim().toUpperCase() : null;
   if (requestedTicker && !privateManualMode) {
-    const demoAllowed = await isDemoTickerAvailable(requestedTicker);
+    const demoAllowed = await isDemoOrQualityTickerAvailable(requestedTicker);
     if (!demoAllowed) {
       return NextResponse.json(
         {
@@ -149,7 +149,7 @@ export async function POST(req: NextRequest) {
           status: 'failed',
           state: 'failed',
           code: 'DEMO_NOT_FOUND',
-          message: 'This ticker is not wired in the current S&P 500 company universe for automated models yet.',
+          message: 'This ticker is not available in the current public demo universe for automated models yet.',
         },
         { status: 400 }
       );
@@ -3548,7 +3548,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
     }
 
     if (isDemoMode() && !privateManualMode) {
-      const demoAllowed = await isDemoTickerAvailable(cleanTicker);
+      const demoAllowed = await isDemoOrQualityTickerAvailable(cleanTicker);
       if (!demoAllowed) {
       return NextResponse.json(
         {
@@ -3556,7 +3556,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
           state: 'failed',
           status: 'failed',
           code: 'DEMO_NOT_FOUND',
-          message: 'This ticker is not wired in the current S&P 500 company universe for automated models yet.',
+          message: 'This ticker is not available in the current public demo universe for automated models yet.',
         },
         { status: 400 }
       );
@@ -5477,6 +5477,11 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
     ]
   );
 
+  const { getMacroAssumptionContext } = await import('@/lib/models/shared/macroAssumptions');
+  const macroAssumptionContext = await getMacroAssumptionContext(modelType as any);
+  const { getCompanyCatalystContext } = await import('@/lib/models/shared/companyCatalystContext');
+  const companyCatalystContext = await getCompanyCatalystContext(cleanTicker, modelType as any);
+
   // Build canonical ModelDocument from model outputs (single source of truth for preview + excel mapping)
   modelDocument = buildDocumentFromModelOutputs({
     ticker: cleanTicker,
@@ -5491,6 +5496,8 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
     debtCapacityLiteSummary: debtCapacitySummary ?? null,
     compsSummary,
     scorecardSummary,
+    macroContext: macroAssumptionContext,
+    companyCatalystContext,
   });
 
   // Legacy preview payload retained for compatibility, now derived from ModelDocument (not workbook scraping)
@@ -5653,6 +5660,11 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       sheets: exportWorkbook.worksheets.map(s => s.name),
       bufferSize: workbookBuffer.length,
       appliedDefaults,
+      macroContext: macroAssumptionContext.summary,
+      macroAssumptions: macroAssumptionContext.items,
+      macroAssumptionContext,
+      catalystContext: companyCatalystContext?.summary,
+      companyCatalystContext,
       warnings: Array.from(
         new Set([
           ...runtimeFallbackWarnings,

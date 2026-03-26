@@ -19,6 +19,45 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+function toSharedModelType(modelType: ModelGeneratorType) {
+  switch (modelType) {
+    case 'DCF':
+      return 'dcf';
+    case 'THREE_STATEMENT':
+      return 'three-statement';
+    case 'CAP_TABLE':
+      return 'operating';
+    case 'SAAS_OPERATING_MODEL':
+      return 'operating';
+    case 'COMPS':
+      return 'comps';
+    case 'DEBT_CAPACITY_LITE':
+      return 'debt-capacity-lite';
+    case 'FOOTBALL_FIELD':
+      return 'football-field';
+    case 'MERGER':
+      return 'merger';
+    case 'PRECEDENTS':
+      return 'precedents';
+    case 'LBO':
+      return 'lbo';
+    default:
+      return 'dcf';
+  }
+}
+
+function extractCatalystTicker(inputs: ExtractedModelInputs): string | null {
+  const directTicker = 'ticker' in inputs && typeof inputs.ticker === 'string' ? inputs.ticker.trim().toUpperCase() : '';
+  if (directTicker) return directTicker;
+  if ('acquirerTicker' in inputs && typeof inputs.acquirerTicker === 'string' && inputs.acquirerTicker.trim()) {
+    return inputs.acquirerTicker.trim().toUpperCase();
+  }
+  if ('targetTicker' in inputs && typeof inputs.targetTicker === 'string' && inputs.targetTicker.trim()) {
+    return inputs.targetTicker.trim().toUpperCase();
+  }
+  return null;
+}
+
 type PreviewBuilder = {
   getPreview: (inputs: ExtractedModelInputs) => { title: string; tabs: string[] };
 };
@@ -189,6 +228,10 @@ export async function POST(req: NextRequest) {
     }
 
     const extraction = await extractInputs(prompt, modelType, { clarificationAnswer, inputOverrides });
+    const { getMacroAssumptionContext } = await import('@/lib/models/shared/macroAssumptions');
+    const macroAssumptionContext = await getMacroAssumptionContext(toSharedModelType(modelType) as any);
+    const { getCompanyCatalystContext } = await import('@/lib/models/shared/companyCatalystContext');
+    const companyCatalystContext = await getCompanyCatalystContext(extractCatalystTicker(extraction.extractedInputs), toSharedModelType(modelType) as any);
     const clarification = getClarificationDecision(modelType, extraction.missingCriticalInputs);
     const templatePreview = TEMPLATE_MAP[modelType].getPreview(extraction.extractedInputs);
     const latestRun = await getLatestComparableRun({
@@ -226,6 +269,11 @@ export async function POST(req: NextRequest) {
         whatToEditFirst: MODEL_PLAYBOOKS[modelType].whatToEditFirst,
         reviewStandard: MODEL_PLAYBOOKS[modelType].reviewStandard,
       },
+      macroContext: macroAssumptionContext.summary,
+      macroAssumptions: macroAssumptionContext.items,
+      macroAssumptionContext,
+      catalystContext: companyCatalystContext?.summary ?? null,
+      companyCatalystContext,
       recentRun: latestRun
         ? {
             runId: latestRun.id,

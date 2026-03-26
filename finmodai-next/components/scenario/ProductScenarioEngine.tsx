@@ -142,7 +142,7 @@ export function ProductScenarioEngine() {
       if (requestId !== analysisRequestIdRef.current) return;
       const rawMessage = err instanceof Error ? err.message : 'Failed to fetch ticker data';
       const message = rawMessage.toLowerCase().includes('demo snapshot not available')
-        ? `Ticker ${toAnalyze} is not wired in the current S&P 500 company universe yet.`
+        ? `Ticker ${toAnalyze} is not wired in the current public demo universe yet.`
         : rawMessage;
       setError(message);
       setTickerSnapshot(null);

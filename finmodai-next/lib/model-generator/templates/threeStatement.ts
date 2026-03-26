@@ -3,6 +3,7 @@ import type { ThreeStatementModelInputs } from '@/lib/model-generator/extractInp
 import { finalizeChecksSheet, writeCheckRow } from '@/lib/model-generator/excel/checks';
 import { addEquationsSheet, type EquationRow } from '@/lib/model-generator/excel/equations';
 import {
+  styleAccentOutput,
   applyWorkbookMeta,
   col,
   enableWorkbookRecalculation,
@@ -12,8 +13,10 @@ import {
   styleInput,
   styleLabel,
   styleModelMeta,
+  styleNarrativeBlock,
   styleOutput,
   styleSectionHeader,
+  styleSubtitle,
   styleSubTotal,
   styleTableHeader,
   styleThinGrid,
@@ -32,7 +35,7 @@ function yearName(prefix: string, year: string) {
 
 export function getPreview(inputs: ThreeStatementModelInputs) {
   return {
-    title: `${inputs.companyName} Three-Statement Model`,
+    title: `${inputs.companyName} Forecast Model`,
     tabs: [
       'Control Panel',
       'Income Statement',
@@ -57,7 +60,7 @@ export async function buildWorkbook(inputs: ThreeStatementModelInputs): Promise<
   const lastForecastLetter = col(2 + inputs.years);
   const equations: EquationRow[] = [];
 
-  applyWorkbookMeta(workbook, `${inputs.companyName} Three-Statement Model`);
+  applyWorkbookMeta(workbook, `${inputs.companyName} Forecast Model`);
   enableWorkbookRecalculation(workbook);
 
   const controlSheet = workbook.addWorksheet('Control Panel');
@@ -78,16 +81,20 @@ export async function buildWorkbook(inputs: ThreeStatementModelInputs): Promise<
   setupSheet(debtSheet, { freezeRows: 4, freezeCols: 2, tabColor: 'FF9333EA', columnWidths: [30, 18, 14, 14, 14, 14, 14, 14] });
   setupSheet(checksSheet, { freezeRows: 3, freezeCols: 1, tabColor: 'FFB45309', columnWidths: [30, 16, 36, 18] });
 
-  controlSheet.getCell('A1').value = `${inputs.companyName} Operating Model`;
+  controlSheet.getCell('A1').value = `${inputs.companyName} Forecast Model`;
   mergeAndCenter(controlSheet, 'A1:H1');
   styleTitle(controlSheet.getCell('A1'));
-  styleModelMeta(controlSheet, 3, 'Company', inputs.companyName);
-  styleModelMeta(controlSheet, 4, 'Ticker', inputs.ticker || 'N/A');
-  styleModelMeta(controlSheet, 5, 'Generated', formatDate(generatedAt));
-  styleModelMeta(controlSheet, 6, 'Source', inputs.source);
-  styleModelMeta(controlSheet, 7, 'Input legend', 'Blue cells are editable forecast assumptions. Green cells are summary outputs.');
+  controlSheet.getCell('A2').value =
+    'Integrated forecast model with a single control panel, linked statements, cash bridge, working capital, PP&E, debt schedule, equations, and checks.';
+  mergeAndCenter(controlSheet, 'A2:H2');
+  styleSubtitle(controlSheet.getCell('A2'));
+  styleModelMeta(controlSheet, 4, 'Company', inputs.companyName);
+  styleModelMeta(controlSheet, 5, 'Ticker', inputs.ticker || 'N/A');
+  styleModelMeta(controlSheet, 6, 'Generated', formatDate(generatedAt));
+  styleModelMeta(controlSheet, 7, 'Source', inputs.source);
+  styleModelMeta(controlSheet, 8, 'Input legend', 'Blue cells are editable forecast assumptions. Green cells are linked summary outputs.');
 
-  styleSectionHeader(controlSheet, 9, 'Core Assumptions', 4);
+  styleSectionHeader(controlSheet, 10, 'Core Assumptions', 4);
   [
     ['Forecast years', inputs.years, 'number'],
     ['Base revenue', inputs.baseRevenue, 'currency'],
@@ -112,7 +119,7 @@ export async function buildWorkbook(inputs: ThreeStatementModelInputs): Promise<
     ['New debt', 0, 'currency'],
     ['Debt repayment', 0, 'currency'],
   ].forEach(([label, value, kind], index) => {
-    const row = 10 + index;
+    const row = 11 + index;
     controlSheet.getCell(`A${row}`).value = label;
     controlSheet.getCell(`B${row}`).value = value;
     styleLabel(controlSheet.getCell(`A${row}`));
@@ -120,94 +127,98 @@ export async function buildWorkbook(inputs: ThreeStatementModelInputs): Promise<
   });
 
   defineNamedCells(workbook, controlSheet, [
-    { name: 'ForecastYears', cellRef: 'B10' },
-    { name: 'BaseRevenue', cellRef: 'B11' },
-    { name: 'OpeningCash', cellRef: 'B12' },
-    { name: 'OpeningDebt', cellRef: 'B13' },
-    { name: 'GrossMargin', cellRef: 'B14' },
-    { name: 'OpexPct', cellRef: 'B15' },
-    { name: 'TaxRate', cellRef: 'B16' },
-    { name: 'CapexPct', cellRef: 'B17' },
-    { name: 'DAPct', cellRef: 'B18' },
-    { name: 'DSO', cellRef: 'B19' },
-    { name: 'DIO', cellRef: 'B20' },
-    { name: 'DPO', cellRef: 'B21' },
-    { name: 'OtherCurrentAssetsPct', cellRef: 'B22' },
-    { name: 'OtherCurrentLiabilitiesPct', cellRef: 'B23' },
-    { name: 'OtherAssetsBase', cellRef: 'B24' },
-    { name: 'OtherLiabilitiesBase', cellRef: 'B25' },
-    { name: 'BeginningPPE', cellRef: 'B26' },
-    { name: 'BeginningRetainedEarnings', cellRef: 'B27' },
-    { name: 'CommonStock', cellRef: 'B28' },
-    { name: 'InterestRate', cellRef: 'B29' },
-    { name: 'NewDebt', cellRef: 'B30' },
-    { name: 'DebtRepaymentInput', cellRef: 'B31' },
+    { name: 'ForecastYears', cellRef: 'B11' },
+    { name: 'BaseRevenue', cellRef: 'B12' },
+    { name: 'OpeningCash', cellRef: 'B13' },
+    { name: 'OpeningDebt', cellRef: 'B14' },
+    { name: 'GrossMargin', cellRef: 'B15' },
+    { name: 'OpexPct', cellRef: 'B16' },
+    { name: 'TaxRate', cellRef: 'B17' },
+    { name: 'CapexPct', cellRef: 'B18' },
+    { name: 'DAPct', cellRef: 'B19' },
+    { name: 'DSO', cellRef: 'B20' },
+    { name: 'DIO', cellRef: 'B21' },
+    { name: 'DPO', cellRef: 'B22' },
+    { name: 'OtherCurrentAssetsPct', cellRef: 'B23' },
+    { name: 'OtherCurrentLiabilitiesPct', cellRef: 'B24' },
+    { name: 'OtherAssetsBase', cellRef: 'B25' },
+    { name: 'OtherLiabilitiesBase', cellRef: 'B26' },
+    { name: 'BeginningPPE', cellRef: 'B27' },
+    { name: 'BeginningRetainedEarnings', cellRef: 'B28' },
+    { name: 'CommonStock', cellRef: 'B29' },
+    { name: 'InterestRate', cellRef: 'B30' },
+    { name: 'NewDebt', cellRef: 'B31' },
+    { name: 'DebtRepaymentInput', cellRef: 'B32' },
   ]);
 
-  styleSectionHeader(controlSheet, 9, 'Summary Metrics', 7);
-  controlSheet.getCell('E10').value = 'Revenue CAGR';
-  controlSheet.getCell('F10').value = { formula: `=('Income Statement'!$${lastForecastLetter}$5/'Income Statement'!$C$5)^(1/${inputs.years})-1` };
-  controlSheet.getCell('E11').value = 'EBITDA margin';
-  controlSheet.getCell('F11').value = { formula: `='Income Statement'!$${lastForecastLetter}$10/'Income Statement'!$${lastForecastLetter}$5` };
-  controlSheet.getCell('E12').value = 'Ending cash';
-  controlSheet.getCell('F12').value = { formula: `='Balance Sheet'!$${lastForecastLetter}$5` };
-  controlSheet.getCell('E13').value = 'Debt balance';
-  controlSheet.getCell('F13').value = { formula: `='Balance Sheet'!$${lastForecastLetter}$15` };
-  ['E10', 'E11', 'E12', 'E13'].forEach((ref) => styleLabel(controlSheet.getCell(ref)));
-  styleOutput(controlSheet.getCell('F10'), 'percent');
-  styleOutput(controlSheet.getCell('F11'), 'percent');
-  styleOutput(controlSheet.getCell('F12'), 'currency');
-  styleOutput(controlSheet.getCell('F13'), 'currency');
-  styleThinGrid(controlSheet, 10, 13, 5, 6);
+  styleSectionHeader(controlSheet, 10, 'Summary Metrics', 7);
+  controlSheet.getCell('E11').value = 'Revenue CAGR';
+  controlSheet.getCell('F11').value = { formula: `=('Income Statement'!$${lastForecastLetter}$5/'Income Statement'!$C$5)^(1/${inputs.years})-1` };
+  controlSheet.getCell('E12').value = 'EBITDA margin';
+  controlSheet.getCell('F12').value = { formula: `='Income Statement'!$${lastForecastLetter}$10/'Income Statement'!$${lastForecastLetter}$5` };
+  controlSheet.getCell('E13').value = 'Ending cash';
+  controlSheet.getCell('F13').value = { formula: `='Balance Sheet'!$${lastForecastLetter}$5` };
+  controlSheet.getCell('E14').value = 'Debt balance';
+  controlSheet.getCell('F14').value = { formula: `='Balance Sheet'!$${lastForecastLetter}$15` };
+  ['E11', 'E12', 'E13', 'E14'].forEach((ref) => styleLabel(controlSheet.getCell(ref)));
+  styleAccentOutput(controlSheet.getCell('F11'), 'percent');
+  styleAccentOutput(controlSheet.getCell('F12'), 'percent');
+  styleAccentOutput(controlSheet.getCell('F13'), 'currency');
+  styleAccentOutput(controlSheet.getCell('F14'), 'currency');
+  styleThinGrid(controlSheet, 11, 14, 5, 6);
 
-  styleSectionHeader(controlSheet, 34, 'Revenue Growth Assumptions', 2 + inputs.years);
-  styleTableHeader(controlSheet, 35, 1, 2 + inputs.years);
-  controlSheet.getCell('A35').value = 'Driver';
-  controlSheet.getCell('B35').value = actualYear;
-  controlSheet.getCell('A36').value = 'Revenue growth';
-  styleLabel(controlSheet.getCell('A36'));
+  styleSectionHeader(controlSheet, 35, 'Revenue Growth Assumptions', 2 + inputs.years);
+  styleTableHeader(controlSheet, 36, 1, 2 + inputs.years);
+  controlSheet.getCell('A36').value = 'Driver';
+  controlSheet.getCell('B36').value = actualYear;
+  controlSheet.getCell('A37').value = 'Revenue growth';
+  styleLabel(controlSheet.getCell('A37'));
   forecastYears.forEach((year, index) => {
-    const cell = `${col(3 + index)}36`;
+    const cell = `${col(3 + index)}37`;
     controlSheet.getCell(cell).value = inputs.revenueGrowth[index];
     styleInput(controlSheet.getCell(cell), 'percent');
-    controlSheet.getCell(35, 3 + index).value = year;
+    controlSheet.getCell(36, 3 + index).value = year;
     defineNamedCell(workbook, yearName('RevenueGrowth', year), controlSheet, cell);
   });
 
-  styleSectionHeader(controlSheet, 39, 'Margin Snapshot', 2 + inputs.years);
-  styleTableHeader(controlSheet, 40, 1, 2 + inputs.years);
-  controlSheet.getCell('A40').value = 'Metric';
-  controlSheet.getCell('B40').value = actualYear;
+  styleSectionHeader(controlSheet, 40, 'Margin Snapshot', 2 + inputs.years);
+  styleTableHeader(controlSheet, 41, 1, 2 + inputs.years);
+  controlSheet.getCell('A41').value = 'Metric';
+  controlSheet.getCell('B41').value = actualYear;
   forecastYears.forEach((year, index) => {
-    controlSheet.getCell(40, 3 + index).value = year;
+    controlSheet.getCell(41, 3 + index).value = year;
   });
-  controlSheet.getCell('A41').value = 'Gross Margin';
-  controlSheet.getCell('A42').value = 'EBITDA Margin';
-  controlSheet.getCell('A43').value = 'EBIT Margin';
-  ['A41', 'A42', 'A43'].forEach((ref) => styleLabel(controlSheet.getCell(ref)));
+  controlSheet.getCell('A42').value = 'Gross Margin';
+  controlSheet.getCell('A43').value = 'EBITDA Margin';
+  controlSheet.getCell('A44').value = 'EBIT Margin';
+  ['A42', 'A43', 'A44'].forEach((ref) => styleLabel(controlSheet.getCell(ref)));
   [actualYear, ...forecastYears].forEach((_, index) => {
     const letter = col(2 + index);
-    controlSheet.getCell(`${letter}41`).value = { formula: `='Income Statement'!${letter}8` };
-    controlSheet.getCell(`${letter}42`).value = { formula: `=IF('Income Statement'!${letter}5<>0,'Income Statement'!${letter}10/'Income Statement'!${letter}5,0)` };
-    controlSheet.getCell(`${letter}43`).value = { formula: `=IF('Income Statement'!${letter}5<>0,'Income Statement'!${letter}12/'Income Statement'!${letter}5,0)` };
-    ['41', '42', '43'].forEach((row) => styleFormula(controlSheet.getCell(`${letter}${row}`), 'percent'));
+    controlSheet.getCell(`${letter}42`).value = { formula: `='Income Statement'!${letter}8` };
+    controlSheet.getCell(`${letter}43`).value = { formula: `=IF('Income Statement'!${letter}5<>0,'Income Statement'!${letter}10/'Income Statement'!${letter}5,0)` };
+    controlSheet.getCell(`${letter}44`).value = { formula: `=IF('Income Statement'!${letter}5<>0,'Income Statement'!${letter}12/'Income Statement'!${letter}5,0)` };
+    ['42', '43', '44'].forEach((row) => styleFormula(controlSheet.getCell(`${letter}${row}`), 'percent'));
   });
 
-  styleSectionHeader(controlSheet, 46, 'Terminal Year Cash Bridge', 4);
-  controlSheet.getCell('A47').value = 'Cash from Operations';
-  controlSheet.getCell('B47').value = { formula: `='Cash Flow'!${lastForecastLetter}8` };
-  controlSheet.getCell('A48').value = 'Capex';
-  controlSheet.getCell('B48').value = { formula: `='Cash Flow'!${lastForecastLetter}9` };
-  controlSheet.getCell('A49').value = 'Debt Flows';
-  controlSheet.getCell('B49').value = { formula: `='Cash Flow'!${lastForecastLetter}10` };
-  controlSheet.getCell('A50').value = 'Net Change in Cash';
-  controlSheet.getCell('B50').value = { formula: `='Cash Flow'!${lastForecastLetter}12` };
-  controlSheet.getCell('A51').value = 'Ending Cash';
-  controlSheet.getCell('B51').value = { formula: `='Cash Flow'!${lastForecastLetter}13` };
-  ['A47', 'A48', 'A49', 'A50', 'A51'].forEach((ref) => styleLabel(controlSheet.getCell(ref)));
-  ['B47', 'B48', 'B49', 'B50'].forEach((ref) => styleFormula(controlSheet.getCell(ref), 'currency'));
-  styleOutput(controlSheet.getCell('B51'), 'currency');
-  styleThinGrid(controlSheet, 47, 51, 1, 2);
+  styleSectionHeader(controlSheet, 47, 'Terminal Year Cash Bridge', 4);
+  controlSheet.getCell('A48').value = 'Cash from Operations';
+  controlSheet.getCell('B48').value = { formula: `='Cash Flow'!${lastForecastLetter}8` };
+  controlSheet.getCell('A49').value = 'Capex';
+  controlSheet.getCell('B49').value = { formula: `='Cash Flow'!${lastForecastLetter}9` };
+  controlSheet.getCell('A50').value = 'Debt Flows';
+  controlSheet.getCell('B50').value = { formula: `='Cash Flow'!${lastForecastLetter}10` };
+  controlSheet.getCell('A51').value = 'Net Change in Cash';
+  controlSheet.getCell('B51').value = { formula: `='Cash Flow'!${lastForecastLetter}12` };
+  controlSheet.getCell('A52').value = 'Ending Cash';
+  controlSheet.getCell('B52').value = { formula: `='Cash Flow'!${lastForecastLetter}13` };
+  ['A48', 'A49', 'A50', 'A51', 'A52'].forEach((ref) => styleLabel(controlSheet.getCell(ref)));
+  ['B48', 'B49', 'B50', 'B51'].forEach((ref) => styleFormula(controlSheet.getCell(ref), 'currency'));
+  styleAccentOutput(controlSheet.getCell('B52'), 'currency');
+  styleThinGrid(controlSheet, 48, 52, 1, 2);
+  controlSheet.getCell('E48').value =
+    'Control panel is the only editable assumptions area. Use the linked statements and schedules to audit whether growth, margins, working capital, capex, and debt all reconcile.';
+  controlSheet.mergeCells('E48:H52');
+  styleNarrativeBlock(controlSheet, 48, 5, 8);
 
   const columns = [actualYear, ...forecastYears];
 

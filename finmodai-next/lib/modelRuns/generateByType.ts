@@ -5,7 +5,7 @@ import { isObjectStoreConfigured, objectExists, uploadBufferAndSign } from '@/li
 import { POST as generateModelPost } from '@/app/api/generateModel/route';
 import { isDemoMode, isDemoModeFromRequest } from '@/lib/demo/isDemoMode';
 import { runWithDemoMode } from '@/lib/demo/demoContext';
-import { isDemoTickerAvailable } from '@/lib/data/providers/demoProvider';
+import { isDemoOrQualityTickerAvailable } from '@/lib/data/providers/demoProvider';
 import { fromManual, fromTicker, manualPayloadFromRequest } from '@/lib/modelInputs/adapters';
 import type { ModelInputs } from '@/types/modelInputs';
 import { normalizeModelInputs } from '@/lib/modelInputs/defensive';
@@ -32,6 +32,11 @@ type GeneratedPayload = {
   liveDataFallback?: boolean;
   scenarioComparison?: unknown;
   scenarioSummaries?: unknown;
+  macroContext?: string;
+  macroAssumptions?: unknown;
+  macroAssumptionContext?: unknown;
+  catalystContext?: string;
+  companyCatalystContext?: unknown;
 };
 
 const SUPPORTED_MODEL_TYPES = new Set([
@@ -107,24 +112,30 @@ function isPrivateManualMode(body: any): boolean {
   return false;
 }
 
-function buildCorePreview(outputs: any) {
-  const years = Array.isArray(outputs?.statements?.projectionYears)
-    ? outputs.statements.projectionYears
-    : [];
-  const revenue = Array.isArray(outputs?.statements?.revenue) ? outputs.statements.revenue : [];
-  const ebit = Array.isArray(outputs?.statements?.ebit) ? outputs.statements.ebit : [];
-  const fcf = Array.isArray(outputs?.statements?.fcf) ? outputs.statements.fcf : [];
+function buildCorePreview(inputs: any, outputs: any) {
+  const latestRevenue =
+    Array.isArray(inputs?.historicals?.revenue) && inputs.historicals.revenue.length > 0
+      ? inputs.historicals.revenue[inputs.historicals.revenue.length - 1]
+      : null;
+  const baseGrowth =
+    Array.isArray(inputs?.assumptions?.growthSeries) && inputs.assumptions.growthSeries.length > 0
+      ? normalizeRatioLike(inputs.assumptions.growthSeries[0], 0.08)
+      : normalizeRatioLike(inputs?.assumptions?.growth, 0.08);
+  const baseMargin = normalizeRatioLike(inputs?.assumptions?.margin, 0.2);
+  const wacc = normalizeRatioLike((outputs?.audit?.assumptionsUsed as any)?.wacc, 0.1);
+  const terminalGrowth = normalizeRatioLike((outputs?.audit?.assumptionsUsed as any)?.terminalGrowth, 0.025);
   return {
     sheetName: 'DCF Summary',
-    columns: ['Metric', ...years.map((year: number) => String(year))],
+    columns: ['Metric', 'Value', 'Context'],
     rows: [
-      ['Revenue', ...revenue],
-      ['EBIT', ...ebit],
-      ['FCF', ...fcf],
-      [],
-      ['Enterprise Value', outputs?.summary?.enterpriseValue ?? null],
-      ['Equity Value', outputs?.summary?.equityValue ?? null],
-      ['Implied Share Price', outputs?.summary?.impliedSharePrice ?? null],
+      ['Revenue (LTM)', latestRevenue, 'Current revenue anchor used for the forecast'],
+      ['Base Revenue Growth', baseGrowth, 'Year 1 growth assumption'],
+      ['Base EBITDA Margin', baseMargin, 'Operating profitability assumption'],
+      ['WACC', wacc, 'Discount rate applied to projected cash flows'],
+      ['Terminal Growth', terminalGrowth, 'Long-run growth used in terminal value'],
+      ['Enterprise Value', outputs?.summary?.enterpriseValue ?? null, 'DCF enterprise value output'],
+      ['Equity Value', outputs?.summary?.equityValue ?? null, 'Enterprise value less net debt'],
+      ['Implied Share Price', outputs?.summary?.impliedSharePrice ?? null, 'Base case value per share'],
     ],
   };
 }
@@ -391,6 +402,16 @@ export async function generateRunForModelType({
       : '';
   const runTicker = mergerRunTicker || ticker;
   const asOfDate = String(body?.asOfDate || new Date().toISOString().slice(0, 10));
+  const { getMacroAssumptionContext } = await import('@/lib/models/shared/macroAssumptions');
+  const macroAssumptionContext = await getMacroAssumptionContext(modelType as any);
+  const { getCompanyCatalystContext } = await import('@/lib/models/shared/companyCatalystContext');
+  const catalystTicker =
+    !isPrivateMode
+      ? modelType === 'merger'
+        ? String(mergerInputsRaw?.acquirerTicker || mergerInputsRaw?.targetTicker || '').trim().toUpperCase() || null
+        : (runTicker || ticker || null)
+      : null;
+  const companyCatalystContext = await getCompanyCatalystContext(catalystTicker, modelType as any);
   let modelInputs: ModelInputs | null = null;
   let payloadForHash: unknown = null;
 
@@ -408,7 +429,7 @@ export async function generateRunForModelType({
   }
 
   if (isDemoMode() && !isPrivateMode && modelType !== 'merger') {
-    const demoAllowed = await isDemoTickerAvailable(runTicker);
+    const demoAllowed = await isDemoOrQualityTickerAvailable(runTicker);
     if (!demoAllowed) {
     return NextResponse.json(
       {
@@ -416,7 +437,7 @@ export async function generateRunForModelType({
         status: 'failed',
         state: 'failed',
         code: 'DEMO_NOT_FOUND',
-        message: 'This demo ticker is not in the curated demo set. Choose a demo company.',
+        message: 'This ticker is not available in the current public demo universe. Choose a synced public company.',
       },
       { status: 400 }
     );
@@ -592,6 +613,8 @@ export async function generateRunForModelType({
         asOfDate,
         currency: 'USD',
         units: 'millions',
+        macroContext: macroAssumptionContext,
+        companyCatalystContext,
       });
 
       const generatedResult: GeneratedPayload = {
@@ -601,6 +624,11 @@ export async function generateRunForModelType({
         diagnostics: [],
         warnings: extracted.missingInputs.length > 0 ? [`Missing optional inputs: ${extracted.missingInputs.join(', ')}`] : [],
         appliedDefaults: Object.entries(extracted.defaultsUsed).map(([key, value]) => ({ key, value })),
+        macroContext: macroAssumptionContext.summary,
+        macroAssumptions: macroAssumptionContext.items,
+        macroAssumptionContext,
+        catalystContext: companyCatalystContext?.summary,
+        companyCatalystContext,
       };
 
       updateRun(run.id, {
@@ -711,6 +739,8 @@ export async function generateRunForModelType({
         asOfDate,
         currency: 'USD',
         units: 'millions',
+        macroContext: macroAssumptionContext,
+        companyCatalystContext,
       });
 
       const generatedResult: GeneratedPayload = {
@@ -720,6 +750,11 @@ export async function generateRunForModelType({
         diagnostics: [],
         warnings: extracted.missingInputs.length > 0 ? [`Missing optional inputs: ${extracted.missingInputs.join(', ')}`] : [],
         appliedDefaults: Object.entries(extracted.defaultsUsed).map(([key, value]) => ({ key, value })),
+        macroContext: macroAssumptionContext.summary,
+        macroAssumptions: macroAssumptionContext.items,
+        macroAssumptionContext,
+        catalystContext: companyCatalystContext?.summary,
+        companyCatalystContext,
       };
 
       updateRun(run.id, {
@@ -874,6 +909,8 @@ export async function generateRunForModelType({
         asOfDate,
         currency: 'USD',
         units: 'millions',
+        macroContext: macroAssumptionContext,
+        companyCatalystContext,
       });
 
       const generatedResult: GeneratedPayload = {
@@ -883,6 +920,11 @@ export async function generateRunForModelType({
         diagnostics: [],
         warnings: extracted.missingInputs.length > 0 ? [`Missing optional inputs: ${extracted.missingInputs.join(', ')}`] : [],
         appliedDefaults: Object.entries(extracted.defaultsUsed).map(([key, value]) => ({ key, value })),
+        macroContext: macroAssumptionContext.summary,
+        macroAssumptions: macroAssumptionContext.items,
+        macroAssumptionContext,
+        catalystContext: companyCatalystContext?.summary,
+        companyCatalystContext,
       };
 
       updateRun(run.id, {
@@ -1114,13 +1156,15 @@ export async function generateRunForModelType({
         dataUrl = dataUri;
       }
 
-      const preview = buildCorePreview(baseResult.outputs);
+      const preview = buildCorePreview(baseResult.inputs, baseResult.outputs);
       const modelDocument = buildDocumentFromPreview(preview, {
         ticker: baseResult.inputs.company.ticker || ticker || 'PRIVATE',
         modelType: 'dcf',
         asOfDate,
         currency: baseResult.inputs.company.currency || 'USD',
         units: 'millions',
+        macroContext: macroAssumptionContext,
+        companyCatalystContext,
       });
 
       const scenarioSummaries = scenarioOutputs.reduce<Record<string, any>>((acc, entry) => {
@@ -1168,6 +1212,11 @@ export async function generateRunForModelType({
         liveDataFallback: baseResult.inputs.metadata?.liveDataFallback === true,
         scenarioComparison,
         scenarioSummaries,
+        macroContext: macroAssumptionContext.summary,
+        macroAssumptions: macroAssumptionContext.items,
+        macroAssumptionContext,
+        catalystContext: companyCatalystContext?.summary,
+        companyCatalystContext,
       };
 
       updateRun(run.id, {
@@ -1289,6 +1338,11 @@ export async function generateRunForModelType({
       diagnostics: generationJson?.diagnostics,
       warnings: generationJson?.warnings,
       appliedDefaults: generationJson?.appliedDefaults,
+      macroContext: generationJson?.macroContext ?? macroAssumptionContext.summary,
+      macroAssumptions: generationJson?.macroAssumptions ?? macroAssumptionContext.items,
+      macroAssumptionContext: generationJson?.macroAssumptionContext ?? macroAssumptionContext,
+      catalystContext: generationJson?.catalystContext ?? companyCatalystContext?.summary,
+      companyCatalystContext: generationJson?.companyCatalystContext ?? companyCatalystContext,
     };
 
     updateRun(run.id, {

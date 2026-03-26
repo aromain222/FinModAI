@@ -114,10 +114,16 @@ function tryParseJson<T>(value: string): T | null {
 function getLoadingMessage(prompt: string): { title: string; detail: string } {
   const text = prompt.toLowerCase();
 
-  if (/\bdcf\b|\bthree[-\s]?statement\b|\b3[-\s]?statement\b|\bcap\s?table\b|\bsaas\b|\barr\b|\boperating model\b/.test(text)) {
+  if (
+    /\bdcf\b|\bthree[-\s]?statement\b|\b3[-\s]?statement\b|\bcap\s?table\b|\bsaas\b|\barr\b|\boperating model\b|\bforecast model\b|\boperating forecast\b|\bbuild projections?\b|\bprojection model\b/.test(text)
+  ) {
     return {
-      title: 'Building model',
-      detail: 'Parsing assumptions, applying defaults, and preparing the workbook output.',
+      title: /\bforecast|projection|operating forecast|operating model\b/.test(text)
+        ? 'Building forecast model'
+        : 'Building model',
+      detail: /\bforecast|projection|operating forecast|operating model\b/.test(text)
+        ? 'Resolving company data, building the forecast assumptions, and preparing the structured model output.'
+        : 'Parsing assumptions, applying defaults, and preparing the workbook output.',
     };
   }
 

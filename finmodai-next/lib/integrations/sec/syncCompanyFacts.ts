@@ -33,6 +33,15 @@ function pickNumber(value: number | null | undefined, fallback: number | null | 
   return typeof value === 'number' && Number.isFinite(value) ? value : typeof fallback === 'number' && Number.isFinite(fallback) ? fallback : null;
 }
 
+function normalizeSnapshotDate(value: string | null | undefined): string {
+  const today = new Date().toISOString().slice(0, 10);
+  if (!value) return today;
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return today;
+  const isoDate = new Date(parsed).toISOString().slice(0, 10);
+  return isoDate > today ? today : isoDate;
+}
+
 export async function syncCompanyFactsFromSec(ticker: string): Promise<SecSyncSummary> {
   const supabase = getSupabaseServiceClient();
   if (!supabase) throw new Error('Supabase service client is not configured');
@@ -89,7 +98,9 @@ export async function syncCompanyFactsFromSec(ticker: string): Promise<SecSyncSu
     };
   }
 
-  const asOfDate = fundamentals.data.fiscalYear ? `${fundamentals.data.fiscalYear}-12-31` : new Date().toISOString().slice(0, 10);
+  const asOfDate = normalizeSnapshotDate(
+    fundamentals.data.reportEndDate ?? (fundamentals.data.fiscalYear ? `${fundamentals.data.fiscalYear}-12-31` : null)
+  );
   const existingSnapshot = await supabase
     .from('company_snapshots')
     .select('*')
