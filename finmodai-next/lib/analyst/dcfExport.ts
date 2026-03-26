@@ -324,7 +324,19 @@ export async function buildAnalystDcfDemoWorkbook(payload: AnalystDcfDemoPayload
     ...normalizedPayload,
     forecast: ensureForecast(normalizedPayload, spec),
   });
-  workbook.views = [{ activeTab: workbook.worksheets.findIndex((sheet) => sheet.name === 'Demo Summary') }];
+  const summarySheetIndex = workbook.worksheets.findIndex((sheet) => sheet.name === 'Demo Summary');
+  const activeTab = summarySheetIndex >= 0 ? summarySheetIndex : 0;
+  workbook.views = [
+    {
+      x: 0,
+      y: 0,
+      width: 10_000,
+      height: 20_000,
+      firstSheet: 0,
+      activeTab,
+      visibility: 'visible',
+    },
+  ];
   return workbook;
 }
 
