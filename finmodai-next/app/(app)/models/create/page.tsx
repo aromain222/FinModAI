@@ -5191,7 +5191,7 @@ function CreateModelPageInner() {
                   : null))
                 .filter((value: number | null): value is number => typeof value === 'number' && Number.isFinite(value));
               const midpointAverage = midpointPrices.length > 0
-                ? midpointPrices.reduce((total, value) => total + value, 0) / midpointPrices.length
+                ? midpointPrices.reduce((total: number, value: number) => total + value, 0) / midpointPrices.length
                 : null;
               const currentPrice = assumptions.sharePrice ?? assumptions.price ?? null;
               const methodCount = ranges.length;
