@@ -265,8 +265,8 @@ function buildNarrativeBlocks(
     case 'COMPS': {
       const compsInputs = inputs as ExtractedModelInputs & {
         companyName: string;
-        peers: Array<{ ticker: string; revenue: number | null; ebitda: number | null }>;
-        subject: { revenue: number | null; ebitda: number | null; price: number | null };
+        peers: CompsPeerInputs[];
+        subject: CompsPeerInputs;
       };
       return [
         ...scenarioBlock,
