@@ -21,6 +21,13 @@ export type UploadedAttachmentContext = {
   signals?: AttachmentSignals;
 };
 
+const MAX_SPREADSHEET_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_WORKBOOK_SHEETS = 4;
+const MAX_WORKBOOK_PREVIEW_ROWS = 25;
+const MAX_WORKBOOK_PREVIEW_COLS = 12;
+const MAX_WORKBOOK_ALLOWED_ROWS = 2000;
+const MAX_WORKBOOK_ALLOWED_COLS = 100;
+
 function sanitizeText(input: string): string {
   return input
     .replace(/\r\n/g, '\n')
@@ -260,29 +267,77 @@ function summarizeTableRows(rows: unknown[][], maxRows = 12): string[] {
 }
 
 async function summarizeWorkbook(file: File): Promise<{ summary: string; warnings: string[] }> {
+  const warnings: string[] = [];
+  const summaryPrefix = [`Workbook file: ${file.name}`];
+  if (file.size > MAX_SPREADSHEET_SIZE_BYTES) {
+    warnings.push(`Workbook preview skipped because the file exceeds the ${Math.round(MAX_SPREADSHEET_SIZE_BYTES / (1024 * 1024))} MB analysis limit.`);
+    return {
+      summary: summaryPrefix.join('\n\n'),
+      warnings,
+    };
+  }
+
   const XLSX = await import('xlsx');
   const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: 'array', raw: false, cellText: true, cellDates: true });
-  const sheetNames = workbook.SheetNames.slice(0, 4);
+  let workbook: Awaited<ReturnType<typeof XLSX.read>>;
+  try {
+    workbook = XLSX.read(buffer, { type: 'array', raw: false, cellText: true, cellDates: true });
+  } catch {
+    warnings.push('Workbook preview could not be parsed. Only file metadata was captured.');
+    return {
+      summary: summaryPrefix.join('\n\n'),
+      warnings,
+    };
+  }
+
+  const allSheetNames = workbook.SheetNames;
+  const sheetNames = allSheetNames.slice(0, MAX_WORKBOOK_SHEETS);
   const sections: string[] = [];
+
+  summaryPrefix.push(`Sheet names: ${sheetNames.join(', ') || 'Unavailable'}`);
+  if (allSheetNames.length > MAX_WORKBOOK_SHEETS) {
+    warnings.push(`Workbook preview limited to the first ${MAX_WORKBOOK_SHEETS} sheets out of ${allSheetNames.length}.`);
+  }
 
   for (const sheetName of sheetNames) {
     const sheet = workbook.Sheets[sheetName];
+    if (!sheet) continue;
+
+    let previewRange: string | undefined;
+    const ref = sheet['!ref'];
+    if (typeof ref === 'string') {
+      const decodedRange = XLSX.utils.decode_range(ref);
+      const rowCount = decodedRange.e.r - decodedRange.s.r + 1;
+      const colCount = decodedRange.e.c - decodedRange.s.c + 1;
+      if (rowCount > MAX_WORKBOOK_ALLOWED_ROWS || colCount > MAX_WORKBOOK_ALLOWED_COLS) {
+        warnings.push(
+          `Sheet "${sheetName}" preview was truncated from ${rowCount} rows x ${colCount} columns to a safe preview window.`,
+        );
+      }
+      previewRange = XLSX.utils.encode_range({
+        s: { r: decodedRange.s.r, c: decodedRange.s.c },
+        e: {
+          r: Math.min(decodedRange.e.r, decodedRange.s.r + MAX_WORKBOOK_PREVIEW_ROWS - 1),
+          c: Math.min(decodedRange.e.c, decodedRange.s.c + MAX_WORKBOOK_PREVIEW_COLS - 1),
+        },
+      });
+    }
+
     const rows = XLSX.utils.sheet_to_json(sheet, {
       header: 1,
       raw: false,
       blankrows: false,
       defval: '',
+      ...(previewRange ? { range: previewRange } : {}),
     }) as unknown[][];
-    const preview = summarizeTableRows(rows.slice(0, 25));
+    const preview = summarizeTableRows(rows.slice(0, MAX_WORKBOOK_PREVIEW_ROWS));
     if (preview.length > 0) {
       sections.push(`Sheet: ${sheetName}\n${preview.map((line) => `- ${line}`).join('\n')}`);
     }
   }
 
   const summary = [
-    `Workbook file: ${file.name}`,
-    `Sheet names: ${sheetNames.join(', ') || 'Unavailable'}`,
+    ...summaryPrefix,
     sections.join('\n\n'),
   ]
     .filter(Boolean)
@@ -290,7 +345,7 @@ async function summarizeWorkbook(file: File): Promise<{ summary: string; warning
 
   return {
     summary: truncate(sanitizeText(summary), 7000),
-    warnings: sheetNames.length === 0 ? ['No readable sheets found in workbook.'] : [],
+    warnings: [...warnings, ...(sheetNames.length === 0 ? ['No readable sheets found in workbook.'] : [])],
   };
 }
 
