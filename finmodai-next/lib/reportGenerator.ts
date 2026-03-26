@@ -462,18 +462,20 @@ function buildLboSections(context: ReportContext): GeneratedReportSection[] {
   pushLine(lines, fmtNumber(key.entryMultiple) ? `Entry multiple: ${fmtNumber(key.entryMultiple)}x.` : null);
   pushLine(lines, fmtNumber(key.exitMultiple) ? `Exit multiple: ${fmtNumber(key.exitMultiple)}x.` : null);
   pushLine(lines, fmtPct(key.irr) ? `Base IRR: ${fmtPct(key.irr)}.` : null);
+  pushLine(lines, fmtNumber(key.moic) ? `Base MOIC: ${fmtNumber(key.moic)}x.` : null);
 
   return [
     {
-      title: 'Returns Snapshot',
+      title: 'Underwriting Snapshot',
       body: buildBulletBody(lines, 'LBO return outputs were generated from the current case assumptions.'),
     },
     {
-      title: 'Underwriting Focus',
+      title: 'Memo Read-Through',
       body: buildBulletBody(
         [
-          'Return sensitivity is primarily driven by entry price, exit valuation, leverage, and operating deleveraging.',
-          'Execution risk rises if margin expansion or cash conversion underperform the base case.',
+          'The first question is whether the deal clears target returns without relying on multiple expansion.',
+          'Return sensitivity is primarily driven by entry price, leverage, debt paydown, and exit discipline.',
+          'Execution risk rises quickly if cash conversion underperforms the EBITDA case.',
         ],
         'Return sensitivity is concentrated in the underwriting assumptions.'
       ),
@@ -484,6 +486,7 @@ function buildLboSections(context: ReportContext): GeneratedReportSection[] {
 function buildCompsSections(context: ReportContext): GeneratedReportSection[] {
   const key = context.keyOutputs || {};
   const base = fmtNumber(key.baseValuePerShare);
+  const currentPrice = fmtNumber(firstFinite(key.currentPrice, context.data?.extractedInputs?.subject?.price, context.data?.currentPrice));
 
   return [
     {
@@ -492,18 +495,20 @@ function buildCompsSections(context: ReportContext): GeneratedReportSection[] {
         ? buildBulletBody(
             [
               `Implied blended value per share: ${base}.`,
-              'Output should be read relative to peer-set quality and current market multiple stability.',
+              currentPrice ? `Current price anchor: ${currentPrice}.` : null,
+              'The output should be used to frame whether the subject deserves a premium, discount, or in-line multiple versus peers.',
             ],
             'Comparable valuation outputs were generated from the current peer set.'
           )
         : 'Comparable valuation outputs were generated from the current peer set.',
     },
     {
-      title: 'Interpretation',
+      title: 'Memo Read-Through',
       body: buildBulletBody(
         [
-          'The model is most useful for relative framing, not absolute intrinsic value.',
+          'Use the memo to explain why the current premium or discount is earned, not just where the range lands.',
           'Multiple compression, peer outliers, and changing market regimes can move the range quickly.',
+          'If the peer set is weak, say that the output is directional rather than decision-grade.',
         ],
         'Relative valuation needs to be read against current peer-set stability.'
       ),
@@ -529,7 +534,7 @@ function buildFootballFieldSections(context: ReportContext): GeneratedReportSect
 
   return [
     {
-      title: 'Valuation Range Snapshot',
+      title: 'Range Snapshot',
       body: buildBulletBody(
         [
           subjectRevenue ? `Subject revenue anchor: ${subjectRevenue}.` : null,
@@ -540,10 +545,10 @@ function buildFootballFieldSections(context: ReportContext): GeneratedReportSect
       ),
     },
     {
-      title: 'Interpretation',
+      title: 'Memo Read-Through',
       body: buildBulletBody(
         [
-          'The football field is a range-comparison tool, not a single-point valuation answer.',
+          'The football field is a banker range-framing tool, not a single-point valuation answer.',
           'Wide dispersion across methods usually means the peer framing, transaction uplift, or subject denominators need to be challenged before using the output externally.',
           'The cleanest read comes when trading and transaction-style methods cluster around a similar mid-point.',
         ],
@@ -561,12 +566,19 @@ function buildScenarioContextSection(context: ReportContext): GeneratedReportSec
   };
 }
 
-function buildPrecedentsSections(_context: ReportContext): GeneratedReportSection[] {
+function buildPrecedentsSections(context: ReportContext): GeneratedReportSection[] {
+  const extractedInputs = (context.data?.extractedInputs ?? {}) as Record<string, any>;
+  const transactionCount = fmtNumber(firstFinite(extractedInputs.transactionCount, context.keyOutputs?.transactionCount), 0);
+  const subjectRevenue = fmtNumber(firstFinite(extractedInputs.subjectRevenue));
+  const subjectEbitda = fmtNumber(firstFinite(extractedInputs.subjectEbitda));
   return [
     {
       title: 'Precedent Valuation Snapshot',
       body: buildBulletBody(
         [
+          transactionCount ? `Selected transaction count: ${transactionCount}.` : null,
+          subjectRevenue ? `Subject revenue anchor: ${subjectRevenue}.` : null,
+          subjectEbitda ? `Subject EBITDA anchor: ${subjectEbitda}.` : null,
           'The precedent set should be read as a control-value framing tool rather than a direct trading mark.',
           'Outputs are most useful when the selected transactions are strategically and temporally comparable to the target.',
         ],
@@ -574,11 +586,12 @@ function buildPrecedentsSections(_context: ReportContext): GeneratedReportSectio
       ),
     },
     {
-      title: 'Interpretation',
+      title: 'Memo Read-Through',
       body: buildBulletBody(
         [
           'Control premiums and deal-specific synergies can distort direct comparability.',
           'Use the range to support valuation framing, then pressure-test which transactions truly belong in the set.',
+          'If the set is thin or stale, the memo should say it is directional only.',
         ],
         'Transaction selection and premium normalization drive the usefulness of the precedent range.'
       ),
@@ -1124,22 +1137,29 @@ function buildDebtCapacitySections(context: ReportContext): GeneratedReportSecti
   ];
 }
 
-function buildMergerSections(_context: ReportContext): GeneratedReportSection[] {
+function buildMergerSections(context: ReportContext): GeneratedReportSection[] {
+  const key = context.keyOutputs || {};
+  const dealValue = fmtNumber(firstFinite(key.dealValue, context.data?.extractedInputs?.purchasePrice));
+  const accretion = fmtPct(firstFinite(key.epsAccretionPct, key.epsAccretion, context.data?.extractedInputs?.epsAccretionPct));
+  const synergies = fmtNumber(firstFinite(key.synergies, context.data?.extractedInputs?.synergies));
   return [
     {
       title: 'Transaction Snapshot',
       body: buildBulletBody(
         [
-          'The merger model summarizes the current deal structure, financing mix, and pro forma impact.',
+          dealValue ? `Deal value: ${dealValue}.` : null,
+          accretion ? `EPS accretion / dilution: ${accretion}.` : null,
+          synergies ? `Synergy assumption: ${synergies}.` : null,
           'The key question is whether expected synergies outweigh purchase price, financing drag, and integration costs.',
         ],
         'The merger model summarizes deal structure and pro forma impact.'
       ),
     },
     {
-      title: 'Execution Risks',
+      title: 'Memo Read-Through',
       body: buildBulletBody(
         [
+          'Small accretion is not enough by itself; the deal has to work after realistic financing and execution friction.',
           'The main swing factors are synergy timing, financing terms, and integration friction.',
           'Accretion or dilution can move quickly if these assumptions change.',
         ],

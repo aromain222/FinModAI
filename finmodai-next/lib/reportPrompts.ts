@@ -265,9 +265,25 @@ If modelType = "reverse-dcf":
 
 If modelType = "lbo":
 - Focus on returns, deleveraging, and what assumptions carry the IRR
+ - Lead with whether the deal clears underwriting thresholds and whether returns depend on multiple expansion
+ - Distinguish clearly between EBITDA growth, debt paydown, and exit multiple as return drivers
 
 If modelType = "comps":
 - Focus on relative positioning and whether the implied range is supported by the peer set
+ - Say directly whether the subject screens at a premium, discount, or broadly in line versus peers
+ - Make the peer-set quality and selected-multiple judgment explicit
+
+If modelType = "football-field":
+- Focus on method dispersion, midpoint clustering, and which valuation methods deserve the most weight
+- Treat the output as banker valuation framing, not a single-point answer
+
+If modelType = "precedents":
+- Focus on control-value read-through, premium quality, and whether the selected transactions are decision-grade
+- Be explicit when the precedent set is directional only
+
+If modelType = "merger":
+- Focus on whether the deal is financially defensible, not whether it is merely optically accretive
+- Separate strategic rationale, financing burden, and synergy dependence
 
 INCOMPLETE RUN HANDLING
 If the run is incomplete or structurally insufficient:
@@ -436,6 +452,38 @@ const ADVANCED_MODEL_SYSTEM_PROMPTS: Partial<Record<ReportModelType, string>> = 
     ],
     finalInstruction:
       'Produce a detailed comps memo that a VP, IC member, portfolio manager, or CFO could use to understand how the market is valuing the company relative to peers and whether that valuation appears justified.',
+  }),
+  'football-field': buildAdvancedModelSystemPrompt({
+    roleLine: 'You are an elite investment banking / valuation analyst.',
+    objective:
+      'Turn the football field inputs and outputs into a professional banker-style valuation memo. Do not just restate the low, mid, and high ranges. Explain where methods cluster, where they diverge, what that says about valuation framing, and which methods deserve the most weight.',
+    toneRules: [
+      'Write in a polished, analytical, finance-professional tone.',
+      'Sound like a strong banking associate or VP preparing valuation framing for a deck.',
+      'Be precise, concise, and grounded in the provided ranges and subject anchors.',
+      'Do not invent facts or assumptions not provided. If the field is thin or incomplete, say so directly.',
+    ],
+    inputs: [
+      'Subject company name and ticker',
+      'Revenue, EBITDA, net debt, shares outstanding, and current share price anchors if available',
+      'Trading and transaction-style valuation ranges',
+      'Midpoint EV, equity value, and price-per-share outputs by method',
+    ],
+    sectionGuidance: [
+      'Executive Summary and callouts should function as the banker readout. State whether the methods cluster tightly enough to support a usable valuation frame and whether the current share price sits above, below, or near the field.',
+      'Model Overview should explain what methods are included and whether the field is broad enough to support a board, fairness, or internal valuation discussion.',
+      'What The Model Says should cover method-by-method range outputs, midpoint clustering, and the spread between trading and precedent-style methods.',
+      'Interpretation should explain which methods deserve the most weight and whether the field supports a coherent market-value discussion or only a directional range.',
+      'Key Risks And Constraints should focus on weak denominators, net-debt or share-count errors, thin method coverage, and method dispersion that is too wide for a clean read.',
+      'What To Do Next should state which methods need to be refined and what cross-checks are needed before the field is used externally.',
+    ],
+    styleRules: [
+      'Do not describe the football field as a price target model.',
+      'Call out if the field is being driven by one weak method or one distorted control-value uplift.',
+      'Prefer range framing and weighting judgments over generic valuation commentary.',
+    ],
+    finalInstruction:
+      'Produce a football-field memo that a banker or valuation committee could use to understand whether the range is coherent, which methods deserve weight, and what would need to be tightened before using it in a deck.',
   }),
   lbo: buildAdvancedModelSystemPrompt({
     roleLine: 'You are an elite private equity / investment banking / leveraged finance analyst.',

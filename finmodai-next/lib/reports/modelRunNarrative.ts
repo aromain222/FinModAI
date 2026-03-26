@@ -281,10 +281,14 @@ function buildCompsNarrative(data: ModelRunReportData): {
   const implied = findItem(data.snapshotItems, /implied price/i);
   const peerCount = findTableValue(data.keyTables, /peer count|selected peers/i);
   const impliedText = formatValue(implied);
+  const compsCall =
+    impliedText !== null
+      ? `${data.companyName} should be treated as a relative valuation debate, not a single-number conclusion. The current comp set implies ${impliedText}, but the real judgment is whether that premium or discount is earned.`
+      : `${data.companyName} should be treated as a relative valuation debate where peer quality and selected multiples matter more than spreadsheet precision.`;
 
   return {
     paragraphs: [
-      `${data.companyName} is being framed on a relative basis, so the quality of the conclusion depends more on peer quality and multiple context than on spreadsheet mechanics.`,
+      compsCall,
       `${impliedText ? `The blended implied price is ${impliedText}.` : 'The implied price is not clearly populated.'} The range should be treated as a reference point for relative valuation, not a substitute for intrinsic value.`,
       `The next judgment call is whether the selected peers actually capture the subject’s growth, margin, and business-model profile, or whether the range is being distorted by weak comparability.`,
     ],
@@ -327,6 +331,261 @@ function buildCompsNarrative(data: ModelRunReportData): {
           'Tighten the peer set and remove weak comparables.',
           'Check where the subject screens on growth, margin, and balance-sheet quality versus peers.',
           'Reframe the range if the sector has re-rated or if market levels have moved since the run was built.',
+        ],
+      },
+    ],
+  };
+}
+
+function buildFootballFieldNarrative(data: ModelRunReportData): {
+  paragraphs: string[];
+  keyTakeaways: string[];
+  sections: NarrativeSection[];
+} {
+  const currentPrice = findItem(data.snapshotItems, /current price/i);
+  const revenue = findItem(data.snapshotItems, /^revenue$/i);
+  const ebitda = findItem(data.snapshotItems, /^ebitda$/i);
+  const currentPriceText = formatValue(currentPrice);
+  const revenueText = formatValue(revenue);
+  const ebitdaText = formatValue(ebitda);
+  const methodCount = data.keyTables.length ? data.keyTables[0]?.rows?.length ?? null : null;
+
+  return {
+    paragraphs: [
+      `${data.companyName} should be read through valuation-method dispersion first. A football field is only useful if trading and transaction-style methods cluster tightly enough to support a defendable range.`,
+      `${currentPriceText ? `The current share-price anchor is ${currentPriceText}.` : 'The current share-price anchor is not clearly populated.'} ${revenueText || ebitdaText ? `The field is anchored by ${revenueText ? `revenue of ${revenueText}` : ''}${revenueText && ebitdaText ? ' and ' : ''}${ebitdaText ? `EBITDA of ${ebitdaText}` : ''}.` : 'Subject operating anchors are only partially populated.'}`,
+      `The right use case is banker valuation framing: decide which methods deserve weight, which ones are only directional, and whether the spread is too wide for a clean board or fairness discussion.`,
+    ],
+    keyTakeaways: [
+      currentPriceText ? `Current price: ${currentPriceText}` : null,
+      revenueText ? `Revenue anchor: ${revenueText}` : null,
+      ebitdaText ? `EBITDA anchor: ${ebitdaText}` : null,
+      methodCount !== null ? `Methods populated: ${methodCount}` : null,
+    ].filter((item): item is string => Boolean(item)),
+    sections: [
+      {
+        title: 'Range Call',
+        kind: 'paragraph',
+        items: ['Use the field to frame valuation discussion, not to manufacture a false single-point answer. Weight the methods that best match the subject’s business model and market context.'],
+      },
+      {
+        title: 'What The Field Shows',
+        kind: 'bullets',
+        items: [
+          currentPriceText ? `Current price anchor is ${currentPriceText}.` : null,
+          revenueText ? `Revenue anchor is ${revenueText}.` : null,
+          ebitdaText ? `EBITDA anchor is ${ebitdaText}.` : null,
+          methodCount !== null ? `The field includes approximately ${methodCount} populated method rows.` : null,
+        ].filter((item): item is string => Boolean(item)),
+      },
+      {
+        title: 'Key Risks And Constraints',
+        kind: 'bullets',
+        items: [
+          'Wide method dispersion weakens the usefulness of the field as a board or fairness anchor.',
+          'Errors in net debt or diluted share count can distort every implied price range at once.',
+          'Precedent-style ranges can mislead if the control-value uplift is thinly supported.',
+        ],
+      },
+      {
+        title: 'What To Check Next',
+        kind: 'numbered',
+        items: [
+          'Decide which methods should anchor the field and which should remain directional only.',
+          'Reconcile net debt and diluted shares before circulating the field externally.',
+          'Cross-check the field against live comps and precedents before using it in a valuation discussion.',
+        ],
+      },
+    ],
+  };
+}
+
+function buildPrecedentsNarrative(data: ModelRunReportData): {
+  paragraphs: string[];
+  keyTakeaways: string[];
+  sections: NarrativeSection[];
+} {
+  const revenueMultiple = findItem(data.snapshotItems, /median ev \/ revenue/i);
+  const ebitdaMultiple = findItem(data.snapshotItems, /median ev \/ ebitda/i);
+  const transactionCount = findItem(data.snapshotItems, /transaction count/i);
+  const controlRead = findItem(data.snapshotItems, /revenue vs ebitda read|control premium/i);
+  const revenueText = formatValue(revenueMultiple);
+  const ebitdaText = formatValue(ebitdaMultiple);
+  const transactionText = formatValue(transactionCount);
+  const controlReadText = formatValue(controlRead);
+
+  return {
+    paragraphs: [
+      `${data.companyName} should be read through a control-value lens, not as a direct trading mark. The precedent set is only decision-grade if the selected deals are strategically and temporally comparable.`,
+      `${transactionText ? `The current set includes ${transactionText} transactions.` : 'The number of transactions is not clearly populated.'} ${revenueText || ebitdaText ? `Median valuation references are ${revenueText ? `EV / Revenue of ${revenueText}` : ''}${revenueText && ebitdaText ? ' and ' : ''}${ebitdaText ? `EV / EBITDA of ${ebitdaText}` : ''}.` : 'Median valuation references are not fully populated.'}`,
+      `${controlReadText ? `Current read-through: ${controlReadText}.` : 'The critical judgment is whether the deal set supports a real control-value frame or only a directional precedent backdrop.'}`,
+    ],
+    keyTakeaways: [
+      transactionText ? `Transaction count: ${transactionText}` : null,
+      revenueText ? `Median EV / Revenue: ${revenueText}` : null,
+      ebitdaText ? `Median EV / EBITDA: ${ebitdaText}` : null,
+      controlReadText ? `Read-through: ${controlReadText}` : null,
+    ].filter((item): item is string => Boolean(item)),
+    sections: [
+      {
+        title: 'Control Value Call',
+        kind: 'paragraph',
+        items: ['Use precedents to frame takeover value and premium support, not to replace a full comps or DCF view.'],
+      },
+      {
+        title: 'What The Set Shows',
+        kind: 'bullets',
+        items: [
+          transactionText ? `Selected transaction count is ${transactionText}.` : null,
+          revenueText ? `Median EV / Revenue is ${revenueText}.` : null,
+          ebitdaText ? `Median EV / EBITDA is ${ebitdaText}.` : null,
+          controlReadText ? `Current control-value read is ${controlReadText}.` : null,
+        ].filter((item): item is string => Boolean(item)),
+      },
+      {
+        title: 'Key Risks And Constraints',
+        kind: 'bullets',
+        items: [
+          'Strategic-buyer premiums can distort the read-through for a financial buyer or neutral control case.',
+          'Cycle mismatch can make older transactions directionally interesting but not valuation-grade.',
+          'Thin transaction sets create false confidence around median multiples and premiums.',
+        ],
+      },
+      {
+        title: 'What To Check Next',
+        kind: 'numbered',
+        items: [
+          'Challenge which transactions actually belong in the set.',
+          'Separate strategic outliers from the core precedent range.',
+          'Use the refreshed precedent range alongside comps and DCF before drawing a valuation conclusion.',
+        ],
+      },
+    ],
+  };
+}
+
+function buildLboNarrative(data: ModelRunReportData): {
+  paragraphs: string[];
+  keyTakeaways: string[];
+  sections: NarrativeSection[];
+} {
+  const irr = findItem(data.snapshotItems, /\birr\b/i);
+  const moic = findItem(data.snapshotItems, /\bmoic\b/i);
+  const entryMultiple = findItem(data.snapshotItems, /entry multiple/i);
+  const exitMultiple = findItem(data.snapshotItems, /exit multiple/i);
+  const irrText = formatValue(irr);
+  const moicText = formatValue(moic);
+  const entryText = formatValue(entryMultiple);
+  const exitText = formatValue(exitMultiple);
+
+  return {
+    paragraphs: [
+      `${data.companyName} should be judged on whether the underwriting clears sponsor hurdles without leaning on generous exit assumptions. In an LBO, returns only matter if the path to them is credible.`,
+      `${irrText ? `The run shows IRR of ${irrText}` : 'IRR is not clearly populated'}${moicText ? ` and MOIC of ${moicText}` : ''}. ${entryText ? `Entry valuation is ${entryText}` : 'Entry valuation is not clearly populated'}${exitText ? ` versus exit valuation of ${exitText}` : ''}.`,
+      `The key question is whether returns are being earned through deleveraging and operating improvement or whether the case depends too heavily on multiple support at exit.`,
+    ],
+    keyTakeaways: [
+      irrText ? `IRR: ${irrText}` : null,
+      moicText ? `MOIC: ${moicText}` : null,
+      entryText ? `Entry multiple: ${entryText}` : null,
+      exitText ? `Exit multiple: ${exitText}` : null,
+    ].filter((item): item is string => Boolean(item)),
+    sections: [
+      {
+        title: 'Underwriting Call',
+        kind: 'paragraph',
+        items: ['Use the LBO to decide whether the capital structure and purchase price produce an acceptable sponsor return after realistic operating and exit assumptions.'],
+      },
+      {
+        title: 'What The Model Shows',
+        kind: 'bullets',
+        items: [
+          irrText ? `IRR is ${irrText}.` : null,
+          moicText ? `MOIC is ${moicText}.` : null,
+          entryText ? `Entry multiple is ${entryText}.` : null,
+          exitText ? `Exit multiple is ${exitText}.` : null,
+        ].filter((item): item is string => Boolean(item)),
+      },
+      {
+        title: 'Key Risks And Constraints',
+        kind: 'bullets',
+        items: [
+          'Returns that depend on multiple expansion should be treated skeptically.',
+          'Weak cash conversion can undermine deleveraging even if EBITDA growth appears intact.',
+          'High leverage can magnify small operating misses into an unattractive equity outcome.',
+        ],
+      },
+      {
+        title: 'What To Check Next',
+        kind: 'numbered',
+        items: [
+          'Run a no-multiple-expansion case and compare return erosion.',
+          'Stress EBITDA and cash conversion together to test debt paydown realism.',
+          'Revisit entry price if the base case only clears hurdle rates on favorable exit assumptions.',
+        ],
+      },
+    ],
+  };
+}
+
+function buildMergerNarrative(data: ModelRunReportData): {
+  paragraphs: string[];
+  keyTakeaways: string[];
+  sections: NarrativeSection[];
+} {
+  const dealValue = findItem(data.snapshotItems, /deal value/i);
+  const standaloneEps = findItem(data.snapshotItems, /standalone eps/i);
+  const proFormaEps = findItem(data.snapshotItems, /pro forma eps/i);
+  const epsAccretion = findItem(data.snapshotItems, /eps accretion/i);
+  const dealValueText = formatValue(dealValue);
+  const standaloneText = formatValue(standaloneEps);
+  const proFormaText = formatValue(proFormaEps);
+  const accretionText = formatValue(epsAccretion);
+
+  return {
+    paragraphs: [
+      `${data.companyName} should be judged as a transaction, not just an accretion output. The right question is whether financing, integration risk, and synergy timing still leave the deal economically defensible.`,
+      `${dealValueText ? `Deal value is ${dealValueText}.` : 'Deal value is not clearly populated.'} ${standaloneText && proFormaText ? `Standalone EPS of ${standaloneText} moves to pro forma EPS of ${proFormaText}.` : 'Per-share economics are only partially populated.'} ${accretionText ? `EPS accretion / dilution reads ${accretionText}.` : ''}`,
+      `The main judgment is whether the economics remain intact without giving full credit to optimistic synergies or unusually cheap financing.`,
+    ],
+    keyTakeaways: [
+      dealValueText ? `Deal value: ${dealValueText}` : null,
+      standaloneText ? `Standalone EPS: ${standaloneText}` : null,
+      proFormaText ? `Pro forma EPS: ${proFormaText}` : null,
+      accretionText ? `EPS accretion / dilution: ${accretionText}` : null,
+    ].filter((item): item is string => Boolean(item)),
+    sections: [
+      {
+        title: 'Transaction Call',
+        kind: 'paragraph',
+        items: ['Use the merger model to decide whether the deal is financially defensible after financing and execution friction, not just whether the pro forma optics look positive.'],
+      },
+      {
+        title: 'What The Model Shows',
+        kind: 'bullets',
+        items: [
+          dealValueText ? `Deal value is ${dealValueText}.` : null,
+          standaloneText ? `Standalone EPS is ${standaloneText}.` : null,
+          proFormaText ? `Pro forma EPS is ${proFormaText}.` : null,
+          accretionText ? `EPS accretion / dilution is ${accretionText}.` : null,
+        ].filter((item): item is string => Boolean(item)),
+      },
+      {
+        title: 'Key Risks And Constraints',
+        kind: 'bullets',
+        items: [
+          'Small accretion is not meaningful if it depends on full synergies or optimistic financing terms.',
+          'Integration friction can erase modeled economics quickly even when the base case looks clean.',
+          'Purchase price stretch can make the deal strategically sensible but financially weak.',
+        ],
+      },
+      {
+        title: 'What To Check Next',
+        kind: 'numbered',
+        items: [
+          'Run lower-synergy and higher-financing-cost cases.',
+          'Separate strategic rationale from optical EPS outcomes.',
+          'Check whether the deal still works if integration timing slips by a year.',
         ],
       },
     ],
@@ -387,7 +646,15 @@ export function buildModelRunNarrative(data: ModelRunReportData): {
         ? buildDcfNarrative(data)
         : data.modelType === 'COMPS'
           ? buildCompsNarrative(data)
-          : buildDefaultNarrative(data);
+          : data.modelType === 'FOOTBALL_FIELD'
+            ? buildFootballFieldNarrative(data)
+            : data.modelType === 'PRECEDENTS'
+              ? buildPrecedentsNarrative(data)
+              : data.modelType === 'LBO'
+                ? buildLboNarrative(data)
+                : data.modelType === 'MERGER'
+                  ? buildMergerNarrative(data)
+        : buildDefaultNarrative(data);
 
   return {
     title: buildTitle(data),
