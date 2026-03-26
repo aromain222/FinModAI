@@ -5080,6 +5080,205 @@ function CreateModelPageInner() {
               </section>
             )}
 
+            {generatedModel && generatedModel.modelType === 'comps' && (() => {
+              const assumptions = (generatedModel as any).assumptions || {};
+              const currentPrice = getPreviewMetricValue(generatedModel.modelDocument, /^current price$/i) ?? assumptions.subject?.price ?? null;
+              const currentEv = getPreviewMetricValue(generatedModel.modelDocument, /^current ev$/i);
+              const subjectRevenue = getPreviewMetricValue(generatedModel.modelDocument, /^revenue$/i) ?? assumptions.subject?.revenue ?? null;
+              const subjectEbitda = getPreviewMetricValue(generatedModel.modelDocument, /^ebitda$/i) ?? assumptions.subject?.ebitda ?? null;
+              const selectedEvRevenue = assumptions.selectedMultiples?.evToRevenue ?? null;
+              const selectedEvEbitda = assumptions.selectedMultiples?.evToEbitda ?? null;
+              const selectedPe = assumptions.selectedMultiples?.peRatio ?? null;
+              const peerCount = Array.isArray(assumptions.peers) ? assumptions.peers.length : null;
+              const primaryLens =
+                typeof selectedEvEbitda === 'number'
+                  ? 'EV / EBITDA'
+                  : typeof selectedEvRevenue === 'number'
+                    ? 'EV / Revenue'
+                    : typeof selectedPe === 'number'
+                      ? 'P / E'
+                      : 'Peer median review';
+              const selectedLensValue =
+                typeof selectedEvEbitda === 'number'
+                  ? formatResultMetric(selectedEvEbitda, 'multiple')
+                  : typeof selectedEvRevenue === 'number'
+                    ? formatResultMetric(selectedEvRevenue, 'multiple')
+                    : typeof selectedPe === 'number'
+                      ? formatResultMetric(selectedPe, 'multiple')
+                      : 'N/A';
+
+              return (
+                <section className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-6">
+                  <div className="mb-4">
+                    <h2 className="text-lg font-semibold text-[var(--cb-text-primary)]">Trading Comparables Readout</h2>
+                    <p className="text-sm text-[var(--cb-text-secondary)]">
+                      Relative valuation framing across the active peer set. Start with the selected multiple, then decide whether the subject deserves a premium, discount, or in-line mark.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Primary Lens</p>
+                      <p className="text-sm text-[var(--cb-text-primary)]">{primaryLens}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Selected Multiple</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">{selectedLensValue}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Peer Count</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">{peerCount ?? 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Current Price</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">{formatResultMetric(currentPrice, 'money')}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Current EV</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">{formatResultMetric(currentEv, 'money')}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Subject Revenue / EBITDA</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">
+                        {formatResultMetric(subjectRevenue, 'money')} / {formatResultMetric(subjectEbitda, 'money')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
+                      <h3 className="mb-2 text-sm font-semibold text-[var(--cb-text-primary)]">Banker Read</h3>
+                      <p className="text-sm leading-6 text-[var(--cb-text-primary)]">
+                        Use this output to argue where the company should trade versus peers, not to force a single-point fair value. The first judgment is whether the active peer set is tight enough to support a real premium / discount view.
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
+                      <h3 className="mb-2 text-sm font-semibold text-[var(--cb-text-primary)]">Pressure-Test First</h3>
+                      <div className="space-y-2 text-sm text-[var(--cb-text-primary)]">
+                        <div className="flex items-center justify-between">
+                          <span>Peer set quality</span>
+                          <span className="text-[var(--cb-text-secondary)]">Remove weak comps</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Selected multiple</span>
+                          <span className="text-[var(--cb-text-secondary)]">Favor the sector lens</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Current price anchor</span>
+                          <span className="text-[var(--cb-text-secondary)]">Check market regime drift</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              );
+            })()}
+
+            {generatedModel && generatedModel.modelType === 'football-field' && (() => {
+              const assumptions = (generatedModel as any).assumptions || {};
+              const ranges = Array.isArray(assumptions.ranges) ? assumptions.ranges : [];
+              const midpointPrices = ranges
+                .map((range: any) => (typeof range?.midValue === 'number' && typeof assumptions.sharesOutstanding === 'number' && assumptions.sharesOutstanding > 0
+                  ? (range.midValue - (typeof assumptions.netDebt === 'number' ? assumptions.netDebt : 0)) / assumptions.sharesOutstanding
+                  : null))
+                .filter((value: number | null): value is number => typeof value === 'number' && Number.isFinite(value));
+              const midpointAverage = midpointPrices.length > 0
+                ? midpointPrices.reduce((total, value) => total + value, 0) / midpointPrices.length
+                : null;
+              const currentPrice = assumptions.sharePrice ?? assumptions.price ?? null;
+              const methodCount = ranges.length;
+              const topMethods = ranges
+                .slice(0, 4)
+                .map((range: any) => ({
+                  label: typeof range?.label === 'string' ? range.label : 'Method',
+                  midEv: range?.midValue ?? null,
+                  midPrice:
+                    typeof range?.midValue === 'number' && typeof assumptions.sharesOutstanding === 'number' && assumptions.sharesOutstanding > 0
+                      ? (range.midValue - (typeof assumptions.netDebt === 'number' ? assumptions.netDebt : 0)) / assumptions.sharesOutstanding
+                      : null,
+                }));
+
+              return (
+                <section className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-6">
+                  <div className="mb-4">
+                    <h2 className="text-lg font-semibold text-[var(--cb-text-primary)]">Football Field Readout</h2>
+                    <p className="text-sm text-[var(--cb-text-secondary)]">
+                      Banker valuation range framing across trading and transaction-style methods. Use the spread and clustering to judge whether the field is ready for a deck.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Methods Populated</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">{methodCount || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Current Price</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">{formatResultMetric(currentPrice, 'money')}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Average Midpoint</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">{formatResultMetric(midpointAverage, 'money')}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Revenue Anchor</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">{formatResultMetric(assumptions.revenue ?? null, 'money')}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">EBITDA Anchor</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">{formatResultMetric(assumptions.ebitda ?? null, 'money')}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--cb-text-muted)]">Net Debt / Shares</p>
+                      <p className="font-mono text-sm text-[var(--cb-text-primary)]">
+                        {formatResultMetric(assumptions.netDebt ?? null, 'money')} / {formatResultMetric(assumptions.sharesOutstanding ?? null)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                    <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
+                      <div className="mb-3">
+                        <h3 className="text-sm font-semibold text-[var(--cb-text-primary)]">Method Midpoints</h3>
+                        <p className="text-xs text-[var(--cb-text-secondary)]">
+                          These are the first rows to challenge before the field is used externally.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        {topMethods.map((method, index) => (
+                          <div key={`${method.label}-${index}`} className="flex items-center justify-between text-sm text-[var(--cb-text-primary)]">
+                            <span>{method.label}</span>
+                            <span className="font-mono">
+                              {formatResultMetric(method.midEv, 'money')} / {formatResultMetric(method.midPrice, 'money')}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
+                      <h3 className="mb-2 text-sm font-semibold text-[var(--cb-text-primary)]">Pressure-Test First</h3>
+                      <div className="space-y-2 text-sm text-[var(--cb-text-primary)]">
+                        <div className="flex items-center justify-between">
+                          <span>Method dispersion</span>
+                          <span className="text-[var(--cb-text-secondary)]">Tight enough for a range?</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Net debt and shares</span>
+                          <span className="text-[var(--cb-text-secondary)]">Every price output depends on them</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Control uplift</span>
+                          <span className="text-[var(--cb-text-secondary)]">Challenge weak precedent support</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              );
+            })()}
+
             {generatedModel && generatedModel.modelType === 'precedents' && (() => {
               const assumptions = (generatedModel as any).assumptions || {};
               const subjectRevenue = getPreviewMetricValue(generatedModel.modelDocument, /^subject revenue$/i);
