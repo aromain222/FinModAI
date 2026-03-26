@@ -39,7 +39,9 @@ export function FootballFieldRangeChart({
       range.highPrice >= range.lowPrice
   );
 
-  const values = populatedRanges.flatMap((range) => [range.lowPrice, range.midPrice, range.highPrice]);
+  const values: number[] = populatedRanges.flatMap((range) =>
+    [range.lowPrice, range.midPrice, range.highPrice].filter(isFiniteNumber),
+  );
   if (isFiniteNumber(currentPrice)) values.push(currentPrice);
   if (isFiniteNumber(weightedMidpoint)) values.push(weightedMidpoint);
 
