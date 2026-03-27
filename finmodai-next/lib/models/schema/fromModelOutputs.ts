@@ -1628,7 +1628,7 @@ export function buildDocumentFromModelOutputs(params: BuildModelDocumentParams):
     generatedAt: new Date().toISOString(),
   } as ModelDocument['meta'];
 
-  const sections =
+  const sections: Section[] =
     params.modelType === 'dcf' || params.modelType === 'reverse-dcf'
       ? buildDcfSections(params)
       : params.modelType === 'three-statement'

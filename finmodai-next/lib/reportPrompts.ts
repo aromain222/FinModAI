@@ -901,6 +901,7 @@ const MODEL_GUIDANCE: Record<ReportModelType, string> = {
   'reverse-dcf': 'Focus on implied expectations embedded in the valuation anchor. Explain whether implied growth looks demanding, reasonable, or conservative versus the company fundamentals.',
   lbo: 'Emphasize IRR, MOIC, leverage, debt paydown, and what must go right operationally.',
   comps: 'Emphasize peer-set quality, multiple range, and whether the implied valuation range is defensible.',
+  'football-field': 'Emphasize method spread, weighted methods, current-price anchor, and whether the valuation range is coherent enough to use in a deck or committee discussion.',
   precedents: 'Emphasize transaction-set quality, control premiums, precedent multiple range, and what the selected deal set actually implies for valuation framing.',
   merger: 'Emphasize financing mix, pro forma impact, accretion/dilution, and execution risk.',
   'ma-accretion-dilution': 'Emphasize financing mix, pro forma impact, accretion/dilution, and execution risk.',
@@ -928,6 +929,7 @@ const MODEL_MEMO_PURPOSE: Record<ReportModelType, string> = {
   'reverse-dcf': 'Write this as an expectations memo that explains what growth, margins, or duration the market is already pricing in.',
   lbo: 'Write this as an underwriting memo for a sponsor or deal team deciding whether the leverage and return profile is acceptable.',
   comps: 'Write this as a relative-valuation memo used to frame where the company should trade versus peers and why.',
+  'football-field': 'Write this as a valuation-range memo used to explain where the shares could trade under multiple methodologies and which methods deserve the most weight.',
   precedents: 'Write this as a transaction-framing memo used to discuss control value, premium support, and what deal comps imply for valuation.',
   merger: 'Write this as an M&A decision memo focused on transaction structure, strategic rationale, and whether accretion justifies execution risk.',
   'ma-accretion-dilution': 'Write this as an accretion/dilution memo focused on whether the transaction improves per-share economics under realistic assumptions.',
@@ -955,6 +957,7 @@ const MODEL_DECISION_TO_MAKE: Record<ReportModelType, string> = {
   'reverse-dcf': 'Decision to make: whether current market pricing already embeds expectations that are too demanding or too conservative.',
   lbo: 'Decision to make: whether the deal clears underwriting thresholds at an acceptable leverage and exit-risk profile.',
   comps: 'Decision to make: where the company should trade relative to peers and whether the current multiple is misframed.',
+  'football-field': 'Decision to make: whether the highlighted valuation range is credible enough to frame discussions with management, investors, or a valuation committee.',
   precedents: 'Decision to make: whether precedent transactions actually support the control-value range being discussed.',
   merger: 'Decision to make: whether strategic logic and financing support moving forward with the transaction.',
   'ma-accretion-dilution': 'Decision to make: whether the transaction is truly accretive after financing, synergies, and execution risk.',
@@ -982,6 +985,7 @@ const MODEL_RISK_LENS: Record<ReportModelType, string> = {
   'reverse-dcf': 'Risk lens: stale pricing anchors, discount-rate sensitivity, and false precision in implied expectations.',
   lbo: 'Risk lens: underwriting miss, deleveraging risk, and exit-multiple compression.',
   comps: 'Risk lens: peer-set weakness, multiple regime shifts, and weak comparability.',
+  'football-field': 'Risk lens: weak method selection, overstated range precision, stale market anchors, and inappropriate weighting of outlier methodologies.',
   precedents: 'Risk lens: bad transaction selection, premium distortion, and cycle mismatch.',
   merger: 'Risk lens: synergy slippage, financing drag, and integration failure.',
   'ma-accretion-dilution': 'Risk lens: synergy slippage, financing drag, and accretion that disappears under realistic integration assumptions.',
@@ -1010,6 +1014,8 @@ const MODEL_SECTION_ORDER: Record<ReportModelType, string> = {
     'Preferred section order: Model Overview -> What The Model Says -> Decision Framing -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
   lbo: 'Preferred section order: Model Overview -> Decision Framing -> What The Model Says -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
   comps: 'Preferred section order: Model Overview -> What The Model Says -> Decision Framing -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
+  'football-field':
+    'Preferred section order: Model Overview -> What The Model Says -> Decision Framing -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
   precedents:
     'Preferred section order: Model Overview -> What The Model Says -> Decision Framing -> Interpretation -> Key Risks And Constraints -> Data Gaps / Reliability -> What To Do Next.',
   merger:

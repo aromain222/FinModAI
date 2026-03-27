@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { PromptToModel } from '@/components/model-generator/PromptToModel';
 import { Button } from '@/components/ui/button';
@@ -22,8 +23,9 @@ export default function ModelGeneratorPage() {
             <Link href="/app">Back to Dashboard</Link>
           </Button>
         </div>
-
-        <PromptToModel />
+        <Suspense fallback={<div className="text-sm text-[var(--cb-text-secondary)]">Loading model generator...</div>}>
+          <PromptToModel />
+        </Suspense>
       </div>
     </main>
   );
