@@ -1,4 +1,4 @@
-import type { ModelDocument, Column, Row, Cell, TableBlock, ProvenanceStatus } from './ModelDocument';
+import type { ModelDocument, Section, Column, Row, Cell, TableBlock, ProvenanceStatus } from './ModelDocument';
 import type { ModelType } from '@/types/models';
 import type {
   ScorecardSummary,
@@ -1487,10 +1487,11 @@ function buildDefaultSections(params: BuildModelDocumentParams) {
   ];
 }
 
-function buildMacroSection(context: MacroAssumptionContext) {
+function buildMacroSection(context: MacroAssumptionContext): Section {
   return {
     id: 'macro_context',
     title: 'Market Context',
+    sheetName: 'Market Context',
     layout: 'fullWidth' as const,
     blocks: [
       {
@@ -1524,10 +1525,11 @@ function buildMacroSection(context: MacroAssumptionContext) {
   };
 }
 
-function buildCompanyCatalystSection(context: CompanyCatalystContext) {
+function buildCompanyCatalystSection(context: CompanyCatalystContext): Section {
   return {
     id: 'company_catalyst_context',
     title: 'Company Catalyst Context',
+    sheetName: 'Company Catalyst Context',
     layout: 'fullWidth' as const,
     blocks: [
       {

@@ -108,8 +108,8 @@ function chunkArray<T>(items: T[], size: number): T[][] {
 }
 
 function preferMetricValue(
-  current: unknown,
-  candidate: unknown,
+  current: string | number | null | undefined,
+  candidate: string | number | null | undefined,
   options: { allowZero?: boolean } = {},
 ): string | number | null {
   const currentNumber = toNumber(current);
@@ -117,8 +117,8 @@ function preferMetricValue(
   const currentUsable = options.allowZero ? currentNumber !== null : hasPositiveNumber(currentNumber);
   const candidateUsable = options.allowZero ? candidateNumber !== null : hasPositiveNumber(candidateNumber);
 
-  if (currentUsable) return current;
-  if (candidateUsable) return candidate;
+  if (currentUsable) return current ?? null;
+  if (candidateUsable) return candidate ?? null;
   return current ?? candidate ?? null;
 }
 

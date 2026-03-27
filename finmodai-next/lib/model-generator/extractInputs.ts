@@ -715,13 +715,14 @@ async function resolveMergerParty(
   const sharePrice =
     snapshot.sharePrice ??
     (snapshot.marketCap && snapshot.sharesOutstanding ? snapshot.marketCap / snapshot.sharesOutstanding : null);
+  const ebitdaLtm = snapshot.ebitdaLtm ?? null;
   return {
     ticker: fallbackTicker,
     companyName: snapshot.companyName ?? fallbackTicker,
     companyType: snapshot.sector ?? null,
     revenue: snapshot.revenueLtm ?? null,
-    ebitda: snapshot.ebitdaLtm ?? null,
-    ebit: snapshot.ebitdaLtm !== null ? Number((snapshot.ebitdaLtm * 0.9).toFixed(2)) : null,
+    ebitda: ebitdaLtm,
+    ebit: ebitdaLtm !== null ? Number((ebitdaLtm * 0.9).toFixed(2)) : null,
     netIncome: snapshot.netIncomeLtm ?? null,
     sharesOutstanding: snapshot.sharesOutstanding ?? null,
     cash: snapshot.cash ?? null,
@@ -1561,7 +1562,13 @@ async function buildFootballFieldInputs(prompt: string, options: ExtractInputsOp
     subjectDebt !== null && subjectCash !== null
       ? subjectDebt - subjectCash
       : stored?.snapshot?.totalDebt ?? resolved?.snapshot.totalDebt ?? null;
-  const subjectPrice = stored?.snapshot?.sharePrice ?? resolved?.snapshot.sharePrice ?? null;
+  const subjectPrice =
+    stored?.latestPrice?.close ??
+    (stored?.snapshot?.marketCap && stored?.snapshot?.sharesOutstanding
+      ? stored.snapshot.marketCap / stored.snapshot.sharesOutstanding
+      : null) ??
+    resolved?.snapshot.sharePrice ??
+    null;
   const subjectShares = stored?.snapshot?.sharesOutstanding ?? resolved?.snapshot.sharesOutstanding ?? null;
 
   if (subjectRevenue !== null) providedInputs.add('revenue');
