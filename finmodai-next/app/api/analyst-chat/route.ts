@@ -649,6 +649,7 @@ export async function POST(req: NextRequest) {
   let fallbackUserMessage = '';
   let verifiedFacts: VerifiedFacts | undefined;
   let stockLookupPayload: Awaited<ReturnType<typeof lookupStock>> | null = null;
+  let responseStockLookup: Awaited<ReturnType<typeof lookupStock>> | null = null;
   let earningsAgentResult: EarningsRetrievalAgentResult | null = null;
   let earningsRuntimeMeta: EarningsRetrievalRuntimeMeta | null = null;
 
@@ -1301,6 +1302,10 @@ export async function POST(req: NextRequest) {
             sources: retrievedDataBase.sources.filter((source) => !source.includes(resolvedTicker)),
           }
         : retrievedDataBase;
+    responseStockLookup =
+      shouldSuppressGenericCompanyFacts
+        ? null
+        : stockLookupPayload;
 
     /* ── Step 3: Extract verified facts ── */
     const facts = extractVerifiedFacts(retrievalRoute, retrievedData);
@@ -1405,7 +1410,7 @@ export async function POST(req: NextRequest) {
         reason: 'missing_key',
         route: route.intent,
         factsCount: facts.numbers.length + facts.events.length,
-        stockLookup: stockLookupPayload,
+        stockLookup: responseStockLookup,
         earningsRetrieval: earningsAgentResult,
         earningsPackageMeta: earningsRuntimeMeta,
         attachmentUsed: attachmentLabel,
@@ -1639,7 +1644,7 @@ export async function POST(req: NextRequest) {
       factsCount: facts.numbers.length + facts.events.length,
       dataGaps: facts.dataGaps.length > 0 ? facts.dataGaps : undefined,
       retrievalWarnings: retrievedData.warnings.length > 0 ? retrievedData.warnings : undefined,
-      stockLookup: stockLookupPayload,
+      stockLookup: responseStockLookup,
       earningsRetrieval: earningsAgentResult,
       earningsPackageMeta: earningsRuntimeMeta,
       attachmentUsed: attachmentLabel,
@@ -1668,7 +1673,7 @@ export async function POST(req: NextRequest) {
       mode: 'fallback',
       reason: failureReason,
       error: message,
-      stockLookup: stockLookupPayload,
+      stockLookup: responseStockLookup,
       earningsRetrieval: earningsAgentResult,
       earningsPackageMeta: earningsRuntimeMeta,
     }, { status: 200 });
