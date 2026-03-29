@@ -4,6 +4,7 @@ import test from 'node:test';
 import { applyEventAssumptionDeltas } from '@/lib/investment-analysis/eventAssumptionApplication';
 import { deriveEventAwareAssumptionDeltas } from '@/lib/investment-analysis/eventAssumptions';
 import { classifyInvestmentEvent } from '@/lib/investment-analysis/eventClassifier';
+import { mapEventToHistoricalPatterns } from '@/lib/investment-analysis/historicalPatterns';
 import {
   buildBaseAssumptionsFromSnapshotSeed,
   normalizeGeneratedMemoPayload,
@@ -117,6 +118,60 @@ test('event classifier uses sector context to support geopolitical conflict in d
   assert.ok(result.matchedSignals.includes('war'));
 });
 
+test('event classifier identifies trade fragmentation from export-control language', () => {
+  const result = classifyInvestmentEvent({
+    rawEventText: 'Advanced AI chip export controls and tariff escalation are forcing semiconductor supply-chain changes',
+    sector: 'Semiconductors',
+  });
+
+  assert.equal(result.category, 'trade_fragmentation');
+  assert.equal(result.confidence, 'high');
+  assert.ok(result.matchedSignals.includes('export_controls'));
+});
+
+test('event classifier identifies debt-cycle stress from fiscal and term-premium language', () => {
+  const result = classifyInvestmentEvent({
+    rawEventText: 'Rising fiscal deficits and term premium are creating debt-stress concerns for duration assets',
+    sector: 'Software',
+  });
+
+  assert.equal(result.category, 'debt_cycle_stress');
+  assert.equal(result.confidence, 'high');
+  assert.ok(result.matchedSignals.includes('fiscal_stress'));
+});
+
+test('historical pattern mapper returns analogs for trade fragmentation headlines', () => {
+  const classification = classifyInvestmentEvent({
+    rawEventText: 'Expanded AI chip export controls are forcing semiconductor supply-chain changes',
+    sector: 'Semiconductors',
+  });
+
+  const result = mapEventToHistoricalPatterns({
+    classification,
+    scenarioBias: 'bearish',
+  });
+
+  assert.ok(result);
+  assert.equal(result?.eventCategory, 'trade_fragmentation');
+  assert.ok((result?.patterns.length ?? 0) >= 1);
+  assert.match(result?.impactSummary ?? '', /growth|margin|risk premium/i);
+});
+
+test('historical pattern mapper returns null for unknown headlines', () => {
+  const result = mapEventToHistoricalPatterns({
+    classification: makeEvent({
+      category: 'unknown',
+      confidence: 'low',
+      score: 0,
+      normalizedEventSummary: 'Ambiguous event',
+      matchedSignals: [],
+    }),
+    scenarioBias: 'neutral',
+  });
+
+  assert.equal(result, null);
+});
+
 test('event classifier falls back safely to unknown on weak text', () => {
   const result = classifyInvestmentEvent({
     rawEventText: 'there may be some pressure on the business',
@@ -159,6 +214,48 @@ test('assumption delta generation produces bullish defense war shocks', () => {
   assertAlmostEqual(result.adjustedAssumptions.wacc, 0.0925);
   assertAlmostEqual(result.adjustedAssumptions.revenueGrowthByYear[0] ?? 0, 0.135);
   assertAlmostEqual(result.adjustedAssumptions.operatingMarginByYear[0] ?? 0, 0.3425);
+});
+
+test('assumption delta generation produces bearish trade-fragmentation shocks for semiconductors', () => {
+  const event = makeEvent({
+    category: 'trade_fragmentation',
+    normalizedEventSummary: 'AI chip export controls and tariffs are forcing supply-chain decoupling',
+    matchedSignals: ['export_controls', 'tariffs', 'global_supply_chain_sector'],
+  });
+
+  const result = deriveEventAwareAssumptionDeltas({
+    baseAssumptions: BASE_DCF_ASSUMPTIONS,
+    event,
+    company: TEST_COMPANY,
+  });
+
+  assert.equal(result.scenarioBias, 'bearish');
+  assertAlmostEqual(result.adjustedAssumptions.wacc, 0.1025);
+  assertAlmostEqual(result.adjustedAssumptions.revenueGrowthByYear[0] ?? 0, 0.1075);
+  assertAlmostEqual(result.adjustedAssumptions.operatingMarginByYear[0] ?? 0, 0.33);
+});
+
+test('assumption delta generation produces inflation-shock uplift for commodity-linked sectors', () => {
+  const event = makeEvent({
+    category: 'inflation_shock',
+    normalizedEventSummary: 'Oil shock lifts inflation expectations and commodity pricing',
+    matchedSignals: ['commodity_shock', 'inflation_expectations'],
+  });
+
+  const result = deriveEventAwareAssumptionDeltas({
+    baseAssumptions: BASE_DCF_ASSUMPTIONS,
+    event,
+    company: {
+      companyName: 'Chevron Corporation',
+      sector: 'Energy',
+      industry: 'Integrated Oil & Gas',
+    },
+  });
+
+  assert.equal(result.scenarioBias, 'bullish');
+  assertAlmostEqual(result.adjustedAssumptions.wacc, 0.0975);
+  assertAlmostEqual(result.adjustedAssumptions.revenueGrowthByYear[0] ?? 0, 0.13);
+  assertAlmostEqual(result.adjustedAssumptions.operatingMarginByYear[0] ?? 0, 0.345);
 });
 
 test('delta application preserves base assumptions and creates display-friendly change log', () => {

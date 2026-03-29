@@ -2,6 +2,9 @@ export type InvestmentEventCategory =
   | 'management_transition'
   | 'geopolitical_conflict'
   | 'macro_slowdown'
+  | 'inflation_shock'
+  | 'trade_fragmentation'
+  | 'debt_cycle_stress'
   | 'regulatory_shift'
   | 'major_contract_win'
   | 'product_catalyst'
@@ -29,6 +32,23 @@ export type InvestmentEventClassificationResult = {
   normalizedEventSummary: string;
   rationale: string;
   matchedSignals: string[];
+};
+
+export type InvestmentHistoricalPattern = {
+  id: string;
+  label: string;
+  period: string;
+  summary: string;
+  transmissionPath: string;
+  typicalModelAdjustments: string[];
+};
+
+export type InvestmentHistoricalPatternMatchResult = {
+  eventCategory: InvestmentEventCategory;
+  scenarioBias: InvestmentScenarioBias;
+  headlineInterpretation: string;
+  patterns: InvestmentHistoricalPattern[];
+  impactSummary: string;
 };
 
 export type InvestmentEventAssumptionLever =
@@ -151,6 +171,24 @@ export const INVESTMENT_EVENT_TAXONOMY_V1: Record<
     label: 'Recession / Macro Slowdown',
     description: 'Demand pressure from weaker economic activity, enterprise caution, or consumer pullback.',
     caveats: ['Countercyclical or defensive businesses may not fit the default mapping.'],
+  },
+  inflation_shock: {
+    id: 'inflation_shock',
+    label: 'Inflation / Commodity Shock',
+    description: 'An inflationary or commodity-driven shock that tightens financial conditions and pressures real demand.',
+    caveats: ['Nominal revenue can rise even as real demand and margins weaken, so volume and price should be separated.'],
+  },
+  trade_fragmentation: {
+    id: 'trade_fragmentation',
+    label: 'Trade Fragmentation / Decoupling',
+    description: 'Tariffs, export controls, or strategic decoupling that change addressable markets, supply chains, and margin structure.',
+    caveats: ['Domestic-build beneficiaries can outperform even as global efficiency falls.'],
+  },
+  debt_cycle_stress: {
+    id: 'debt_cycle_stress',
+    label: 'Debt Cycle / Fiscal Stress',
+    description: 'Debt-burden or fiscal-stress regime that raises term premium, funding pressure, and required returns.',
+    caveats: ['Lower growth does not automatically mean lower discount rates in debt-stress regimes.'],
   },
   regulatory_shift: {
     id: 'regulatory_shift',

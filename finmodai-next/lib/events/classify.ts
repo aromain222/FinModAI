@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { EventCluster } from '@/lib/events/cluster';
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
+import { buildMacroPlaybookPromptContext } from '@/lib/macro/macroPlaybook';
 import {
   marketImpactSchema,
   marketEventTypeSchema,
@@ -164,6 +165,9 @@ export async function classifyClusterWithOpenAI(
       publishedAt: item.publishedAt,
     })),
   };
+  const frameworkContext = buildMacroPlaybookPromptContext(
+    `${cluster.canonicalTitle}\n${cluster.items.map((item) => `${item.title}\n${item.description ?? ''}`).join('\n')}`,
+  );
 
   diagnostics.openaiCallCount += 1;
   try {
@@ -178,6 +182,7 @@ export async function classifyClusterWithOpenAI(
           role: 'user',
           content:
             'Classify this event cluster and output JSON only. If uncertain, set marketMoving=false.\n' +
+            (frameworkContext ? `Use these macro framework hints when relevant:\n${frameworkContext}\n` : '') +
             JSON.stringify(clusterInput),
         },
       ],

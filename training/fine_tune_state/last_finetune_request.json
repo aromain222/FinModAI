@@ -1,0 +1,16 @@
+{
+  "created_at": "2026-03-29T02:51:53.160022+00:00",
+  "model": "gpt-4.1-mini-2025-04-14",
+  "suffix": "analyst-copilot-scraped-ir-clean-v5",
+  "train_file": "/Users/averyromain/FinModAI/training/training.jsonl",
+  "eval_file": "/Users/averyromain/FinModAI/eval/eval.jsonl",
+  "train_sha256": "4c1414cbe44e6c07bb8d3e2bc24810bd3c3e26de3012fe12bd7be48b640bf2d8",
+  "eval_sha256": "1997014d78f83ce47b6023e52a43e785c6972b0f704c2ca960db5ade5de0700d",
+  "train_rows": 499,
+  "eval_rows": 36,
+  "dry_run": false,
+  "training_file_id": "file-9yJ7z4hQKxcCrQbW6VKxNC",
+  "validation_file_id": "file-5QPEY1s2oDY3CaSSo4aWSo",
+  "job_id": "ftjob-qpgA1il7FyJOZ8odZY4sq0X9",
+  "job_status": "validating_files"
+}

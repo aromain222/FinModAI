@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import {
   INVESTMENT_EVENT_TAXONOMY_V1,
+  type InvestmentHistoricalPatternMatchResult,
   type InvestmentEventAssumptionApplicationResult,
   type InvestmentEventClassificationResult,
 } from '@/lib/investment-analysis';
@@ -14,6 +15,7 @@ import {
 export type EventImpactCardProps = {
   classification: InvestmentEventClassificationResult;
   application: InvestmentEventAssumptionApplicationResult;
+  historicalPatternMatch?: InvestmentHistoricalPatternMatchResult | null;
   valuationStatusLabel?: string;
   interpretationNote?: string | null;
 };
@@ -95,6 +97,7 @@ function ChangeRow({
 export function EventImpactCard({
   classification,
   application,
+  historicalPatternMatch,
   valuationStatusLabel,
   interpretationNote,
 }: EventImpactCardProps) {
@@ -144,6 +147,11 @@ export function EventImpactCard({
               <div className="text-[11px] uppercase tracking-wide text-[var(--cb-text-muted)]">Why It Changed</div>
               <p className="mt-1 text-sm leading-6 text-[var(--cb-text-primary)]">{application.summary}</p>
               <p className="mt-2 text-xs leading-5 text-[var(--cb-text-muted)]">{classification.rationale}</p>
+              {historicalPatternMatch?.headlineInterpretation ? (
+                <p className="mt-2 text-xs leading-5 text-[var(--cb-text-muted)]">
+                  {historicalPatternMatch.headlineInterpretation}
+                </p>
+              ) : null}
               {interpretationNote ? (
                 <FormattedTextBlock
                   content={interpretationNote}
@@ -176,6 +184,39 @@ export function EventImpactCard({
             />
           </div>
         </div>
+
+        {historicalPatternMatch && historicalPatternMatch.patterns.length > 0 ? (
+          <div className="space-y-3">
+            <div className="text-[11px] uppercase tracking-wide text-[var(--cb-text-muted)]">
+              Historical Patterns
+            </div>
+            <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
+              <p className="text-sm leading-6 text-[var(--cb-text-primary)]">
+                {historicalPatternMatch.impactSummary}
+              </p>
+              <div className="mt-4 grid gap-3">
+                {historicalPatternMatch.patterns.map((pattern) => (
+                  <div key={pattern.id} className="rounded-lg border border-[var(--cb-border-subtle)] p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-sm font-medium text-[var(--cb-text-primary)]">{pattern.label}</div>
+                      <Badge variant="outline" className="text-[10px]">
+                        {pattern.period}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-[var(--cb-text-muted)]">{pattern.summary}</p>
+                    <p className="mt-2 text-xs leading-5 text-[var(--cb-text-muted)]">
+                      <span className="font-medium text-[var(--cb-text-primary)]">Transmission:</span> {pattern.transmissionPath}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-[var(--cb-text-muted)]">
+                      <span className="font-medium text-[var(--cb-text-primary)]">Typical model moves:</span>{' '}
+                      {pattern.typicalModelAdjustments.join('; ')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div>
           <div className="mb-3 text-[11px] uppercase tracking-wide text-[var(--cb-text-muted)]">

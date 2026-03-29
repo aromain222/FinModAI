@@ -1,0 +1,812 @@
+[
+  {
+    "id": "apple_icar_case",
+    "file_path": "/Users/averyromain/Downloads/AppleiCar.pdf",
+    "title": "Apple iCar Case",
+    "source_type": "case_study",
+    "tier": "A",
+    "primary_bucket": "eval_cases",
+    "secondary_bucket": "valuation_mechanics",
+    "style_weight": 0.3,
+    "mechanics_weight": 0.9,
+    "methodology_weight": 0.2,
+    "special_situations_weight": 0.0,
+    "eval_weight": 1.0,
+    "summary": "Project DCF case with concrete assumptions and strong incremental cash flow logic.",
+    "strengths": [
+      "capital budgeting",
+      "NPV/IRR logic",
+      "sensitivity analysis"
+    ],
+    "weaknesses": [
+      "educational framing"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 1,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "eval_cases",
+    "template_key": "case_study"
+  },
+  {
+    "id": "buffett_letters_compilation",
+    "file_path": "/Users/averyromain/Downloads/Buffett.pdf",
+    "title": "Buffett Letters Compilation",
+    "source_type": "letters_compilation",
+    "tier": "A",
+    "primary_bucket": "memo_style",
+    "secondary_bucket": "eval_cases",
+    "style_weight": 0.95,
+    "mechanics_weight": 0.15,
+    "methodology_weight": 0.2,
+    "special_situations_weight": 0.1,
+    "eval_weight": 0.3,
+    "summary": "Massive compilation of Buffett partnership and Berkshire letters; extremely valuable for investor reasoning but should be extracted selectively rather than ingested raw.",
+    "strengths": [
+      "primary-source investor writing",
+      "intrinsic value framing",
+      "plain disciplined style"
+    ],
+    "weaknesses": [
+      "far too large for raw ingest",
+      "must be curated by letter or passage"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 1,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "memo_style",
+    "template_key": "investor_letter"
+  },
+  {
+    "id": "emeth_2025_h2_letter",
+    "file_path": "/Users/averyromain/Downloads/2025 H2 Letter vFinalWeb.pdf",
+    "title": "Emeth Value Capital 2025 H2 Letter",
+    "source_type": "investor_letter",
+    "tier": "A",
+    "primary_bucket": "memo_style",
+    "secondary_bucket": "eval_cases",
+    "style_weight": 1.0,
+    "mechanics_weight": 0.2,
+    "methodology_weight": 0.2,
+    "special_situations_weight": 0.1,
+    "eval_weight": 0.5,
+    "summary": "Real investor letter with explicit mistake analysis and long-only thesis framing.",
+    "strengths": [
+      "mistake analysis",
+      "industry structure reasoning",
+      "public-equity judgment"
+    ],
+    "weaknesses": [
+      "not a model source"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 1,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "memo_style",
+    "template_key": "investor_letter"
+  },
+  {
+    "id": "pershing_square_2026_presentation",
+    "file_path": "/Users/averyromain/Downloads/2026-Annual-Investor-Presentation.pdf",
+    "title": "Pershing Square 2026 Annual Investor Presentation",
+    "source_type": "investor_presentation",
+    "tier": "A",
+    "primary_bucket": "memo_style",
+    "secondary_bucket": "transaction_methodology",
+    "style_weight": 1.0,
+    "mechanics_weight": 0.2,
+    "methodology_weight": 0.2,
+    "special_situations_weight": 0.0,
+    "eval_weight": 0.5,
+    "summary": "Investor presentation or annual meeting deck for slide compression and thesis framing.",
+    "strengths": [
+      "slide compression",
+      "holdings coverage",
+      "valuation framing"
+    ],
+    "weaknesses": [
+      "presentation shorthand",
+      "not a full underwriting memo"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 1,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "memo_style",
+    "template_key": "investor_presentation"
+  },
+  {
+    "id": "plural_q4_2025",
+    "file_path": "/Users/averyromain/Downloads/Plural_Partners_Fund_Letter_2025_Q4 (1).pdf",
+    "title": "Plural Partners Fund Letter 2025 Q4",
+    "source_type": "investor_letter",
+    "tier": "A",
+    "primary_bucket": "memo_style",
+    "secondary_bucket": "eval_cases",
+    "style_weight": 0.95,
+    "mechanics_weight": 0.2,
+    "methodology_weight": 0.2,
+    "special_situations_weight": 0.1,
+    "eval_weight": 0.5,
+    "summary": "Real concentrated value letter with Watches of Switzerland and ContextLogic writeups.",
+    "strengths": [
+      "intrinsic-value language",
+      "contributor/detractor structure",
+      "exit reasoning"
+    ],
+    "weaknesses": [
+      "limited breadth"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 1,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "memo_style",
+    "template_key": "investor_letter"
+  },
+  {
+    "id": "sequoia_strategy_2025_letter",
+    "file_path": "/Users/averyromain/Downloads/Sequoia-Strategy-Year-End-2025-Letter.pdf",
+    "title": "Sequoia Strategy Year-End 2025 Letter",
+    "source_type": "investor_letter",
+    "tier": "A",
+    "primary_bucket": "memo_style",
+    "secondary_bucket": "eval_cases",
+    "style_weight": 1.0,
+    "mechanics_weight": 0.2,
+    "methodology_weight": 0.2,
+    "special_situations_weight": 0.1,
+    "eval_weight": 0.5,
+    "summary": "Real investor letter with strong portfolio commentary and public-equity judgment.",
+    "strengths": [
+      "trim/add/hold language",
+      "measured tone",
+      "company-level reasoning"
+    ],
+    "weaknesses": [
+      "not a worked model"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 1,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "memo_style",
+    "template_key": "investor_letter"
+  },
+  {
+    "id": "silver_ring_q4_2025",
+    "file_path": "/Users/averyromain/Downloads/SilverRingValuePartners_2025Q4_Letter.pdf",
+    "title": "Silver Ring Value Partners 2025 Q4 Letter",
+    "source_type": "investor_letter",
+    "tier": "A",
+    "primary_bucket": "memo_style",
+    "secondary_bucket": "eval_cases",
+    "style_weight": 1.0,
+    "mechanics_weight": 0.3,
+    "methodology_weight": 0.2,
+    "special_situations_weight": 0.1,
+    "eval_weight": 0.7,
+    "summary": "Real investor letter with strong process explanation and a deep Warner Bros. case study.",
+    "strengths": [
+      "process language",
+      "risk framework",
+      "worked thesis explanation"
+    ],
+    "weaknesses": [
+      "narrower company breadth"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 1,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "memo_style",
+    "template_key": "investor_letter"
+  },
+  {
+    "id": "survivor_thriver_2025_annual",
+    "file_path": "/Users/averyromain/Downloads/2025-Annual-Partnership-Letter_final.pdf",
+    "title": "Survivor & Thriver Fund 2025 Annual Partnership Letter",
+    "source_type": "investor_letter",
+    "tier": "A",
+    "primary_bucket": "memo_style",
+    "secondary_bucket": "eval_cases",
+    "style_weight": 0.9,
+    "mechanics_weight": 0.2,
+    "methodology_weight": 0.2,
+    "special_situations_weight": 0.1,
+    "eval_weight": 0.5,
+    "summary": "Real investor letter with thematic AI framing and company-level thesis discussion.",
+    "strengths": [
+      "thematic framing",
+      "position writeups",
+      "portfolio review structure"
+    ],
+    "weaknesses": [
+      "manager worldview bias"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 1,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "memo_style",
+    "template_key": "investor_letter"
+  },
+  {
+    "id": "third_point_q4_2025",
+    "file_path": "/Users/averyromain/Downloads/Third_Point_Q4_2025_Investor_Letter_TPIL.pdf",
+    "title": "Third Point Q4 2025 Investor Letter",
+    "source_type": "investor_letter",
+    "tier": "A",
+    "primary_bucket": "memo_style",
+    "secondary_bucket": "special_situations",
+    "style_weight": 1.0,
+    "mechanics_weight": 0.2,
+    "methodology_weight": 0.2,
+    "special_situations_weight": 0.3,
+    "eval_weight": 0.5,
+    "summary": "Real hedge fund letter with position updates across equity and credit.",
+    "strengths": [
+      "cross-asset judgment",
+      "valuation framing",
+      "portfolio commentary"
+    ],
+    "weaknesses": [
+      "hedge-fund style bias"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 1,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "memo_style",
+    "template_key": "investor_letter"
+  },
+  {
+    "id": "xylem_evoqua_sec_methodology",
+    "file_path": "SEC_Xylem_Evoqua_merger_docs",
+    "title": "Xylem / Evoqua Merger Valuation Disclosures",
+    "source_type": "sec_merger_docs",
+    "tier": "B+",
+    "primary_bucket": "transaction_methodology",
+    "secondary_bucket": "memo_style",
+    "style_weight": 0.3,
+    "mechanics_weight": 0.4,
+    "methodology_weight": 1.0,
+    "special_situations_weight": 0.0,
+    "eval_weight": 0.4,
+    "summary": "Merger disclosures with DCF ranges, comps, precedent transactions, and advisor assumptions.",
+    "strengths": [
+      "DCF inputs",
+      "peer tables",
+      "selected transactions"
+    ],
+    "weaknesses": [
+      "legalistic language"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 1,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "transaction_methodology",
+    "template_key": "sec_merger_doc"
+  },
+  {
+    "id": "comps_workbook_107_21",
+    "file_path": "/Users/averyromain/Downloads/107-21-Comparable-Company-Analysis.xlsx",
+    "title": "107-21 Comparable Company Analysis",
+    "source_type": "workbook",
+    "tier": "A",
+    "primary_bucket": "valuation_mechanics",
+    "secondary_bucket": "memo_style",
+    "style_weight": 0.2,
+    "mechanics_weight": 1.0,
+    "methodology_weight": 0.4,
+    "special_situations_weight": 0.0,
+    "eval_weight": 0.5,
+    "summary": "Strong comps workbook with real output structure and valuation summary logic.",
+    "strengths": [
+      "comps structure",
+      "valuation summary",
+      "football-field feel"
+    ],
+    "weaknesses": [
+      "not a full IC memo"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 1,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "valuation_mechanics",
+    "template_key": "workbook"
+  },
+  {
+    "id": "fcff_ginzu",
+    "file_path": "/Users/averyromain/Downloads/fcffginzu.xlsx",
+    "title": "FCFF Ginzu",
+    "source_type": "educational_workbook",
+    "tier": "B+",
+    "primary_bucket": "valuation_mechanics",
+    "secondary_bucket": "eval_cases",
+    "style_weight": 0.2,
+    "mechanics_weight": 0.9,
+    "methodology_weight": 0.3,
+    "special_situations_weight": 0.0,
+    "eval_weight": 0.6,
+    "summary": "Integrated Damodaran-style DCF workbook with multiple adjustment schedules.",
+    "strengths": [
+      "integrated DCF architecture",
+      "R&D and lease conversion",
+      "ratings and cost of capital"
+    ],
+    "weaknesses": [
+      "educational/template feel"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 1,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "valuation_mechanics",
+    "template_key": "workbook"
+  },
+  {
+    "id": "gs_case_comp_2016",
+    "file_path": "/Users/averyromain/Downloads/2016-Finance-Society-x-Goldman-Sachs-Investment-Banking-Case-Competition.pdf",
+    "title": "2016 Goldman Sachs Investment Banking Case Competition",
+    "source_type": "case_prompt",
+    "tier": "B",
+    "primary_bucket": "eval_cases",
+    "secondary_bucket": "valuation_mechanics",
+    "style_weight": 0.1,
+    "mechanics_weight": 0.4,
+    "methodology_weight": 0.2,
+    "special_situations_weight": 0.0,
+    "eval_weight": 0.8,
+    "summary": "Case prompt for DCF/comps/sale recommendation exercises.",
+    "strengths": [
+      "task framing",
+      "evaluation use"
+    ],
+    "weaknesses": [
+      "not a worked answer"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 2,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "eval_cases",
+    "template_key": "case_study"
+  },
+  {
+    "id": "michael_hill_case_solution",
+    "file_path": "/Users/averyromain/Downloads/Michael-Hill-Case-Study-Solutions.pdf",
+    "title": "Michael Hill Case Study Solutions",
+    "source_type": "worked_case_solution",
+    "tier": "B+",
+    "primary_bucket": "eval_cases",
+    "secondary_bucket": "memo_style",
+    "style_weight": 0.7,
+    "mechanics_weight": 0.6,
+    "methodology_weight": 0.2,
+    "special_situations_weight": 0.0,
+    "eval_weight": 0.9,
+    "summary": "Worked case solution useful for benchmark answer quality.",
+    "strengths": [
+      "worked reasoning",
+      "recommendation quality"
+    ],
+    "weaknesses": [
+      "not a real live transaction memo"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 2,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "eval_cases",
+    "template_key": "case_study"
+  },
+  {
+    "id": "curreen_q4_2025",
+    "file_path": "/Users/averyromain/Downloads/Q4+2025+Letter.pdf",
+    "title": "Curreen Capital Q4 2025 Letter",
+    "source_type": "investor_letter",
+    "tier": "B",
+    "primary_bucket": "memo_style",
+    "secondary_bucket": "eval_cases",
+    "style_weight": 0.6,
+    "mechanics_weight": 0.2,
+    "methodology_weight": 0.1,
+    "special_situations_weight": 0.0,
+    "eval_weight": 0.4,
+    "summary": "Small-cap value letter with ugly duckling and crazy cheap framework.",
+    "strengths": [
+      "simple thesis templates",
+      "spinoff framing"
+    ],
+    "weaknesses": [
+      "limited depth"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 2,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "memo_style",
+    "template_key": "investor_letter"
+  },
+  {
+    "id": "fairlight_alpha_q4_2025",
+    "file_path": "/Users/averyromain/Downloads/Fairlight Alpha Fund Partnership Q4 2025 Letter.pdf",
+    "title": "Fairlight Alpha Fund Partnership Q4 2025 Letter",
+    "source_type": "investor_letter",
+    "tier": "B+",
+    "primary_bucket": "memo_style",
+    "secondary_bucket": "special_situations",
+    "style_weight": 0.72,
+    "mechanics_weight": 0.22,
+    "methodology_weight": 0.22,
+    "special_situations_weight": 0.25,
+    "eval_weight": 0.12,
+    "summary": "Small-cap oriented fund letter with concrete valuation framing across miners and niche growth names, useful for inflection and rerating narratives.",
+    "strengths": [
+      "specific valuation work",
+      "small-cap idea density",
+      "inflection-driven thesis language"
+    ],
+    "weaknesses": [
+      "less polished than top-tier letters",
+      "some promotional tone"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 2,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "memo_style",
+    "template_key": "investor_letter"
+  },
+  {
+    "id": "oaktree_is_it_a_bubble",
+    "file_path": "/Users/averyromain/Downloads/is-it-a-bubble.pdf",
+    "title": "Howard Marks - Is It a Bubble?",
+    "source_type": "market_memo",
+    "tier": "B+",
+    "primary_bucket": "memo_style",
+    "secondary_bucket": "concept_only",
+    "style_weight": 0.75,
+    "mechanics_weight": 0.05,
+    "methodology_weight": 0.3,
+    "special_situations_weight": 0.0,
+    "eval_weight": 0.15,
+    "summary": "Howard Marks memo on AI bubble dynamics, investor psychology, and valuation discipline; better for market reasoning than for security-level underwriting.",
+    "strengths": [
+      "bubble framework",
+      "valuation discipline",
+      "investor psychology"
+    ],
+    "weaknesses": [
+      "macro and essay-driven",
+      "limited company-specific analysis"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 2,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "memo_style",
+    "template_key": "generic"
+  },
+  {
+    "id": "tsai_2025_annual",
+    "file_path": "/Users/averyromain/Downloads/Tsai-Capital-Annual-Investor-Letter-2025.pdf",
+    "title": "Tsai Capital Annual Investor Letter 2025",
+    "source_type": "investor_letter",
+    "tier": "B",
+    "primary_bucket": "memo_style",
+    "secondary_bucket": "concept_only",
+    "style_weight": 0.5,
+    "mechanics_weight": 0.1,
+    "methodology_weight": 0.1,
+    "special_situations_weight": 0.0,
+    "eval_weight": 0.3,
+    "summary": "Growth philosophy letter emphasizing moats, network effects, and long-duration thinking.",
+    "strengths": [
+      "moat language",
+      "growth philosophy"
+    ],
+    "weaknesses": [
+      "too abstract and ornate for core style"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 2,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "memo_style",
+    "template_key": "investor_letter"
+  },
+  {
+    "id": "upslope_q4_2025",
+    "file_path": "/Users/averyromain/Downloads/Upslope+-+2025Q4+Letter.pdf",
+    "title": "Upslope Capital 2025 Q4 Letter",
+    "source_type": "investor_letter",
+    "tier": "B+",
+    "primary_bucket": "memo_style",
+    "secondary_bucket": "special_situations",
+    "style_weight": 0.8,
+    "mechanics_weight": 0.2,
+    "methodology_weight": 0.15,
+    "special_situations_weight": 0.15,
+    "eval_weight": 0.1,
+    "summary": "Real hedge fund letter with concrete long-short exposure, contributor-detractor framing, and concise single-name thesis writeups.",
+    "strengths": [
+      "long-short portfolio construction language",
+      "exposure framing",
+      "concise thesis summaries"
+    ],
+    "weaknesses": [
+      "narrower than the strongest letters",
+      "some rhetorical market framing"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 2,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "memo_style",
+    "template_key": "investor_letter"
+  },
+  {
+    "id": "inspirato_buyerlink_activist",
+    "file_path": "/Users/averyromain/Downloads/ex991to13da114556002_090225.pdf",
+    "title": "Inspirato / Buyerlink Merger Opposition Presentation",
+    "source_type": "activist_presentation",
+    "tier": "B",
+    "primary_bucket": "special_situations",
+    "secondary_bucket": "memo_style",
+    "style_weight": 0.2,
+    "mechanics_weight": 0.1,
+    "methodology_weight": 0.3,
+    "special_situations_weight": 1.0,
+    "eval_weight": 0.4,
+    "summary": "Activist deck focused on dilution, process flaws, and fairness-opinion criticism.",
+    "strengths": [
+      "governance critique",
+      "merger-opposition structure"
+    ],
+    "weaknesses": [
+      "partisan framing"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 2,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "special_situations",
+    "template_key": "special_situations"
+  },
+  {
+    "id": "spruce_point_sghc_short",
+    "file_path": "/Users/averyromain/Downloads/698dda43ab1475370340d002_sghc_research_thesis_2-12-2026.pdf",
+    "title": "Spruce Point SGHC Short Thesis",
+    "source_type": "short_report",
+    "tier": "B",
+    "primary_bucket": "special_situations",
+    "secondary_bucket": "eval_cases",
+    "style_weight": 0.2,
+    "mechanics_weight": 0.1,
+    "methodology_weight": 0.3,
+    "special_situations_weight": 1.0,
+    "eval_weight": 0.5,
+    "summary": "Forensic short report with accounting and ownership-structure critique.",
+    "strengths": [
+      "forensic structure",
+      "downside framing",
+      "evidence chaining"
+    ],
+    "weaknesses": [
+      "adversarial bias"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 2,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "special_situations",
+    "template_key": "special_situations"
+  },
+  {
+    "id": "fcff_simple_ginzu",
+    "file_path": "/Users/averyromain/Downloads/fcffsimpleginzu.xlsx",
+    "title": "FCFF Simple Ginzu",
+    "source_type": "educational_workbook",
+    "tier": "B",
+    "primary_bucket": "valuation_mechanics",
+    "secondary_bucket": "concept_only",
+    "style_weight": 0.1,
+    "mechanics_weight": 0.7,
+    "methodology_weight": 0.2,
+    "special_situations_weight": 0.0,
+    "eval_weight": 0.4,
+    "summary": "Educational FCFF workbook with diagnostics and story-to-numbers bridge.",
+    "strengths": [
+      "FCFF mechanics",
+      "diagnostics"
+    ],
+    "weaknesses": [
+      "template/classroom feel"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 2,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "valuation_mechanics",
+    "template_key": "workbook"
+  },
+  {
+    "id": "fcff_simple_ginzu_corona",
+    "file_path": "/Users/averyromain/Downloads/fcffsimpleginzuCorona.xlsx",
+    "title": "FCFF Simple Ginzu Corona",
+    "source_type": "educational_workbook",
+    "tier": "B",
+    "primary_bucket": "valuation_mechanics",
+    "secondary_bucket": "concept_only",
+    "style_weight": 0.1,
+    "mechanics_weight": 0.6,
+    "methodology_weight": 0.2,
+    "special_situations_weight": 0.0,
+    "eval_weight": 0.3,
+    "summary": "Crisis-adjusted variant of simple FCFF workbook.",
+    "strengths": [
+      "crisis overlays",
+      "ERP updates"
+    ],
+    "weaknesses": [
+      "still educational"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 2,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "valuation_mechanics",
+    "template_key": "workbook"
+  },
+  {
+    "id": "fcff_eva",
+    "file_path": "/Users/averyromain/Downloads/fcffeva.xls",
+    "title": "FCFF EVA Workbook",
+    "source_type": "small_workbook",
+    "tier": "C",
+    "primary_bucket": "concept_only",
+    "secondary_bucket": "valuation_mechanics",
+    "style_weight": 0.0,
+    "mechanics_weight": 0.3,
+    "methodology_weight": 0.1,
+    "special_situations_weight": 0.0,
+    "eval_weight": 0.2,
+    "summary": "Small workbook contrasting FCFF and EVA.",
+    "strengths": [
+      "conceptual bridge"
+    ],
+    "weaknesses": [
+      "too small and simplified"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 3,
+    "exclude_from_core_training": true,
+    "canonical_bucket": "concept_only",
+    "template_key": "workbook"
+  },
+  {
+    "id": "synergy_valuation",
+    "file_path": "/Users/averyromain/Downloads/synergyvaluation.xls",
+    "title": "Synergy Valuation Workbook",
+    "source_type": "mini_workbook",
+    "tier": "C",
+    "primary_bucket": "concept_only",
+    "secondary_bucket": "eval_cases",
+    "style_weight": 0.0,
+    "mechanics_weight": 0.2,
+    "methodology_weight": 0.1,
+    "special_situations_weight": 0.0,
+    "eval_weight": 0.2,
+    "summary": "Tiny synergy calculator illustrating combined value minus standalone value.",
+    "strengths": [
+      "simple synergy concept"
+    ],
+    "weaknesses": [
+      "not a real merger model"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 3,
+    "exclude_from_core_training": true,
+    "canonical_bucket": "concept_only",
+    "template_key": "workbook"
+  },
+  {
+    "id": "nvidia-2025-ndr-deck",
+    "file_path": "/Users/averyromain/Downloads/NVIDIA-2025-NDR-Deck-1.pdf",
+    "title": "NVIDIA 2025 NDR Deck",
+    "source_type": "investor_presentation",
+    "tier": "A",
+    "primary_bucket": "memo_style",
+    "secondary_bucket": "transaction_methodology",
+    "style_weight": 0.9,
+    "mechanics_weight": 0.35,
+    "methodology_weight": 0.25,
+    "special_situations_weight": 0.0,
+    "eval_weight": 0.45,
+    "summary": "NVIDIA non-deal roadshow deck for AI infrastructure messaging, financial framing, and management presentation style.",
+    "strengths": [
+      "management framing",
+      "AI infrastructure positioning",
+      "financial KPI emphasis"
+    ],
+    "weaknesses": [
+      "presentation shorthand",
+      "marketing-style emphasis"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 1,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "memo_style",
+    "template_key": "investor_presentation"
+  },
+  {
+    "id": "jpm-healthcare-2025-presentation",
+    "file_path": "/Users/averyromain/Downloads/JPM-Healthcare-2025.pdf",
+    "title": "JPM Healthcare 2025 Presentation",
+    "source_type": "investor_presentation",
+    "tier": "A",
+    "primary_bucket": "memo_style",
+    "secondary_bucket": "transaction_methodology",
+    "style_weight": 0.9,
+    "mechanics_weight": 0.35,
+    "methodology_weight": 0.25,
+    "special_situations_weight": 0.0,
+    "eval_weight": 0.45,
+    "summary": "Healthcare conference presentation for business overview compression, pipeline framing, and investor-facing KPI communication.",
+    "strengths": [
+      "conference presentation framing",
+      "business overview compression",
+      "KPI communication"
+    ],
+    "weaknesses": [
+      "selective disclosure emphasis",
+      "presentation shorthand"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 1,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "memo_style",
+    "template_key": "investor_presentation"
+  },
+  {
+    "id": "nvidia-q4-fy25-company-overview",
+    "file_path": "/Users/averyromain/Downloads/Q4FY25-NVDA-Company-Overview.pdf",
+    "title": "NVIDIA Q4 FY25 Company Overview",
+    "source_type": "investor_presentation",
+    "tier": "A",
+    "primary_bucket": "memo_style",
+    "secondary_bucket": "transaction_methodology",
+    "style_weight": 0.9,
+    "mechanics_weight": 0.35,
+    "methodology_weight": 0.25,
+    "special_situations_weight": 0.0,
+    "eval_weight": 0.45,
+    "summary": "NVIDIA company overview deck tied to Q4 FY25 results for segment framing, platform narrative, and AI demand communication.",
+    "strengths": [
+      "segment framing",
+      "platform narrative",
+      "earnings-adjacent investor messaging"
+    ],
+    "weaknesses": [
+      "presentation shorthand",
+      "management-selected metrics"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 1,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "memo_style",
+    "template_key": "investor_presentation"
+  },
+  {
+    "id": "nvidia-2025-annual-meeting-slides",
+    "file_path": "/Users/averyromain/Downloads/2025-Annual-Meeting-Slides-NVIDIA.pdf",
+    "title": "NVIDIA 2025 Annual Meeting Slides",
+    "source_type": "investor_presentation",
+    "tier": "A",
+    "primary_bucket": "memo_style",
+    "secondary_bucket": "transaction_methodology",
+    "style_weight": 0.9,
+    "mechanics_weight": 0.35,
+    "methodology_weight": 0.25,
+    "special_situations_weight": 0.0,
+    "eval_weight": 0.45,
+    "summary": "Annual meeting slides useful for governance communication, strategic messaging, and investor-priority framing.",
+    "strengths": [
+      "annual meeting framing",
+      "strategic messaging",
+      "investor communication"
+    ],
+    "weaknesses": [
+      "not a full transcript",
+      "presentation shorthand"
+    ],
+    "extraction_status": "pending",
+    "recommended_phase": 1,
+    "exclude_from_core_training": false,
+    "canonical_bucket": "memo_style",
+    "template_key": "investor_presentation"
+  }
+]

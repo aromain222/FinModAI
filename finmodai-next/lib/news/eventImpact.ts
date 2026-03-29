@@ -1,4 +1,5 @@
 import type { RelevanceEventType } from '@/lib/news/relevance';
+import { findMacroPlaybookMatches, type MacroPlaybookDirection } from '@/lib/macro/macroPlaybook';
 
 export type ImpactDirection = 'up' | 'down' | 'mixed' | 'unknown';
 export type BiasDirection = 'Risk-On' | 'Risk-Off' | 'Hawkish' | 'Dovish' | 'Neutral';
@@ -223,6 +224,56 @@ function proxyFallbackTickers(bias: BiasDirection): Array<{ ticker: string; dire
 
 function mergeWatchItems(existing: string[], additions: string[]): string[] {
   return Array.from(new Set([...existing, ...additions])).slice(0, 6);
+}
+
+function mergeSectorImpact(
+  base: Array<{ sector: string; direction: ImpactDirection; rationale: string }>,
+  overlay: Array<{ sector: string; direction: MacroPlaybookDirection; rationale: string }>,
+): Array<{ sector: string; direction: ImpactDirection; rationale: string }> {
+  return dedupeSectors([
+    ...base,
+    ...overlay.map((item) => ({
+      sector: item.sector,
+      direction: item.direction as ImpactDirection,
+      rationale: item.rationale,
+    })),
+  ]);
+}
+
+function applyMacroPlaybookOverlay(impact: EventImpact, text: string): EventImpact {
+  const matches = findMacroPlaybookMatches(text);
+  if (matches.length === 0) return impact;
+
+  const mergedSectors = mergeSectorImpact(
+    impact.affectedSectors,
+    matches.flatMap((match) => match.sectors),
+  );
+  const mergedWatchItems = mergeWatchItems(
+    impact.watchItems,
+    matches.flatMap((match) => match.watchItems),
+  );
+  const narrative = `${impact.whyItMatters} ${matches
+    .slice(0, 2)
+    .map((match) => `${match.label}: ${match.whyMarketsCare}`)
+    .join(' ')}`.trim();
+
+  const bias = matches.some((match) => match.bias === 'Risk-Off' || match.bias === 'Hawkish')
+    ? (matches.find((match) => match.bias === 'Risk-Off' || match.bias === 'Hawkish')?.bias ?? impact.bias)
+    : impact.bias;
+  const confidence = matches.some((match) => match.confidence === 'high')
+    ? 'high'
+    : impact.confidence === 'low'
+      ? 'medium'
+      : impact.confidence;
+
+  return {
+    ...impact,
+    bias,
+    confidence,
+    affectedSectors: mergedSectors,
+    watchItems: mergedWatchItems,
+    whyItMatters: narrative,
+  };
 }
 
 function applyMexicoAirlineOverlay(impact: EventImpact, text: string): EventImpact {
@@ -515,7 +566,7 @@ export function inferEventImpact(params: {
       'Tariff shocks raise effective input costs and can tighten financial conditions via inflation and growth channels, pressuring equity multiples and earnings expectations.';
   }
 
-  const geoAdjusted = applyMexicoAirlineOverlay(impact, text);
+  const geoAdjusted = applyMacroPlaybookOverlay(applyMexicoAirlineOverlay(impact, text), text);
   const textLower = text.toLowerCase();
   const directCandidates = EVENT_TYPE_TICKER_MAP[params.eventType] ?? [];
   const sectorCandidates = sectorDerivedTickers(geoAdjusted.affectedSectors);

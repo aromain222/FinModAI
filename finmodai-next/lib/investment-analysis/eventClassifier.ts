@@ -47,6 +47,44 @@ const CATEGORY_RULES: CategoryRule[] = [
     ],
   },
   {
+    category: 'inflation_shock',
+    label: 'Inflation / Commodity Shock',
+    patterns: [
+      { pattern: /\binflation shock\b|\binflation surge\b|\bsticky inflation\b|\bhigher for longer\b/i, signal: 'inflation_shock', weight: 5 },
+      { pattern: /\boil shock\b|\benergy shock\b|\bcommodity shock\b/i, signal: 'commodity_shock', weight: 5 },
+      { pattern: /\binput cost\b|\bcost inflation\b|\bfreight inflation\b/i, signal: 'cost_inflation', weight: 3 },
+      { pattern: /\bbreakevens?\b|\binflation expectations?\b/i, signal: 'inflation_expectations', weight: 3 },
+    ],
+  },
+  {
+    category: 'trade_fragmentation',
+    label: 'Trade Fragmentation / Decoupling',
+    patterns: [
+      { pattern: /\btariffs?\b|\btrade war\b|\bimport duties?\b|\blevies\b/i, signal: 'tariffs', weight: 5 },
+      { pattern: /\bexport controls?\b|\bchip controls?\b/i, signal: 'export_controls', weight: 5 },
+      { pattern: /\bdecoupling\b|\bfriendshoring\b|\breshoring\b/i, signal: 'trade_fragmentation', weight: 4 },
+      { pattern: /\bsupply chain shift\b|\bsupply chain disruption\b/i, signal: 'supply_chain_shift', weight: 3 },
+    ],
+    sectorBoosts: [
+      { pattern: /\bsemiconductors?\b|\bhardware\b|\bindustrials?\b|\bconsumer electronics\b/i, signal: 'global_supply_chain_sector', weight: 1 },
+    ],
+  },
+  {
+    category: 'debt_cycle_stress',
+    label: 'Debt Cycle / Fiscal Stress',
+    patterns: [
+      { pattern: /\bdebt crisis\b|\bdebt stress\b|\bdebt burden\b|\bunsustainable debt\b/i, signal: 'debt_stress', weight: 5 },
+      { pattern: /\bfiscal deficits?\b|\bfiscal stress\b|\bfiscal dominance\b/i, signal: 'fiscal_stress', weight: 4 },
+      { pattern: /\bterm premium\b|\btreasury supply\b|\bbond vigilantes\b/i, signal: 'term_premium', weight: 4 },
+      { pattern: /\bsovereign stress\b|\brefinancing stress\b|\bsovereign default\b|\bbalance of payments crisis\b/i, signal: 'sovereign_refinancing', weight: 3 },
+      { pattern: /\bbank run\b|\bbanking crisis\b|\bbank failures?\b|\bdeposit flight\b|\bliquidity crisis\b/i, signal: 'banking_crisis', weight: 5 },
+      { pattern: /\bsudden stop\b|\bfunding stress\b|\brollover risk\b/i, signal: 'funding_crisis', weight: 4 },
+    ],
+    sectorBoosts: [
+      { pattern: /\breal estate\b|\butilities\b|\bfinancials?\b/i, signal: 'duration_sensitive_sector', weight: 1 },
+    ],
+  },
+  {
     category: 'regulatory_shift',
     label: 'Regulation Shift',
     patterns: [

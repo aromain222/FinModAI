@@ -4,9 +4,12 @@
 from __future__ import annotations
 
 import json
+import html
 import re
 from pathlib import Path
 from typing import Any
+
+from pypdf import PdfReader
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRAPED_DATA_DIR = ROOT / "finmodai-next" / "data"
@@ -39,6 +42,24 @@ PRESENTATION_TITLE_PATTERNS = (
 )
 
 
+ARTIFACT_PATTERNS = [
+    (re.compile(r"\bopens?\s+in\s+new\s+window\b", re.I), " "),
+    (re.compile(r"\bopen event link\b", re.I), " "),
+    (re.compile(r"\bonline link\b", re.I), " "),
+    (re.compile(r"\bdownload pdf\b", re.I), " "),
+    (re.compile(r"\bview pdf\b", re.I), " "),
+    (re.compile(r"\bpresentation open event link\b", re.I), " "),
+    (re.compile(r"\breport open event link\b", re.I), " "),
+    (re.compile(r"\bskip to main content\b", re.I), " "),
+    (re.compile(r"\bskip to content\b", re.I), " "),
+    (re.compile(r"\binvestor relations careers\b", re.I), " "),
+    (re.compile(r"\bcookie settings\b", re.I), " "),
+    (re.compile(r"\bnews\s+1\b", re.I), " "),
+    (re.compile(r"\s+\|\s+"), " "),
+    (re.compile(r"\s*\(.*?opens?\s+in\s+new\s+window.*?\)", re.I), " "),
+]
+
+
 def compact(items: list[str], limit: int = 6) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
@@ -56,11 +77,21 @@ def compact(items: list[str], limit: int = 6) -> list[str]:
     return out
 
 
+def clean_artifact_text(value: str) -> str:
+    text = value
+    for pattern, replacement in ARTIFACT_PATTERNS:
+        text = pattern.sub(replacement, text)
+    text = re.sub(r"\bPDF file\b", "PDF", text, flags=re.I)
+    text = re.sub(r"\bhtml file\b", "HTML", text, flags=re.I)
+    text = re.sub(r"\s+", " ", text).strip(" ,:-")
+    return text
+
+
 def normalize_title(path: Path) -> str:
     title = path.stem
     title = re.sub(r"-[0-9a-f]{10}$", "", title)
     title = title.replace("_", " ").replace("-", " ")
-    title = re.sub(r"\s+", " ", title).strip()
+    title = clean_artifact_text(title)
     return title or path.stem
 
 
@@ -107,6 +138,161 @@ def list_filtered_titles(category_dir: Path, patterns: tuple[str, ...], limit: i
     titles = list_titles(category_dir, limit=50)
     filtered = [title for title in titles if any(pattern in title.lower() for pattern in patterns)]
     return compact(filtered, limit=limit)
+
+
+def transcript_candidate_paths(company_dir: Path, limit: int = 8) -> list[Path]:
+    files: list[Path] = []
+    for category in ("transcript", "earnings", "presentation"):
+        category_dir = company_dir / category
+        if not category_dir.is_dir():
+            continue
+        files.extend([path for path in category_dir.iterdir() if path.is_file()])
+
+    files = sorted(files, key=lambda path: path.stat().st_mtime, reverse=True)
+
+    def score(path: Path) -> tuple[int, int]:
+        title = normalize_title(path).lower()
+        score = 0
+        if "prepared remarks" in title:
+            score += 8
+        if "transcript" in title:
+            score += 7
+        if "conference call" in title or "earnings call" in title:
+            score += 5
+        if "earnings" in title:
+            score += 4
+        if re.search(r"\bq[1-4]\b", title) or "quarter" in title or "fiscal" in title:
+            score += 3
+        if "webcast" in title:
+            score += 2
+        if "q&a" in title:
+            score += 2
+        if path.suffix.lower() == ".pdf":
+            score += 5
+        if path.suffix.lower() in {".html", ".htm", ".aspx"}:
+            score -= 1
+        if any(term in title for term in ("barclays", "citi global", "investor day", "healthcare", "annual meeting", "conference ")):
+            score -= 5
+        return (score, int(path.stat().st_mtime))
+
+    ranked = sorted(files, key=score, reverse=True)
+    filtered = [path for path in ranked if any(pattern in normalize_title(path).lower() for pattern in TRANSCRIPT_TITLE_PATTERNS)]
+    return filtered[:limit]
+
+
+def strip_html(text: str) -> str:
+    text = re.sub(r"<script[\s\S]*?</script>", " ", text, flags=re.I)
+    text = re.sub(r"<style[\s\S]*?</style>", " ", text, flags=re.I)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = html.unescape(text)
+    return clean_artifact_text(" ".join(text.split()))
+
+
+def extract_pdf_text(path: Path, page_limit: int = 8) -> str:
+    try:
+        reader = PdfReader(str(path))
+    except Exception:
+        return ""
+    chunks: list[str] = []
+    for page in reader.pages[:page_limit]:
+        try:
+            chunks.append(page.extract_text() or "")
+        except Exception:
+            continue
+    return " ".join(" ".join(chunks).split())
+
+
+def extract_html_text(path: Path) -> str:
+    try:
+        raw = path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return ""
+    return strip_html(raw)
+
+
+def extract_transcript_excerpt(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
+        text = extract_pdf_text(path)
+    else:
+        text = extract_html_text(path)
+    if not text:
+        return ""
+
+    text = clean_artifact_text(re.sub(r"\s+", " ", text).strip())
+    if len(text) > 1600:
+        text = text[:1600].rsplit(" ", 1)[0]
+    return text
+
+
+def is_transcript_like_excerpt(path: Path, text: str) -> bool:
+    lowered = text.lower()
+    title = normalize_title(path).lower()
+    strongest_signals = ("operator", "prepared remarks", "joining us today", "question-and-answer", "q&a")
+    weaker_signals = ("conference call", "good morning", "thank you for joining", "earnings call")
+    earnings_signals = ("earnings", "results", "quarter", "fiscal", "q1", "q2", "q3", "q4")
+    transcript_vendor_signals = ("lseg streetevents", "refinitiv streetevents", "factset callstreet", "s&p global market intelligence")
+    non_earnings_signals = (
+        "barclays industrial",
+        "barclays industrial select conference",
+        "citi global industrial",
+        "citi global industrial tech and mobility conference",
+        "investor day",
+        "annual meeting",
+        "healthcare conference",
+    )
+    shell_signals = (
+        "skip to main content",
+        "investor relations careers",
+        "cookie settings",
+        "opens in new window",
+        "about us leadership",
+        "press releases events presentations",
+        "event details",
+        "events calendar",
+        "conference call and webcast",
+        "schedules first quarter",
+        "schedules fourth quarter",
+        "announces fourth quarter",
+        "announces first quarter",
+        "investor relations >",
+    )
+    has_strongest = any(signal in lowered for signal in strongest_signals)
+    has_weaker = any(signal in lowered for signal in weaker_signals)
+    has_earnings = any(signal in title for signal in earnings_signals) or any(signal in lowered for signal in earnings_signals)
+    has_vendor = any(signal in lowered for signal in transcript_vendor_signals)
+    title_has_transcript = "transcript" in title or "prepared remarks" in title
+    is_non_earnings = any(signal in title for signal in non_earnings_signals) or any(signal in lowered for signal in non_earnings_signals)
+    shell_hits = sum(signal in lowered for signal in shell_signals)
+    has_speaker_format = bool(re.search(r"\b[A-Z][a-z]+ [A-Z][a-z]+:\b", text))
+    title_has_earnings = any(signal in title for signal in earnings_signals)
+    if is_non_earnings and not title_has_earnings:
+        return False
+    if not has_earnings and not has_vendor:
+        return False
+    if has_strongest or has_speaker_format:
+        return True
+    if shell_hits >= 2:
+        return False
+    if shell_hits >= 1 and not has_weaker:
+        return False
+    if title_has_transcript and has_earnings and len(text) >= 700:
+        return True
+    return has_vendor and len(text) >= 700
+
+
+def extract_transcript_excerpts(company_dir: Path, limit: int = 3) -> list[str]:
+    excerpts: list[str] = []
+    for path in transcript_candidate_paths(company_dir, limit=8):
+        excerpt = extract_transcript_excerpt(path)
+        if not excerpt:
+            continue
+        if not is_transcript_like_excerpt(path, excerpt):
+            continue
+        excerpts.append(f"{normalize_title(path)}: {excerpt}")
+        if len(excerpts) >= limit:
+            break
+    return compact(excerpts, limit=limit)
 
 
 def write_record(payload: dict[str, Any]) -> Path:
@@ -329,6 +515,9 @@ def build_transcript(ticker: str, company_name: str, company_dir: Path) -> dict[
     titles = list_filtered_titles(transcript_dir, TRANSCRIPT_TITLE_PATTERNS, limit=8)
     if not titles:
         return None
+    excerpts = extract_transcript_excerpts(company_dir, limit=3)
+    if not excerpts:
+        return None
     return {
         "id": f"scraped_{ticker.lower()}_earnings_transcript",
         "title": f"{company_name} Scraped Transcript Materials",
@@ -363,6 +552,7 @@ def build_transcript(ticker: str, company_name: str, company_dir: Path) -> dict[
                 "Focus on guidance, demand commentary, margins, and unresolved analyst questions.",
             ],
             "financial_highlights": titles,
+            "transcript_excerpts": excerpts,
             "guidance_or_outlook": [
                 "Use the transcript set to identify where management is widening, narrowing, or defending the outlook.",
             ],
@@ -382,6 +572,7 @@ def build_transcript(ticker: str, company_name: str, company_dir: Path) -> dict[
 def main() -> None:
     company_map = load_company_map()
     imported = 0
+    active_ids: set[str] = set()
 
     for company_dir in sorted(SCRAPED_DATA_DIR.iterdir()):
         if not company_dir.is_dir():
@@ -400,8 +591,13 @@ def main() -> None:
             payload = builder(ticker, company_name, company_dir)
             if payload is None:
                 continue
+            active_ids.add(payload["id"])
             write_record(payload)
             imported += 1
+
+    for path in OUTPUT_DIR.glob("scraped_*.json"):
+        if path.stem not in active_ids:
+            path.unlink()
 
     print(f"Imported {imported} scraped investor-material records into {OUTPUT_DIR}")
 

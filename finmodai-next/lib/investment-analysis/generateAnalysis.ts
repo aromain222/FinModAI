@@ -5,6 +5,7 @@ import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 import { applyEventAssumptionDeltas } from '@/lib/investment-analysis/eventAssumptionApplication';
 import { deriveEventAwareAssumptionDeltas } from '@/lib/investment-analysis/eventAssumptions';
 import { classifyInvestmentEvent } from '@/lib/investment-analysis/eventClassifier';
+import { mapEventToHistoricalPatterns } from '@/lib/investment-analysis/historicalPatterns';
 import {
   createInvestmentAnalysisDocument,
 } from '@/lib/investment-analysis/workspaceState';
@@ -502,6 +503,10 @@ export async function generateInvestmentAnalysisFromPrompt(prompt: string): Prom
     baseDocument.scenarios.base.assumptions,
     deltaResult,
   );
+  const historicalPatternMatch = mapEventToHistoricalPatterns({
+    classification,
+    scenarioBias: application.scenarioBias,
+  });
   const refreshed = refreshInvestmentAnalysisModel({
     company: baseDocument.company,
     adjustedAssumptions: {
@@ -519,6 +524,7 @@ export async function generateInvestmentAnalysisFromPrompt(prompt: string): Prom
       afterDocument: refreshed.document,
       classification,
       application,
+      historicalPatternMatch,
     }),
     fallback: fallbackMemo,
   });
@@ -528,6 +534,7 @@ export async function generateInvestmentAnalysisFromPrompt(prompt: string): Prom
       afterDocument: refreshed.document,
       classification,
       application,
+      historicalPatternMatch,
     }),
   });
 
@@ -539,6 +546,7 @@ export async function generateInvestmentAnalysisFromPrompt(prompt: string): Prom
     eventImpact: {
       classification,
       application,
+      historicalPatternMatch,
       valuationStatusLabel: 'Valuation Refreshed',
       interpretationNote: interpretationNote ?? memo.summary,
     },

@@ -104,6 +104,7 @@ ${INVESTMENT_WRITING_STYLE_GUIDE}
 Writing rules:
 - Lead with the judgment.
 - Tie the valuation change to the business drivers and the event transmission path.
+- Use the historical-pattern block when it sharpens the explanation of why the model changed.
 - Distinguish between operating impact and multiple/discount-rate impact.
 - Be explicit about what changed from the base case.
 - If the event mostly changes risk premium rather than fundamentals, say so.
@@ -147,6 +148,7 @@ ${INVESTMENT_WRITING_STYLE_GUIDE}
 Writing rules:
 - Be concise and analytical.
 - Focus on the delta, not the entire business.
+- If historical analog patterns are provided, use them to explain the mechanism rather than name-dropping them.
 - Tie the change to the model levers that moved.
 - Distinguish between operating changes and valuation/risk-premium changes.
 - If the move is mostly discount-rate-driven, say so directly.

@@ -83,11 +83,29 @@ function isDefenseLikeSector(sector?: string | null, industry?: string | null): 
   return /\bdefen[cs]e\b|\baerospace\b|\bgovernment contracting\b/i.test(text);
 }
 
+function isCommodityLinkedSector(sector?: string | null, industry?: string | null): boolean {
+  const text = `${sector ?? ''} ${industry ?? ''}`.trim();
+  return /\benergy\b|\boil\b|\bgas\b|\bmaterials?\b|\bmining\b|\bmetals?\b/i.test(text);
+}
+
+function isTradeExposedSector(sector?: string | null, industry?: string | null): boolean {
+  const text = `${sector ?? ''} ${industry ?? ''}`.trim();
+  return /\bsemiconductors?\b|\bhardware\b|\bindustrials?\b|\bconsumer electronics\b|\blogistics\b|\bapparel\b/i.test(text);
+}
+
+function isDurationSensitiveSector(sector?: string | null, industry?: string | null): boolean {
+  const text = `${sector ?? ''} ${industry ?? ''}`.trim();
+  return /\breal estate\b|\butilities\b|\bsoftware\b|\bsaas\b|\bfinancials?\b/i.test(text);
+}
+
 function getShockTemplate(
   category: InvestmentEventCategory,
   company?: InvestmentEventAssumptionDeltaInput['company'],
 ): ShockTemplate {
   const defenseLike = isDefenseLikeSector(company?.sector, company?.industry);
+  const commodityLinked = isCommodityLinkedSector(company?.sector, company?.industry);
+  const tradeExposed = isTradeExposedSector(company?.sector, company?.industry);
+  const durationSensitive = isDurationSensitiveSector(company?.sector, company?.industry);
 
   switch (category) {
     case 'management_transition':
@@ -131,6 +149,58 @@ function getShockTemplate(
         scenarioBias: 'bearish',
         rationaleSummary:
           'Recession conditions generally pressure demand, reduce operating leverage, and compress value through a higher discount rate and lower terminal support.',
+      };
+    case 'inflation_shock':
+      if (commodityLinked) {
+        return {
+          revenueGrowthBps: [100, 75, 50, 25, 25],
+          operatingMarginBps: [50, 50, 35, 20, 10],
+          waccBps: 25,
+          terminalGrowthBps: 0,
+          scenarioBias: 'bullish',
+          rationaleSummary:
+            'Commodity-linked businesses can see stronger near-term pricing and cash flow in an inflation shock, although discount rates still rise modestly.',
+        };
+      }
+      return {
+        revenueGrowthBps: [-75, -50, -50, -25, -25],
+        operatingMarginBps: [-125, -100, -75, -50, -25],
+        waccBps: 75,
+        terminalGrowthBps: -25,
+        scenarioBias: 'bearish',
+        rationaleSummary:
+          'Inflation shocks usually hurt real demand and margins before they help nominal revenue, while higher discount rates compress valuation support.',
+      };
+    case 'trade_fragmentation':
+      if (tradeExposed) {
+        return {
+          revenueGrowthBps: [-125, -100, -75, -50, -50],
+          operatingMarginBps: [-100, -75, -75, -50, -25],
+          waccBps: 75,
+          terminalGrowthBps: -25,
+          scenarioBias: 'bearish',
+          rationaleSummary:
+            'Trade fragmentation usually lowers efficiency, shrinks addressable markets, and raises compliance and sourcing costs for globally exposed businesses.',
+        };
+      }
+      return {
+        revenueGrowthBps: [-50, -50, -25, -25, 0],
+        operatingMarginBps: [-50, -50, -35, -25, -10],
+        waccBps: 50,
+        terminalGrowthBps: -10,
+        scenarioBias: 'bearish',
+        rationaleSummary:
+          'Trade fragmentation tends to act through slower growth, higher costs, and lower strategic visibility even when direct exposure is not extreme.',
+        };
+    case 'debt_cycle_stress':
+      return {
+        revenueGrowthBps: durationSensitive ? [-100, -75, -50, -25, -25] : [-50, -50, -25, -25, -25],
+        operatingMarginBps: durationSensitive ? [-75, -50, -50, -25, -25] : [-50, -35, -25, -25, -10],
+        waccBps: durationSensitive ? 100 : 75,
+        terminalGrowthBps: -50,
+        scenarioBias: 'bearish',
+        rationaleSummary:
+          'Debt-cycle stress raises the required return and weakens valuation support, especially for duration-sensitive or financing-heavy businesses.',
       };
     case 'regulatory_shift':
       return {

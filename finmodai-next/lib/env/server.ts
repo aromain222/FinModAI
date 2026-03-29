@@ -12,6 +12,8 @@ export const serverEnv = {
   OPENFIGI_API_KEY: env('OPENFIGI_API_KEY'),
   POLYGON_API_KEY: env('POLYGON_API_KEY'),
   FINNHUB_API_KEY: env('FINNHUB_API_KEY'),
+  ALPHA_VANTAGE_API_KEY: env('ALPHA_VANTAGE_API_KEY'),
+  ALPHAVANTAGE_API_KEY: env('ALPHAVANTAGE_API_KEY'),
   TWELVEDATA_API_KEY: env('TWELVEDATA_API_KEY'),
   TWELVE_DATA_API_KEY: env('TWELVE_DATA_API_KEY'),
   MARKETSTACK_API_KEY: env('MARKETSTACK_API_KEY'),
@@ -29,6 +31,10 @@ export const serverEnv = {
 
 export function getTwelveDataKey(): string | undefined {
   return serverEnv.TWELVEDATA_API_KEY ?? serverEnv.TWELVE_DATA_API_KEY;
+}
+
+export function getAlphaVantageKey(): string | undefined {
+  return serverEnv.ALPHA_VANTAGE_API_KEY ?? serverEnv.ALPHAVANTAGE_API_KEY;
 }
 
 function flag(key: string): boolean {

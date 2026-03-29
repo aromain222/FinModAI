@@ -300,6 +300,7 @@ export type InvestmentAnalysisGenerationResult = {
   eventImpact?: {
     classification: import('@/lib/investment-analysis/eventTypes').InvestmentEventClassificationResult;
     application: import('@/lib/investment-analysis/eventTypes').InvestmentEventAssumptionApplicationResult;
+    historicalPatternMatch?: import('@/lib/investment-analysis/eventTypes').InvestmentHistoricalPatternMatchResult | null;
     valuationStatusLabel?: string;
     interpretationNote?: string | null;
   } | null;

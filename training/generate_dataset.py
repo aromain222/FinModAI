@@ -352,6 +352,7 @@ def corpus_earnings_transcript_example(system_prompt: str, record: Dict[str, Any
     quarter = fields.get("quarter") or "the reported quarter"
     themes = compact_list(fields.get("management_themes"), limit=6)
     highlights = compact_list(fields.get("financial_highlights"), limit=6)
+    excerpts = compact_list(fields.get("transcript_excerpts"), limit=3)
     outlook = compact_list(fields.get("guidance_or_outlook"), limit=5)
     qa_topics = compact_list(fields.get("qa_topics"), limit=5)
 
@@ -363,12 +364,13 @@ def corpus_earnings_transcript_example(system_prompt: str, record: Dict[str, Any
         objective=f"Translate the {quarter} earnings transcript for {company_name} into investor-relevant takeaways.",
         assumptions=[
             "Prepared remarks and Q&A are both useful because management emphasis and analyst pushback can differ.",
-            "Transcript signals are used for interpretation and framing, not verbatim quotation.",
+            "Transcript excerpts are used for interpretation and framing, not long verbatim quotation.",
             "The goal is to identify what management highlighted, what investors challenged, and what that means for underwriting.",
         ],
         math_steps=[
             f"Management themes: {sentence_join(themes, 'No management themes extracted.')}",
             f"Financial highlights emphasized: {sentence_join(highlights, 'No financial highlights extracted.')}",
+            f"Transcript excerpts: {sentence_join(excerpts, 'No transcript excerpts extracted.')}",
             f"Guidance or outlook commentary: {sentence_join(outlook, 'No explicit outlook signals extracted.')}",
             f"Q&A focus areas: {sentence_join(qa_topics, 'No Q&A topics extracted.')}",
         ],

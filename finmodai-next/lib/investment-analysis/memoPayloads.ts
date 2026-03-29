@@ -6,6 +6,7 @@ import type {
 import type {
   InvestmentEventAssumptionApplicationResult,
   InvestmentEventClassificationResult,
+  InvestmentHistoricalPatternMatchResult,
 } from '@/lib/investment-analysis/eventTypes';
 
 function pickForecastHighlights(document: InvestmentAnalysisDocument, scenario: InvestmentScenarioKey) {
@@ -78,6 +79,7 @@ export function buildEventAwareInvestmentMemoPayload(args: {
   afterDocument: InvestmentAnalysisDocument;
   classification: InvestmentEventClassificationResult;
   application: InvestmentEventAssumptionApplicationResult;
+  historicalPatternMatch?: InvestmentHistoricalPatternMatchResult | null;
 }): Record<string, unknown> {
   return {
     company: args.afterDocument.company,
@@ -88,6 +90,7 @@ export function buildEventAwareInvestmentMemoPayload(args: {
       rationale: args.classification.rationale,
     },
     scenarioBias: args.application.scenarioBias,
+    historicalPatternMatch: args.historicalPatternMatch ?? null,
     assumptionChanges: args.application.changes,
     valuationBefore: args.beforeDocument.scenarios.base.result.valuation,
     valuationAfter: args.afterDocument.scenarios.base.result.valuation,
@@ -106,6 +109,7 @@ export function buildEventAwareDeltaSummaryPayload(args: {
   afterDocument: InvestmentAnalysisDocument;
   classification: InvestmentEventClassificationResult;
   application: InvestmentEventAssumptionApplicationResult;
+  historicalPatternMatch?: InvestmentHistoricalPatternMatchResult | null;
 }): Record<string, unknown> {
   return {
     company: args.afterDocument.company,
@@ -115,6 +119,7 @@ export function buildEventAwareDeltaSummaryPayload(args: {
       normalizedEventSummary: args.classification.normalizedEventSummary,
     },
     scenarioBias: args.application.scenarioBias,
+    historicalPatternMatch: args.historicalPatternMatch ?? null,
     assumptionChanges: args.application.changes,
     valuationBefore: args.beforeDocument.scenarios.base.result.valuation,
     valuationAfter: args.afterDocument.scenarios.base.result.valuation,

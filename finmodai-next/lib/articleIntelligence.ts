@@ -6,6 +6,7 @@
 import OpenAI from 'openai';
 import apiCache, { cacheKeys, TTL } from './apiCache';
 import { getOpenAIKey } from './openaiKey';
+import { buildMacroPlaybookPromptContext } from '@/lib/macro/macroPlaybook';
 
 export type ArticleCategory =
   | 'geopolitics'
@@ -144,12 +145,14 @@ export async function generateArticleIntelligence(
     const category = await classifyArticle(article.title, article.summary);
 
     // Step 2: Generate intelligence
+    const playbookContext = buildMacroPlaybookPromptContext(`${article.title}\n${article.summary ?? ''}`);
     const prompt = `Analyze this news article for macro and geopolitical intelligence:
 
 Title: ${article.title}
 Source: ${article.source}
 ${article.summary ? `Summary: ${article.summary}` : ''}
 Category: ${category}
+${playbookContext ? `\nMacro framework context:\n${playbookContext}\n` : ''}
 
 Generate intelligence focusing on:
 - Risk perception
