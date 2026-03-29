@@ -257,23 +257,41 @@ function annualPackageMatchesTarget(target: EarningsRequestTarget, financials: C
   const annualYear = financials.latestAnnual.fiscalYear ?? yearFromDate(financials.latestAnnual.date);
   if (typeof target.fiscalYear === 'number' && annualYear !== target.fiscalYear) return false;
   if (target.reportEndDate && financials.latestAnnual.date !== target.reportEndDate) return false;
-  return annualYear !== null || financials.latestAnnual.date !== null;
+  const hasAnnualFields =
+    financials.latestAnnual.revenue !== null ||
+    financials.latestAnnual.ebitda !== null ||
+    financials.latestAnnual.netIncome !== null;
+  const hasReleaseLane =
+    financials.earningsContext?.releaseHighlights.length ||
+    financials.earningsContext?.releaseUrl ||
+    financials.earningsContext?.releaseRevenue !== null ||
+    financials.earningsContext?.releaseEps !== null;
+  return Boolean((annualYear !== null || financials.latestAnnual.date !== null) && (hasAnnualFields || hasReleaseLane));
 }
 
 function releaseMatchesTarget(target: EarningsRequestTarget, financials: CompanyFinancials): boolean {
-  return identityMatchesTarget(target, {
+  const identityMatch = identityMatchesTarget(target, {
     fiscalPeriod: financials.earningsContext?.releaseFiscalPeriod ?? null,
     fiscalYear: financials.earningsContext?.releaseFiscalYear ?? null,
     reportEndDate: financials.earningsContext?.releaseReportEndDate ?? null,
   });
+  if (!identityMatch) return false;
+  return Boolean(
+    (financials.earningsContext?.releaseHighlights.length ?? 0) > 0 ||
+      financials.earningsContext?.releaseUrl ||
+      financials.earningsContext?.releaseRevenue !== null ||
+      financials.earningsContext?.releaseEps !== null,
+  );
 }
 
 function transcriptMatchesTarget(target: EarningsRequestTarget, financials: CompanyFinancials): boolean {
-  return identityMatchesTarget(target, {
+  const identityMatch = identityMatchesTarget(target, {
     fiscalPeriod: financials.earningsContext?.transcriptFiscalPeriod ?? null,
     fiscalYear: financials.earningsContext?.transcriptFiscalYear ?? null,
     reportEndDate: financials.earningsContext?.transcriptReportEndDate ?? null,
   });
+  if (!identityMatch) return false;
+  return (financials.earningsContext?.transcriptHighlights.length ?? 0) > 0;
 }
 
 function exactQuarterResolved(target: EarningsRequestTarget, financials: CompanyFinancials): {
@@ -407,7 +425,12 @@ function sameQuarterAsRequested(target: EarningsRequestTarget, financials: Compa
     const year = Number(financials.latestQuarter.date.slice(0, 4));
     if (Number.isFinite(year) && year !== target.fiscalYear) return false;
   }
-  return true;
+  const hasQuarterFields =
+    financials.latestQuarter.revenue !== null ||
+    financials.latestQuarter.operatingIncome !== null ||
+    financials.latestQuarter.netIncome !== null ||
+    financials.latestQuarter.eps !== null;
+  return hasQuarterFields;
 }
 
 function buildResultFromFinancials(target: EarningsRequestTarget, financials: CompanyFinancials): EarningsRetrievalAgentResult {
