@@ -1,0 +1,76 @@
+{
+  "id": "scraped_ceg_sec_public_filings",
+  "title": "Constellation Energy Scraped Public Filings",
+  "file_path": "/Users/averyromain/FinModAI/finmodai-next/data/CEG",
+  "source_type": "sec_public_filing",
+  "tier": "B",
+  "primary_bucket": "financial_reasoning",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Scraper-collected recent 10-K, 10-Q materials for Constellation Energy, stored locally from official filings or company investor-material pages.",
+  "strengths": [
+    "official company disclosures",
+    "recent 10-K and 10-Q coverage",
+    "good baseline for underwriting workflow"
+  ],
+  "weaknesses": [
+    "import is title-driven rather than section-by-section extracted",
+    "capital allocation and risk notes should be refined with deeper filing parsing later"
+  ],
+  "fields": {
+    "title": "Constellation Energy Scraped Public Filings",
+    "company_name": "Constellation Energy",
+    "ticker": "CEG",
+    "cik": null,
+    "forms_covered": [
+      "10-K",
+      "10-Q"
+    ],
+    "filing_dates": [
+      "CEG 10 K 2023 02 16",
+      "CEG 10 K 2024 02 27",
+      "CEG 10 K 2025 02 18",
+      "CEG 10 K 2026 02 24",
+      "CEG 10 Q 2024 11 04",
+      "CEG 10 Q 2025 11 07",
+      "CEG 10 Q 2025 08 07",
+      "CEG 10 Q 2025 05 06"
+    ],
+    "capital_markets_activity": [
+      "Use the recent filing set to identify financing, share issuance, debt activity, or recapitalization only after deeper filing parsing."
+    ],
+    "capital_allocation_activity": [
+      "Look for buybacks, dividends, and investment posture in the latest annual and quarterly filings."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q and 10-K filings provide the baseline liquidity and balance-sheet check for underwriting."
+    ],
+    "governance_notes": [
+      "Use the filing set to cross-check control statements, governance updates, and disclosure consistency."
+    ],
+    "controls_and_risk_notes": [
+      "Risk and controls language should be pulled from the latest annual report before changing the underwriting view."
+    ],
+    "analyst_relevance": [
+      "Useful baseline source for keeping model assumptions tied to actual company disclosures.",
+      "Good training lane for separating recurring filing signals from one-off market narratives.",
+      "Should be paired with richer IR materials when available."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_dir": "/Users/averyromain/FinModAI/finmodai-next/data/CEG",
+    "categories": {
+      "10k": 4,
+      "10q": 4
+    },
+    "document_count": 8
+  }
+}

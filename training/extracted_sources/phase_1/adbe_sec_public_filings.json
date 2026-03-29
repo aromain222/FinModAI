@@ -1,0 +1,177 @@
+{
+  "id": "adbe_sec_public_filings",
+  "title": "ADOBE INC. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-adbe",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent ADBE SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "ADOBE INC. General SEC Filings",
+    "company_name": "ADOBE INC.",
+    "ticker": "ADBE",
+    "cik": "0000796343",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-25",
+      "2026-03-12",
+      "2026-01-27",
+      "2026-01-15",
+      "2025-12-10",
+      "2025-09-24",
+      "2025-09-11",
+      "2025-06-25",
+      "2025-06-12",
+      "2025-04-24"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Under the terms of our accelerated share repurchase agreements, financial institutions agree to deliver a portion of shares to us at contract inception and the remaining shares at settlement.",
+      "(2) In March 2025, we entered into an accelerated share repurchase agreement (\u201cASR\u201d) with a large financial institution whereupon we provided them with a prepayment of $3.50 billion and received an initial delivery of shares at contract inception representing a portion of the prepayment."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "CONTROLS AND PROCEDURES Disclosure Controls and Procedures Our management has evaluated, under the supervision and with the participation of our Chief Executive Officer and Chief Financial Officer, the effectiveness of our disclosure controls and procedures as of November 28, 2025.",
+      "There were no changes in our internal control over financial reporting during the quarter ended February 27, 2026 that have materially affected, or are reasonably likely to materially affect, our internal control over financial reporting.",
+      "Factors that might cause or contribute to such differences include, but are not limited to, those discussed in the section titled \u201cRisk Factors\u201d in Part II, Item 1A of this report."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-adbe",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-adbe/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-adbe/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-adbe/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-Q 2026-03-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2026 Q1 11/27 1 1 342 10,047 - adbe:segment 2025-11-29 2026-02-27 2026-03-20 2026-02-27 2025-11-28 adbe:SubscriptionRevenueMember 2025-11-29 2026-02-27 adbe:Subsc"
+      },
+      {
+        "label": "8-K 2026-03-12",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-03-09 2026-03-09 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _________________________ FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (date of earliest event reported): March 9, 20"
+      },
+      {
+        "label": "8-K 2026-01-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-26 2026-01-26 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _________________________ FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (date of earliest event reported): January 26,"
+      },
+      {
+        "label": "10-K 2026-01-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY 11/28 3 2026-01-01 2039-01-01 - utr:WK adbe:segment adbe:numberOfPeriod adbe:purchasePeriod 2024-11-30 2025-11-28 2025-05-30 2026-01-09 2025-11-28 2024-11-29 0000796"
+      },
+      {
+        "label": "8-K 2025-12-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-12-10 2025-12-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _________________________ FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (date of earliest event reported): December 10"
+      },
+      {
+        "label": "10-Q 2025-09-24",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q3 11/28 - 2024-11-30 2025-08-29 2025-09-19 2025-08-29 2024-11-29 adbe:SubscriptionRevenueMember 2025-05-31 2025-08-29 adbe:SubscriptionRevenueMember 2024-06"
+      },
+      {
+        "label": "8-K 2025-09-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-09-11 2025-09-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _________________________ FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (date of earliest event reported): September 1"
+      },
+      {
+        "label": "10-Q 2025-06-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q2 11/28 - 2024-11-30 2025-05-30 2025-06-20 2025-05-30 2024-11-29 adbe:SubscriptionRevenueMember 2025-03-01 2025-05-30 adbe:SubscriptionRevenueMember 2024-03"
+      },
+      {
+        "label": "8-K 2025-06-12",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-06-12 2025-06-12 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _________________________ FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (date of earliest event reported): June 12, 20"
+      },
+      {
+        "label": "8-K 2025-04-24",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false --11-28 - 2025-04-22 2025-04-22 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _________________________ FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (date of earliest event reported): Apr"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-Q 2026-03-25",
+      "text_preview": "false 2026 Q1 11/27 1 1 342 10,047 - adbe:segment 2025-11-29 2026-02-27 2026-03-20 2026-02-27 2025-11-28 adbe:SubscriptionRevenueMember 2025-11-29 2026-02-27 adbe:SubscriptionRevenueMember 2024-11-30 2025-02-28 2025-11-29 2026-02-27 2024-11-30 2025-02-28 2025-11-29 2026-02-27 2024-11-30 2025-02-28 2024-11-30 2025-02-28 2025-11-28",
+      "char_count": 198888,
+      "word_count": 28201,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/796343/000079634326000056/adbe-20260227.htm"
+    },
+    {
+      "label": "8-K 2026-03-12",
+      "text_preview": "false - 2026-03-09 2026-03-09 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _________________________ FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (date of earliest event reported): March 9, 2026 ADOBE INC. (Exact name of Registrant as specified in its charter) Delaware 0-15175 77-0019522 (State or other jurisdiction of incorporation) (Commission File Number) (I.R.S. Employer Identification No.) 345 Park Avenue San Jose , California 95110-2704 (Address of principal executive offices and zip code) Registrant\u2019s telephone number, including area code: ( 408 ) 536-6",
+      "char_count": 15323,
+      "word_count": 2231,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/796343/000079634326000048/adbe-20260309.htm"
+    },
+    {
+      "label": "8-K 2026-01-27",
+      "text_preview": "false - 2026-01-26 2026-01-26 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _________________________ FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (date of earliest event reported): January 26, 2026 ADOBE INC. (Exact name of Registrant as specified in its charter) Delaware 000-15175 77-0019522 (State or other jurisdiction of incorporation) (Commission File Number) (I.R.S. Employer Identification No.) 345 Park Avenue San Jose , California 95110-2704 (Address of principal executive offices and zip code) Registrant\u2019s telephone number, including area code: ( 408 )",
+      "char_count": 14646,
+      "word_count": 2200,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/796343/000079634326000019/adbe-20260126.htm"
+    }
+  ]
+}

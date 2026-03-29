@@ -1,0 +1,178 @@
+{
+  "id": "pypl_sec_public_filings",
+  "title": "PayPal Holdings, Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-pypl",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent PYPL SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "PayPal Holdings, Inc. General SEC Filings",
+    "company_name": "PayPal Holdings, Inc.",
+    "ticker": "PYPL",
+    "cik": "0001633917",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-25",
+      "2026-02-03",
+      "2026-02-03",
+      "2026-02-03",
+      "2025-11-17",
+      "2025-11-14",
+      "2025-10-28",
+      "2025-10-28",
+      "2025-07-29",
+      "2025-07-29"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "We engage in share repurchases of our common stock from time to time, and our stock repurchase programs do not have expiration dates and do not obligate us to repurchase any specific dollar amount or to acquire any specific number of shares.",
+      "Proceeds from the issuance of these Notes may be used for general corporate purposes, which may include funding the repayment or redemption of outstanding debt, share repurchases, ongoing operations, capital expenditures, and possible acquisitions of businesses, assets, or strategic investments."
+    ],
+    "liquidity_notes": [
+      "Additionally, any inability to access the capital markets when needed due to volatility or illiquidity in the markets, liquidity needs due to unanticipated reductions in customer balances, or increased regulatory liquidity and capital requirements may strain our liquidity position."
+    ],
+    "governance_notes": [
+      "(the \u201c Company \u201d) announced that on February 2, 2026, the Board of Directors (the \u201c Board \u201d) of the Company appointed Enrique Lores as President and Chief Executive Officer of the Company, effective as of March 1, 2026.",
+      "The Board also appointed Jamie Miller, the Company\u2019s Chief Financial and Operating Officer, to serve as Interim President and Chief Executive Officer, effective immediately, until Mr."
+    ],
+    "controls_and_risk_notes": [
+      "Based on the evaluation of our disclosure controls and procedures (as defined in the Rules 13a-15(e) and 15d-15(e) under the Securities Exchange Act of 1934, as amended, or the Exchange Act), our principal executive officer and our principal financial officer have concluded that as of December 31, 2025, the end of the period covered by this report, our disclosure controls and procedures were effective.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Risk Factors\u201d of this Form 10-K, as well as in our consolidated financial statements, related notes, and the other information appearing in this report and our other filings with the Securities and Exchange Commission (\u201cSEC\u201d)."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-pypl",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-pypl/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-pypl/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-pypl/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-03-20 2026-03-20 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): March 20, 2026 PayPal Holdings, Inc."
+      },
+      {
+        "label": "8-K 2026-02-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2026-02-02 2026-02-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(D) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of report (Date of earliest event reported): February 3, 2026 ( February 2, 2026 ) PayPal Hold"
+      },
+      {
+        "label": "10-K 2026-02-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 FY false 411 481 382 http://fasb.org/us-gaap/2025#AccountingStandardsUpdate202308Member P1D P3D P5D P1Y http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#"
+      },
+      {
+        "label": "8-K 2026-02-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-03 2026-02-03 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 3, 2026 PayPal Holdings, Inc"
+      },
+      {
+        "label": "8-K 2025-11-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2025-11-11 2025-11-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): November 11, 2025 PayPal Holdings, Inc. (Exact"
+      },
+      {
+        "label": "8-K 2025-11-14",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2025-11-14 2025-11-14 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): November 14, 2025 PayPal Holdings, Inc. (Exact"
+      },
+      {
+        "label": "10-Q 2025-10-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/31 2025 Q3 FALSE http://fasb.org/us-gaap/2025#AccountingStandardsUpdate202308Member http://fasb.org/us-gaap/2025#PrepaidExpenseAndOtherAssetsCurrent http://fasb.org/us-gaap/2025#PrepaidExpenseAndOtherAssetsCurrent http://fasb.org/us-gaap/2025#PrepaidExpenseAndOtherAssetsCurrent http://fasb.o"
+      },
+      {
+        "label": "8-K 2025-10-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-28 2025-10-28 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): October 28, 2025 PayPal Holdings, Inc"
+      },
+      {
+        "label": "10-Q 2025-07-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/31 2025 Q2 FALSE http://fasb.org/us-gaap/2025#AccountingStandardsUpdate202308Member P3Y http://fasb.org/us-gaap/2025#PrepaidExpenseAndOtherAssetsCurrent http://fasb.org/us-gaap/2025#PrepaidExpenseAndOtherAssetsCurrent http://fasb.org/us-gaap/2025#PrepaidExpenseAndOtherAssetsCurrent http://fa"
+      },
+      {
+        "label": "8-K 2025-07-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-07-29 2025-07-29 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): July 29, 2025 PayPal Holdings, Inc. ("
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-25",
+      "text_preview": "false - 2026-03-20 2026-03-20 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): March 20, 2026 PayPal Holdings, Inc. (Exact name of registrant as specified in its charter) Delaware 001-36859 47-2989869 (State or other jurisdiction (Commission File Number) (I.R.S. Employer of incorporation) Identification No.) 2211 North First Street San Jose , CA 95131 (Address of principal executive offices) ( 408 ) 967-7000 (Registrant\u2019s telephone number, including area code) Not Applicable (Former na",
+      "char_count": 4903,
+      "word_count": 750,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1633917/000163391726000059/pypl-20260320.htm"
+    },
+    {
+      "label": "8-K 2026-02-03",
+      "text_preview": "8-K false - 2026-02-02 2026-02-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(D) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of report (Date of earliest event reported): February 3, 2026 ( February 2, 2026 ) PayPal Holdings, Inc. (Exact Name of Registrant as Specified in Charter) Delaware 001-36859 47-2989869 (State or Other Jurisdiction of Incorporation) (Commission File Number) (I.R.S. Employer Identification No.) 2211 North First Street San Jose , CA 95131 (Address of Principal Executive Offices, and Zip Code) (408) 967-7000 Registrant\u2019s Telephone Number, Including Area Code Not Appl",
+      "char_count": 10070,
+      "word_count": 1590,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1633917/000119312526035860/d68718d8k.htm"
+    },
+    {
+      "label": "10-K 2026-02-03",
+      "text_preview": "2025 FY false 411 481 382 http://fasb.org/us-gaap/2025#AccountingStandardsUpdate202308Member P1D P3D P5D P1Y http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent P3Y http://www.paypa",
+      "char_count": 543870,
+      "word_count": 74523,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1633917/000163391726000024/pypl-20251231.htm"
+    }
+  ]
+}

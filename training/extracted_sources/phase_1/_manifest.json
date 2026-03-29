@@ -1,0 +1,74 @@
+[
+  {
+    "id": "apple_icar_case",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/apple_icar_case.json",
+    "bucket": "eval_cases",
+    "status": "extracted"
+  },
+  {
+    "id": "buffett_letters_compilation",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/buffett_letters_compilation.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  },
+  {
+    "id": "emeth_2025_h2_letter",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/emeth_2025_h2_letter.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  },
+  {
+    "id": "pershing_square_2026_presentation",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/pershing_square_2026_presentation.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  },
+  {
+    "id": "plural_q4_2025",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/plural_q4_2025.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  },
+  {
+    "id": "sequoia_strategy_2025_letter",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/sequoia_strategy_2025_letter.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  },
+  {
+    "id": "silver_ring_q4_2025",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/silver_ring_q4_2025.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  },
+  {
+    "id": "survivor_thriver_2025_annual",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/survivor_thriver_2025_annual.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  },
+  {
+    "id": "third_point_q4_2025",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/third_point_q4_2025.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  },
+  {
+    "id": "xylem_evoqua_sec_methodology",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/xylem_evoqua_sec_methodology.json",
+    "bucket": "transaction_methodology",
+    "status": "extracted"
+  },
+  {
+    "id": "comps_workbook_107_21",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/comps_workbook_107_21.json",
+    "bucket": "valuation_mechanics",
+    "status": "extracted"
+  },
+  {
+    "id": "fcff_ginzu",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/fcff_ginzu.json",
+    "bucket": "valuation_mechanics",
+    "status": "extracted"
+  }
+]

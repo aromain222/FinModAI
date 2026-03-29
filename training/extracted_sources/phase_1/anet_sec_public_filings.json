@@ -1,0 +1,177 @@
+{
+  "id": "anet_sec_public_filings",
+  "title": "Arista Networks, Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-anet",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent ANET SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Arista Networks, Inc. General SEC Filings",
+    "company_name": "Arista Networks, Inc.",
+    "ticker": "ANET",
+    "cik": "0001596532",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-17",
+      "2026-02-12",
+      "2025-11-05",
+      "2025-11-04",
+      "2025-09-08",
+      "2025-08-06",
+      "2025-08-05",
+      "2025-06-16",
+      "2025-06-03",
+      "2025-05-07"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "This tax could increase the costs to us of any share repurchases, which could reduce the number of shares we repurchase.",
+      "(2) Aggregate purchase price and average price paid per share for the year of 2025 include costs associated with the repurchases but exclude the 1% excise tax accrued on our share repurchases as a result of the Inflation Reduction Act of 2022."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Controls and Procedures Evaluation of Disclosure Controls and Procedures Management, with the participation of our Chief Executive Officer (\u201cCEO\u201d) and our Chief Financial Officer (\u201cCFO\u201d), evaluated the effectiveness of our disclosure controls and procedures as of December 31, 2025.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management's assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "These forward-looking statements are subject to a number of risks, uncertainties and assumptions, including those described in the section titled \u201cRisk Factors\u201d and elsewhere in this Annual Report on Form 10-K."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-anet",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-anet/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-anet/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-anet/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-02-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 FY false P3Y P1Y P2Y P1Y P3Y 463 462 385 - anet:partner anet:unit anet:segment 2025-01-01 2025-12-31 2025-06-30 2026-02-10 2025-12-31 2024-12-31"
+      },
+      {
+        "label": "8-K 2026-02-12",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2026-02-12 2026-02-12 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ____________________________ FORM 8-K ____________________________ CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earli"
+      },
+      {
+        "label": "10-Q 2025-11-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/31 2025 Q3 FALSE 3 - anet:segment 2025-01-01 2025-09-30 2025-10-30 2025-09-30 2024-12-31 2025-07-01 2025-09-30 2024-07-01"
+      },
+      {
+        "label": "8-K 2025-11-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2025-11-04 2025-11-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ____________________________ FORM 8-K ____________________________ CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earli"
+      },
+      {
+        "label": "8-K 2025-09-08",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/31 False - 2025-09-05 2025-09-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ____________________________ FORM 8-K ____________________________ CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of"
+      },
+      {
+        "label": "10-Q 2025-08-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/31 2025 Q2 FALSE 3 531 466 - anet:segment 2025-01-01 2025-06-30 2025-07-31 2025-06-30 2024-12-31 2025-04-01 2025-06-30 20"
+      },
+      {
+        "label": "8-K 2025-08-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2025-08-05 2025-08-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ____________________________ FORM 8-K ____________________________ CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earli"
+      },
+      {
+        "label": "8-K 2025-06-16",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2025-06-13 2025-06-13 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ____________________________ FORM 8-K ____________________________ CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earli"
+      },
+      {
+        "label": "8-K 2025-06-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2025-05-30 2025-05-30 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ____________________________ FORM 8-K ____________________________ CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earli"
+      },
+      {
+        "label": "10-Q 2025-05-07",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/31 2025 Q1 FALSE 3 462 - anet:acquisition anet:patent anet:segment 2025-01-01 2025-03-31 2025-05-01 2025-03-31 2024-12-31 2025-01-01 2025-03-31"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-02-17",
+      "text_preview": "2025 FY false P3Y P1Y P2Y P1Y P3Y 463 462 385 - anet:partner anet:unit anet:segment 2025-01-01 2025-12-31 2025-06-30 2026-02-10 2025-12-31 2024-12-31 2025-01-01 2025-12-31 2024-01-01 2024-12-31 2023-01-01 2023-12-31 2025-01-01 2025-12-31 2024-01-01 2024-12-31 2023-01-01 2023-12-31 2024-01-01 2024-12-31 2023-01-01 2023-12-31 us",
+      "char_count": 432234,
+      "word_count": 63115,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1596532/000159653226000013/anet-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-12",
+      "text_preview": "False - 2026-02-12 2026-02-12 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ____________________________ FORM 8-K ____________________________ CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 12, 2026 ___________________________________________________ ARISTA NETWORKS, INC. (Exact name of registrant as specified in its charter) ___________________________________________________ Delaware 001-36468 20-1751121 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 5453 Great America Parkw",
+      "char_count": 3907,
+      "word_count": 564,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1596532/000159653226000010/anet-20260212.htm"
+    },
+    {
+      "label": "10-Q 2025-11-05",
+      "text_preview": "12/31 2025 Q3 FALSE 3 - anet:segment 2025-01-01 2025-09-30 2025-10-30 2025-09-30 2024-12-31 2025-07-01 2025-09-30 2024-07-01 2024-09-30 2025-01-01 2025-09-30 2024-01-01 2024-09-30 2025-07-01 2025-09-30 2024-07-01 2024-09-30 2025-01-01 2025-09-30 2024-01-01 2024-09-30 2025-07-01 2025-09-30 00015",
+      "char_count": 300451,
+      "word_count": 43717,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1596532/000159653225000286/anet-20250930.htm"
+    }
+  ]
+}

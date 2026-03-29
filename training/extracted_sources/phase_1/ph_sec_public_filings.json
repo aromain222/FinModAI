@@ -1,0 +1,177 @@
+{
+  "id": "ph_sec_public_filings",
+  "title": "Parker-Hannifin Corp General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ph",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent PH SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Parker-Hannifin Corp General SEC Filings",
+    "company_name": "Parker-Hannifin Corp",
+    "ticker": "PH",
+    "cik": "0000076334",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-17",
+      "2026-01-30",
+      "2026-01-29",
+      "2025-12-10",
+      "2025-11-12",
+      "2025-11-07",
+      "2025-11-06",
+      "2025-10-28",
+      "2025-09-02",
+      "2025-08-22"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Share repurchase program On October 22, 2014, the Board of Directors approved a share repurchase program authorizing the repurchase of up to 35.0 million of the Company's common shares.",
+      "On August 21, 2025, the Board of Directors approved an update to the number of shares available under the Company's existing share repurchase authorization so that the aggregate number of shares available for repurchase as of such date was 20.0 million."
+    ],
+    "liquidity_notes": [
+      "- 27 - Debt To fund short-term liquidity needs, we utilize a commercial paper program that is supported by our revolving credit agreement."
+    ],
+    "governance_notes": [
+      "The Board of Directors also appointed Ms."
+    ],
+    "controls_and_risk_notes": [
+      "CONTROLS AND PROCEDURES The Company carried out an evaluation, under the supervision and with the participation of the Company\u2019s management, including the Company\u2019s principal executive officer and principal financial officer, of the effectiveness of the Company\u2019s disclosure controls and procedures as of December 31, 2025.",
+      "Other than with respect to the acquisition, there have been no changes in the Company\u2019s internal control over financial reporting during the quarter ended December 31, 2025 that materially affected, or are reasonably likely to materially affect, our internal control over financial reporting.",
+      "Readers should consider these forward-looking statements in light of risk factors discussed in Parker\u2019s Annual Report on Form 10-K for the fiscal year ended June 30, 2025 and other periodic filings made with the Securities and Exchange Commission."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-ph",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ph/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ph/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ph/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K Parker-Hannifin Corp false - 2026-03-13 2026-03-13 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): March 13, 2026 PARKER-HANN"
+      },
+      {
+        "label": "10-Q 2026-01-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "6/30 2026 Q2 FALSE - ph:employee ph:segment ph:technology 2025-07-01 2025-12-31 2025-12-31 2025-10-01 2025-12-31 2024-10-01 2024-12-31 2024-07-01 2024-12-31"
+      },
+      {
+        "label": "8-K 2026-01-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-29 2026-01-29 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): January 29, 2026 PARKER-HANNIFIN CORPOR"
+      },
+      {
+        "label": "8-K 2025-12-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K Parker-Hannifin Corp false - 2025-12-10 2025-12-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): December 10, 2025 PARKER-H"
+      },
+      {
+        "label": "8-K 2025-11-12",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "Form 8-K Parker-Hannifin Corp false - 2025-11-10 2025-11-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): November 10, 2025 PAR"
+      },
+      {
+        "label": "10-Q 2025-11-07",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "6/30 2026 Q1 FALSE - ph:employee ph:segment ph:technology 2025-07-01 2025-09-30 2025-09-30 2024-07-01 2024-09-30 2025-06-30 2024-06-30 2024-09-30"
+      },
+      {
+        "label": "8-K 2025-11-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-06 2025-11-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): November 6, 2025 PARKER-HANNIFIN CORPOR"
+      },
+      {
+        "label": "8-K 2025-10-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-22 2025-10-22 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): October 22, 2025 PARKER-HANNIFIN CORPOR"
+      },
+      {
+        "label": "8-K 2025-09-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-09-01 2025-09-01 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): September 1, 2025 PARKER-HANNIFIN CORPO"
+      },
+      {
+        "label": "10-K 2025-08-22",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 FY FALSE P7Y P3Y http://parkerhannifin.com/20250630#GainLossOnDispositionOfBusinessAndAssets http://parkerhannifin.com/20250630#GainLossOnDispositionOfBusinessAndAssets http://parkerhannifin.com/20250630#GainLossOnDispositionOfBusinessAndAssets http://parkerhannifin.com/20250630#GainLossOnDi"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-17",
+      "text_preview": "8-K Parker-Hannifin Corp false - 2026-03-13 2026-03-13 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): March 13, 2026 PARKER-HANNIFIN CORPORATION (Exact Name of Registrant as Specified in Charter) Ohio 1-4982 34-0451060 (State or other jurisdiction of Incorporation or Organization) (Commission File Number) (I.R.S. Employer Identification No.) 6035 Parkland Boulevard , Cleveland , Ohio 44124-4141 (Address of Principal Executive Offices) (Zip Code) Registrant\u2019s telephone number, including area code:",
+      "char_count": 3345,
+      "word_count": 499,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/76334/000119312526110795/d102851d8k.htm"
+    },
+    {
+      "label": "10-Q 2026-01-30",
+      "text_preview": "6/30 2026 Q2 FALSE - ph:employee ph:segment ph:technology 2025-07-01 2025-12-31 2025-12-31 2025-10-01 2025-12-31 2024-10-01 2024-12-31 2024-07-01 2024-12-31 2025-06-30 2024-06-30 2024-12-31 ph:MotionSystemsMember ph:DiversifiedIndustrialSegmentMember 2025-10-01 2025-12-31 ph:MotionSystemsMember ph:DiversifiedIndustrialSegmentMember 2024-10-01 2024-12-31 ph:MotionSystemsMember ph:DiversifiedIndustrialSegmentMember 2025-07-01 2025-12-31 ph:MotionSystemsMembe",
+      "char_count": 117085,
+      "word_count": 16241,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/76334/000007633426000008/ph-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-01-29",
+      "text_preview": "false - 2026-01-29 2026-01-29 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): January 29, 2026 PARKER-HANNIFIN CORPORATION (Exact Name of Registrant as Specified in Charter) Ohio 1-4982 34-0451060 (State or other jurisdiction of Incorporation or Organization) (Commission File Number) (I.R.S. Employer Identification No.) 6035 Parkland Boulevard , Cleveland , Ohio 44124-4141 (Address of Principal Executive Offices) (Zip Code) Registrant's telephone number, including area code: ( 216 ) 896-3000",
+      "char_count": 2932,
+      "word_count": 436,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/76334/000007633426000005/ph-20260129.htm"
+    }
+  ]
+}

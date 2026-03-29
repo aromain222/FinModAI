@@ -1,0 +1,177 @@
+{
+  "id": "shop_sec_public_filings",
+  "title": "SHOPIFY INC. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-shop",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent SHOP SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "SHOPIFY INC. General SEC Filings",
+    "company_name": "SHOPIFY INC.",
+    "ticker": "SHOP",
+    "cik": "0001594805",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-11",
+      "2026-02-11",
+      "2025-12-02",
+      "2025-11-04",
+      "2025-11-04",
+      "2025-10-09",
+      "2025-09-10",
+      "2025-08-06",
+      "2025-08-06",
+      "2025-06-18"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "We cannot guarantee that our share repurchase program will be fully consummated or that it will enhance long-term shareholder value.",
+      "Although our Board of Directors has authorized the share repurchase program, the program does not obligate us to repurchase any specific dollar amount or to acquire any specific number of shares."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "If we fail to maintain an effective system of disclosure controls and internal control over financial reporting, our ability to produce timely and accurate financial statements or comply with applicable regulations could be adversely impacted.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "For additional information regarding these and other laws, regulations and rules that affect us and our business, see Part I, Item 1A, \"Risk Factors\" in this Annual Report on Form 10-K."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-shop",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-shop/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-shop/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-shop/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-02-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 FALSE FY 412 388 P1Y P3Y P1Y P1Y P2Y P3Y http://www.shopify.com/20251231#DisposalGroupIncludingDiscontinuedOperationImpairmentOnSales http://www.shopify.com/20251231#DisposalGroupIncludingDiscontinuedOperationImpairmentOnSales http://www.shopify.com/20251231#DisposalGroupIncludingDiscontin"
+      },
+      {
+        "label": "8-K 2026-02-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-02-11 2026-02-11 2026-02-11 2026-02-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ________________________________________________ FORM 8-K ________________________________________________ CURRENT REPORT Purs"
+      },
+      {
+        "label": "8-K 2025-12-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-12-02 2025-12-02 2025-12-02 2025-12-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ________________________________________________ FORM 8-K ________________________________________________ CURRENT REPORT Purs"
+      },
+      {
+        "label": "10-Q 2025-11-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 FALSE Q3 December 31 455 - shop:segment 2025-01-01 2025-09-30 2025-01-01 2025-09-30 2025-10-29 2025-10-29 00"
+      },
+      {
+        "label": "8-K 2025-11-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-11-04 2025-11-04 2025-11-04 2025-11-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ________________________________________________ FORM 8-K ________________________________________________ CURRENT REPORT Purs"
+      },
+      {
+        "label": "8-K 2025-10-09",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-10-09 2025-10-09 2025-10-09 2025-10-09 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ________________________________________________ FORM 8-K ________________________________________________ CURRENT REPORT Purs"
+      },
+      {
+        "label": "8-K 2025-09-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-09-09 2025-09-09 2025-09-09 2025-09-09 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ________________________________________________ FORM 8-K ________________________________________________ CURRENT REPORT Purs"
+      },
+      {
+        "label": "10-Q 2025-08-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 FALSE Q2 December 31 P2Y P2Y 0.0006944 1 1 - shop:segment 2025-01-01 2025-06-30 2025-01-01 2025-06-30 2025-08-01"
+      },
+      {
+        "label": "8-K 2025-08-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-08-06 2025-08-06 2025-08-06 2025-08-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ________________________________________________ FORM 8-K ________________________________________________ CURRENT REPORT Purs"
+      },
+      {
+        "label": "8-K 2025-06-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-06-17 2025-06-17 2025-06-17 2025-06-17 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ________________________________________________ FORM 8-K ________________________________________________ CURRENT REPORT Purs"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-02-11",
+      "text_preview": "2025 FALSE FY 412 388 P1Y P3Y P1Y P1Y P2Y P3Y http://www.shopify.com/20251231#DisposalGroupIncludingDiscontinuedOperationImpairmentOnSales http://www.shopify.com/20251231#DisposalGroupIncludingDiscontinuedOperationImpairmentOnSales http://www.shopify.com/20251231#DisposalGroupIncludingDiscontinuedOperationImpairmentOnSales P5D - shop:segment shop:patent shop:vote 2025-01-01 2025-12-31 2025-01-01 2025-12-31 2024-06-28 2026-02-06 2026-02-06 shop:FounderShareMember 2025",
+      "char_count": 432069,
+      "word_count": 64031,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1594805/000159480526000007/shop-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-11",
+      "text_preview": "FALSE - 2026-02-11 2026-02-11 2026-02-11 2026-02-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ________________________________________________ FORM 8-K ________________________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 11, 2026 ________________________________________________ Shopify Inc. (Exact name of registrant as specified in its charter) ________________________________________________ Canada 001-37400 98-0486686 (State or other jurisdiction of incorporation) (Com",
+      "char_count": 4999,
+      "word_count": 730,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1594805/000159480526000006/shop-20260211.htm"
+    },
+    {
+      "label": "8-K 2025-12-02",
+      "text_preview": "FALSE - 2025-12-02 2025-12-02 2025-12-02 2025-12-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ________________________________________________ FORM 8-K ________________________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): December 2, 2025 ________________________________________________ Shopify Inc. (Exact name of registrant as specified in its charter) ________________________________________________ Canada 001-37400 98-0486686 (State or other jurisdiction of incorporation) (Comm",
+      "char_count": 3483,
+      "word_count": 504,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1594805/000159480525000090/shop-20251202.htm"
+    }
+  ]
+}

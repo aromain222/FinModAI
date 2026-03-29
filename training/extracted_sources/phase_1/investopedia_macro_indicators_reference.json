@@ -1,0 +1,66 @@
+{
+  "id": "investopedia_macro_indicators_reference",
+  "title": "Key Macroeconomic Indicators Impacting the US Stock Market",
+  "file_path": "/Users/averyromain/FinModAI/data/training/investopedia-economic-indicators-stock-market",
+  "source_type": "reference_article",
+  "tier": "B",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "valuation_mechanics",
+  "recommended_phase": 1,
+  "template_key": "reference_article",
+  "assistant_training_targets": [
+    "macro mechanism explanation",
+    "market interpretation",
+    "plain-English teaching"
+  ],
+  "source_summary": "Reference explainer on how key macro indicators feed through to stock-market expectations.",
+  "strengths": [
+    "clear market mechanisms",
+    "plain-English macro explanation",
+    "useful refresher structure"
+  ],
+  "weaknesses": [
+    "secondary source",
+    "not suitable for live-data citation"
+  ],
+  "fields": {
+    "title": "Key Macroeconomic Indicators Impacting the US Stock Market",
+    "source_name": "Investopedia",
+    "topic": "macro indicators and equity-market transmission",
+    "sections": [
+      "Key Takeaways",
+      "Overview",
+      "Understanding the Impact of GDP on the Stock Market",
+      "How Employment Data Influences Stock Prices",
+      "The Role of CPI and PPI in Shaping Market Trends",
+      "Why Retail Sales Matter to Stock Investors",
+      "Evaluating the Significance of Industrial Production",
+      "The Bottom Line"
+    ],
+    "key_mechanisms": [
+      "GDP shapes earnings expectations and equity valuations",
+      "employment data influences consumer demand and profit expectations",
+      "inflation data changes rate expectations and discount rates",
+      "retail sales and industrial production act as real-economy demand and activity signals"
+    ],
+    "analyst_relevance": [
+      "Use as a teaching reference for macro-to-equity transmission.",
+      "Support clear explanations of why macro data releases move markets.",
+      "Pair with primary macro releases for current analysis."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/investopedia-economic-indicators-stock-market/manifest.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/investopedia-economic-indicators-stock-market/chunks.jsonl",
+    "chunk_count": 8,
+    "updated_at": "2026-02-04",
+    "source_url": "https://www.investopedia.com/articles/investing/031413/economic-indicatiors-affect-us-stock-market.asp"
+  },
+  "chunking": {
+    "strategy": "web_sections",
+    "chunk_count": 8,
+    "chunks": []
+  },
+  "text_samples": []
+}

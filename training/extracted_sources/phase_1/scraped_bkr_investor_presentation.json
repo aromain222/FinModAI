@@ -1,0 +1,59 @@
+{
+  "id": "scraped_bkr_investor_presentation",
+  "title": "Baker Hughes Scraped Investor Presentation Materials",
+  "file_path": "/Users/averyromain/FinModAI/finmodai-next/data/BKR/presentation",
+  "source_type": "investor_presentation",
+  "tier": "B",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "financial_reasoning",
+  "recommended_phase": 1,
+  "template_key": "investor_presentation",
+  "assistant_training_targets": [
+    "slide compression",
+    "contributor/detractor summaries",
+    "thesis slide structure"
+  ],
+  "source_summary": "Scraper-collected investor presentation and slide materials for Baker Hughes.",
+  "strengths": [
+    "management KPI emphasis",
+    "slide-structured communication",
+    "useful for compression and prioritization"
+  ],
+  "weaknesses": [
+    "presentation materials are management-selected and should not outweigh filings"
+  ],
+  "fields": {
+    "title": "Baker Hughes Scraped Investor Presentation Materials",
+    "manager": null,
+    "date": null,
+    "agenda": [
+      "Earnings Call Slides opens in new window",
+      "Annual Meeting 2026 Power Systems OverviewDownloadPDF opens in new window"
+    ],
+    "portfolio_contributors": [],
+    "portfolio_detractors": [],
+    "holdings_covered": [
+      "Baker Hughes"
+    ],
+    "valuation_points": [
+      "Use presentation materials to identify which KPIs and segment narratives management wants investors to underwrite."
+    ],
+    "exit_or_trim_logic": [],
+    "slide_structure_patterns": [
+      "Lead with quarter highlights and KPI framing.",
+      "Use investor slides to compress the company's preferred narrative before testing it against filings."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_dir": "/Users/averyromain/FinModAI/finmodai-next/data/BKR",
+    "categories": {
+      "10k": 4,
+      "10q": 4,
+      "earnings": 3,
+      "presentation": 2,
+      "transcript": 2
+    },
+    "document_count": 15
+  }
+}

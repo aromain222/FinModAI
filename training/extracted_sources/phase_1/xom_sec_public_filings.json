@@ -1,0 +1,176 @@
+{
+  "id": "xom_sec_public_filings",
+  "title": "EXXON MOBIL CORP General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-xom",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent XOM SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "EXXON MOBIL CORP General SEC Filings",
+    "company_name": "EXXON MOBIL CORP",
+    "ticker": "XOM",
+    "cik": "0000034088",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-20",
+      "2026-02-18",
+      "2026-01-30",
+      "2026-01-07",
+      "2025-12-09",
+      "2025-11-18",
+      "2025-11-13",
+      "2025-11-03",
+      "2025-11-03",
+      "2025-10-31"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "(4) The Corporation completed share repurchases of $20 billion in 2025.",
+      "In its 2025 Corporate Plan Update released December 9, 2025, the Corporation stated that it expects share repurchases of $20 billion in 2026, assuming reasonable market conditions."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management's assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "RISK FACTORS ExxonMobil\u2019s financial and operating results are subject to a variety of risks inherent in the global oil, gas, and petrochemical businesses and the pursuit of lower-emission and other new business opportunities."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-xom",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-xom/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-xom/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-xom/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-02-20",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-02-18 2026-02-18 2026-02-18 2026-02-18 xom:ZeroPointFiveTwoFourPercentNotesDue2028Member 2026-02-18 2026-02-18 xom:ZeroPointFiveTwoFourPercentNotesDue2032Member 2026-02-18 2026-02-18 xom:OnePointFourZer"
+      },
+      {
+        "label": "10-K 2026-02-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE FY http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#ReceivablesNetCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#ReceivablesNetCurrent http://fasb.org/us-gaap/2025#AccountsPayableAndAccruedLiabilitiesCurrent http://fas"
+      },
+      {
+        "label": "8-K 2026-01-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-01-30 2026-01-30 2026-01-30 2026-01-30 xom:ZeroPointFiveTwoFourPercentNotesDue2028Member 2026-01-30 2026-01-30 xom:ZeroPointFiveTwoFourPercentNotesDue2032Member 2026-01-30 2026-01-30 xom:OnePointFourZer"
+      },
+      {
+        "label": "8-K 2026-01-07",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-01-07 2026-01-07 2026-01-07 2026-01-07 xom:ZeroPointFiveTwoFourPercentNotesDue2028Member 2026-01-07 2026-01-07 xom:ZeroPointFiveTwoFourPercentNotesDue2032Member 2026-01-07 2026-01-07 xom:OnePointFourZer"
+      },
+      {
+        "label": "8-K 2025-12-09",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-12-08 2025-12-08 2025-12-08 2025-12-08 xom:ZeroPointFiveTwoFourPercentNotesDue2028Member 2025-12-08 2025-12-08 xom:ZeroPointFiveTwoFourPercentNotesDue2032Member 2025-12-08 2025-12-08 xom:OnePointFourZer"
+      },
+      {
+        "label": "8-K 2025-11-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-11-18 2025-11-18 2025-11-18 2025-11-18 xom:ZeroPointFiveTwoFourPercentNotesDue2028Member 2025-11-18 2025-11-18 xom:ZeroPointFiveTwoFourPercentNotesDue2032Member 2025-11-18 2025-11-18 xom:OnePointFourZer"
+      },
+      {
+        "label": "8-K 2025-11-13",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K EXXON MOBIL CORP false - 2025-11-07 2025-11-07 2025-11-07 2025-11-07 xom:ZeroPointFiveTwoFourPercentNotesDue2028Member 2025-11-07 2025-11-07 xom:ZeroPointFiveTwoFourPercentNotesDue2032Member 2025-11-07 2025-11-07 xom:OnePoin"
+      },
+      {
+        "label": "8-K 2025-11-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-10-28 2025-10-28 2025-10-28 2025-10-28 xom:ZeroPointFiveTwoFourPercentNotesDue2028Member 2025-10-28 2025-10-28 xom:ZeroPointFiveTwoFourPercentNotesDue2032Member 2025-10-28 2025-10-28 xom:OnePointFourZer"
+      },
+      {
+        "label": "10-Q 2025-11-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 2025 Q3 --12-31 http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#ReceivablesNetCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#ReceivablesNetCurrent http://fasb.org/us-gaap/2025#AccountsPayableAndAccruedLiabilitiesCurre"
+      },
+      {
+        "label": "8-K 2025-10-31",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-10-31 2025-10-31 2025-10-31 2025-10-31 xom:ZeroPointFiveTwoFourPercentNotesDue2028Member 2025-10-31 2025-10-31 xom:ZeroPointFiveTwoFourPercentNotesDue2032Member 2025-10-31 2025-10-31 xom:OnePointFourZer"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-02-20",
+      "text_preview": "FALSE - 2026-02-18 2026-02-18 2026-02-18 2026-02-18 xom:ZeroPointFiveTwoFourPercentNotesDue2028Member 2026-02-18 2026-02-18 xom:ZeroPointFiveTwoFourPercentNotesDue2032Member 2026-02-18 2026-02-18 xom:OnePointFourZeroEightPercentNotesDue2039Member 2026-02-18 2026-02-18 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 18, 2026 Exxon Mobil Corporation (Exact name of registrant as specified in its charter) New Jersey 1",
+      "char_count": 3854,
+      "word_count": 554,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/34088/000003408826000047/xom-20260218.htm"
+    },
+    {
+      "label": "10-K 2026-02-18",
+      "text_preview": "FALSE FY http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#ReceivablesNetCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#ReceivablesNetCurrent http://fasb.org/us-gaap/2025#AccountsPayableAndAccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#AccountsPayableAndAccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#DepreciationDepletionAndAmortization http://fasb.org/us-gaap/2025#ExplorationExpense http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssets",
+      "char_count": 489785,
+      "word_count": 66966,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/34088/000003408826000045/xom-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-01-30",
+      "text_preview": "FALSE - 2026-01-30 2026-01-30 2026-01-30 2026-01-30 xom:ZeroPointFiveTwoFourPercentNotesDue2028Member 2026-01-30 2026-01-30 xom:ZeroPointFiveTwoFourPercentNotesDue2032Member 2026-01-30 2026-01-30 xom:OnePointFourZeroEightPercentNotesDue2039Member 2026-01-30 2026-01-30 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): January 30, 2026 Exxon Mobil Corporation (Exact name of registrant as specified in its charter) New Jersey 1-",
+      "char_count": 3748,
+      "word_count": 542,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/34088/000003408826000033/xom-20260130.htm"
+    }
+  ]
+}

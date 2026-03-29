@@ -1,0 +1,70 @@
+{
+  "id": "nvda_market_data_snapshot",
+  "title": "NVDA Market Data Snapshot",
+  "file_path": "/Users/averyromain/FinModAI/data/training/market-snapshot-nvda",
+  "source_type": "market_data_snapshot",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "market_data_snapshot",
+  "assistant_training_targets": [
+    "market-data provenance",
+    "cross-provider reconciliation",
+    "quote and fundamental sanity checks",
+    "analyst data-quality interpretation"
+  ],
+  "source_summary": "Cross-provider snapshot for NVDA built from Polygon, Tiingo, Twelve Data, and Alpha Vantage where available.",
+  "strengths": [
+    "explicit provider provenance",
+    "cross-provider comparison",
+    "quote and fundamentals sanity checks"
+  ],
+  "weaknesses": [
+    "snapshot values can go stale quickly",
+    "providers differ in field coverage and definitions"
+  ],
+  "fields": {
+    "title": "NVDA Market Data Snapshot",
+    "ticker": "NVDA",
+    "company_name": "NVDA",
+    "providers_queried": [
+      "polygon",
+      "tiingo",
+      "twelvedata",
+      "alphavantage"
+    ],
+    "quote_snapshot": [
+      "polygon: price=167.52, marketCap=n/a, sharesOutstanding=n/a, asOf=2026-03-27T20:00:00.000Z",
+      "alphavantage: price=167.55, marketCap=4,071,573,684,000.00, sharesOutstanding=24,300,000,000.00, asOf=2026-01-31T00:00:00.000Z"
+    ],
+    "fundamental_snapshot": [
+      "alphavantage: revenueLTM=n/a, ebitdaLTM=n/a, netIncomeLTM=n/a, cash=n/a, totalDebt=n/a"
+    ],
+    "provider_differences": [
+      "Observed quote spread across providers was 0.02%.",
+      "alphavantage missing fields: marketCap, sharesOutstanding, revenueLTM, ebitdaLTM, netIncomeLTM, cash."
+    ],
+    "market_context": [
+      "Snapshot captured at 2026-03-28T20:14:27.679Z.",
+      "Primary quote consensus used polygon for directional context.",
+      "Fundamentals coverage came from alphavantage with explicit provenance."
+    ],
+    "analyst_relevance": [
+      "Use provider-attributed snapshots to sanity-check price, market cap, and share count before running valuation models.",
+      "Treat provider disagreements as a prompt to confirm timing, endpoint definitions, and stale fields.",
+      "Keep quote provenance separate from fundamentals provenance in any downstream output."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/market-snapshot-nvda/manifest.json",
+    "snapshot_path": "/Users/averyromain/FinModAI/data/training/market-snapshot-nvda/snapshot.json",
+    "providers": [
+      "polygon",
+      "tiingo",
+      "twelvedata",
+      "alphavantage"
+    ]
+  }
+}

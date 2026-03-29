@@ -1,0 +1,32 @@
+[
+  {
+    "id": "curreen_q4_2025",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_2/memo_style/curreen_q4_2025.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  },
+  {
+    "id": "fairlight_alpha_q4_2025",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_2/memo_style/fairlight_alpha_q4_2025.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  },
+  {
+    "id": "oaktree_is_it_a_bubble",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_2/memo_style/oaktree_is_it_a_bubble.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  },
+  {
+    "id": "tsai_2025_annual",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_2/memo_style/tsai_2025_annual.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  },
+  {
+    "id": "upslope_q4_2025",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_2/memo_style/upslope_q4_2025.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  }
+]

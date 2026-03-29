@@ -1,0 +1,177 @@
+{
+  "id": "slb_sec_public_filings",
+  "title": "SLB LIMITED/NV General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-slb",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent SLB SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "SLB LIMITED/NV General SEC Filings",
+    "company_name": "SLB LIMITED/NV",
+    "ticker": "SLB",
+    "cik": "0000087347",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-11",
+      "2026-01-23",
+      "2026-01-23",
+      "2025-10-22",
+      "2025-10-17",
+      "2025-10-15",
+      "2025-10-10",
+      "2025-10-07",
+      "2025-07-24",
+      "2025-07-18"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Comparison of Five-Year Cumulative Total Return Among SLB Common Stock, the S&P 500 Index and the Philadelphia Oil Service Index Share Repurchases On January 21, 2016, the SLB Board of Directors approved a $10 billion share repurchase program for SLB common stock.",
+      "Aligned with our clear priority to create value for investors, we are committed to returning more than $4 billion to shareholders in 2026 through dividends and share repurchases."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "SLB has carried out an evaluation under the supervision and with the participation of SLB\u2019s management, including the Chief Executive Officer (\u201cCEO\u201d) and the Chief Financial Officer (\u201cCFO\u201d), of the effectiveness of SLB\u2019s \u201cdisclosure controls and procedures\u201d (as such term is defined in Rules 13a-15(e) and 15d-15(e) under the Exchange Act) as of the end of the period covered by this report.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Risk Factors \u2013 Legal and Regulatory Risks,\u201d which is incorporated by reference in this Item 1."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-slb",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-slb/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-slb/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-slb/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K SLB LIMITED/NV P8 US TX false - 2026-03-11 2026-03-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): March 11, 2026 SLB N.V."
+      },
+      {
+        "label": "10-K 2026-01-23",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "10-K false false false false false FY SLB LIMITED/NV P8 http://fasb.org/us-gaap/2025#AssetImpairmentCharges http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent htt"
+      },
+      {
+        "label": "8-K 2026-01-23",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K SLB LIMITED/NV P8 Paris <span data-hint=\"Entity false - 2026-01-23 2026-01-23 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported):"
+      },
+      {
+        "label": "10-Q 2025-10-22",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "10-Q false false false Q3 false --12-31 false SLB LIMITED/NV P8 http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNo"
+      },
+      {
+        "label": "8-K 2025-10-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K SLB LIMITED/NV P8 Paris <span data-hint=\"Entity false - 2025-10-17 2025-10-17 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported):"
+      },
+      {
+        "label": "8-K 2025-10-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K SLB LIMITED/NV P8 Paris <span data-hint=\"Entity false - 2025-10-12 2025-10-12 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported):"
+      },
+      {
+        "label": "8-K 2025-10-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K SLB LIMITED/NV P8 Paris <span data-hint=\"Entity false --12-31 - 2025-10-10 2025-10-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event re"
+      },
+      {
+        "label": "8-K 2025-10-07",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K SLB LIMITED/NV P8 false - 2025-10-07 2025-10-07 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): October 7, 2025 SLB N.V. (SLB"
+      },
+      {
+        "label": "10-Q 2025-07-24",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "10-Q false false --12-31 Q2 false false false SCHLUMBERGER LIMITED/NV P8 http://fasb.org/us-gaap/2024#OtherAssetsCurrent http://fasb.org/us-gaap/2024#OtherAssetsCurrent http://fasb.org/us-gaap/2024#OtherAssetsNoncurrent http://fasb.org/us-gaap/2024#OtherAssetsNoncurrent http://fasb.org/us-gaap/2024#OtherLiab"
+      },
+      {
+        "label": "8-K 2025-07-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K SCHLUMBERGER LIMITED/NV P8 US false - 2025-07-18 2025-07-18 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): July 18, 2025 SCH"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-11",
+      "text_preview": "8-K SLB LIMITED/NV P8 US TX false - 2026-03-11 2026-03-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): March 11, 2026 SLB N.V. (SLB LIMITED) (Exact name of registrant as specified in its charter) Cura\u00e7ao 1-4601 52-0684746 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 42 rue Saint-Dominique, Paris, France 75007 5599 San Felipe , Houston , Texas , U.S.A . 77056 (address) Parkstraat 83, The Hague, The Netherlands 2514 JG (Addresses of princ",
+      "char_count": 8486,
+      "word_count": 1197,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/87347/000119312526101131/d17166d8k.htm"
+    },
+    {
+      "label": "10-K 2026-01-23",
+      "text_preview": "10-K false false false false false FY SLB LIMITED/NV P8 http://fasb.org/us-gaap/2025#AssetImpairmentCharges http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#InterestExpense http://fasb.org/us-gaap/2025#InterestExpense http://fasb.o",
+      "char_count": 284391,
+      "word_count": 38204,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/87347/000119312526021017/slb-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-01-23",
+      "text_preview": "8-K SLB LIMITED/NV P8 Paris <span data-hint=\"Entity false - 2026-01-23 2026-01-23 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): January 23, 2026 SLB N.V. (SLB LIMITED) (Exact name of registrant as specified in its charter) Cura\u00e7ao 1-4601 52-0684746 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 42 rue Saint-Dominique, P aris, France 75007 5599 San Felipe , Houston , Texas , U.S.A . 77056 Parkstraat 83, The Hague, The Netherlands 2514 JG (A",
+      "char_count": 4194,
+      "word_count": 626,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/87347/000119312526020133/d59412d8k.htm"
+    }
+  ]
+}

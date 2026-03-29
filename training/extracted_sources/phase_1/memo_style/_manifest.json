@@ -1,0 +1,50 @@
+[
+  {
+    "id": "buffett_letters_compilation",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/memo_style/buffett_letters_compilation.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  },
+  {
+    "id": "emeth_2025_h2_letter",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/memo_style/emeth_2025_h2_letter.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  },
+  {
+    "id": "pershing_square_2026_presentation",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/memo_style/pershing_square_2026_presentation.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  },
+  {
+    "id": "plural_q4_2025",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/memo_style/plural_q4_2025.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  },
+  {
+    "id": "sequoia_strategy_2025_letter",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/memo_style/sequoia_strategy_2025_letter.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  },
+  {
+    "id": "silver_ring_q4_2025",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/memo_style/silver_ring_q4_2025.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  },
+  {
+    "id": "survivor_thriver_2025_annual",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/memo_style/survivor_thriver_2025_annual.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  },
+  {
+    "id": "third_point_q4_2025",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_1/memo_style/third_point_q4_2025.json",
+    "bucket": "memo_style",
+    "status": "extracted"
+  }
+]

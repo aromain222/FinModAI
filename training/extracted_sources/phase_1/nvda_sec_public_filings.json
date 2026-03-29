@@ -1,0 +1,177 @@
+{
+  "id": "nvda_sec_public_filings",
+  "title": "NVIDIA CORP General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-nvda",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent NVDA SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "NVIDIA CORP General SEC Filings",
+    "company_name": "NVIDIA CORP",
+    "ticker": "NVDA",
+    "cik": "0001045810",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-06",
+      "2026-02-25",
+      "2026-02-25",
+      "2026-01-23",
+      "2025-11-19",
+      "2025-11-19",
+      "2025-08-27",
+      "2025-08-27",
+      "2025-08-05",
+      "2025-07-01"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Issuer Purchases of Equity Securities On August 26, 2025, our Board of Directors approved an additional $60.0 billion in share repurchase authorization, without expiration.",
+      "The repurchases can be made in the open market, in privately negotiated transactions, pursuant to a Rule 10b5-1 trading plan or in structured share repurchase agreements in compliance with Rule 10b-18 of the Exchange Act, subject to market conditions, applicable legal requirements, and other factors."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Inherent Limitations on Effectiveness of Controls Our management, including our Chief Executive Officer and Chief Financial Officer, does not expect that our disclosure controls and procedures or our internal controls, will prevent all error and all fraud.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "We discuss many of these risks, uncertainties, and other factors in this Annual Report on Form 10-K in greater detail under the heading \u201cRisk Factors.\u201d Given these risks, uncertainties, and other factors, you should not place undue reliance on these forward-looking statements."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-nvda",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-nvda/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-nvda/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-nvda/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-03-02 2026-03-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, DC 20549 ______________ FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): March 2, 2026 NVIDIA COR"
+      },
+      {
+        "label": "10-K 2026-02-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2026 FY false 362 460 P1Y P2Y P1Y P3Y http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent - nvda:period nvda:segment 2025-01-27 2026-01-25 2025-07-25 2026-02-20 2025-10-27 2026-01-25 0001"
+      },
+      {
+        "label": "8-K 2026-02-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-25 2026-02-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, DC 20549 ______________ FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): February 25, 2026 NVIDIA"
+      },
+      {
+        "label": "8-K 2026-01-23",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-20 2026-01-20 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, DC 20549 ______________ FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): January 20, 2026 NVIDIA"
+      },
+      {
+        "label": "10-Q 2025-11-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "1/25 2026 Q3 FALSE 478 469 278 - nvda:investment nvda:segment 2025-01-27 2025-10-26 2025-11-14 2025-07-28 2025-10-26 2024-07-29 2024-10-27 2024-01-29 2024-10-27 2025-10"
+      },
+      {
+        "label": "8-K 2025-11-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-19 2025-11-19 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, DC 20549 ______________ FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): November 19, 2025 NVIDIA"
+      },
+      {
+        "label": "10-Q 2025-08-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "1/25 2026 Q2 FALSE http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent - nvda:investment nvda:segment 2025-01-27 2025-07-27 2025-08-22 2025-04-"
+      },
+      {
+        "label": "8-K 2025-08-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-27 2025-08-27 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, DC 20549 ______________ FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): August 27, 2025 NVIDIA C"
+      },
+      {
+        "label": "8-K 2025-08-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-07-31 2025-07-31 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, DC 20549 ______________ FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): July 31, 2025 NVIDIA COR"
+      },
+      {
+        "label": "8-K 2025-07-01",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-06-25 2025-06-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, DC 20549 ______________ FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): June 25, 2025 NVIDIA COR"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-06",
+      "text_preview": "false - 2026-03-02 2026-03-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, DC 20549 ______________ FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): March 2, 2026 NVIDIA CORP ORATION (Exact name of registrant as specified in its charter) Delaware 0-23985 94-3177549 (State or other jurisdiction (Commission (IRS Employer of incorporation) File Number) Identification No.) 2788 San Tomas Expressway , Santa Clara , CA 95051 (Address of principal executive offices) (Zip Code) Registrant\u2019s telephone number, including area code: ( 408 ) 486-2000 Not",
+      "char_count": 4950,
+      "word_count": 742,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000024/nvda-20260302.htm"
+    },
+    {
+      "label": "10-K 2026-02-25",
+      "text_preview": "2026 FY false 362 460 P1Y P2Y P1Y P3Y http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent - nvda:period nvda:segment 2025-01-27 2026-01-25 2025-07-25 2026-02-20 2025-10-27 2026-01-25 nvda:JohnO.DabiriMember 2025-10-27 2026-01-25 nvda:JohnO.DabiriMember 2026-01-25 nvda:ColetteM.KressMember 2025-10-27 2026-01-25 nvda:ColetteM.KressMember 2026-01-25 2024-01-29 2025-01-26 2023-01-30 2024-01-28 2026-01-25 2025-01-26 2023-01-29 us-ga",
+      "char_count": 363784,
+      "word_count": 53066,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000021/nvda-20260125.htm"
+    },
+    {
+      "label": "8-K 2026-02-25",
+      "text_preview": "false - 2026-02-25 2026-02-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, DC 20549 ______________ FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): February 25, 2026 NVIDIA CORP ORATION (Exact name of registrant as specified in its charter) Delaware 0-23985 94-3177549 (State or other jurisdiction (Commission (IRS Employer of incorporation) File Number) Identification No.) 2788 San Tomas Expressway , Santa Clara , CA 95051 (Address of principal executive offices) (Zip Code) Registrant\u2019s telephone number, including area code: ( 408 ) 486-2000",
+      "char_count": 4060,
+      "word_count": 620,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000019/nvda-20260225.htm"
+    }
+  ]
+}

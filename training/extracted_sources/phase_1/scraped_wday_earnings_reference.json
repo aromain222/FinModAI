@@ -1,0 +1,60 @@
+{
+  "id": "scraped_wday_earnings_reference",
+  "title": "Workday Scraped Earnings Package",
+  "file_path": "/Users/averyromain/FinModAI/finmodai-next/data/WDAY/earnings",
+  "source_type": "earnings_reference",
+  "tier": "B",
+  "primary_bucket": "financial_reasoning",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "earnings_reference",
+  "assistant_training_targets": [
+    "earnings-package interpretation",
+    "KPI extraction",
+    "prepared-remarks compression",
+    "investor-facing results framing"
+  ],
+  "source_summary": "Scraper-collected earnings releases and related materials for Workday.",
+  "strengths": [
+    "official company earnings package",
+    "good for KPI prioritization",
+    "ties company messaging to investor materials"
+  ],
+  "weaknesses": [
+    "import is derived from scraped titles and document presence, not full manual extraction"
+  ],
+  "fields": {
+    "title": "Workday Scraped Earnings Package",
+    "company_name": "Workday",
+    "quarter": "recent periods",
+    "source_name": "Company Investor Relations",
+    "sections": [
+      "Download PDF Workday Announces Fiscal 2026 Fourth Quarter and Full Year Financial Results February 24 2026 opens in new window",
+      "Download Workday Announces Date of Fiscal 2026 Fourth Quarter and Full Year Financial Results on February 24th 2026 February 3 2026 opens in"
+    ],
+    "key_metrics": [
+      "Use the earnings package to anchor the reported quarter before relying on transcript tone or media interpretation.",
+      "Prioritize revenue, margin, guidance, and segment signals from the latest release set."
+    ],
+    "management_themes": [
+      "Management-selected earnings materials indicate which metrics and business lines investors are meant to focus on.",
+      "Cross-check the release package against filings before changing model assumptions."
+    ],
+    "analyst_relevance": [
+      "Good for earnings-package compression and KPI prioritization.",
+      "Useful source lane between raw filings and full transcripts."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_dir": "/Users/averyromain/FinModAI/finmodai-next/data/WDAY",
+    "categories": {
+      "10k": 5,
+      "10q": 7,
+      "earnings": 4,
+      "presentation": 4,
+      "transcript": 4
+    },
+    "document_count": 24
+  }
+}

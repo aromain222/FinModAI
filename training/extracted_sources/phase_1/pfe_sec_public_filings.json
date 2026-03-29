@@ -1,0 +1,177 @@
+{
+  "id": "pfe_sec_public_filings",
+  "title": "PFIZER INC General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-pfe",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent PFE SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "PFIZER INC General SEC Filings",
+    "company_name": "PFIZER INC",
+    "ticker": "PFE",
+    "cik": "0000078003",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-26",
+      "2026-02-03",
+      "2025-12-16",
+      "2025-11-21",
+      "2025-11-13",
+      "2025-11-04",
+      "2025-11-04",
+      "2025-08-05",
+      "2025-08-05",
+      "2025-05-19"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Capital Allocation Framework \u2013\u2013Our capital allocation framework is designed to enhance long-term shareholder value and is based on three core pillars: maintaining and, over the long term, growing our dividend, reinvesting in the business and the potential to make share repurchases after de-levering our balance sheet.",
+      "In December 2018, the BOD authorized a $ 10 billion share repurchase program to be utilized over time and share repurchases commenced thereunder in the first quarter of 2019."
+    ],
+    "liquidity_notes": [
+      "ANALYSIS OF FINANCIAL CONDITION, LIQUIDITY, CAPITAL RESOURCES AND MARKET RISK We believe that with our ongoing operating cash flows, together with our financial assets, access to capital markets, revolving credit agreement, and available lines of credit, we have and will maintain the ability to meet our liquidity needs to support ongoing operations, our capital allocation objectives, and our contractual and other obligations for the foreseeable future."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "CONTROLS AND PROCEDURES Disclosure Controls and Procedures As of the end of the period covered by this Form 10-K, we carried out an evaluation, under the supervision and with the participation of our management, including our principal executive officer and principal financial officer, of the effectiveness of the design and operation of our disclosure controls and procedures (as such term is defined in Rules 13a-15(e) and 15d-15(e) under the Exchange Act).",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Risk Factors section, or within MD&A, or other risks currently unknown, could have a material adverse effect on our business, financial condition or results of operations, or we may be required to increase our accruals for contingencies."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-pfe",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-pfe/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-pfe/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-pfe/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-02-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 FY false 1 P4Y P18M P1Y P5Y Consolidated Statements of Operations Consolidated Statements of Operations Consolidated Statements of Operations http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent ht"
+      },
+      {
+        "label": "8-K 2026-02-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-03 2026-02-03 2026-02-03 2026-02-03 pfe:NotesDue20271.000Member 2026-02-03 2026-02-03 pfe:NotesDue20292.875Member 2026-02-03 2026-02-03 pfe:NotesDue20323.250Member 2026-02-03 2026-02-03 pf"
+      },
+      {
+        "label": "8-K 2025-12-16",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-12-16 2025-12-16 2025-12-16 2025-12-16 pfe:NotesDue20271.000Member 2025-12-16 2025-12-16 pfe:NoteDue20292.875Member 2025-12-16 2025-12-16 pfe:NoteDue20323.250Member 2025-12-16 2025-12-16 pfe:"
+      },
+      {
+        "label": "8-K 2025-11-21",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K PFIZER INC false - 2025-11-18 2025-11-18 2025-11-18 2025-11-18 pfe:M1.000NotesDue20275Member 2025-11-18 2025-11-18 pfe:M2.875NotesDue20291Member 2025-11-18 2025-11-18 pfe:M3.250NotesDue20322Member 2025-11-18 2025-11-18 00000"
+      },
+      {
+        "label": "8-K 2025-11-13",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-13 2025-11-13 2025-11-13 2025-11-13 pfe:NotesDue20271.000Member 2025-11-13 2025-11-13 pfe:NoteDue20292.875Member 2025-11-13 2025-11-13 pfe:NoteDue20323.250Member 2025-11-13 2025-11-13 pfe:"
+      },
+      {
+        "label": "10-Q 2025-11-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/31 2025 Q3 false one P18Y P1Y P3Y P5Y P7Y - pfe:segment pfe:facility pfe:patent pfe:complaint pfe:treatment_course 2025-01-01 2025-09-28 2025-01-01 2025-09-28 pf"
+      },
+      {
+        "label": "8-K 2025-11-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-04 2025-11-04 2025-11-04 2025-11-04 pfe:NotesDue20271.000Member 2025-11-04 2025-11-04 pfe:NotesDue20292.875Member 2025-11-04 2025-11-04 pfe:NotesDue20323.250Member 2025-11-04 2025-11-04 pf"
+      },
+      {
+        "label": "10-Q 2025-08-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/31 2025 Q2 false one P1Y P3Y P5Y P7Y one - pfe:segment pfe:company pfe:patent pfe:complaint pfe:treatment_course 2025-01-01 2025-06-29 2025-01-01 2025-06-29 pfe:"
+      },
+      {
+        "label": "8-K 2025-08-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-05 2025-08-05 2025-08-05 2025-08-05 pfe:NotesDue20271.000Member 2025-08-05 2025-08-05 pfe:NotesDue20292.875Member 2025-08-05 2025-08-05 pfe:NotesDue20323.250Member 2025-08-05 2025-08-05 pf"
+      },
+      {
+        "label": "8-K 2025-05-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K PFIZER INC false - 2025-05-14 2025-05-14 2025-05-14 2025-05-14 2025-05-14 2025-05-14 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-02-26",
+      "text_preview": "2025 FY false 1 P4Y P18M P1Y P5Y Consolidated Statements of Operations Consolidated Statements of Operations Consolidated Statements of Operations http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#LongTermDebtNoncurrent http://fasb.org/us-gaap/2025#LongTermDebtNoncurrent Consolidated Balance Sheets Consolidated Balance Sheets Consolidated Balance Sheets Consolidated Balance Sh",
+      "char_count": 751744,
+      "word_count": 101766,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/78003/000007800326000026/pfe-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-03",
+      "text_preview": "false - 2026-02-03 2026-02-03 2026-02-03 2026-02-03 pfe:NotesDue20271.000Member 2026-02-03 2026-02-03 pfe:NotesDue20292.875Member 2026-02-03 2026-02-03 pfe:NotesDue20323.250Member 2026-02-03 2026-02-03 pfe:NotesDue20373.875Member 2026-02-03 2026-02-03 pfe:NotesDue20454.250Member 2026-02-03 2026-02-03 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): February 3, 2026 PFIZER INC . (Exact name of registran",
+      "char_count": 4654,
+      "word_count": 680,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/78003/000007800326000005/pfe-20260203.htm"
+    },
+    {
+      "label": "8-K 2025-12-16",
+      "text_preview": "false - 2025-12-16 2025-12-16 2025-12-16 2025-12-16 pfe:NotesDue20271.000Member 2025-12-16 2025-12-16 pfe:NoteDue20292.875Member 2025-12-16 2025-12-16 pfe:NoteDue20323.250Member 2025-12-16 2025-12-16 pfe:NoteDue20373.875Member 2025-12-16 2025-12-16 pfe:NoteDue20454.250Member 2025-12-16 2025-12-16 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): December 16, 2025 PFIZER INC . (Exact name of registrant a",
+      "char_count": 4271,
+      "word_count": 623,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/78003/000007800325000167/pfe-20251216.htm"
+    }
+  ]
+}

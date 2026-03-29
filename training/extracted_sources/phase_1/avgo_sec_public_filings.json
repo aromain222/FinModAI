@@ -1,0 +1,177 @@
+{
+  "id": "avgo_sec_public_filings",
+  "title": "Broadcom Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-avgo",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent AVGO SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Broadcom Inc. General SEC Filings",
+    "company_name": "Broadcom Inc.",
+    "ticker": "AVGO",
+    "cik": "0001730168",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-11",
+      "2026-03-04",
+      "2026-03-02",
+      "2026-01-13",
+      "2025-12-18",
+      "2025-12-11",
+      "2025-09-29",
+      "2025-09-10",
+      "2025-09-10",
+      "2025-09-09"
+    ],
+    "capital_markets_activity": [
+      "(the \u201cIssuers\u201d) provided notice to holders of the outstanding 3.875% Senior Notes due 2027 (the \u201c3.875% Notes\u201d), issued pursuant to that certain Indenture, dated as of January 19, 2017 (as amended, supplemented or otherwise modified from time to time, the \u201c3.875% Indenture\u201d), by and among Broadcom Corporation, Broadcom Technologies Inc.",
+      "(\u201cCA\u201d) gave notice to holders of its outstanding 4.700% Senior Notes due 2027 (the \u201c4.700% Notes\u201d), issued pursuant to that certain Indenture, dated as of June 1, 2008 (as amended, supplemented or otherwise modified from time to time, the \u201c4.700% Indenture\u201d), by and among CA and the U.S."
+    ],
+    "capital_allocation_activity": [
+      "Recent filings reference ongoing capital allocation actions, including repurchases and financing decisions."
+    ],
+    "liquidity_notes": [
+      "We periodically review the allocation of plan assets relative to alternative allocation models to evaluate the need for adjustments based on forecasted liabilities and plan liquidity needs."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Our management, with the participation of our Chief Executive Officer (\u201cCEO\u201d) and Chief Financial Officer (\u201cCFO\u201d), evaluated the effectiveness of our disclosure controls and procedures as of February 1, 2026.",
+      "(b) Changes in Internal Control over Financial Reporting.",
+      "Material factors that could cause actual results to differ materially from our expectations include, but are not limited to, those disclosed under \u201cRisk Factors\u201d in Part II, Item 1A of this Form 10-Q, and in other documents we file from time to time with the Securities and Exchange Commission (the \u201cSEC\u201d)."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-avgo",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-avgo/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-avgo/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-avgo/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-Q 2026-03-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "November 1 2026 Q1 FALSE P4Y P4Y - avgo:segment 2025-11-03 2026-02-01 2026-02-27 2026-02-01 2025-11-02 2025-11-03 2026-02-01"
+      },
+      {
+        "label": "8-K 2026-03-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-03-04 2026-03-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): March 4, 2026 Broadcom Inc. (Exact Na"
+      },
+      {
+        "label": "8-K 2026-03-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2026-02-24 2026-02-24 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): February 24, 2026 Broadcom Inc. (Exact Name of"
+      },
+      {
+        "label": "8-K 2026-01-13",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2026-01-13 2026-01-13 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): January 13, 2026 Broadcom Inc. (Exact Name of R"
+      },
+      {
+        "label": "10-K 2025-12-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 FY FALSE http://fasb.org/us-gaap/2024#OtherAssetsNoncurrent http://fasb.org/us-gaap/2024#OtherAssetsNoncurrent http://fasb.org/us-gaap/2024#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2024#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2024#OtherLiabilitiesNoncurrent http://fasb.org/u"
+      },
+      {
+        "label": "8-K 2025-12-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-12-11 2025-12-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): December 11, 2025 Broadcom Inc. (Exac"
+      },
+      {
+        "label": "8-K 2025-09-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2025-09-29 2025-09-29 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): September 29, 2025 Broadcom Inc. (Exact Name of"
+      },
+      {
+        "label": "8-K 2025-09-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2025-09-10 2025-09-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(D) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): September 10, 2025 Broadcom Inc. (Exact Name of"
+      },
+      {
+        "label": "10-Q 2025-09-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "November 2 2025 Q3 FALSE P4Y P4Y - avgo:segment 2024-11-04 2025-08-03 2025-08-29 2025-08-03 2024-11-03 2024-07-12 2024-07-11 2025-05-05"
+      },
+      {
+        "label": "8-K 2025-09-09",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2025-09-03 2025-09-03 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): September 3, 2025 Broadcom Inc. (Exact Name of"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-Q 2026-03-11",
+      "text_preview": "November 1 2026 Q1 FALSE P4Y P4Y - avgo:segment 2025-11-03 2026-02-01 2026-02-27 2026-02-01 2025-11-02 2025-11-03 2026-02-01 2024-11-04 2025-02-02 avgo:SubscriptionsandServicesMember 2025-11-03 2026-02-01 avgo:SubscriptionsandServicesMember 2024-11-04 2025-02-02 2024-11-04 2025-02-02 2024-11-03 2025-02-02 2025-11-02 2025-11-02",
+      "char_count": 197113,
+      "word_count": 28465,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1730168/000173016826000016/avgo-20260201.htm"
+    },
+    {
+      "label": "8-K 2026-03-04",
+      "text_preview": "FALSE - 2026-03-04 2026-03-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): March 4, 2026 Broadcom Inc. (Exact Name of Registrant as Specified in Charter) Delaware 001-38449 35-2617337 (State or other jurisdiction of incorporation) (Commission File Number) (I.R.S. Employer Identification No.) 3421 Hillview Avenue Palo Alto, California 94304 (Address of principal executive offices including zip code) (650) 427-6000 (Registrant\u2019s telephone number, including area code) Check the approp",
+      "char_count": 3428,
+      "word_count": 526,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1730168/000173016826000011/avgo-20260304.htm"
+    },
+    {
+      "label": "8-K 2026-03-02",
+      "text_preview": "8-K false - 2026-02-24 2026-02-24 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): February 24, 2026 Broadcom Inc. (Exact Name of Registrant as Specified in Charter) Delaware 001-38449 35-2617337 (State or other jurisdiction of incorporation) (Commission File Number) (I.R.S. Employer Identification No.) 3421 Hillview Avenue Palo Alto , California 94304 (Address of principal executive offices including zip code) (650) 427-6000 (Registrant\u2019s telephone number, including area code) Check the appropriate",
+      "char_count": 3222,
+      "word_count": 472,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1730168/000119312526085656/d305325d8k.htm"
+    }
+  ]
+}

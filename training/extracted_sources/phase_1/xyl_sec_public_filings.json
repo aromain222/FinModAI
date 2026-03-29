@@ -1,0 +1,177 @@
+{
+  "id": "xyl_sec_public_filings",
+  "title": "Xylem Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-xyl",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent XYL SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Xylem Inc. General SEC Filings",
+    "company_name": "Xylem Inc.",
+    "ticker": "XYL",
+    "cik": "0001524472",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-25",
+      "2026-02-25",
+      "2026-02-10",
+      "2025-10-28",
+      "2025-10-28",
+      "2025-07-31",
+      "2025-07-31",
+      "2025-05-16",
+      "2025-04-29",
+      "2025-04-29"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "This information can assist investors in assessing our financial performance and measures our ability to generate capital for deployment among competing strategic alternatives and initiatives, including, but not limited to, dividends, acquisitions, share repurchases and debt repayment.",
+      "Repurchases include both share repurchase programs approved by the Board of Directors and repurchases in relation to settlement of employee tax withholding obligations due as a result of the vesting of restricted stock units."
+    ],
+    "liquidity_notes": [
+      "We monitor our global funding requirements and seek to meet our liquidity needs on a cost-effective basis."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "CONTROLS AND PROCEDURES Evaluation of Disclosure Controls and Procedures Our management, with the Chief Executive Officer (\"CEO\") and Chief Financial Officer (\"CFO\") of the Company, has evaluated the effectiveness of the design and operation of our disclosure controls and procedures as of the end of the year ended December 31, 2025 pursuant to Rule 13a-15(b) and 15d-15(e) of the Securities Exchange Act of 1934 (\u201cthe Exchange Act\u201d).",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Risk Factors\u201d in this Report and in subsequent filings we make with the Securities and Exchange Commission (\u201cSEC\u201d)."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-xyl",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-xyl/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-xyl/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-xyl/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-02-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-25 2026-02-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 25, 2026 XYLEM INC. (Exact name"
+      },
+      {
+        "label": "10-K 2026-02-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY http://www.xyleminc.com/20251231#RestructuringAndAssetImpairmentLosses http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherAccruedLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherAccr"
+      },
+      {
+        "label": "8-K 2026-02-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-10 2026-02-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 10, 2026 XYLEM INC. (Exact name"
+      },
+      {
+        "label": "10-Q 2025-10-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q3 --12-31 3 3 - xyl:segment xyl:employee utr:Rate 2025-01-01 2025-09-30 2025-10-24 2025-07-01 2025-09-30 2024-0"
+      },
+      {
+        "label": "8-K 2025-10-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-28 2025-10-28 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): October 28, 2025 XYLEM INC. (Exact name"
+      },
+      {
+        "label": "10-Q 2025-07-31",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q2 --12-31 P24M 100 3 3 - xyl:segment xyl:employee utr:Rate 2025-01-01 2025-06-30 2025-07-25 2025-04-01 2025-06-30"
+      },
+      {
+        "label": "8-K 2025-07-31",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-07-31 2025-07-31 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): July 31, 2025 XYLEM INC. (Exact name of"
+      },
+      {
+        "label": "8-K 2025-05-16",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-05-13 2025-05-13 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): May 13, 2025 XYLEM INC. (Exact name of r"
+      },
+      {
+        "label": "10-Q 2025-04-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q1 --12-31 P24M 100 3 3 - xyl:segment xyl:employee utr:Rate 2025-01-01 2025-03-31 2025-04-25 2025-01-01 2025-03-31"
+      },
+      {
+        "label": "8-K 2025-04-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-04-29 2025-04-29 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): April 29, 2025 XYLEM INC. (Exact name of"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-02-25",
+      "text_preview": "false - 2026-02-25 2026-02-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 25, 2026 XYLEM INC. (Exact name of registrant as specified in its charter) Indiana 001-35229 45-2080495 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 301 Water Street SE 20003 Washington DC (Address of principal executive offices) (Zip Code) ( 202 ) 869-9150 (Registrant\u2019s telephone number, including area code) (Former name or former address, i",
+      "char_count": 3026,
+      "word_count": 462,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1524472/000152447226000014/xyl-20260225.htm"
+    },
+    {
+      "label": "10-K 2026-02-25",
+      "text_preview": "false 2025 FY http://www.xyleminc.com/20251231#RestructuringAndAssetImpairmentLosses http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherAccruedLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherAccruedLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherAccruedLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherAccruedLiabilitiesNoncurrent http://fasb.org/u",
+      "char_count": 467506,
+      "word_count": 65475,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1524472/000152447226000012/xyl-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-10",
+      "text_preview": "false - 2026-02-10 2026-02-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 10, 2026 XYLEM INC. (Exact name of registrant as specified in its charter) Indiana 001-35229 45-2080495 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 301 Water Street SE 20003 Washington DC (Address of principal executive offices) (Zip Code) ( 202 ) 869-9150 (Registrant\u2019s telephone number, including area code) (Former name or former address, i",
+      "char_count": 3114,
+      "word_count": 472,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1524472/000152447226000008/xyl-20260210.htm"
+    }
+  ]
+}

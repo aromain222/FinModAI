@@ -1,0 +1,177 @@
+{
+  "id": "ftnt_sec_public_filings",
+  "title": "Fortinet, Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ftnt",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent FTNT SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Fortinet, Inc. General SEC Filings",
+    "company_name": "Fortinet, Inc.",
+    "ticker": "FTNT",
+    "cik": "0001262039",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-25",
+      "2026-02-05",
+      "2025-11-07",
+      "2025-11-05",
+      "2025-08-22",
+      "2025-08-08",
+      "2025-08-06",
+      "2025-06-18",
+      "2025-05-08",
+      "2025-05-07"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "\u2022 The trading price of our common stock may be volatile, which volatility may be exacerbated by share repurchases under our Share Repurchase Program (the \u201cRepurchase Program\u201d).",
+      "The trading price of our common stock may be volatile, which may be exacerbated by share repurchases under our Share Repurchase Program."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Sarbanes-Oxley requires, among other things, that we assess the effectiveness of our internal control over financial reporting annually, and of our disclosure controls and procedures quarterly.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Risk Factors Investing in our common stock involves a high degree of risk."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-ftnt",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ftnt/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ftnt/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ftnt/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-02-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY P1Y P1Y 24 http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurren"
+      },
+      {
+        "label": "8-K 2026-02-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-05 2026-02-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 5, 2026 FORTINET, INC. (Exact"
+      },
+      {
+        "label": "10-Q 2025-11-07",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q3 12/31 24 P1Y P2Y P3Y P1Y P2Y P3Y - ftnt:business_activity ftnt:segment_manager ftnt:operating_segment ftnt:reportable_segment 2025-01-01 2025-09-30 2025-11-04 2025-09-30 2024-1"
+      },
+      {
+        "label": "8-K 2025-11-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-05 2025-11-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): November 5, 2025 FORTINET, INC. (Exact"
+      },
+      {
+        "label": "8-K 2025-08-22",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-21 2025-08-21 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): August 21, 2025 FORTINET, INC. (Exact n"
+      },
+      {
+        "label": "10-Q 2025-08-08",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q2 12/31 24 P1Y P2Y P3Y P1Y P2Y P3Y - ftnt:business_activity ftnt:segment_manager ftnt:operating_segment ftnt:reportable_segment 2025-01-01 2025-06-30 2025-08-05 2025-06-30 2024-1"
+      },
+      {
+        "label": "8-K 2025-08-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-06 2025-08-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): August 6, 2025 FORTINET, INC. (Exact na"
+      },
+      {
+        "label": "8-K 2025-06-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-06-13 2025-06-13 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported) June 13, 2025 FORTINET, INC. (Exact name"
+      },
+      {
+        "label": "10-Q 2025-05-08",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q1 12/31 24 P1Y P2Y P3Y P1Y P2Y P3Y 456 424 - ftnt:business_activity ftnt:segment_manager ftnt:operating_segment ftnt:reportable_segment utr:sqft 2025-01-01 2025-03-31 2025-05-07 2025-03-31"
+      },
+      {
+        "label": "8-K 2025-05-07",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-05-07 2025-05-07 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): May 7, 2025 FORTINET, INC. (Exact name"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-02-25",
+      "text_preview": "false 2025 FY P1Y P1Y 24 http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent P1Y P2Y P3Y P1Y P2Y P3Y - ftnt:investment ftnt:reporting_unit ftnt:plan ftnt:reportable_segment utr:acre 2025-01-01 2025-12-31 2025-06-30 2026-02-20 2025-12-31 0",
+      "char_count": 554444,
+      "word_count": 77775,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1262039/000126203926000007/ftnt-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-05",
+      "text_preview": "false - 2026-02-05 2026-02-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 5, 2026 FORTINET, INC. (Exact name of registrant as specified in its charter) Delaware 001-34511 77-0560389 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 909 Kifer Road Sunnyvale , CA 94086 (Address of principal executive offices, including zip code) ( 408 ) 235-7700 (Registrant \u2019 s telephone number, including area code) Not Applicable (Forme",
+      "char_count": 3327,
+      "word_count": 512,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1262039/000126203926000003/ftnt-20260205.htm"
+    },
+    {
+      "label": "10-Q 2025-11-07",
+      "text_preview": "false 2025 Q3 12/31 24 P1Y P2Y P3Y P1Y P2Y P3Y - ftnt:business_activity ftnt:segment_manager ftnt:operating_segment ftnt:reportable_segment 2025-01-01 2025-09-30 2025-11-04 2025-09-30 2024-12-31 2025-07-01 2025-09-30 2024-07-01 2024-09-30 2025-01-01 2025-09-30 2024-01-01 2024-09-30 2025-07-01 2025-09-30 2024-07-01 2024-09-30 2025-01-01 2",
+      "char_count": 403021,
+      "word_count": 55856,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1262039/000126203925000039/ftnt-20250930.htm"
+    }
+  ]
+}

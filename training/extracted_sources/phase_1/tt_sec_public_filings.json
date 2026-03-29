@@ -1,0 +1,177 @@
+{
+  "id": "tt_sec_public_filings",
+  "title": "Trane Technologies plc General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-tt",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent TT SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Trane Technologies plc General SEC Filings",
+    "company_name": "Trane Technologies plc",
+    "ticker": "TT",
+    "cik": "0001466258",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-05",
+      "2026-01-29",
+      "2025-12-02",
+      "2025-10-30",
+      "2025-10-30",
+      "2025-07-30",
+      "2025-07-30",
+      "2025-06-06",
+      "2025-05-28",
+      "2025-05-28"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "In addition, although our Board of Directors has granted us authority to repurchase our shares under a share repurchase program, we are not required to repurchase any shares, and any previous share repurchases do not necessarily denote our expectations of future share repurchases.",
+      "Share repurchases are made in accordance with our balanced capital allocation strategy, subject to market conditions and regulatory requirements."
+    ],
+    "liquidity_notes": [
+      "In connection with the internal corporate restructuring completed in 2020, Aldrich, Murray and their respective subsidiaries entered into customary agreements with subsidiaries of the Company to ensure they each have access to services necessary for the effective operation of their respective businesses and access to capital to address any liquidity needs that arise as a result of working capital requirements or timing issues."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "CONTROLS AND PROCEDURES (a) Evaluation of Disclosure Controls and Procedures The Company's management, including its Chief Executive Officer and Chief Financial Officer, have conducted an evaluation of the effectiveness of the Company's disclosure controls and procedures (as such term is defined in Rules 13a-15(e) and 15d-15(e) under the Securities Exchange Act of 1934, as amended (the Exchange Act)), as of the end of the period covered by this Annual Report on Form 10-K.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management's assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "RISK FACTORS Our business, financial condition, results of operations, and cash flows are subject to a number of risks that could cause the actual results and conditions to differ materially from those projected in forward-looking statements contained in this Annual Report on Form 10-K."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-tt",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-tt/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-tt/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-tt/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-02-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 FY false 00000 http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent - x"
+      },
+      {
+        "label": "8-K 2026-01-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 00000 - 2026-01-29 2026-01-29 2025-01-30 2025-01-30 2026-01-29 2026-01-29 tt:FivePointTwentyFivePercentSeniorNotesDueTwoThousandThirtyThreeMember 2026-01-29 2026-01-29 tt:FivePointOneZeroPercentSeniorNotesDueTw"
+      },
+      {
+        "label": "8-K 2025-12-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 00000 - 2025-12-02 2025-12-02 2025-06-05 2025-06-05 2025-06-05 2025-06-05 2025-06-05 2025-06-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 ___________________________"
+      },
+      {
+        "label": "10-Q 2025-10-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/31 2025 Q3 false 00000 - 2025-01-01 2025-09-30 2025-01-01 2025-09-30 tt:FivePointTwoFivePercentSeniorNotesDueTwoThousandThirt"
+      },
+      {
+        "label": "8-K 2025-10-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 00000 - 2025-10-30 2025-10-30 2025-07-30 2025-07-30 2025-10-30 2025-10-30 tt:FivePointTwoFivePercentSeniorNotesDueTwoThousandThirtyThreeMember 2025-10-30 2025-10-30 2025-10-30 2025-10-"
+      },
+      {
+        "label": "10-Q 2025-07-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/31 2025 Q2 false 00000 - 2025-01-01 2025-06-30 2025-01-01 2025-06-30 tt:FivePointTwoFivePercentSeniorNotesDueTwoThousandThirt"
+      },
+      {
+        "label": "8-K 2025-07-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 00000 - 2025-07-30 2025-07-30 2025-04-30 2025-04-30 2025-07-30 2025-07-30 tt:FivePointTwoFivePercentSeniorNotesDueTwoThousandThirtyThreeMember 2025-07-30 2025-07-30 2025-07-30 2025-07-"
+      },
+      {
+        "label": "8-K 2025-06-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 00000 - 2025-06-05 2025-06-05 2025-06-05 2025-06-05 2025-06-05 2025-06-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 ____________________________________________ FORM 8-K ______"
+      },
+      {
+        "label": "8-K 2025-05-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 00000 - 2025-05-27 2025-05-27 2025-05-27 2025-05-27 tt:FivePointTwentyFivePercentSeniorNotesDueTwoThousandThirtyThreeMember 2025-05-27 2025-05-27 tt:FivePointOneZeroPercentSeniorNotesDueTwoThousandThirtyFourMember 2025-05"
+      },
+      {
+        "label": "8-K 2025-05-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 00000 - 2025-05-28 2025-05-28 2025-05-28 2025-05-28 tt:FivePointTwentyFivePercentSeniorNotesDueTwoThousandThirtyThreeMember 2025-05-28 2025-05-28 tt:FivePointOneZeroPercentSeniorNotesDueTwoThousandThirtyFourMember 2025-05"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-02-05",
+      "text_preview": "2025 FY false 00000 http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent - 2025-01-01 2025-12-31 2025-01-01 2025-12-31 tt:FivePointTwentyFivePercentSeniorNotesDueTwoThousandThirtyThreeMember 2025-01-01 2025-12-31 tt:FivePointOneZeroPercentSeniorNotesDueTwoThousandThirtyFourMember 2025-01-01 2025-12-31 2025-06-30 2",
+      "char_count": 419247,
+      "word_count": 59353,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1466258/000162828026005731/tt-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-01-29",
+      "text_preview": "false 00000 - 2026-01-29 2026-01-29 2025-01-30 2025-01-30 2026-01-29 2026-01-29 tt:FivePointTwentyFivePercentSeniorNotesDueTwoThousandThirtyThreeMember 2026-01-29 2026-01-29 tt:FivePointOneZeroPercentSeniorNotesDueTwoThousandThirtyFourMember 2026-01-29 2026-01-29 2026-01-29 2026-01-29 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 ____________________________________________ FORM 8-K ____________________________________________ CURRENT REPORT Pursuant to Section 13 or 15 (d) of The Securities Exchange Act of 1934 Date of Report",
+      "char_count": 3991,
+      "word_count": 544,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1466258/000162828026003953/tt-20260129.htm"
+    },
+    {
+      "label": "8-K 2025-12-02",
+      "text_preview": "false 00000 - 2025-12-02 2025-12-02 2025-06-05 2025-06-05 2025-06-05 2025-06-05 2025-06-05 2025-06-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 ____________________________________________ FORM 8-K ____________________________________________ CURRENT REPORT Pursuant to Section 13 or 15 (d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported) \u2014 12/2/2025 ____________________________________________ TRANE TECHNOLOGIES PLC (Exact name of registrant as specified in its charter) _______________________________",
+      "char_count": 3486,
+      "word_count": 486,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1466258/000162828025054789/tt-20251202.htm"
+    }
+  ]
+}

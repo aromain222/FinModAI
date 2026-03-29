@@ -1,0 +1,177 @@
+{
+  "id": "msft_sec_public_filings",
+  "title": "MICROSOFT CORP General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-msft",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent MSFT SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "MICROSOFT CORP General SEC Filings",
+    "company_name": "MICROSOFT CORP",
+    "ticker": "MSFT",
+    "cik": "0000789019",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-01-28",
+      "2026-01-28",
+      "2025-12-08",
+      "2025-10-29",
+      "2025-10-29",
+      "2025-09-30",
+      "2025-07-30",
+      "2025-07-30",
+      "2025-07-01",
+      "2025-04-30"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "NOTE 14 \u2014 STOCKHOLDERS\u2019 EQUITY Share Repurchases On September 14, 2021, our Board of Directors approved a share repurchase program authorizing up to $ 60.0 billion in share repurchases.",
+      "This share repurchase program commenced in November 2021 and was completed in April 2025."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "CONTROLS AND PROCEDURES Under the supervision and with the participation of our management, including the Chief Executive Officer and Chief Financial Officer, we have evaluated the effectiveness of our disclosure controls and procedures as required by Exchange Act Rule 13a-15(b) as of the end of the period covered by this report.",
+      "There were no changes in our internal control over financial reporting during the quarter ended December 31, 2025 that have materially affected, or are reasonably likely to materially affect, our internal control over financial reporting.",
+      "Forward-looking statements may appear throughout this report, including the following sections: \u201cManagement\u2019s Discussion and Analysis of Financial Condition and Results of Operations\u201d and \u201cRisk Factors\u201d (Part II, Item 1A of this Form 10-Q)."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-msft",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-msft/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-msft/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-msft/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-Q 2026-01-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "10-Q --06-30 Q2 false 2026 http://fasb.org/us-gaap/2025#DerivativeAssets http://fasb.org/us-gaap/2025#DerivativeAssets http://fasb.org/us-gaap/2025#DerivativeLiabilities http://fasb.org/us-gaap/2025#DerivativeLiabilities http://fasb.org/us-gaap/2025#ShortTermInvestments http://fasb.org/us-gaap/2025#ShortTerm"
+      },
+      {
+        "label": "8-K 2026-01-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2026-01-28 2026-01-28 msft:NotesThreePointOneTwoFivePercentDueDecemberSixTwentyTwentyEightMember 2026-01-28 2026-01-28 2026-01-28 2026-01-28 msft:NotesTwoPointSixTwoFivePercentDueMayTwoTwentyThirtyThreeMember 2026-01-28 2026-01"
+      },
+      {
+        "label": "8-K 2025-12-08",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2025-12-05 2025-12-05 msft:NotesTwoPointOneTwoFivePercentDueDecemberSixTwentyTwentyOneMember 2025-12-05 2025-12-05 msft:NotesThreePointOneTwoFivePercentDueDecemberSixTwentyTwentyEightMember 2025-12-05 2025-12-05 msft:NotesTwoPointSixTwoFivePercentDueMay"
+      },
+      {
+        "label": "10-Q 2025-10-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "10-Q false --06-30 Q1 2026 http://fasb.org/us-gaap/2025#DerivativeAssets http://fasb.org/us-gaap/2025#DerivativeAssets http://fasb.org/us-gaap/2025#DerivativeLiabilities http://fasb.org/us-gaap/2025#DerivativeLiabilities http://fasb.org/us-gaap/2025#ShortTermInvestments http://fasb.org/us-gaap/2025#ShortTerm"
+      },
+      {
+        "label": "8-K 2025-10-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - msft:NotesTwoPointOneTwoFivePercentDueDecemberSixTwentyTwentyOneMember 2025-10-28 2025-10-28 msft:NotesThreePointOneTwoFivePercentDueDecemberSixTwentyTwentyEightMember 2025-10-28 2025-10-28 msft:NotesTwoPointSixTwoFivePercentDueMayTwoTwentyThirtyThreeMember 2025-1"
+      },
+      {
+        "label": "8-K 2025-09-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2025-09-24 2025-09-24 msft:NotesTwoPointOneTwoFivePercentDueDecemberSixTwentyTwentyOneMember 2025-09-24 2025-09-24 msft:NotesThreePointOneTwoFivePercentDueDecemberSixTwentyTwentyEightMember 2025-09-24 2025-09-24 msft:NotesTwoPointSixTwoFivePercentDueMay"
+      },
+      {
+        "label": "10-K 2025-07-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "10-K FY false P2Y P5Y P3Y P1Y http://fasb.org/us-gaap/2024#DerivativeAssets http://fasb.org/us-gaap/2024#DerivativeAssets http://fasb.org/us-gaap/2024#DerivativeLiabilities http://fasb.org/us-gaap/2024#DerivativeLiabilities http://fasb.org/us-gaap/2024#ShortTermInvestments http://fasb.org/us-gaap/2024#ShortT"
+      },
+      {
+        "label": "8-K 2025-07-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2025-07-30 2025-07-30 msft:NotesThreePointOneTwoFivePercentDueDecemberSixTwentyTwentyEightMember 2025-07-30 2025-07-30 msft:NotesTwoPointSixTwoFivePercentDueMayTwoTwentyThirtyThreeMember 2025-07-30 2025-07-30 2025-07-30 2025-07"
+      },
+      {
+        "label": "8-K 2025-07-01",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K --06-30 false - 2025-07-01 2025-07-01 msft:NotesTwoPointOneTwoFivePercentDueDecemberSixTwentyTwentyOneMember 2025-07-01 2025-07-01 msft:NotesThreePointOneTwoFivePercentDueDecemberSixTwentyTwentyEightMember 2025-07-01 2025-07-01 msft:NotesTwoPointSixTwoFivePerce"
+      },
+      {
+        "label": "10-Q 2025-04-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "10-Q --06-30 Q3 false http://fasb.org/us-gaap/2024#DerivativeAssets http://fasb.org/us-gaap/2024#DerivativeAssets http://fasb.org/us-gaap/2024#DerivativeLiabilities http://fasb.org/us-gaap/2024#DerivativeLiabilities http://fasb.org/us-gaap/2024#OtherAssetsCurrent http://fasb.org/us-gaap/2024#OtherAssetsCurre"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-Q 2026-01-28",
+      "text_preview": "10-Q --06-30 Q2 false 2026 http://fasb.org/us-gaap/2025#DerivativeAssets http://fasb.org/us-gaap/2025#DerivativeAssets http://fasb.org/us-gaap/2025#DerivativeLiabilities http://fasb.org/us-gaap/2025#DerivativeLiabilities http://fasb.org/us-gaap/2025#ShortTermInvestments http://fasb.org/us-gaap/2025#ShortTermInvestments http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#LongTermInvestments http://fasb.org/us-gaap/2025#LongTermInvestments http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-",
+      "char_count": 235717,
+      "word_count": 32910,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/789019/000119312526027207/msft-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-01-28",
+      "text_preview": "8-K false - 2026-01-28 2026-01-28 msft:NotesThreePointOneTwoFivePercentDueDecemberSixTwentyTwentyEightMember 2026-01-28 2026-01-28 2026-01-28 2026-01-28 msft:NotesTwoPointSixTwoFivePercentDueMayTwoTwentyThirtyThreeMember 2026-01-28 2026-01-28 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(D) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported) January 28, 2026 Microsoft Corporation Washington 001-37845 91-1144442 (State or Other Jurisdiction of Incorporation) (Commission File Number) (IRS Employer Ide",
+      "char_count": 3642,
+      "word_count": 526,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/789019/000119312526027198/msft-20260128.htm"
+    },
+    {
+      "label": "8-K 2025-12-08",
+      "text_preview": "8-K false - 2025-12-05 2025-12-05 msft:NotesTwoPointOneTwoFivePercentDueDecemberSixTwentyTwentyOneMember 2025-12-05 2025-12-05 msft:NotesThreePointOneTwoFivePercentDueDecemberSixTwentyTwentyEightMember 2025-12-05 2025-12-05 msft:NotesTwoPointSixTwoFivePercentDueMayTwoTwentyThirtyThreeMember 2025-12-05 2025-12-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(D) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported) December 5, 2025 Microsoft Corporation Washington 001-37845 91-1144442 (State or Other Jurisdiction of Incorporatio",
+      "char_count": 7805,
+      "word_count": 1046,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/789019/000119312525311196/d34077d8k.htm"
+    }
+  ]
+}

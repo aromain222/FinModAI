@@ -1,0 +1,126 @@
+{
+  "id": "xyl_sec_merger_process",
+  "title": "Xylem Inc. Merger Process Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-mna-xyl",
+  "source_type": "sec_merger_process",
+  "tier": "B+",
+  "primary_bucket": "transaction_methodology",
+  "secondary_bucket": "valuation_mechanics",
+  "recommended_phase": 1,
+  "template_key": "sec_merger_process",
+  "assistant_training_targets": [
+    "merger process extraction",
+    "consideration mechanics",
+    "shareholder vote and ownership analysis"
+  ],
+  "source_summary": "Registration statement filings for Xylem Inc. merger-related transaction mechanics.",
+  "strengths": [
+    "primary transaction terms",
+    "ownership and exchange-ratio mechanics",
+    "board and vote process disclosures"
+  ],
+  "weaknesses": [
+    "legal and procedural language dominates the text"
+  ],
+  "fields": {
+    "title": "Xylem Inc. Merger Process Filings",
+    "deal_name": "Xylem / Evoqua merger",
+    "filing_type": "S-4, S-4/A, F-4, F-4/A, DEFM14A, PREM14A, SC TO-T, SC TO-T/A, SC 14D9, SC 14D9/A",
+    "forms_covered": [
+      "S-4",
+      "S-4/A",
+      "F-4",
+      "F-4/A",
+      "DEFM14A",
+      "PREM14A",
+      "SC TO-T",
+      "SC TO-T/A",
+      "SC 14D9",
+      "SC 14D9/A"
+    ],
+    "filing_dates": [
+      "2023-04-03",
+      "2023-03-09"
+    ],
+    "consideration_terms": [
+      "In the Merger, Evoqua stockholders will be entitled to receive, in exchange for each share of Evoqua common stock, par value $0.01 per share (\u201cEvoqua Common Stock\u201d), owned by them immediately prior to the Merger, 0.48 shares of Xylem common stock, par value $0.01 per share (\u201cXylem Common Stock\u201d), with cash paid in lieu of the issuance of any fractional shares, which we refer to collectively as the \u201cMerger Consideration.\u201d Xylem and Evoqua will each hold special meetings of their shareholders and stockholders, respectively, in connection with the proposed Merger (respectively, the \u201cXylem Special Meeting\u201d and the \u201cEvoqua Special Meeting\u201d).",
+      "If the Merger is consummated, at the effective time of the Merger (the \u201cEffective Time\u201d), each issued and outstanding share of Evoqua Common Stock as of immediately prior to the Effective Time, other than Evoqua Common Stock held in treasury by Evoqua or owned directly or indirectly by Xylem or Merger Sub, will be converted into the right to receive 0.48 shares of Xylem Common Stock (the \u201cExchange Ratio\u201d), with cash paid in lieu of the issuance of fractional shares, if TABLE OF CONTENTS any."
+    ],
+    "ownership_mix": [
+      "Based on the estimated number of shares of Xylem Common Stock and estimated number of shares of Evoqua Common Stock, as well as the outstanding equity awards of the parties, that will be outstanding immediately prior to the consummation of the Merger, we estimate that, upon consummation of the Merger, Xylem shareholders as of immediately prior to the Merger will hold approximately 75% and Evoqua stockholders as of immediately prior to the Merger will hold approximately 25%, of the issued and outstanding shares of Xylem Common Stock (in each case based on fully diluted shares outstanding of each company)."
+    ],
+    "vote_mechanics": [
+      "In the Merger, Evoqua stockholders will be entitled to receive, in exchange for each share of Evoqua common stock, par value $0.01 per share (\u201cEvoqua Common Stock\u201d), owned by them immediately prior to the Merger, 0.48 shares of Xylem common stock, par value $0.01 per share (\u201cXylem Common Stock\u201d), with cash paid in lieu of the issuance of any fractional shares, which we refer to collectively as the \u201cMerger Consideration.\u201d Xylem and Evoqua will each hold special meetings of their shareholders and stockholders, respectively, in connection with the proposed Merger (respectively, the \u201cXylem Special Meeting\u201d and the \u201cEvoqua Special Meeting\u201d).",
+      "At the Xylem Special Meeting, holders of Xylem Common Stock (the \u201cXylem shareholders\u201d) will be asked to vote on proposals to (i) approve the issuance of shares of Xylem Common Stock to the holders of Evoqua Common Stock (the \u201cEvoqua stockholders\u201d) in connection with the Merger pursuant to the terms of the Merger Agreement (the \u201cShare Issuance Proposal\u201d); and (ii) approve the adjournment of the Xylem Special Meeting to solicit additional proxies if a quorum is not present or if there are not sufficient votes cast at the Xylem Special Meeting to approve the Share Issuance Proposal or to ensure that any supplemental or amended disclosure, including any supplement or amendment to the enclosed joint proxy statement/prospectus, is timely provided to Xylem shareholders (the \u201cXylem Adjournment Proposal\u201d).",
+      "Under the Indiana Business Corporation Law (the \u201cIBCL\u201d), virtual attendance at the Xylem Special Meeting constitutes presence in person for purposes of the vote required."
+    ],
+    "closing_conditions": [
+      "The obligations of Xylem and Evoqua to consummate the Merger are subject to the satisfaction or waiver of a number of conditions set forth in the Merger Agreement, a copy of which is attached as Annex A to the enclosed joint proxy statement/prospectus."
+    ],
+    "timeline_notes": [
+      "The Xylem Special Meeting will be held virtually at www.virtualshareholdermeeting.com/XYL2023SM, on May 11, 2023, at 11:00 a.m., Eastern Time.",
+      "The Evoqua Special Meeting will be held virtually at www.virtualshareholdermeeting.com/AQUA2023SM, on May 11, 2023, at 11:00 a.m., Eastern Time.",
+      "210 Sixth Avenue Pittsburgh, PA 15222 (724) 772-1409 \u200b \u200b David Grubman Jones Day 500 Grant Street, Suite 4500 Pittsburgh, PA 15219 (412) 394-7223 Approximate date of commencement of proposed sale of the securities to the public: As soon as practicable after this Registration Statement is declared effective and all other conditions to the proposed merger contemplated by the Agreement and Plan of Merger, dated as of January 22, 2023, described in the joint proxy statement/prospectus contained herein, have been satisfied or waived."
+    ],
+    "analyst_relevance": [
+      "Use merger filings to extract consideration structure, ownership math, and voting mechanics.",
+      "Separate process disclosures from valuation disclosures when training transaction reasoning.",
+      "Treat registration statements as primary sources for what shareholders must approve and when."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-mna-xyl",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-mna-xyl/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-mna-xyl/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-mna-xyl/chunks.jsonl",
+    "forms_queried": [
+      "S-4",
+      "S-4/A",
+      "F-4",
+      "F-4/A",
+      "DEFM14A",
+      "PREM14A",
+      "SC TO-T",
+      "SC TO-T/A",
+      "SC 14D9",
+      "SC 14D9/A"
+    ],
+    "filing_count": 2,
+    "chunk_count": 2
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 2,
+    "chunks": [
+      {
+        "label": "S-4/A 2023-04-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "S-4/A 1 ny20008089x2_s4a.htm FORM S-4/A TABLE OF CONTENTS As filed with the Securities and Exchange Commission on March 31, 2023 No. 333-270379 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 AMENDMENT NO. 1 TO FORM S-4 REGISTRATION STATEMENT UNDER THE SECURITIES ACT OF 1933"
+      },
+      {
+        "label": "S-4 2023-03-09",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "S-4 1 d406454ds4.htm S-4 S-4 Table of Contents As filed with the Securities and Exchange Commission on March 8, 2023 No. 333- UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM S-4 REGISTRATION STATEMENT UNDER THE SECURITIES ACT OF 1933 XYLEM INC. (Exact name of registrant as specified in its"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "S-4/A 2023-04-03",
+      "text_preview": "S-4/A 1 ny20008089x2_s4a.htm FORM S-4/A TABLE OF CONTENTS As filed with the Securities and Exchange Commission on March 31, 2023 No. 333-270379 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 AMENDMENT NO. 1 TO FORM S-4 REGISTRATION STATEMENT UNDER THE SECURITIES ACT OF 1933 XYLEM INC. (Exact name of registrant as specified in its charter) Indiana \u200b \u200b 3561 \u200b \u200b 45-2080495 (State or other jurisdiction of incorporation or organization) \u200b \u200b (Primary Standard Industrial Classification Code Number) \u200b \u200b (I.R.S. Employer Identification No.) 301 Water Street SE Washington, D.C. 20003 (202) 869-9150 (Address,",
+      "char_count": 1561762,
+      "word_count": 239442,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1524472/000114036123015523/ny20008089x2_s4a.htm"
+    },
+    {
+      "label": "S-4 2023-03-09",
+      "text_preview": "S-4 1 d406454ds4.htm S-4 S-4 Table of Contents As filed with the Securities and Exchange Commission on March 8, 2023 No. 333- UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM S-4 REGISTRATION STATEMENT UNDER THE SECURITIES ACT OF 1933 XYLEM INC. (Exact name of registrant as specified in its charter) Indiana 3561 45-2080495 (State or other jurisdiction of incorporation or organization) (Primary Standard Industrial Classification Code Number) (I.R.S. Employer Identification No.) 301 Water Street SE Washington, D.C. 20003 (202) 869-9150 (Address, including zip code, and telephone number, including area code, of registrant\u2019s principal executive offices) Dorothy G",
+      "char_count": 1512945,
+      "word_count": 234243,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1524472/000119312523064975/d406454ds4.htm"
+    }
+  ]
+}

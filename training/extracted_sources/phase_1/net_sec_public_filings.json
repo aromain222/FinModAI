@@ -1,0 +1,176 @@
+{
+  "id": "net_sec_public_filings",
+  "title": "Cloudflare, Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-net",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent NET SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Cloudflare, Inc. General SEC Filings",
+    "company_name": "Cloudflare, Inc.",
+    "ticker": "NET",
+    "cik": "0001477333",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-26",
+      "2026-02-10",
+      "2026-02-10",
+      "2025-10-30",
+      "2025-10-30",
+      "2025-07-31",
+      "2025-07-31",
+      "2025-06-17",
+      "2025-06-09",
+      "2025-05-08"
+    ],
+    "capital_markets_activity": [
+      "(the \u201cCompany\u201d) issued $2.0 billion aggregate principal amount of 0% Convertible Senior Notes due 2030 (the \u201cNotes\u201d) pursuant to an indenture, dated June 17, 2025 (the \u201cIndenture\u201d), between the Company and U.S.",
+      "Press Releases On June 11, 2025, the Company issued a press release announcing its intention to offer convertible senior notes in a private placement to persons reasonably believed to be qualified institutional buyers pursuant to Rule 144A under the Securities Act."
+    ],
+    "capital_allocation_activity": [
+      "Recent filings reference ongoing capital allocation actions, including repurchases and financing decisions."
+    ],
+    "liquidity_notes": [
+      "The primary objectives of our investment activities are the preservation of capital, the fulfillment of liquidity needs, and the fiduciary control of cash and investments."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "General Risk Factors If we fail to maintain an effective system of disclosure controls and internal control over financial reporting, our ability to produce timely and accurate financial statements or comply with applicable regulations could be impaired.",
+      "The outcome of the events described in these forward-looking statements is subject to risks, uncertainties, and other factors described in the section titled \u201cRisk Factors\u201d and elsewhere in this Annual Report on Form 10-K."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-net",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-net/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-net/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-net/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-02-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE FY 2025 P1Y0M0D 0.0040376 0.0052263 0.0267187 1 482 464 - cloud:segment cloud:day cloud:vote 2025-01-01 2025-12-31 2025-06-30 2026-02-12"
+      },
+      {
+        "label": "8-K 2026-02-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-06 2026-02-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (date of earliest event reported): February 6, 2026 Cloudflare, Inc. (E"
+      },
+      {
+        "label": "8-K 2026-02-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-10 2026-02-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (date of earliest event reported): February 10, 2026 Cloudflare, Inc. ("
+      },
+      {
+        "label": "10-Q 2025-10-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE Q3 2025 --12-31 0.0040376 0.0052263 0.0267187 1 456 - cloud:day cloud:vote cloud:segment 2025-01-01 2025-09-30 2025-10-16 2025-10-16 0001477"
+      },
+      {
+        "label": "8-K 2025-10-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-30 2025-10-30 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (date of earliest event reported): October 30, 2025 Cloudflare, Inc. (E"
+      },
+      {
+        "label": "10-Q 2025-07-31",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE Q2 2025 --12-31 0.0040376 0.0052263 0.0267187 1 462 460 - cloud:day cloud:vote cloud:segment 2025-01-01 2025-06-30 2025-07-17 2025-07-17 000"
+      },
+      {
+        "label": "8-K 2025-07-31",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-07-31 2025-07-31 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (date of earliest event reported): July 31, 2025 Cloudflare, Inc. (Exac"
+      },
+      {
+        "label": "8-K 2025-06-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-06-11 2025-06-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (date of earliest event reported): J"
+      },
+      {
+        "label": "8-K 2025-06-09",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-06-05 2025-06-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (date of earliest event reported): June 5, 2025 Cloudflare, Inc. (Exact"
+      },
+      {
+        "label": "10-Q 2025-05-08",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE Q1 2025 --12-31 0.0052263 0.0267187 1 Subsequent Events [TBD] 498 489 546 497 - cloud:day cloud:vote cloud:segment 2025-01-01 2025-03-31 2025-04-24"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-02-26",
+      "text_preview": "FALSE FY 2025 P1Y0M0D 0.0040376 0.0052263 0.0267187 1 482 464 - cloud:segment cloud:day cloud:vote 2025-01-01 2025-12-31 2025-06-30 2026-02-12 2026-02-12 2025-12-31 2024-12-31 2024-12-31 2025-12-31 2025-12-31 2024-12-31 2024-01-01 2024-12-31 2023-01-01 2023-12-31",
+      "char_count": 607570,
+      "word_count": 89196,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1477333/000147733326000016/cloud-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-10",
+      "text_preview": "false - 2026-02-06 2026-02-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (date of earliest event reported): February 6, 2026 Cloudflare, Inc. (Exact name of registrant as specified in its charter) Delaware 001-39039 27-0805829 (State or other jurisdiction of incorporation) (Commission File Number) (I.R.S. Employer Identification No.) 101 Townsend Street San Francisco , CA 94107 (Address of principal executive offices) (Zip code) ( 888 ) 993-5273 (Registrant's telephone number, including area code) Not Applicable (Forme",
+      "char_count": 3346,
+      "word_count": 500,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1477333/000147733326000009/cloud-20260206.htm"
+    },
+    {
+      "label": "8-K 2026-02-10",
+      "text_preview": "false - 2026-02-10 2026-02-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (date of earliest event reported): February 10, 2026 Cloudflare, Inc. (Exact name of registrant as specified in its charter) Delaware 001-39039 27-0805829 (State or other jurisdiction of incorporation) (Commission File Number) (I.R.S. Employer Identification No.) 101 Townsend Street San Francisco , CA 94107 (Address of principal executive offices) (Zip code) ( 888 ) 993-5273 (Registrant's telephone number, including area code) Not Applicable (Form",
+      "char_count": 4608,
+      "word_count": 674,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1477333/000147733326000008/cloud-20260210.htm"
+    }
+  ]
+}

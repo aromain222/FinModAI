@@ -1,0 +1,60 @@
+{
+  "id": "scraped_dal_investor_presentation",
+  "title": "Delta Air Lines Scraped Investor Presentation Materials",
+  "file_path": "/Users/averyromain/FinModAI/finmodai-next/data/DAL/presentation",
+  "source_type": "investor_presentation",
+  "tier": "B",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "financial_reasoning",
+  "recommended_phase": 1,
+  "template_key": "investor_presentation",
+  "assistant_training_targets": [
+    "slide compression",
+    "contributor/detractor summaries",
+    "thesis slide structure"
+  ],
+  "source_summary": "Scraper-collected investor presentation and slide materials for Delta Air Lines.",
+  "strengths": [
+    "management KPI emphasis",
+    "slide-structured communication",
+    "useful for compression and prioritization"
+  ],
+  "weaknesses": [
+    "presentation materials are management-selected and should not outweigh filings"
+  ],
+  "fields": {
+    "title": "Delta Air Lines Scraped Investor Presentation Materials",
+    "manager": null,
+    "date": null,
+    "agenda": [
+      "Delta Air Lines 2025 Annual Meeting",
+      "2025 Annual Meeting Voting Results opens in new window",
+      "Presentation opens in new window"
+    ],
+    "portfolio_contributors": [],
+    "portfolio_detractors": [],
+    "holdings_covered": [
+      "Delta Air Lines"
+    ],
+    "valuation_points": [
+      "Use presentation materials to identify which KPIs and segment narratives management wants investors to underwrite."
+    ],
+    "exit_or_trim_logic": [],
+    "slide_structure_patterns": [
+      "Lead with quarter highlights and KPI framing.",
+      "Use investor slides to compress the company's preferred narrative before testing it against filings."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_dir": "/Users/averyromain/FinModAI/finmodai-next/data/DAL",
+    "categories": {
+      "10k": 7,
+      "10q": 8,
+      "earnings": 4,
+      "presentation": 4,
+      "transcript": 4
+    },
+    "document_count": 27
+  }
+}

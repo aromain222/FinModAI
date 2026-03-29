@@ -1,0 +1,36 @@
+{
+  "id": "fcff_simple_ginzu_corona",
+  "title": "FCFF Simple Ginzu Corona",
+  "file_path": "/Users/averyromain/Downloads/fcffsimpleginzuCorona.xlsx",
+  "source_type": "educational_workbook",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "concept_only",
+  "recommended_phase": 2,
+  "template_key": "workbook",
+  "assistant_training_targets": [
+    "model architecture",
+    "formula mapping",
+    "schedule logic",
+    "valuation mechanics"
+  ],
+  "source_summary": "Crisis-adjusted variant of simple FCFF workbook.",
+  "strengths": [
+    "crisis overlays",
+    "ERP updates"
+  ],
+  "weaknesses": [
+    "still educational"
+  ],
+  "fields": {
+    "title": null,
+    "model_type": null,
+    "sheet_names": null,
+    "key_schedules": null,
+    "core_formulas": null,
+    "assumption_categories": null,
+    "output_tabs": null,
+    "sensitivity_support": null,
+    "quality_notes": null
+  }
+}

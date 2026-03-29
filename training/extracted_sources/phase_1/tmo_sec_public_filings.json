@@ -1,0 +1,177 @@
+{
+  "id": "tmo_sec_public_filings",
+  "title": "THERMO FISHER SCIENTIFIC INC. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-tmo",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent TMO SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "THERMO FISHER SCIENTIFIC INC. General SEC Filings",
+    "company_name": "THERMO FISHER SCIENTIFIC INC.",
+    "ticker": "TMO",
+    "cik": "0000097745",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-24",
+      "2026-02-26",
+      "2026-02-12",
+      "2026-01-29",
+      "2026-01-12",
+      "2025-12-01",
+      "2025-10-31",
+      "2025-10-29",
+      "2025-10-22",
+      "2025-10-07"
+    ],
+    "capital_markets_activity": [
+      "(the \u201cCompany\u201d), issued \u20ac1,000,000,000 aggregate principal amount of Floating Rate Senior Notes due 2027 (the \u201cFloating Rate Notes\u201d) and \u20ac1,100,000,000 aggregate principal amount of 3.628% Senior Notes due 2035 (the \u201cFixed Rate Notes\u201d and, together with the Floating Rate Notes, the \u201cNotes\u201d) in a public offering (the \u201cOffering\u201d) pursuant to a registration statement on Form S-3ASR (File No."
+    ],
+    "capital_allocation_activity": [
+      "Issuer Purchases of Equity Securities There was no share repurchase activity for the company\u2019s fourth quarter of 2025.",
+      "Weighted average diluted shares decreased in 2025 compared to 2024 due to share repurchases."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Controls and Procedures Management\u2019s Evaluation of Disclosure Controls and Procedures The company\u2019s management, with the participation of the company\u2019s chief executive officer and chief financial officer, has evaluated the effectiveness of the company\u2019s disclosure controls and procedures (as such term is defined in Rules 13a-15(e) and 15d-15(e) under the Exchange Act) as of the end of the period covered by this report.",
+      "Opinions on the Financial Statements and Internal Control over Financial Reporting We have audited the accompanying consolidated balance sheets of Thermo Fisher Scientific Inc.",
+      "Important risks and uncertainties that could cause such differences are detailed under the heading, \u201c Risk Factors \u201d in Part I, Item 1A."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-tmo",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-tmo/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-tmo/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-tmo/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-24",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-03-24 2026-03-24 2026-03-24 2026-03-24 tmo:A1.45SeniorNotesDue2027Member 2026-03-24 2026-03-24 tmo:SeniorNotes175Due2027Member 2026-03-24 2026-03-24 tmo:FloatingRateSeniorNotesDue2027Member 2026-03-24 2"
+      },
+      {
+        "label": "10-K 2026-02-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 2025 FY P3Y http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherLiabiliti"
+      },
+      {
+        "label": "8-K 2026-02-12",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-09 2026-02-09 tmo:Zero875NotesDue2031Member 2026-02-09 2026-02-09 tmo:Three628NotesDue2035Member 2026-02-09 2026-02-09 tmo:One450NotesDue2027Member 2026-02-09 2026-02-09 tmo:One500NotesDue2039Member 2026-02-09 2026-02-09 tmo:On"
+      },
+      {
+        "label": "8-K 2026-01-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-01-29 2026-01-29 2026-01-29 2026-01-29 tmo:A1.45SeniorNotesDue2027Member 2026-01-29 2026-01-29 tmo:SeniorNotes175Due2027Member 2026-01-29 2026-01-29 tmo:FloatingRateNotesDue2027Member 2026-01-29 2026-01"
+      },
+      {
+        "label": "8-K 2026-01-12",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-12 2026-01-12 tmo:Three650NotesDue2034Member 2026-01-12 2026-01-12 tmo:One450NotesDue2027Member 2026-01-12 2026-01-12 tmo:One500NotesDue2039Member 2026-01-12 2026-01-12 tmo:One375NotesDue2028Member 2026-01-12 2026-01-12 tmo:One"
+      },
+      {
+        "label": "8-K 2025-12-01",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-24 2025-11-24 tmo:One500NotesDue2039Member 2025-11-24 2025-11-24 tmo:One375NotesDue2028Member 2025-11-24 2025-11-24 tmo:One950NotesDue2029Member 2025-11-24 2025-11-24 tmo:Zero875NotesDue2031Member 2025-11-24 2025-11-24 tmo:One4"
+      },
+      {
+        "label": "10-Q 2025-10-31",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 12/31 2025 Q3 P3Y http://fasb.org/us-gaap/2025#SellingGeneralAndAdministrativeExpense http://fasb.org/us-gaap/2025#SellingGeneralAndAdministrativeExpense http://fasb.org/us-gaap/2025#SellingGeneralAndAdministrativeExpense http://fasb.org/us-gaap/2025#SellingGeneralAndAdministrativeExpense"
+      },
+      {
+        "label": "8-K 2025-10-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-10-29 2025-10-29 2025-10-29 2025-10-29 tmo:SeniorNotes3200Due2026Member 2025-10-29 2025-10-29 tmo:SeniorNotes1.40Due2026Member 2025-10-29 2025-10-29 tmo:A1.45SeniorNotesDue2027Member 2025-10-29 2025-10-"
+      },
+      {
+        "label": "8-K 2025-10-22",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-10-22 2025-10-22 2025-10-22 2025-10-22 tmo:SeniorNotes3200Due2026Member 2025-10-22 2025-10-22 tmo:SeniorNotes1.40Due2026Member 2025-10-22 2025-10-22 tmo:A1.45SeniorNotesDue2027Member 2025-10-22 2025-10-"
+      },
+      {
+        "label": "8-K 2025-10-07",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false NYSE NYSE NYSE NYSE NYSE NYSE NYSE NYSE NYSE NYSE NYSE NYSE NYSE NYSE - 2025-10-07 2025-10-07 tmo:Three200NotesDue2026Member 2025-10-07 2025-10-07 tmo:Zero500NotesDue2028Member 2025-10-07 2025-10-07 tmo:Two875NotesDue2037Member 2025-10-07 2025-10-07 000009774"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-24",
+      "text_preview": "FALSE - 2026-03-24 2026-03-24 2026-03-24 2026-03-24 tmo:A1.45SeniorNotesDue2027Member 2026-03-24 2026-03-24 tmo:SeniorNotes175Due2027Member 2026-03-24 2026-03-24 tmo:FloatingRateSeniorNotesDue2027Member 2026-03-24 2026-03-24 tmo:SeniorNotes0.500Due2028Member 2026-03-24 2026-03-24 tmo:SeniorNotes1.375Due2028Member 2026-03-24 2026-03-24 tmo:SeniorNotes1.95Due2029Member 2026-03-24 2026-03-24 tmo:SeniorNotes0.875Due2031Member 2026-03-24 2026-03-24 tmo:SeniorNotes2375Due2032Member 2026-03-24 2026-03-24 tmo:SeniorNotes3650Due2034",
+      "char_count": 4516,
+      "word_count": 621,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/97745/000009774526000066/tmo-20260324.htm"
+    },
+    {
+      "label": "10-K 2026-02-26",
+      "text_preview": "FALSE 2025 FY P3Y http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#SellingGeneralAndAdministrativeExpense http://fasb.org/us-gaap/2025#SellingGeneralAndAdministrativeExpense http://fasb.org/us-gaap/2025#SellingGeneralAndAdministrativeExpense htt",
+      "char_count": 401143,
+      "word_count": 52971,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/97745/000009774526000018/tmo-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-12",
+      "text_preview": "false - 2026-02-09 2026-02-09 tmo:Zero875NotesDue2031Member 2026-02-09 2026-02-09 tmo:Three628NotesDue2035Member 2026-02-09 2026-02-09 tmo:One450NotesDue2027Member 2026-02-09 2026-02-09 tmo:One500NotesDue2039Member 2026-02-09 2026-02-09 tmo:One875NotesDue2049Member 2026-02-09 2026-02-09 tmo:One950NotesDue2029Member 2026-02-09 2026-02-09 tmo:Zero500NotesDue2028Member 2026-02-09 2026-02-09 tmo:One375NotesDue2028Member 2026-02-09 2026-02-09 tmo:Two875NotesDue2037Member 2026-02-09 2026-02-09 2026-02-09 2026-02-09 tmo:Three650Note",
+      "char_count": 14637,
+      "word_count": 2228,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/97745/000114036126005014/ef20065513_8k.htm"
+    }
+  ]
+}

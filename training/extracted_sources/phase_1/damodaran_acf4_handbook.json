@@ -1,0 +1,117 @@
+{
+  "id": "damodaran_acf4_handbook",
+  "title": "Applied Corporate Finance (4th ed.)",
+  "file_path": "/Users/averyromain/FinModAI/data/training/acf4ebook",
+  "source_type": "finance_handbook",
+  "tier": "A",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "eval_cases",
+  "recommended_phase": 1,
+  "template_key": "finance_handbook",
+  "assistant_training_targets": [
+    "corporate finance reasoning",
+    "decision framework extraction",
+    "valuation mechanics",
+    "capital allocation logic"
+  ],
+  "source_summary": "Damodaran corporate finance textbook extracted into chapters and applied-learning sections.",
+  "strengths": [
+    "first-principles corporate finance",
+    "valuation and capital structure logic",
+    "applied learning sections"
+  ],
+  "weaknesses": [
+    "textbook tone",
+    "not a primary market source"
+  ],
+  "fields": {
+    "title": "Applied Corporate Finance (4th ed.)",
+    "author": "Aswath Damodaran",
+    "subject_areas": [
+      "investment decision",
+      "financing decision",
+      "dividend and payout policy",
+      "risk and hurdle rates",
+      "capital structure",
+      "valuation"
+    ],
+    "chapter_titles": [
+      "THE FOUNDATIONS It\u2019s all corporate finance. My unbiased view of the world",
+      "THE OBJECTIVE IN DECISION MAKING If you do not know where you are going, it does not matter how you get there. Anonymous Corporate finance\u2019\u2026",
+      "THE BASICS OF RISK Risk, in traditional terms, is viewed as a negative and something to be avoided. Webster\u2019s dictionary, for instance, def\u2026",
+      "RISK MEASUREMENT AND HURDLE RATES IN PRACTICE In the last chapter, we presented the argument that the expected return on an equity investme\u2026",
+      "MEASURING RETURN ON INVESTMENTS In Chapter 4, we developed a process for estimating costs of equity, debt, and capital and presented an arg\u2026",
+      "PROJECT INTERACTIONS, SIDE COSTS, AND SIDE BENEFITS In much of our discussion so far, we have assessed projects independently of other proj\u2026",
+      "CAPITAL STRUCTURE: OVERVIEW OF THE FINANCING DECISION In the past few chapters, we argued that projects that earn a return greater than the\u2026",
+      "CAPITAL STRUCTURE: THE OPTIMAL FINANCIAL MIX What is the optimal mix of debt and equity for a firm? In the last chapter we looked at the qu\u2026"
+    ],
+    "core_frameworks": [
+      "invest only in assets that earn above the hurdle rate",
+      "match financing mix to asset risk and tenor",
+      "return excess cash when you cannot clear the hurdle rate",
+      "maximize firm value through integrated investment, financing, and payout decisions"
+    ],
+    "applied_learning_modes": [
+      "12 live case studies",
+      "132 worked illustrations",
+      "10 concept-question sections"
+    ],
+    "analyst_relevance": [
+      "Build reusable investment, financing, and payout decision frameworks.",
+      "Strengthen DCF, hurdle-rate, and capital-structure reasoning.",
+      "Use live cases and concept questions as evaluation-style prompts."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/acf4ebook/manifest.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/acf4ebook/chunks.jsonl",
+    "special_items_path": "/Users/averyromain/FinModAI/data/training/acf4ebook/special_items.jsonl",
+    "page_count": 981,
+    "chunk_count": 965,
+    "special_item_count": 154
+  },
+  "chunking": {
+    "strategy": "chapter_and_special_section",
+    "chunk_count": 965,
+    "chunks": [
+      {
+        "label": "live_case",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "1.12 12 Live Case Study I. Company Choice/Background Objective To pick a company to analyze, collect background information and start thinking about the narrative for the company. Key Steps 1. Choose a company that you want to work at, understand, or own, rath"
+      },
+      {
+        "label": "illustration",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2.20 20 Even with these reforms, we have to accept the reality that boards of directors will never be as independent nor as probing as we would like them to be, for two other reasons. The first is that people tend to go along with a group consensus, even if th"
+      },
+      {
+        "label": "illustration",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2.24 24 and board monitoring at Disney. At the 2013 annual meeting, Iger and the remaining directors beat back the dissident challenge, but one reason was the outperformance of the company's stock over the prior year. If Disney\u2019s experiences can be generalized"
+      },
+      {
+        "label": "illustration",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2.25 25 3. Government veto power: The Brazilian government also has an active role to play in corporate governance at Vale. In addition to owning shares in the company through BNDES and state pension funds, the government owns twelve golden shares in Vale, giv"
+      },
+      {
+        "label": "illustration",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2.26 26 representatives of the employees. The remaining twelve are elected by shareholders, but employees clearly have a much bigger say in how companies are run in Germany and can sometimes exercise veto power over company decisions. Illustration 2.4 Corporat"
+      },
+      {
+        "label": "illustration",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2.27 27 Illustration 2.5: Corporate Governance at Baidu Baidu is a Chinese company, but it is incorporated in the Cayman Islands, its primary stock listing is on the NASDAQ and the listed company is structured as a shell company, to get around Chinese governme"
+      }
+    ]
+  },
+  "text_samples": []
+}

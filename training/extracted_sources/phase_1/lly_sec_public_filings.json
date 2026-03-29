@@ -1,0 +1,177 @@
+{
+  "id": "lly_sec_public_filings",
+  "title": "ELI LILLY & Co General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-lly",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent LLY SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "ELI LILLY & Co General SEC Filings",
+    "company_name": "ELI LILLY & Co",
+    "ticker": "LLY",
+    "cik": "0000059478",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-12",
+      "2026-02-04",
+      "2025-11-21",
+      "2025-10-30",
+      "2025-10-30",
+      "2025-08-20",
+      "2025-08-07",
+      "2025-08-07",
+      "2025-05-08",
+      "2025-05-01"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "In 2025, we repurchased $4.1 billion of shares under our $15.0 billion share repurchase program that our board authorized in December 2024.",
+      "As of December 31, 2025, we had $ 10.9 billion remaining under our $ 15.0 billion share repurchase program authorized in December 2024."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Our management, with the participation of David Ricks, president and chief executive officer, and Lucas Montarce, executive vice president and chief financial officer, evaluated our disclosure controls and procedures (as such term is defined in Rules 13a-15(e) and 15d-15(e) under the Securities Exchange Act of 1934) as of December 31, 2025, and concluded that they were effective.",
+      "\u2610 Indicate by check mark whether the Registrant has filed a report on and attestation to its management's assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Investors should also carefully read the factors described under Item 1A, \"Risk Factors\" in this Annual Report on Form 10-K for a description of certain risks that could, among other things, cause our actual results to differ from those expressed in forward-looking statements."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-lly",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-lly/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-lly/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-lly/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-02-12",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "true false FALSE 2025 FY P1Y P3Y http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent"
+      },
+      {
+        "label": "8-K 2026-02-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-04 2026-02-04 2026-02-04 2026-02-04 lly:A1.625NotesDueJune22026Member 2026-02-04 2026-02-04 lly:A2.125NotesDueJune32030Member 2026-02-04 2026-02-04 lly:A625Notesdue2031Member 2026-02-04 2026-02-04 0"
+      },
+      {
+        "label": "8-K 2025-11-21",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-18 2025-11-18 2025-11-18 2025-11-18 lly:A1.625NotesDueJune22026Member 2025-11-18 2025-11-18 lly:A2.125NotesDueJune32030Member 2025-11-18 2025-11-18 lly:A625Notesdue2031Member 2025-11-18 2025-11-18 0"
+      },
+      {
+        "label": "10-Q 2025-10-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 2025 Q3 12/31 TRUE FALSE 1 - lly:right lly:patent lly:party lly:site lly:state lly:petition lly:segment 2025-01-01 2025-09-30 2025-0"
+      },
+      {
+        "label": "8-K 2025-10-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-30 2025-10-30 2025-10-30 2025-10-30 lly:A1.625NotesDueJune22026Member 2025-10-30 2025-10-30 lly:A2.125NotesDueJune32030Member 2025-10-30 2025-10-30 lly:A625Notesdue2031Member 2025-10-30 2025-10-30 0"
+      },
+      {
+        "label": "8-K 2025-08-20",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K ELI LILLY & Co false - 2025-08-18 2025-08-18 2025-08-18 2025-08-18 lly:A1.625NotesDueJune22026Member 2025-08-18 2025-08-18 lly:A2.125NotesDueJune32030Member 2025-08-18 2025-08-18 lly:A625Notesdue2031Member 2025-08-18 2025-0"
+      },
+      {
+        "label": "10-Q 2025-08-07",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 2025 Q2 12/31 TRUE FALSE 1 - lly:right lly:patent lly:party lly:site lly:state lly:petition lly:segment 2025-01-01 2025-06-30"
+      },
+      {
+        "label": "8-K 2025-08-07",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-07 2025-08-07 2025-08-07 2025-08-07 lly:A1.625NotesDueJune22026Member 2025-08-07 2025-08-07 lly:A2.125NotesDueJune32030Member 2025-08-07 2025-08-07 lly:A625Notesdue2031Member 2025-08-07 2025-08-07 0"
+      },
+      {
+        "label": "8-K 2025-05-08",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-05-05 2025-05-05 2025-05-05 2025-05-05 lly:A718NotesDueJune12025Member 2025-05-05 2025-05-05 lly:A1.625NotesDueJune22026Member 2025-05-05 2025-05-05 lly:A2.125NotesDueJune32030Member 2025-05-05 2025-05"
+      },
+      {
+        "label": "10-Q 2025-05-01",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 2025 Q1 12/31 TRUE FALSE http://fasb.org/us-gaap/2024#OtherLiabilitiesCurrent 1 91 - lly:patent lly:site lly:segment 2025-01-01 2025-03-31 us-gaap:"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-02-12",
+      "text_preview": "true false FALSE 2025 FY P1Y P3Y http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent 1 - lly:right lly:patent lly:party lly:site lly:petition lly:segment 2025-01-01 2025-12-31 2025-01-01 2025-12-31 lly:A1.625NotesDueJune22026Member 2025-01-01 2025-12-31 lly:A2.125NotesDueJune",
+      "char_count": 421354,
+      "word_count": 56887,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/59478/000005947826000013/lly-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-04",
+      "text_preview": "false - 2026-02-04 2026-02-04 2026-02-04 2026-02-04 lly:A1.625NotesDueJune22026Member 2026-02-04 2026-02-04 lly:A2.125NotesDueJune32030Member 2026-02-04 2026-02-04 lly:A625Notesdue2031Member 2026-02-04 2026-02-04 lly:A500NotesDue2033Member 2026-02-04 2026-02-04 lly:A6.77NotesDueJanuary12036Member 2026-02-04 2026-02-04 lly:A1625NotesDue2043Member 2026-02-04 2026-02-04 lly:A1.700Notesdue2049Member 2026-02-04 2026-02-04 lly:A1125NotesDue2051Member 2026-02-04 2026-02-04 lly:A1375NotesDue2061Member 2026-02-04 2026-02-04 UNITED",
+      "char_count": 4611,
+      "word_count": 656,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/59478/000005947826000008/lly-20260204.htm"
+    },
+    {
+      "label": "8-K 2025-11-21",
+      "text_preview": "false - 2025-11-18 2025-11-18 2025-11-18 2025-11-18 lly:A1.625NotesDueJune22026Member 2025-11-18 2025-11-18 lly:A2.125NotesDueJune32030Member 2025-11-18 2025-11-18 lly:A625Notesdue2031Member 2025-11-18 2025-11-18 lly:A500NotesDue2033Member 2025-11-18 2025-11-18 lly:A6.77NotesDueJanuary12036Member 2025-11-18 2025-11-18 lly:A1625NotesDue2043Member 2025-11-18 2025-11-18 lly:A1.700Notesdue2049Member 2025-11-18 2025-11-18 lly:A1125NotesDue2051Member 2025-11-18 2025-11-18 lly:A1375NotesDue2061Member 2025-11-18 2025-11-18 UNITED",
+      "char_count": 5120,
+      "word_count": 720,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/59478/000005947825000271/lly-20251118.htm"
+    }
+  ]
+}

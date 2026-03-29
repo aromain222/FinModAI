@@ -1,0 +1,177 @@
+{
+  "id": "hd_sec_public_filings",
+  "title": "HOME DEPOT, INC. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-hd",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent HD SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "HOME DEPOT, INC. General SEC Filings",
+    "company_name": "HOME DEPOT, INC.",
+    "ticker": "HD",
+    "cik": "0000354950",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-18",
+      "2026-02-24",
+      "2025-11-25",
+      "2025-11-24",
+      "2025-11-18",
+      "2025-11-18",
+      "2025-09-15",
+      "2025-09-10",
+      "2025-08-26",
+      "2025-08-19"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "\u2022 Third, after reinvesting in our business and paying our dividend, we intend to return excess cash to our shareholders through share repurchases.",
+      "Shares so surrendered by participants in the Omnibus Plan are repurchased pursuant to the terms of the Omnibus Plan and applicable award agreement and not pursuant to publicly announced share repurchase programs."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Management, with the participation of our Chief Executive Officer and Chief Financial Officer, has evaluated the effectiveness of our disclosure controls and procedures as of the end of the period covered by this report.",
+      "\u00a8 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Risk Factors , and elsewhere in this report and also as described from time to time in reports subsequently filed with the SEC."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-hd",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-hd/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-hd/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-hd/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-03-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY P3Y P1Y http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization http://fasb.org/us-gaap/2025#PropertyPlantA"
+      },
+      {
+        "label": "8-K 2026-02-24",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-24 2026-02-24 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 __________________ FORM 8-K __________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of Earliest Event Reported): F"
+      },
+      {
+        "label": "10-Q 2025-11-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2/1 2025 Q3 false - hd:segment hd:reportableSegment hd:lineOfBusiness hd:creditFacility hd:tranche 2025-02-03 2025-11-02 2025-11-18 2025-11-02 2025-02-02 2025-08-04 2025-11-02 00003"
+      },
+      {
+        "label": "8-K 2025-11-24",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2/1 - 2025-11-20 2025-11-20 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 __________________ FORM 8-K __________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of Earliest Event Reported"
+      },
+      {
+        "label": "8-K 2025-11-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-18 2025-11-18 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 __________________ FORM 8-K __________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of Earliest Event Reported): N"
+      },
+      {
+        "label": "8-K 2025-11-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-18 2025-11-18 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 __________________ FORM 8-K __________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of Earliest Event Reported): N"
+      },
+      {
+        "label": "8-K 2025-09-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-09-15 2025-09-15 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of Earliest Event Reported): S"
+      },
+      {
+        "label": "8-K 2025-09-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-09-08 2025-09-08 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of Earliest Event Reported): S"
+      },
+      {
+        "label": "10-Q 2025-08-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2/1 2025 Q2 false - hd:segment hd:reportableSegment hd:lineOfBusiness hd:creditFacility 2025-02-03 2025-08-03 2025-08-19 2025-08-03 2025-02-02 2025-05-05 2025-08-03 2024-"
+      },
+      {
+        "label": "8-K 2025-08-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-19 2025-08-19 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 __________________ FORM 8-K __________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of Earliest Event Reported): A"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-03-18",
+      "text_preview": "false 2025 FY P3Y P1Y http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligationsCurrent http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligationsCurrent http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations - iso4217",
+      "char_count": 367150,
+      "word_count": 51754,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/354950/000162828026019436/hd-20260201.htm"
+    },
+    {
+      "label": "8-K 2026-02-24",
+      "text_preview": "false - 2026-02-24 2026-02-24 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 __________________ FORM 8-K __________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of Earliest Event Reported): February 24, 2026 __________________ THE HOME DEPOT, INC. (Exact Name of Registrant as Specified in Charter) __________________ Delaware 1-8207 95-3261426 (State or Other Jurisdiction of Incorporation) (Commission File Number) (IRS Employer Identification No.) 2455 Paces Ferry Road , Atlanta , Georgia 30339 (Address of Principal Executive Offices) (Zip Code) ( 770 ) 433-8211 (Re",
+      "char_count": 3591,
+      "word_count": 539,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/354950/000035495026000026/hd-20260224.htm"
+    },
+    {
+      "label": "10-Q 2025-11-25",
+      "text_preview": "2/1 2025 Q3 false - hd:segment hd:reportableSegment hd:lineOfBusiness hd:creditFacility hd:tranche 2025-02-03 2025-11-02 2025-11-18 2025-11-02 2025-02-02 2025-08-04 2025-11-02 2024-07-29 2024-10-27 2024-01-29 2024-10-27 2025-08-03 2024-07-28 2025-02-02 2024-01-28 2025-08-04 2025-11-02 2024-07-29 2024-10-27 000035495",
+      "char_count": 112593,
+      "word_count": 16276,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/354950/000162828025053868/hd-20251102.htm"
+    }
+  ]
+}

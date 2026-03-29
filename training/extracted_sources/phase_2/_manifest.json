@@ -1,0 +1,57 @@
+[
+  {
+    "id": "gs_case_comp_2016",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_2/gs_case_comp_2016.json",
+    "bucket": "eval_cases"
+  },
+  {
+    "id": "michael_hill_case_solution",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_2/michael_hill_case_solution.json",
+    "bucket": "eval_cases"
+  },
+  {
+    "id": "curreen_q4_2025",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_2/curreen_q4_2025.json",
+    "bucket": "memo_style"
+  },
+  {
+    "id": "fairlight_alpha_q4_2025",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_2/fairlight_alpha_q4_2025.json",
+    "bucket": "memo_style"
+  },
+  {
+    "id": "oaktree_is_it_a_bubble",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_2/oaktree_is_it_a_bubble.json",
+    "bucket": "memo_style"
+  },
+  {
+    "id": "tsai_2025_annual",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_2/tsai_2025_annual.json",
+    "bucket": "memo_style"
+  },
+  {
+    "id": "upslope_q4_2025",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_2/upslope_q4_2025.json",
+    "bucket": "memo_style"
+  },
+  {
+    "id": "inspirato_buyerlink_activist",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_2/inspirato_buyerlink_activist.json",
+    "bucket": "special_situations"
+  },
+  {
+    "id": "spruce_point_sghc_short",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_2/spruce_point_sghc_short.json",
+    "bucket": "special_situations"
+  },
+  {
+    "id": "fcff_simple_ginzu",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_2/fcff_simple_ginzu.json",
+    "bucket": "valuation_mechanics"
+  },
+  {
+    "id": "fcff_simple_ginzu_corona",
+    "path": "/Users/averyromain/FinModAI/training/extracted_sources/phase_2/fcff_simple_ginzu_corona.json",
+    "bucket": "valuation_mechanics"
+  }
+]

@@ -1,0 +1,177 @@
+{
+  "id": "aph_sec_public_filings",
+  "title": "AMPHENOL CORP /DE/ General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-aph",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent APH SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "AMPHENOL CORP /DE/ General SEC Filings",
+    "company_name": "AMPHENOL CORP /DE/",
+    "ticker": "APH",
+    "cik": "0000820313",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-24",
+      "2026-02-11",
+      "2026-02-05",
+      "2026-01-28",
+      "2026-01-12",
+      "2026-01-08",
+      "2025-11-10",
+      "2025-10-28",
+      "2025-10-24",
+      "2025-10-22"
+    ],
+    "capital_markets_activity": [
+      "Bancorp Investments, Inc., Loop Capital Markets LLC and Siebert Williams Shank & Co., LLC, relating to the offer and sale of \u20ac500,000,000 aggregate principal amount of Amphenol Technologies\u2019 3.625% Senior Notes due 2031 (the \u201cNotes\u201d)."
+    ],
+    "capital_allocation_activity": [
+      "Recent filings reference ongoing capital allocation actions, including repurchases and financing decisions."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "In addition, on February 4, 2026, the Board appointed R.",
+      "Also, on January 8, 2026, to fill the resulting vacancy, the Board of Directors of the Company appointed Sanjiv Lamba, 61, as a member of the Company\u2019s Board of Directors effective immediately."
+    ],
+    "controls_and_risk_notes": [
+      "Controls and Procedures \u200b The Company\u2019s management, with the participation of the Company\u2019s Chief Executive Officer and Chief Financial Officer, has evaluated the effectiveness of the design and operation of our disclosure controls and procedures, as defined in Rules 13a-15(e) or 15d-15(e) under the Securities Exchange Act of 1934, as amended (the \u201cExchange Act\u201d), as of December 31, 2025.",
+      "\u25fb \u200b Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Risk Factors \u200b The Company\u2019s business, operations, financial condition, liquidity, results of operations and stock price can be negatively affected by many risk factors."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-aph",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-aph/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-aph/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-aph/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-24",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-03-24 2026-03-24 2026-03-24 2026-03-24 2026-03-24 2026-03-24 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT PU"
+      },
+      {
+        "label": "10-K 2026-02-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "AMPHENOL CORPORATION_December 31, 2025 http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#OtherNonoper"
+      },
+      {
+        "label": "8-K 2026-02-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-04 2026-02-04 2026-02-04 2026-02-04 2026-02-04 2026-02-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pu"
+      },
+      {
+        "label": "8-K 2026-01-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "AMPHENOL CORPORATION_ January 28, 2026 false - 2026-01-28 2026-01-28 aph:UnsecuredSeniorNotes3Point125PercentDueJune2032Member 2026-01-28 2026-01-28 2026-01-28 2026-01-28 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u200b"
+      },
+      {
+        "label": "8-K 2026-01-12",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-09 2026-01-09 2026-01-09 2026-01-09 2026-01-09 2026-01-09 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pu"
+      },
+      {
+        "label": "8-K 2026-01-08",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-08 2026-01-08 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): J"
+      },
+      {
+        "label": "8-K 2025-11-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-10 2025-11-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): N"
+      },
+      {
+        "label": "8-K 2025-10-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-27 2025-10-27 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported) Oc"
+      },
+      {
+        "label": "10-Q 2025-10-24",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "AMPHENOL CORPORATION_September 30, 2025 --12-31 Q3 false P3Y 500000000 0 0 P5Y P10Y 1 P12Y P15Y 2 - 2025-09-30 2024-12-31 aph:StockRepurchaseProgram2024Member 2025-"
+      },
+      {
+        "label": "8-K 2025-10-22",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "AMPHENOL CORPORATION_ October 22, 2025 false - 2025-10-22 2025-10-22 aph:UnsecuredSeniorNotes3Point125PercentDueJune2032Member 2025-10-22 2025-10-22 2025-10-22 2025-10-22 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u200b"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-24",
+      "text_preview": "false - 2026-03-24 2026-03-24 2026-03-24 2026-03-24 2026-03-24 2026-03-24 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported) March 24, 2026 AMPHENOL CORPORATION (Exact name of registrant as specified in its charter) Delaware 1-10879 22-2785165 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 358 Hall Avenue , Wallingford , Conne",
+      "char_count": 5226,
+      "word_count": 757,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/820313/000110465926033968/tm267510d9_8k.htm"
+    },
+    {
+      "label": "10-K 2026-02-11",
+      "text_preview": "AMPHENOL CORPORATION_December 31, 2025 http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-ga",
+      "char_count": 582804,
+      "word_count": 78748,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/820313/000110465926013549/aph-20251231x10k.htm"
+    },
+    {
+      "label": "8-K 2026-02-05",
+      "text_preview": "false - 2026-02-04 2026-02-04 2026-02-04 2026-02-04 2026-02-04 2026-02-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15( d ) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 4, 2026 AMPHENOL CORPORATION (Exact name of registrant as specified in its charter) Delaware 1-10879 22-2785165 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 358 Hall Avenue , Wallingford ,",
+      "char_count": 4821,
+      "word_count": 724,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/820313/000110465926010676/tm265098d1_8k.htm"
+    }
+  ]
+}

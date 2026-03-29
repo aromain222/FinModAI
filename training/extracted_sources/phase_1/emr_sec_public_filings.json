@@ -1,0 +1,177 @@
+{
+  "id": "emr_sec_public_filings",
+  "title": "EMERSON ELECTRIC CO General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-emr",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent EMR SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "EMERSON ELECTRIC CO General SEC Filings",
+    "company_name": "EMERSON ELECTRIC CO",
+    "ticker": "EMR",
+    "cik": "0000032604",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-13",
+      "2026-02-06",
+      "2026-02-03",
+      "2026-02-03",
+      "2025-11-20",
+      "2025-11-14",
+      "2025-11-10",
+      "2025-11-05",
+      "2025-08-06",
+      "2025-08-06"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "The fiscal 2026 outlook assumes returning approximately $2.2 billion to shareholders through approximately $1.0 billion of share repurchases and approximately $1.2 billion of dividend payments.",
+      "The fiscal 2026 outlook assumes approximately $2.2 billion returned to shareholders through approximately $1.0 billion of share repurchases and approximately $1.2 billion of dividend payments."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Based on an evaluation performed, the certifying officers have concluded that the disclosure controls and procedures were effective as of the end of the period covered by this report.",
+      "There was no change in the Company's internal control over financial reporting during the period covered by this report that has materially affected, or is reasonably likely to materially affect, the Company's internal control over financial reporting.",
+      "See Item 1A - \"Risk Factors.\" HUMAN CAPITAL RESOURCES Emerson is dedicated to modernizing our workplace culture to meet the needs and expectations of today's workers and attract talent that will help us thrive."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-emr",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-emr/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-emr/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-emr/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-02-13",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-10 2026-02-10 emr:CommonStockof0.50parvaluepershareMember exch:XNYS 2026-02-10 2026-02-10 emr:A2.000Notesdue2029Member exch:XNYS 2026-02-10 2026-02-10 emr:A3.000NotesDue2031Member exch:XNYS 2026-02-10 2026-02-10 emr:A3.500Not"
+      },
+      {
+        "label": "8-K 2026-02-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false Common Stock of $0.50 par value per share EMR CHX - 2026-02-03 2026-02-03 emr:CommonStockof0.50parvaluepershareMember exch:XNYS 2026-02-03 2026-02-03 emr:A2.000Notesdue2029Member exch:XNYS 2026-02-03 2026-02-03 emr:A3.000NotesDue2031Member exch:X"
+      },
+      {
+        "label": "10-Q 2026-02-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent 09/30 2026 Q1 FALSE - emr:segment 2025-10-01 2025-12-31 exch:XNYS"
+      },
+      {
+        "label": "8-K 2026-02-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-03 2026-02-03 emr:CommonStockof0.50parvaluepershareMember exch:XNYS 2026-02-03 2026-02-03 emr:A2.000Notesdue2029Member exch:XNYS 2026-02-03 2026-02-03 emr:A3.000NotesDue2031Member exch:XNYS 2026-02-03 2026-02-03 emr:A3.500Not"
+      },
+      {
+        "label": "8-K 2025-11-20",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-20 2025-11-20 emr:CommonStockof0.50parvaluepershareMember emr:NYSETEXASINC.Member 2025-11-20 2025-11-20 emr:CommonStockof0.50parvaluepershareMember exch:XNYS 2025-11-20 2025-11-20 emr:A2.000NotesDue2029Member exch:XNYS 2025-11-20 2025-1"
+      },
+      {
+        "label": "8-K 2025-11-14",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-13 2025-11-13 exch:XNYS emr:CommonStockof0.50parvaluepershareMember 2025-11-13 2025-11-13 exch:XNYS emr:A2.000Notesdue2029Member 2025-11-13 2025-11-13 exch:XNYS emr:A3.000NotesDue2031Member 2025-11-13 2025-11-13 exch:XNYS emr"
+      },
+      {
+        "label": "10-K 2025-11-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "P1Y http://fasb.org/us-gaap/2025#AssetsNoncurrentOtherThanNoncurrentInvestmentsAndPropertyPlantAndEquipment http://fasb.org/us-gaap/2025#AssetsNoncurrentOtherThanNoncurrentInvestmentsAndPropertyPlantAndEquipment http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiab"
+      },
+      {
+        "label": "8-K 2025-11-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-03 2025-11-03 emr:CommonStockof0.50parvaluepershareMember exch:XNYS 2025-11-03 2025-11-03 emr:A2.000Notesdue2029Member exch:XNYS 2025-11-03 2025-11-03 emr:A3.000NotesDue2031Member exch:XNYS 2025-11-03 2025-11-03 emr:A3.500Not"
+      },
+      {
+        "label": "10-Q 2025-08-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent 09/30 2025 Q3 FALSE - 2024-10-01 2025-06-30 emr:CommonStockof0.50parvaluepershareMember emr"
+      },
+      {
+        "label": "8-K 2025-08-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-06 2025-08-06 emr:CommonStockof0.50parvaluepershareMember emr:NYSETEXASINC.Member 2025-08-06 2025-08-06 emr:CommonStockof0.50parvaluepershareMember exch:XNYS 2025-08-06 2025-08-06 emr:A1.250Notesdue2025Member exch:XNYS 2025-08-06 2025-0"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-02-13",
+      "text_preview": "false - 2026-02-10 2026-02-10 emr:CommonStockof0.50parvaluepershareMember exch:XNYS 2026-02-10 2026-02-10 emr:A2.000Notesdue2029Member exch:XNYS 2026-02-10 2026-02-10 emr:A3.000NotesDue2031Member exch:XNYS 2026-02-10 2026-02-10 emr:A3.500NotesDue2037Member exch:XNYS 2026-02-10 2026-02-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 _______________ FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15 (d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): February 10, 2026 Emerson Electric Co. ------------------------------------------------- (Exact Na",
+      "char_count": 5803,
+      "word_count": 825,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/32604/000003260426000022/emr-20260210.htm"
+    },
+    {
+      "label": "8-K 2026-02-06",
+      "text_preview": "false Common Stock of $0.50 par value per share EMR CHX - 2026-02-03 2026-02-03 emr:CommonStockof0.50parvaluepershareMember exch:XNYS 2026-02-03 2026-02-03 emr:A2.000Notesdue2029Member exch:XNYS 2026-02-03 2026-02-03 emr:A3.000NotesDue2031Member exch:XNYS 2026-02-03 2026-02-03 emr:A3.500NotesDue2037Member exch:XNYS 2026-02-03 2026-02-03 emr:CommonStockof0.50parvaluepershareMember exch:XCHI 2026-02-03 2026-02-03 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 _______________ FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15 (d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Rep",
+      "char_count": 4715,
+      "word_count": 651,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/32604/000003260426000017/emr-20260203.htm"
+    },
+    {
+      "label": "10-Q 2026-02-03",
+      "text_preview": "http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent 09/30 2026 Q1 FALSE - emr:segment 2025-10-01 2025-12-31 exch:XNYS 2025-10-01 2025-12-31 emr:A2.000Notesdue2029Member exch:XNYS 2025-10-01 2025-12-31 emr:A3.000NotesDue2031Member exch:XNYS 2025-10-01 2025-12-31 emr:A3.500NotesDue2037Member exch:XNYS 2025-10-01 2025-12-31 2025-12-31 2024-10-01 2024-12-31 2025-09-30 2024-12-31 us-ga",
+      "char_count": 70421,
+      "word_count": 9338,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/32604/000003260426000007/emr-20251231.htm"
+    }
+  ]
+}

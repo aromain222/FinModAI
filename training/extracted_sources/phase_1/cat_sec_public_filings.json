@@ -1,0 +1,177 @@
+{
+  "id": "cat_sec_public_filings",
+  "title": "CATERPILLAR INC General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-cat",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent CAT SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "CATERPILLAR INC General SEC Filings",
+    "company_name": "CATERPILLAR INC",
+    "ticker": "CAT",
+    "cik": "0000018230",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-26",
+      "2026-02-13",
+      "2026-01-29",
+      "2026-01-06",
+      "2025-11-03",
+      "2025-10-29",
+      "2025-09-03",
+      "2025-08-28",
+      "2025-08-06",
+      "2025-08-05"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "In June 2024, the Board approved an additional share repurchase authorization (the 2024 Authorization) of up to $20.0 billion of Caterpillar common stock, effective June 12, 2024, with no expiration.",
+      "2 Includes shares acquired pursuant to the accelerated share repurchase agreements entered into during the first quarter of 2025, which settled in October 2025."
+    ],
+    "liquidity_notes": [
+      "The Board evaluates the financial condition of the company and considers corporate cash flow, the company's liquidity needs, the economic outlook, and the health and stability of global credit markets to determine whether to maintain or change the quarterly dividend."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Disclosure Controls and Procedures An evaluation was performed under the supervision and with the participation of the company\u2019s management, including the Chief Executive Officer (CEO) and Chief Financial Officer (CFO), of the effectiveness of the design and operation of the company's disclosure controls and procedures, as that term is defined in Rule 13a-15(e) under the Exchange Act, as of the end of the period covered by this annual report.",
+      "o Indicate by check mark whether the registrant has filed a report on and attestation to its management's assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.s.C.",
+      "For more information regarding match funding, please see Note 4 \u2014 \u201cDerivative financial instruments and risk management\u201d of Part II, Item 8 \"Financial Statements and Supplementary Data.\" See also the risk factors associated with our financial products business included in Item 1A."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-cat",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-cat/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-cat/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-cat/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-03-25 2026-03-25 2026-03-25 2026-03-25 cat:A5.3DebenturesDueSeptember152035Member 2026-03-25 2026-03-25 2025-01-01 2025-12-31 cat:OperatingSegmentsExcludingIntersegmentEliminationMember srt:"
+      },
+      {
+        "label": "10-K 2026-02-13",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 2025 FY 50 33.33 33.33 33.33 33.33 33.33 33.33 http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligationsCurrent http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligationsCurrent http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations http://fasb.org/us-gaap/2"
+      },
+      {
+        "label": "8-K 2026-01-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-28 2026-01-28 2026-01-28 2026-01-28 cat:A5.3DebenturesDueSeptember152035Member 2026-01-28 2026-01-28 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K Current Report Pursuant to Section 13 o"
+      },
+      {
+        "label": "8-K 2026-01-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false --12-31 - 2026-01-06 2026-01-06 2026-01-06 2026-01-06 CAT:Sec5.3DebenturesDueSeptember152035Member 2026-01-06 2026-01-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 F"
+      },
+      {
+        "label": "10-Q 2025-11-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 12/31 2025 Q3 50 365 - cat:group_president cat:segment 2025-01-01 2025-09-30 2025-01-01 2025-09-30 cat:A5.3DebenturesDueSeptember152035Member 2025-01-01 2025-09-30 000001"
+      },
+      {
+        "label": "8-K 2025-10-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-28 2025-10-28 2025-10-28 2025-10-28 cat:A5.3DebenturesDueSeptember152035Member 2025-10-28 2025-10-28 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K Current Report Pursuant to Section 13 o"
+      },
+      {
+        "label": "8-K 2025-09-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-28 2025-08-28 2025-08-28 2025-08-28 CAT:Sec5.3DebenturesDueSeptember152035Member 2025-08-28 2025-08-28 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K"
+      },
+      {
+        "label": "8-K 2025-08-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-28 2025-08-28 2025-08-28 2025-08-28 CAT:Sec5.3DebenturesDueSeptember152035Member 2025-08-28 2025-08-28 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K"
+      },
+      {
+        "label": "10-Q 2025-08-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 12/31 2025 Q2 50 338 - cat:entity cat:group_president cat:segment 2025-01-01 2025-06-30 2025-01-01 2025-06-30 cat:A5.3DebenturesDueSeptember152035Member 2025-01-01 2025-0"
+      },
+      {
+        "label": "8-K 2025-08-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-04 2025-08-04 2025-08-04 2025-08-04 cat:A5.3DebenturesDueSeptember152035Member 2025-08-04 2025-08-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K Current Report Pursuant to Section 13 o"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-26",
+      "text_preview": "false - 2026-03-25 2026-03-25 2026-03-25 2026-03-25 cat:A5.3DebenturesDueSeptember152035Member 2026-03-25 2026-03-25 2025-01-01 2025-12-31 cat:OperatingSegmentsExcludingIntersegmentEliminationMember srt:NorthAmericaMember cat:ConstructionIndustriesMember 2025-01-01 2025-03-31 cat:OperatingSegmentsExcludingIntersegmentEliminationMember srt:LatinAmericaMember cat:ConstructionIndustriesMember 2025-01-01 2025-03-31 cat:OperatingSegmentsExcludingIntersegmentEliminationMember cat:ConstructionIndustriesMember 2025-01-01 2025-03-31 c",
+      "char_count": 76293,
+      "word_count": 4140,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/18230/000001823026000013/cat-20260326.htm"
+    },
+    {
+      "label": "10-K 2026-02-13",
+      "text_preview": "FALSE 2025 FY 50 33.33 33.33 33.33 33.33 33.33 33.33 http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligationsCurrent http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligationsCurrent http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/202",
+      "char_count": 565253,
+      "word_count": 72914,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/18230/000001823026000008/cat-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-01-29",
+      "text_preview": "false - 2026-01-28 2026-01-28 2026-01-28 2026-01-28 cat:A5.3DebenturesDueSeptember152035Member 2026-01-28 2026-01-28 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K Current Report Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): January 29, 2026 CATERPILLAR INC. (Exact name of registrant as specified in its charter) Delaware 1-768 37-0602744 (State or other jurisdiction of incorporation) (Commission File Number) (I.R.S Employer Identification No.) 5205 N. O'Connor Blvd., Suite 100, Irving, Texas 75039 (Addr",
+      "char_count": 3777,
+      "word_count": 561,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/18230/000001823026000003/cat-20260129.htm"
+    }
+  ]
+}

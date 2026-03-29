@@ -1,0 +1,178 @@
+{
+  "id": "pep_sec_public_filings",
+  "title": "PEPSICO INC General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-pep",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent PEP SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "PEPSICO INC General SEC Filings",
+    "company_name": "PEPSICO INC",
+    "ticker": "PEP",
+    "cik": "0000077476",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-11",
+      "2026-02-03",
+      "2026-02-03",
+      "2025-12-15",
+      "2025-12-08",
+      "2025-10-09",
+      "2025-10-09",
+      "2025-07-28",
+      "2025-07-23",
+      "2025-07-17"
+    ],
+    "capital_markets_activity": [
+      "Floating Rate Notes due 2028 3.300% Senior Notes due 2034 3.700% Senior Notes due 2038 4.150% Senior Notes due 2047 Aggregate Principal Amount Offered: \u20ac500,000,000 \u20ac650,000,000 \u20ac850,000,000 \u20ac500,000,000 Maturity Date: February 11, 2028 February 11, 2034 February 11, 2038 February 11, 2047 Interest Payment Dates: Quarterly in arrears on each February 11, May 11, August 11 and November 11, commencing May 11, 2026 Annually in arrears on February 11, commencing February 11, 2027.",
+      "(\u201cPepsiCo\u201d) announced an offering of \u20ac500,000,000 aggregate principal amount of its 3.450% Senior Notes due 2037 (the \u201c2037 Notes\u201d) and \u20ac500,000,000 aggregate principal amount of its 4.050% Senior Notes due 2055 (the \u201c2055 Notes,\u201d and together with the 2037 Notes, the \u201cNotes\u201d)."
+    ],
+    "capital_allocation_activity": [
+      "We expect to return a total of approximately $8.9 billion to shareholders in 2026, comprising dividends of approximately $7.9 billion and share repurchases of approximately $1.0 billion.",
+      "On February 3, 2026, we announced a new share repurchase program providing for the repurchase of up to $10 billion of PepsiCo common stock which commenced on February 1, 2026 and will expire on February 28, 2030 (2026 Share Repurchase Program), and such shares are excluded from the above table."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "On October 7, 2025, the Board of Directors (the \u201cBoard\u201d) of PepsiCo appointed Stephen (\u201cSteve\u201d) Schmitt, 52, as PepsiCo\u2019s Executive Vice President and Chief Financial Officer, effective November 10, 2025 (the \u201cEffective Date\u201d)."
+    ],
+    "controls_and_risk_notes": [
+      "\u2022 PepsiCo\u2019s Disclosure Committee, comprised of the General Counsel, Controller and heads of Internal Audit, Financial Planning & Analysis and Investor Relations, evaluates information from PepsiCo\u2019s integrated risk management framework as part of the Disclosure Committee\u2019s monitoring of the integrity and effectiveness of the Company\u2019s disclosure controls and procedures.",
+      "\u00a8 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Risk Factors.\u201d Human Capital PepsiCo believes that human capital management, including attracting, developing and retaining a high quality workforce, is critical to our long-term success."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-pep",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-pep/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-pep/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-pep/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-02-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-11 2026-02-11 pep:Commonstockparvalue123centspershareMember 2026-02-11 2026-02-11 pep:TwoPointSixTwoFivePercentNotesDue2026Member 2026-02-11 2026-02-11 pep:ZeroPointSevenFivePercentNotesDue2027Member 2026-02-11 2026-02-11 pep:ZeroPointEig"
+      },
+      {
+        "label": "8-K 2026-02-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-03 2026-02-03 2026-02-03 2026-02-03 pep:TwoPointSixTwoFivePercentNotesDue2026Member 2026-02-03 2026-02-03 pep:ZeroPointSevenFivePercentNotesDue2027Member 2026-02-03 2026-02-03 pep:ZeroPointEightSeven"
+      },
+      {
+        "label": "10-K 2026-02-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY 0.0167 0.0167 84 84 84 112 P5Y http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AccountsPayableAndAccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccountsPayableAndAccruedLiabilitiesCurrent htt"
+      },
+      {
+        "label": "8-K 2025-12-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-12-15 2025-12-15 2025-12-15 2025-12-15 pep:TwoPointSixTwoFivePercentNotesDue2026Member 2025-12-15 2025-12-15 pep:ZeroPointSevenFivePercentNotesDue2027Member 2025-12-15 2025-12-15 pep:ZeroPointEightSeven"
+      },
+      {
+        "label": "8-K 2025-12-08",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-12-08 2025-12-08 2025-12-08 2025-12-08 pep:TwoPointSixTwoFivePercentNotesDue2026Member 2025-12-08 2025-12-08 pep:ZeroPointSevenFivePercentNotesDue2027Member 2025-12-08 2025-12-08 pep:ZeroPointEightSeven"
+      },
+      {
+        "label": "8-K 2025-10-09",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-03 2025-10-03 2025-10-03 2025-10-03 pep:TwoPointSixTwoFivePercentNotesDue2026Member 2025-10-03 2025-10-03 pep:ZeroPointSevenFivePercentNotesDue2027Member 2025-10-03 2025-10-03 pep:ZeroPointEightSeven"
+      },
+      {
+        "label": "10-Q 2025-10-09",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/27 2025 Q3 false 0.0167 0.0167 84 - pep:segment 2024-12-29 2025-09-06 2024-12-29 2025-09-06 pep:TwoPointSixTwoFivePercentNotesDue2026Member 2024-12-29 2025-09-06"
+      },
+      {
+        "label": "8-K 2025-07-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-07-28 2025-07-28 pep:Commonstockparvalue123centspershareMember 2025-07-28 2025-07-28 pep:TwoPointSixTwoFivePercentNotesDue2026Member 2025-07-28 2025-07-28 pep:ZeroPointSevenFivePercentNotesDue2027Member 2025-07-28 2025-07-28 pep:ZeroPointEig"
+      },
+      {
+        "label": "8-K 2025-07-23",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-07-23 2025-07-23 pep:Commonstockparvalue123centspershareMember 2025-07-23 2025-07-23 pep:TwoPointSixTwoFivePercentNotesDue2026Member 2025-07-23 2025-07-23 pep:ZeroPointSevenFivePercentNotesDue2027Member 2025-07-23 2025-07-23 pep:ZeroPointEig"
+      },
+      {
+        "label": "8-K 2025-07-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-07-17 2025-07-17 2025-07-17 2025-07-17 pep:TwoPointSixTwoFivePercentNotesDue2026Member 2025-07-17 2025-07-17 pep:ZeroPointSevenFivePercentNotesDue2027Member 2025-07-17 2025-07-17 pep:ZeroPointEightSeven"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-02-11",
+      "text_preview": "false - 2026-02-11 2026-02-11 pep:Commonstockparvalue123centspershareMember 2026-02-11 2026-02-11 pep:TwoPointSixTwoFivePercentNotesDue2026Member 2026-02-11 2026-02-11 pep:ZeroPointSevenFivePercentNotesDue2027Member 2026-02-11 2026-02-11 pep:ZeroPointEightSevenFivePercentNotesDue2028Member 2026-02-11 2026-02-11 pep:ZeroPointFivePercentNotesDue2028Member 2026-02-11 2026-02-11 pep:ThreePointTwoPercentNotesDue2029Member 2026-02-11 2026-02-11 pep:OnePointOneTwoFivePercentNotesDue2031Member 2026-02-11 2026-02-11 pep:ZeroPointFourPercentNotesDue2032Member 2026-02-11 2026-02-11 p",
+      "char_count": 10588,
+      "word_count": 1499,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/77476/000110465926013379/tm265086d1_8k.htm"
+    },
+    {
+      "label": "8-K 2026-02-03",
+      "text_preview": "false - 2026-02-03 2026-02-03 2026-02-03 2026-02-03 pep:TwoPointSixTwoFivePercentNotesDue2026Member 2026-02-03 2026-02-03 pep:ZeroPointSevenFivePercentNotesDue2027Member 2026-02-03 2026-02-03 pep:ZeroPointEightSevenFivePercentNotesDue2028Member 2026-02-03 2026-02-03 pep:ZeroPointFivePercentNotesDue2028Member 2026-02-03 2026-02-03 pep:ThreePointTwoPercentNotesDue2029Member 2026-02-03 2026-02-03 pep:OnePointOneTwoFivePercentNotesDue2031Member 2026-02-03 2026-02-03 pep:ZeroPointFourPercentNotesDue2032Member 2026-02-03 2026-02-03 pep:Zero",
+      "char_count": 5471,
+      "word_count": 740,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/77476/000007747626000009/pep-20260203.htm"
+    },
+    {
+      "label": "10-K 2026-02-03",
+      "text_preview": "false 2025 FY 0.0167 0.0167 84 84 84 112 P5Y http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AccountsPayableAndAccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccountsPayableAndAccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilities http://fasb.org/us-gaap/2025#AccountsPayableAndAccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccountsPayableAndAccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccountsPayableAndAccruedLiabilitiesCurrent http:/",
+      "char_count": 483876,
+      "word_count": 67793,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/77476/000007747626000007/pep-20251227.htm"
+    }
+  ]
+}

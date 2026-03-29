@@ -1,0 +1,59 @@
+{
+  "id": "scraped_de_earnings_reference",
+  "title": "Deere & Company Scraped Earnings Package",
+  "file_path": "/Users/averyromain/FinModAI/finmodai-next/data/DE/earnings",
+  "source_type": "earnings_reference",
+  "tier": "B",
+  "primary_bucket": "financial_reasoning",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "earnings_reference",
+  "assistant_training_targets": [
+    "earnings-package interpretation",
+    "KPI extraction",
+    "prepared-remarks compression",
+    "investor-facing results framing"
+  ],
+  "source_summary": "Scraper-collected earnings releases and related materials for Deere & Company.",
+  "strengths": [
+    "official company earnings package",
+    "good for KPI prioritization",
+    "ties company messaging to investor materials"
+  ],
+  "weaknesses": [
+    "import is derived from scraped titles and document presence, not full manual extraction"
+  ],
+  "fields": {
+    "title": "Deere & Company Scraped Earnings Package",
+    "company_name": "Deere & Company",
+    "quarter": "recent periods",
+    "source_name": "Company Investor Relations",
+    "sections": [
+      "1Q Earnings Call"
+    ],
+    "key_metrics": [
+      "Use the earnings package to anchor the reported quarter before relying on transcript tone or media interpretation.",
+      "Prioritize revenue, margin, guidance, and segment signals from the latest release set."
+    ],
+    "management_themes": [
+      "Management-selected earnings materials indicate which metrics and business lines investors are meant to focus on.",
+      "Cross-check the release package against filings before changing model assumptions."
+    ],
+    "analyst_relevance": [
+      "Good for earnings-package compression and KPI prioritization.",
+      "Useful source lane between raw filings and full transcripts."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_dir": "/Users/averyromain/FinModAI/finmodai-next/data/DE",
+    "categories": {
+      "10k": 8,
+      "10q": 6,
+      "earnings": 1,
+      "presentation": 4,
+      "transcript": 4
+    },
+    "document_count": 23
+  }
+}

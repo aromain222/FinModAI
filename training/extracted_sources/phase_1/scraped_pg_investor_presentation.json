@@ -1,0 +1,61 @@
+{
+  "id": "scraped_pg_investor_presentation",
+  "title": "Procter & Gamble Scraped Investor Presentation Materials",
+  "file_path": "/Users/averyromain/FinModAI/finmodai-next/data/PG/presentation",
+  "source_type": "investor_presentation",
+  "tier": "B",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "financial_reasoning",
+  "recommended_phase": 1,
+  "template_key": "investor_presentation",
+  "assistant_training_targets": [
+    "slide compression",
+    "contributor/detractor summaries",
+    "thesis slide structure"
+  ],
+  "source_summary": "Scraper-collected investor presentation and slide materials for Procter & Gamble.",
+  "strengths": [
+    "management KPI emphasis",
+    "slide-structured communication",
+    "useful for compression and prioritization"
+  ],
+  "weaknesses": [
+    "presentation materials are management-selected and should not outweigh filings"
+  ],
+  "fields": {
+    "title": "Procter & Gamble Scraped Investor Presentation Materials",
+    "manager": null,
+    "date": null,
+    "agenda": [
+      "Q2 2026 Earnings Presentation Open Event Link PDF file January 22 2026 opens in new window",
+      "Q1 2026 Earnings Presentation Open Event Link PDF file October 24 2025 opens in new window",
+      "P G to Webcast Presentation From the Consumer Analyst Group of New York Conference February 19",
+      "CAGNY 2026 Presentation Open Event Link PDF file February 19 2026 opens in new window"
+    ],
+    "portfolio_contributors": [],
+    "portfolio_detractors": [],
+    "holdings_covered": [
+      "Procter & Gamble"
+    ],
+    "valuation_points": [
+      "Use presentation materials to identify which KPIs and segment narratives management wants investors to underwrite."
+    ],
+    "exit_or_trim_logic": [],
+    "slide_structure_patterns": [
+      "Lead with quarter highlights and KPI framing.",
+      "Use investor slides to compress the company's preferred narrative before testing it against filings."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_dir": "/Users/averyromain/FinModAI/finmodai-next/data/PG",
+    "categories": {
+      "10k": 7,
+      "10q": 4,
+      "earnings": 4,
+      "presentation": 4,
+      "transcript": 4
+    },
+    "document_count": 23
+  }
+}

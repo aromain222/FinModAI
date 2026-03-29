@@ -1,0 +1,178 @@
+{
+  "id": "meta_sec_public_filings",
+  "title": "Meta Platforms, Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-meta",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent META SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Meta Platforms, Inc. General SEC Filings",
+    "company_name": "Meta Platforms, Inc.",
+    "ticker": "META",
+    "cik": "0001326801",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-01-29",
+      "2026-01-28",
+      "2026-01-16",
+      "2025-12-19",
+      "2025-12-12",
+      "2025-11-03",
+      "2025-10-30",
+      "2025-10-29",
+      "2025-07-31",
+      "2025-07-30"
+    ],
+    "capital_markets_activity": [
+      "4.2 Form of Global Note representing the Company\u2019s 4.200% Senior Notes due 2030 (included in Exhibit 4.1).",
+      "4.3 Form of Global Note representing the Company\u2019s 4.600% Senior Notes due 2032 (included in Exhibit 4.1)."
+    ],
+    "capital_allocation_activity": [
+      "We cannot guarantee that our share repurchase program will be fully consummated or that it will enhance long-term stockholder value.",
+      "Share repurchases and dividend payments could also increase the volatility of the trading price of our stock and will diminish our cash reserves."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Controls and Procedures Evaluation of Disclosure Controls and Procedures Our management, with the participation of our chief executive officer (CEO) and chief financial officer (CFO), has evaluated the effectiveness of our disclosure controls and procedures (as defined in Rules 13a- 15(e) and 15d- 15(e) under the Securities Exchange Act of 1934, as amended (Exchange Act)), as of the end of the period covered by this Annual Report on Form 10-K.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management's assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "These forward-looking statements are subject to a number of risks, uncertainties and assumptions, including those described in Part I, Item 1A, \"Risk Factors\" in this Annual Report on Form 10-K."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-meta",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-meta/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-meta/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-meta/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-01-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY P5Y P1Y P5Y http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent P3Y 460 355 364 - meta:segment meta:unit meta:series meta:judicialCase meta:member me"
+      },
+      {
+        "label": "8-K 2026-01-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-28 2026-01-28 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 or 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): January 28, 2026 Meta Platforms, Inc."
+      },
+      {
+        "label": "8-K 2026-01-16",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-12 2026-01-12 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 or 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): January 12, 2026 Meta Platforms, Inc."
+      },
+      {
+        "label": "8-K 2025-12-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-12-19 2025-12-19 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 or 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): December 19, 2025 Meta Platforms, Inc"
+      },
+      {
+        "label": "8-K 2025-12-12",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-12-05 2025-12-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 or 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): December 5, 2025 Meta Platforms, Inc."
+      },
+      {
+        "label": "8-K 2025-11-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2025-10-30 2025-10-30 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 or 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): October 30, 2025 Meta Platforms, Inc. (Exact na"
+      },
+      {
+        "label": "10-Q 2025-10-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q3 12/31 P3Y 243 - meta:objector meta:appeal meta:member meta:classAction meta:reportable_segment 2025-01-01 2025-09-30 2025-10-24"
+      },
+      {
+        "label": "8-K 2025-10-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-29 2025-10-29 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 or 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): October 29, 2025 Meta Platforms, Inc."
+      },
+      {
+        "label": "10-Q 2025-07-31",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q2 12/31 P3Y 452 - meta:objector meta:appeal meta:classAction meta:reportable_segment 2025-01-01 2025-06-30 2025-07-25 2025-"
+      },
+      {
+        "label": "8-K 2025-07-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-07-30 2025-07-30 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 or 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): July 30, 2025 Meta Platforms, Inc. (E"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-01-29",
+      "text_preview": "false 2025 FY P5Y P1Y P5Y http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent P3Y 460 355 364 - meta:segment meta:unit meta:series meta:judicialCase meta:member meta:mediaCompany meta:radioAndTelevisionPublisher meta:classAction meta:vote 2025-01-01 2025-12-31 2025-06-30 2026-01-23 2026-01-23 2025-12-31 2024-12-31 2025-12-31 2024-12-31 000132680",
+      "char_count": 538404,
+      "word_count": 81299,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1326801/000162828026003942/meta-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-01-28",
+      "text_preview": "false - 2026-01-28 2026-01-28 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 or 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): January 28, 2026 Meta Platforms, Inc. (Exact name of registrant as specified in its charter) Delaware 001-35551 20-1665019 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 1 Meta Way , Menlo Park , California 94025 (Address of principal executive offices and Zip Code) ( 650 ) 543-4800 (Registrant\u2019s telephone number, including area code) N/A (Former nam",
+      "char_count": 4010,
+      "word_count": 612,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1326801/000162828026003832/meta-20260128.htm"
+    },
+    {
+      "label": "8-K 2026-01-16",
+      "text_preview": "false - 2026-01-12 2026-01-12 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 or 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): January 12, 2026 Meta Platforms, Inc. (Exact name of registrant as specified in its charter) Delaware 001-35551 20-1665019 (State or Other Jurisdiction of Incorporation) (Commission File Number) (IRS Employer Identification No.) 1 Meta Way , Menlo Park , California 94025 (Address of principal executive offices and Zip Code) ( 650 ) 543-4800 (Registrant's telephone number, including area code) N/A (Former name or f",
+      "char_count": 5763,
+      "word_count": 900,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1326801/000162828026002429/meta-20260112.htm"
+    }
+  ]
+}

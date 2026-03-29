@@ -1,0 +1,154 @@
+{
+  "id": "nvidia-2025-annual-meeting-slides",
+  "title": "NVIDIA 2025 Annual Meeting Slides",
+  "file_path": "/Users/averyromain/Downloads/2025-Annual-Meeting-Slides-NVIDIA.pdf",
+  "source_type": "investor_presentation",
+  "tier": "A",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "transaction_methodology",
+  "recommended_phase": 1,
+  "template_key": "investor_presentation",
+  "assistant_training_targets": [
+    "slide compression",
+    "contributor/detractor summaries",
+    "thesis slide structure"
+  ],
+  "source_summary": "Annual meeting slides useful for governance communication, strategic messaging, and investor-priority framing.",
+  "strengths": [
+    "annual meeting framing",
+    "strategic messaging",
+    "investor communication"
+  ],
+  "weaknesses": [
+    "not a full transcript",
+    "presentation shorthand"
+  ],
+  "fields": {
+    "title": "NVIDIA 2025 Annual Meeting Slides",
+    "manager": null,
+    "date": "June 25, 2025",
+    "agenda": [
+      "FORWARD-LOOKING STATEMENTS",
+      "FY24 FY25 Y-Y",
+      "GB300 NVL72",
+      "RTX PRO",
+      "RTX PRO",
+      "RTX PRO",
+      "B200 / B300GB200 / GB300",
+      "NVL72DGX",
+      "A NEW WAVE OF AI",
+      "AGENTS AND ROBOTS"
+    ],
+    "portfolio_contributors": [],
+    "portfolio_detractors": [],
+    "holdings_covered": [
+      "Annual Stockholder Meeting",
+      "FORWARD-LOOKING STATEMENTS",
+      "Welcome",
+      "Agenda",
+      "Management Proposals",
+      "Stockholder Proposals",
+      "Business Update",
+      "GAAP",
+      "RTX PRO"
+    ],
+    "valuation_points": [
+      "FORWARD-LOOKING STATEMENTS Certain matters in this presentation including, but not limited to, statements as to: expectations with respect to growth, performance and benefits of NVIDIA\u2019s products, services, and technologies, and related trends and drivers; expectations with respe",
+      "Stockholder Proposals Proposal 5 The approval of a stockholder proposal to eliminate the holding period requirement to call a special stockholder meeting Lead Proponent John Chevedden",
+      "A New Industrial Revolution",
+      "FY25 Results FY24 FY25 Y-Y Revenue $60.9B $130.5B Up 114% GM% 72.7% 75.0% Up 2.3 pts Operating Income $33.0B $81.5B Up 147% Diluted EPS* $1.19 $2.94 Up 147% (GAAP) *All per share amounts presented herein have been retroactively adjusted to reflect the ten-for-one stock split, whi"
+    ],
+    "exit_or_trim_logic": [],
+    "slide_structure_patterns": [
+      "FORWARD-LOOKING STATEMENTS",
+      "FY24 FY25 Y-Y",
+      "GB300 NVL72",
+      "RTX PRO",
+      "RTX PRO",
+      "RTX PRO",
+      "B200 / B300GB200 / GB300",
+      "NVL72DGX",
+      "A NEW WAVE OF AI",
+      "AGENTS AND ROBOTS",
+      "BLACKWELL",
+      "INFRASTRUCTURE"
+    ]
+  },
+  "source_metadata": {
+    "file_present": true,
+    "source_extension": ".pdf",
+    "extraction_mode": "pdf_text",
+    "page_count": 20,
+    "headings_detected": [
+      "FORWARD-LOOKING STATEMENTS",
+      "FY24 FY25 Y-Y",
+      "GB300 NVL72",
+      "RTX PRO",
+      "RTX PRO",
+      "RTX PRO",
+      "B200 / B300GB200 / GB300",
+      "NVL72DGX",
+      "A NEW WAVE OF AI",
+      "AGENTS AND ROBOTS",
+      "BLACKWELL",
+      "INFRASTRUCTURE"
+    ]
+  },
+  "chunking": {
+    "strategy": "page_groups",
+    "chunk_count": 7,
+    "chunks": [
+      {
+        "label": "pages_1_3",
+        "start_page": 1,
+        "end_page": 3,
+        "text_preview": "Annual Stockholder Meeting\nJune 25, 2025\n\nFORWARD-LOOKING STATEMENTS\nCertain matters in this presentation including, but not limited to, statements as to: expectations with respect to growth, performance and benefits of NVIDIA\u2019s products, services, and\ntechnologies, and related trends and drivers; expectations with respect to supply and demand for NVIDIA\u2019s products, services, and technologies, and related matters including inventory,\nproduction and distribution; our financial position; projected market growth and trends, market opportunity, demand, and growth drivers; our financial and business outlook; expectations\nwith respect to NVIDIA\u2019s third party arrangements, including with its collaborators and partners; third parties adopting our products and technologies; expectations with respect to\ntechnology developments and related trends and drivers; expectations with respect to AI and related industries; and other statements that are not historical facts are forward-looking\nstatements within the meaning of Section 27A of the Securities Act of 1933, as amended, and Section 21E of the Securities Exchange Act of 1934, as amended, which are subject to the\n\u201csafe harbor\u201d created by those sections based on management\u2019s beliefs and assumptions and on information currently available to management and are subject to risks and uncertainties\nthat could cause results to be materially different than expectations.\nImportant factors that could cause actual results to differ materially include"
+      },
+      {
+        "label": "pages_4_6",
+        "start_page": 4,
+        "end_page": 6,
+        "text_preview": "Agenda\n1. Call to Order & Procedural Items\n2. Proposals & Voting\n3. Jensen Huang, Founder & CEO, Business \nUpdate \n4. Preliminary Results of Voting & Adjournment\n5. Q&A\n\nManagement Proposals\nProposal 1\u200b The election of 13 individuals to serve as directors until our 2026 \nAnnual Meeting\nProposal 2\u200b The approval of the compensation of our named executive officers for fiscal \n2025 as disclosed in our proxy statement\nProposal 3\u200b The ratification of PwC as our independent registered publicaccounting firm \nfor fiscal 2026\nProposal 4\u200b The approval of an Amended and Restated Certificate of Incorporation to \nremove all supermajority provisions\n\nStockholder Proposals\nProposal 5 The approval of a stockholder proposal to eliminate the holding period \nrequirement to call a special stockholder meeting\nLead Proponent John Chevedden"
+      },
+      {
+        "label": "pages_7_9",
+        "start_page": 7,
+        "end_page": 9,
+        "text_preview": "Stockholder Proposals\nProposal 6 The approval of a stockholder proposal to adopt a new director \nelection resignation governance policy\nLead Proponent New York City Carpenters Pension Fun\u200bd\n\nStockholder Proposals\nProposal 7 The approval of a stockholder proposal to modify existing reporting on \nworkforce data\nLead Proponent Trillium ESG Global Equity Fund\n\nBusiness Update"
+      },
+      {
+        "label": "pages_10_12",
+        "start_page": 10,
+        "end_page": 12,
+        "text_preview": "NVIDIA Transformation From GPU Chip to AI Infrastructure\n\nA New Industrial Revolution\n\nFY25 Results\nFY24 FY25 Y-Y\nRevenue $60.9B $130.5B Up 114%\nGM% 72.7% 75.0% Up 2.3 pts\nOperating Income $33.0B $81.5B Up 147%\nDiluted EPS* $1.19 $2.94 Up 147%\n(GAAP)\n*All per share amounts presented herein have been retroactively adjusted to reflect the ten-for-one stock split, which was effective June 7, 2024"
+      },
+      {
+        "label": "pages_13_15",
+        "start_page": 13,
+        "end_page": 15,
+        "text_preview": "Grace Blackwell NVL72\n\u201cA Thinking Machine\u201d\nGB300 NVL72\n\nRTX PRO\nLaptop\nRTX PRO\nWorkstation\nRTX PRO \nServer\nDGX \nB200 / B300GB200 / GB300\nNVL72DGX\nStation\nRTX Storage\nServers\nSpectrum-X\nSwitch\nDGX\nSpark\nNEW\nNEW\nNEW\nNEW\nNEW\nNEW\nOne Architecture\u2014From Cloud AI, Enterprise AI, Personal AI, to Edge AI"
+      },
+      {
+        "label": "pages_16_18",
+        "start_page": 16,
+        "end_page": 18,
+        "text_preview": "A NEW WAVE OF AI\nAGENTS AND ROBOTS\nBLACKWELL\n\u201cA THINKING MACHINE\u201d\nAI FACTORIES \u2014THE NEW \nINFRASTRUCTURE\nA New Industrial Revolution\n\nPreliminary Results of Voting \n& Adjournment"
+      },
+      {
+        "label": "pages_19_20",
+        "start_page": 19,
+        "end_page": 20,
+        "text_preview": "Q&A Session"
+      }
+    ]
+  },
+  "text_samples": [
+    "Annual Stockholder Meeting\nJune 25, 2025\n\nFORWARD-LOOKING STATEMENTS\nCertain matters in this presentation including, but not limited to, statements as to: expectations with respect to growth, performance and benefits of NVIDIA\u2019s products, services, and\ntechnologies, and related trends and drivers; expectations with respect to supply and demand for NVIDIA\u2019s products, services, and technologies, and related matters including inventory,\nproduction and distribution; our financial position; projected market growth and trends, market opportunity, demand, and growth drivers; our financial and business outlook; expectations\nwith respect to NVIDIA\u2019s third party arrangements, including with its collaborators and partners; third parties adopting our products and technologies; expectations with respect to\ntechnology developments and related trends and drivers; expectations with respect to AI and related industries; and other statements that are not historical facts are forward-looking\nstatements within the meaning of Section 27A of the Securities Act of 1933, as amended, and Section 21E of the Securities Exchange Act of 1934, as amended, which are subject to the\n\u201csafe harbor\u201d created by those sections based on management\u2019s beliefs and assumptions and on information currently available to management and are subject to risks and uncertainties\nthat could cause results to be materially different than expectations.\nImportant factors that could cause actual results to differ materially include",
+    "Agenda\n1. Call to Order & Procedural Items\n2. Proposals & Voting\n3. Jensen Huang, Founder & CEO, Business \nUpdate \n4. Preliminary Results of Voting & Adjournment\n5. Q&A\n\nManagement Proposals\nProposal 1\u200b The election of 13 individuals to serve as directors until our 2026 \nAnnual Meeting\nProposal 2\u200b The approval of the compensation of our named executive officers for fiscal \n2025 as disclosed in our proxy statement\nProposal 3\u200b The ratification of PwC as our independent registered publicaccounting firm \nfor fiscal 2026\nProposal 4\u200b The approval of an Amended and Restated Certificate of Incorporation to \nremove all supermajority provisions\n\nStockholder Proposals\nProposal 5 The approval of a stockholder proposal to eliminate the holding period \nrequirement to call a special stockholder meeting\nLead Proponent John Chevedden",
+    "Stockholder Proposals\nProposal 6 The approval of a stockholder proposal to adopt a new director \nelection resignation governance policy\nLead Proponent New York City Carpenters Pension Fun\u200bd\n\nStockholder Proposals\nProposal 7 The approval of a stockholder proposal to modify existing reporting on \nworkforce data\nLead Proponent Trillium ESG Global Equity Fund\n\nBusiness Update",
+    "NVIDIA Transformation From GPU Chip to AI Infrastructure\n\nA New Industrial Revolution\n\nFY25 Results\nFY24 FY25 Y-Y\nRevenue $60.9B $130.5B Up 114%\nGM% 72.7% 75.0% Up 2.3 pts\nOperating Income $33.0B $81.5B Up 147%\nDiluted EPS* $1.19 $2.94 Up 147%\n(GAAP)\n*All per share amounts presented herein have been retroactively adjusted to reflect the ten-for-one stock split, which was effective June 7, 2024",
+    "Grace Blackwell NVL72\n\u201cA Thinking Machine\u201d\nGB300 NVL72\n\nRTX PRO\nLaptop\nRTX PRO\nWorkstation\nRTX PRO \nServer\nDGX \nB200 / B300GB200 / GB300\nNVL72DGX\nStation\nRTX Storage\nServers\nSpectrum-X\nSwitch\nDGX\nSpark\nNEW\nNEW\nNEW\nNEW\nNEW\nNEW\nOne Architecture\u2014From Cloud AI, Enterprise AI, Personal AI, to Edge AI"
+  ],
+  "extraction_status": "extracted",
+  "extracted_at": "2026-03-28T20:39:09.345480+00:00"
+}

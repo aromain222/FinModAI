@@ -1,0 +1,177 @@
+{
+  "id": "ma_sec_public_filings",
+  "title": "Mastercard Inc General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ma",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent MA SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Mastercard Inc General SEC Filings",
+    "company_name": "Mastercard Inc",
+    "ticker": "MA",
+    "cik": "0001141391",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-11",
+      "2026-02-05",
+      "2026-01-29",
+      "2025-11-12",
+      "2025-11-10",
+      "2025-10-30",
+      "2025-10-30",
+      "2025-07-31",
+      "2025-07-31",
+      "2025-06-26"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "See Note 14 (Stockholders' Equity) to the consolidated financial statements included in Part II, Item 8 for further discussion with respect to our share repurchase programs.",
+      "Dividends and Share Repurchases We have historically paid quarterly dividends on our outstanding Class A common stock and Class B common stock."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "The President and Chief Executive Officer and the Chief Financial Officer, with assistance from other members of management, have reviewed the effectiveness of our disclosure controls and procedures as of December 31, 2025 and, based on their evaluation, have concluded that the disclosure controls and procedures were effective as of such date.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "See \u201cRisk Factors\u201d in Part I, Item 1A for a more detailed discussion of the risks related to payments system regulation and government actions that may prevent us from competing effectively."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-ma",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ma/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ma/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ma/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-02-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 FY false P1Y http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization http://fasb.org/us-gaap"
+      },
+      {
+        "label": "8-K 2026-02-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-02 2026-02-02 2026-02-02 2026-02-02 ma:OnePointOnePercentNotesDue2022Member 2026-02-02 2026-02-02 ma:TwoPointOnePercentNotesDue2027Member 2026-02-02 2026-02-02 ma:TwoPointFivePercentNotesDue2030Membe"
+      },
+      {
+        "label": "8-K 2026-01-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-29 2026-01-29 2026-01-29 2026-01-29 ma:TwoPointOnePercentNotesDue2027Member 2026-01-29 2026-01-29 ma:A1NotesDue2029Member 2026-01-29 2026-01-29 ma:TwoPointFivePercentNotesDue2030Member 2026-01-29 202"
+      },
+      {
+        "label": "8-K 2025-11-12",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-12 2025-11-12 2025-11-12 2025-11-12 ma:TwoPointOnePercentNotesDue2027Member 2025-11-12 2025-11-12 ma:A10NotesDue2029Member 2025-11-12 2025-11-12 ma:TwoPointFivePercentNotesDue2030Member 2025-11-12 20"
+      },
+      {
+        "label": "8-K 2025-11-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-10 2025-11-10 2025-11-10 2025-11-10 ma:TwoPointOnePercentNotesDue2027Member 2025-11-10 2025-11-10 ma:A10NotesDue2029Member 2025-11-10 2025-11-10 ma:TwoPointFivePercentNotesDue2030Member 2025-11-10 20"
+      },
+      {
+        "label": "10-Q 2025-10-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/31 2025 Q3 FALSE http://fasb.org/us-gaap/2025#GeneralAndAdministrativeExpense http://fasb.org/us-gaap/2025#GeneralAndAdministrativeExpense http://fasb.org/us-gaap/2025#GeneralAndAdministrativeExpense http://fasb.org/us-gaap/2025#GeneralAndAdministrativeExpense - iso421"
+      },
+      {
+        "label": "8-K 2025-10-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-30 2025-10-30 2025-10-30 2025-10-30 ma:TwoPointOnePercentNotesDue2027Member 2025-10-30 2025-10-30 ma:A1NotesDue2029Member 2025-10-30 2025-10-30 ma:TwoPointFivePercentNotesDue2030Member 2025-10-30 202"
+      },
+      {
+        "label": "10-Q 2025-07-31",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/31 2025 Q2 FALSE http://fasb.org/us-gaap/2025#GeneralAndAdministrativeExpense http://fasb.org/us-gaap/2025#GeneralAndAdministrativeExpense May 5, 2025 2/28/2026 299 6758 35079 - ma:merchant ma:plaintiff ma:com"
+      },
+      {
+        "label": "8-K 2025-07-31",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-07-31 2025-07-31 2025-07-31 2025-07-31 ma:TwoPointOnePercentNotesDue2027Member 2025-07-31 2025-07-31 ma:A1NotesDue2029Member 2025-07-31 2025-07-31 ma:TwoPointFivePercentNotesDue2030Member 2025-07-31 202"
+      },
+      {
+        "label": "8-K 2025-06-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 12-31 - 2025-06-24 2025-06-24 2025-06-24 2025-06-24 ma:TwoPointOnePercentNotesDue2027Member 2025-06-24 2025-06-24 ma:A10NotesDue2029Member 2025-06-24 2025-06-24 ma:TwoPointFivePercentNotesDue2030Member 2025-06"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-02-11",
+      "text_preview": "2025 FY false P1Y http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#GeneralAndAdministrativeExpense http://fasb.org/us-gaap/2025#GeneralAndAdministrativeExpense http://fasb.org/us-gaap/2025#GeneralAndAdministrativeExpense 26",
+      "char_count": 487150,
+      "word_count": 69211,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1141391/000114139126000013/ma-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-05",
+      "text_preview": "false - 2026-02-02 2026-02-02 2026-02-02 2026-02-02 ma:OnePointOnePercentNotesDue2022Member 2026-02-02 2026-02-02 ma:TwoPointOnePercentNotesDue2027Member 2026-02-02 2026-02-02 ma:TwoPointFivePercentNotesDue2030Member 2026-02-02 2026-02-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _______________________________________ FORM 8-K _______________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 2, 2026 _______________________________________ Ma",
+      "char_count": 4124,
+      "word_count": 571,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1141391/000114139126000006/ma-20260202.htm"
+    },
+    {
+      "label": "8-K 2026-01-29",
+      "text_preview": "false - 2026-01-29 2026-01-29 2026-01-29 2026-01-29 ma:TwoPointOnePercentNotesDue2027Member 2026-01-29 2026-01-29 ma:A1NotesDue2029Member 2026-01-29 2026-01-29 ma:TwoPointFivePercentNotesDue2030Member 2026-01-29 2026-01-29 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _______________________________________ FORM 8-K _______________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): January 29, 2026 _______________________________________ Mastercard Incorpo",
+      "char_count": 3671,
+      "word_count": 513,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1141391/000114139126000003/ma-20260129.htm"
+    }
+  ]
+}

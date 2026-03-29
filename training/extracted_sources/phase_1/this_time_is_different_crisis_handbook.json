@@ -1,0 +1,70 @@
+{
+  "id": "this_time_is_different_crisis_handbook",
+  "title": "This Time Is Different",
+  "file_path": "/Users/averyromain/FinModAI/data/training/this-time-is-different",
+  "source_type": "macro_handbook",
+  "tier": "A-",
+  "primary_bucket": "financial_reasoning",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "macro_handbook",
+  "assistant_training_targets": [
+    "financial-crisis pattern recognition",
+    "sovereign and banking stress reasoning",
+    "credit-cycle market transmission",
+    "crisis scenario framing"
+  ],
+  "source_summary": "Historical crisis reference focused on banking panics, sovereign defaults, and recurring leverage/funding patterns across centuries.",
+  "strengths": [
+    "strong crisis pattern library",
+    "banking and sovereign stress framing",
+    "good for debt, funding, and sudden-stop reasoning"
+  ],
+  "weaknesses": [
+    "the extracted file appears partial / excerpted rather than full length",
+    "best used as framework training, not exhaustive historical data"
+  ],
+  "fields": {
+    "title": "This Time Is Different",
+    "publisher": "Historical financial-crisis reference",
+    "subject_areas": [
+      "banking crises",
+      "sovereign defaults",
+      "debt overhang",
+      "credit booms and busts",
+      "sudden stops and funding stress"
+    ],
+    "chapter_titles": [
+      "The United States in the run;up to the financial crisis of the",
+      "FINANCIAL CRISES"
+    ],
+    "core_frameworks": [
+      "credit booms often end in banking or sovereign stress rather than a smooth normalization",
+      "funding and rollover pressure can tighten financial conditions before macro data fully deteriorates",
+      "crisis regimes are recurrent and should be treated as pattern problems, not one-off surprises"
+    ],
+    "signal_design_principles": [
+      "watch funding stress and balance-sheet fragility before GDP catches up",
+      "track sovereign and banking stress as linked but distinct channels",
+      "treat crisis regimes as nonlinear scenario problems with wider tails"
+    ],
+    "analyst_relevance": [
+      "Strengthen crisis framing in headlines and event intelligence.",
+      "Improve scenario logic for banking panic, sovereign stress, and sudden-stop environments.",
+      "Teach the model to explain balance-sheet transmission rather than reducing every crisis to a generic slowdown."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/this-time-is-different/manifest.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/this-time-is-different/chunks.jsonl",
+    "page_count": 20,
+    "chunk_count": 32
+  },
+  "chunking": {
+    "strategy": "chapter_text",
+    "chunk_count": 32,
+    "chunks": []
+  },
+  "text_samples": []
+}

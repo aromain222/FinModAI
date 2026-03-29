@@ -1,0 +1,178 @@
+{
+  "id": "panw_sec_public_filings",
+  "title": "Palo Alto Networks Inc General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-panw",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent PANW SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Palo Alto Networks Inc General SEC Filings",
+    "company_name": "Palo Alto Networks Inc",
+    "ticker": "PANW",
+    "cik": "0001327567",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-23",
+      "2026-03-11",
+      "2026-02-18",
+      "2026-02-17",
+      "2026-02-11",
+      "2026-01-29",
+      "2025-12-11",
+      "2025-11-21",
+      "2025-11-20",
+      "2025-11-19"
+    ],
+    "capital_markets_activity": [
+      "(the \u201cIndenture\u201d), governing CyberArk\u2019s 0.00% Convertible Senior Notes due 2030 (the \u201cNotes\u201d).",
+      "Bank Trust Company, National Association, as trustee, relating to CyberArk\u2019s 0.00% Convertible Senior Notes due 2030 (the \u201cConvertible Notes\u201d)."
+    ],
+    "capital_allocation_activity": [
+      "Stockholders\u2019 Equity Share Repurchase Program In February 2019, our board of directors authorized a $ 1.0 billion share repurchase program, which is funded from available working capital.",
+      "Our board of directors subsequently authorized additional increases to this share repurchase program, bringing the total authorization under this share repurchase program to $ 4.1 billion (our \u201ccurrent authorization\u201d)."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "(d) Appointment of New Director On November 18, 2025, the Board appointed Mark Goodburn to the Board, to serve as a Class I director whose term expires at the Company\u2019s annual meeting of shareholders to be held in 2027."
+    ],
+    "controls_and_risk_notes": [
+      "Controls and Procedures Evaluation of Disclosure Controls and Procedures Our management, with the participation of our chief executive officer and chief financial officer, evaluated the effectiveness of our disclosure controls and procedures pursuant to Rule 13a-15(f) under the Securities Exchange Act of 1934, as amended (the \u201cExchange Act\u201d), as of the end of the period covered by this report.",
+      "\u2022 We are obligated to maintain proper and effective internal control over financial reporting.",
+      "For additional information regarding the challenges and risks we face, see the \u201cRisk Factors\u201d section in Part II, Item 1A of this Quarterly Report on Form 10-Q."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-panw",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-panw/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-panw/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-panw/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-23",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K Palo Alto Networks Inc false - 2026-03-23 2026-03-23 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 March 23, 2026 Date of Report (Date of earliest event reported) PALO ALTO"
+      },
+      {
+        "label": "8-K 2026-03-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-03-10 2026-03-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported) March 10, 2026 _____________________ P"
+      },
+      {
+        "label": "10-Q 2026-02-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2026 Q2 7/31 http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent P2Y P3Y P1Y P1Y 7.5 7.5 481 323 - iso42"
+      },
+      {
+        "label": "8-K 2026-02-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-17 2026-02-17 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported) February 17, 2026 ____________________"
+      },
+      {
+        "label": "8-K 2026-02-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K Palo Alto Networks Inc false - 2026-02-11 2026-02-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 February 11, 2026 Date of Report (Date of earliest event reported) PALO AL"
+      },
+      {
+        "label": "8-K 2026-01-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K Palo Alto Networks Inc false - 2026-01-29 2026-01-29 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported) January 29, 2026 PALO ALT"
+      },
+      {
+        "label": "8-K 2025-12-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K Palo Alto Networks Inc false - 2025-12-09 2025-12-09 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported) December 9, 2025 PALO ALT"
+      },
+      {
+        "label": "8-K 2025-11-21",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K Palo Alto Networks Inc false - 2025-11-21 2025-11-21 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported) November 21, 2025 PALO AL"
+      },
+      {
+        "label": "10-Q 2025-11-20",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2026 Q1 7/31 http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent P1Y P1Y 7.5 7.5 262 - xbrli"
+      },
+      {
+        "label": "8-K 2025-11-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K Palo Alto Networks Inc false - 2025-11-18 2025-11-18 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported) November 18, 2025 PALO AL"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-23",
+      "text_preview": "8-K Palo Alto Networks Inc false - 2026-03-23 2026-03-23 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 March 23, 2026 Date of Report (Date of earliest event reported) PALO ALTO NETWORKS, INC. (Exact name of registrant as specified in its charter) Delaware 001-35594 20-2530195 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 3000 Tannery Way Santa Clara , California 95054 (Address of principal executive offices) (408) 753-4000 (Registrant\u2019s telephone number, including area code) Not applica",
+      "char_count": 3914,
+      "word_count": 586,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1327567/000119312526119729/d84927d8k.htm"
+    },
+    {
+      "label": "8-K 2026-03-11",
+      "text_preview": "false - 2026-03-10 2026-03-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported) March 10, 2026 _____________________ PALO ALTO NETWORKS, INC . (Exact name of registrant as specified in its charter) Delaware 001-35594 20-2530195 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 3000 Tannery Way Santa Clara , California 95054 (Address of principal executive office, including zip code) ( 408 ) 753-4000 (Registrant\u2019s telephone number, i",
+      "char_count": 4030,
+      "word_count": 607,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756726000009/panw-20260310.htm"
+    },
+    {
+      "label": "10-Q 2026-02-18",
+      "text_preview": "false 2026 Q2 7/31 http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent P2Y P3Y P1Y P1Y 7.5 7.5 481 323 - utr:acre panw:day panw:patent 2025-08-01 2026-01-31 2026-02-11 2026-01-31 2025-07-31 2025-11-01 2026-01-31 2024-11-01 2025-01-31 2025-08-01 2026-01-31 2024-08-01 2025-01-31",
+      "char_count": 285630,
+      "word_count": 40191,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1327567/000132756726000005/panw-20260131.htm"
+    }
+  ]
+}

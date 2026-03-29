@@ -1,0 +1,150 @@
+{
+  "id": "third_point_q4_2025",
+  "title": "Third Point Q4 2025 Investor Letter",
+  "file_path": "/Users/averyromain/Downloads/Third_Point_Q4_2025_Investor_Letter_TPIL.pdf",
+  "source_type": "investor_letter",
+  "tier": "A",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "special_situations",
+  "recommended_phase": 1,
+  "template_key": "investor_letter",
+  "assistant_training_targets": [
+    "thesis articulation",
+    "portfolio commentary",
+    "risk framing",
+    "what changed",
+    "decision language"
+  ],
+  "source_summary": "Real hedge fund letter with position updates across equity and credit.",
+  "strengths": [
+    "cross-asset judgment",
+    "valuation framing",
+    "portfolio commentary"
+  ],
+  "weaknesses": [
+    "hedge-fund style bias"
+  ],
+  "fields": {
+    "title": "Third Point Q4 2025 Investor Letter",
+    "manager": null,
+    "date": "February 6, 2026",
+    "strategy_style": "long/short, value-oriented, hedge-fund style",
+    "performance_context": [
+      "Dear Investor: During the Fourth Quarter, Third Point returned 1.9% net in the flagship Offshore Fund.",
+      "Q 4 1 ANNUALIZED NET RETURN 2 TP OFFSHORE FUND, LTD. 1.9 % 13. 1 % CS HF EVENT - DRIVEN INDEX 1.1% 6.9% S&P 500 INDEX (TR) 2.7% 9.8% MSCI WORLD INDEX (TR) 3.2% 8.3%",
+      "1 Through December 31, 2025. 2 Annualized Return from inception (December 1996 for TP Offshore and quoted indices)."
+    ],
+    "top_themes": [
+      "TP OFFSHORE FUND, LTD.",
+      "CS HF EVENT",
+      "DRIVEN INDEX",
+      "S&P 500 INDEX (TR)",
+      "MSCI WORLD INDEX (TR)",
+      "PLEASE SEE THE NEW SERIES RETURNS AT THE END OF THIS DOCUMENT.",
+      "TP OFFSHORE",
+      "CS HF EVENT"
+    ],
+    "positions_discussed": [
+      "Somnigroup",
+      "Quebecor",
+      "Daniel S. Loeb"
+    ],
+    "thesis_points": [
+      "AI dominates market headlines and is increasingly forcing a re -think of established beliefs. One of them is the long -perceived attractiveness of capital -light business models like software, information services, and digital platforms that for decades requ ired little to no phy",
+      "Healthcare is also emerging from a prolonged period of COVID hangover, volatility, and multiples derating due to funding freezes, populist rhetoric, and constraints in biotech funding. We are increasing exposure to the sector, especially in life sciences a nd medical devices, and",
+      "We invested in SK Square last summer primarily because of our favorable view on the company\u2019s primary asset, SK Hynix, of which we are also shareholders and which we discussed in our Q3 letter. Since then, the intrinsic and market value of SK Hynix has continued to increase. Tigh",
+      "Page 5 The buyback is especially attractive to us given the low valuation of SK Square\u2019s primary asset SK Hynix. Today SK Hynix trades at 6.5x 2026 earnings per share, implying a 15% earnings yield. Given SK Square\u2019s discount to NAV of 47% and the stake in SK Hynix as ~97% of SK ",
+      "Looking forward, we believe Somnigroup has multiple ways to win. Either the housing cycle turns, which would provide a billion -dollar revenue tailwind at high margins, or the trough sustains and the last competitors standing, Sleep Number and Serta Simmons, face continued top-li"
+    ],
+    "valuation_language": [
+      "Q 4 1 ANNUALIZED NET RETURN 2 TP OFFSHORE FUND, LTD. 1.9 % 13. 1 % CS HF EVENT - DRIVEN INDEX 1.1% 6.9% S&P 500 INDEX (TR) 2.7% 9.8% MSCI WORLD INDEX (TR) 3.2% 8.3%",
+      "AI dominates market headlines and is increasingly forcing a re -think of established beliefs. One of them is the long -perceived attractiveness of capital -light business models like software, information services, and digital platforms that for decades requ ired little to no phy",
+      "Healthcare is also emerging from a prolonged period of COVID hangover, volatility, and multiples derating due to funding freezes, populist rhetoric, and constraints in biotech funding. We are increasing exposure to the sector, especially in life sciences a nd medical devices, and",
+      "Portfolio Updates1 SK Square SK Square is a Seoul -based Korean holding company with a market capitalization of approximately $47 billion. It spun out of SK Telecom in 2021 and actively invests in and manages a diversified portfolio of technology assets including a 20% stake in S",
+      "We invested in SK Square last summer primarily because of our favorable view on the company\u2019s primary asset, SK Hynix, of which we are also shareholders and which we discussed in our Q3 letter. Since then, the intrinsic and market value of SK Hynix has continued to increase. Tigh"
+    ],
+    "risks_discussed": [
+      "Looking forward, we believe Somnigroup has multiple ways to win. Either the housing cycle turns, which would provide a billion -dollar revenue tailwind at high margins, or the trough sustains and the last competitors standing, Sleep Number and Serta Simmons, face continued top-li",
+      "Page 7 incumbent pricing is currently a materially worse experience for consumers than what we\u2019re used to seeing in the US. Most consumers have capped monthly data plans, with only 27% of Canadians paying for a 100GB+ or unlimited plan as of YE 2024 according to the regulator\u2019s l",
+      "As we head into 2026, we expect potential deregulation, which should encourage more bank financing, driving senior credit spreads tighter. While we have found more opportunities in smaller bank portfolio sales with a pickup in yield, we have also been active in Synthetic Risk Tra",
+      "While the performances of the fund has been compared here with the performance of well -known and widely recognized indices, the indices have not been selected to represent an appropriate benchmark for the fund whose holdings, performance and volatility may differ significantly f",
+      "This letter may include performance and other position information relating to once activist positions that are no longer act ive but for which there remain residual holdings managed in a non-engaged manner. Such holdings may continue to be categorized as activist during such hol"
+    ],
+    "portfolio_actions": [
+      "The trends that drove markets higher during Q4 have extended into the early months of 2026: an ongoing rotation from software into semiconductors, memory, and semicap equipment; continued strength in European defense equities; a broadening of market leadership from big tech to th",
+      "AI dominates market headlines and is increasingly forcing a re -think of established beliefs. One of them is the long -perceived attractiveness of capital -light business models like software, information services, and digital platforms that for decades requ ired little to no phy",
+      "Portfolio Updates1 SK Square SK Square is a Seoul -based Korean holding company with a market capitalization of approximately $47 billion. It spun out of SK Telecom in 2021 and actively invests in and manages a diversified portfolio of technology assets including a 20% stake in S",
+      "Quebecor is a regional telco with 25% share of Quebec\u2019s wireless subscribers and a longstanding ambition of expanding nationally. It finally got the opportunity with the acquisition of Freedom Mobile, a national wireless business and forced divestiture following the Rogers/Shaw m",
+      "Structured Credit Update Over the last year, the compelling value proposition of structured credit has attracted new investors to the asset class. Entrants into structured credit likely see what we see: it comprises more than 60% of the fixed income market and more than $14 trill"
+    ],
+    "tone_notes": "Real hedge fund letter with position updates across equity and credit.",
+    "best_quotes_or_phrases": [
+      "Which companies is \nAnthropic capable of dislocating or disrupting?",
+      "Third Point Offshore"
+    ]
+  },
+  "source_metadata": {
+    "file_present": true,
+    "source_extension": ".pdf",
+    "extraction_mode": "pdf_text",
+    "page_count": 13,
+    "headings_detected": [
+      "TP OFFSHORE FUND, LTD.",
+      "CS HF EVENT",
+      "DRIVEN INDEX",
+      "S&P 500 INDEX (TR)",
+      "MSCI WORLD INDEX (TR)",
+      "PLEASE SEE THE NEW SERIES RETURNS AT THE END OF THIS DOCUMENT.",
+      "TP OFFSHORE",
+      "CS HF EVENT",
+      "DRIVEN INDEX",
+      "S&P 500 INDEX (TR)",
+      "MSCI WORLD INDEX (TR)"
+    ]
+  },
+  "chunking": {
+    "strategy": "page_groups",
+    "chunk_count": 5,
+    "chunks": [
+      {
+        "label": "pages_1_3",
+        "start_page": 1,
+        "end_page": 3,
+        "text_preview": "Page 1 \n55 Hudson Yards \nNew York, NY 10001 \nthirdpoint.com \n212.715.3880 \n \nFourth Quarter 2025 Investor Letter \nFebruary 6, 2026 \n \nDear Investor: \nDuring the Fourth Quarter, Third Point returned 1.9% net in the flagship Offshore Fund. \n \n \n Q\n 4\n1 \n ANNUALIZED NET \nRETURN\n2 \nTP OFFSHORE FUND, LTD. \n 1.9\n% \n 13.\n1\n% \nCS HF EVENT\n -\nDRIVEN INDEX \n 1.1% \n 6.9% \nS&P 500 INDEX (TR) \n 2.7% \n 9.8% \nMSCI WORLD INDEX (TR) \n 3.2% \n 8.3% \n \n1 Through December 31, 2025. \n2 Annualized Return from inception (December 1996 for TP Offshore and quoted indices). \n \nPLEASE SEE THE NEW SERIES RETURNS AT THE END OF THIS DOCUMENT. \n \nThe top five winners for the quarter were SK Hynix Inc., DSV A/S, Siemens Energy AG, \nCarpenter Technology Corp., and Pacific Gas and Electric Co. The top five losers for the \nquarter, excluding hedges, were CoStar Group Inc., Microsoft Corp., Meta Platforms Inc., \nVistra Corp., and Primo Brands Corp. \n \nThe trends that drove markets higher during Q4 have extended into the early months of \n2026: an ongoing rotation from software into semiconductors, memory, and semicap \nequipment; continued strength in European defense equities; a broadening of market \nleadership from big tech to the industrials, healthcare, and consumer sectors; and an \nastounding appreciation in gold and rare earths. Notwithstanding the extreme volatility and \nselloff from the intraday peak of nearly $5,600/oz, the price of gold has increased ~15%\n\nPage 2 \nyear-to-date. Meanwhile, Bitcoin is down"
+      },
+      {
+        "label": "pages_4_6",
+        "start_page": 4,
+        "end_page": 6,
+        "text_preview": "Page 4 \nHBM4 demand for its next -generation platforms at meaningfully higher price points and \nmargins than prior generations. While Samsung and Micron are accelerating competitive \nefforts, SK Hynix retains clear time -to-market and customer -qualification advantage s, \nreinforced by long-term supply agreements and focused capacity expansion. In parallel, the \ncompany\u2019s planned US ADR listing should continue to raise its global investor profile and \nbroaden access to international capital, further supporting its valuation. \n \nToday, SK Square\u2019s discount to NAV is approximately 47%. \n Trillion KRW Per Share % of NAV \nSK Hynix 123.0 931,318 97% \nTMAP Mobility 1.5 11,052 1% \nSK shieldus 1.0 7,721 1% \nOne Store 0.4 3,179 0% \n11STREET 0.4 2,952 0% \nContent wavve 0.3 1,968 0% \nSK planet 0.2 1,817 0% \nOther Stakes 0.7 5,223 1% \nTotal NAV 127.5 965,232 100% \n \nShare Price 513,000 \nDiscount ~47% \nSource: SK Square filings and Bloomberg. Data are as of 1/30/2026. \n \nWhile this has narrowed from prior NAV discounts as wide as ~75%, we believe there \nremains much room for improvement. Korean holding company peers trade at discounts \nranging between 15% and 45%. However, such peers hold a broad collection of generally \nilliquid and difficult -to-value assets, which would warrant their high discount. Unlike its \npeers, over 96% of SK Square\u2019s asset value comprises shares in SK Hynix, the second largest \nand most liquid public constituent of the KOSPI index and one of the most important \n"
+      },
+      {
+        "label": "pages_7_9",
+        "start_page": 7,
+        "end_page": 9,
+        "text_preview": "Page 7 \nincumbent pricing is currently a materially worse experience for consumers than what we\u2019re \nused to seeing in the US. Most consumers have capped monthly data plans, with only 27% \nof Canadians paying for a 100GB+ or unlimited plan as of YE 2024 according to the \nregulator\u2019s latest market study. When coupled with 3.5 \u2013 4.0x turns of financial leverage and \ndividend payout ratios at over 80% of free cash flow, Canada\u2019s Big 3 providers are poorly \npositioned to match pricing from an aggressive and well-run challenger. \n \nQuebecor is a regional telco with 25% share of Quebec\u2019s wireless subscribers and a \nlongstanding ambition of expanding nationally. It finally got the opportunity with the \nacquisition of Freedom Mobile, a national wireless business and forced divestiture following \nthe Rogers/Shaw merger. An extremely favorable domestic roaming agreement gifted by the \nregulator enabled Quebecor to ride on the Rogers network. As existing coverage improved, \nFreedom Mobile subscriber growth has accelerated to levels rarely seen in developed \nmarkets. For context, Quebecor\u2019s latest ARPU is C$35, a 40% discount to incumbent \nbackbooks priced at C$56 -58. This disruptive pricing has enabled Quebecor to capture \n328,000 net adds of the trailing twelve months. This represents 31% of total net industry \ngrowth, a substantial gain for a player with just 11.5% share of total industry subscribers. \n \nNormally we would expect this sort of explosive growth to require substantial cas"
+      },
+      {
+        "label": "pages_10_12",
+        "start_page": 10,
+        "end_page": 12,
+        "text_preview": "Page 10 \nborrowing costs for structured credit dropped from the high 6%\u2019s to 4.8% as of mid -\nDecember. A portion of our fixed rate structured credit portfolio is hedged with interest rate \nswaps where we pay a fixed cost of roughly 2.5% and receive SOFR. Residential mortgages \ncontinue to represent the core exposure for the portfolio, in addition to consumer ABS with \na focus on loans collateralized by hard assets and small exposure to CMBS. \n \nDespite specific geographical weakness in housing prices, residential mortgages \u2013 and in \nparticular, those that are seasoned and with lower balances \u2013 remained resilient in 2025. \nThird Point has historically had a core position in first -lien, owner -occupied residential \nmortgages, with a focus on reperforming loans with over 18 years of seasoning and an \naverage balance around $150,000. In 2026, we anticipate there will be more residential \nproducts designed to access home equity or address housing affordabil ity issues. While \nlower rates should start to ease the affordability issue for new or prospective homeowners, \n85% of current homeowners have a mortgage rate below 6%. There is currently $35.8 \ntrillion of home equity in the U.S. homeowners\u2019 balance sheet, w hich we believe creates a \nlarge margin of credit protection for our investments and the ability to expand our \ninvestments in residential real estate into home affordability products. \n \nAs we head into 2026, we expect potential deregulation, which should encourage more"
+      },
+      {
+        "label": "pages_13_13",
+        "start_page": 13,
+        "end_page": 13,
+        "text_preview": "Page 13 \n \n New Series (Excludes Legacy Private Investments)3 \n \n \n \n Q\n 4\n1 \n ANNUALIZED NET \nRETURN\n2 \nTP OFFSHORE \n FUND\n , LTD. \n 2.0\n% \n 13.1\n% \nCS HF EVENT\n -\nDRIVEN INDEX \n 1.1% \n 6.9% \nS&P 500 INDEX (TR) \n 2.7% \n 9.8% \nMSCI WORLD INDEX (TR) \n 3.2% \n 8.3% \n \n1Through December 31, 2025. \n2Annualized Return from inception (December 1996 for TP Offshore and quoted indices). \n3\u201cNew Series (Excludes Legacy Private Investments)\u201d uses the existing series track record form inception through May 31, 2023. \nReturns from June 1, 2023 and onward exclude legacy private investments."
+      }
+    ]
+  },
+  "text_samples": [
+    "Page 1 \n55 Hudson Yards \nNew York, NY 10001 \nthirdpoint.com \n212.715.3880 \n \nFourth Quarter 2025 Investor Letter \nFebruary 6, 2026 \n \nDear Investor: \nDuring the Fourth Quarter, Third Point returned 1.9% net in the flagship Offshore Fund. \n \n \n Q\n 4\n1 \n ANNUALIZED NET \nRETURN\n2 \nTP OFFSHORE FUND, LTD. \n 1.9\n% \n 13.\n1\n% \nCS HF EVENT\n -\nDRIVEN INDEX \n 1.1% \n 6.9% \nS&P 500 INDEX (TR) \n 2.7% \n 9.8% \nMSCI WORLD INDEX (TR) \n 3.2% \n 8.3% \n \n1 Through December 31, 2025. \n2 Annualized Return from inception (December 1996 for TP Offshore and quoted indices). \n \nPLEASE SEE THE NEW SERIES RETURNS AT THE END OF THIS DOCUMENT. \n \nThe top five winners for the quarter were SK Hynix Inc., DSV A/S, Siemens Energy AG, \nCarpenter Technology Corp., and Pacific Gas and Electric Co. The top five losers for the \nquarter, excluding hedges, were CoStar Group Inc., Microsoft Corp., Meta Platforms Inc., \nVistra Corp., and Primo Brands Corp. \n \nThe trends that drove markets higher during Q4 have extended into the early months of \n2026: an ongoing rotation from software into semiconductors, memory, and semicap \nequipment; continued strength in European defense equities; a broadening of market \nleadership from big tech to the industrials, healthcare, and consumer sectors; and an \nastounding appreciation in gold and rare earths. Notwithstanding the extreme volatility and \nselloff from the intraday peak of nearly $5,600/oz, the price of gold has increased ~15%\n\nPage 2 \nyear-to-date. Meanwhile, Bitcoin is down",
+    "Page 4 \nHBM4 demand for its next -generation platforms at meaningfully higher price points and \nmargins than prior generations. While Samsung and Micron are accelerating competitive \nefforts, SK Hynix retains clear time -to-market and customer -qualification advantage s, \nreinforced by long-term supply agreements and focused capacity expansion. In parallel, the \ncompany\u2019s planned US ADR listing should continue to raise its global investor profile and \nbroaden access to international capital, further supporting its valuation. \n \nToday, SK Square\u2019s discount to NAV is approximately 47%. \n Trillion KRW Per Share % of NAV \nSK Hynix 123.0 931,318 97% \nTMAP Mobility 1.5 11,052 1% \nSK shieldus 1.0 7,721 1% \nOne Store 0.4 3,179 0% \n11STREET 0.4 2,952 0% \nContent wavve 0.3 1,968 0% \nSK planet 0.2 1,817 0% \nOther Stakes 0.7 5,223 1% \nTotal NAV 127.5 965,232 100% \n \nShare Price 513,000 \nDiscount ~47% \nSource: SK Square filings and Bloomberg. Data are as of 1/30/2026. \n \nWhile this has narrowed from prior NAV discounts as wide as ~75%, we believe there \nremains much room for improvement. Korean holding company peers trade at discounts \nranging between 15% and 45%. However, such peers hold a broad collection of generally \nilliquid and difficult -to-value assets, which would warrant their high discount. Unlike its \npeers, over 96% of SK Square\u2019s asset value comprises shares in SK Hynix, the second largest \nand most liquid public constituent of the KOSPI index and one of the most important \n",
+    "Page 7 \nincumbent pricing is currently a materially worse experience for consumers than what we\u2019re \nused to seeing in the US. Most consumers have capped monthly data plans, with only 27% \nof Canadians paying for a 100GB+ or unlimited plan as of YE 2024 according to the \nregulator\u2019s latest market study. When coupled with 3.5 \u2013 4.0x turns of financial leverage and \ndividend payout ratios at over 80% of free cash flow, Canada\u2019s Big 3 providers are poorly \npositioned to match pricing from an aggressive and well-run challenger. \n \nQuebecor is a regional telco with 25% share of Quebec\u2019s wireless subscribers and a \nlongstanding ambition of expanding nationally. It finally got the opportunity with the \nacquisition of Freedom Mobile, a national wireless business and forced divestiture following \nthe Rogers/Shaw merger. An extremely favorable domestic roaming agreement gifted by the \nregulator enabled Quebecor to ride on the Rogers network. As existing coverage improved, \nFreedom Mobile subscriber growth has accelerated to levels rarely seen in developed \nmarkets. For context, Quebecor\u2019s latest ARPU is C$35, a 40% discount to incumbent \nbackbooks priced at C$56 -58. This disruptive pricing has enabled Quebecor to capture \n328,000 net adds of the trailing twelve months. This represents 31% of total net industry \ngrowth, a substantial gain for a player with just 11.5% share of total industry subscribers. \n \nNormally we would expect this sort of explosive growth to require substantial cas",
+    "Page 10 \nborrowing costs for structured credit dropped from the high 6%\u2019s to 4.8% as of mid -\nDecember. A portion of our fixed rate structured credit portfolio is hedged with interest rate \nswaps where we pay a fixed cost of roughly 2.5% and receive SOFR. Residential mortgages \ncontinue to represent the core exposure for the portfolio, in addition to consumer ABS with \na focus on loans collateralized by hard assets and small exposure to CMBS. \n \nDespite specific geographical weakness in housing prices, residential mortgages \u2013 and in \nparticular, those that are seasoned and with lower balances \u2013 remained resilient in 2025. \nThird Point has historically had a core position in first -lien, owner -occupied residential \nmortgages, with a focus on reperforming loans with over 18 years of seasoning and an \naverage balance around $150,000. In 2026, we anticipate there will be more residential \nproducts designed to access home equity or address housing affordabil ity issues. While \nlower rates should start to ease the affordability issue for new or prospective homeowners, \n85% of current homeowners have a mortgage rate below 6%. There is currently $35.8 \ntrillion of home equity in the U.S. homeowners\u2019 balance sheet, w hich we believe creates a \nlarge margin of credit protection for our investments and the ability to expand our \ninvestments in residential real estate into home affordability products. \n \nAs we head into 2026, we expect potential deregulation, which should encourage more",
+    "Page 13 \n \n New Series (Excludes Legacy Private Investments)3 \n \n \n \n Q\n 4\n1 \n ANNUALIZED NET \nRETURN\n2 \nTP OFFSHORE \n FUND\n , LTD. \n 2.0\n% \n 13.1\n% \nCS HF EVENT\n -\nDRIVEN INDEX \n 1.1% \n 6.9% \nS&P 500 INDEX (TR) \n 2.7% \n 9.8% \nMSCI WORLD INDEX (TR) \n 3.2% \n 8.3% \n \n1Through December 31, 2025. \n2Annualized Return from inception (December 1996 for TP Offshore and quoted indices). \n3\u201cNew Series (Excludes Legacy Private Investments)\u201d uses the existing series track record form inception through May 31, 2023. \nReturns from June 1, 2023 and onward exclude legacy private investments."
+  ],
+  "extraction_status": "extracted",
+  "extracted_at": "2026-03-27T18:52:12.627653+00:00"
+}

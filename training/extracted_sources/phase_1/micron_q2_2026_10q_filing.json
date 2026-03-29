@@ -1,0 +1,69 @@
+{
+  "id": "micron_q2_2026_10q_filing",
+  "title": "Micron Fiscal Q2 2026 10-Q Filing",
+  "file_path": "/Users/averyromain/FinModAI/data/training/0000723125-26-000006",
+  "source_type": "sec_public_filings",
+  "tier": "A-",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "financial_reasoning",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Micron's filed 10-Q for the quarter ended February 26, 2026, including statements, MD&A, and risk disclosures.",
+  "strengths": [
+    "primary filing",
+    "MD&A and liquidity sections",
+    "statement and notes structure"
+  ],
+  "weaknesses": [
+    "raw filing includes exhibit and plan noise in later pages"
+  ],
+  "fields": {
+    "title": "Micron Fiscal Q2 2026 10-Q Filing",
+    "company_name": "Micron Technology, Inc.",
+    "ticker": "MU",
+    "cik": "0000723125",
+    "forms_covered": [
+      "10-Q"
+    ],
+    "filing_dates": [
+      "quarter ended February 26, 2026"
+    ],
+    "capital_markets_activity": [
+      "Quarterly filing focused primarily on operating performance, statements, and capital structure disclosures."
+    ],
+    "capital_allocation_activity": [
+      "Use the filing to assess capital allocation, investment intensity, and balance sheet posture from primary disclosures."
+    ],
+    "liquidity_notes": [
+      "Contains liquidity and capital resources discussion in MD&A.",
+      "Includes full financial statements and notes for cash, debt, and working-capital analysis."
+    ],
+    "governance_notes": [
+      "Includes standard quarterly filing governance and control disclosures."
+    ],
+    "controls_and_risk_notes": [
+      "Includes risk factors, controls, and MD&A sections relevant for underwriting."
+    ],
+    "analyst_relevance": [
+      "Good primary source for validating management commentary against filed numbers.",
+      "Useful for liquidity, capital structure, and working-capital interpretation.",
+      "Should be used to ground any semiconductor thesis derived from the release or deck."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/0000723125-26-000006/manifest.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/0000723125-26-000006/chunks.jsonl",
+    "dataset_dir": "/Users/averyromain/FinModAI/data/training/0000723125-26-000006",
+    "page_count": 134,
+    "chunk_count": 128,
+    "source_url": null,
+    "access_status": null
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "id": "scraped_pcg_earnings_reference",
+  "title": "PG&E Scraped Earnings Package",
+  "file_path": "/Users/averyromain/FinModAI/finmodai-next/data/PCG/earnings",
+  "source_type": "earnings_reference",
+  "tier": "B",
+  "primary_bucket": "financial_reasoning",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "earnings_reference",
+  "assistant_training_targets": [
+    "earnings-package interpretation",
+    "KPI extraction",
+    "prepared-remarks compression",
+    "investor-facing results framing"
+  ],
+  "source_summary": "Scraper-collected earnings releases and related materials for PG&E.",
+  "strengths": [
+    "official company earnings package",
+    "good for KPI prioritization",
+    "ties company messaging to investor materials"
+  ],
+  "weaknesses": [
+    "import is derived from scraped titles and document presence, not full manual extraction"
+  ],
+  "fields": {
+    "title": "PG&E Scraped Earnings Package",
+    "company_name": "PG&E",
+    "quarter": "recent periods",
+    "source_name": "Company Investor Relations",
+    "sections": [
+      "PG E Corporation Fourth Quarter 2025 Earnings Release",
+      "PG E Corporation First Quarter 2026 Earnings Release",
+      "https www.prnewswire.com news releases pge corporation reports strong third quarter results narrows 2025 guidance initiates 2026 guidance 30",
+      "https www.prnewswire.com news releases pge corporation reports solid 2025 results tightens 2026 earnings guidance 302685988.html"
+    ],
+    "key_metrics": [
+      "Use the earnings package to anchor the reported quarter before relying on transcript tone or media interpretation.",
+      "Prioritize revenue, margin, guidance, and segment signals from the latest release set."
+    ],
+    "management_themes": [
+      "Management-selected earnings materials indicate which metrics and business lines investors are meant to focus on.",
+      "Cross-check the release package against filings before changing model assumptions."
+    ],
+    "analyst_relevance": [
+      "Good for earnings-package compression and KPI prioritization.",
+      "Useful source lane between raw filings and full transcripts."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_dir": "/Users/averyromain/FinModAI/finmodai-next/data/PCG",
+    "categories": {
+      "10k": 8,
+      "10q": 8,
+      "earnings": 4,
+      "presentation": 4,
+      "transcript": 2
+    },
+    "document_count": 26
+  }
+}

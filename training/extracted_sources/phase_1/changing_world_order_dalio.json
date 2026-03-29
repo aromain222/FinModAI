@@ -1,0 +1,72 @@
+{
+  "id": "changing_world_order_dalio",
+  "title": "The Changing World Order",
+  "file_path": "/Users/averyromain/FinModAI/data/training/changing-world-order-ray-dalio",
+  "source_type": "macro_handbook",
+  "tier": "A-",
+  "primary_bucket": "financial_reasoning",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "macro_handbook",
+  "assistant_training_targets": [
+    "debt-cycle reasoning",
+    "reserve-currency regime framing",
+    "capital-flow and term-premium logic",
+    "macro scenario construction"
+  ],
+  "source_summary": "Dalio framework on debt cycles, reserve currencies, empire transitions, and the market implications of long-cycle macro shifts.",
+  "strengths": [
+    "strong debt and reserve-currency cycle framing",
+    "useful long-duration macro template",
+    "connects policy limits to asset-pricing regimes"
+  ],
+  "weaknesses": [
+    "historical and thematic rather than point-in-time",
+    "chapter detection in extraction was weak"
+  ],
+  "fields": {
+    "title": "The Changing World Order",
+    "publisher": "Bridgewater / Ray Dalio macro reference",
+    "subject_areas": [
+      "debt cycles",
+      "money and credit",
+      "reserve currencies",
+      "empire transitions",
+      "capital markets under regime change"
+    ],
+    "chapter_titles": [
+      "The Big Cycles in a Tiny Nutshell",
+      "The Big Cycle of Money, Credit, Debt, and Economic Activity",
+      "The Changing Value of Money",
+      "The Big Cycles of Empires and Their Currencies"
+    ],
+    "core_frameworks": [
+      "high debt plus low rates can reduce policy flexibility",
+      "reserve-currency strength and capital flows shape duration and FX behavior",
+      "internal conflict and external rivalry can coincide with weaker monetary regimes"
+    ],
+    "signal_design_principles": [
+      "treat debt and reserve-currency stress as market-regime variables",
+      "separate nominal growth from the cost of capital",
+      "watch policy capacity, not just policy intent"
+    ],
+    "analyst_relevance": [
+      "Support structural macro and rates narratives in CapitalBase events outputs.",
+      "Improve scenario framing for debt stress, reserve rebalancing, and long-duration valuation pressure.",
+      "Help the model reason about why lower growth does not always imply lower discount rates."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/changing-world-order-ray-dalio/manifest.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/changing-world-order-ray-dalio/chunks.jsonl",
+    "page_count": 156,
+    "chunk_count": 356
+  },
+  "chunking": {
+    "strategy": "chunk_text",
+    "chunk_count": 356,
+    "chunks": []
+  },
+  "text_samples": []
+}

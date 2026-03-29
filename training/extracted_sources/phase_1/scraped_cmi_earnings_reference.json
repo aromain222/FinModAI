@@ -1,0 +1,62 @@
+{
+  "id": "scraped_cmi_earnings_reference",
+  "title": "Cummins Scraped Earnings Package",
+  "file_path": "/Users/averyromain/FinModAI/finmodai-next/data/CMI/earnings",
+  "source_type": "earnings_reference",
+  "tier": "B",
+  "primary_bucket": "financial_reasoning",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "earnings_reference",
+  "assistant_training_targets": [
+    "earnings-package interpretation",
+    "KPI extraction",
+    "prepared-remarks compression",
+    "investor-facing results framing"
+  ],
+  "source_summary": "Scraper-collected earnings releases and related materials for Cummins.",
+  "strengths": [
+    "official company earnings package",
+    "good for KPI prioritization",
+    "ties company messaging to investor materials"
+  ],
+  "weaknesses": [
+    "import is derived from scraped titles and document presence, not full manual extraction"
+  ],
+  "fields": {
+    "title": "Cummins Scraped Earnings Package",
+    "company_name": "Cummins",
+    "quarter": "recent periods",
+    "source_name": "Company Investor Relations",
+    "sections": [
+      "Earnings Release",
+      "Cummins Reports Second Quarter 2025 Results",
+      "Cummins Reports First Quarter 2025 Results",
+      "Feb. 5 2026 7 30 A.M. ET Cummins Reports Strong Fourth Quarter and Full Year 2025 Results Records Charges Associated with Electrolyzer Busin"
+    ],
+    "key_metrics": [
+      "Use the earnings package to anchor the reported quarter before relying on transcript tone or media interpretation.",
+      "Prioritize revenue, margin, guidance, and segment signals from the latest release set."
+    ],
+    "management_themes": [
+      "Management-selected earnings materials indicate which metrics and business lines investors are meant to focus on.",
+      "Cross-check the release package against filings before changing model assumptions."
+    ],
+    "analyst_relevance": [
+      "Good for earnings-package compression and KPI prioritization.",
+      "Useful source lane between raw filings and full transcripts."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_dir": "/Users/averyromain/FinModAI/finmodai-next/data/CMI",
+    "categories": {
+      "10k": 6,
+      "10q": 4,
+      "earnings": 4,
+      "presentation": 2,
+      "transcript": 2
+    },
+    "document_count": 18
+  }
+}

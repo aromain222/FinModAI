@@ -1,0 +1,69 @@
+{
+  "id": "msft_market_data_snapshot",
+  "title": "MSFT Market Data Snapshot",
+  "file_path": "/Users/averyromain/FinModAI/data/training/market-snapshot-msft",
+  "source_type": "market_data_snapshot",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "market_data_snapshot",
+  "assistant_training_targets": [
+    "market-data provenance",
+    "cross-provider reconciliation",
+    "quote and fundamental sanity checks",
+    "analyst data-quality interpretation"
+  ],
+  "source_summary": "Cross-provider snapshot for MSFT built from Polygon, Tiingo, Twelve Data, and Alpha Vantage where available.",
+  "strengths": [
+    "explicit provider provenance",
+    "cross-provider comparison",
+    "quote and fundamentals sanity checks"
+  ],
+  "weaknesses": [
+    "snapshot values can go stale quickly",
+    "providers differ in field coverage and definitions"
+  ],
+  "fields": {
+    "title": "MSFT Market Data Snapshot",
+    "ticker": "MSFT",
+    "company_name": "MSFT",
+    "providers_queried": [
+      "polygon",
+      "tiingo",
+      "twelvedata",
+      "alphavantage"
+    ],
+    "quote_snapshot": [
+      "polygon: price=356.77, marketCap=n/a, sharesOutstanding=n/a, asOf=2026-03-27T20:00:00.000Z",
+      "alphavantage: price=n/a, marketCap=n/a, sharesOutstanding=n/a, asOf=n/a"
+    ],
+    "fundamental_snapshot": [
+      "alphavantage: revenueLTM=n/a, ebitdaLTM=n/a, netIncomeLTM=n/a, cash=n/a, totalDebt=n/a"
+    ],
+    "provider_differences": [
+      "alphavantage missing fields: marketCap, sharesOutstanding, revenueLTM, ebitdaLTM, netIncomeLTM, cash."
+    ],
+    "market_context": [
+      "Snapshot captured at 2026-03-28T20:14:27.716Z.",
+      "Primary quote consensus used polygon for directional context.",
+      "Fundamentals coverage came from alphavantage with explicit provenance."
+    ],
+    "analyst_relevance": [
+      "Use provider-attributed snapshots to sanity-check price, market cap, and share count before running valuation models.",
+      "Treat provider disagreements as a prompt to confirm timing, endpoint definitions, and stale fields.",
+      "Keep quote provenance separate from fundamentals provenance in any downstream output."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/market-snapshot-msft/manifest.json",
+    "snapshot_path": "/Users/averyromain/FinModAI/data/training/market-snapshot-msft/snapshot.json",
+    "providers": [
+      "polygon",
+      "tiingo",
+      "twelvedata",
+      "alphavantage"
+    ]
+  }
+}

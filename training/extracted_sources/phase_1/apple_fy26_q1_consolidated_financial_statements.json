@@ -1,0 +1,69 @@
+{
+  "id": "apple_fy26_q1_consolidated_financial_statements",
+  "title": "Apple FY26 Q1 Consolidated Financial Statements",
+  "file_path": "/Users/averyromain/FinModAI/data/training/fy26-q1-consolidated-financial-statements",
+  "source_type": "sec_public_filings",
+  "tier": "A",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "financial_reasoning",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Apple condensed consolidated financial statements for FY26 Q1 with statements of operations, balance sheet, and cash flow.",
+  "strengths": [
+    "clean statement-only package",
+    "quarterly operating and cash-flow data",
+    "high-signal primary financial source"
+  ],
+  "weaknesses": [
+    "does not include full MD&A narrative"
+  ],
+  "fields": {
+    "title": "Apple FY26 Q1 Consolidated Financial Statements",
+    "company_name": "Apple Inc.",
+    "ticker": "AAPL",
+    "cik": "0000320193",
+    "forms_covered": [
+      "Condensed consolidated financial statements"
+    ],
+    "filing_dates": [
+      "three months ended December 27, 2025"
+    ],
+    "capital_markets_activity": [
+      "Statement package is more useful for cash generation and capital structure than episodic financing events."
+    ],
+    "capital_allocation_activity": [
+      "Use the statement package to evaluate profitability, shareholder returns capacity, and cash deployment."
+    ],
+    "liquidity_notes": [
+      "Includes condensed balance sheet and cash flow statements.",
+      "Useful for cash, marketable securities, debt, and working-capital analysis."
+    ],
+    "governance_notes": [
+      "Statement-only package with limited governance narrative."
+    ],
+    "controls_and_risk_notes": [
+      "Risk and controls detail should be paired with the full filed report if needed."
+    ],
+    "analyst_relevance": [
+      "Good source for quick statement reading without the noise of a full annual filing.",
+      "Useful for linking revenue, margin, and cash flow in a very clean primary-source format.",
+      "Good complement to longer Apple 10-K style training material."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/fy26-q1-consolidated-financial-statements/manifest.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/fy26-q1-consolidated-financial-statements/chunks.jsonl",
+    "dataset_dir": "/Users/averyromain/FinModAI/data/training/fy26-q1-consolidated-financial-statements",
+    "page_count": 3,
+    "chunk_count": 3,
+    "source_url": null,
+    "access_status": null
+  }
+}

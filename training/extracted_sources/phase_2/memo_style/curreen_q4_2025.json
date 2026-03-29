@@ -1,0 +1,120 @@
+{
+  "id": "curreen_q4_2025",
+  "title": "Curreen Capital Q4 2025 Letter",
+  "file_path": "/Users/averyromain/Downloads/Q4+2025+Letter.pdf",
+  "source_type": "investor_letter",
+  "tier": "B",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "eval_cases",
+  "recommended_phase": 2,
+  "template_key": "investor_letter",
+  "assistant_training_targets": [
+    "thesis articulation",
+    "portfolio commentary",
+    "risk framing",
+    "what changed",
+    "decision language"
+  ],
+  "source_summary": "Small-cap value letter with ugly duckling and crazy cheap framework.",
+  "strengths": [
+    "simple thesis templates",
+    "spinoff framing"
+  ],
+  "weaknesses": [
+    "limited depth"
+  ],
+  "fields": {
+    "title": "Curreen Capital Q4 2025 Letter",
+    "manager": "Christian Ryther",
+    "date": "June 1, 2013",
+    "strategy_style": "hedge-fund style",
+    "performance_context": [
+      "Oct Nov Dec Q4 2025 YTD Since Inception Annualized Curreen Capital Partners LP 1.42% 1.63% 7.20% 10.50% 30.97% 301.7% 11.7% S&P 500 2.34% 0.25% 0.06% 2.66% 17.89% 426.8% 14.1% MSCI World (US Gross) 2.02% 0.31% 0.83% 3.18% 21.42% 289.6% 11.4%",
+      "Our fund delivered strong results in 2025, finishing up 10.5% in the fourth quarter and 30.97% for the full year. We remained disciplined in our investment strategy, and our port folio of \"ugly ducklings\" delivered solid performance.",
+      "Our Actions in Q4 During the fourth quarter we sold Havas (at \u20ac1.52/share) . In reviewing the business, I determined that it does not meet our return on capital requirements. While Havas is cheap and well run, other businesses are a better fit for our strategy. We bought Fortrea "
+    ],
+    "top_themes": [
+      "DISCLAIMER"
+    ],
+    "positions_discussed": [
+      "Oct Nov Dec",
+      "Our Actions in Q4",
+      "Christian Ryther",
+      "Appendix",
+      "Advance Auto Parts",
+      "AAP",
+      "Fortrea",
+      "FTRE",
+      "Frontdoor",
+      "FTDR"
+    ],
+    "thesis_points": [
+      "Our Actions in Q4 During the fourth quarter we sold Havas (at \u20ac1.52/share) . In reviewing the business, I determined that it does not meet our return on capital requirements. While Havas is cheap and well run, other businesses are a better fit for our strategy. We bought Fortrea ",
+      "Fortrea is an example of our \u201cCrazy Ch eap\u201d strategy: buying excellent businesses priced as if their current struggles will last forever. These are ugly ducklings that are especially unpopular, and their stock prices have often fallen hard for months. I get very interested when a",
+      "Fortrea faced headwinds, with weak financial results, the loss of a st ar CEO, and swirling fears about changing US health policy. \u201cCrazy Cheap\u201d stocks like Fo rtrea are often going through a painful period, but their low price creates an extremely attractive upsi de-to-downside.",
+      "We added to GetBusy in late 2024 at \u00a30.56/share, a \u201cCrazy Cheap\u201d valuation. GetBusy raised its outlook in September 2025 following the ann ouncement that a large competitor was exiting the market (Thomson Reuters\u2019 FileCabinet CS). GetBusy\u2019s directors and executives repeatedly bou",
+      "We Focus on Ugly Ducklings \u2013 Especially Spinoffs and The Extremely Cheap As we look back on the evolution of Curreen Capital since our 2013 launch, our core philosophy remains unchanged. We invest in \u201cugly ducklings\u201d, which are businesses that meet our three key criteria: a good "
+    ],
+    "valuation_language": [
+      "Our Actions in Q4 During the fourth quarter we sold Havas (at \u20ac1.52/share) . In reviewing the business, I determined that it does not meet our return on capital requirements. While Havas is cheap and well run, other businesses are a better fit for our strategy. We bought Fortrea ",
+      "2025 Performance Review Curreen Capital\u2019s performance over the year was primarily driven by three positions: Fortrea, Siemens Energy, and GetBusy.",
+      "Fortrea is an example of our \u201cCrazy Ch eap\u201d strategy: buying excellent businesses priced as if their current struggles will last forever. These are ugly ducklings that are especially unpopular, and their stock prices have often fallen hard for months. I get very interested when a",
+      "We bought our position in Siemens Energy in ear ly 2024, anticipating that the end of a decade-long stagnation in global electricity demand would dr ive improved operating results. After being evenly matched since 2008, increasing efficiency had finally been overcome by increasin",
+      "We added to GetBusy in late 2024 at \u00a30.56/share, a \u201cCrazy Cheap\u201d valuation. GetBusy raised its outlook in September 2025 following the ann ouncement that a large competitor was exiting the market (Thomson Reuters\u2019 FileCabinet CS). GetBusy\u2019s directors and executives repeatedly bou"
+    ],
+    "risks_discussed": [
+      "Fortrea faced headwinds, with weak financial results, the loss of a st ar CEO, and swirling fears about changing US health policy. \u201cCrazy Cheap\u201d stocks like Fo rtrea are often going through a painful period, but their low price creates an extremely attractive upsi de-to-downside.",
+      "VF Corp (VFC) VF Corp manages apparel brands, including The North Face, Ti mberland, and Vans. The company has fixed its balance sheet, improved capital allocation, and rebuilt its management team in an effort to return the business to growth. I believe that the company has good ",
+      "The information contained herein regarding Curreen C apital Partners, LP (the \u201cFund\u201d) is confidential and proprietary and is intended only for use by th e recipient. The informa tion and opinions expressed herein are as of the date appearing in this material only, are not complet",
+      "An investment in the Fund is speculative and may involve substantial investment and other risks. Such risks may include, without limitation, risk of adverse or unanticipated market developments, risk of counterparty or issuer default, and risk of illiquidity. The perf ormance res"
+    ],
+    "portfolio_actions": [
+      "Our Actions in Q4 During the fourth quarter we sold Havas (at \u20ac1.52/share) . In reviewing the business, I determined that it does not meet our return on capital requirements. While Havas is cheap and well run, other businesses are a better fit for our strategy. We bought Fortrea ",
+      "We bought our position in Siemens Energy in ear ly 2024, anticipating that the end of a decade-long stagnation in global electricity demand would dr ive improved operating results. After being evenly matched since 2008, increasing efficiency had finally been overcome by increasin",
+      "We added to GetBusy in late 2024 at \u00a30.56/share, a \u201cCrazy Cheap\u201d valuation. GetBusy raised its outlook in September 2025 following the ann ouncement that a large competitor was exiting the market (Thomson Reuters\u2019 FileCabinet CS). GetBusy\u2019s directors and executives repeatedly bou",
+      "We Focus on Ugly Ducklings \u2013 Especially Spinoffs and The Extremely Cheap As we look back on the evolution of Curreen Capital since our 2013 launch, our core philosophy remains unchanged. We invest in \u201cugly ducklings\u201d, which are businesses that meet our three key criteria: a good "
+    ],
+    "tone_notes": "Small-cap value letter with ugly duckling and crazy cheap framework.",
+    "best_quotes_or_phrases": []
+  },
+  "source_metadata": {
+    "file_present": true,
+    "source_extension": ".pdf",
+    "extraction_mode": "pdf_text",
+    "page_count": 5,
+    "headings_detected": [
+      "DISCLAIMER"
+    ]
+  },
+  "chunking": {
+    "strategy": "page_groups",
+    "chunk_count": 3,
+    "chunks": [
+      {
+        "label": "pages_1_2",
+        "start_page": 1,
+        "end_page": 2,
+        "text_preview": "Quarterly Letter, October\u2013December 2025 \n \n Oct Nov Dec \nQ4 \n2025 YTD \nSince \nInception Annualized \nCurreen Capital Partners LP 1.42% 1.63% 7.20% 10.50% 30.97% 301.7% 11.7% \nS&P 500 2.34% 0.25% 0.06% 2.66% 17.89% 426.8% 14.1% \nMSCI World (US Gross) 2.02% 0.31% 0.83% 3.18% 21.42% 289.6% 11.4% \n \nDear Partner, \n \nOur fund delivered strong results in 2025, finishing up 10.5% in the fourth quarter and 30.97% for the full \nyear. We remained disciplined in our investment strategy, and our port folio of \"ugly ducklings\" delivered \nsolid performance. \n \nOur Actions in Q4 \nDuring the fourth quarter we sold Havas (at \u20ac1.52/share) . In reviewing the business, I determined that it \ndoes not meet our return on capital requirements. While Havas is cheap and well run, other businesses are \na better fit for our strategy. We bought Fortrea (about 3% points of the fund, at $9.44/share), and about 1% \npoint each of Dye & Durham (C$6.91/share), GetBusy (\u00a30.77/share), Truecaller (SEK 39.96/share), and VF \nCorp ($14.25/share). \n \n2025 Performance Review \nCurreen Capital\u2019s performance over the year was primarily driven by three positions: Fortrea, Siemens \nEnergy, and GetBusy. \n \nFortrea is an example of our \u201cCrazy Ch eap\u201d strategy: buying excellent businesses priced as if their current \nstruggles will last forever. These are ugly ducklings that are especially unpopular, and their stock prices \nhave often fallen hard for months. I get very interested when a stock falls below my downside valuation, "
+      },
+      {
+        "label": "pages_3_4",
+        "start_page": 3,
+        "end_page": 4,
+        "text_preview": "Appendix \nCurreen Capital Investments: all positions larger than 5% of the fund \n \nAdvance Auto Parts (AAP) \nAdvance Auto Parts is a store-based retailer of aftermarket auto motive parts and supplies. This includes batteries, windshield \nwipers and fluid, air filters, motor oil, etc. The company has historically earned de cent (approaching 20%) returns on tangible \ncapital. The company is attempting a turn around, and has fixed its balance sheet an d is improving operations. Advance Auto \ncurrently trades at an attractive upside-to-downside ratio. \n \nFortrea (FTRE) \nFortrea helps its biotech and pharmaceutical customers to run clin ical trials with the goal of receiving marketing authorizatio n \nin the U.S. and other countries. Fortrea helps design the trials, recruit investigators and participants, prepare data for regulatory \nreview, and other tasks needed to win the authorization to market new treatments. The company spun out of Labcorp in June \n2023, and is attempting to turn around the business. Fortrea currently trades at an attractive upside-to-downside ratio. \n \nFrontdoor (FTDR) \nFrontdoor sells home service plans to homeowners. The compan y contracts with HVAC and othe r contractors and dispatches \nthem when customers have problems with one of their major home appliances and systems (furnace, air conditioning, \nrefrigerator, electrical system, etc). Frontdoor spun out of Serv iceMaster in October 2018. Frontdoor serves about 2% of U.S. \nhomes, and uses its free cash "
+      },
+      {
+        "label": "pages_5_5",
+        "start_page": 5,
+        "end_page": 5,
+        "text_preview": "DISCLAIMER \n \nThe information contained herein regarding Curreen C apital Partners, LP (the \u201cFund\u201d) is confidential \nand proprietary and is intended only for use by th e recipient. The informa tion and opinions expressed \nherein are as of the date appearing in this material only, are not complete, are subject to change without \nprior notice, and do not contain material information regarding the Fund, including specific information \nrelating to an investment in the Fund and related important risk disclosures. This document is not intended \nto be, nor should it be construed or used as an offer to sell, or a solicitation of any offer to buy any interests \nin the Fund. If any offer is made, it shall be pu rsuant to a definitive Private Placement Memorandum \nprepared by or on behalf of the Fund which contains detailed information concerning the investment terms \nand the risks, fees and expenses associated with an investment in the Fund. \n \nAn investment in the Fund is speculative and may involve substantial investment and other risks. Such risks \nmay include, without limitation, risk of adverse or unanticipated market developments, risk of counterparty \nor issuer default, and risk of illiquidity. The perf ormance results of the Fund can be volatile. No \nrepresentation is made that the Ge neral Partner\u2019s or the Fund\u2019s risk management process or investment \nobjectives will or are likely to be achieved or successf ul or that the Fund or any investment will make any \nprofit or will no"
+      }
+    ]
+  },
+  "text_samples": [
+    "Quarterly Letter, October\u2013December 2025 \n \n Oct Nov Dec \nQ4 \n2025 YTD \nSince \nInception Annualized \nCurreen Capital Partners LP 1.42% 1.63% 7.20% 10.50% 30.97% 301.7% 11.7% \nS&P 500 2.34% 0.25% 0.06% 2.66% 17.89% 426.8% 14.1% \nMSCI World (US Gross) 2.02% 0.31% 0.83% 3.18% 21.42% 289.6% 11.4% \n \nDear Partner, \n \nOur fund delivered strong results in 2025, finishing up 10.5% in the fourth quarter and 30.97% for the full \nyear. We remained disciplined in our investment strategy, and our port folio of \"ugly ducklings\" delivered \nsolid performance. \n \nOur Actions in Q4 \nDuring the fourth quarter we sold Havas (at \u20ac1.52/share) . In reviewing the business, I determined that it \ndoes not meet our return on capital requirements. While Havas is cheap and well run, other businesses are \na better fit for our strategy. We bought Fortrea (about 3% points of the fund, at $9.44/share), and about 1% \npoint each of Dye & Durham (C$6.91/share), GetBusy (\u00a30.77/share), Truecaller (SEK 39.96/share), and VF \nCorp ($14.25/share). \n \n2025 Performance Review \nCurreen Capital\u2019s performance over the year was primarily driven by three positions: Fortrea, Siemens \nEnergy, and GetBusy. \n \nFortrea is an example of our \u201cCrazy Ch eap\u201d strategy: buying excellent businesses priced as if their current \nstruggles will last forever. These are ugly ducklings that are especially unpopular, and their stock prices \nhave often fallen hard for months. I get very interested when a stock falls below my downside valuation, ",
+    "Appendix \nCurreen Capital Investments: all positions larger than 5% of the fund \n \nAdvance Auto Parts (AAP) \nAdvance Auto Parts is a store-based retailer of aftermarket auto motive parts and supplies. This includes batteries, windshield \nwipers and fluid, air filters, motor oil, etc. The company has historically earned de cent (approaching 20%) returns on tangible \ncapital. The company is attempting a turn around, and has fixed its balance sheet an d is improving operations. Advance Auto \ncurrently trades at an attractive upside-to-downside ratio. \n \nFortrea (FTRE) \nFortrea helps its biotech and pharmaceutical customers to run clin ical trials with the goal of receiving marketing authorizatio n \nin the U.S. and other countries. Fortrea helps design the trials, recruit investigators and participants, prepare data for regulatory \nreview, and other tasks needed to win the authorization to market new treatments. The company spun out of Labcorp in June \n2023, and is attempting to turn around the business. Fortrea currently trades at an attractive upside-to-downside ratio. \n \nFrontdoor (FTDR) \nFrontdoor sells home service plans to homeowners. The compan y contracts with HVAC and othe r contractors and dispatches \nthem when customers have problems with one of their major home appliances and systems (furnace, air conditioning, \nrefrigerator, electrical system, etc). Frontdoor spun out of Serv iceMaster in October 2018. Frontdoor serves about 2% of U.S. \nhomes, and uses its free cash ",
+    "DISCLAIMER \n \nThe information contained herein regarding Curreen C apital Partners, LP (the \u201cFund\u201d) is confidential \nand proprietary and is intended only for use by th e recipient. The informa tion and opinions expressed \nherein are as of the date appearing in this material only, are not complete, are subject to change without \nprior notice, and do not contain material information regarding the Fund, including specific information \nrelating to an investment in the Fund and related important risk disclosures. This document is not intended \nto be, nor should it be construed or used as an offer to sell, or a solicitation of any offer to buy any interests \nin the Fund. If any offer is made, it shall be pu rsuant to a definitive Private Placement Memorandum \nprepared by or on behalf of the Fund which contains detailed information concerning the investment terms \nand the risks, fees and expenses associated with an investment in the Fund. \n \nAn investment in the Fund is speculative and may involve substantial investment and other risks. Such risks \nmay include, without limitation, risk of adverse or unanticipated market developments, risk of counterparty \nor issuer default, and risk of illiquidity. The perf ormance results of the Fund can be volatile. No \nrepresentation is made that the Ge neral Partner\u2019s or the Fund\u2019s risk management process or investment \nobjectives will or are likely to be achieved or successf ul or that the Fund or any investment will make any \nprofit or will no"
+  ],
+  "extraction_status": "extracted",
+  "extracted_at": "2026-03-27T18:49:58.776054+00:00"
+}

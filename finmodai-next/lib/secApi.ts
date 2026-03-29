@@ -8,9 +8,66 @@ import type { CompanyIdentity, SecFilingIndex, SecFilingRef } from './secPipelin
 const BASE = 'https://api.sec-api.io';
 const DEFAULT_TIMEOUT_MS = 15000;
 const MAX_RETRIES = 2;
+const DEFAULT_MNA_FORMS = [
+  'S-4',
+  'S-4/A',
+  'F-4',
+  'F-4/A',
+  'DEFM14A',
+  'PREM14A',
+  'SC TO-T',
+  'SC TO-T/A',
+  'SC 14D9',
+  'SC 14D9/A',
+] as const;
+
+export type SecMnaForm = (typeof DEFAULT_MNA_FORMS)[number] | string;
+
+export interface SecMnaEntity {
+  cik?: string;
+  companyName?: string;
+  ticker?: string;
+}
+
+export interface SecMnaFiling {
+  form: string;
+  accessionNo: string;
+  filedAt: string;
+  periodEnd: string | null;
+  url: string | null;
+  primaryDocumentUrl: string | null;
+  title: string | null;
+  filingCategory: 'registration' | 'proxy' | 'tender_offer' | 'board_response' | 'other';
+  counterparties: string[];
+  entities: SecMnaEntity[];
+}
+
+export interface SecMnaSearchResult {
+  company: CompanyIdentity;
+  filings: SecMnaFiling[];
+  formsQueried: string[];
+  asOfDate: string;
+  source: 'sec-api' | 'edgar-submissions';
+}
+
+export interface SecRecentFilingsParams {
+  ticker: string;
+  asOfDate?: string;
+  limit?: number;
+  forms?: string[];
+}
 
 function getApiKey(): string | null {
+  if (process.env.SEC_DISABLE_SEC_API === '1') {
+    return null;
+  }
   return process.env.SEC_API_IO_API_KEY ?? null;
+}
+
+function getEdgarUserAgent(): string {
+  const email = process.env.SEC_UA_EMAIL?.trim();
+  if (email) return `FinModAI (${email})`;
+  return 'FinModAI (contact@example.com)';
 }
 
 async function fetchWithRetry(
@@ -57,9 +114,9 @@ export async function resolveCompanyIdentity(ticker: string): Promise<CompanyIde
 
   if (apiKey) {
     try {
-      const url = `${BASE}/?apiKey=${encodeURIComponent(apiKey)}`;
+      const url = `${BASE}?token=${encodeURIComponent(apiKey)}`;
       const body = {
-        query: { query_string: { query: `ticker:${normalizedTicker}` } },
+        query: `ticker:${normalizedTicker}`,
         from: 0,
         size: 1,
         _source: ['ticker', 'cik', 'companyName', 'sector', 'exchange'],
@@ -124,13 +181,9 @@ export async function fetchFilingIndex(
   if (!apiKey) return null;
   const paddedCik = String(cik).padStart(10, '0');
   try {
-    const url = `${BASE}/?apiKey=${encodeURIComponent(apiKey)}`;
+    const url = `${BASE}?token=${encodeURIComponent(apiKey)}`;
     const body = {
-      query: {
-        query_string: {
-          query: `cik:${paddedCik} AND formType:("10-K" OR "10-Q") AND filedAt:[* TO ${asOfDate}]`,
-        },
-      },
+      query: `cik:${paddedCik} AND formType:("10-K" OR "10-Q") AND filedAt:[* TO ${asOfDate}]`,
       from: 0,
       size: 20,
       sort: [{ filedAt: { order: 'desc' } }],
@@ -172,7 +225,7 @@ export async function xbrlFilingToJson(filingUrl: string): Promise<Record<string
   if (!apiKey) return null;
   try {
     // sec-api.io XBRL-to-JSON: pass URL of filing (htm or xml)
-    const endpoint = `${BASE}/xbrl-to-json?htm-url=${encodeURIComponent(filingUrl)}&apiKey=${encodeURIComponent(apiKey)}`;
+    const endpoint = `${BASE}/xbrl-to-json?htm-url=${encodeURIComponent(filingUrl)}&token=${encodeURIComponent(apiKey)}`;
     const res = await fetchWithRetry(endpoint, { method: 'GET' });
     if (!res.ok) {
       console.warn('[secApi] xbrl-to-json failed', res.status, await res.text());
@@ -192,4 +245,273 @@ export async function xbrlFilingToJson(filingUrl: string): Promise<Record<string
 export function edgarFilingUrl(accessionNo: string): string {
   const normalized = String(accessionNo).replace(/-/g, '');
   return `https://www.sec.gov/Archives/edgar/data/${normalized}.htm`;
+}
+
+function toMnaCategory(form: string): SecMnaFiling['filingCategory'] {
+  if (form === 'S-4' || form === 'S-4/A' || form === 'F-4' || form === 'F-4/A') return 'registration';
+  if (form === 'DEFM14A' || form === 'PREM14A') return 'proxy';
+  if (form === 'SC TO-T' || form === 'SC TO-T/A') return 'tender_offer';
+  if (form === 'SC 14D9' || form === 'SC 14D9/A') return 'board_response';
+  return 'other';
+}
+
+function uniqueStrings(values: Array<string | null | undefined>): string[] {
+  return [...new Set(values.map((value) => (value ?? '').trim()).filter(Boolean))];
+}
+
+function parseEntities(raw: unknown): SecMnaEntity[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null;
+      const record = entry as Record<string, unknown>;
+      return {
+        cik: typeof record.cik === 'string' ? record.cik : undefined,
+        companyName:
+          typeof record.companyName === 'string'
+            ? record.companyName
+            : typeof record.companyNameLong === 'string'
+              ? record.companyNameLong
+              : undefined,
+        ticker: typeof record.ticker === 'string' ? record.ticker : undefined,
+      } satisfies SecMnaEntity;
+    })
+    .filter((entry): entry is SecMnaEntity => entry !== null);
+}
+
+function normalizeMnaFiling(source: Record<string, unknown>, company: CompanyIdentity): SecMnaFiling {
+  const form =
+    typeof source.formType === 'string'
+      ? source.formType
+      : typeof source.form === 'string'
+        ? source.form
+        : 'UNKNOWN';
+  const entities = parseEntities(source.entities);
+  const counterparties = uniqueStrings(
+    entities.flatMap((entity) => {
+      const sameTicker = entity.ticker?.toUpperCase() === company.ticker.toUpperCase();
+      const sameCik = entity.cik?.padStart(10, '0') === company.cik;
+      return sameTicker || sameCik ? [] : [entity.companyName ?? entity.ticker ?? null];
+    })
+  );
+
+  return {
+    form,
+    accessionNo:
+      typeof source.accessionNo === 'string'
+        ? source.accessionNo
+        : typeof source.accessionNumber === 'string'
+          ? source.accessionNumber
+          : '',
+    filedAt:
+      typeof source.filedAt === 'string'
+        ? source.filedAt
+        : typeof source.filingDate === 'string'
+          ? source.filingDate
+          : '',
+    periodEnd:
+      typeof source.periodOfReport === 'string'
+        ? source.periodOfReport
+        : typeof source.periodEnd === 'string'
+          ? source.periodEnd
+          : null,
+    url:
+      typeof source.linkToFilingDetails === 'string'
+        ? source.linkToFilingDetails
+        : typeof source.url === 'string'
+          ? source.url
+          : null,
+    primaryDocumentUrl:
+      typeof source.linkToTxt === 'string'
+        ? source.linkToTxt
+        : typeof source.linkToHtml === 'string'
+          ? source.linkToHtml
+          : null,
+    title:
+      typeof source.description === 'string'
+        ? source.description
+        : typeof source.primaryDocument === 'string'
+          ? source.primaryDocument
+          : null,
+    filingCategory: toMnaCategory(form),
+    counterparties,
+    entities,
+  };
+}
+
+async function fetchMnaFilingsFromSecApi(
+  company: CompanyIdentity,
+  forms: string[],
+  asOfDate: string,
+  limit: number
+): Promise<SecMnaSearchResult | null> {
+  const apiKey = getApiKey();
+  if (!apiKey) return null;
+
+  const paddedCik = String(company.cik).padStart(10, '0');
+  const quotedForms = forms.map((form) => `"${form}"`).join(' OR ');
+
+  try {
+    const url = `${BASE}?token=${encodeURIComponent(apiKey)}`;
+    const body = {
+      query: `cik:${paddedCik} AND formType:(${quotedForms}) AND filedAt:[* TO ${asOfDate}]`,
+      from: 0,
+      size: Math.max(1, Math.min(limit, 50)),
+      sort: [{ filedAt: { order: 'desc' } }],
+      _source: [
+        'formType',
+        'filedAt',
+        'periodOfReport',
+        'linkToFilingDetails',
+        'linkToTxt',
+        'linkToHtml',
+        'accessionNo',
+        'description',
+        'entities',
+        'primaryDocument',
+      ],
+    };
+    const res = await fetchWithRetry(url, { method: 'POST', body: JSON.stringify(body) });
+    if (!res.ok) {
+      console.warn('[secApi] fetchMnaFilingsFromSecApi failed', res.status, await res.text());
+      return null;
+    }
+
+    const data = (await res.json()) as { hits?: { hits?: Array<{ _source?: Record<string, unknown> }> } };
+    const hits = data.hits?.hits ?? [];
+    const filings = hits
+      .map((hit) => hit._source ?? null)
+      .filter((entry): entry is Record<string, unknown> => entry !== null)
+      .map((entry) => normalizeMnaFiling(entry, company));
+
+    return {
+      company,
+      filings,
+      formsQueried: forms,
+      asOfDate,
+      source: 'sec-api',
+    };
+  } catch (error) {
+    console.error('[secApi] fetchMnaFilingsFromSecApi exception', error);
+    return null;
+  }
+}
+
+async function fetchMnaFilingsFromEdgarSubmissions(
+  company: CompanyIdentity,
+  forms: string[],
+  asOfDate: string,
+  limit: number
+): Promise<SecMnaSearchResult | null> {
+  try {
+    const url = `https://data.sec.gov/submissions/CIK${company.cik}.json`;
+    const res = await fetchWithRetry(url, {
+      headers: { 'User-Agent': getEdgarUserAgent() },
+    });
+    if (!res.ok) {
+      console.warn('[secApi] fetchMnaFilingsFromEdgarSubmissions failed', res.status, await res.text());
+      return null;
+    }
+
+    const data = (await res.json()) as {
+      filings?: {
+        recent?: {
+          accessionNumber?: string[];
+          filingDate?: string[];
+          reportDate?: string[];
+          form?: string[];
+          primaryDocument?: string[];
+        };
+      };
+    };
+    const recent = data.filings?.recent;
+    if (!recent?.form || !recent.filingDate || !recent.accessionNumber) return null;
+
+    const filings: SecMnaFiling[] = [];
+    const maxCount = Math.min(recent.form.length, recent.filingDate.length, recent.accessionNumber.length);
+    const acceptedForms = new Set(forms);
+    const asOfTs = Date.parse(asOfDate);
+
+    for (let index = 0; index < maxCount; index += 1) {
+      const form = recent.form[index] ?? '';
+      if (!acceptedForms.has(form)) continue;
+
+      const filedAt = recent.filingDate[index] ?? '';
+      if (Number.isFinite(asOfTs) && Date.parse(filedAt) > asOfTs) continue;
+
+      const accessionNo = recent.accessionNumber[index] ?? '';
+      const primaryDocument = recent.primaryDocument?.[index] ?? '';
+      const accessionNoDigits = accessionNo.replace(/-/g, '');
+      const cikNoLeadingZeros = String(Number(company.cik));
+      const filingBaseUrl =
+        accessionNo && cikNoLeadingZeros !== 'NaN'
+          ? `https://www.sec.gov/Archives/edgar/data/${cikNoLeadingZeros}/${accessionNoDigits}`
+          : null;
+
+      filings.push({
+        form,
+        accessionNo,
+        filedAt,
+        periodEnd: recent.reportDate?.[index] ?? null,
+        url: filingBaseUrl && primaryDocument ? `${filingBaseUrl}/${primaryDocument}` : filingBaseUrl,
+        primaryDocumentUrl: filingBaseUrl && primaryDocument ? `${filingBaseUrl}/${primaryDocument}` : null,
+        title: primaryDocument || null,
+        filingCategory: toMnaCategory(form),
+        counterparties: [],
+        entities: [{ cik: company.cik, ticker: company.ticker, companyName: company.companyName }],
+      });
+
+      if (filings.length >= limit) break;
+    }
+
+    return {
+      company,
+      filings,
+      formsQueried: forms,
+      asOfDate,
+      source: 'edgar-submissions',
+    };
+  } catch (error) {
+    console.error('[secApi] fetchMnaFilingsFromEdgarSubmissions exception', error);
+    return null;
+  }
+}
+
+export async function fetchRecentFilings(params: SecRecentFilingsParams): Promise<SecMnaSearchResult | null> {
+  const ticker = params.ticker.trim().toUpperCase();
+  if (!ticker) return null;
+
+  const company = await resolveCompanyIdentity(ticker);
+  if (!company) return null;
+
+  const asOfDate = (params.asOfDate ?? new Date().toISOString().slice(0, 10)).trim();
+  const limit = Math.max(1, Math.min(params.limit ?? 10, 50));
+  const forms = uniqueStrings(params.forms?.length ? params.forms : [...DEFAULT_MNA_FORMS]);
+  if (forms.length === 0) return null;
+
+  const apiResult = await fetchMnaFilingsFromSecApi(company, forms, asOfDate, limit);
+  if (apiResult && apiResult.filings.length > 0) return apiResult;
+  if (apiResult) {
+    console.info(
+      `[secApi] sec-api returned ${apiResult.filings.length} M&A filings for ${company.ticker}; falling back to EDGAR submissions`
+    );
+  }
+
+  const edgarResult = await fetchMnaFilingsFromEdgarSubmissions(company, forms, asOfDate, limit);
+  if (edgarResult && edgarResult.filings.length > 0) return edgarResult;
+
+  return {
+    company,
+    filings: [],
+    formsQueried: forms,
+    asOfDate,
+    source: apiResult ? 'sec-api' : 'edgar-submissions',
+  };
+}
+
+export async function fetchRecentMnaFilings(params: SecRecentFilingsParams): Promise<SecMnaSearchResult | null> {
+  return fetchRecentFilings({
+    ...params,
+    forms: params.forms?.length ? params.forms : [...DEFAULT_MNA_FORMS],
+  });
 }

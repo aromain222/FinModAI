@@ -1,0 +1,177 @@
+{
+  "id": "fdx_sec_public_filings",
+  "title": "FEDEX CORP General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-fdx",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent FDX SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "FEDEX CORP General SEC Filings",
+    "company_name": "FEDEX CORP",
+    "ticker": "FDX",
+    "cik": "0001048911",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-19",
+      "2026-03-19",
+      "2026-03-12",
+      "2026-02-09",
+      "2026-02-05",
+      "2026-01-29",
+      "2026-01-16",
+      "2025-12-18",
+      "2025-12-18",
+      "2025-11-06"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "During the nine-month period ended February 28, 2025, 8.9 million shares were repurchased through accelerated share repurchase (\u201cASR\u201d) agreements and open market transactions at an average price of $ 281.74 per share for a total of $ 2.5 billion.",
+      "Share repurchases had a benefit of $0.12 per diluted share for the first nine months of 2026."
+    ],
+    "liquidity_notes": [
+      "Subject to market conditions, liquidity needs, and other factors, the company will continue to evaluate repurchasing additional shares of our common stock during the remainder of fiscal 2026."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Based on such evaluation, our principal executive and financial officers have concluded that such disclosure controls and procedures were effective as of February 28, 2026 (the end of the period covered by this Quarterly Report on Form 10-Q).",
+      "During our fiscal quarter ended February 28, 2026, no change occurred in our internal control over financial reporting that has materially affected, or is reasonably likely to materially affect, our internal control over financial reporting.",
+      "See the risk factors identified under Part I, Item 1A."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-fdx",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-fdx/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-fdx/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-fdx/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-Q 2026-03-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 5/31 2026 Q3 http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#AccountsPayableCurrent - fdx:type fdx:location fdx:numberOfMember fdx:employee fdx:swap fdx:aircra"
+      },
+      {
+        "label": "8-K 2026-03-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-03-19 2026-03-19 2026-03-19 2026-03-19 fdx:OnePointSixTwoFivePercentageNotesDueTwoThousandTwentySevenMember 2026-03-19 2026-03-19 fdx:ZeroPointFourFiveZeroPercentNotesDueTwoThousandTwentyNine1Member 2026-03-19 202"
+      },
+      {
+        "label": "8-K 2026-03-12",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-03-09 2026-03-09 2026-03-09 2026-03-09 fdx:Notes1.625PercentDue2027Member 2026-03-09 2026-03-09 fdx:Notes0.450PercentDue2029OneMember 2026-03-09 2026-03-09 fdx:Notes0.450PercentDue2029TwoMember 2026-03-09 2026-03-09"
+      },
+      {
+        "label": "8-K 2026-02-09",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-09 2026-02-09 2026-02-09 2026-02-09 fdx:Notes1.625PercentDue2027Member 2026-02-09 2026-02-09 fdx:Notes0.450PercentDue2029OneMember 2026-02-09 2026-02-09 fdx:Notes0.450PercentDue2029TwoMember 2026-02-09 2026-02-09"
+      },
+      {
+        "label": "8-K 2026-02-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-05 2026-02-05 2026-02-05 2026-02-05 fdx:Notes1.625PercentDue2027Member 2026-02-05 2026-02-05 fdx:Notes0.450PercentDue2029OneMember 2026-02-05 2026-02-05 fdx:Notes0.450PercentDue2029TwoMember 2026-02-05 2026-02-05"
+      },
+      {
+        "label": "8-K 2026-01-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-23 2026-01-23 2026-01-23 2026-01-23 fdx:Notes1.625PercentDue2027Member 2026-01-23 2026-01-23 fdx:Notes0.450PercentDue2029OneMember 2026-01-23 2026-01-23 fdx:Notes0.450PercentDue2029TwoMember 2026-01-23 2026-01-23"
+      },
+      {
+        "label": "8-K 2026-01-16",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-12 2026-01-12 2026-01-12 2026-01-12 fdx:Notes1.625PercentDue2027Member 2026-01-12 2026-01-12 fdx:Notes0.450PercentDue2029OneMember 2026-01-12 2026-01-12 fdx:Notes0.450PercentDue2029TwoMember 2026-01-12 2026-01-12"
+      },
+      {
+        "label": "10-Q 2025-12-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 5/31 2026 Q2 http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#AccountsPayableCurrent - fdx:type fdx:location fdx:employee fdx:swap fdx:aircraft fdx:segment fdx:AirCraft 2025-"
+      },
+      {
+        "label": "8-K 2025-12-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-12-18 2025-12-18 2025-12-18 2025-12-18 fdx:OnePointSixTwoFivePercentageNotesDueTwoThousandTwentySevenMember 2025-12-18 2025-12-18 fdx:ZeroPointFourFiveZeroPercentNotesDueTwoThousandTwentyNine1Member 2025-12-18 202"
+      },
+      {
+        "label": "8-K 2025-11-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K FEDEX CORP false - 2025-10-31 2025-10-31 2025-10-31 2025-10-31 fdx:M1.625NotesDue20279Member 2025-10-31 2025-10-31 fdx:M0.450NotesDue20291Member 2025-10-31 2025-10-31 fdx:M0.450NotesDue20292Member 2025-10-31 2025-10-31 00010"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-Q 2026-03-19",
+      "text_preview": "FALSE 5/31 2026 Q3 http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#AccountsPayableCurrent - fdx:type fdx:location fdx:numberOfMember fdx:employee fdx:swap fdx:aircraft utr:D fdx:segment fdx:AirCraft fdx:class_action 2025-06-01 2026-02-28 2025-06-01 2026-02-28 fdx:OnePointSixTwoFivePercentageNotesDueTwoThousandTwentySevenMember 2025-06-01 2026-02-28 fdx:ZeroPointFourFiveZeroPercentageNotesDueTwoThousandTwentyNine1Member 2025-06-01 2026-02-28 fdx:ZeroPointFourFi",
+      "char_count": 190215,
+      "word_count": 26618,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1048911/000104891126000011/fdx-20260228.htm"
+    },
+    {
+      "label": "8-K 2026-03-19",
+      "text_preview": "FALSE - 2026-03-19 2026-03-19 2026-03-19 2026-03-19 fdx:OnePointSixTwoFivePercentageNotesDueTwoThousandTwentySevenMember 2026-03-19 2026-03-19 fdx:ZeroPointFourFiveZeroPercentNotesDueTwoThousandTwentyNine1Member 2026-03-19 2026-03-19 fdx:ZeroPointFourFiveZeroPercentageNotesDueTwoThousandTwentyNine2Member 2026-03-19 2026-03-19 fdx:OnePointThreeZeroZeroPercentNotesDueTwoThousandThirtyOne1Member 2026-03-19 2026-03-19 fdx:OnePointThreeZeroZeroPercentNotesDueTwoThousandThirtyOne2Member 2026-03-19 2026-03-19 fdx:ThreePointFiveZeroZeroPercentNotesDueTwoThousandTh",
+      "char_count": 4882,
+      "word_count": 647,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1048911/000104891126000010/fdx-20260319.htm"
+    },
+    {
+      "label": "8-K 2026-03-12",
+      "text_preview": "false - 2026-03-09 2026-03-09 2026-03-09 2026-03-09 fdx:Notes1.625PercentDue2027Member 2026-03-09 2026-03-09 fdx:Notes0.450PercentDue2029OneMember 2026-03-09 2026-03-09 fdx:Notes0.450PercentDue2029TwoMember 2026-03-09 2026-03-09 fdx:Notes1.300PercentDue2031OneMember 2026-03-09 2026-03-09 fdx:Notes1.300PercentDue2031TwoMember 2026-03-09 2026-03-09 fdx:Notes3.500PercentDue2032Member 2026-03-09 2026-03-09 fdx:Notes0.950PercentDue2033OneMember 2026-03-09 2026-03-09 fdx:Notes0.950PercentDue2033TwoMember 2026-03-09 2026-03-09 fdx:Notes4.125Pe",
+      "char_count": 6033,
+      "word_count": 862,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1048911/000110465926027156/tm268622d1_8k.htm"
+    }
+  ]
+}

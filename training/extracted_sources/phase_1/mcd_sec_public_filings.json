@@ -1,0 +1,177 @@
+{
+  "id": "mcd_sec_public_filings",
+  "title": "MCDONALDS CORP General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-mcd",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent MCD SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "MCDONALDS CORP General SEC Filings",
+    "company_name": "MCDONALDS CORP",
+    "ticker": "MCD",
+    "cik": "0000063908",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-24",
+      "2026-02-11",
+      "2026-02-10",
+      "2025-11-05",
+      "2025-11-05",
+      "2025-08-27",
+      "2025-08-06",
+      "2025-08-06",
+      "2025-05-23",
+      "2025-05-12"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "The Company returned a total of $7.1 billion to shareholders through dividends and share repurchases in 2025.",
+      "SHARE REPURCHASES AND DIVIDENDS In 2025, the Company returned approximately $7.1 billion to shareholders through a combination of dividends paid and shares repurchased."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Controls and Procedures Disclosure Controls An evaluation was conducted under the supervision and with the participation of the Company\u2019s management, including the CEO and CFO, of the effectiveness of the design and operation of the Company\u2019s disclosure controls and procedures (as that term is defined in Rules 13a-15(e) and 15d-15(e) under the Securities Exchange Act of 1934, as amended (the \"Exchange Act\")) as of September 30, 2025.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Factors that could cause actual results to differ materially from those in the forward-looking statements include those reflected in the Risk Factors section on page 27 of this Form 10-K and elsewhere in the Company's filings with the SEC."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-mcd",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-mcd/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-mcd/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-mcd/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-02-24",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FY false 2025 12/31 http://fasb.org/us-gaap/2025#OperatingLeaseLiabilityNoncurrent 1 http://fasb.org/us-gaap/2025#OperatingIncomeLoss http://xbrl.sec.gov/country/2025#US P3Y SUBSEQUENT EVENTS The Company evaluated subsequent events through the date the financial statements were issued and filed"
+      },
+      {
+        "label": "8-K 2026-02-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false MCDONALDS CORP - 2026-02-11 2026-02-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, DC 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of report (Date of earliest event reported): February 11, 2026 McDONAL"
+      },
+      {
+        "label": "8-K 2026-02-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false MCDONALDS CORP - 2026-02-04 2026-02-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, DC 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of report (Date of earliest event reported): February 4, 2026 McDONALD"
+      },
+      {
+        "label": "10-Q 2025-11-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "Q3 false 2025 12/31 - mcd:Restaurant 2025-01-01 2025-09-30 2025-09-30 2024-12-31 2025-07-01 2025-09-30 2024-07-01 2024-09-30 2024-01-01 2024-09-30"
+      },
+      {
+        "label": "8-K 2025-11-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false MCDONALDS CORP - 2025-11-05 2025-11-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, DC 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of report (Date of earliest event reported): November 5, 2025 McDONALD"
+      },
+      {
+        "label": "8-K 2025-08-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false MCDONALDS CORP - 2025-08-27 2025-08-27 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, DC 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of report (Date of earliest event reported): August 27, 2025 McDONALD&"
+      },
+      {
+        "label": "10-Q 2025-08-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "Q2 false 2025 12/31 Subsequent Events The Company evaluated subsequent events through the date the financial statements were issued and filed with the Securities and Exchange Commission (\"SEC\"). There were no subsequent events that required recognition or disclosure. - i"
+      },
+      {
+        "label": "8-K 2025-08-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false MCDONALDS CORP - 2025-08-06 2025-08-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, DC 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of report (Date of earliest event reported): August 6, 2025 McDONALD&#"
+      },
+      {
+        "label": "8-K 2025-05-23",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false MCDONALDS CORP - 2025-05-20 2025-05-20 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, DC 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of report (Date of earliest event reported): May 20, 2025 McDONALDR"
+      },
+      {
+        "label": "10-Q 2025-05-12",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "Q1 false 2025 12/31 Subsequent Events The Company evaluated subsequent events through the date the financial statements were issued and filed with the Securities and Exchange Commission (\"SEC\"). - mcd:Restaurant 2025-01-01 2"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-02-24",
+      "text_preview": "FY false 2025 12/31 http://fasb.org/us-gaap/2025#OperatingLeaseLiabilityNoncurrent 1 http://fasb.org/us-gaap/2025#OperatingIncomeLoss http://xbrl.sec.gov/country/2025#US P3Y SUBSEQUENT EVENTS The Company evaluated subsequent events through the date the financial statements were issued and filed with the SEC. There were no subsequent events that required recognition or disclosure. - mcd:Restaurant 2025-01-01 2025-12-31 2025-06-30 2026-01-31 2024-01-01 2024-12-31 2023-01-01 2023-12-31 2025-12-31 2024-12-31 2023-12-31 000006",
+      "char_count": 297555,
+      "word_count": 42517,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/63908/000006390826000035/mcd-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-11",
+      "text_preview": "false MCDONALDS CORP - 2026-02-11 2026-02-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, DC 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of report (Date of earliest event reported): February 11, 2026 McDONALD\u2019S CORPORATION (Exact Name of Registrant as Specified in its Charter) Delaware 1-5231 36-2361282 (State or Other Jurisdiction of Incorporation) (Commission File Number) (IRS Employer Identification No.) 110 North Carpenter Street Chicago , Illinois (Address of Principal Executive Offices) 60607 (Zip Code) ( 630 ) 623-3000 (Registrant\u2019s telephone number, including a",
+      "char_count": 3577,
+      "word_count": 536,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/63908/000006390826000032/mcd-20260211.htm"
+    },
+    {
+      "label": "8-K 2026-02-10",
+      "text_preview": "false MCDONALDS CORP - 2026-02-04 2026-02-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, DC 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of report (Date of earliest event reported): February 4, 2026 McDONALD\u2019S CORPORATION (Exact Name of Registrant as Specified in Charter) Delaware 1-5231 36-2361282 (State or Other Jurisdiction of Incorporation) (Commission File Number) (IRS Employer Identification No.) 110 North Carpenter Street Chicago , Illinois (Address of Principal Executive Offices) 60607 (Zip Code) ( 630 ) 623-3000 (Registrant\u2019s telephone number, including area c",
+      "char_count": 4276,
+      "word_count": 642,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/63908/000006390826000028/mcd-20260204.htm"
+    }
+  ]
+}

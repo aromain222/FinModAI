@@ -1,0 +1,177 @@
+{
+  "id": "mdb_sec_public_filings",
+  "title": "MongoDB, Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-mdb",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent MDB SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "MongoDB, Inc. General SEC Filings",
+    "company_name": "MongoDB, Inc.",
+    "ticker": "MDB",
+    "cik": "0001441816",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-11",
+      "2026-03-02",
+      "2025-12-02",
+      "2025-12-01",
+      "2025-11-03",
+      "2025-09-17",
+      "2025-08-27",
+      "2025-08-26",
+      "2025-07-03",
+      "2025-06-04"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "We have a share repurchase program (the \u201cShare Repurchase Program\u201d) pursuant to which we are authorized to repurchase up to $1,000,000,000 of our common stock from time to time through open market transactions.",
+      "The amount and timing of our share repurchases, if any, are subject to the availability of capital and our determination that the share repurchases are in the best interest of the Company and our stockholders."
+    ],
+    "liquidity_notes": [
+      "As the impact of macroeconomic conditions on the global economy and our operations continues to evolve, we will continue to assess our liquidity needs."
+    ],
+    "governance_notes": [
+      "Appointment of Principal Accounting Officer On February 26, 2026, the Company\u2019s board of directors appointed Kong Phan as the Company\u2019s Chief Accounting Officer and designated him as the Company\u2019s principal accounting officer, effective April 14, 2026 (the \u201cEffective Date\u201d)."
+    ],
+    "controls_and_risk_notes": [
+      "If we fail to maintain an effective system of disclosure controls and internal control over financial reporting, our ability to produce timely and accurate financial statements or comply with applicable regulations could be impaired.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "The outcome of the events described in these forward-looking statements is subject to risks, uncertainties, assumptions and other factors described in the section titled \u201cRisk Factors\u201d and elsewhere in this Form 10-K."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-mdb",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-mdb/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-mdb/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-mdb/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-03-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2026 FY FALSE 1/31 1/31/2026 P2Y http://fasb.org/us-gaap/2025#UsefulLifeShorterOfTermOfLeaseOrAssetUtilityMember http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense 0.004926 0.0001911 P1Y http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulated"
+      },
+      {
+        "label": "8-K 2026-03-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False January 31 - 2026-03-02 2026-03-02 2026-01-31 2026-01-31 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 ___________________ FORM 8-K ___________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date"
+      },
+      {
+        "label": "10-Q 2025-12-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "1/31 2026 Q3 FALSE Q3 0.004926 0.0001911 P1Y 379 - mdb:day 2025-02-01 2025-10-31 2025-11-28 2025-10-31 2025-01-31 2025-02-01 2025-04-30 2025-08-01"
+      },
+      {
+        "label": "8-K 2025-12-01",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2025-12-01 2025-12-01 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 ___________________ FORM 8-K ___________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported)"
+      },
+      {
+        "label": "8-K 2025-11-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2025-10-29 2025-10-29 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 ___________________ FORM 8-K ___________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported)"
+      },
+      {
+        "label": "8-K 2025-09-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2025-09-17 2025-09-17 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 ___________________ FORM 8-K ___________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported)"
+      },
+      {
+        "label": "10-Q 2025-08-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "1/31 2026 Q2 FALSE Q2 0.004926 0.0001911 P1Y - mdb:day 2025-02-01 2025-07-31 2025-08-25 2025-07-31 2025-01-31 2024-02-01 2025-01-31 2025-05-01 2025"
+      },
+      {
+        "label": "8-K 2025-08-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2025-08-26 2025-08-26 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 ___________________ FORM 8-K ___________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported)"
+      },
+      {
+        "label": "8-K 2025-07-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2025-06-30 2025-06-30 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 ___________________ FORM 8-K ___________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported)"
+      },
+      {
+        "label": "10-Q 2025-06-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "1/31 2026 Q1 FALSE Q1 0.004926 0.0001911 P1Y - mdb:day 2025-02-01 2025-04-30 2025-06-02 2025-04-30 2025-01-31 2024-02-01 2025-01-31 2025-02-01 2025"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-03-11",
+      "text_preview": "2026 FY FALSE 1/31 1/31/2026 P2Y http://fasb.org/us-gaap/2025#UsefulLifeShorterOfTermOfLeaseOrAssetUtilityMember http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense 0.004926 0.0001911 P1Y http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent 36",
+      "char_count": 498839,
+      "word_count": 73196,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1441816/000162828026016799/mdb-20260131.htm"
+    },
+    {
+      "label": "8-K 2026-03-02",
+      "text_preview": "False January 31 - 2026-03-02 2026-03-02 2026-01-31 2026-01-31 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 ___________________ FORM 8-K ___________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): March 2, 2026 ___________________ MONGODB, INC. (Exact Name of Registrant as Specified in its Charter) ___________________ Delaware 001-38240 26-1463205 (State or Other Jurisdiction of Incorporation) (Commission File Number) (IRS Employer Identification No.) 1633 Broadway, 38th Floor New York, NY 10019 (Address of Principal Executiv",
+      "char_count": 9799,
+      "word_count": 1481,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1441816/000162828026013199/mdb-20260302.htm"
+    },
+    {
+      "label": "10-Q 2025-12-02",
+      "text_preview": "1/31 2026 Q3 FALSE Q3 0.004926 0.0001911 P1Y 379 - mdb:day 2025-02-01 2025-10-31 2025-11-28 2025-10-31 2025-01-31 2025-02-01 2025-04-30 2025-08-01 2025-10-31 2024-08-01 2024-10-31 2025-02-01 2025-10-31 2024-02-01 2024-10-31 2025-08-01 2025-10-31 2024-08-01 2024-10-31 2025-02-01 2025-10-31 2024-0",
+      "char_count": 355454,
+      "word_count": 52159,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1441816/000162828025054768/mdb-20251031.htm"
+    }
+  ]
+}

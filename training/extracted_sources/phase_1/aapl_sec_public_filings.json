@@ -1,0 +1,177 @@
+{
+  "id": "aapl_sec_public_filings",
+  "title": "Apple Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-aapl",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent AAPL SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Apple Inc. General SEC Filings",
+    "company_name": "Apple Inc.",
+    "ticker": "AAPL",
+    "cik": "0000320193",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-24",
+      "2026-01-30",
+      "2026-01-29",
+      "2026-01-02",
+      "2025-12-05",
+      "2025-10-31",
+      "2025-10-30",
+      "2025-08-01",
+      "2025-07-31",
+      "2025-07-25"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "The Company uses net proceeds from the commercial paper program for general corporate purposes, including dividends and share repurchases.",
+      "Note 7 \u2013 Shareholders\u2019 Equity Share Repurchase Program During the three months ended December 27, 2025, the Company repurchased 93 million shares of its common stock for $ 25.0 billion."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "As part of Apple Inc.\u2019s (\u201cApple\u2019s\u201d) previously announced Principal Accounting Officer transition plan, Apple\u2019s Board of Directors appointed Ben Borders, 45, as Apple\u2019s Principal Accounting Officer, effective January 1, 2026.",
+      "As part of Apple Inc.\u2019s (\u201cApple\u2019s\u201d) previously announced Chief Operating Officer transition plan, Apple\u2019s Board of Directors appointed Sabih Khan, 58, as Apple\u2019s Chief Operating Officer, effective July 25, 2025."
+    ],
+    "controls_and_risk_notes": [
+      "\u2610 Indicate by check mark whether the Registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Factors that might cause such differences include, but are not limited to, those discussed in Part I, Item 1A of this Form 10-K under the heading \u201cRisk Factors.\u201d The Company assumes no obligation to revise or update any forward-looking statements for any reason, except as required by law."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-aapl",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-aapl/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-aapl/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-aapl/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-02-24",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "true true true true true true NASDAQ NASDAQ NASDAQ NASDAQ NASDAQ NASDAQ NASDAQ false - 2026-02-24 2026-02-24 aapl:Zero500NotesDue2031Member 2026-02-24 2026-02-24 aapl:One375NotesDue2029Member 2026-02-24 2026-02-24 2026-02-24 2026-02-24 000"
+      },
+      {
+        "label": "10-Q 2026-01-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2026 Q1 --09-26 P1Y P1Y P1Y P1Y http://fasb.org/us-gaap/2025#LongTermDebtNoncurrent http://fasb.org/us-gaap/2025#LongTermDebtNoncurrent P406D P403D - aapl:Customer aapl:Vendor 2025-09-28 2025-12-27 us-gaap:"
+      },
+      {
+        "label": "8-K 2026-01-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-29 2026-01-29 2026-01-29 2026-01-29 aapl:A1.625NotesDue2026Member 2026-01-29 2026-01-29 aapl:A2.000NotesDue2027Member 2026-01-29 2026-01-29 aapl:A1.375NotesDue2029Member 2026-01-29 2026-01-29 000032"
+      },
+      {
+        "label": "8-K 2026-01-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "true true true true true true NASDAQ NASDAQ NASDAQ NASDAQ NASDAQ NASDAQ NASDAQ false - 2025-12-30 2025-12-30 aapl:Zero500NotesDue2031Member 2025-12-30 2025-12-30 aapl:One375NotesDue2029Member 2025-12-30 2025-12-30 2025-12-30 2025-12-30 000"
+      },
+      {
+        "label": "8-K 2025-12-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "true true true true true true NASDAQ NASDAQ NASDAQ NASDAQ NASDAQ NASDAQ NASDAQ false - 2025-12-04 2025-12-04 aapl:Zero500NotesDue2031Member 2025-12-04 2025-12-04 aapl:One375NotesDue2029Member 2025-12-04 2025-12-04 2025-12-04 2025-12-04 000"
+      },
+      {
+        "label": "10-K 2025-10-31",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY P1Y P1Y P1Y P1Y http://fasb.org/us-gaap/2025#LongTermDebtNoncurrent http://fasb.org/us-gaap/2025#LongTermDebtNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentNet h"
+      },
+      {
+        "label": "8-K 2025-10-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-30 2025-10-30 2025-10-30 2025-10-30 aapl:A0.000Notesdue2025Member 2025-10-30 2025-10-30 aapl:A1.625NotesDue2026Member 2025-10-30 2025-10-30 aapl:A2.000NotesDue2027Member 2025-10-30 2025-10-30 000032"
+      },
+      {
+        "label": "10-Q 2025-08-01",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q3 --09-27 P1Y P1Y P1Y P1Y - aapl:Customer aapl:Vendor 2024-09-29 2025-06-28 2024-09-29 2025-06-28 aapl:A0.000Notesdue2025Member 2024-09-29 2025-06-28 aa"
+      },
+      {
+        "label": "8-K 2025-07-31",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-07-31 2025-07-31 2025-07-31 2025-07-31 aapl:A0.000Notesdue2025Member 2025-07-31 2025-07-31 aapl:A1.625NotesDue2026Member 2025-07-31 2025-07-31 aapl:A2.000NotesDue2027Member 2025-07-31 2025-07-31 000032"
+      },
+      {
+        "label": "8-K 2025-07-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "true true true true true true true NASDAQ NASDAQ NASDAQ NASDAQ NASDAQ NASDAQ NASDAQ NASDAQ false - 2025-07-21 2025-07-21 aapl:One625NotesDue2026Member 2025-07-21 2025-07-21 aapl:Three600NotesDue2042Member 2025-07-21 2025-07-21 aapl:Zero500NotesDue2031Member 2025-07"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-02-24",
+      "text_preview": "true true true true true true NASDAQ NASDAQ NASDAQ NASDAQ NASDAQ NASDAQ NASDAQ false - 2026-02-24 2026-02-24 aapl:Zero500NotesDue2031Member 2026-02-24 2026-02-24 aapl:One375NotesDue2029Member 2026-02-24 2026-02-24 2026-02-24 2026-02-24 aapl:Three600NotesDue2042Member 2026-02-24 2026-02-24 aapl:Three050NotesDue2029Member 2026-02-24 2026-02-24 aapl:Two000NotesDue2027Member 2026-02-24 2026-02-24 aapl:One625NotesDue2026Member 2026-02-24 2026-02-24 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d)",
+      "char_count": 5647,
+      "word_count": 779,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/320193/000114036126006577/ef20060722_8k.htm"
+    },
+    {
+      "label": "10-Q 2026-01-30",
+      "text_preview": "false 2026 Q1 --09-26 P1Y P1Y P1Y P1Y http://fasb.org/us-gaap/2025#LongTermDebtNoncurrent http://fasb.org/us-gaap/2025#LongTermDebtNoncurrent P406D P403D - aapl:Customer aapl:Vendor 2025-09-28 2025-12-27 2025-09-28 2025-12-27 aapl:A1.625NotesDue2026Member 2025-09-28 2025-12-27 aapl:A2.000NotesDue2027Member 2025-09-28 2025-12-27 aapl:A1.375NotesDue2029Member 2025-09-28 2025-12-27 aapl:A3.050NotesDue2029Member 2025-09-28 2025-12-27 aapl:A0.500Notesdue2031Member 2025-09-28 2025-12-27 aapl:A3.600Not",
+      "char_count": 68066,
+      "word_count": 9510,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000006/aapl-20251227.htm"
+    },
+    {
+      "label": "8-K 2026-01-29",
+      "text_preview": "false - 2026-01-29 2026-01-29 2026-01-29 2026-01-29 aapl:A1.625NotesDue2026Member 2026-01-29 2026-01-29 aapl:A2.000NotesDue2027Member 2026-01-29 2026-01-29 aapl:A1.375NotesDue2029Member 2026-01-29 2026-01-29 aapl:A3.050NotesDue2029Member 2026-01-29 2026-01-29 aapl:A0.500Notesdue2031Member 2026-01-29 2026-01-29 aapl:A3.600NotesDue2042Member 2026-01-29 2026-01-29 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 January 29, 2026 Date of Repor",
+      "char_count": 4115,
+      "word_count": 595,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000005/aapl-20260129.htm"
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "id": "micron_q2_2026_earnings_deck",
+  "title": "Micron Q2 2026 Earnings Deck",
+  "file_path": "/Users/averyromain/FinModAI/data/training/q2-2026-earnings-deck",
+  "source_type": "investor_presentation",
+  "tier": "A",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "financial_reasoning",
+  "recommended_phase": 1,
+  "template_key": "investor_presentation",
+  "assistant_training_targets": [
+    "slide compression",
+    "contributor/detractor summaries",
+    "thesis slide structure"
+  ],
+  "source_summary": "Micron Q2 2026 earnings deck with management-overview slides, technology ramp commentary, and AI-driven memory-market framing.",
+  "strengths": [
+    "slide-level semiconductor framing",
+    "technology and demand compression",
+    "management KPI emphasis"
+  ],
+  "weaknesses": [
+    "presentation shorthand",
+    "selective management framing"
+  ],
+  "fields": {
+    "title": "Micron Q2 2026 Earnings Deck",
+    "manager": null,
+    "date": "2026-03-18",
+    "agenda": [
+      "overview",
+      "technology",
+      "DRAM",
+      "NAND",
+      "HBM",
+      "financial highlights"
+    ],
+    "portfolio_contributors": [],
+    "portfolio_detractors": [],
+    "holdings_covered": [
+      "HBM",
+      "DRAM",
+      "NAND",
+      "1-gamma DRAM",
+      "G9 NAND"
+    ],
+    "valuation_points": [
+      "record revenue, gross margin, EPS, and free cash flow",
+      "fiscal Q3 revenue guidance above prior full-year revenue baselines",
+      "technology-node ramps framed as a driver of operating leverage and competitiveness"
+    ],
+    "exit_or_trim_logic": [],
+    "slide_structure_patterns": [
+      "safe-harbor setup followed by management overview",
+      "technology and node-transition slides",
+      "financial-performance and guidance summary slides"
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/q2-2026-earnings-deck/manifest.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/q2-2026-earnings-deck/chunks.jsonl",
+    "dataset_dir": "/Users/averyromain/FinModAI/data/training/q2-2026-earnings-deck",
+    "page_count": 45,
+    "chunk_count": 18,
+    "source_url": null,
+    "access_status": null
+  }
+}

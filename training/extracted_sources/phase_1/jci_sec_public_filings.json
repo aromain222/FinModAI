@@ -1,0 +1,177 @@
+{
+  "id": "jci_sec_public_filings",
+  "title": "Johnson Controls International plc General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-jci",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent JCI SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Johnson Controls International plc General SEC Filings",
+    "company_name": "Johnson Controls International plc",
+    "ticker": "JCI",
+    "cik": "0000833444",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-06",
+      "2026-02-04",
+      "2026-02-04",
+      "2025-11-14",
+      "2025-11-05",
+      "2025-09-24",
+      "2025-08-08",
+      "2025-08-06",
+      "2025-08-01",
+      "2025-07-29"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "\u2022 As of December 31, 2025, approximately $4.8 billion remains available under the Company's share repurchase authorization, which does not have an expiration date and may be amended or terminated by the Board of Directors at any time without prior notice.",
+      "UNREGISTERED SALES OF EQUITY SECURITIES AND USE OF PROCEEDS As of December 31, 2025, approximately $4.8 billion remains available under the share repurchase program which was authorized by the Company's Board of Directors in June 2025."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "CONTROLS AND PROCEDURES Evaluation of Disclosure Controls and Procedures The Company\u2019s management, with the participation of the Company\u2019s Chief Executive Officer and Chief Financial Officer, has evaluated the effectiveness of the Company\u2019s disclosure controls and procedures (as such term is defined in Rule 13a-15(e) under the Securities Exchange Act of 1934, as amended (the \"Exchange Act\")) as of December 31, 2025.",
+      "\u00a8 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "See the section entitled \"Risk Factors\" in Johnson Controls' Annual Report on Form 10-K for the year ended September 30, 2025 filed with the United States Securities and Exchange Commission (\"SEC\") on November 14, 2025."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-jci",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-jci/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-jci/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-jci/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-03-04 2026-03-04 jci:OrdinarySharesParValue0.01Member 2026-03-04 2026-03-04 jci:Notes0375PercentDue2027Member 2026-03-04 2026-03-04 jci:Notes3000PercentDue2028Member 2026-03-04 2026-03-04 jci:Notes5.500PercentDue2029Member 2026-"
+      },
+      {
+        "label": "10-Q 2026-02-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "9/30 2026 Q1 false http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#AccountsPayableCurrent - jci:segment jci:subsidiary jci:claim jci:state jci:corporatio"
+      },
+      {
+        "label": "8-K 2026-02-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-04 2026-02-04 jci:OrdinarySharesParValue0.01Member 2026-02-04 2026-02-04 jci:Notes3.900PercentDue2026Member 2026-02-04 2026-02-04 jci:Notes0375PercentDue2027Member 2026-02-04 2026-02-04 jci:Notes3000PercentDue2028Member 2026-"
+      },
+      {
+        "label": "10-K 2025-11-14",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY P4M P1Y P1Y P2Y http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#IncomeLossFromDiscontinuedOperationsNetOfTax http://fasb.org/us-gaap/2025#RestructuringCharges http://fasb.org/us-gaap/2025#Restructu"
+      },
+      {
+        "label": "8-K 2025-11-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-05 2025-11-05 jci:OrdinarySharesParValue0.01Member 2025-11-05 2025-11-05 jci:Notes3.900PercentDue2026Member 2025-11-05 2025-11-05 jci:Notes0375PercentDue2027Member 2025-11-05 2025-11-05 jci:Notes3000PercentDue2028Member 2025-"
+      },
+      {
+        "label": "8-K 2025-09-24",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-09-19 2025-09-19 jci:OrdinarySharesParValue0.01Member 2025-09-19 2025-09-19 jci:Notes3.900PercentDue2026Member 2025-09-19 2025-09-19 jci:Notes0375PercentDue2027Member 2025-09-19 2025-09-19 jci:Notes3000PercentDue2028Member 2025-"
+      },
+      {
+        "label": "8-K 2025-08-08",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-07 2025-08-07 jci:OrdinarySharesParValue0.01Member 2025-08-07 2025-08-07 jci:Notes3.900PercentDue2026Member 2025-08-07 2025-08-07 jci:Notes0375PercentDue2027Member 2025-08-07 2025-08-07 jci:Notes3000PercentDue2028Member 2025-"
+      },
+      {
+        "label": "10-Q 2025-08-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "9/30 2025 Q3 false - jci:segment jci:creditFacility utr:T jci:subsidiary jci:claim jci:state jci:defendant jci:corporation 2024-10-01 2025-06-30 jci:OrdinarySharesP"
+      },
+      {
+        "label": "8-K 2025-08-01",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-07-31 2025-07-31 jci:OrdinarySharesParValue0.01Member 2025-07-31 2025-07-31 jci:Notes3.900PercentDue2026Member 2025-07-31 2025-07-31 jci:Notes0375PercentDue2027Member 2025-07-31 2025-07-31 jci:Notes3000PercentDue2028Member 2025-"
+      },
+      {
+        "label": "8-K 2025-07-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-07-29 2025-07-29 jci:OrdinarySharesParValue0.01Member 2025-07-29 2025-07-29 jci:Notes3.900PercentDue2026Member 2025-07-29 2025-07-29 jci:Notes0375PercentDue2027Member 2025-07-29 2025-07-29 jci:Notes3000PercentDue2028Member 2025-"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-06",
+      "text_preview": "false - 2026-03-04 2026-03-04 jci:OrdinarySharesParValue0.01Member 2026-03-04 2026-03-04 jci:Notes0375PercentDue2027Member 2026-03-04 2026-03-04 jci:Notes3000PercentDue2028Member 2026-03-04 2026-03-04 jci:Notes5.500PercentDue2029Member 2026-03-04 2026-03-04 jci:Notes1750PercentDue2030Member 2026-03-04 2026-03-04 jci:SustainabilityLinkedNotes2000Due2031Member 2026-03-04 2026-03-04 jci:Notes1000PercentDue2032Member 2026-03-04 2026-03-04 jci:Notes4900PercentDue2032Member 2026-03-04 2026-03-04 jci:Notes3.125PercentDue2033Member 2026-03-04 2026-03-04 jci",
+      "char_count": 8980,
+      "word_count": 1236,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/833444/000083344426000029/jci-20260304.htm"
+    },
+    {
+      "label": "10-Q 2026-02-04",
+      "text_preview": "9/30 2026 Q1 false http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#AccountsPayableCurrent - jci:segment jci:subsidiary jci:claim jci:state jci:corporation 2025-10-01 2025-12-31 jci:OrdinarySharesParValue001Member 2025-10-01 2025-12-31 jci:Notes3900PercentDue2026Member 2025-10-01 2025-12-31 jci:Notes0375PercentDue2027Member 2025-10-01 2025-12-31 jci:Notes3000PercentDue2028Member 2025-10-01 2025-12-31 jci:Notes5.500PercentDue2029Member 2025-10-01 2025-12-31 0000833",
+      "char_count": 153054,
+      "word_count": 21127,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/833444/000083344426000019/jci-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-04",
+      "text_preview": "false - 2026-02-04 2026-02-04 jci:OrdinarySharesParValue0.01Member 2026-02-04 2026-02-04 jci:Notes3.900PercentDue2026Member 2026-02-04 2026-02-04 jci:Notes0375PercentDue2027Member 2026-02-04 2026-02-04 jci:Notes3000PercentDue2028Member 2026-02-04 2026-02-04 jci:Notes5.500PecentDue2029Member 2026-02-04 2026-02-04 jci:Notes1750PercentDue2030Member 2026-02-04 2026-02-04 jci:SustainabilityLinkedNotes2000Due2031Member 2026-02-04 2026-02-04 jci:Notes1000PercentDue2032Member 2026-02-04 2026-02-04 jci:Notes4900PercentDue2032Member 2026-02-04 2026-02-04 jci:",
+      "char_count": 5561,
+      "word_count": 726,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/833444/000083344426000014/jci-20260204.htm"
+    }
+  ]
+}

@@ -1,0 +1,177 @@
+{
+  "id": "axp_sec_public_filings",
+  "title": "AMERICAN EXPRESS CO General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-axp",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent AXP SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "AMERICAN EXPRESS CO General SEC Filings",
+    "company_name": "AMERICAN EXPRESS CO",
+    "ticker": "AXP",
+    "cik": "0000004962",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-16",
+      "2026-03-02",
+      "2026-02-25",
+      "2026-02-17",
+      "2026-02-10",
+      "2026-02-06",
+      "2026-01-30",
+      "2026-01-15",
+      "2025-12-15",
+      "2025-11-17"
+    ],
+    "capital_markets_activity": [
+      "The Senior Notes were issued under a senior indenture, dated as of August 1, 2007, between the Company and The Bank of New York Mellon, as trustee (the \u201cTrustee\u201d), as supplemented by the first supplemental indenture thereto, dated as of February 12, 2021, and the second supplemental indenture thereto, dated as of May 1, 2023, each between the Company and the Trustee."
+    ],
+    "capital_allocation_activity": [
+      "If the Company is required to resubmit its capital plan, it must receive prior approval from the Federal Reserve for any capital distributions (including common stock dividend payments and share repurchases), other than a capital distribution on a newly issued capital instrument.",
+      "Common stock dividend payments and share repurchases by the Company are subject to the oversight of the Federal Reserve and the outcome of the annual CCAR stress testing exercise, as described above."
+    ],
+    "liquidity_notes": [
+      "The LCR is designed to ensure that a banking entity maintains an adequate level of unencumbered high-quality liquid assets to meet its liquidity needs for a 30-day time horizon under an acute liquidity stress scenario specified by supervisors."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "CONTROLS AND PROCEDURES Our management, with the participation of our Chief Executive Officer and Chief Financial Officer, has evaluated the effectiveness of our disclosure controls and procedures (as such term is defined in Rules 13a-15(e) and 15d-15(e) under the Securities Exchange Act of 1934, as amended (the Exchange Act)) as of the end of the period covered by this report.",
+      "o Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "A further description of these uncertainties and other risks can be found in \u201cRisk Factors\u201d and our other reports filed with the SEC."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-axp",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-axp/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-axp/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-axp/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-16",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-03-16 2026-03-16 2026-03-16 2026-03-16 axp:FixedToFloatingRateNoteMember 2026-03-16 2026-03-16 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) o"
+      },
+      {
+        "label": "8-K 2026-03-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-03-02 2026-03-02 2026-03-02 2026-03-02 axp:FixedToFloatingRateNoteMember 2026-03-02 2026-03-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) o"
+      },
+      {
+        "label": "8-K 2026-02-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-25 2026-02-25 2026-02-25 2026-02-25 axp:FixedToFloatingRateNoteMember 2026-02-25 2026-02-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) o"
+      },
+      {
+        "label": "8-K 2026-02-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-17 2026-02-17 2026-02-17 2026-02-17 axp:FixedToFloatingRateNoteMember 2026-02-17 2026-02-17 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) o"
+      },
+      {
+        "label": "8-K 2026-02-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-10 2026-02-10 2026-02-10 2026-02-10 axp:FixedToFloatingRateNoteMember 2026-02-10 2026-02-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) o"
+      },
+      {
+        "label": "10-K 2026-02-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY 1.667 1.667 P3Y http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-g"
+      },
+      {
+        "label": "8-K 2026-01-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-30 2026-01-30 2026-01-30 2026-01-30 axp:FixedToFloatingRateNoteMember 2026-01-30 2026-01-30 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) o"
+      },
+      {
+        "label": "8-K 2026-01-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-15 2026-01-15 2026-01-15 2026-01-15 axp:FixedToFloatingRateNoteMember 2026-01-15 2026-01-15 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) o"
+      },
+      {
+        "label": "8-K 2025-12-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-12-15 2025-12-15 2025-12-15 2025-12-15 axp:FixedToFloatingRateNoteMember 2025-12-15 2025-12-15 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) o"
+      },
+      {
+        "label": "8-K 2025-11-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-17 2025-11-17 2025-11-17 2025-11-17 axp:FixedToFloatingRateNoteMember 2025-11-17 2025-11-17 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) o"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-16",
+      "text_preview": "false - 2026-03-16 2026-03-16 2026-03-16 2026-03-16 axp:FixedToFloatingRateNoteMember 2026-03-16 2026-03-16 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): March 16, 2026 AMERICAN EXPRESS CO MPANY (Exact name of registrant as specified in its charter) New York 1-7657 13-4922250 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 200 Vesey Street , New York , New York 10285 (Address of princi",
+      "char_count": 6192,
+      "word_count": 988,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/4962/000000496226000121/axp-20260316.htm"
+    },
+    {
+      "label": "8-K 2026-03-02",
+      "text_preview": "false - 2026-03-02 2026-03-02 2026-03-02 2026-03-02 axp:FixedToFloatingRateNoteMember 2026-03-02 2026-03-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): March 2, 2026 AMERICAN EXPRESS CO MPANY (Exact name of registrant as specified in its charter) New York 1-7657 13-4922250 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 200 Vesey Street , New York , New York 10285 (Address of princip",
+      "char_count": 3287,
+      "word_count": 496,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/4962/000000496226000112/axp-20260302.htm"
+    },
+    {
+      "label": "8-K 2026-02-25",
+      "text_preview": "false - 2026-02-25 2026-02-25 2026-02-25 2026-02-25 axp:FixedToFloatingRateNoteMember 2026-02-25 2026-02-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 25, 2026 AMERICAN EXPRESS CO MPANY (Exact name of registrant as specified in its charter) New York 1-7657 13-4922250 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 200 Vesey Street , New York , New York 10285 (Address of pri",
+      "char_count": 5205,
+      "word_count": 732,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/4962/000000496226000107/axp-20260225.htm"
+    }
+  ]
+}

@@ -1,0 +1,178 @@
+{
+  "id": "ups_sec_public_filings",
+  "title": "UNITED PARCEL SERVICE INC General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ups",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent UPS SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "UNITED PARCEL SERVICE INC General SEC Filings",
+    "company_name": "UNITED PARCEL SERVICE INC",
+    "ticker": "UPS",
+    "cik": "0001090727",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-17",
+      "2026-02-06",
+      "2026-01-27",
+      "2025-11-05",
+      "2025-10-28",
+      "2025-09-18",
+      "2025-08-06",
+      "2025-07-29",
+      "2025-06-02",
+      "2025-05-20"
+    ],
+    "capital_markets_activity": [
+      "On May 15, 2025, the Company entered into an agreement (the \u201cUnderwriting Agreement\u201d) with the underwriters listed on Schedule I thereto (the \u201cUnderwriters\u201d), whereby the Company agreed to sell and the Underwriters agreed to purchase from the Company, subject to and upon the terms and conditions set forth in the Underwriting Agreement, $170,673,000 principal amount of Floating Rate Senior Notes due 2075 (the \u201cTransaction\u201d).",
+      "1.1+ Underwriting Agreement 4.1 Form of Floating Rate Senior Notes due 2075 5.1 Opinion of King & Spalding LLP 23.1 Consent of King & Spalding LLP (included in Exhibit 5.1) 104 Cover Page Interactive Data File + Portions of this exhibit have been redacted in accordance with Item 601(a)(5) of Regulation S-K."
+    ],
+    "capital_allocation_activity": [
+      "In January 2023, the Board approved a share repurchase authorization for up to $5.0 billion of class A and class B common stock.",
+      "As of December 31, 2025, we had $1.3 billion available under our share repurchase authorization."
+    ],
+    "liquidity_notes": [
+      "The amount of commercial paper outstanding fluctuates based on daily liquidity needs."
+    ],
+    "governance_notes": [
+      "(\u201cUPS\u201d), upon recommendation of the Board\u2019s Nominating and Corporate Governance Committee, increased the size of the Board to thirteen members and appointed John Morikis, age 61, to the Board, effective immediately."
+    ],
+    "controls_and_risk_notes": [
+      "Controls and Procedures Evaluation of Disclosure Controls and Procedures As of the end of the period covered by this report, management, including our Principal Executive Officer and Principal Financial and Accounting Officer, evaluated the effectiveness of the design and operation of our disclosure controls and procedures.",
+      "\u00a8 Indicate by check mark whether the registrant has filed a report on and attestation to its management's assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Risk Factors\" and elsewhere in this report and may also be described from time to time in our future reports filed with the SEC."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-ups",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ups/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ups/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ups/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-02-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 FY FALSE http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#AccountsPayableCurrent P1Y P6Y http://fasb.org/us-gaap/2025#OtherCostAndExpenseOperating http://fasb.org/us-gaap/2025#OtherCostAndExpenseOperating http://fasb.org/us-gaap/2025#OtherCostAndExpenseOperat"
+      },
+      {
+        "label": "8-K 2026-02-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false February 2, 2026 - 2026-02-02 2026-02-02 exch:XNYS 2026-02-02 2026-02-02 exch:XNYS ups:SeniorNotes1Due2028Member 2026-02-02 2026-02-02 exch:XNYS ups:SeniorNotes1.500Due2032Member 2026-02-02 2026-02-02 UNITED STATES SECURITIES AND EXCHANGE COMMISS"
+      },
+      {
+        "label": "8-K 2026-01-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false January 27, 2026 - 2026-01-27 2026-01-27 exch:XNYS 2026-01-27 2026-01-27 exch:XNYS ups:SeniorNotes1Due2028Member 2026-01-27 2026-01-27 exch:XNYS ups:SeniorNotes1.500Due2032Member 2026-01-27 2026-01-27 UNITED STATES SECURITIES AND EXCHANGE COMMISS"
+      },
+      {
+        "label": "10-Q 2025-11-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/31 2025 Q3 FALSE http://fasb.org/us-gaap/2025#DebtCurrent http://fasb.org/us-gaap/2025#DebtCurrent http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseOb"
+      },
+      {
+        "label": "8-K 2025-10-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false October 28, 2025 - 2025-10-28 2025-10-28 exch:XNYS 2025-10-28 2025-10-28 exch:XNYS ups:SeniorNotes1625Due2025Member 2025-10-28 2025-10-28 exch:XNYS ups:SeniorNotes1Due2028Member 2025-10-28 2025-10-28 exch:XNYS ups:SeniorNotes1.500Due20"
+      },
+      {
+        "label": "8-K 2025-09-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false September 18, 2025 - 2025-09-18 2025-09-18 exch:XNYS 2025-09-18 2025-09-18 exch:XNYS ups:SeniorNotes1625Due2025Member 2025-09-18 2025-09-18 exch:XNYS ups:SeniorNotes1Due2028Member 2025-09-18 2025-09-18 exch:XNYS ups:SeniorNotes1.500Due"
+      },
+      {
+        "label": "10-Q 2025-08-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/31 2025 Q2 FALSE http://fasb.org/us-gaap/2025#DebtCurrent http://fasb.org/us-gaap/2025#DebtCurrent http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseOb"
+      },
+      {
+        "label": "8-K 2025-07-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false July 29, 2025 - 2025-07-29 2025-07-29 exch:XNYS 2025-07-29 2025-07-29 exch:XNYS ups:SeniorNotes1625Due2025Member 2025-07-29 2025-07-29 exch:XNYS ups:SeniorNotes1Due2028Member 2025-07-29 2025-07-29 exch:XNYS ups:SeniorNotes1.500Due2032M"
+      },
+      {
+        "label": "8-K 2025-06-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false June 2, 2025 - 2025-06-02 2025-06-02 exch:XNYS 2025-06-02 2025-06-02 exch:XNYS ups:SeniorNotes1625Due2025Member 2025-06-02 2025-06-02 exch:XNYS ups:SeniorNotes1Due2028Member 2025-06-02 2025-06-02 exch:XNYS ups:SeniorNotes1.500Due2032Me"
+      },
+      {
+        "label": "8-K 2025-05-20",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-05-15 2025-05-15 ups:ClassbCommonStockParValue0.01PerShareMember 2025-05-15 2025-05-15 ups:Sec1.625SeniorNotesDue2025Member 2025-05-15 2025-05-15 ups:Sec1SeniorNotesDue2028Member 2025-05-15 2025-05-15 ups:Sec1.500SeniorNotesDue2032Member 202"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-02-17",
+      "text_preview": "2025 FY FALSE http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#AccountsPayableCurrent P1Y P6Y http://fasb.org/us-gaap/2025#OtherCostAndExpenseOperating http://fasb.org/us-gaap/2025#OtherCostAndExpenseOperating http://fasb.org/us-gaap/2025#OtherCostAndExpenseOperating http://fasb.org/us-gaap/2025#DebtCurrent http://fasb.org/us-gaap/2025#DebtCurrent http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations 2 years, 3 months 1 year, 9 months 3 years, 7 months http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations http://fasb.org/us-gaap/2025#LongTerm",
+      "char_count": 540306,
+      "word_count": 72047,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1090727/000162828026008432/ups-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-06",
+      "text_preview": "false February 2, 2026 - 2026-02-02 2026-02-02 exch:XNYS 2026-02-02 2026-02-02 exch:XNYS ups:SeniorNotes1Due2028Member 2026-02-02 2026-02-02 exch:XNYS ups:SeniorNotes1.500Due2032Member 2026-02-02 2026-02-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 2, 2026 United Parcel Service, Inc. (Exact name of registrant as specified in its charter) Delaware 001-15451 58-2480149 (State or other jurisdiction of incorporation) (Commission File Number) (IRS E",
+      "char_count": 3767,
+      "word_count": 561,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1090727/000162828026006089/ups-20260202.htm"
+    },
+    {
+      "label": "8-K 2026-01-27",
+      "text_preview": "false January 27, 2026 - 2026-01-27 2026-01-27 exch:XNYS 2026-01-27 2026-01-27 exch:XNYS ups:SeniorNotes1Due2028Member 2026-01-27 2026-01-27 exch:XNYS ups:SeniorNotes1.500Due2032Member 2026-01-27 2026-01-27 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): January 27, 2026 United Parcel Service, Inc. (Exact name of registrant as specified in its charter) Delaware 001-15451 58-2480149 (State or other jurisdiction of incorporation) (Commission File Number) (IRS E",
+      "char_count": 4092,
+      "word_count": 612,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1090727/000162828026003510/ups-20260127.htm"
+    }
+  ]
+}

@@ -1,0 +1,177 @@
+{
+  "id": "carr_sec_public_filings",
+  "title": "CARRIER GLOBAL Corp General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-carr",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent CARR SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "CARRIER GLOBAL Corp General SEC Filings",
+    "company_name": "CARRIER GLOBAL Corp",
+    "ticker": "CARR",
+    "cik": "0001783180",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-05",
+      "2026-02-05",
+      "2025-10-28",
+      "2025-10-28",
+      "2025-09-04",
+      "2025-07-29",
+      "2025-07-29",
+      "2025-07-29",
+      "2025-06-05",
+      "2025-05-01"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Strategic Capital Allocation Our priorities for capital deployment include funding organic growth, acquisitions and capital returns to shareowners through a growing and sustainable dividend and share repurchases.",
+      "Share Repurchase Program We may purchase our outstanding common stock from time to time subject to market conditions and at our discretion."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "On September 3, 2025, the Board of Directors (the \u201c Board \u201d) of Carrier Global Corporation (the \u201c Company \u201d) appointed Ms."
+    ],
+    "controls_and_risk_notes": [
+      "CONTROLS AND PROCEDURES Evaluation of Disclosure Controls and Procedures \u2014 Our management, with the participation of our CEO and Executive Vice President, Chief Financial & Strategy Officer (\"CFO\"), has evaluated the effectiveness of the Company's disclosure controls and procedures (as such term is defined in Rules 13a-15(e) and 15d-15(e) under the Exchange Act) as of December 31, 2025 .",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management's assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "RISK FACTORS RISK FACTOR SUMMARY Risks Related to Our Business \u2022 Risks associated with our international operations could adversely affect our competitive position, results of operations, cash flows or financial condition."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-carr",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-carr/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-carr/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-carr/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-02-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 2025 FY http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025"
+      },
+      {
+        "label": "8-K 2026-02-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-02-05 2026-02-05 2026-02-05 2026-02-05 carr:A4.125NotesDue2028Member 2026-02-05 2026-02-05 carr:A4.500NotesDue2032Member 2026-02-05 2026-02-05 carr:A3.625NotesDue2037Member 2026-02-05 2026-02-05 UNITED"
+      },
+      {
+        "label": "10-Q 2025-10-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE --12-31 2025 Q3 http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-g"
+      },
+      {
+        "label": "8-K 2025-10-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-10-28 2025-10-28 2025-10-28 2025-10-28 carr:A4.125NotesDue2028Member 2025-10-28 2025-10-28 carr:A4.500NotesDue2032Member 2025-10-28 2025-10-28 carr:A3.626NotesDue2037Member 2025-10-28 2025-10-28 UNITED"
+      },
+      {
+        "label": "8-K 2025-09-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FORM 8-K false - 2025-09-03 2025-09-03 CARR:CommonStock0.01ParValueMember 2025-09-03 2025-09-03 CARR:Sec4.125NotesDue2028Member 2025-09-03 2025-09-03 CARR:Sec4.500NotesDue2032Member 2025-09-03 2025-09-03 false 00017"
+      },
+      {
+        "label": "8-K 2025-07-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE http://fasb.org/us-gaap/2024#OtherAssetsCurrent http://fasb.org/us-gaap/2024#OtherAssetsNoncurrent http://fasb.org/us-gaap/2024#OtherAssetsCurrent http://fasb.org/us-gaap/2024#OtherAssetsNoncurrent http://fasb.org/us-gaap/2024#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2024#OtherLi"
+      },
+      {
+        "label": "10-Q 2025-07-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE --12-31 2025 Q2 http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-g"
+      },
+      {
+        "label": "8-K 2025-07-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-07-29 2025-07-29 2025-07-29 2025-07-29 carr:A4.125NotesDue2028Member 2025-07-29 2025-07-29 carr:A4.500NotesDue2032Member 2025-07-29 2025-07-29 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 205"
+      },
+      {
+        "label": "8-K 2025-06-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FORM 8-K false - 2025-06-05 2025-06-05 CARR:CommonStock0.01ParValueMember 2025-06-05 2025-06-05 CARR:Sec4.125NotesDue2028Member 2025-06-05 2025-06-05 CARR:Sec4.500NotesDue2032Member 2025-06-05 2025-06-05 false 00017"
+      },
+      {
+        "label": "10-Q 2025-05-01",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE --12-31 2025 Q1 http://fasb.org/us-gaap/2024#OtherAssetsCurrent http://fasb.org/us-gaap/2024#OtherAssetsNoncurrent http://fasb.org/us-gaap/2024#OtherAssetsCurrent http://fasb.org/us-gaap/2024#OtherAssetsNoncurrent http://fasb.org/us-gaap/2024#AccruedLiabilitiesCurrent http://fasb.org/us-g"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-02-05",
+      "text_preview": "FALSE 2025 FY http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-",
+      "char_count": 440432,
+      "word_count": 62821,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1783180/000178318026000008/carr-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-05",
+      "text_preview": "FALSE - 2026-02-05 2026-02-05 2026-02-05 2026-02-05 carr:A4.125NotesDue2028Member 2026-02-05 2026-02-05 carr:A4.500NotesDue2032Member 2026-02-05 2026-02-05 carr:A3.625NotesDue2037Member 2026-02-05 2026-02-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 5, 2026 CARRIER GLOBAL CORPORATION (Exact name of registrant as specified in its charter) Delaware 001-39220 83-4051582 (State or other jurisdiction of incorpor",
+      "char_count": 3975,
+      "word_count": 580,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1783180/000178318026000005/carr-20260205.htm"
+    },
+    {
+      "label": "10-Q 2025-10-28",
+      "text_preview": "FALSE --12-31 2025 Q3 http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb",
+      "char_count": 184075,
+      "word_count": 25565,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1783180/000178318025000066/carr-20250930.htm"
+    }
+  ]
+}

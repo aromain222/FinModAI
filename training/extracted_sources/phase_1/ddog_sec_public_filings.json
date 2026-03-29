@@ -1,0 +1,177 @@
+{
+  "id": "ddog_sec_public_filings",
+  "title": "Datadog, Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ddog",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent DDOG SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Datadog, Inc. General SEC Filings",
+    "company_name": "Datadog, Inc.",
+    "ticker": "DDOG",
+    "cik": "0001561550",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-02",
+      "2026-02-18",
+      "2026-02-10",
+      "2025-11-07",
+      "2025-11-06",
+      "2025-09-11",
+      "2025-08-08",
+      "2025-08-07",
+      "2025-06-05",
+      "2025-05-07"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Recent filings reference ongoing capital allocation actions, including repurchases and financing decisions."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "(the \u201cCompany\u201d) increased the size of the Board from ten to eleven members and appointed Dominic Phillips as a Class II director of the Company to fill the resulting vacancy.",
+      "(the \u201cCompany\u201d) increased the size of the Board from nine to ten members and appointed Ami Vora as a Class I director of the Company to fill the resulting vacancy, each effective September 11, 2025."
+    ],
+    "controls_and_risk_notes": [
+      "Our management, with the participation of our Chief Executive Officer and our Chief Financial Officer, evaluated the effectiveness of our disclosure controls and procedures as of December 31, 2025.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Form 10-K Summary 100 Signatures 101 1 RISK FACTORS SUMMARY Our operations and financial results and an investment in our Class A common stock are subject to various risks and uncertainties, the most significant of which are summarized below."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-ddog",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ddog/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ddog/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ddog/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-26 2026-02-26 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 26, 2026 Datadog, Inc. (Exac"
+      },
+      {
+        "label": "10-K 2026-02-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY P2Y 1 1 0.0108338 461 475 444 425 472 430 - ddog:segment ddog:businessCombination utr:D ddog:class ddog:right ddog:plan 2025-01-01 2025-12-31 2025-06-30 2026-02"
+      },
+      {
+        "label": "8-K 2026-02-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-10 2026-02-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 10, 2026 Datadog, Inc. (Exac"
+      },
+      {
+        "label": "10-Q 2025-11-07",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q3 12-31 P2Y 0.0108338 0.0045955 Subsequent Events 496 464 - ddog:businessCombination utr:D ddog:class ddog:vote ddog:plan 2025-01-01 2025-09-30 2025-10-31 us-gaap"
+      },
+      {
+        "label": "8-K 2025-11-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-06 2025-11-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): November 6, 2025 Datadog, Inc. (Exact"
+      },
+      {
+        "label": "8-K 2025-09-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-09-11 2025-09-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): September 11, 2025 Datadog, Inc. (Exa"
+      },
+      {
+        "label": "10-Q 2025-08-08",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q2 12-31 P2Y 0.0108338 0.0045955 Subsequent Events [On July 4, 2025, the One Big Beautiful Bill Act (\u201cOBBBA\u201d) was signed into law. The legislation makes permanent several provisions of the Tax Cuts and Jobs Act, including 100% bonus depreciation for certain qualified prop"
+      },
+      {
+        "label": "8-K 2025-08-07",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-07 2025-08-07 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): August 7, 2025 Datadog, Inc. (Exact n"
+      },
+      {
+        "label": "8-K 2025-06-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 12/31 - 2025-06-03 2025-06-03 2025-01-01 2025-12-31 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported)"
+      },
+      {
+        "label": "10-Q 2025-05-07",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q1 12-31 P2Y 0.0108338 0.0045955 454 - ddog:businessCombination utr:D ddog:class ddog:vote ddog:plan 2025-01-01 2025-03-31 2025-04-30 20"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-02",
+      "text_preview": "false - 2026-02-26 2026-02-26 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 26, 2026 Datadog, Inc. (Exact name of Registrant as Specified in Its Charter) Delaware 001-39051 27-2825503 (State or Other Jurisdiction of Incorporation) (Commission File Number) (IRS Employer Identification No.) 620 8th Avenue , 45th Floor New York , New York 10018 (Address of principal executive offices, including zip code) ( 866 ) 329-4466 (Registrant\u2019s Telephone Number, Including Area Code) Not",
+      "char_count": 4750,
+      "word_count": 723,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1561550/000162828026013236/ddog-20260226.htm"
+    },
+    {
+      "label": "10-K 2026-02-18",
+      "text_preview": "false 2025 FY P2Y 1 1 0.0108338 461 475 444 425 472 430 - ddog:segment ddog:businessCombination utr:D ddog:class ddog:right ddog:plan 2025-01-01 2025-12-31 2025-06-30 2026-02-05 2026-02-05 2025-12-31 2024-12-31 2025-12-31 2024-12-31 2025-12-31 2024-12-31 2024-01-01 2024-12-31 2023-01-01 2023-12-31",
+      "char_count": 414890,
+      "word_count": 59803,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1561550/000162828026008819/ddog-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-10",
+      "text_preview": "false - 2026-02-10 2026-02-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 10, 2026 Datadog, Inc. (Exact name of Registrant as Specified in Its Charter) Delaware 001-39051 27-2825503 (State or Other Jurisdiction of Incorporation) (Commission File Number) (IRS Employer Identification No.) 620 8th Avenue, 45th Floor New York, NY 10018 (Address of Principal Executive Offices) (Zip Code) ( 866 ) 329-4466 (Registrant\u2019s Telephone Number, Including Area Code) Not Applicable (Form",
+      "char_count": 3491,
+      "word_count": 529,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1561550/000162828026006645/ddog-20260210.htm"
+    }
+  ]
+}

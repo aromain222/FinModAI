@@ -1,0 +1,278 @@
+{
+  "investor_letter": {
+    "required_fields": [
+      "title",
+      "manager",
+      "date",
+      "strategy_style",
+      "performance_context",
+      "top_themes",
+      "positions_discussed",
+      "thesis_points",
+      "valuation_language",
+      "risks_discussed",
+      "portfolio_actions",
+      "tone_notes",
+      "best_quotes_or_phrases"
+    ],
+    "assistant_training_targets": [
+      "thesis articulation",
+      "portfolio commentary",
+      "risk framing",
+      "what changed",
+      "decision language"
+    ]
+  },
+  "investor_presentation": {
+    "required_fields": [
+      "title",
+      "manager",
+      "date",
+      "agenda",
+      "portfolio_contributors",
+      "portfolio_detractors",
+      "holdings_covered",
+      "valuation_points",
+      "exit_or_trim_logic",
+      "slide_structure_patterns"
+    ],
+    "assistant_training_targets": [
+      "slide compression",
+      "contributor/detractor summaries",
+      "thesis slide structure"
+    ]
+  },
+  "workbook": {
+    "required_fields": [
+      "title",
+      "model_type",
+      "sheet_names",
+      "key_schedules",
+      "core_formulas",
+      "assumption_categories",
+      "output_tabs",
+      "sensitivity_support",
+      "quality_notes"
+    ],
+    "assistant_training_targets": [
+      "model architecture",
+      "formula mapping",
+      "schedule logic",
+      "valuation mechanics"
+    ]
+  },
+  "finance_handbook": {
+    "required_fields": [
+      "title",
+      "author",
+      "subject_areas",
+      "chapter_titles",
+      "core_frameworks",
+      "applied_learning_modes",
+      "analyst_relevance"
+    ],
+    "assistant_training_targets": [
+      "corporate finance reasoning",
+      "decision framework extraction",
+      "valuation mechanics",
+      "capital allocation logic"
+    ]
+  },
+  "macro_handbook": {
+    "required_fields": [
+      "title",
+      "publisher",
+      "subject_areas",
+      "chapter_titles",
+      "core_frameworks",
+      "signal_design_principles",
+      "analyst_relevance"
+    ],
+    "assistant_training_targets": [
+      "macro strategy reasoning",
+      "signal design logic",
+      "systematic macro framing",
+      "quantamental methodology"
+    ]
+  },
+  "reference_article": {
+    "required_fields": [
+      "title",
+      "source_name",
+      "topic",
+      "sections",
+      "key_mechanisms",
+      "analyst_relevance"
+    ],
+    "assistant_training_targets": [
+      "macro mechanism explanation",
+      "market interpretation",
+      "plain-English teaching"
+    ]
+  },
+  "earnings_transcript": {
+    "required_fields": [
+      "title",
+      "company_name",
+      "quarter",
+      "management_themes",
+      "financial_highlights",
+      "guidance_or_outlook",
+      "qa_topics",
+      "analyst_relevance"
+    ],
+    "assistant_training_targets": [
+      "earnings-call interpretation",
+      "management signal extraction",
+      "guidance framing",
+      "question-and-answer dynamics"
+    ]
+  },
+  "earnings_reference": {
+    "required_fields": [
+      "title",
+      "company_name",
+      "quarter",
+      "source_name",
+      "sections",
+      "key_metrics",
+      "management_themes",
+      "analyst_relevance"
+    ],
+    "assistant_training_targets": [
+      "earnings-package interpretation",
+      "KPI extraction",
+      "prepared-remarks compression",
+      "investor-facing results framing"
+    ]
+  },
+  "case_study": {
+    "required_fields": [
+      "title",
+      "case_type",
+      "company_or_asset",
+      "task_prompt",
+      "core_assumptions",
+      "expected_outputs",
+      "valuation_methods",
+      "decision_required",
+      "grading_notes"
+    ],
+    "assistant_training_targets": [
+      "eval generation",
+      "worked example structure",
+      "reasoning benchmarks"
+    ]
+  },
+  "sec_merger_doc": {
+    "required_fields": [
+      "title",
+      "deal_name",
+      "filing_type",
+      "advisors",
+      "valuation_analyses",
+      "peer_set",
+      "transaction_set",
+      "discount_rate_range",
+      "terminal_multiple_range",
+      "share_count",
+      "net_debt",
+      "implied_value_range"
+    ],
+    "assistant_training_targets": [
+      "DCF parameter extraction",
+      "comps extraction",
+      "transaction methodology language"
+    ]
+  },
+  "sec_public_filing": {
+    "required_fields": [
+      "title",
+      "company_name",
+      "ticker",
+      "cik",
+      "forms_covered",
+      "filing_dates",
+      "capital_markets_activity",
+      "capital_allocation_activity",
+      "liquidity_notes",
+      "governance_notes",
+      "controls_and_risk_notes",
+      "analyst_relevance"
+    ],
+    "assistant_training_targets": [
+      "public filing interpretation",
+      "capital allocation extraction",
+      "liquidity and risk extraction",
+      "analyst underwriting takeaways"
+    ]
+  },
+  "sec_merger_process": {
+    "required_fields": [
+      "title",
+      "deal_name",
+      "filing_type",
+      "forms_covered",
+      "filing_dates",
+      "consideration_terms",
+      "ownership_mix",
+      "vote_mechanics",
+      "closing_conditions",
+      "timeline_notes",
+      "analyst_relevance"
+    ],
+    "assistant_training_targets": [
+      "merger process extraction",
+      "consideration mechanics",
+      "shareholder vote and ownership analysis"
+    ]
+  },
+  "market_data_snapshot": {
+    "required_fields": [
+      "title",
+      "ticker",
+      "company_name",
+      "providers_queried",
+      "quote_snapshot",
+      "fundamental_snapshot",
+      "provider_differences",
+      "market_context",
+      "analyst_relevance"
+    ],
+    "assistant_training_targets": [
+      "market-data provenance",
+      "cross-provider reconciliation",
+      "quote and fundamental sanity checks",
+      "analyst data-quality interpretation"
+    ]
+  },
+  "special_situations": {
+    "required_fields": [
+      "title",
+      "situation_type",
+      "security",
+      "core_claim",
+      "evidence_items",
+      "alleged_mismatch",
+      "downside_case",
+      "catalysts",
+      "governance_or_accounting_flags",
+      "bias_disclosure"
+    ],
+    "assistant_training_targets": [
+      "red-flag detection",
+      "forensic structure",
+      "downside thesis framing"
+    ]
+  },
+  "generic": {
+    "required_fields": [
+      "title",
+      "summary",
+      "notes"
+    ],
+    "assistant_training_targets": [
+      "fallback extraction"
+    ]
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "id": "geopolitical_alpha_playbook",
+  "title": "Geopolitical Alpha",
+  "file_path": "/Users/averyromain/FinModAI/data/training/geopolitical-alpha-pdf",
+  "source_type": "macro_handbook",
+  "tier": "B",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "financial_reasoning",
+  "recommended_phase": 1,
+  "template_key": "macro_handbook",
+  "assistant_training_targets": [
+    "macro strategy reasoning",
+    "geopolitical transmission logic",
+    "institutional-constraint framing",
+    "event-to-market causal analysis"
+  ],
+  "source_summary": "Geopolitical framework book focused on constraints, institutions, and market transmission of political shocks.",
+  "strengths": [
+    "institutional and political-process framing",
+    "good event-to-market transmission structure",
+    "useful for geopolitical headline interpretation"
+  ],
+  "weaknesses": [
+    "OCR and formatting noise in the extracted PDF",
+    "appears to be a derivative summary rather than a pristine original edition"
+  ],
+  "fields": {
+    "title": "Geopolitical Alpha",
+    "publisher": "Book-length geopolitical strategy reference",
+    "subject_areas": [
+      "geopolitical constraints",
+      "institutions and bureaucracies",
+      "market implications of geopolitical events",
+      "investment integration of geopolitical analysis"
+    ],
+    "chapter_titles": [
+      "Understanding the Geopolitical Alpha Paradigm",
+      "The Constraints Framework",
+      "The Role of Institutions and",
+      "Market Implications of",
+      "Integrating Geopolitical",
+      "Adapting to a Dynamic",
+      "Final Thoughts - The Future"
+    ],
+    "core_frameworks": [
+      "separate political intent from institutional capacity",
+      "map geopolitical shocks through commodities, trade routes, and risk premia",
+      "treat implementation constraints as a core part of market analysis"
+    ],
+    "signal_design_principles": [
+      "focus on constraints, not personalities",
+      "identify first-order versus second-order market channels",
+      "use process and institutions to gauge whether the headline is durable"
+    ],
+    "analyst_relevance": [
+      "Improve geopolitical event framing in headlines and events products.",
+      "Support disciplined market-impact analysis on sanctions, conflict, trade, and shipping risk.",
+      "Help the model suppress low-signal political noise when institutional follow-through is weak."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/geopolitical-alpha-pdf/manifest.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/geopolitical-alpha-pdf/chunks.jsonl",
+    "page_count": 27,
+    "chunk_count": 23
+  },
+  "chunking": {
+    "strategy": "chapter_text",
+    "chunk_count": 23,
+    "chunks": []
+  },
+  "text_samples": []
+}

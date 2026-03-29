@@ -1,0 +1,67 @@
+{
+  "id": "alphabet_q4_2025_earnings_call_transcript",
+  "title": "Alphabet Q4 2025 Earnings Call Transcript",
+  "file_path": "/Users/averyromain/FinModAI/data/training/alphabet-q4-2025-earnings-call-transcript",
+  "source_type": "earnings_transcript",
+  "tier": "A",
+  "primary_bucket": "financial_reasoning",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "earnings_transcript",
+  "assistant_training_targets": [
+    "earnings-call interpretation",
+    "management signal extraction",
+    "guidance framing",
+    "question-and-answer dynamics"
+  ],
+  "source_summary": "Full Alphabet Q4 2025 earnings-call transcript provided in chat and organized into management themes, KPI highlights, and Q&A signals.",
+  "strengths": [
+    "management commentary",
+    "Q&A dynamics",
+    "AI capex and monetization framing"
+  ],
+  "weaknesses": [
+    "user-provided text rather than fetched IR URL"
+  ],
+  "fields": {
+    "title": "Alphabet Q4 2025 Earnings Call Transcript",
+    "company_name": "Alphabet Inc.",
+    "quarter": "Q4 2025",
+    "management_themes": [
+      "AI investments and infrastructure are driving growth across Search, Cloud, and product surfaces.",
+      "Search is in an expansionary AI moment with more complex queries and early monetization experiments.",
+      "Cloud is the clearest monetization engine for AI demand and remains supply constrained."
+    ],
+    "financial_highlights": [
+      "Q4 2025 consolidated revenue of $113.8 billion.",
+      "Google Cloud revenue up 48% to $17.7 billion with 30.1% operating margin.",
+      "2026 capex expected in the range of $175 billion to $185 billion."
+    ],
+    "guidance_or_outlook": [
+      "Management expects continued strong Cloud demand despite tight supply.",
+      "Depreciation growth is expected to accelerate in 2026 due to recent infrastructure investment.",
+      "Search and Google Services growth are expected to benefit from ongoing product and ad innovation."
+    ],
+    "qa_topics": [
+      "agentic commerce and Universal Commerce Protocol",
+      "AI compute constraints and capex efficiency",
+      "SaaS customer demand and Gemini adoption",
+      "AI search monetization and cannibalization concerns"
+    ],
+    "analyst_relevance": [
+      "Good source for understanding how management frames capex versus monetization.",
+      "Useful for separating reported numbers from the strategic message investors are meant to focus on.",
+      "Strong transcript for AI infrastructure, Cloud backlog, and search monetization debate training."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/alphabet-q4-2025-earnings-call-transcript/manifest.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/alphabet-q4-2025-earnings-call-transcript/chunks.jsonl",
+    "dataset_dir": "/Users/averyromain/FinModAI/data/training/alphabet-q4-2025-earnings-call-transcript",
+    "page_count": null,
+    "chunk_count": 8,
+    "source_url": null,
+    "access_status": "full_transcript_text_provided_in_chat"
+  }
+}

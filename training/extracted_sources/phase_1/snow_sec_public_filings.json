@@ -1,0 +1,176 @@
+{
+  "id": "snow_sec_public_filings",
+  "title": "Snowflake Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-snow",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent SNOW SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Snowflake Inc. General SEC Filings",
+    "company_name": "Snowflake Inc.",
+    "ticker": "SNOW",
+    "cik": "0001640147",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-20",
+      "2026-02-25",
+      "2026-02-02",
+      "2025-12-05",
+      "2025-12-03",
+      "2025-10-27",
+      "2025-09-05",
+      "2025-09-03",
+      "2025-08-27",
+      "2025-07-03"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Recent filings reference ongoing capital allocation actions, including repurchases and financing decisions."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "CONTROLS AND PROCEDURES Evaluation of Disclosure Controls and Procedures Our management, with the participation of our Chief Executive Officer and Chief Financial Officer, has evaluated the effectiveness of our disclosure controls and procedures (as defined in Rules 13a-15(e) and 15(d)-15(e) under the Exchange Act) as of January 31, 2026.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "These forward-looking statements are subject to a number of known and unknown risks, uncertainties and assumptions, including risks described in the section titled \u201cRisk Factors\u201d and elsewhere in this Annual Report on Form 10-K."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-snow",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-snow/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-snow/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-snow/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-03-20",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2026 FY FALSE P1Y P3Y one one http://fasb.org/us-gaap/2025#PrepaidExpenseAndOtherAssetsCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#PrepaidExpenseAndOtherAssetsCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2"
+      },
+      {
+        "label": "8-K 2026-02-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-25 2026-02-25 2026-02-25 2026-02-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earlie"
+      },
+      {
+        "label": "8-K 2026-02-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-28 2026-01-28 2026-01-28 2026-01-28 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earlie"
+      },
+      {
+        "label": "10-Q 2025-12-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "1/31 2026 Q3 FALSE 0.0063492 0.0063492 454 - snow:company snow:day snow:complaint snow:motion snow:vote_per_share 2025-02-01 2025-10-31 2025-11-21 2025-10-31 2025-01-31"
+      },
+      {
+        "label": "8-K 2025-12-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-12-03 2025-12-03 2025-12-03 2025-12-03 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earlie"
+      },
+      {
+        "label": "8-K 2025-10-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-27 2025-10-27 2025-10-27 2025-10-27 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earlie"
+      },
+      {
+        "label": "10-Q 2025-09-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "1/31 2026 Q2 FALSE 0.0063492 0.0063492 - snow:day snow:complaint snow:motion snow:vote_per_share 2025-02-01 2025-07-31 2025-08-22 2025-07-31 2025-01-31"
+      },
+      {
+        "label": "8-K 2025-09-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-09-03 2025-09-03 2025-09-03 2025-09-03 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earlie"
+      },
+      {
+        "label": "8-K 2025-08-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-27 2025-08-27 2025-08-27 2025-08-27 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earlie"
+      },
+      {
+        "label": "8-K 2025-07-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "--01-31 false - 2025-07-02 2025-07-02 2025-07-02 2025-07-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date o"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-03-20",
+      "text_preview": "2026 FY FALSE P1Y P3Y one one http://fasb.org/us-gaap/2025#PrepaidExpenseAndOtherAssetsCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#PrepaidExpenseAndOtherAssetsCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense 0.0063492 0.0063492 P2Y 461 456 - snow:segment snow:acquisition snow:company snow:day snow:complaint snow:vote_per_share 2025-02-01 2026-01-31 2025-07-31 2026-03-06 2026-01-31 2025-01-31 2026",
+      "char_count": 600010,
+      "word_count": 85450,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1640147/000164014726000008/snow-20260131.htm"
+    },
+    {
+      "label": "8-K 2026-02-25",
+      "text_preview": "false - 2026-02-25 2026-02-25 2026-02-25 2026-02-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 25, 2026 SNOWFLAKE INC. (Exact name of registrant as specified in its charter) Delaware 001-39504 46-0636374 (State or other jurisdiction of incorporation or organization) (Commission File Number) (IRS Employer Identification No.) 135 Constitution Drive 94025 Menlo Park, California (Address of Principal Executive Offices) (Zip Code) ( 844 ) 766-9355",
+      "char_count": 3918,
+      "word_count": 592,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1640147/000162828026011631/snow-20260225.htm"
+    },
+    {
+      "label": "8-K 2026-02-02",
+      "text_preview": "false - 2026-01-28 2026-01-28 2026-01-28 2026-01-28 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): January 28, 2026 SNOWFLAKE INC. (Exact name of registrant as specified in its charter) Delaware 001-39504 46-0636374 (State or other jurisdiction of incorporation or organization) (Commission File Number) (IRS Employer Identification No.) Suite 3A, 106 East Babcock Street 59715 Bozeman, Montana (Address of Principal Executive Offices) 1 (Zip Code) ( 844 ) 76",
+      "char_count": 3982,
+      "word_count": 594,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1640147/000162828026004606/snow-20260128.htm"
+    }
+  ]
+}

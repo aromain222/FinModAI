@@ -1,0 +1,77 @@
+{
+  "id": "macrosynergy_quantamental_handbook",
+  "title": "Macrosynergy Macro-Quantimental Investment Handbook",
+  "file_path": "/Users/averyromain/FinModAI/data/training/macrosynergy-macro-quantimental-investment-handbook",
+  "source_type": "macro_handbook",
+  "tier": "B+",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "macro_handbook",
+  "assistant_training_targets": [
+    "macro strategy reasoning",
+    "signal design logic",
+    "systematic macro framing",
+    "quantamental methodology"
+  ],
+  "source_summary": "Macro-quantamental handbook focused on point-in-time macro indicators and systematic trading design.",
+  "strengths": [
+    "point-in-time macro discipline",
+    "signal construction logic",
+    "systematic macro process"
+  ],
+  "weaknesses": [
+    "methodology-heavy tone",
+    "not a live market note source"
+  ],
+  "fields": {
+    "title": "Macrosynergy Macro-Quantimental Investment Handbook",
+    "publisher": "Macrosynergy",
+    "subject_areas": [
+      "macro information states",
+      "quantamental indicators",
+      "systematic macro trading",
+      "proof-of-concept design",
+      "data science for macro signals"
+    ],
+    "chapter_titles": [
+      "Introduction",
+      "Macro information waste and the quantamental solution",
+      "Understanding macro-quantamental indicators",
+      "The J.P. Morgan Macrosynergy Quantamental System",
+      "Value generation based on quantamental indicators",
+      "How to establish a proof of concept for a macro trading strategy",
+      "Examples of macro trading factors",
+      "Data science and macro trading factors"
+    ],
+    "core_frameworks": [
+      "use point-in-time macro information to avoid look-ahead bias",
+      "connect economic information states to tradable market signals",
+      "build systematic macro strategies through explicit data and signal design"
+    ],
+    "signal_design_principles": [
+      "point-in-time data integrity",
+      "vintage-aware macro histories",
+      "signal backtesting without hindsight contamination",
+      "causal linkage between macro states and asset returns"
+    ],
+    "analyst_relevance": [
+      "Improve macro mechanism reasoning and signal hygiene.",
+      "Train the model to think in point-in-time rather than revised-history terms.",
+      "Support systematic macro and multi-asset research workflows."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/macrosynergy-macro-quantimental-investment-handbook/manifest.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/macrosynergy-macro-quantimental-investment-handbook/chunks.jsonl",
+    "page_count": 92,
+    "chunk_count": 114
+  },
+  "chunking": {
+    "strategy": "chapter_text",
+    "chunk_count": 114,
+    "chunks": []
+  },
+  "text_samples": []
+}

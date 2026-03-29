@@ -1,0 +1,35 @@
+{
+  "id": "gs_case_comp_2016",
+  "title": "2016 Goldman Sachs Investment Banking Case Competition",
+  "file_path": "/Users/averyromain/Downloads/2016-Finance-Society-x-Goldman-Sachs-Investment-Banking-Case-Competition.pdf",
+  "source_type": "case_prompt",
+  "tier": "B",
+  "primary_bucket": "eval_cases",
+  "secondary_bucket": "valuation_mechanics",
+  "recommended_phase": 2,
+  "template_key": "case_study",
+  "assistant_training_targets": [
+    "eval generation",
+    "worked example structure",
+    "reasoning benchmarks"
+  ],
+  "source_summary": "Case prompt for DCF/comps/sale recommendation exercises.",
+  "strengths": [
+    "task framing",
+    "evaluation use"
+  ],
+  "weaknesses": [
+    "not a worked answer"
+  ],
+  "fields": {
+    "title": null,
+    "case_type": null,
+    "company_or_asset": null,
+    "task_prompt": null,
+    "core_assumptions": null,
+    "expected_outputs": null,
+    "valuation_methods": null,
+    "decision_required": null,
+    "grading_notes": null
+  }
+}

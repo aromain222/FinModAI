@@ -1,0 +1,177 @@
+{
+  "id": "v_sec_public_filings",
+  "title": "VISA INC. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-v",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent V SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "VISA INC. General SEC Filings",
+    "company_name": "VISA INC.",
+    "ticker": "V",
+    "cik": "0001403161",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-27",
+      "2026-02-13",
+      "2026-02-12",
+      "2026-01-30",
+      "2026-01-29",
+      "2026-01-28",
+      "2025-12-30",
+      "2025-12-23",
+      "2025-11-10",
+      "2025-11-06"
+    ],
+    "capital_markets_activity": [
+      "(the \u201cCompany\u201d) announced an offering of $900,000,000 of its 3.800% Senior Notes due 2029 (the \u201c2029 Notes\u201d), $750,000,000 of its 4.100% Senior Notes due 2031 (the \u201c2031 Notes\u201d), $700,000,000 of its 4.400% Senior Notes due 2033 (the \u201c2033 Notes\u201d) and $650,000,000 of its 4.700% Senior Notes due 2036 (the \u201c2036 Notes,\u201d and together with the 2029 Notes, the 2031 Notes and the 2033 Notes, the \u201cNotes\u201d)."
+    ],
+    "capital_allocation_activity": [
+      "In April 2025, the Company\u2019s board of directors authorized a $ 30.0 billion share repurchase program, providing multi-year flexibility.",
+      "As of December 31, 2025, the Company\u2019s share repurchase program had remaining authorized funds of $ 21.1 billion."
+    ],
+    "liquidity_notes": [
+      "Based on our current cash flow budgets and forecasts of our short-term and long-term liquidity needs, we believe that our current and projected sources of liquidity will be sufficient to meet our projected liquidity needs for more than the next 12 months."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Based on this evaluation, our Chief Executive Officer and our Chief Financial Officer concluded that, as of September 30, 2025, our disclosure controls and procedures were effective at the reasonable assurance level.",
+      "Changes in internal control over financial reporting.",
+      "Risk Factors For a discussion of the Company\u2019s risk factors, see the information under the heading \u201cRisk Factors\u201d in the Company\u2019s Annual Report on Form 10-K for the year ended September 30, 2025."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-v",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-v/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-v/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-v/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-02-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "v-20260225 false - 2026-02-25 2026-02-25 2026-02-25 2026-02-25 v:A2026NotesMember 2026-02-25 2026-02-25 v:A2028NotesMember 2026-02-25 2026-02-25 v:A2029NotesMember 2026-02-25 2026-02-25 v:A2033NotesMember 2026-02-25"
+      },
+      {
+        "label": "8-K 2026-02-13",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "v-20260213 False - 2026-02-13 2026-02-13 2026-02-13 2026-02-13 v:A2026NotesMember 2026-02-13 2026-02-13 v:A2028NotesMember 2026-02-13 2026-02-13 v:A2029NotesMember 2026-02-13 2026-02-13 v:A2033NotesMember 2026-02-13"
+      },
+      {
+        "label": "8-K 2026-02-12",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "v-20260203 False - 2026-02-03 2026-02-03 2026-02-03 2026-02-03 v:A2026NotesMember 2026-02-03 2026-02-03 v:A2028NotesMember 2026-02-03 2026-02-03 v:A2029NotesMember 2026-02-03 2026-02-03 v:A2033NotesMember 2026-02-03"
+      },
+      {
+        "label": "10-Q 2026-01-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "v-20251231 9/30 2026 Q1 false 50 50 - v:country v:segment 2025-10-01 2025-12-31 2025-10-01 2025-12-31 v:A2026NotesMember 2025-10-01 2025-12-31 v:A2028NotesMember 202"
+      },
+      {
+        "label": "8-K 2026-01-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "v-20260127 false - 2026-01-27 2026-01-27 2026-01-27 2026-01-27 v:A2026NotesMember 2026-01-27 2026-01-27 v:A2028NotesMember 2026-01-27 2026-01-27 v:A2029NotesMember 2026-01-27 2026-01-27 v:A2033NotesMember 2026-01-27"
+      },
+      {
+        "label": "8-K 2026-01-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "v-20260127 false 09/30 - 2026-01-27 2026-01-27 2026-01-27 2026-01-27 v:A2026NotesMember 2026-01-27 2026-01-27 v:A2028NotesMember 2026-01-27 2026-01-27 v:A2029NotesMember 2026-01-27 2026-01-27 v:A2033NotesMember 2026-"
+      },
+      {
+        "label": "8-K 2025-12-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "v-20251230 false - 2025-12-30 2025-12-30 2025-12-30 2025-12-30 v:A2026NotesMember 2025-12-30 2025-12-30 v:A2028NotesMember 2025-12-30 2025-12-30 v:A2029NotesMember 2025-12-30 2025-12-30 v:A2033NotesMember 2025-12-30"
+      },
+      {
+        "label": "8-K 2025-12-23",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "v-20251223 false - 2025-12-23 2025-12-23 2025-12-23 2025-12-23 v:A2026NotesMember 2025-12-23 2025-12-23 v:A2028NotesMember 2025-12-23 2025-12-23 v:A2029NotesMember 2025-12-23 2025-12-23 v:A2033NotesMember 2025-12-23"
+      },
+      {
+        "label": "8-K 2025-11-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "v-20251110 false - 2025-11-10 2025-11-10 2025-11-10 2025-11-10 v:A2026NotesMember 2025-11-10 2025-11-10 v:A2028NotesMember 2025-11-10 2025-11-10 v:A2029NotesMember 2025-11-10 2025-11-10 v:A2033NotesMember 2025-11-10"
+      },
+      {
+        "label": "10-K 2025-11-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "v-20250930 2025 FY FALSE 50 50 http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fas"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-02-27",
+      "text_preview": "v-20260225 false - 2026-02-25 2026-02-25 2026-02-25 2026-02-25 v:A2026NotesMember 2026-02-25 2026-02-25 v:A2028NotesMember 2026-02-25 2026-02-25 v:A2029NotesMember 2026-02-25 2026-02-25 v:A2033NotesMember 2026-02-25 2026-02-25 v:A2034NotesMember 2026-02-25 2026-02-25 v:A2037NotesMember 2026-02-25 2026-02-25 v:A2044NotesMember 2026-02-25 2026-02-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reporte",
+      "char_count": 4798,
+      "word_count": 698,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1403161/000140316126000063/v-20260225.htm"
+    },
+    {
+      "label": "8-K 2026-02-13",
+      "text_preview": "v-20260213 False - 2026-02-13 2026-02-13 2026-02-13 2026-02-13 v:A2026NotesMember 2026-02-13 2026-02-13 v:A2028NotesMember 2026-02-13 2026-02-13 v:A2029NotesMember 2026-02-13 2026-02-13 v:A2033NotesMember 2026-02-13 2026-02-13 v:A2034NotesMember 2026-02-13 2026-02-13 v:A2037NotesMember 2026-02-13 2026-02-13 v:A2044NotesMember 2026-02-13 2026-02-13 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reporte",
+      "char_count": 11899,
+      "word_count": 1772,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1403161/000140316126000049/v-20260213.htm"
+    },
+    {
+      "label": "8-K 2026-02-12",
+      "text_preview": "v-20260203 False - 2026-02-03 2026-02-03 2026-02-03 2026-02-03 v:A2026NotesMember 2026-02-03 2026-02-03 v:A2028NotesMember 2026-02-03 2026-02-03 v:A2029NotesMember 2026-02-03 2026-02-03 v:A2033NotesMember 2026-02-03 2026-02-03 v:A2034NotesMember 2026-02-03 2026-02-03 v:A2037NotesMember 2026-02-03 2026-02-03 v:A2044NotesMember 2026-02-03 2026-02-03 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reporte",
+      "char_count": 7965,
+      "word_count": 1206,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1403161/000162828026007709/v-20260203.htm"
+    }
+  ]
+}

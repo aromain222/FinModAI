@@ -1,0 +1,177 @@
+{
+  "id": "zs_sec_public_filings",
+  "title": "Zscaler, Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-zs",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent ZS SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Zscaler, Inc. General SEC Filings",
+    "company_name": "Zscaler, Inc.",
+    "ticker": "ZS",
+    "cik": "0001713683",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-26",
+      "2026-02-26",
+      "2026-01-15",
+      "2025-11-25",
+      "2025-11-25",
+      "2025-09-11",
+      "2025-09-02",
+      "2025-07-03",
+      "2025-06-23",
+      "2025-06-13"
+    ],
+    "capital_markets_activity": [
+      "(\u201cZscaler\u201d or the \u201cCompany\u201d) issued an aggregate of $1.725 billion principal amount of its 0.00% Convertible Senior Notes due 2028 (the \u201cNotes\u201d) pursuant to an Indenture, dated July 3, 2025 (the \u201cIndenture\u201d), between Zscaler and U.S.",
+      "4.2 Form of Note, representing Zscaler, Inc.\u2019s 0.00% Convertible Senior Notes due 2028 (included as Exhibit A to the Indenture filed as Exhibit 4.1)."
+    ],
+    "capital_allocation_activity": [
+      "Recent filings reference ongoing capital allocation actions, including repurchases and financing decisions."
+    ],
+    "liquidity_notes": [
+      "The primary objectives of our investment activities are the preservation of capital, the fulfillment of liquidity needs and the fiduciary control of cash and investments."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Our management, with the participation of our Chief Executive Officer and our Chief Financial Officer, evaluated the effectiveness of our disclosure controls and procedures as of January 31, 2026.",
+      "However, our management does not expect that our disclosure controls and procedures or our internal control over financial reporting will prevent or detect all errors and all fraud.",
+      "These forward-looking statements are subject to a number of risks, uncertainties and assumptions, including those described in \"Risk Factors\" elsewhere in this Quarterly Report on Form 10-Q."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-zs",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-zs/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-zs/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-zs/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-Q 2026-02-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "--07-31 2026 Q2 false P1Y P1M 1 1 - utr:acre zs:segment 2025-08-01 2026-01-31 2026-02-19 2026-01-31 2025-07-31 2025-11-01 2026-01-31 2024-11-01 2025-01-31 2024"
+      },
+      {
+        "label": "8-K 2026-02-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-11-25 2025-11-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ___________________________________ FORM 8-K ___________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (d"
+      },
+      {
+        "label": "8-K 2026-01-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-01-12 2026-01-12 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ___________________________________ FORM 8-K ___________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (d"
+      },
+      {
+        "label": "10-Q 2025-11-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "--07-31 2026 Q1 false P1Y P1M 1 1 635 456 - zs:segment 2025-08-01 2025-10-31 2025-11-19 2025-10-31 2025-07-31 2024-08-01 2024-10-31 2025-07-31 0"
+      },
+      {
+        "label": "8-K 2025-11-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-11-25 2025-11-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ___________________________________ FORM 8-K ___________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (d"
+      },
+      {
+        "label": "10-K 2025-09-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 FY false http://fasb.org/us-gaap/2025#AccountingStandardsUpdate202006Member P1Y P3Y P4Y P3Y P1Y P1M http://fasb.org/us-gaap/2025#CostOfRevenue http://fasb.org/us-gaap/2025#CostOfRevenue http://fasb.org/us-gaap/2025#SellingAndMarketingExpense http://fasb.org/us-gaap/2025#SellingAndMarketingEx"
+      },
+      {
+        "label": "8-K 2025-09-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-09-02 2025-09-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ___________________________________ FORM 8-K ___________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (d"
+      },
+      {
+        "label": "8-K 2025-07-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2025-06-30 2025-06-30 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (date of earliest event reported) June 30, 2025 Zscaler, Inc. (Exact name of regis"
+      },
+      {
+        "label": "8-K 2025-06-23",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-06-23 2025-06-23 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ___________________________________ FORM 8-K ___________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (d"
+      },
+      {
+        "label": "8-K 2025-06-13",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-06-09 2025-06-09 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ___________________________________ FORM 8-K ___________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (d"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-Q 2026-02-26",
+      "text_preview": "--07-31 2026 Q2 false P1Y P1M 1 1 - utr:acre zs:segment 2025-08-01 2026-01-31 2026-02-19 2026-01-31 2025-07-31 2025-11-01 2026-01-31 2024-11-01 2025-01-31 2024-08-01 2025-01-31 2025-10-31 2025-10-31 2025-10-31 2025-10-31 2025-10-31 2025-11-01 2026-01-31",
+      "char_count": 348740,
+      "word_count": 50278,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1713683/000171368326000048/zs-20260131.htm"
+    },
+    {
+      "label": "8-K 2026-02-26",
+      "text_preview": "FALSE - 2025-11-25 2025-11-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ___________________________________ FORM 8-K ___________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (date of earliest event reported) February 26, 2026 ___________________________________ Zscaler, Inc. (Exact name of registrant as specified in its charter) ___________________________________ Delaware (State or other jurisdiction of incorporation or organization) 001-38413 (Commission File Number) 26-1173892 (I.R.S. Employer Identification Number) 120 Holger Way San Jose , Calif",
+      "char_count": 3696,
+      "word_count": 542,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1713683/000171368326000047/zs-20260226.htm"
+    },
+    {
+      "label": "8-K 2026-01-15",
+      "text_preview": "FALSE - 2026-01-12 2026-01-12 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ___________________________________ FORM 8-K ___________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (date of earliest event reported) January 12, 2026 ___________________________________ Zscaler, Inc. (Exact name of registrant as specified in its charter) ___________________________________ Delaware 001-38413 26-1173892 (State or other jurisdiction of incorporation or organization) (Commission File Number) (I.R.S. Employer Identification Number) 120 Holger Way San Jose , Califo",
+      "char_count": 5274,
+      "word_count": 751,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1713683/000171368326000031/zs-20260112.htm"
+    }
+  ]
+}

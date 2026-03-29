@@ -1,0 +1,94 @@
+{
+  "id": "xylem_evoqua_sec_methodology",
+  "title": "Xylem / Evoqua Merger Valuation Disclosures",
+  "file_path": "SEC_Xylem_Evoqua_merger_docs",
+  "source_type": "sec_merger_docs",
+  "tier": "B+",
+  "primary_bucket": "transaction_methodology",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_merger_doc",
+  "assistant_training_targets": [
+    "DCF parameter extraction",
+    "comps extraction",
+    "transaction methodology language"
+  ],
+  "source_summary": "Merger disclosures with DCF ranges, comps, precedent transactions, and advisor assumptions.",
+  "strengths": [
+    "DCF inputs",
+    "peer tables",
+    "selected transactions"
+  ],
+  "weaknesses": [
+    "legalistic language"
+  ],
+  "fields": {
+    "title": "Xylem / Evoqua Merger Valuation Disclosures",
+    "deal_name": "Xylem / Evoqua merger",
+    "filing_type": "8-K supplemental merger valuation disclosure",
+    "advisors": [
+      "Goldman Sachs & Co. LLC",
+      "BofA Securities, Inc."
+    ],
+    "valuation_analyses": [
+      "Illustrative Discounted Cash Flow Analysis - Evoqua Standalone",
+      "Illustrative Discounted Cash Flow Analysis - Pro Forma Combined Company",
+      "Illustrative Present Value of Future Share Price Analysis",
+      "Selected Transactions Analysis",
+      "Selected Publicly Traded Companies Analysis"
+    ],
+    "peer_set": [
+      "Ecolab Inc.",
+      "Xylem Inc.",
+      "Industrie de Nora S.p.A",
+      "Pentair plc",
+      "A.O. Smith Corporation",
+      "Kurita Water Industries Ltd.",
+      "Evoqua Water Technologies Corp.",
+      "Franklin Electric Co., Inc.",
+      "Badger Meter Inc",
+      "Watts Water Technologies, Inc.",
+      "Zurn Elkay Water Solutions Corporation",
+      "Mueller Water Products, Inc."
+    ],
+    "transaction_set": [
+      "Zurn Water Solutions / Elkay Manufacturing",
+      "Cott / Primo Water",
+      "Culligan / AquaVenture",
+      "Xylem / Pure Technologies",
+      "SUEZ | CDPQ / GE Water & Power Technologies",
+      "Xylem / Sensus USA",
+      "Danaher / Pall",
+      "Watts Water Technologies / AERCO International"
+    ],
+    "discount_rate_range": {
+      "Goldman Sachs": "9.0% to 10.5%",
+      "BofA Securities": "9.0% to 11.0%"
+    },
+    "terminal_multiple_range": {
+      "Evoqua standalone": "18.0x to 22.0x",
+      "Pro forma combined company": "21.0x to 25.0x"
+    },
+    "share_count": {
+      "Evoqua fully diluted shares": "approximately 126.4 million to 126.8 million",
+      "Pro forma combined fully diluted shares": "approximately 243.0 million to 243.2 million"
+    },
+    "net_debt": {
+      "Evoqua standalone": "approximately $767 million",
+      "Pro forma combined company": "approximately $1,742 million"
+    },
+    "implied_value_range": {
+      "Evoqua standalone": "$42 to $54 per share"
+    }
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "extraction_mode": "manual_override",
+    "file_present": false
+  },
+  "chunking": {
+    "strategy": "manual_curated",
+    "chunks": []
+  },
+  "text_samples": []
+}

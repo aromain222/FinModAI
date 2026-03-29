@@ -1,0 +1,177 @@
+{
+  "id": "estc_sec_public_filings",
+  "title": "Elastic N.V. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-estc",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent ESTC SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Elastic N.V. General SEC Filings",
+    "company_name": "Elastic N.V.",
+    "ticker": "ESTC",
+    "cik": "0001707753",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-27",
+      "2026-02-26",
+      "2025-11-24",
+      "2025-11-20",
+      "2025-10-15",
+      "2025-10-09",
+      "2025-09-30",
+      "2025-08-29",
+      "2025-08-28",
+      "2025-06-10"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Share Repurchase Program In October 2025, the Company\u2019s board of directors authorized a program to repurchase up to $ 500.0 million of the Company\u2019s ordinary shares (the \u201cShare Repurchase Program\u201d).",
+      "As of January 31, 2026, $ 200.0 million remained available for future share repurchases under the Share Repurchase Program."
+    ],
+    "liquidity_notes": [
+      "The primary objectives of our investment activities are the preservation of capital, the fulfillment of liquidity needs, the fiduciary control of cash and investments, and the repurchases of our ordinary shares under the Share Repurchase Program."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Our management, with the participation of our Chief Executive Officer and our Chief Financial Officer, has evaluated the effectiveness of our disclosure controls and procedures (as defined in Rules 13a-15(e) and 15d-15(e) under the Exchange Act) as of the end of the period covered by this Quarterly Report on Form 10-Q.",
+      "However, our management does not expect that our disclosure controls and procedures or our internal control over financial reporting will prevent all errors and all fraud.",
+      "These statements are inherently uncertain and subject to the risks and other factors described in the section titled \u201cRisk Factors\u201d in Part I, Item 1A and elsewhere in this report."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-estc",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-estc/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-estc/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-estc/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-Q 2026-02-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "04-30 false 2026 Q3 - estc:customer estc:segement 2025-05-01 2026-01-31 2026-02-23 2026-01-31 2025-04-30 2025-04-3"
+      },
+      {
+        "label": "8-K 2026-02-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-26 2026-02-26 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 26, 2026 Elastic N.V. (Exact"
+      },
+      {
+        "label": "10-Q 2025-11-24",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "04-30 false 2026 Q2 - estc:customer estc:segement 2025-05-01 2025-10-31 2025-11-17 2025-10-31 2025-04-30 2025-10-3"
+      },
+      {
+        "label": "8-K 2025-11-20",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-20 2025-11-20 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): November 20, 2025 Elastic N.V. (Exact"
+      },
+      {
+        "label": "8-K 2025-10-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-13 2025-10-13 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): October 13, 2025 Elastic N.V. (Exact"
+      },
+      {
+        "label": "8-K 2025-10-09",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-09 2025-10-09 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): October 9, 2025 Elastic N.V. (Exact n"
+      },
+      {
+        "label": "8-K 2025-09-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-09-30 2025-09-30 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): September 30, 2025 Elastic N.V. (Exac"
+      },
+      {
+        "label": "10-Q 2025-08-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "04-30 false 2026 Q1 424 365 - estc:Customer estc:segement 2025-05-01 2025-07-31 2025-08-21 2025-07-31 2025-04-30 2"
+      },
+      {
+        "label": "8-K 2025-08-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-28 2025-08-28 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): August 28, 2025 Elastic N.V. (Exact n"
+      },
+      {
+        "label": "10-K 2025-06-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY - estc:segement 2024-05-01 2025-04-30 2024-10-31 2025-05-31 2025-04-30 2024-04-30 2025-04"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-Q 2026-02-27",
+      "text_preview": "04-30 false 2026 Q3 - estc:customer estc:segement 2025-05-01 2026-01-31 2026-02-23 2026-01-31 2025-04-30 2025-04-30 2026-01-31 estc:SubscriptionMember 2025-11-01 2026-01-31 estc:SubscriptionMember 2024-11-01 2025-01-31 estc:SubscriptionMember 2025-05-01 2026-01-31 estc:SubscriptionMember 2024-05-01 2025-01-31 estc:ProfessionalServicesMember 2025-11-01 2026-01-31 estc:Profess",
+      "char_count": 176185,
+      "word_count": 23583,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1707753/000170775326000006/estc-20260131.htm"
+    },
+    {
+      "label": "8-K 2026-02-26",
+      "text_preview": "false - 2026-02-26 2026-02-26 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 26, 2026 Elastic N.V. (Exact name of registrant as specified in its charter) The Netherlands (State or other jurisdiction of incorporation) 001-38675 (Commission File Number) 98-1756035 (I.R.S. Employer Identification Number) Not Applicable 1 (Address of principal executive offices) (Zip Code) Registrant\u2019s telephone number, including area code: Not Applicable 1 Not Applicable (Former name or former",
+      "char_count": 3932,
+      "word_count": 590,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1707753/000170775326000003/estc-20260226.htm"
+    },
+    {
+      "label": "10-Q 2025-11-24",
+      "text_preview": "04-30 false 2026 Q2 - estc:customer estc:segement 2025-05-01 2025-10-31 2025-11-17 2025-10-31 2025-04-30 2025-10-31 2025-04-30 estc:OrdinarySharesZeroPointZeroOneMember 2025-04-30 estc:OrdinarySharesZeroPointZeroOneMember 2025-10-31 estc:SubscriptionMember 2025-08-01 2025-10-31 estc:SubscriptionMember 2024-08-01 2024-10-31 estc:SubscriptionMember 2025-05-01 2025-10-31 estc:S",
+      "char_count": 175021,
+      "word_count": 23469,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1707753/000170775325000056/estc-20251031.htm"
+    }
+  ]
+}

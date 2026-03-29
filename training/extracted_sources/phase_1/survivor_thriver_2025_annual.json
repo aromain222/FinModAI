@@ -1,0 +1,144 @@
+{
+  "id": "survivor_thriver_2025_annual",
+  "title": "Survivor & Thriver Fund 2025 Annual Partnership Letter",
+  "file_path": "/Users/averyromain/Downloads/2025-Annual-Partnership-Letter_final.pdf",
+  "source_type": "investor_letter",
+  "tier": "A",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "eval_cases",
+  "recommended_phase": 1,
+  "template_key": "investor_letter",
+  "assistant_training_targets": [
+    "thesis articulation",
+    "portfolio commentary",
+    "risk framing",
+    "what changed",
+    "decision language"
+  ],
+  "source_summary": "Real investor letter with thematic AI framing and company-level thesis discussion.",
+  "strengths": [
+    "thematic framing",
+    "position writeups",
+    "portfolio review structure"
+  ],
+  "weaknesses": [
+    "manager worldview bias"
+  ],
+  "fields": {
+    "title": "Survivor & Thriver Fund 2025 Annual Partnership Letter",
+    "manager": "Jeremy Deal",
+    "date": null,
+    "strategy_style": "long/short, value-oriented, partnership letter",
+    "performance_context": [
+      "Dear Partner, Two thousand and twenty-five was a good, yet choppy year for our fund. In 4Q the fund was down -7.5% bringing the full year return to +21.8% net to investors. This compares to the S&P 500 which gained 3.1% in 4Q and 17.7% for the full year assuming dividends had bee",
+      "2 While we do not own any enterprise software stocks but the correction has also spread wider, such as to our high free-cash-flow generative consumer tech names. I am actively sifting through the dislocation for new ideas. We are not looking for collapsed stocks hoping for a boun",
+      "3 \u2022 High interest rates and a record-length yield-curve inversion choked off credit-dependent sectors but had limited impact on the most profitable New-era businesses, which [were] less reliant on bank financing and could self-fund growth from cash flows. Going into 2026, real US"
+    ],
+    "top_themes": [
+      "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE",
+      "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE",
+      "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE",
+      "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE",
+      "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE",
+      "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE",
+      "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE",
+      "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE"
+    ],
+    "positions_discussed": [
+      "BABA",
+      "Jeremy Deal"
+    ],
+    "thesis_points": [
+      "Dear Partner, Two thousand and twenty-five was a good, yet choppy year for our fund. In 4Q the fund was down -7.5% bringing the full year return to +21.8% net to investors. This compares to the S&P 500 which gained 3.1% in 4Q and 17.7% for the full year assuming dividends had bee",
+      "2 While we do not own any enterprise software stocks but the correction has also spread wider, such as to our high free-cash-flow generative consumer tech names. I am actively sifting through the dislocation for new ideas. We are not looking for collapsed stocks hoping for a boun",
+      "4 My point is that with so much rapid change, identifying tomorrow's winners is not as easy as running a screen on historical earnings. When the past is less of a reference for the future, identifying durability is more qualitative, subjective and difficult because it often goes ",
+      "Despite a huge run in memory stocks in response to AI data center demand, enterprise storage stocks like Pure have not benefited nearly as much. PSTG's stock price has been about flat since mid 2024. The market still mostly values Pure's revenue as a commodity storage vendor. But",
+      "5 With a shift to AI inference workloads the storage layer becomes more important because of its constraint on GPU utilization. Storage becomes a bottleneck as models get larger and inference becomes more complex. Huge amounts of data must be pulled from storage repeatedly at ext"
+    ],
+    "valuation_language": [
+      "Dear Partner, Two thousand and twenty-five was a good, yet choppy year for our fund. In 4Q the fund was down -7.5% bringing the full year return to +21.8% net to investors. This compares to the S&P 500 which gained 3.1% in 4Q and 17.7% for the full year assuming dividends had bee",
+      "2 While we do not own any enterprise software stocks but the correction has also spread wider, such as to our high free-cash-flow generative consumer tech names. I am actively sifting through the dislocation for new ideas. We are not looking for collapsed stocks hoping for a boun",
+      "3 \u2022 High interest rates and a record-length yield-curve inversion choked off credit-dependent sectors but had limited impact on the most profitable New-era businesses, which [were] less reliant on bank financing and could self-fund growth from cash flows. Going into 2026, real US",
+      "3 SEC filings, JDP estimate of 2026 revenue",
+      "4 My point is that with so much rapid change, identifying tomorrow's winners is not as easy as running a screen on historical earnings. When the past is less of a reference for the future, identifying durability is more qualitative, subjective and difficult because it often goes "
+    ],
+    "risks_discussed": [
+      "3 \u2022 High interest rates and a record-length yield-curve inversion choked off credit-dependent sectors but had limited impact on the most profitable New-era businesses, which [were] less reliant on bank financing and could self-fund growth from cash flows. Going into 2026, real US",
+      "4 My point is that with so much rapid change, identifying tomorrow's winners is not as easy as running a screen on historical earnings. When the past is less of a reference for the future, identifying durability is more qualitative, subjective and difficult because it often goes "
+    ],
+    "portfolio_actions": [
+      "4 My point is that with so much rapid change, identifying tomorrow's winners is not as easy as running a screen on historical earnings. When the past is less of a reference for the future, identifying durability is more qualitative, subjective and difficult because it often goes ",
+      "In early January 2026 we initiated a starter position in Pure Storage (Pure). Pure is a enterprise data storage company that develops flash storage hardware and software with a market cap of about $20 billion. Pure was founded in 2009 by industry veterans Coz Colgrove and John Ha",
+      "Despite a huge run in memory stocks in response to AI data center demand, enterprise storage stocks like Pure have not benefited nearly as much. PSTG's stock price has been about flat since mid 2024. The market still mostly values Pure's revenue as a commodity storage vendor. But",
+      "7 BABA is effectively implementing the Chinese version of this strategy with Qwen models and inference-as-a-service serving as hooks that pull demand into its cloud ecosystem. With the company's renewed focus I would argue that BABA is actually cheaper today than it was 18 months",
+      "8 Although 4Q'25 earnings are not out yet, the company estimates it will end 2025 with 745 million users, up by 100 million over 2024. Since we've owned the stock, Spotify has added over 530 million users. Operating income has gone from near-breakeven, to what we think will be no"
+    ],
+    "tone_notes": "Real investor letter with thematic AI framing and company-level thesis discussion.",
+    "best_quotes_or_phrases": [
+      "Survivor & Thriver business",
+      "What makes this work difficult, and what makes it interesting, \nis that these opportunities rarely appear under blue skies. They appear under clouds."
+    ]
+  },
+  "source_metadata": {
+    "file_present": true,
+    "source_extension": ".pdf",
+    "extraction_mode": "pdf_text",
+    "page_count": 10,
+    "headings_detected": [
+      "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE",
+      "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE",
+      "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE",
+      "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE",
+      "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE",
+      "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE",
+      "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE",
+      "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE",
+      "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE"
+    ]
+  },
+  "chunking": {
+    "strategy": "page_groups",
+    "chunk_count": 5,
+    "chunks": [
+      {
+        "label": "pages_1_2",
+        "start_page": 1,
+        "end_page": 2,
+        "text_preview": "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE \n \n1 \n \nSurvivor & Thriver Fund, LP \n \n2025 Annual Partnership Letter \n \nDear Partner, \nTwo thousand and twenty-five was a good, yet choppy year for our fund. In 4Q the \nfund was down -7.5% bringing the full year return to +21.8% net to investors. This compares to the \nS&P 500 which gained 3.1% in 4Q and 17.7% for the full year assuming dividends had been \nimmediately reinvested back into the index. \nIn last year's annual letter I talked about the acceleration of technological change that I saw \nhappening in sectors and companies I follow. What a difference a year makes. \nConversations about using LLMs for everything from tax advice to holiday planning now feel \ncommonplace. New agents are emerging that are increasingly capable across a wide range of tasks, \nfrom coding to managing personal stuff. Teenagers discuss viral songs that were not created by a \nhuman, or the new short video series on TikTok produced by a single creator. People remark on how \nnice high-speed Starlink internet is on a flight, and how cool it was to experience a driverless taxi for \nthe first time. \nI am fully aligned with the view that many tasks currently performed by humans will increasingly be \nhandled by hardware controlled by a software \u201cbrain\u201d that learns and improves on its own. As this \nhappens, use cases for products can expand beyond narrow, sector-specific verticals like \u201cride-\nsharing\u201d or \u201cwarehouse\u201d into broader categories su"
+      },
+      {
+        "label": "pages_3_4",
+        "start_page": 3,
+        "end_page": 4,
+        "text_preview": "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE \n \n2 \nWhile we do not own any enterprise software stocks but the correction has also spread wider, such \nas to our high free-cash-flow generative consumer tech names. I am actively sifting through the \ndislocation for new ideas. We are not looking for collapsed stocks hoping for a bounce. Instead, we \nwant to own companies with similar characteristics to what we own today, and with business \nmodels positioned to get stronger as AI tools improve. \nAs token prices continue to decline and new chip designs enable lightning-fast, low-power inference, \nmonetization models [of everything] are likely to shift to consumption-based. For the right \nbusinesses this will unlock TAM that was previously out of reach. \nFor example, smaller consumer platforms such as Spotify will be able to build Facebook-like \nrecommendation engines, powered by new inference-as-a-service offerings that were cost \nprohibitive even a year ago. More effective recommendation engines should enable more effective \nperformance-based advertising and support a higher take rate on product-driven transactions. In \nmany categories there will be meaningful winners that the market is currently overlooking. \nOverview and Outlook \nThe \"N.O. Shaped\" Economy \nThe bull market that began in October 2022 and has resulted in three consecutive years of \ndouble-digit gains even as headlines and sentiment were largely bearish. Also known as the \"most \nhated V-shaped rec"
+      },
+      {
+        "label": "pages_5_6",
+        "start_page": 5,
+        "end_page": 6,
+        "text_preview": "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE \n \n4 \nMy point is that with so much rapid change, identifying tomorrow's winners is not as easy as running \na screen on historical earnings. When the past is less of a reference for the future, identifying \ndurability is more qualitative, subjective and difficult because it often goes against consensus. \nSince the future is so uncertain we look for businesses with moats that are protecting market \nposition in a market that is growing. We want leadership that can evolve quickly when others can't. \nWe also want secular tailwinds and structural advantages that will be more important in tomorrow's \neconomy. In our case this could mean owning a large global platform where customer behavioral \ndata is used to enhance products, deepen customer relationships and drive pricing power. \nLastly, we need to feel good about the price we pay relative to the business's opportunity set over a \nreasonable time horizon. Every stock in our portfolio was purchased at a time when the market was \ndistracted by economic uncertainty or a business or sector transition that overshadowed underlying \nearnings power. \nSelected Portfolio Review \nThe biggest contributors to 2025 performance were our China basket, Spotify +29.8% and Roku \n+46%. Within the China basket Alibaba was +82%, Tencent +52% and CATL +32% (partial year only) \nin 2025. We sold Ping An for a small gain after a long hold and initiated a toehold in an unnamed \nChinese broker-"
+      },
+      {
+        "label": "pages_7_8",
+        "start_page": 7,
+        "end_page": 8,
+        "text_preview": "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE \n \n6 \nImplications to upside potential \nPure is positioned at the center of a secular shift as flash storage replaces hard drives across \nenterprise, hyperscale, and AI-adjacent workloads. \nEstimates for market size range from $65 billion by 2031 (Mordor Intelligence) to $132 billion by \n2035 (Future Market Insights), up from roughly $20 billion today. Pure's own TAM framework \nestimates the all-flash array market will grow >20% annually for the next ~5 years (company \npresentations). \nAs AI inference and data-intensive applications scale, storage could move from a cyclical purchase to \na capacity layer, structurally enlarging the lifetime spend per customer. \nStarting from roughly $630 million of FY26 non-GAAP operating income, Pure has a credible path to \n$2+ billion of operating earnings over the next five years. This is supported by market expansion, \nshare gains in flash, and operating leverage as recurring revenue becomes the majority of revenue. \nIn our bull case, Pure's operating margins could settle out in the mid 30% range with returns on \ncapital between 30% and 40%, and a debt-free balance sheet. \nIn this scenario the valuation would support a 30x to 40x multiple on $2 billion of GAAP operating \nearnings implying a $60 to $80 billion enterprise value versus $20 billion today. Although Pure might \nscreen expensive, we think the fundamental downside case is limited because of Pure's market \nposition and"
+      },
+      {
+        "label": "pages_9_10",
+        "start_page": 9,
+        "end_page": 10,
+        "text_preview": "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE \n \n8 \nAlthough 4Q'25 earnings are not out yet, the company estimates it will end 2025 with 745 million \nusers, up by 100 million over 2024. \nSince we've owned the stock, Spotify has added over 530 million users. Operating income has gone \nfrom near-breakeven, to what we think will be north of US$3.5 billion in 2026. \nGross margin, operating income and free cash flow continue to grow faster than revenue with gains \noperating leverage across the platform. \nBy our estimates, 2025 operating earnings grew by ~56% and free cash flow was up about 26%. This \nwas driven by subscriber growth, price increases for the premium tier and increased use of the two-\nsided marketplace. \nThe hand that feeds the music industry \n \nIn 2025 Spotify paid out about $11 billion to the recorded music industry. With the global recorded \nmusic market estimated to have generated roughly $30 billion, Spotify represented around 36% of \ntotal industry revenue and about 50% of all streaming revenue generated for the music industry.6 \n \nSpotify is the music industry's consumer engagement layer and outsourced technology partner. In \nreturn, Spotify collects and owns personal behavioral data that it uses to analyze patterns across \nusers as shared preferences for mood, styles and listening contexts. This understanding allows the \nsystem to predict what users might like and build personalized music, podcast and audiobook \nplaylists. Beyond user behavi"
+      }
+    ]
+  },
+  "text_samples": [
+    "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE \n \n1 \n \nSurvivor & Thriver Fund, LP \n \n2025 Annual Partnership Letter \n \nDear Partner, \nTwo thousand and twenty-five was a good, yet choppy year for our fund. In 4Q the \nfund was down -7.5% bringing the full year return to +21.8% net to investors. This compares to the \nS&P 500 which gained 3.1% in 4Q and 17.7% for the full year assuming dividends had been \nimmediately reinvested back into the index. \nIn last year's annual letter I talked about the acceleration of technological change that I saw \nhappening in sectors and companies I follow. What a difference a year makes. \nConversations about using LLMs for everything from tax advice to holiday planning now feel \ncommonplace. New agents are emerging that are increasingly capable across a wide range of tasks, \nfrom coding to managing personal stuff. Teenagers discuss viral songs that were not created by a \nhuman, or the new short video series on TikTok produced by a single creator. People remark on how \nnice high-speed Starlink internet is on a flight, and how cool it was to experience a driverless taxi for \nthe first time. \nI am fully aligned with the view that many tasks currently performed by humans will increasingly be \nhandled by hardware controlled by a software \u201cbrain\u201d that learns and improves on its own. As this \nhappens, use cases for products can expand beyond narrow, sector-specific verticals like \u201cride-\nsharing\u201d or \u201cwarehouse\u201d into broader categories su",
+    "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE \n \n2 \nWhile we do not own any enterprise software stocks but the correction has also spread wider, such \nas to our high free-cash-flow generative consumer tech names. I am actively sifting through the \ndislocation for new ideas. We are not looking for collapsed stocks hoping for a bounce. Instead, we \nwant to own companies with similar characteristics to what we own today, and with business \nmodels positioned to get stronger as AI tools improve. \nAs token prices continue to decline and new chip designs enable lightning-fast, low-power inference, \nmonetization models [of everything] are likely to shift to consumption-based. For the right \nbusinesses this will unlock TAM that was previously out of reach. \nFor example, smaller consumer platforms such as Spotify will be able to build Facebook-like \nrecommendation engines, powered by new inference-as-a-service offerings that were cost \nprohibitive even a year ago. More effective recommendation engines should enable more effective \nperformance-based advertising and support a higher take rate on product-driven transactions. In \nmany categories there will be meaningful winners that the market is currently overlooking. \nOverview and Outlook \nThe \"N.O. Shaped\" Economy \nThe bull market that began in October 2022 and has resulted in three consecutive years of \ndouble-digit gains even as headlines and sentiment were largely bearish. Also known as the \"most \nhated V-shaped rec",
+    "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE \n \n4 \nMy point is that with so much rapid change, identifying tomorrow's winners is not as easy as running \na screen on historical earnings. When the past is less of a reference for the future, identifying \ndurability is more qualitative, subjective and difficult because it often goes against consensus. \nSince the future is so uncertain we look for businesses with moats that are protecting market \nposition in a market that is growing. We want leadership that can evolve quickly when others can't. \nWe also want secular tailwinds and structural advantages that will be more important in tomorrow's \neconomy. In our case this could mean owning a large global platform where customer behavioral \ndata is used to enhance products, deepen customer relationships and drive pricing power. \nLastly, we need to feel good about the price we pay relative to the business's opportunity set over a \nreasonable time horizon. Every stock in our portfolio was purchased at a time when the market was \ndistracted by economic uncertainty or a business or sector transition that overshadowed underlying \nearnings power. \nSelected Portfolio Review \nThe biggest contributors to 2025 performance were our China basket, Spotify +29.8% and Roku \n+46%. Within the China basket Alibaba was +82%, Tencent +52% and CATL +32% (partial year only) \nin 2025. We sold Ping An for a small gain after a long hold and initiated a toehold in an unnamed \nChinese broker-",
+    "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE \n \n6 \nImplications to upside potential \nPure is positioned at the center of a secular shift as flash storage replaces hard drives across \nenterprise, hyperscale, and AI-adjacent workloads. \nEstimates for market size range from $65 billion by 2031 (Mordor Intelligence) to $132 billion by \n2035 (Future Market Insights), up from roughly $20 billion today. Pure's own TAM framework \nestimates the all-flash array market will grow >20% annually for the next ~5 years (company \npresentations). \nAs AI inference and data-intensive applications scale, storage could move from a cyclical purchase to \na capacity layer, structurally enlarging the lifetime spend per customer. \nStarting from roughly $630 million of FY26 non-GAAP operating income, Pure has a credible path to \n$2+ billion of operating earnings over the next five years. This is supported by market expansion, \nshare gains in flash, and operating leverage as recurring revenue becomes the majority of revenue. \nIn our bull case, Pure's operating margins could settle out in the mid 30% range with returns on \ncapital between 30% and 40%, and a debt-free balance sheet. \nIn this scenario the valuation would support a 30x to 40x multiple on $2 billion of GAAP operating \nearnings implying a $60 to $80 billion enterprise value versus $20 billion today. Although Pure might \nscreen expensive, we think the fundamental downside case is limited because of Pure's market \nposition and",
+    "CONFIDENTIAL, DO NOT DISTRIBUTE CONFIDENTIAL, DO NOT DISTRIBUTE \n \n8 \nAlthough 4Q'25 earnings are not out yet, the company estimates it will end 2025 with 745 million \nusers, up by 100 million over 2024. \nSince we've owned the stock, Spotify has added over 530 million users. Operating income has gone \nfrom near-breakeven, to what we think will be north of US$3.5 billion in 2026. \nGross margin, operating income and free cash flow continue to grow faster than revenue with gains \noperating leverage across the platform. \nBy our estimates, 2025 operating earnings grew by ~56% and free cash flow was up about 26%. This \nwas driven by subscriber growth, price increases for the premium tier and increased use of the two-\nsided marketplace. \nThe hand that feeds the music industry \n \nIn 2025 Spotify paid out about $11 billion to the recorded music industry. With the global recorded \nmusic market estimated to have generated roughly $30 billion, Spotify represented around 36% of \ntotal industry revenue and about 50% of all streaming revenue generated for the music industry.6 \n \nSpotify is the music industry's consumer engagement layer and outsourced technology partner. In \nreturn, Spotify collects and owns personal behavioral data that it uses to analyze patterns across \nusers as shared preferences for mood, styles and listening contexts. This understanding allows the \nsystem to predict what users might like and build personalized music, podcast and audiobook \nplaylists. Beyond user behavi"
+  ],
+  "extraction_status": "extracted",
+  "extracted_at": "2026-03-27T18:47:41.728613+00:00"
+}

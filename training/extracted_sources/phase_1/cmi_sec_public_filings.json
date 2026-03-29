@@ -1,0 +1,176 @@
+{
+  "id": "cmi_sec_public_filings",
+  "title": "CUMMINS INC General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-cmi",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent CMI SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "CUMMINS INC General SEC Filings",
+    "company_name": "CUMMINS INC",
+    "ticker": "CMI",
+    "cik": "0000026172",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-10",
+      "2026-02-05",
+      "2025-11-06",
+      "2025-11-06",
+      "2025-08-05",
+      "2025-08-05",
+      "2025-07-14",
+      "2025-06-02",
+      "2025-05-15",
+      "2025-05-09"
+    ],
+    "capital_markets_activity": [
+      "(the \u201cCompany\u201d) completed a public offering (the \u201cOffering\u201d) of $300,000,000 aggregate principal amount of the Company\u2019s 4.250% Senior Notes due 2028 (the \u201c2028 Notes\u201d), $700,000,000 aggregate principal amount of the Company\u2019s 4.700% Senior Notes due 2031 (the \u201c2031 Notes) and $1,000,000,000 aggregate principal amount of the Company\u2019s 5.300% Senior Notes due 2035 (the \u201c2035 Notes,\u201d and together with the 2028 Notes and the 2031 Notes, the \u201cNotes\u201d) ."
+    ],
+    "capital_allocation_activity": [
+      "Recent filings reference ongoing capital allocation actions, including repurchases and financing decisions."
+    ],
+    "liquidity_notes": [
+      "Various assets and liabilities, including short-term debt, can fluctuate significantly from month-to-month depending on short-term liquidity needs."
+    ],
+    "governance_notes": [
+      "Tsien has been appointed to serve on the Board of Director's Audit Committee, Safety, Environment and Technology Committee, and the Governance and Nominating Committee."
+    ],
+    "controls_and_risk_notes": [
+      "Controls and Procedures Evaluation of Disclosure Controls and Procedures As of the end of the period covered by this Annual Report on Form 10-K, our management evaluated, with the participation of our Chief Executive Officer and Chief Financial Officer, the effectiveness of the design and operation of our disclosure controls and procedures as defined in Exchange Act Rules 13a-15(e) and 15d-15(e).",
+      "o Indicate by check mark whether the registrant has filed a report on and attestation to its management's assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "under the caption \u201cRisk Factors.\u201d Shareholders, potential investors and other readers are urged to consider these factors carefully in evaluating the forward-looking statements and are cautioned not to place undue reliance on such forward-looking statements."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-cmi",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-cmi/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-cmi/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-cmi/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-02-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/31/2025 2025 FY TRUE FALSE FALSE 138,165,463 P2Y http://fasb.org/us-gaap/2025#SecuredOvernightFinancingRateSofrMember P3Y P3Y P3Y http://fasb.org/us-gaap/2025#SecuredOvernightFinancingRateSofrMember http://fasb.org/us-gaap/2025#SecuredOvernightFinancingRateSofrMember -"
+      },
+      {
+        "label": "8-K 2026-02-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-05 2026-02-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report: February 5, 2026 CUMMINS INC. (Exact name of registrant as specified in"
+      },
+      {
+        "label": "10-Q 2025-11-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/31 2025 Q3 TRUE FALSE FALSE - cmi:location cmi:country utr:Rate 2025-01-01 2025-09-30 2025-09-30 2025-07-01 2025-09-30 2024-07-01 2024-09-30 2024-01-01 2024-09-30 202"
+      },
+      {
+        "label": "8-K 2025-11-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-06 2025-11-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report: November 6, 2025 CUMMINS INC. (Exact name of registrant as specified in"
+      },
+      {
+        "label": "10-Q 2025-08-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/31 2025 Q2 TRUE FALSE FALSE - cmi:location cmi:country utr:Rate 2025-01-01 2025-06-30 2025-06-30 2025-04-01 2025-06-30 2024-04-01 2024-06-30 2024-01-01 2024-06-30 202"
+      },
+      {
+        "label": "8-K 2025-08-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-05 2025-08-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report: August 5, 2025 CUMMINS INC. (Exact name of registrant as specified in it"
+      },
+      {
+        "label": "8-K 2025-07-14",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-07-14 2025-07-14 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report: July 14, 2025 CUMMINS INC. (Exact name of registrant as specified in its"
+      },
+      {
+        "label": "8-K 2025-06-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-06-02 2025-06-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): J"
+      },
+      {
+        "label": "8-K 2025-05-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-05-13 2025-05-13 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of the earliest event reported): May 13, 2025 CUMMINS INC. (Exact n"
+      },
+      {
+        "label": "8-K 2025-05-09",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-05-09 2025-05-09 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report (Date of earliest event reported): M"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-02-10",
+      "text_preview": "12/31/2025 2025 FY TRUE FALSE FALSE 138,165,463 P2Y http://fasb.org/us-gaap/2025#SecuredOvernightFinancingRateSofrMember P3Y P3Y P3Y http://fasb.org/us-gaap/2025#SecuredOvernightFinancingRateSofrMember http://fasb.org/us-gaap/2025#SecuredOvernightFinancingRateSofrMember - cmi:ReportableSegments cmi:location cmi:country utr:Rate utr:l utr:hp 2025-01-01 2025-12-31 2025-06-30 2026-01-31 2025-12-31 cmi:DrivetrainAndBrakingSystemReportingUnitMember 2025-12-31 2024-01-01 2024-12-31 2023-01-01 2023-12-31 2024-12-31 20",
+      "char_count": 515937,
+      "word_count": 73892,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/26172/000002617226000009/cmi-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-05",
+      "text_preview": "false - 2026-02-05 2026-02-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of Report: February 5, 2026 CUMMINS INC. (Exact name of registrant as specified in its charter) Indiana 1-4949 35-0257090 (State or other Jurisdiction of Incorporation) (Commission File Number) (I.R.S. Employer Identification No.) 500 Jackson Street P. O. Box 3005 Columbus , Indiana 47202-3005 (Principal Executive Office) (Zip Code) Registrant's telephone number, including area code: ( 812 ) 377-5000 Check the appropriate box below if the Form 8-K filing is i",
+      "char_count": 3393,
+      "word_count": 504,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/26172/000002617226000004/cmi-20260205.htm"
+    },
+    {
+      "label": "10-Q 2025-11-06",
+      "text_preview": "12/31 2025 Q3 TRUE FALSE FALSE - cmi:location cmi:country utr:Rate 2025-01-01 2025-09-30 2025-09-30 2025-07-01 2025-09-30 2024-07-01 2024-09-30 2024-01-01 2024-09-30 2024-12-31 2023-12-31 2024-09-30 2025-06-30 2025-06-30 2025-06-30 2025-06-30 2025-06-30 2025-06",
+      "char_count": 206495,
+      "word_count": 29402,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/26172/000002617225000039/cmi-20250930.htm"
+    }
+  ]
+}

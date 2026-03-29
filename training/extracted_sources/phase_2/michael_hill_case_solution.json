@@ -1,0 +1,35 @@
+{
+  "id": "michael_hill_case_solution",
+  "title": "Michael Hill Case Study Solutions",
+  "file_path": "/Users/averyromain/Downloads/Michael-Hill-Case-Study-Solutions.pdf",
+  "source_type": "worked_case_solution",
+  "tier": "B+",
+  "primary_bucket": "eval_cases",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 2,
+  "template_key": "case_study",
+  "assistant_training_targets": [
+    "eval generation",
+    "worked example structure",
+    "reasoning benchmarks"
+  ],
+  "source_summary": "Worked case solution useful for benchmark answer quality.",
+  "strengths": [
+    "worked reasoning",
+    "recommendation quality"
+  ],
+  "weaknesses": [
+    "not a real live transaction memo"
+  ],
+  "fields": {
+    "title": null,
+    "case_type": null,
+    "company_or_asset": null,
+    "task_prompt": null,
+    "core_assumptions": null,
+    "expected_outputs": null,
+    "valuation_methods": null,
+    "decision_required": null,
+    "grading_notes": null
+  }
+}

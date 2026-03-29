@@ -1,0 +1,177 @@
+{
+  "id": "bac_sec_public_filings",
+  "title": "BANK OF AMERICA CORP /DE/ General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-bac",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent BAC SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "BANK OF AMERICA CORP /DE/ General SEC Filings",
+    "company_name": "BANK OF AMERICA CORP /DE/",
+    "ticker": "BAC",
+    "cik": "0000070858",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-25",
+      "2026-02-13",
+      "2026-01-14",
+      "2026-01-06",
+      "2025-11-26",
+      "2025-10-31",
+      "2025-10-16",
+      "2025-10-15",
+      "2025-09-15",
+      "2025-09-12"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "The table below presents common share repurchase activity for the three months ended December 31, 2025.",
+      "Common Stock Repurchase Summary (in millions) 2025 2024 2023 Total share repurchases, including CCAR capital plan repurchases 452 332 147 Purchase price of shares repurchased and retired (1) $ 21,433 $ 13,104 $ 4,576 (1) Consists of repurchases pursuant to the Corporation\u2019s CCAR capital plans and includes excise taxes."
+    ],
+    "liquidity_notes": [
+      "Short-term borrowings increased $4.7 billion primarily due to higher unsecured borrowings to manage liquidity needs."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Controls and Procedures Disclosure Controls and Procedures As of the end of the period covered by this report and pursuant to Rule 13a-15 of the Securities Exchange Act of 1934, as amended (Exchange Act), Bank of America\u2019s management, including the Chief Executive Officer and Chief Financial Officer, conducted an evaluation of the effectiveness and design of our disclosure controls and procedures (as that term is defined in Rule 13a-15(e) of the Exchange Act).",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management's assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Risk Factors \u2013 Regulatory, Compliance and Legal on page 17."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-bac",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-bac/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-bac/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-bac/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-02-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/31 2025 FY FALSE http://fasb.org/us-gaap/2025#AccountingStandardsUpdate201613Member http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#AccruedLiabilitiesAndOtherLiabilities http://fasb.org/us-gaap/2025#AccruedLiabilitiesAndOtherLiabi"
+      },
+      {
+        "label": "8-K 2026-02-13",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-13 2026-02-13 2026-02-13 2026-02-13 2026-02-13 2026-02-13 bac:SeriesGGPreferredStockMember 2026-02-13 2026-02-13 bac:SeriesHHPreferredStockMember 2026-02-13 2026-0"
+      },
+      {
+        "label": "8-K 2026-01-14",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-14 2026-01-14 2026-01-14 2026-01-14 2026-01-14 2026-01-14 bac:SeriesGGPreferredStockMember 2026-01-14 2026-01-14 bac:SeriesHHPreferredStockMember 2026-01-14 2026-0"
+      },
+      {
+        "label": "8-K 2026-01-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-06 2026-01-06 2026-01-06 2026-01-06 2026-01-06 2026-01-06 bac:SeriesGGPreferredStockMember 2026-01-06 2026-01-06 bac:SeriesHHPreferredStockMember 2026-01-06 2026-0"
+      },
+      {
+        "label": "8-K 2025-11-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K BANK OF AMERICA CORP /DE/ Depositary Shares, each representing a 1/1,200th interest in a share of Bank of America Corporation Floating Rate Non-Cumulative Preferred Stock Depositary Shares, each representing a 1/1,200th interest in a share of Bank of America Corporation Floating Rate Non-Cumulative Preferred Stock"
+      },
+      {
+        "label": "10-Q 2025-10-31",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "12/31 2025 Q3 FALSE http://fasb.org/us-gaap/2025#LongTermDebt http://fasb.org/us-gaap/2025#LongTermDebt P3M http://fasb.org/us-gaap/2025#OtherReceivables http://fasb.org/us-gaap/2025#OtherReceivables http://fasb.org/us-gaap/2025#NoninterestIncomeOtherOperatingIncome http://fasb.org/us-gaap/2025#"
+      },
+      {
+        "label": "8-K 2025-10-16",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-16 2025-10-16 2025-10-16 2025-10-16 2025-10-16 2025-10-16 bac:SeriesGGPreferredStockMember 2025-10-16 2025-10-16 bac:SeriesHHPreferredStockMember 2025-10-16 2025-1"
+      },
+      {
+        "label": "8-K 2025-10-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 bac:SeriesGGPreferredStockMember 2025-10-15 2025-10-15 bac:SeriesHHPreferredStockMember 2025-10-15 2025-1"
+      },
+      {
+        "label": "8-K 2025-09-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-09-12 2025-09-12 2025-09-12 2025-09-12 2025-09-12 2025-09-12 bac:SeriesGGPreferredStockMember 2025-09-12 2025-09-12 bac:SeriesHHPreferredStockMember 2025-09-12 2025-0"
+      },
+      {
+        "label": "8-K 2025-09-12",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-09-12 2025-09-12 2025-09-12 2025-09-12 2025-09-12 2025-09-12 bac:SeriesGGPreferredStockMember 2025-09-12 2025-09-12 bac:SeriesHHPreferredStockMember 2025-09-12 2025-0"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-02-25",
+      "text_preview": "12/31 2025 FY FALSE http://fasb.org/us-gaap/2025#AccountingStandardsUpdate201613Member http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#AccruedLiabilitiesAndOtherLiabilities http://fasb.org/us-gaap/2025#AccruedLiabilitiesAndOtherLiabilities http://fasb.org/us-gaap/2025#LongTermDebt http://fasb.org/us-gaap/2025#LongTermDebt P3M http://fasb.org/us-gaap/2025#OtherReceivables http://fasb.org/us-gaap/2025#OtherReceivables http://fasb.org/us-gaap/2025#IncomeTaxExpenseBenefit http://fasb.org/us-gaap/2025#IncomeTaxExpenseBenefit http://fasb.org/us-gaap/2025#IncomeTaxExpenseBenefit http://fasb.org/us-gaap/2025#Incom",
+      "char_count": 1182402,
+      "word_count": 147363,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/70858/000007085826000157/bac-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-13",
+      "text_preview": "false - 2026-02-13 2026-02-13 2026-02-13 2026-02-13 2026-02-13 2026-02-13 bac:SeriesGGPreferredStockMember 2026-02-13 2026-02-13 bac:SeriesHHPreferredStockMember 2026-02-13 2026-02-13 bac:SeriesLPreferredStockMember 2026-02-13 2026-02-13 bac:Series1PreferredStockMember 2026-02-13 2026-02-13 bac:Series2PreferredStockMember 2026-02-13 2026-02-13 bac:Series4PreferredStockMember 2026-02-13 2026-02-13 bac:Series5PreferredStockMember 2026-02-13 2026-02-13 bac:FloatingRatePreferredHybridIncomeTe",
+      "char_count": 12078,
+      "word_count": 1676,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/70858/000007085826000088/bac-20260213.htm"
+    },
+    {
+      "label": "8-K 2026-01-14",
+      "text_preview": "false - 2026-01-14 2026-01-14 2026-01-14 2026-01-14 2026-01-14 2026-01-14 bac:SeriesGGPreferredStockMember 2026-01-14 2026-01-14 bac:SeriesHHPreferredStockMember 2026-01-14 2026-01-14 bac:SeriesLPreferredStockMember 2026-01-14 2026-01-14 bac:Series1PreferredStockMember 2026-01-14 2026-01-14 bac:Series2PreferredStockMember 2026-01-14 2026-01-14 bac:Series4PreferredStockMember 2026-01-14 2026-01-14 bac:Series5PreferredStockMember 2026-01-14 2026-01-14 bac:FloatingRatePreferredHybridIncomeTe",
+      "char_count": 9448,
+      "word_count": 1285,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/70858/000007085826000020/bac-20260114.htm"
+    }
+  ]
+}

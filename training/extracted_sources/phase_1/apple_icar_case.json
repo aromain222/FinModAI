@@ -1,0 +1,109 @@
+{
+  "id": "apple_icar_case",
+  "title": "Apple iCar Case",
+  "file_path": "/Users/averyromain/Downloads/AppleiCar.pdf",
+  "source_type": "case_study",
+  "tier": "A",
+  "primary_bucket": "eval_cases",
+  "secondary_bucket": "valuation_mechanics",
+  "recommended_phase": 1,
+  "template_key": "case_study",
+  "assistant_training_targets": [
+    "eval generation",
+    "worked example structure",
+    "reasoning benchmarks"
+  ],
+  "source_summary": "Project DCF case with concrete assumptions and strong incremental cash flow logic.",
+  "strengths": [
+    "capital budgeting",
+    "NPV/IRR logic",
+    "sensitivity analysis"
+  ],
+  "weaknesses": [
+    "educational framing"
+  ],
+  "fields": {
+    "title": "Apple iCar Case",
+    "case_type": "valuation case study",
+    "company_or_asset": "Apple iCar Case",
+    "task_prompt": [
+      "1 An Investment Analysis Case Study This case is a group project that is due on April 1, before class at 10.30. Stating the obvious: Each group will turn in one report (sounds obvious, but might as well make it explicit) electronically (as a pdf file). While you should include yo",
+      "2 Apple Disrupts the Auto Market: The Apple iCar? The Setting Apple Inc. has had a very good run, both in terms of earnings and stock prices, over the last decade. Based largely on the success of the iPod, the iPhone and the iPad, the company has reported double digit growth in r",
+      "7 Questions on the Project 1. Accounting Return Analysis \u2022 Estimate the operating income from the proposed iCar investment to Apple over the next 10 years. \u2022 Estimate the after-tax return on capital for the investment over the 10-year period. \u2022 Based upon the after-tax return on "
+    ],
+    "core_assumptions": [
+      "1 An Investment Analysis Case Study This case is a group project that is due on April 1, before class at 10.30. Stating the obvious: Each group will turn in one report (sounds obvious, but might as well make it explicit) electronically (as a pdf file). While you should include yo",
+      "2 Apple Disrupts the Auto Market: The Apple iCar? The Setting Apple Inc. has had a very good run, both in terms of earnings and stock prices, over the last decade. Based largely on the success of the iPod, the iPhone and the iPad, the company has reported double digit growth in r",
+      "4 using 1% of the capacity. (Thus, in a given year, if 200,000 iCars are produced, it will take up 20% of the total capacity of the battery factory). If the capacity limit is reached, Apple will have to invest a substantial amount to create a new facility of equivalent capacity. ",
+      "5 integrated into the iCar), and grow at the inflation rate after that. The after-tax operating margin (after tax operating income/ revenues) is 40% for all Apple devices (iPads and iPhones). 12. Risk Measures: The beta for Apple is 0.79, calculated using weekly returns over the ",
+      "6 marginal tax rate for these firms, as well. (You can also assume that the debt includes the present value of operating leases)."
+    ],
+    "expected_outputs": [
+      "NPV"
+    ],
+    "valuation_methods": [
+      "NPV"
+    ],
+    "decision_required": [
+      "1 An Investment Analysis Case Study This case is a group project that is due on April 1, before class at 10.30. Stating the obvious: Each group will turn in one report (sounds obvious, but might as well make it explicit) electronically (as a pdf file). While you should include yo",
+      "2 Apple Disrupts the Auto Market: The Apple iCar? The Setting Apple Inc. has had a very good run, both in terms of earnings and stock prices, over the last decade. Based largely on the success of the iPod, the iPhone and the iPad, the company has reported double digit growth in r",
+      "3 4. Pricing and Unit Costs: Apple expects to price its cars at $ 75,000 a unit next year and the price will keep pace with inflation after that. Based upon the costs of the the materials used in the iCar currently, Apple expects the production cost per unit to be $ 50,000 next y",
+      "4 using 1% of the capacity. (Thus, in a given year, if 200,000 iCars are produced, it will take up 20% of the total capacity of the battery factory). If the capacity limit is reached, Apple will have to invest a substantial amount to create a new facility of equivalent capacity. "
+    ],
+    "grading_notes": [
+      "Project DCF case with concrete assumptions and strong incremental cash flow logic."
+    ]
+  },
+  "source_metadata": {
+    "file_present": true,
+    "source_extension": ".pdf",
+    "extraction_mode": "pdf_text",
+    "page_count": 13,
+    "headings_detected": []
+  },
+  "chunking": {
+    "strategy": "page_groups",
+    "chunk_count": 5,
+    "chunks": [
+      {
+        "label": "pages_1_3",
+        "start_page": 1,
+        "end_page": 3,
+        "text_preview": "1 \nAn Investment Analysis Case Study This case is a group project that is due on April 1, before class at 10.30. Stating the obvious: Each group will turn in one report (sounds obvious, but might as well make it explicit) electronically (as a pdf file). While you should include your cash flows tables in your report, you don\u2019t have to attach your excel spreadsheets. Cover page: Each report should have a cover page that contains the following \u2013 the names of the group members in alphabetical order and the following summary information on the analysis: Decision on Investment: Invest or Do not invest Cost of capital: % value Return on capital: % value NPV \u2013 10-year life: $ value NPV- Longer life: $ value Report format: Please try to keep your report brief. In the report, be clear about: a. Any assumptions you made to get to your conclusion b. Your final recommendation Exhibits: Please make sure that you include the following in your exhibits a. The table of earnings/cash flows by year b. Your computation of cost of equity/capital/discount rate Time: To keep time straight, you can assume the following: Next year: Year 1 Most recent year: Just ended Right now: Time 0. Any \u201cup front\u201d expenditure is incurred immediately.\n\n2 \nApple Disrupts the Auto Market: The Apple iCar? The Setting Apple Inc. has had a very good run, both in terms of earnings and stock prices, over the last decade. Based largely on the success of the iPod, the iPhone and the iPad, the company has reported double dig"
+      },
+      {
+        "label": "pages_4_6",
+        "start_page": 4,
+        "end_page": 6,
+        "text_preview": "4 \nusing 1% of the capacity. (Thus, in a given year, if 200,000 iCars are produced, it will take up 20% of the total capacity of the battery factory). If the capacity limit is reached, Apple will have to invest a substantial amount to create a new facility of equivalent capacity. The current estimate of the cost of building a new facility is $ 5 billion, but this cost will grow at the inflation rate. 8. G&A expenses: Apple will allocate 10% of its existing general and administrative costs to the new division. These costs total $ 7.5 billion for the entire firm in the most recent year and are expected to grow 5% a year for the next 10 years, with or without the iCar investment. In addition, it is expected that Apple will have an increase of $ 0.5 billion in general and administrative costs next year when Apple iCar is introduced, and this amount will grow with the new division\u2019s dollar revenues after that. The latter cost is directly related to the new iCar division. 9. Advertising Expenses: Apple spent $ 8 billion on advertising in the most recent year. If Apple does not invest in the iCar, it expects this cost to increase 5% a year for the next 10 years. If the iCar is introduced, the total advertising expenses each year, from years 1 to 10, are expected to be 15% higher than they would have been without the iCar division. 10. Working Capital: The iCar will create working capital needs, which you have estimated as follows: \u2022 The sale of iCars to retailers will create account"
+      },
+      {
+        "label": "pages_7_9",
+        "start_page": 7,
+        "end_page": 9,
+        "text_preview": "7 \n Questions on the Project 1. Accounting Return Analysis \u2022 Estimate the operating income from the proposed iCar investment to Apple over the next 10 years. \u2022 Estimate the after-tax return on capital for the investment over the 10-year period. \u2022 Based upon the after-tax return on capital, would you accept or reject this project? This will require you to make some assumptions about allocation and expensing. Make your assumptions as consistent as you can and estimate the return on capital. 2. Cash Flow Analysis \u2022 Estimate the after-tax incremental cash flows from the proposed iCar investment to Apple over the next 10 years. \u2022 If the project is terminated at the end of the 10th year, and both working capital and investment in other assets can be sold for book value at the end of that year, estimate the net present value of this project to Apple. Develop a net present value profile and estimate the internal rate of return for this project. \u2022 If the iCar division is expected to have a life much longer than 10 years, estimate the net present value of this project, making reasonable assumptions about investments needed and cash flows. Develop a net present value profile and estimate the internal rate of return for this project. 3. Sensitivity Analysis \u2022 Estimate the sensitivity of your numbers to changes in at least three of the key assumptions underlying the analysis (You get to pick what you think are the three key assumptions). Based upon your analysis, and any other considerati"
+      },
+      {
+        "label": "pages_10_12",
+        "start_page": 10,
+        "end_page": 12,
+        "text_preview": "10 \n Exhibit 3: Apple's Balance Sheets Balance Sheet Balance Sheet as of: Sep-25-2010 Sep-24-2011 Sep-29-2012 Sep-28-2013 Sep-27-2014 Dec-27-2014 Currency USD USD USD USD USD USD ASSETS Cash And Equivalents 11,261.0 9,815.0 10,746.0 14,259.0 13,844.0 19,478.0 Short Term Investments 14,359.0 16,137.0 18,383.0 26,287.0 11,233.0 12,985.0 Trading Asset Securities - - - 44.0 81.0 201.0 Total Cash & ST Investments 25,620.0 25,952.0 29,129.0 40,590.0 25,158.0 32,664.0 Accounts Receivable 5,510.0 5,369.0 10,930.0 13,102.0 17,460.0 16,709.0 Other Receivables 4,414.0 6,348.0 7,762.0 7,539.0 9,759.0 13,267.0 Total Receivables 9,924.0 11,717.0 18,692.0 20,641.0 27,219.0 29,976.0 Inventory 1,051.0 776.0 791.0 1,764.0 2,111.0 2,283.0 Deferred Tax Assets, Curr. 1,636.0 2,014.0 2,583.0 3,453.0 4,318.0 5,046.0 Restricted Cash 445.0 - 278.0 164.0 - - Other Current Assets 3,002.0 4,529.0 6,180.0 6,674.0 9,725.0 13,434.0 Total Current Assets 41,678.0 44,988.0 57,653.0 73,286.0 68,531.0 83,403.0 Gross Property, Plant & Equipment 7,234.0 11,768.0 21,887.0 28,519.0 39,015.0 40,747.0 Accumulated Depreciation (2,466.0) (3,991.0) (6,435.0) (11,922.0) (18,391.0) (20,355.0) Net Property, Plant & Equipment 4,768.0 7,777.0 15,452.0 16,597.0 20,624.0 20,392.0 Long-term Investments 25,391.0 55,618.0 92,122.0 106,215.0 130,162.0 145,492.0 Goodwill 741.0 896.0 1,135.0 1,577.0 4,616.0 4,629.0 Other Intangibles 342.0 3,536.0 4,224.0 4,179.0 4,142.0 4,370.0 Other Long-Term Assets 2,263.0 3,556.0 5,478.0 5,146.0 "
+      },
+      {
+        "label": "pages_13_13",
+        "start_page": 13,
+        "end_page": 13,
+        "text_preview": "13 \nExhibit 6: Automobile Companies The data includes all publicly traded automobile companies listed globally, with a market capitalization exceeding $1 billion. Click on this link to get the data in an excel spreadsheet."
+      }
+    ]
+  },
+  "text_samples": [
+    "1 \nAn Investment Analysis Case Study This case is a group project that is due on April 1, before class at 10.30. Stating the obvious: Each group will turn in one report (sounds obvious, but might as well make it explicit) electronically (as a pdf file). While you should include your cash flows tables in your report, you don\u2019t have to attach your excel spreadsheets. Cover page: Each report should have a cover page that contains the following \u2013 the names of the group members in alphabetical order and the following summary information on the analysis: Decision on Investment: Invest or Do not invest Cost of capital: % value Return on capital: % value NPV \u2013 10-year life: $ value NPV- Longer life: $ value Report format: Please try to keep your report brief. In the report, be clear about: a. Any assumptions you made to get to your conclusion b. Your final recommendation Exhibits: Please make sure that you include the following in your exhibits a. The table of earnings/cash flows by year b. Your computation of cost of equity/capital/discount rate Time: To keep time straight, you can assume the following: Next year: Year 1 Most recent year: Just ended Right now: Time 0. Any \u201cup front\u201d expenditure is incurred immediately.\n\n2 \nApple Disrupts the Auto Market: The Apple iCar? The Setting Apple Inc. has had a very good run, both in terms of earnings and stock prices, over the last decade. Based largely on the success of the iPod, the iPhone and the iPad, the company has reported double dig",
+    "4 \nusing 1% of the capacity. (Thus, in a given year, if 200,000 iCars are produced, it will take up 20% of the total capacity of the battery factory). If the capacity limit is reached, Apple will have to invest a substantial amount to create a new facility of equivalent capacity. The current estimate of the cost of building a new facility is $ 5 billion, but this cost will grow at the inflation rate. 8. G&A expenses: Apple will allocate 10% of its existing general and administrative costs to the new division. These costs total $ 7.5 billion for the entire firm in the most recent year and are expected to grow 5% a year for the next 10 years, with or without the iCar investment. In addition, it is expected that Apple will have an increase of $ 0.5 billion in general and administrative costs next year when Apple iCar is introduced, and this amount will grow with the new division\u2019s dollar revenues after that. The latter cost is directly related to the new iCar division. 9. Advertising Expenses: Apple spent $ 8 billion on advertising in the most recent year. If Apple does not invest in the iCar, it expects this cost to increase 5% a year for the next 10 years. If the iCar is introduced, the total advertising expenses each year, from years 1 to 10, are expected to be 15% higher than they would have been without the iCar division. 10. Working Capital: The iCar will create working capital needs, which you have estimated as follows: \u2022 The sale of iCars to retailers will create account",
+    "7 \n Questions on the Project 1. Accounting Return Analysis \u2022 Estimate the operating income from the proposed iCar investment to Apple over the next 10 years. \u2022 Estimate the after-tax return on capital for the investment over the 10-year period. \u2022 Based upon the after-tax return on capital, would you accept or reject this project? This will require you to make some assumptions about allocation and expensing. Make your assumptions as consistent as you can and estimate the return on capital. 2. Cash Flow Analysis \u2022 Estimate the after-tax incremental cash flows from the proposed iCar investment to Apple over the next 10 years. \u2022 If the project is terminated at the end of the 10th year, and both working capital and investment in other assets can be sold for book value at the end of that year, estimate the net present value of this project to Apple. Develop a net present value profile and estimate the internal rate of return for this project. \u2022 If the iCar division is expected to have a life much longer than 10 years, estimate the net present value of this project, making reasonable assumptions about investments needed and cash flows. Develop a net present value profile and estimate the internal rate of return for this project. 3. Sensitivity Analysis \u2022 Estimate the sensitivity of your numbers to changes in at least three of the key assumptions underlying the analysis (You get to pick what you think are the three key assumptions). Based upon your analysis, and any other considerati",
+    "10 \n Exhibit 3: Apple's Balance Sheets Balance Sheet Balance Sheet as of: Sep-25-2010 Sep-24-2011 Sep-29-2012 Sep-28-2013 Sep-27-2014 Dec-27-2014 Currency USD USD USD USD USD USD ASSETS Cash And Equivalents 11,261.0 9,815.0 10,746.0 14,259.0 13,844.0 19,478.0 Short Term Investments 14,359.0 16,137.0 18,383.0 26,287.0 11,233.0 12,985.0 Trading Asset Securities - - - 44.0 81.0 201.0 Total Cash & ST Investments 25,620.0 25,952.0 29,129.0 40,590.0 25,158.0 32,664.0 Accounts Receivable 5,510.0 5,369.0 10,930.0 13,102.0 17,460.0 16,709.0 Other Receivables 4,414.0 6,348.0 7,762.0 7,539.0 9,759.0 13,267.0 Total Receivables 9,924.0 11,717.0 18,692.0 20,641.0 27,219.0 29,976.0 Inventory 1,051.0 776.0 791.0 1,764.0 2,111.0 2,283.0 Deferred Tax Assets, Curr. 1,636.0 2,014.0 2,583.0 3,453.0 4,318.0 5,046.0 Restricted Cash 445.0 - 278.0 164.0 - - Other Current Assets 3,002.0 4,529.0 6,180.0 6,674.0 9,725.0 13,434.0 Total Current Assets 41,678.0 44,988.0 57,653.0 73,286.0 68,531.0 83,403.0 Gross Property, Plant & Equipment 7,234.0 11,768.0 21,887.0 28,519.0 39,015.0 40,747.0 Accumulated Depreciation (2,466.0) (3,991.0) (6,435.0) (11,922.0) (18,391.0) (20,355.0) Net Property, Plant & Equipment 4,768.0 7,777.0 15,452.0 16,597.0 20,624.0 20,392.0 Long-term Investments 25,391.0 55,618.0 92,122.0 106,215.0 130,162.0 145,492.0 Goodwill 741.0 896.0 1,135.0 1,577.0 4,616.0 4,629.0 Other Intangibles 342.0 3,536.0 4,224.0 4,179.0 4,142.0 4,370.0 Other Long-Term Assets 2,263.0 3,556.0 5,478.0 5,146.0 ",
+    "13 \nExhibit 6: Automobile Companies The data includes all publicly traded automobile companies listed globally, with a market capitalization exceeding $1 billion. Click on this link to get the data in an excel spreadsheet."
+  ],
+  "extraction_status": "extracted",
+  "extracted_at": "2026-03-27T18:46:24.135686+00:00"
+}

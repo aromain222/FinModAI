@@ -1,0 +1,36 @@
+{
+  "id": "inspirato_buyerlink_activist",
+  "title": "Inspirato / Buyerlink Merger Opposition Presentation",
+  "file_path": "/Users/averyromain/Downloads/ex991to13da114556002_090225.pdf",
+  "source_type": "activist_presentation",
+  "tier": "B",
+  "primary_bucket": "special_situations",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 2,
+  "template_key": "special_situations",
+  "assistant_training_targets": [
+    "red-flag detection",
+    "forensic structure",
+    "downside thesis framing"
+  ],
+  "source_summary": "Activist deck focused on dilution, process flaws, and fairness-opinion criticism.",
+  "strengths": [
+    "governance critique",
+    "merger-opposition structure"
+  ],
+  "weaknesses": [
+    "partisan framing"
+  ],
+  "fields": {
+    "title": null,
+    "situation_type": null,
+    "security": null,
+    "core_claim": null,
+    "evidence_items": null,
+    "alleged_mismatch": null,
+    "downside_case": null,
+    "catalysts": null,
+    "governance_or_accounting_flags": null,
+    "bias_disclosure": null
+  }
+}

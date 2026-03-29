@@ -1,0 +1,105 @@
+{
+  "id": "apple_historical_filed_reports",
+  "title": "Apple Historical Filed Reports (2022-2025)",
+  "file_path": "/Users/averyromain/FinModAI/data/training/10-k-2025-as-filed",
+  "source_type": "sec_public_filings",
+  "tier": "A-",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "financial_reasoning",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Grouped Apple filed-report corpus across 2022-2025, combining annual reports and a more recent quarterly filing package for historical disclosure training.",
+  "strengths": [
+    "multi-year primary filings",
+    "business, MD&A, and risk-factor structure",
+    "statement and disclosure continuity across years"
+  ],
+  "weaknesses": [
+    "raw PDF extraction includes some boilerplate and exhibit noise",
+    "one quarterly package appears noisier than the annual reports"
+  ],
+  "fields": {
+    "title": "Apple Historical Filed Reports (2022-2025)",
+    "company_name": "Apple Inc.",
+    "ticker": "AAPL",
+    "cik": "0000320193",
+    "forms_covered": [
+      "10-K",
+      "10-Q"
+    ],
+    "filing_dates": [
+      "fiscal year ended September 27, 2025",
+      "2024 quarterly and annual filed report package",
+      "fiscal year ended 2023 as filed",
+      "fiscal year ended 2022 as filed"
+    ],
+    "capital_markets_activity": [
+      "Historical Apple filings are most useful for capital return posture, debt disclosures, and long-cycle operating commentary rather than episodic financing events."
+    ],
+    "capital_allocation_activity": [
+      "Use the multi-year filing set to study buyback capacity, margin durability, and services versus products mix evolution."
+    ],
+    "liquidity_notes": [
+      "Annual and quarterly reports support multi-period cash, debt, and free-cash-flow interpretation.",
+      "Useful for teaching statement continuity and historical trend grounding from primary filings."
+    ],
+    "governance_notes": [
+      "Annual reports include business, legal, and governance disclosure structure across multiple years."
+    ],
+    "controls_and_risk_notes": [
+      "Multi-year risk-factor and MD&A structure is useful for teaching how mature companies disclose recurring risks and shifts in emphasis."
+    ],
+    "analyst_relevance": [
+      "Strong multi-year filing corpus for grounding large-cap tech underwriting in primary disclosures.",
+      "Useful for connecting business description, MD&A, and statement analysis over time.",
+      "Should be used with cleaner quarterly statement packages when exact numbers are needed quickly."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "datasets": [
+      {
+        "manifest_path": "/Users/averyromain/FinModAI/data/training/10-k-2025-as-filed/manifest.json",
+        "chunks_path": "/Users/averyromain/FinModAI/data/training/10-k-2025-as-filed/chunks.jsonl",
+        "dataset_dir": "/Users/averyromain/FinModAI/data/training/10-k-2025-as-filed",
+        "page_count": 80,
+        "chunk_count": 80,
+        "source_url": null,
+        "access_status": null
+      },
+      {
+        "manifest_path": "/Users/averyromain/FinModAI/data/training/10-q4-2024-as-filed/manifest.json",
+        "chunks_path": "/Users/averyromain/FinModAI/data/training/10-q4-2024-as-filed/chunks.jsonl",
+        "dataset_dir": "/Users/averyromain/FinModAI/data/training/10-q4-2024-as-filed",
+        "page_count": 121,
+        "chunk_count": 119,
+        "source_url": null,
+        "access_status": null
+      },
+      {
+        "manifest_path": "/Users/averyromain/FinModAI/data/training/10-k-q4-2023-as-filed/manifest.json",
+        "chunks_path": "/Users/averyromain/FinModAI/data/training/10-k-q4-2023-as-filed/chunks.jsonl",
+        "dataset_dir": "/Users/averyromain/FinModAI/data/training/10-k-q4-2023-as-filed",
+        "page_count": 80,
+        "chunk_count": 81,
+        "source_url": null,
+        "access_status": null
+      },
+      {
+        "manifest_path": "/Users/averyromain/FinModAI/data/training/10-k-2022-as-filed/manifest.json",
+        "chunks_path": "/Users/averyromain/FinModAI/data/training/10-k-2022-as-filed/chunks.jsonl",
+        "dataset_dir": "/Users/averyromain/FinModAI/data/training/10-k-2022-as-filed",
+        "page_count": 80,
+        "chunk_count": 81,
+        "source_url": null,
+        "access_status": null
+      }
+    ]
+  }
+}

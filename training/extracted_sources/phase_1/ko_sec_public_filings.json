@@ -1,0 +1,177 @@
+{
+  "id": "ko_sec_public_filings",
+  "title": "COCA COLA CO General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ko",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent KO SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "COCA COLA CO General SEC Filings",
+    "company_name": "COCA COLA CO",
+    "ticker": "KO",
+    "cik": "0000021344",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-20",
+      "2026-02-20",
+      "2026-02-10",
+      "2026-01-14",
+      "2025-12-10",
+      "2025-10-23",
+      "2025-10-21",
+      "2025-10-16",
+      "2025-07-24",
+      "2025-07-22"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Our debt management policies, in conjunction with our share repurchase program and investment activity, can result in current liabilities exceeding current assets.",
+      "Purchases of Stock for Treasury In 2019, our Board of Directors authorized the 2019 Plan, a share repurchase plan of up to 150 million shares of the Company\u2019s common stock."
+    ],
+    "liquidity_notes": [
+      "Lines of credit and other short-term borrowings are expected to fluctuate depending upon current liquidity needs, especially at international subsidiaries."
+    ],
+    "governance_notes": [
+      "On October 16, 2025, the Board of Directors (the \u201cBoard\u201d) of The Coca-Cola Company (the \u201cCompany\u201d) elected Max Levchin as a Director of the Company, effective immediately, and also appointed Mr."
+    ],
+    "controls_and_risk_notes": [
+      "CONTROLS AND PROCEDURES Evaluation of Disclosure Controls and Procedures The Company, under the supervision and with the participation of its management, including the Chief Executive Officer and the Chief Financial Officer, evaluated the effectiveness of the design and operation of the Company\u2019s \u201cdisclosure controls and procedures\u201d (as defined in Rule 13a-15(e) under the Exchange Act) as of the end of the period covered by this report.",
+      "\u2610 Indicate by check mark whether the Registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Risk Factors\u201d and elsewhere in this report; and those described from time to time in our future reports filed with the Securities and Exchange Commission."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-ko",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ko/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ko/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ko/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-02-20",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2026-02-19 2026-02-19 ko:CommonStock0.25ParValueMember 2026-02-19 2026-02-19 ko:A1.875NotesDue2026Member 2026-02-19 2026-02-19 ko:A0.750NotesDue2026Member 2026-02-19 2026-02-19 ko:A1.125NotesDue2027Member 2026-02-19 2026-02-19 0000021"
+      },
+      {
+        "label": "10-K 2026-02-20",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 FY False http://fasb.org/us-gaap/2025#AssetsOfDisposalGroupIncludingDiscontinuedOperation http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AssetsOfDisposalGroupIncludingDiscontinuedOperation http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-"
+      },
+      {
+        "label": "8-K 2026-02-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2026-02-10 2026-02-10 ko:CommonStock0.25ParValueMember 2026-02-10 2026-02-10 ko:A1.875NotesDue2026Member 2026-02-10 2026-02-10 ko:A0.750NotesDue2026Member 2026-02-10 2026-02-10 ko:A1.125NotesDue2027Member 2026-02-10 2026-02-10 0000021"
+      },
+      {
+        "label": "8-K 2026-01-14",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "KO 8-K false - 2026-01-13 2026-01-13 ko:CommonStock0.25ParValueMember 2026-01-13 2026-01-13 ko:Sec1.875NotesDue2026Member 2026-01-13 2026-01-13 ko:Sec0.750NotesDue2026Member 2026-01-13 2026-01-13 ko:Sec1.125NotesDue2027Member 2026-01-13 2026-01-13 000002"
+      },
+      {
+        "label": "8-K 2025-12-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "KO 8-K false - 2025-12-10 2025-12-10 ko:CommonStock0.25ParValueMember 2025-12-10 2025-12-10 ko:Sec1.875NotesDue2026Member 2025-12-10 2025-12-10 ko:Sec0.750NotesDue2026Member 2025-12-10 2025-12-10 ko:Sec1.125NotesDue2027Member 2025-12-10 2025-12-10 000002"
+      },
+      {
+        "label": "10-Q 2025-10-23",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 12/31 Q3 2025 http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#PrepaidExpenseAndOtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#PrepaidExpenseAndOtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncu"
+      },
+      {
+        "label": "8-K 2025-10-21",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2025-10-21 2025-10-21 ko:CommonStock0.25ParValueMember 2025-10-21 2025-10-21 ko:A1.875NotesDue2026Member 2025-10-21 2025-10-21 ko:A0.750NotesDue2026Member 2025-10-21 2025-10-21 ko:A1.125NotesDue2027Member 2025-10-21 2025-10-21 0000021"
+      },
+      {
+        "label": "8-K 2025-10-16",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2025-10-16 2025-10-16 ko:CommonStock0.25ParValueMember 2025-10-16 2025-10-16 ko:A1.875NotesDue2026Member 2025-10-16 2025-10-16 ko:A0.750NotesDue2026Member 2025-10-16 2025-10-16 ko:A1.125NotesDue2027Member 2025-10-16 2025-10-16 0000021"
+      },
+      {
+        "label": "10-Q 2025-07-24",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 12/31 Q2 2025 http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#PrepaidExpenseAndOtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#PrepaidExpenseAndOtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncu"
+      },
+      {
+        "label": "8-K 2025-07-22",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2025-07-22 2025-07-22 ko:CommonStock0.25ParValueMember 2025-07-22 2025-07-22 ko:A1.875NotesDue2026Member 2025-07-22 2025-07-22 ko:A0.750NotesDue2026Member 2025-07-22 2025-07-22 ko:A1.125NotesDue2027Member 2025-07-22 2025-07-22 0000021"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-02-20",
+      "text_preview": "False - 2026-02-19 2026-02-19 ko:CommonStock0.25ParValueMember 2026-02-19 2026-02-19 ko:A1.875NotesDue2026Member 2026-02-19 2026-02-19 ko:A0.750NotesDue2026Member 2026-02-19 2026-02-19 ko:A1.125NotesDue2027Member 2026-02-19 2026-02-19 ko:A125NotesDue2029KO29AMember 2026-02-19 2026-02-19 ko:A125NotesDue2029KO29BMember 2026-02-19 2026-02-19 ko:A0400NotesDue2030Member 2026-02-19 2026-02-19 ko:A1.250NotesDue2031Member 2026-02-19 2026-02-19 ko:A3.125NotesDue2032Member 2026-02-19 2026-02-19 ko:A375NotesDue2033Member 2026-02-19 2026-02-19 ko:A500",
+      "char_count": 7185,
+      "word_count": 996,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/21344/000162828026010052/ko-20260219.htm"
+    },
+    {
+      "label": "10-K 2026-02-20",
+      "text_preview": "2025 FY False http://fasb.org/us-gaap/2025#AssetsOfDisposalGroupIncludingDiscontinuedOperation http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AssetsOfDisposalGroupIncludingDiscontinuedOperation http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AssetsOfDisposalGroupIncludingDiscontinuedOperation http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#IncomeTaxExpenseBenefit http://fasb.org/us-gaap/2025#ProfitLoss http://fasb.org/us-gaap/2025#InterestExpenseNonoperating http://fasb.org/us-gaap/2025#InterestExpenseNonoperating http://fa",
+      "char_count": 672167,
+      "word_count": 96120,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/21344/000162828026010047/ko-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-10",
+      "text_preview": "False - 2026-02-10 2026-02-10 ko:CommonStock0.25ParValueMember 2026-02-10 2026-02-10 ko:A1.875NotesDue2026Member 2026-02-10 2026-02-10 ko:A0.750NotesDue2026Member 2026-02-10 2026-02-10 ko:A1.125NotesDue2027Member 2026-02-10 2026-02-10 ko:A125NotesDue2029KO29AMember 2026-02-10 2026-02-10 ko:A125NotesDue2029KO29BMember 2026-02-10 2026-02-10 ko:A0400NotesDue2030Member 2026-02-10 2026-02-10 ko:A1.250NotesDue2031Member 2026-02-10 2026-02-10 ko:A3.125NotesDue2032Member 2026-02-10 2026-02-10 ko:A375NotesDue2033Member 2026-02-10 2026-02-10 ko:A500",
+      "char_count": 5476,
+      "word_count": 752,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/21344/000162828026006642/ko-20260210.htm"
+    }
+  ]
+}

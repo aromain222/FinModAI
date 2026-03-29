@@ -1,0 +1,177 @@
+{
+  "id": "qcom_sec_public_filings",
+  "title": "QUALCOMM INC/DE General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-qcom",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent QCOM SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "QUALCOMM INC/DE General SEC Filings",
+    "company_name": "QUALCOMM INC/DE",
+    "ticker": "QCOM",
+    "cik": "0000804328",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-19",
+      "2026-02-04",
+      "2026-02-04",
+      "2026-01-16",
+      "2025-12-16",
+      "2025-12-10",
+      "2025-11-05",
+      "2025-11-05",
+      "2025-09-02",
+      "2025-08-25"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Repurchases may be made in the open market, through 10b5-1 programs, through accelerated share repurchase programs, in privately negotiated transactions or through the use of derivative instruments.",
+      "To reflect share repurchases in the consolidated balance sheet, we (i) reduce common stock for the par value of the shares, (ii) reduce paid-in capital for the amount in excess of par to zero during the quarter in which the shares are repurchased and (iii) record the residual amount, if any, to retained earnings."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Based on this evaluation, our principal executive officer and our principal financial officer concluded that our disclosure controls and procedures were effective as of the end of the period covered by this Quarterly Report.",
+      "Changes in Internal Control over Financial Reporting.",
+      "Factors that could cause or contribute to such differences in results and outcomes include without limitation those discussed under the heading \u201cRisk Factors\u201d below, as well as those discussed elsewhere in this Quarterly Report ."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-qcom",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-qcom/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-qcom/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-qcom/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "QUALCOMM INC/DE false - 2026-03-17 2026-03-17 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 March 17, 2026 Date of Report (Date of earliest event reported) QUALCOM"
+      },
+      {
+        "label": "10-Q 2026-02-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "QUALCOMM INC/DE 2026 Q1 false --09-27 Unlimited 445 354 455 - qcom:numberOfBusinesses 2025-09-29 2025-12-28 2026-02-02 2025-12-28 2025-09-28 2024-09-30 2024-12-29 2024-"
+      },
+      {
+        "label": "8-K 2026-02-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "QUALCOMM INC/DE false - 2026-02-04 2026-02-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 February 4, 2026 Date of Report (Date of earliest event reported) QUALC"
+      },
+      {
+        "label": "8-K 2026-01-16",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "QUALCOMM INC/DE false - 2026-01-13 2026-01-13 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 January 13, 2026 Date of Report (Date of earliest event reported) QUALC"
+      },
+      {
+        "label": "8-K 2025-12-16",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "QUALCOMM INC/DE false - 2025-12-10 2025-12-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 December 10, 2025 Date of Report (Date of earliest event reported) QUAL"
+      },
+      {
+        "label": "8-K 2025-12-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "QUALCOMM INC/DE false --09-27 - 2025-12-09 2025-12-09 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 December 9, 2025 Date of Report (Date of earliest event reporte"
+      },
+      {
+        "label": "10-K 2025-11-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "QUALCOMM INC/DE 2025 FY false --09-28 433 P01M P01M http://fasb.org/us-gaap/2025#OtherOperatingIncomeExpenseNet http://fasb.org/us-gaap/2025#OtherOperatingIncomeExpenseNet http://fasb.org/us-gaap/2025#OtherOperatingIncomeExpenseNet http://fasb.org/us-gaap/2025#OtherOperatingIncomeExpenseNet htt"
+      },
+      {
+        "label": "8-K 2025-11-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "QUALCOMM INC/DE false - 2025-11-05 2025-11-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 November 5, 2025 Date of Report (Date of earliest event reported) QUALC"
+      },
+      {
+        "label": "8-K 2025-09-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "QUALCOMM INC/DE false 5775 Morehouse Drive San Diego California - 2025-09-02 2025-09-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 September 2, 2025 Date of Rep"
+      },
+      {
+        "label": "8-K 2025-08-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "QUALCOMM INC/DE false 5775 Morehouse Drive San Diego California - 2025-08-25 2025-08-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 August 25, 2025 Date of Repor"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-19",
+      "text_preview": "QUALCOMM INC/DE false - 2026-03-17 2026-03-17 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 March 17, 2026 Date of Report (Date of earliest event reported) QUALCOMM Incorporated (Exact name of registrant as specified in its charter) Delaware (State or other jurisdiction of incorporation) 000-19528 95-3685934 (Commission File Number) (IRS Employer Identification No.) 5775 Morehouse Drive , San Diego , California 92121 (Address of principal executive offices) (Zip Code) 858 - 587-1121 (Registrant\u2019s telephone number, including area co",
+      "char_count": 5977,
+      "word_count": 843,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/804328/000080432826000041/qcom-20260317.htm"
+    },
+    {
+      "label": "10-Q 2026-02-04",
+      "text_preview": "QUALCOMM INC/DE 2026 Q1 false --09-27 Unlimited 445 354 455 - qcom:numberOfBusinesses 2025-09-29 2025-12-28 2026-02-02 2025-12-28 2025-09-28 2024-09-30 2024-12-29 2024-09-29 2024-12-29 2025-09-28 2024-09-29 2025-09-29 2025-12-28 2024-09-30 2024-12-29",
+      "char_count": 212784,
+      "word_count": 30945,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/804328/000080432826000017/qcom-20251228.htm"
+    },
+    {
+      "label": "8-K 2026-02-04",
+      "text_preview": "QUALCOMM INC/DE false - 2026-02-04 2026-02-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 February 4, 2026 Date of Report (Date of earliest event reported) QUALCOMM Incorporated (Exact name of registrant as specified in its charter) Delaware (State or other jurisdiction of incorporation) 000-19528 95-3685934 (Commission File Number) (IRS Employer Identification No.) 5775 Morehouse Dr. , San Diego , California 92121 (Address of principal executive offices) (Zip Code) 858 - 587-1121 (Registrant\u2019s telephone number, including area co",
+      "char_count": 3787,
+      "word_count": 551,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/804328/000080432826000016/qcom-20260204.htm"
+    }
+  ]
+}

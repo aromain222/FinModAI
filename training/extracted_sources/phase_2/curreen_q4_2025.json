@@ -1,0 +1,41 @@
+{
+  "id": "curreen_q4_2025",
+  "title": "Curreen Capital Q4 2025 Letter",
+  "file_path": "/Users/averyromain/Downloads/Q4+2025+Letter.pdf",
+  "source_type": "investor_letter",
+  "tier": "B",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "eval_cases",
+  "recommended_phase": 2,
+  "template_key": "investor_letter",
+  "assistant_training_targets": [
+    "thesis articulation",
+    "portfolio commentary",
+    "risk framing",
+    "what changed",
+    "decision language"
+  ],
+  "source_summary": "Small-cap value letter with ugly duckling and crazy cheap framework.",
+  "strengths": [
+    "simple thesis templates",
+    "spinoff framing"
+  ],
+  "weaknesses": [
+    "limited depth"
+  ],
+  "fields": {
+    "title": null,
+    "manager": null,
+    "date": null,
+    "strategy_style": null,
+    "performance_context": null,
+    "top_themes": null,
+    "positions_discussed": null,
+    "thesis_points": null,
+    "valuation_language": null,
+    "risks_discussed": null,
+    "portfolio_actions": null,
+    "tone_notes": null,
+    "best_quotes_or_phrases": null
+  }
+}

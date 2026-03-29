@@ -1,0 +1,177 @@
+{
+  "id": "etn_sec_public_filings",
+  "title": "Eaton Corp plc General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-etn",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent ETN SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Eaton Corp plc General SEC Filings",
+    "company_name": "Eaton Corp plc",
+    "ticker": "ETN",
+    "cik": "0001551182",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-10",
+      "2026-03-02",
+      "2026-03-02",
+      "2026-02-26",
+      "2026-02-06",
+      "2026-02-03",
+      "2026-01-26",
+      "2025-11-20",
+      "2025-11-04",
+      "2025-11-04"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "On February 23, 2022, the Board of Directors adopted a share repurchase program for repurchases of ordinary shares up to $ 5.0 billion to be made during the three-year period commencing on that date (2022 Program).",
+      "Share Repurchases On February 23, 2022, the Board of Directors adopted a share repurchase program for repurchases of ordinary shares up to $5.0 billion to be made during the three-year period commencing on that date (2022 Program)."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Pursuant to Rules 13a-15(e) and 15d-15(e) of the Exchange Act, an evaluation was performed under the supervision and with the participation of Eaton's management, including the Principal Executive Officer and Principal Financial Officer, of the effectiveness of the design and operation of the Company's disclosure controls and procedures.",
+      "\u201cReport of Independent Registered Public Accounting Firm\u201d relating to internal control over financial reporting as of December 31, 2025 is included in Item 15 of this Form 10-K.",
+      "Risk Factors.), our robust risk mitigation strategies have been effective to date."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-etn",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-etn/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-etn/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-etn/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false IE - 2026-03-06 2026-03-06 etn:Three625SeniorNotesDue2035Member 2026-03-06 2026-03-06 2026-03-06 2026-03-06 etn:Four450SeniorNotesDue2030Member 2026-03-06 2026-03-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 2"
+      },
+      {
+        "label": "8-K 2026-03-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-25 2026-02-25 etn:Three625SeniorNotesDue2035Member 2026-02-25 2026-02-25 etn:Four450SeniorNotesDue2030Member 2026-02-25 2026-02-25 etn:OrdinaryShares001ParValueMember 2026-02-25 2026-02-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington,"
+      },
+      {
+        "label": "8-K 2026-03-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-26 2026-02-26 etn:Four450SeniorNotesDue2030Member 2026-02-26 2026-02-26 etn:Three625SeniorNotesDue2035Member 2026-02-26 2026-02-26 2026-02-26 2026-02-26 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 2054"
+      },
+      {
+        "label": "10-K 2026-02-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentNet http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentNet http://f"
+      },
+      {
+        "label": "8-K 2026-02-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-06 2026-02-06 etn:Three625SeniorNotesDue2035Member 2026-02-06 2026-02-06 2026-02-06 2026-02-06 etn:Four450SeniorNotesDue2030Member 2026-02-06 2026-02-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 2054"
+      },
+      {
+        "label": "8-K 2026-02-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-03 2026-02-03 2026-02-03 2026-02-03 etn:SeniorNotes4.450Due2030Member 2026-02-03 2026-02-03 etn:SeniorNotes3.625Due2035Member 2026-02-03 2026-02-03 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D"
+      },
+      {
+        "label": "8-K 2026-01-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false Eaton Corp plc 353 - 2026-01-26 2026-01-26 etn:Four450SeniorNotesDue2030Member 2026-01-26 2026-01-26 2026-01-26 2026-01-26 etn:Three625SeniorNotesDue2035Member 2026-01-26 2026-01-26 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Wa"
+      },
+      {
+        "label": "8-K 2025-11-20",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 353 - 2025-11-14 2025-11-14 etn:Three625SeniorNotesDue2035Member 2025-11-14 2025-11-14 etn:Four450SeniorNotesDue2030Member 2025-11-14 2025-11-14 2025-11-14 2025-11-14 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C."
+      },
+      {
+        "label": "10-Q 2025-11-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q3 12/31 http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#CostOfRevenue http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#ResearchAndDevelopmentExpense http://fasb.org/us-gaap/2025#SellingGeneralAndAdministrativeEx"
+      },
+      {
+        "label": "8-K 2025-11-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-04 2025-11-04 2025-11-04 2025-11-04 etn:SeniorNotes4.450Due2030Member 2025-11-04 2025-11-04 etn:SeniorNotes3.625Due2035Member 2025-11-04 2025-11-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-10",
+      "text_preview": "false IE - 2026-03-06 2026-03-06 etn:Three625SeniorNotesDue2035Member 2026-03-06 2026-03-06 2026-03-06 2026-03-06 etn:Four450SeniorNotesDue2030Member 2026-03-06 2026-03-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): March 6, 2026 EATON CORPORATION plc (Exact name of registrant as specified in its charter) Ireland 000-54863 98-1059235 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) Eato",
+      "char_count": 22267,
+      "word_count": 3670,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1551182/000114036126008836/ef20067414_8k.htm"
+    },
+    {
+      "label": "8-K 2026-03-02",
+      "text_preview": "false - 2026-02-25 2026-02-25 etn:Three625SeniorNotesDue2035Member 2026-02-25 2026-02-25 etn:Four450SeniorNotesDue2030Member 2026-02-25 2026-02-25 etn:OrdinaryShares001ParValueMember 2026-02-25 2026-02-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 25, 2026 EATON CORPORATION plc (Exact name of registrant as specified in its charter) Ireland 000-54863 98-1059235 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identificatio",
+      "char_count": 4806,
+      "word_count": 690,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1551182/000114036126007362/ef20066947_8k.htm"
+    },
+    {
+      "label": "8-K 2026-03-02",
+      "text_preview": "false - 2026-02-26 2026-02-26 etn:Four450SeniorNotesDue2030Member 2026-02-26 2026-02-26 etn:Three625SeniorNotesDue2035Member 2026-02-26 2026-02-26 2026-02-26 2026-02-26 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 26, 2026 EATON CORPORATION plc (Exact name of registrant as specified in its charter) Ireland 000-54863 98-1059235 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) Eat",
+      "char_count": 8813,
+      "word_count": 1327,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1551182/000114036126007206/ef20066779_8k.htm"
+    }
+  ]
+}

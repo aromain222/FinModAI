@@ -1,0 +1,90 @@
+{
+  "id": "comps_workbook_107_21",
+  "title": "107-21 Comparable Company Analysis",
+  "file_path": "/Users/averyromain/Downloads/107-21-Comparable-Company-Analysis.xlsx",
+  "source_type": "workbook",
+  "tier": "A",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "workbook",
+  "assistant_training_targets": [
+    "model architecture",
+    "formula mapping",
+    "schedule logic",
+    "valuation mechanics"
+  ],
+  "source_summary": "Strong comps workbook with real output structure and valuation summary logic.",
+  "strengths": [
+    "comps structure",
+    "valuation summary",
+    "football-field feel"
+  ],
+  "weaknesses": [
+    "not a full IC memo"
+  ],
+  "fields": {
+    "title": "107-21 Comparable Company Analysis",
+    "model_type": "comparable company analysis",
+    "sheet_names": [
+      "Public-Comps",
+      "ValSum"
+    ],
+    "key_schedules": [],
+    "core_formulas": [
+      "Public-Comps: 305 formulas in first 1720 sampled cells",
+      "ValSum: 100 formulas in first 507 sampled cells"
+    ],
+    "assumption_categories": [],
+    "output_tabs": [],
+    "sensitivity_support": [],
+    "quality_notes": [
+      "Strong comps workbook with real output structure and valuation summary logic."
+    ]
+  },
+  "source_metadata": {
+    "file_present": true,
+    "source_extension": ".xlsx",
+    "extraction_mode": "workbook_structure",
+    "sheet_names": [
+      "Public-Comps",
+      "ValSum"
+    ],
+    "formula_counts": {
+      "Public-Comps": 305,
+      "ValSum": 100
+    },
+    "dimensions": {
+      "Public-Comps": "A1:AN43",
+      "ValSum": "B1:M39"
+    },
+    "sampled_cells": {
+      "Public-Comps": 1720,
+      "ValSum": 507
+    }
+  },
+  "chunking": {
+    "strategy": "sheet_level",
+    "chunk_count": 2,
+    "chunks": [
+      {
+        "label": "Public-Comps",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "dimension=A1:AN43; formulas=305"
+      },
+      {
+        "label": "ValSum",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "dimension=B1:M39; formulas=100"
+      }
+    ]
+  },
+  "text_samples": [
+    "dimension=A1:AN43; formulas=305",
+    "dimension=B1:M39; formulas=100"
+  ],
+  "extraction_status": "extracted",
+  "extracted_at": "2026-03-27T18:48:10.058419+00:00"
+}

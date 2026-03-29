@@ -1,0 +1,62 @@
+{
+  "id": "scraped_intc_earnings_reference",
+  "title": "Intel Scraped Earnings Package",
+  "file_path": "/Users/averyromain/FinModAI/finmodai-next/data/INTC/earnings",
+  "source_type": "earnings_reference",
+  "tier": "B",
+  "primary_bucket": "financial_reasoning",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "earnings_reference",
+  "assistant_training_targets": [
+    "earnings-package interpretation",
+    "KPI extraction",
+    "prepared-remarks compression",
+    "investor-facing results framing"
+  ],
+  "source_summary": "Scraper-collected earnings releases and related materials for Intel.",
+  "strengths": [
+    "official company earnings package",
+    "good for KPI prioritization",
+    "ties company messaging to investor materials"
+  ],
+  "weaknesses": [
+    "import is derived from scraped titles and document presence, not full manual extraction"
+  ],
+  "fields": {
+    "title": "Intel Scraped Earnings Package",
+    "company_name": "Intel",
+    "quarter": "recent periods",
+    "source_name": "Company Investor Relations",
+    "sections": [
+      "https www.intc.com news events press releases detail 1753 intel reports third quarter 2025 financial results",
+      "https www.intc.com news events press releases detail 1751 intel to report third quarter 2025 financial results",
+      "Earnings Release",
+      "Jan 22 2026 4 01 PM EST Intel Reports Fourth Quarter and Full Year 2025 Financial Results"
+    ],
+    "key_metrics": [
+      "Use the earnings package to anchor the reported quarter before relying on transcript tone or media interpretation.",
+      "Prioritize revenue, margin, guidance, and segment signals from the latest release set."
+    ],
+    "management_themes": [
+      "Management-selected earnings materials indicate which metrics and business lines investors are meant to focus on.",
+      "Cross-check the release package against filings before changing model assumptions."
+    ],
+    "analyst_relevance": [
+      "Good for earnings-package compression and KPI prioritization.",
+      "Useful source lane between raw filings and full transcripts."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_dir": "/Users/averyromain/FinModAI/finmodai-next/data/INTC",
+    "categories": {
+      "10k": 8,
+      "10q": 4,
+      "earnings": 4,
+      "presentation": 3,
+      "transcript": 4
+    },
+    "document_count": 23
+  }
+}

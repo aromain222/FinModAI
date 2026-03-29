@@ -1,0 +1,177 @@
+{
+  "id": "okta_sec_public_filings",
+  "title": "Okta, Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-okta",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent OKTA SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Okta, Inc. General SEC Filings",
+    "company_name": "Okta, Inc.",
+    "ticker": "OKTA",
+    "cik": "0001660134",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-23",
+      "2026-03-11",
+      "2026-03-05",
+      "2026-03-04",
+      "2026-01-05",
+      "2025-12-19",
+      "2025-12-03",
+      "2025-12-02",
+      "2025-08-27",
+      "2025-08-26"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "We cannot guarantee that our Share Repurchase Program will be fully consummated or will enhance long-term stockholder value, and stock repurchases could increase the volatility of the trading price of our Class A common stock and diminish our cash reserves.",
+      "On January 5, 2026, we announced that our board of directors (our \u201cboard\u201d) approved a stock repurchase program with authorization to purchase up to $1 billion of our Class A common stock from time to time (the \u201cShare Repurchase Program\u201d)."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "(the \u201cCompany\u201d), upon the recommendation of its Nominating and Corporate Governance Committee (the \u201cNominating Committee\u201d), expanded the size of the Board from 10 to 11 directors and appointed Rob Bernshteyn and Paul Sagan as independent directors to the Board, effective December 19, 2025."
+    ],
+    "controls_and_risk_notes": [
+      "If we fail to maintain an effective system of disclosure controls and internal control over financial reporting, our ability to produce timely and accurate financial statements or comply with applicable regulations could be impaired.",
+      "\u2610 Indicate by check mark whether the Registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "For additional information regarding the cybersecurity risks that we face, see \u201c Risk Factors \u201d included under Part I, Item 1A of this Annual Report on Form 10-K."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-okta",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-okta/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-okta/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-okta/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-23",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-03-19 2026-03-19 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ___________________________________ FORM 8-K ___________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report"
+      },
+      {
+        "label": "8-K 2026-03-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-03-05 2026-03-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ___________________________________ FORM 8-K ___________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report"
+      },
+      {
+        "label": "10-K 2026-03-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2026 FY P1Y P3Y 0.0041912 0.33 0.33 0.33 93 184 340 181 181 - okta:segment okta:tradingDay okta:renewalOption okta:plaintiff okta:vote okta:numberOfIncentivePlan okta:offering_period 2025-02-01 2026-01-31 2"
+      },
+      {
+        "label": "8-K 2026-03-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-03-04 2026-03-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ___________________________________ FORM 8-K ___________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report"
+      },
+      {
+        "label": "8-K 2026-01-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-05 2026-01-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ___________________________________ FORM 8-K ___________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report"
+      },
+      {
+        "label": "8-K 2025-12-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-12-15 2025-12-15 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ___________________________________ FORM 8-K ___________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report"
+      },
+      {
+        "label": "10-Q 2025-12-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false January 31 2026 Q3 33 33 33 92 - okta:tradingDay okta:plaintiff 2025-02-01 2025-10-31 2025-11-28 2025-11-28 2025-10-31"
+      },
+      {
+        "label": "8-K 2025-12-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-12-02 2025-12-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ___________________________________ FORM 8-K ___________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report"
+      },
+      {
+        "label": "10-Q 2025-08-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false January 31 2026 Q2 33 33 33 0 357 50 - okta:tradingDay okta:employee okta:plaintiff 2025-02-01 2025-07-31 2025-08-22 2025-08-22 20"
+      },
+      {
+        "label": "8-K 2025-08-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-26 2025-08-26 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ___________________________________ FORM 8-K ___________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-23",
+      "text_preview": "false - 2026-03-19 2026-03-19 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ___________________________________ FORM 8-K ___________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (date of earliest event reported) March 19, 2026 ___________________________________ Okta, Inc. (Exact name of registrant as specified in its charter) ___________________________________ Delaware 001-38044 26-4175727 (State or other jurisdiction of incorporation or organization) (Commission File Number) (I.R.S. Employer Identification Number) 100 First Street, Suite 600 San Fra",
+      "char_count": 3503,
+      "word_count": 498,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1660134/000166013426000029/okta-20260319.htm"
+    },
+    {
+      "label": "8-K 2026-03-11",
+      "text_preview": "false - 2026-03-05 2026-03-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ___________________________________ FORM 8-K ___________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (date of earliest event reported) March 5, 2026 ___________________________________ Okta, Inc. (Exact name of registrant as specified in its charter) ___________________________________ Delaware 001-38044 26-4175727 (State or other jurisdiction of incorporation or organization) (Commission File Number) (I.R.S. Employer Identification Number) 100 First Street, Suite 600 San Fran",
+      "char_count": 3392,
+      "word_count": 479,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1660134/000166013426000024/okta-20260305.htm"
+    },
+    {
+      "label": "10-K 2026-03-05",
+      "text_preview": "false 2026 FY P1Y P3Y 0.0041912 0.33 0.33 0.33 93 184 340 181 181 - okta:segment okta:tradingDay okta:renewalOption okta:plaintiff okta:vote okta:numberOfIncentivePlan okta:offering_period 2025-02-01 2026-01-31 2025-07-31 2026-02-27 2026-02-27 2026-01-31 2025-01-31 2026-01-31 2025-01-31 2025-01-31 2026-01-31",
+      "char_count": 393444,
+      "word_count": 57940,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1660134/000166013426000020/okta-20260131.htm"
+    }
+  ]
+}

@@ -1,0 +1,117 @@
+{
+  "id": "plural_q4_2025",
+  "title": "Plural Partners Fund Letter 2025 Q4",
+  "file_path": "/Users/averyromain/Downloads/Plural_Partners_Fund_Letter_2025_Q4 (1).pdf",
+  "source_type": "investor_letter",
+  "tier": "A",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "eval_cases",
+  "recommended_phase": 1,
+  "template_key": "investor_letter",
+  "assistant_training_targets": [
+    "thesis articulation",
+    "portfolio commentary",
+    "risk framing",
+    "what changed",
+    "decision language"
+  ],
+  "source_summary": "Real concentrated value letter with Watches of Switzerland and ContextLogic writeups.",
+  "strengths": [
+    "intrinsic-value language",
+    "contributor/detractor structure",
+    "exit reasoning"
+  ],
+  "weaknesses": [
+    "limited breadth"
+  ],
+  "fields": {
+    "title": "Plural Partners Fund Letter 2025 Q4",
+    "manager": null,
+    "date": "April 1, 2020",
+    "strategy_style": "long/short, value-oriented, hedge-fund style, partnership letter",
+    "performance_context": [
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 1 PLURAL INVESTING LLC Fund (Gross) Fund (Net) MSCI World Russell 2000 MSCI EAFE Small Cap FTSE AIM All-Share 20201 122.9% 98.0% 46.8% 72.9% 55.0% 87.8% 2021 38.7% 30.4% 21.8% 14.8% 10.1% 5.0% 2022 -32.0% -32.4% -18.1% ",
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 2 ------------ We estimate that our portfolio on a look-through basis trades for 7.7x FCF in three years\u2019 time and will still be growing at low double-digit rates then. Our businesses have strong balance sheets with typ",
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 3 Despite the company\u2019s continued growth, WOSG shares declined by 15% in 2025. We believe that investors underappreciate the quality of WOSG\u2019s business and that its economics more closely resemble a subsidiary of Rolex "
+    ],
+    "top_themes": [],
+    "positions_discussed": [
+      "LOGC"
+    ],
+    "thesis_points": [
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 1 PLURAL INVESTING LLC Fund (Gross) Fund (Net) MSCI World Russell 2000 MSCI EAFE Small Cap FTSE AIM All-Share 20201 122.9% 98.0% 46.8% 72.9% 55.0% 87.8% 2021 38.7% 30.4% 21.8% 14.8% 10.1% 5.0% 2022 -32.0% -32.4% -18.1% ",
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 2 ------------ We estimate that our portfolio on a look-through basis trades for 7.7x FCF in three years\u2019 time and will still be growing at low double-digit rates then. Our businesses have strong balance sheets with typ",
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 3 Despite the company\u2019s continued growth, WOSG shares declined by 15% in 2025. We believe that investors underappreciate the quality of WOSG\u2019s business and that its economics more closely resemble a subsidiary of Rolex ",
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 4 $12/shr and that the risk we were taking at $5.8/shr was minimal because that was what the company\u2019s cash alone was worth. In December 2025, ContextLogic announced it was acquiring US Salt for $908mm. The acquisition "
+    ],
+    "valuation_language": [
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 1 PLURAL INVESTING LLC Fund (Gross) Fund (Net) MSCI World Russell 2000 MSCI EAFE Small Cap FTSE AIM All-Share 20201 122.9% 98.0% 46.8% 72.9% 55.0% 87.8% 2021 38.7% 30.4% 21.8% 14.8% 10.1% 5.0% 2022 -32.0% -32.4% -18.1% ",
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 2 ------------ We estimate that our portfolio on a look-through basis trades for 7.7x FCF in three years\u2019 time and will still be growing at low double-digit rates then. Our businesses have strong balance sheets with typ",
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 3 Despite the company\u2019s continued growth, WOSG shares declined by 15% in 2025. We believe that investors underappreciate the quality of WOSG\u2019s business and that its economics more closely resemble a subsidiary of Rolex ",
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 4 $12/shr and that the risk we were taking at $5.8/shr was minimal because that was what the company\u2019s cash alone was worth. In December 2025, ContextLogic announced it was acquiring US Salt for $908mm. The acquisition ",
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 6 Principles of Our Partnership I take the trust you place in me very seriously and view this as a partnership. These principles are inspired by a similar letter Warren Buffett wrote in 1962 to his partners at the begin"
+    ],
+    "risks_discussed": [
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 1 PLURAL INVESTING LLC Fund (Gross) Fund (Net) MSCI World Russell 2000 MSCI EAFE Small Cap FTSE AIM All-Share 20201 122.9% 98.0% 46.8% 72.9% 55.0% 87.8% 2021 38.7% 30.4% 21.8% 14.8% 10.1% 5.0% 2022 -32.0% -32.4% -18.1% ",
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 2 ------------ We estimate that our portfolio on a look-through basis trades for 7.7x FCF in three years\u2019 time and will still be growing at low double-digit rates then. Our businesses have strong balance sheets with typ",
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 4 $12/shr and that the risk we were taking at $5.8/shr was minimal because that was what the company\u2019s cash alone was worth. In December 2025, ContextLogic announced it was acquiring US Salt for $908mm. The acquisition ",
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 6 Principles of Our Partnership I take the trust you place in me very seriously and view this as a partnership. These principles are inspired by a similar letter Warren Buffett wrote in 1962 to his partners at the begin",
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 7 Important Disclosures This material does not constitute an offer or solicitation to purchase an interest in Plural Partners Fund LP, Plural Partners Fund Offshore (collectively herein as the \u201cFund\"), or any related ve"
+    ],
+    "portfolio_actions": [
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 2 ------------ We estimate that our portfolio on a look-through basis trades for 7.7x FCF in three years\u2019 time and will still be growing at low double-digit rates then. Our businesses have strong balance sheets with typ",
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 3 Despite the company\u2019s continued growth, WOSG shares declined by 15% in 2025. We believe that investors underappreciate the quality of WOSG\u2019s business and that its economics more closely resemble a subsidiary of Rolex ",
+      "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 4 $12/shr and that the risk we were taking at $5.8/shr was minimal because that was what the company\u2019s cash alone was worth. In December 2025, ContextLogic announced it was acquiring US Salt for $908mm. The acquisition "
+    ],
+    "tone_notes": "Real concentrated value letter with Watches of Switzerland and ContextLogic writeups.",
+    "best_quotes_or_phrases": [
+      "Principles of Our Partnership",
+      "look forward to updating the market on when the time is right"
+    ]
+  },
+  "source_metadata": {
+    "file_present": true,
+    "source_extension": ".pdf",
+    "extraction_mode": "pdf_text",
+    "page_count": 7,
+    "headings_detected": []
+  },
+  "chunking": {
+    "strategy": "page_groups",
+    "chunk_count": 4,
+    "chunks": [
+      {
+        "label": "pages_1_2",
+        "start_page": 1,
+        "end_page": 2,
+        "text_preview": "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 1 \n PLURAL INVESTING LLC Fund (Gross) Fund (Net) MSCI World Russell 2000 MSCI EAFE Small Cap FTSE AIM All-Share 20201 122.9% 98.0% 46.8% 72.9% 55.0% 87.8% 2021 38.7% 30.4% 21.8% 14.8% 10.1% 5.0% 2022 -32.0% -32.4% -18.1% -20.4% -21.4% -38.0% 2023 -5.5% -6.3% 23.8% 16.1% 13.2% -1.5% 2024 9.2% 8.0% 18.7% 11.5% 1.8% -5.5% 2025 0.8% -0.2% 21.1% 12.8% 31.8% 16.8% Annualized 14.6% 10.3% 18.1% 15.6% 13.2% 5.1% \nNote: All indices are total return and measured in US dollars. 1Results for 2020 represent the total return of the Fund and Comparative Indexes from the inception date of the Fund on April 1, 2020 to December 31, 2020. January 20, 2026 To our Partners: The Fund1 delivered a net return of 5.7% in Q4. Please refer to your individual statements for exact performance as returns will vary by fund, class, and timing of investment. Our goal is to deliver returns over a five-year period significantly above that of global markets. We are value investors. We invest in businesses that we believe are worth substantially more than the price they are trading at. We think of risk primarily as the chance of a loss over a five-year horizon and not the temporary drawdowns in stock prices that occur from time to time. We manage this risk by only investing in businesses trading at a substantial discount to a conservatively calculated intrinsic value and that we would be happy to own if the market shut for five years. We welcome stock p"
+      },
+      {
+        "label": "pages_3_4",
+        "start_page": 3,
+        "end_page": 4,
+        "text_preview": "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 3 \nDespite the company\u2019s continued growth, WOSG shares declined by 15% in 2025. We believe that investors underappreciate the quality of WOSG\u2019s business and that its economics more closely resemble a subsidiary of Rolex than a typical retailer. A key reason for the company\u2019s economics is the lengthy waiting lists for most Rolex watches, which results in almost guaranteed sales and significant pricing power. While waiting lists have reduced since their peak in 2022, our data suggests they remain very healthy and stopped declining in the US roughly 18 months ago. Our investment thesis in WOSG is not based on tariffs or short-term macro fluctuations, but instead that the US offers a large market for the company to deploy capital at 20% returns. That thesis continued to play out last year. We estimate that WOSG\u2019s share of Rolex stores in the US increased from 7% to 9%, while its share of sales is higher because it owns several flagship stores that are much larger than the average store. Another opportunity for WOSG to gain share is to buy stores run by mom & pops who are unable or unwilling to invest the million(s) of dollars required to refurbish stores up to Rolex\u2019s standards. WOSG management gave various hints throughout the year that they are close to making a Rolex acquisition, with the latest on their earnings call in December where they stated they had \u201cbig plans\u201d for Rolex acquisitions and \u201clook forward to updat"
+      },
+      {
+        "label": "pages_5_6",
+        "start_page": 5,
+        "end_page": 6,
+        "text_preview": "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 5 \nDial-In Details for Quarterly Call Time: Tuesday January 27 at 10am Eastern Time / 3pm UK Time Join Zoom Meeting https://us06web.zoom.us/j/83853439236?pwd=4AL6fEBzCuj5z32jgayujgce7Uxfaz.1 Meeting ID: 838 5343 9236 Passcode: 781303 Join instructions https://us06web.zoom.us/meetings/83853439236/invitations?signature=cx0_6ThdmYa0kIGAWEn6SYwP09PWyY5ZsutPG7lQfCc\n\nwww.pluralinvesting.com | chris.waller@pluralinvesting.com | 6 \nPrinciples of Our Partnership I take the trust you place in me very seriously and view this as a partnership. These principles are inspired by a similar letter Warren Buffett wrote in 1962 to his partners at the beginning of their partnership. They are my attempt to be up-front about what I can and cannot promise you, and what I ask from you in return: 1. Success for the fund in five years\u2019 time is delivering a substantially higher return than global stock market indices, rather than how many clients or assets are under management. The investment approach and my time are allocated accordingly. 2. I cannot guarantee that the fund will achieve this success. However, I can promise that the vast majority of my liquid net worth will be invested alongside you. 3. The fund will only invest in businesses that I estimate are worth substantially more than the price they are trading at. 4. The fund will only invest in businesses that I would be comfortable owning if the stock market were to shut for the nex"
+      },
+      {
+        "label": "pages_7_7",
+        "start_page": 7,
+        "end_page": 7,
+        "text_preview": "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 7 \nImportant Disclosures This material does not constitute an offer or solicitation to purchase an interest in Plural Partners Fund LP, Plural Partners Fund Offshore (collectively herein as the \u201cFund\"), or any related vehicle. Any such offer will only be made via a confidential private placement memorandum. An investment in the Fund is speculative and is subject to a risk of loss, including a risk of loss of principal. There is no secondary market for interests in the Fund and none is expected to develop. No assurance can be given that the Fund will achieve its objective or that an investor will receive a return of all or part of its investment. This material is confidential and may not be distributed or reproduced in whole or in part without the express written consent of Plural Investing LLC (the \u201cAdviser\u201d). The performance results shown and discussed herein represent the performance of the U.S. limited partnership Plural Partners Fund LP, a vehicle managed by the principal of the Adviser (the \u201cPrincipal\u201d). Plural Partners Fund LP (the \u201cMaster Fund\u201d) began trading on April 1, 2020 and Plural Partners Fund Offshore (the \u201cFeeder Fund\u201d) began trading on June 1, 2025. The Feeder Fund invests substantially all of its assets in the Master Fund. Results for the Feeder Fund may differ modestly due to its expense profile and launch date. \u201cGross\u201d results shown reflect the deduction of transaction costs actually incurred but"
+      }
+    ]
+  },
+  "text_samples": [
+    "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 1 \n PLURAL INVESTING LLC Fund (Gross) Fund (Net) MSCI World Russell 2000 MSCI EAFE Small Cap FTSE AIM All-Share 20201 122.9% 98.0% 46.8% 72.9% 55.0% 87.8% 2021 38.7% 30.4% 21.8% 14.8% 10.1% 5.0% 2022 -32.0% -32.4% -18.1% -20.4% -21.4% -38.0% 2023 -5.5% -6.3% 23.8% 16.1% 13.2% -1.5% 2024 9.2% 8.0% 18.7% 11.5% 1.8% -5.5% 2025 0.8% -0.2% 21.1% 12.8% 31.8% 16.8% Annualized 14.6% 10.3% 18.1% 15.6% 13.2% 5.1% \nNote: All indices are total return and measured in US dollars. 1Results for 2020 represent the total return of the Fund and Comparative Indexes from the inception date of the Fund on April 1, 2020 to December 31, 2020. January 20, 2026 To our Partners: The Fund1 delivered a net return of 5.7% in Q4. Please refer to your individual statements for exact performance as returns will vary by fund, class, and timing of investment. Our goal is to deliver returns over a five-year period significantly above that of global markets. We are value investors. We invest in businesses that we believe are worth substantially more than the price they are trading at. We think of risk primarily as the chance of a loss over a five-year horizon and not the temporary drawdowns in stock prices that occur from time to time. We manage this risk by only investing in businesses trading at a substantial discount to a conservatively calculated intrinsic value and that we would be happy to own if the market shut for five years. We welcome stock p",
+    "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 3 \nDespite the company\u2019s continued growth, WOSG shares declined by 15% in 2025. We believe that investors underappreciate the quality of WOSG\u2019s business and that its economics more closely resemble a subsidiary of Rolex than a typical retailer. A key reason for the company\u2019s economics is the lengthy waiting lists for most Rolex watches, which results in almost guaranteed sales and significant pricing power. While waiting lists have reduced since their peak in 2022, our data suggests they remain very healthy and stopped declining in the US roughly 18 months ago. Our investment thesis in WOSG is not based on tariffs or short-term macro fluctuations, but instead that the US offers a large market for the company to deploy capital at 20% returns. That thesis continued to play out last year. We estimate that WOSG\u2019s share of Rolex stores in the US increased from 7% to 9%, while its share of sales is higher because it owns several flagship stores that are much larger than the average store. Another opportunity for WOSG to gain share is to buy stores run by mom & pops who are unable or unwilling to invest the million(s) of dollars required to refurbish stores up to Rolex\u2019s standards. WOSG management gave various hints throughout the year that they are close to making a Rolex acquisition, with the latest on their earnings call in December where they stated they had \u201cbig plans\u201d for Rolex acquisitions and \u201clook forward to updat",
+    "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 5 \nDial-In Details for Quarterly Call Time: Tuesday January 27 at 10am Eastern Time / 3pm UK Time Join Zoom Meeting https://us06web.zoom.us/j/83853439236?pwd=4AL6fEBzCuj5z32jgayujgce7Uxfaz.1 Meeting ID: 838 5343 9236 Passcode: 781303 Join instructions https://us06web.zoom.us/meetings/83853439236/invitations?signature=cx0_6ThdmYa0kIGAWEn6SYwP09PWyY5ZsutPG7lQfCc\n\nwww.pluralinvesting.com | chris.waller@pluralinvesting.com | 6 \nPrinciples of Our Partnership I take the trust you place in me very seriously and view this as a partnership. These principles are inspired by a similar letter Warren Buffett wrote in 1962 to his partners at the beginning of their partnership. They are my attempt to be up-front about what I can and cannot promise you, and what I ask from you in return: 1. Success for the fund in five years\u2019 time is delivering a substantially higher return than global stock market indices, rather than how many clients or assets are under management. The investment approach and my time are allocated accordingly. 2. I cannot guarantee that the fund will achieve this success. However, I can promise that the vast majority of my liquid net worth will be invested alongside you. 3. The fund will only invest in businesses that I estimate are worth substantially more than the price they are trading at. 4. The fund will only invest in businesses that I would be comfortable owning if the stock market were to shut for the nex",
+    "www.pluralinvesting.com | chris.waller@pluralinvesting.com | 7 \nImportant Disclosures This material does not constitute an offer or solicitation to purchase an interest in Plural Partners Fund LP, Plural Partners Fund Offshore (collectively herein as the \u201cFund\"), or any related vehicle. Any such offer will only be made via a confidential private placement memorandum. An investment in the Fund is speculative and is subject to a risk of loss, including a risk of loss of principal. There is no secondary market for interests in the Fund and none is expected to develop. No assurance can be given that the Fund will achieve its objective or that an investor will receive a return of all or part of its investment. This material is confidential and may not be distributed or reproduced in whole or in part without the express written consent of Plural Investing LLC (the \u201cAdviser\u201d). The performance results shown and discussed herein represent the performance of the U.S. limited partnership Plural Partners Fund LP, a vehicle managed by the principal of the Adviser (the \u201cPrincipal\u201d). Plural Partners Fund LP (the \u201cMaster Fund\u201d) began trading on April 1, 2020 and Plural Partners Fund Offshore (the \u201cFeeder Fund\u201d) began trading on June 1, 2025. The Feeder Fund invests substantially all of its assets in the Master Fund. Results for the Feeder Fund may differ modestly due to its expense profile and launch date. \u201cGross\u201d results shown reflect the deduction of transaction costs actually incurred but"
+  ],
+  "extraction_status": "extracted",
+  "extracted_at": "2026-03-27T18:52:09.827331+00:00"
+}

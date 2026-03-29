@@ -1,0 +1,63 @@
+{
+  "id": "microsoft_fy26_q2_financial_statements_reference",
+  "title": "Microsoft FY26 Q2 Financial Statements Reference",
+  "file_path": "/Users/averyromain/FinModAI/data/training/microsoft-fy26-q2-financial-statements-reference",
+  "source_type": "earnings_reference",
+  "tier": "A",
+  "primary_bucket": "financial_reasoning",
+  "secondary_bucket": "valuation_mechanics",
+  "recommended_phase": 1,
+  "template_key": "earnings_reference",
+  "assistant_training_targets": [
+    "earnings-package interpretation",
+    "KPI extraction",
+    "prepared-remarks compression",
+    "investor-facing results framing"
+  ],
+  "source_summary": "Official Microsoft FY26 Q2 financial statement reference package anchored to IR statement pages.",
+  "strengths": [
+    "official statement pages",
+    "cash flow and balance sheet grounding",
+    "segment and capex interpretation support"
+  ],
+  "weaknesses": [
+    "reference package rather than raw downloadable workbook"
+  ],
+  "fields": {
+    "title": "Microsoft FY26 Q2 Financial Statements Reference",
+    "company_name": "Microsoft Corporation",
+    "quarter": "FY26 Q2",
+    "source_name": "Microsoft Investor Relations",
+    "sections": [
+      "income statement",
+      "balance sheet",
+      "cash flow",
+      "segment revenues"
+    ],
+    "key_metrics": [
+      "Reported revenue, operating income, net income, and diluted EPS.",
+      "Quarter-end balance sheet and cash generation context.",
+      "Segment revenue tables and AI-infrastructure investment implications."
+    ],
+    "management_themes": [
+      "connect earnings strength to cash generation and capex capacity",
+      "interpret AI-related investment intensity through statements",
+      "link segment growth to broader cloud and product narrative"
+    ],
+    "analyst_relevance": [
+      "Useful for teaching how to connect earnings headlines to statement detail.",
+      "Good source for capex, cash flow, and balance sheet interpretation.",
+      "Complements the quarter's results narrative with statement discipline."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/microsoft-fy26-q2-financial-statements-reference/manifest.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/microsoft-fy26-q2-financial-statements-reference/chunks.jsonl",
+    "dataset_dir": "/Users/averyromain/FinModAI/data/training/microsoft-fy26-q2-financial-statements-reference",
+    "page_count": null,
+    "chunk_count": 5,
+    "source_url": "https://view.officeapps.live.com/op/view.aspx?src=https://cdn-dynmedia-1.microsoft.com/is/content/microsoftcorp/FinancialStatementFY26q2",
+    "access_status": "office_viewer_wrapper_only; financial statement file not directly retrievable in this environment"
+  }
+}

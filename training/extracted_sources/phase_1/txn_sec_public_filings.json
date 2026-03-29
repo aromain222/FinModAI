@@ -1,0 +1,177 @@
+{
+  "id": "txn_sec_public_filings",
+  "title": "TEXAS INSTRUMENTS INC General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-txn",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent TXN SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "TEXAS INSTRUMENTS INC General SEC Filings",
+    "company_name": "TEXAS INSTRUMENTS INC",
+    "ticker": "TXN",
+    "cik": "0000097476",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-25",
+      "2026-02-06",
+      "2026-02-06",
+      "2026-02-04",
+      "2026-01-27",
+      "2025-10-23",
+      "2025-10-21",
+      "2025-10-16",
+      "2025-09-18",
+      "2025-07-29"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Beyond that, we also allocated capital to dividends and share repurchases.",
+      "Dividends are designed to appeal to a broad set of investors, and share repurchases are made with the goal of the accretive capture of future free cash flow for long-term investors."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "The Board has appointed Haviv Ilan, the Company\u2019s president and chief executive officer, as the Company\u2019s new chairman, effective on Mr."
+    ],
+    "controls_and_risk_notes": [
+      "Controls and procedures Disclosure controls and procedures An evaluation as of the end of the period covered by this report was carried out under the supervision and with the participation of management, including our Chief Executive Officer and Chief Financial Officer, of the effectiveness of the design and operation of our disclosure controls and procedures (as defined in Rules 13a-15(e) and 15d-15(e) under the Securities Exchange Act of 1934).",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Risk factors You should read the following risk factors in conjunction with the factors discussed elsewhere in this and other of our filings with the Securities and Exchange Commission (SEC) and in materials incorporated by reference into these filings."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-txn",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-txn/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-txn/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-txn/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K TEXAS INSTRUMENTS INC DE TX false - 2026-03-25 2026-03-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 DATE OF REPORT (DATE OF EARLIEST EVENT REPORTED): March 25, 2026 TEXA"
+      },
+      {
+        "label": "10-K 2026-02-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 FY false http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentNet http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold P5Y http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpen"
+      },
+      {
+        "label": "8-K 2026-02-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K TEXAS INSTRUMENTS INC false --12-31 - 2026-02-03 2026-02-03 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 DATE OF REPORT (DATE OF EARLIEST EVENT REPORTED): February 3, 2026"
+      },
+      {
+        "label": "8-K 2026-02-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K TEXAS INSTRUMENTS INC false - 2026-02-04 2026-02-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 DATE OF REPORT (DATE OF EARLIEST EVENT REPORTED): February 4, 2026 TEXAS IN"
+      },
+      {
+        "label": "8-K 2026-01-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-01-27 2026-01-27 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 DATE OF REPORT (DATE OF EARLIEST EVENT REPORTED): January 27, 2026 TEXAS INSTRUMENTS INC"
+      },
+      {
+        "label": "10-Q 2025-10-23",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "--12-31 2025 Q3 FALSE FALSE FALSE FALSE FALSE - txn:reportable_segment txn:productLine txn:series txn:factory 2025-01-01 2025-09-30 2025-10-14 2025-07-01 2025-09-30 2024-07-01 2024-09-30 0000"
+      },
+      {
+        "label": "8-K 2025-10-21",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-10-21 2025-10-21 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 DATE OF REPORT (DATE OF EARLIEST EVENT REPORTED): October 21, 2025 TEXAS INSTRUMENTS INC"
+      },
+      {
+        "label": "8-K 2025-10-16",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-16 2025-10-16 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ____________________________ FORM 8-K ____________________________ CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT O"
+      },
+      {
+        "label": "8-K 2025-09-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-09-18 2025-09-18 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 DATE OF REPORT (DATE OF EARLIEST EVENT REPORTED): September 18, 2025 TEXAS INSTRUMENTS I"
+      },
+      {
+        "label": "10-Q 2025-07-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "--12-31 2025 Q2 FALSE FALSE FALSE FALSE FALSE - txn:reportable_segment txn:productLine txn:series 2025-01-01 2025-06-30 2025-07-22 2025-04-01 2025-06-30 2024-04-01 2024-06-30 2024-"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-25",
+      "text_preview": "8-K TEXAS INSTRUMENTS INC DE TX false - 2026-03-25 2026-03-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 DATE OF REPORT (DATE OF EARLIEST EVENT REPORTED): March 25, 2026 TEXAS INSTRUMENTS INCORPORATED (Exact name of registrant as specified in charter) DELAWARE 001-03761 75-0289970 (State or other jurisdiction of incorporation) (Commission file number) (I.R.S. employer identification no.) 12500 TI BOULEVARD DALLAS , TEXAS 75243 (Address of principal executive offices) Registrant\u2019s telephone number, including area code: (214) 479-3773 Check the",
+      "char_count": 2652,
+      "word_count": 386,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/97476/000119312526124057/d136885d8k.htm"
+    },
+    {
+      "label": "10-K 2026-02-06",
+      "text_preview": "2025 FY false http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentNet http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold P5Y http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNonc",
+      "char_count": 234120,
+      "word_count": 31707,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/97476/000009747626000059/txn-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-06",
+      "text_preview": "8-K TEXAS INSTRUMENTS INC false --12-31 - 2026-02-03 2026-02-03 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 DATE OF REPORT (DATE OF EARLIEST EVENT REPORTED): February 3, 2026 TEXAS INSTRUMENTS INCORPORATED (Exact name of registrant as specified in charter) Delaware 001-03761 75-0289970 (State or other jurisdiction (Commission (I.R.S. employer of incorporation) file number) identification no.) 12500 TI Boulevard Dallas , Texas 75243 (Address of principal executive offices) Registrant\u2019s telephone number, including area code: (214) 479-3773 Check",
+      "char_count": 3645,
+      "word_count": 544,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/97476/000119312526040312/d937106d8k.htm"
+    }
+  ]
+}

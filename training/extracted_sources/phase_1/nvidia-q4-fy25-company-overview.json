@@ -1,0 +1,198 @@
+{
+  "id": "nvidia-q4-fy25-company-overview",
+  "title": "NVIDIA Q4 FY25 Company Overview",
+  "file_path": "/Users/averyromain/Downloads/Q4FY25-NVDA-Company-Overview.pdf",
+  "source_type": "investor_presentation",
+  "tier": "A",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "transaction_methodology",
+  "recommended_phase": 1,
+  "template_key": "investor_presentation",
+  "assistant_training_targets": [
+    "slide compression",
+    "contributor/detractor summaries",
+    "thesis slide structure"
+  ],
+  "source_summary": "NVIDIA company overview deck tied to Q4 FY25 results for segment framing, platform narrative, and AI demand communication.",
+  "strengths": [
+    "segment framing",
+    "platform narrative",
+    "earnings-adjacent investor messaging"
+  ],
+  "weaknesses": [
+    "presentation shorthand",
+    "management-selected metrics"
+  ],
+  "fields": {
+    "title": "NVIDIA Q4 FY25 Company Overview",
+    "manager": null,
+    "date": null,
+    "agenda": [
+      "NVIDIA",
+      "SOUND",
+      "IMAGE",
+      "VIDEO",
+      "SPEECH",
+      "MULTI-MODAL",
+      "AMINO ACID",
+      "BRAINWAVES",
+      "SPEECH",
+      "IMAGE"
+    ],
+    "portfolio_contributors": [],
+    "portfolio_detractors": [],
+    "holdings_covered": [
+      "Company Overview",
+      "Grace Blackwell",
+      "S",
+      "TOPS",
+      "AI Driving a Powerful Investment",
+      "Generative AI",
+      "Accelerated Computing",
+      "Accelerated Computing Is Sustainable Computing"
+    ],
+    "valuation_points": [
+      "Except for the historical information contained herein, certain matters in this presentation including, but not limited to, statements as to: expectations with respect to growth, performance and benefits of NVIDIA\u2019s products, services, and technologies, including Blackwell, and r",
+      "NVIDIA\u2019s invention of the GPU in 1999 sparked the growth of the PC gaming market, redefined computer graphics, revolutionized accelerated computing, ignited the era of modern AI, and is fueling industrial digitalization across markets. Today, two transitions are occurring simulta",
+      "Grace Blackwell MGX Node NVLink Switch Quantum Switch Spectrum-X Switch Chips Purpose-Built for AI Supercomputing GPU | CPU | DPU | NIC | NVLink Switch | IB Switch | ENET Switch CUDA \u2022 DOCA \u2022 NCCL Cluster-Scale Software System Software Chip Software CUDA-X Libraries NIM CUDA-Acce",
+      "What Is Accelerated Computing? Not just a superfast chip\u2014accelerated computing is a full-stack combination of: \u2022 Chip(s) with specialized processors \u2022 Algorithms in acceleration libraries \u2022 Domain experts to refactor applications To speed up compute-intensive parts of an applicat",
+      "\u2022 The NVIDIA accelerated computing platform has attracted the largest ecosystem of developers, supporting a rapidly growing universe of applications and industry innovation. \u2022 Developers can engage with NVIDIA through CUDA\u2014our parallel computing programming model introduced in 20"
+    ],
+    "exit_or_trim_logic": [],
+    "slide_structure_patterns": [
+      "NVIDIA",
+      "SOUND",
+      "IMAGE",
+      "VIDEO",
+      "SPEECH",
+      "MULTI-MODAL",
+      "AMINO ACID",
+      "BRAINWAVES",
+      "SPEECH",
+      "IMAGE",
+      "VIDEO",
+      "IMAGE"
+    ]
+  },
+  "source_metadata": {
+    "file_present": true,
+    "source_extension": ".pdf",
+    "extraction_mode": "pdf_text",
+    "page_count": 37,
+    "headings_detected": [
+      "NVIDIA",
+      "SOUND",
+      "IMAGE",
+      "VIDEO",
+      "SPEECH",
+      "MULTI-MODAL",
+      "AMINO ACID",
+      "BRAINWAVES",
+      "SPEECH",
+      "IMAGE",
+      "VIDEO",
+      "IMAGE",
+      "ANIMATION",
+      "MANIPULATION",
+      "PROTEIN",
+      "NVIDIA",
+      "NVIDIA",
+      "NVIDIA",
+      "NVIDIA",
+      "GB200 NVL72"
+    ]
+  },
+  "chunking": {
+    "strategy": "page_groups",
+    "chunk_count": 13,
+    "chunks": [
+      {
+        "label": "pages_1_3",
+        "start_page": 1,
+        "end_page": 3,
+        "text_preview": "Company Overview\nFebruary 2025\n\nExcept for the historical information contained herein, certain matters in this presentation including, but not limited to, statements as to: expectations with respect to growth, performance \nand benefits of NVIDIA\u2019s products, services, and technologies, including Blackwell, and related trends and drivers; expectations with respect to supply and demand for NVIDIA\u2019s products, \nservices, and technologies, including Blackwell, and related matters including inventory, production and distribution; our financial position; projected market growth and trends, market \nopportunity, demand, and growth drivers; our financial and business outlook; our dividend program; expectations with respect to NVIDIA\u2019s third party arrangements, including with its \ncollaborators and partners; third parties adopting our products and technologies; expectations with respect to technology developments and related trends and drivers; expectations with \nrespect to AI and related industries; our sustainability goals; and other statements that are not historical facts are forward-looking statements.\nThese forward-looking statements and any other forward-looking statements that go beyond historical facts that are made in this presentation are subject to risks and uncertainties that \nmay cause actual results to differ materially. Important factors that could cause actual results to differ materially include: global economic and political conditions; NVIDIA\u2019s reliance on \nthird par"
+      },
+      {
+        "label": "pages_4_6",
+        "start_page": 4,
+        "end_page": 6,
+        "text_preview": "Grace Blackwell\nMGX Node\nNVLink Switch Quantum Switch Spectrum-X \nSwitch\nChips Purpose-Built for AI Supercomputing\nGPU | CPU | DPU | NIC | NVLink Switch | IB Switch | ENET Switch\nCUDA \u2022 DOCA \u2022 NCCL\nCluster-Scale Software\nSystem Software\nChip Software\nCUDA-X Libraries\nNIM\nCUDA-Accelerated\nAgentic AI Libraries\nOmniverse CUDA-Accelerated\nPhysical AI Libraries\nAccelerated \nSoftware Stack\nGB200 NVL72 SuperPOD\nNVIDIA\u2019s Accelerated Computing Platform\nData center scale innovation across chips, networking, systems, software, and algorithms\nNVIDIA has accelerated \nsoftware and compute by a \n1,000,000X in the last decade, \nfar surpassing Moore\u2019s law.\nAccelerated computing \nrequires full-stack innovation\u2014\noptimizing across every layer \nof computing\u2014from chips \nand systems to software \nand algorithms, demanding \ndeep understanding of the \nproblem domain.\nOur platform extends from \nthe cloud and enterprise data \ncenters to supercomputing, \nedge computing, PCs, \nand robotics.\n\nWhat Is Accelerated Computing?\nNot just a superfast chip\u2014accelerated computing \nis a full-stack combination of:\n\u2022 Chip(s) with specialized processors\n\u2022 Algorithms in acceleration libraries\n\u2022 Domain experts to refactor applications\nTo speed up compute-intensive parts of an application\nA full-stack approach: silicon, systems, software\nFor example:\n\u2022 If 90% of the runtime can be accelerated by 100X, \nthe application is sped up 9X\n\u2022 If 99% of the runtime can be accelerated by 100X, \nthe application is sped up 50X\n\u2022 If 80%"
+      },
+      {
+        "label": "pages_7_9",
+        "start_page": 7,
+        "end_page": 9,
+        "text_preview": "\u2022 The NVIDIA accelerated computing platform has attracted the \nlargest ecosystem of developers, supporting a rapidly growing \nuniverse of applications and industry innovation.\n\u2022 Developers can engage with NVIDIA through CUDA\u2014our \nparallel computing programming model introduced in 2006\u2014\nor at higher layers of the stack, including libraries, pretrained \nAI models, SDKs, and other development tools.\nNVIDIA\u2019s Accelerated Computing Ecosystem\nDevelopers CUDA Downloads*\nAI Startups GPU-Accelerated Applications\n2021 2024\n7K\n19K\n2021 2024\n5.1M\n2.5M\n2021 2024\n53M\n26M\n2021 2024\n3,700\n1700\n*Cumulative\n\nAI Driving a Powerful Investment \nCycle and Significant Returns\nAI Agents will take action to automate tasks at superhuman speed, \ntransforming businesses and freeing workers to focus on other tasks. \nCopilots based on LLMs will generate documents, answer questions, \nor summarize missed meetings, emails, and chats\u2014adding hours of \nproductivity per week. Specialized for fields such as software development, \nlegal services or education and can boost productivity by as much as 50%.\nSocial media, search, and e-commerce apps are using deep recommenders \nto offer more relevant content and ads to their customers, increasing \nengagement and monetization.\nCreators can generate stunning, photorealistic images with a single text \nprompt\u2014compressing workflows that take days or weeks into minutes in \nindustries from advertising to game development.\nCall center agents augmented with AI chatbots can dram"
+      },
+      {
+        "label": "pages_10_12",
+        "start_page": 10,
+        "end_page": 12,
+        "text_preview": "Delivering Tremendous Value to Customers\nSignificant reduction in TCO with each generation\nHopper | 8,000 GPUs | 15MW Blackwell GB200 NVL72 | 2,000 GPUs | 4MW\u200b\nLLM Training Workload: GPT-MoE-1.8T | Train in 90 days | H100 vs GB200 NVL72\n4X\nReduction in Power\n\nAI Factories\u2014A New \nClass of Data Centers\nAI factories are a new form of computing infrastructure. \nTheir purpose is not to store user and company data or run ERP \nand CRM applications. AI factories are highly optimized systems \npurpose-built to process raw data, refine it into models, and \nproduce monetizable tokens with great scale and efficiency.\nIn the AI industrial revolution, data is the raw material, tokens \nare the new commodity, and NVIDIA is the token generator in \nthe AI factory.\nEvery company will produce digital intelligence. Tokens will be \ntransformed into intelligent responses and actions of digital \nnurses, tutors, customer service agents, chip designers, \nmanufacturing robots and autonomous cars, Weather prediction \nagents will warn us of storms. Some companies will \nbuild and operate AI factories, while others will rent. \nCountries are awakening to the need to treat their data as a \nnational resource and AI factories as an essential national \ninfrastructure. Data encodes a nation's history, knowledge, and \nculture, and can be transformed into the sovereign AI for its \ncompanies, startups, universities, and governments.\nNVIDIA builds the complete AI system and licenses NVIDIA AI \nEnterprise, the AI stac"
+      },
+      {
+        "label": "pages_13_15",
+        "start_page": 13,
+        "end_page": 15,
+        "text_preview": "Accelerated Computing \nStarts With CUDA Libraries\nUnlike CPU general-purpose computing, GPU-\naccelerated computing requires software and \nalgorithms to be redesigned. Software is not \nautomatically accelerated in the presence of \na GPU or accelerator.\nNVIDIA CUDA libraries encapsulate NVIDIA-engineered \nalgorithms that enable applications to be accelerated \non NVIDIA\u2019s installed base. They deliver dramatically \nhigher performance\u2014compared to CPU-only \nalternatives\u2014across application domains, including \nAI and high-performance computing, and significantly \nreduce runtime, cost, and energy, while increasing \nscale.\nWith over 400 CUDA libraries, NVIDIA can address \nmany major workloads across a wide range of \nindustries. As new libraries become available, they \nunlock new markets adding to our long-term \nopportunity.\nDelivering up to 200X speedup \nacross major workloads\nSpeech AI\nRiva, TensorRT, Triton Inference Server, NeMo, \ncuBLAS, cuDNN, cuFFT, CUTLASS\n~30X\nRecommender Systems\nMerlin, HugeCTR, TensorRT, Triton Inference Server, \ncuBLAS, cuDNN, cuFFT, cuSPARSE, CUTLASS, \nMagnum IO, NCCL, cuVS\n~50X\nDeep Learning\ncuDNN, CUTLASS, Megatron, TensorRT, TRT LLM, \nNCCL, NV-Triton, CUDA-optimized PyTorch, \nTensorflow, Triton, Jax\n~100X\nScience\nEarth-2 CorrDiff, Holoscan, Parabricks, Monai, \nModulus, Warp, cuLitho, cuQuantum, CUDA-Q, \nAmgX, cuDSS, cuFFT, cuSOLVER, cuBLAS, \ncuSPARSE, cuTENSOR, cuGraph, Magnum IO, \nNCCL, NVSHMEM, RAFT, cuNumeric, Sionna\n~100X\nAgentic and Physical AI\nACE,"
+      },
+      {
+        "label": "pages_16_18",
+        "start_page": 16,
+        "end_page": 18,
+        "text_preview": "NVIDIA Is the Leading Inference Platform\nInference compute scales exponentially with \u201clong thinking\u201d\nFlash Attention\nKVCache PageAttention\nDistillation\nPruning & Quantization\nNeural Architecture Search\nDisaggregated Serving\nSpeculative Decoding\nMulti-GPU, Multi-Node\nHopper inference performance increased \n5X in 1 year with rapid algorithm innovations\nenabled by rich NVIDIA CUDA ecosystem\nInstalled base & CUDA \u2794 rapid software innovation \n\u2794 performance \u2794 lower inference cost \n\u2794 increase demand \u2794 increase installed base\nInference compute scaling exponentially with \nlarge multimodal models, chain-of-thought, \nreasoning, agents, and low-latency responses\nGB200 NVL72\nNVLink Switches\n130 TB/s All-to-All BW\nOne Giant Blackwell\n1.44 EF FP4\n576TB/s HBM3e\n\nNVIDIA NVLink Enables New Level of AI Training & Inference Scaling\nNVLink Switch\nGB200 NVL72\nNVLink Switches\n130 TB/s All-to-All BW\nOne Giant Blackwell\n1.44 EF FP4\n576TB/s HBM3e\n\nEcosystem\nNVIDIA AI Platform and Ecosystem Reaches Every Market\nEvery workload to address the world\u2019s industries\nAccelerate Every Workload Full-Stack, Entire AI Infrastructure\nSoftware\nData \nPre-\nProcessing\nTraining\nPost\nTraining\ne.g., SDG\nAgentic AI\nInference\nRobotic AI\nInference\nAI Infrastructure\nAI Technology\nEvery Cloud\nOEMs and ODMs\nPC and Workstations\nEdge and Robotics\nFull-Stack Compute-to-Networking\nSovereign \nAI\nRegional \nCSPs\nTelcos\nInternet\nServices\nPublic\nClouds\nHeavy\nIndustries\nEnterprises\nAuto, Healthcare, Logistics, \nEnergy, FSI, etc. \nAI\nStar"
+      },
+      {
+        "label": "pages_19_21",
+        "start_page": 19,
+        "end_page": 21,
+        "text_preview": "NVIDIA AI Enterprise Enables IT Ecosystem With State-of-the-Art\nAI Models and Libraries to Build Agentic AI \n. . .\nCloud and On-Prem Infrastructure\nSystem Integrators\n. . .\nEnterprise ISVs\nNVIDIA AI Enterprise Ecosystem\nNVIDIA NeMo\nUser\nNVIDIA NeMo Retriever\nVector Database\nAction\nStructured\nDatabase\nNVIDIA NIM\nData\nFlywheel\nAI Agent\n. . .\nData Platforms\n. . .\n\nNVIDIA Omniverse and AI Revolutionizing Manufacturing & Robotics\n10M Factories\n 200K Warehouses\n100M Cars\n Billions in Future\nThe next AI wave is physical AI\u2014models that can perceive, understand, and interact \nwith the physical world. Physical AI will embody robotic systems\u2014from autonomous \nvehicles to industrial robots and humanoids, to warehouses and factories.\nThree computers and software stacks are required to build physical AI: \nNVIDIA AI on DGX to train the AI model, NVIDIA Omniverse on OVX to teach, test, \nand validate the AI model's skills, and NVIDIA AGX to run the AI software on the robot.\nEnterprises license NVIDIA Omniverse at $4,500 per GPU per year.\n\nSovereign AI\nNations produce AI using their own data, infrastructure, workforce, and business networks\nJapan\nNational Institute of Advanced Industrial \nScience and Technology (AIST)\nSwitzerland\nSwisscom Group\nEcuador\nTelconet\nSingapore\nSingapore Telecommunications Limited \n(Singtel)\nFrance\nScaleway\nVietnam\nFPT Smart Cloud\nSpain\nBarcelona\nSupercomputing Center\nLocation of NVIDIA sovereign AI partners\nSovereign AI\nNations are awakening to the imperative \nto pro"
+      },
+      {
+        "label": "pages_22_24",
+        "start_page": 22,
+        "end_page": 24,
+        "text_preview": "$6,803\n$12,690\n$9,040\n$37,134\n$86,789\n41%\n47%\n34%\n61%\n67%\n30%\n40%\n50%\n60%\n70%\n$0\n$10,000\n$20,000\n$30,000\n$40,000\n$50,000\n$60,000\n$70,000\n$80,000\n$90,000\nFY21 FY22 FY23 FY24 FY25\n Operating Income (Non-GAAP, $M) Operating Margin (Non-GAAP)\n$16,675 \n$26,914 $26,974 \n$60,922 \n$130,497\nFY21 FY22 FY23 FY24 FY25\nDriving Strong and Profitable Growth\nFiscal year ends in January. Refer to Appendix for reconciliation of Non-GAAP measures. Operating margins rounded to the nearest percent.\nRevenue ($M)\n\n$4.7B\n$8.0B\n$3.8B\n$26.9B\n$60.7B\nFY21 FY22 FY23 FY24 FY25\nStrong Cash Flow Generation\nFiscal year ends in January. Refer to Appendix for reconciliation of Non-GAAP measures. \nShare Repurchase\nUtilized $33.7B of cash for repurchases in FY25\n$38.7B remaining authorization as of the end of Q4\nDividend\n$834M in FY25\nDividend increased by 150% in Q2 FY25\nPlan to Maintain1\nStrategic Investments\nGrowing Our Talent \nPlatform Reach and Ecosystem\nFree Cash Flow (Non-GAAP) Capital Allocation\n1 Subject to continuing determination by our Board of Directors.\n\nDRIVE Hyperion sensor architecture \nwith AGX compute\nDRIVE AV & IX full-stack software \nfor ADAS, AV, and AI cockpit\nDGX/HGX/MGX/IGX systems\nGPU | CPU | DPU | Networking\nNVIDIA AI software\nOur Market Platforms at a Glance\nFY25 Revenue $115.2B\n5-YR CAGR 108%\nFY25 Revenue $11.4B\n5-YR CAGR 16%\nFY25 Revenue $1.9B\n5-YR CAGR 9%\nFY25 Revenue $1.7B\n5-YR CAGR 19%\nGeForce GPUs for PC gaming\nGeForce NOW cloud gaming\nNVIDIA RTX GPUs \nfor workstations\nOmniverse"
+      },
+      {
+        "label": "pages_25_27",
+        "start_page": 25,
+        "end_page": 27,
+        "text_preview": "$6,696 $10,613 $15,005\n$47,525\n$115,186\nFY21 FY22 FY23 FY24 FY25\nData Center\nThe leading accelerated computing platform\nLeader in AI and HPC\nNo. 1 in AI training and inference\nUsed by all hyperscalers, major cloud computing \nproviders, and over 40,000 companies\nPowers over 75% of the TOP500 supercomputers\nGrowth Drivers\nBroad data center platform transition from \ngeneral-purpose to accelerated computing\nEmergence of AI factories\u2014optimized for refining \ndata and training, inferencing, and generating AI\nBroader and faster product launch cadence to meet \na growing and diverse set of AI opportunities\nNVIDIA AI Enterprise/NIM for building and running \nenterprise AI applications\n108% 5-YR CAGR \nThrough FY25\nRevenue ($M)\n\nRubin\nBlackwell\nHopper\n Blackwell-Ultra\nNVLink Switch\n900 GB/sec\nCX7 \nSuperNIC\nHopper GPU\n6S HBM3\nHopper+ GPU\n6S HBM3e\nBF3 \nSuperNIC\nQuantum-X400\nInfiniband Switch\nGrace CPU\nNVLink 6 Switch\n3600 GB/sec\nCX9 SuperNIC\n1600 Gb/sec\nRubin GPU\n8S HBM4\nVera CPU\nX1600\nIB/Ethernet Switch\nRubin Ultra GPU\n12S HBM4\n2022 2024 20262023 2025 2027\nOne-Year Rhythm | Supercluster Scale | Full-Stack | CUDA Everywhere\nSupercharge AI scaling law\nX-Factors\nX-Factors\nX-Factors\nCX8 \nSuperNIC\nSpectrum Ultra X800\nEthernet Switch 512-Radix\nBlackwell Ultra GPU\n288GB HBM3e\nMore AI FLOPS\n\n$7,759\n$12,462\n$9,067\n$10,447\n$11,350\nFY21 FY22 FY23 FY24 FY25\nGaming\nGeForce\u2014world\u2019s largest gaming platform\nLeader in PC Gaming\nStrong No. 1 market position\n15 of the top 15 most popular GPUs on Steam\nLeading"
+      },
+      {
+        "label": "pages_28_30",
+        "start_page": 28,
+        "end_page": 30,
+        "text_preview": "$1,053\n$2,111\n$1,544 $1,553\n$1,878\nFY21 FY22 FY23 FY24 FY25\nProfessional Visualization\nWorkstation graphics\nLeader in Workstation Graphics\n95%+ market share in graphics for workstations\n45M designers and creators\nStrong software ecosystem with over 100 RTX \naccelerated and supported applications\nGrowth Drivers\nGenerative AI adoption across design and creative industries\nEnterprise AI development, model fine-tuning, cross-industry\nRay tracing revolutionizing design and content creation\nExpanding universe of designers and creators\nOmniverse for digital twins and collaborative 3D design\nHybrid work environments\nRevenue ($M)\n9% 5-YR CAGR \nThrough FY25\n\n$536 $566\n$903\n$1,091\n$1,694\nFY21 FY22 FY23 FY24 FY25\nAutomotive\nAutonomous vehicles and AI cockpits\nLeader in Autonomous Driving \nNVIDIA DRIVE an end-to-end autonomous vehicle (AV) \nand AI cockpit platform featuring a full software stack and \npowered by NVIDIA SoCs (systems-on-a-chip) in vehicles\nDRIVE Orin SoC ramp began in FY23\nNext-generation DRIVE Thor SoC ramp to begin in FY26\nOver 40 customers including 20 of top 30 EV makers, \n7 of top 10 truck makers, 8 of top 10 robotaxi makers\nGrowth Drivers\nAdoption of centralized car computing and \nsoftware-defined vehicle architectures\nAV software and services:\nMercedes-Benz\nJaguar Land Rover\nRevenue ($M)\n19% 5-YR CAGR \nThrough FY25\n\nThe $1T installed base of general-purpose CPU data \ncenter infrastructure is being modernized to a new \nGPU-accelerated computing paradigm. \nThe entire c"
+      },
+      {
+        "label": "pages_31_33",
+        "start_page": 31,
+        "end_page": 33,
+        "text_preview": "Financials\n\nAnnual Cash & Cash Flow Metrics\n5,822 9,108 5,641\n28,090\n64,089\nFY21 FY22 FY23 FY24 FY25\n6,803 12,690 9,040\n37,134\n86,789\nFY21 FY22 FY23 FY24 FY25\n4,677 8,049 3,750\n26,947\n60,724\nFY21 FY22 FY23 FY24 FY25\n11,561\n21,208\n13,296\n25,984\n43,210\nFY21 FY22 FY23 FY24 FY25\nCash balance is defined as cash and cash equivalents plus marketable securities\nRefer to Appendix for reconciliation of non-GAAP measures\nFree Cash Flow (Non-GAAP)\u2014$M Cash Balance\u2014$M\nOperating Income (Non-GAAP)\u2014$M Operating Cash Flow\u2014$M\n\nCorporate Sustainability\nFast Company Magazine\u2019s World\u2019s Most Innovative \nCompanies\nFortune\u2019s World\u2019s Most Admired Companies\nTime Magazine\u2019s 100 Most Influential Companies\nWall Street Journal\u2019s Management Top 250\u201cAmerica\u2019s Most Sustainable Companies\u201d\nBARRON\u2019S\n\u201cAmerica\u2019s 100 Best Companies to Work For\u201d\nFORTUNE\n\u201cAmerica\u2019s Most Responsible Companies\u201d\nNEWSWEEK\nNVIDIA Blackwell GPUs are as much as 20X more \nenergy efficient than CPUs for certain AI and \nHPC workloads\nOn track to source 100% renewable electricity \nfor offices and data centers under operational \ncontrol by end of FY25\nA Place for People to Do Their Life\u2019s WorkEnvironmentally Conscious\nOn track to engage manufacturing suppliers \ncomprising at least 67% of scope 3 category 1 GHG \nemissions with the goal of effecting supplier \nadoption of science-based targets by end of FY26\nManagement\n92% of directors are independent\nCorporate Governance\n\u201cBest Places to Work\u201d\nGLASSDOOR"
+      },
+      {
+        "label": "pages_34_36",
+        "start_page": 34,
+        "end_page": 36,
+        "text_preview": "Reconciliation of Non-GAAP \nto GAAP Financial Measures\n\nOperating Income \nand Margin\n($ in Millions and \nMargin Percentage) Non-GAAP\nAcquisition \nTermination Cost\nAcquisition-Related\nand Other Costs \n(A)\nStock-Based \nCompensation \n(B)\nOther\n(C) GAAP\nFY 2021\n$6,803 \u2014 (836) (1,397) (38) $4,532\n40.8% \u2014 (5.0) (8.4) (0.2) 27.2%\nFY 2022\n$12,690 \u2014 (636) (2,004) (9) $10,041\n47.2% \u2014 (2.5) (7.4) \u2014 37.3%\nFY 2023\n$9,040 (1,353) (674) (2,710) (79) $4,224\n33.5% (5.0) (2.5) (10.0) (0.3) 15.7%\nFY 2024\n$37,134 \u2014 (583) (3,549) (30) $32,972\n61.0% \u2014 (1.0) (5.8) (0.1) 54.1%\nFY 2025\n$86,789 \u2014 (602) (4,737) 3 $81,453\n66.5% \u2014 (0.5) (3.6) \u2014 62.4%\nReconciliation of Non-GAAP to GAAP Financial Measures\nA. Consists of amortization of acquisition-related intangible assets, inventory step-up, transaction costs, compensation charges, and other costs\nB. Stock-based compensation charge was allocated to cost of goods sold, research and development expense, and sales, general and administrative expense\nC. Comprises of legal settlement cost, contributions, restructuring costs and assets held for sale related adjustments\n\n($ in Millions) Free Cash Flow\nPurchases Related to \nProperty and Equipment \nand Intangible Assets\nPrincipal Payments on \nProperty and Equipment \nand Intangible Assets\nNet Cash Provided by \nOperating Activities\nFY 2021 $4,677 1,128 17 $5,822\nFY 2022 $8,049 976 83 $9,108\nFY 2023 $3,750 1,833 58 $5,641\nFY 2024 $26,947 1,069 74 $28,090\nFY 2025 $60,724 3,236 129 $64,089\nReconciliation of Non-GAAP to"
+      },
+      {
+        "label": "pages_37_37",
+        "start_page": 37,
+        "end_page": 37,
+        "text_preview": ""
+      }
+    ]
+  },
+  "text_samples": [
+    "Company Overview\nFebruary 2025\n\nExcept for the historical information contained herein, certain matters in this presentation including, but not limited to, statements as to: expectations with respect to growth, performance \nand benefits of NVIDIA\u2019s products, services, and technologies, including Blackwell, and related trends and drivers; expectations with respect to supply and demand for NVIDIA\u2019s products, \nservices, and technologies, including Blackwell, and related matters including inventory, production and distribution; our financial position; projected market growth and trends, market \nopportunity, demand, and growth drivers; our financial and business outlook; our dividend program; expectations with respect to NVIDIA\u2019s third party arrangements, including with its \ncollaborators and partners; third parties adopting our products and technologies; expectations with respect to technology developments and related trends and drivers; expectations with \nrespect to AI and related industries; our sustainability goals; and other statements that are not historical facts are forward-looking statements.\nThese forward-looking statements and any other forward-looking statements that go beyond historical facts that are made in this presentation are subject to risks and uncertainties that \nmay cause actual results to differ materially. Important factors that could cause actual results to differ materially include: global economic and political conditions; NVIDIA\u2019s reliance on \nthird par",
+    "Grace Blackwell\nMGX Node\nNVLink Switch Quantum Switch Spectrum-X \nSwitch\nChips Purpose-Built for AI Supercomputing\nGPU | CPU | DPU | NIC | NVLink Switch | IB Switch | ENET Switch\nCUDA \u2022 DOCA \u2022 NCCL\nCluster-Scale Software\nSystem Software\nChip Software\nCUDA-X Libraries\nNIM\nCUDA-Accelerated\nAgentic AI Libraries\nOmniverse CUDA-Accelerated\nPhysical AI Libraries\nAccelerated \nSoftware Stack\nGB200 NVL72 SuperPOD\nNVIDIA\u2019s Accelerated Computing Platform\nData center scale innovation across chips, networking, systems, software, and algorithms\nNVIDIA has accelerated \nsoftware and compute by a \n1,000,000X in the last decade, \nfar surpassing Moore\u2019s law.\nAccelerated computing \nrequires full-stack innovation\u2014\noptimizing across every layer \nof computing\u2014from chips \nand systems to software \nand algorithms, demanding \ndeep understanding of the \nproblem domain.\nOur platform extends from \nthe cloud and enterprise data \ncenters to supercomputing, \nedge computing, PCs, \nand robotics.\n\nWhat Is Accelerated Computing?\nNot just a superfast chip\u2014accelerated computing \nis a full-stack combination of:\n\u2022 Chip(s) with specialized processors\n\u2022 Algorithms in acceleration libraries\n\u2022 Domain experts to refactor applications\nTo speed up compute-intensive parts of an application\nA full-stack approach: silicon, systems, software\nFor example:\n\u2022 If 90% of the runtime can be accelerated by 100X, \nthe application is sped up 9X\n\u2022 If 99% of the runtime can be accelerated by 100X, \nthe application is sped up 50X\n\u2022 If 80%",
+    "\u2022 The NVIDIA accelerated computing platform has attracted the \nlargest ecosystem of developers, supporting a rapidly growing \nuniverse of applications and industry innovation.\n\u2022 Developers can engage with NVIDIA through CUDA\u2014our \nparallel computing programming model introduced in 2006\u2014\nor at higher layers of the stack, including libraries, pretrained \nAI models, SDKs, and other development tools.\nNVIDIA\u2019s Accelerated Computing Ecosystem\nDevelopers CUDA Downloads*\nAI Startups GPU-Accelerated Applications\n2021 2024\n7K\n19K\n2021 2024\n5.1M\n2.5M\n2021 2024\n53M\n26M\n2021 2024\n3,700\n1700\n*Cumulative\n\nAI Driving a Powerful Investment \nCycle and Significant Returns\nAI Agents will take action to automate tasks at superhuman speed, \ntransforming businesses and freeing workers to focus on other tasks. \nCopilots based on LLMs will generate documents, answer questions, \nor summarize missed meetings, emails, and chats\u2014adding hours of \nproductivity per week. Specialized for fields such as software development, \nlegal services or education and can boost productivity by as much as 50%.\nSocial media, search, and e-commerce apps are using deep recommenders \nto offer more relevant content and ads to their customers, increasing \nengagement and monetization.\nCreators can generate stunning, photorealistic images with a single text \nprompt\u2014compressing workflows that take days or weeks into minutes in \nindustries from advertising to game development.\nCall center agents augmented with AI chatbots can dram",
+    "Delivering Tremendous Value to Customers\nSignificant reduction in TCO with each generation\nHopper | 8,000 GPUs | 15MW Blackwell GB200 NVL72 | 2,000 GPUs | 4MW\u200b\nLLM Training Workload: GPT-MoE-1.8T | Train in 90 days | H100 vs GB200 NVL72\n4X\nReduction in Power\n\nAI Factories\u2014A New \nClass of Data Centers\nAI factories are a new form of computing infrastructure. \nTheir purpose is not to store user and company data or run ERP \nand CRM applications. AI factories are highly optimized systems \npurpose-built to process raw data, refine it into models, and \nproduce monetizable tokens with great scale and efficiency.\nIn the AI industrial revolution, data is the raw material, tokens \nare the new commodity, and NVIDIA is the token generator in \nthe AI factory.\nEvery company will produce digital intelligence. Tokens will be \ntransformed into intelligent responses and actions of digital \nnurses, tutors, customer service agents, chip designers, \nmanufacturing robots and autonomous cars, Weather prediction \nagents will warn us of storms. Some companies will \nbuild and operate AI factories, while others will rent. \nCountries are awakening to the need to treat their data as a \nnational resource and AI factories as an essential national \ninfrastructure. Data encodes a nation's history, knowledge, and \nculture, and can be transformed into the sovereign AI for its \ncompanies, startups, universities, and governments.\nNVIDIA builds the complete AI system and licenses NVIDIA AI \nEnterprise, the AI stac",
+    "Accelerated Computing \nStarts With CUDA Libraries\nUnlike CPU general-purpose computing, GPU-\naccelerated computing requires software and \nalgorithms to be redesigned. Software is not \nautomatically accelerated in the presence of \na GPU or accelerator.\nNVIDIA CUDA libraries encapsulate NVIDIA-engineered \nalgorithms that enable applications to be accelerated \non NVIDIA\u2019s installed base. They deliver dramatically \nhigher performance\u2014compared to CPU-only \nalternatives\u2014across application domains, including \nAI and high-performance computing, and significantly \nreduce runtime, cost, and energy, while increasing \nscale.\nWith over 400 CUDA libraries, NVIDIA can address \nmany major workloads across a wide range of \nindustries. As new libraries become available, they \nunlock new markets adding to our long-term \nopportunity.\nDelivering up to 200X speedup \nacross major workloads\nSpeech AI\nRiva, TensorRT, Triton Inference Server, NeMo, \ncuBLAS, cuDNN, cuFFT, CUTLASS\n~30X\nRecommender Systems\nMerlin, HugeCTR, TensorRT, Triton Inference Server, \ncuBLAS, cuDNN, cuFFT, cuSPARSE, CUTLASS, \nMagnum IO, NCCL, cuVS\n~50X\nDeep Learning\ncuDNN, CUTLASS, Megatron, TensorRT, TRT LLM, \nNCCL, NV-Triton, CUDA-optimized PyTorch, \nTensorflow, Triton, Jax\n~100X\nScience\nEarth-2 CorrDiff, Holoscan, Parabricks, Monai, \nModulus, Warp, cuLitho, cuQuantum, CUDA-Q, \nAmgX, cuDSS, cuFFT, cuSOLVER, cuBLAS, \ncuSPARSE, cuTENSOR, cuGraph, Magnum IO, \nNCCL, NVSHMEM, RAFT, cuNumeric, Sionna\n~100X\nAgentic and Physical AI\nACE,"
+  ],
+  "extraction_status": "extracted",
+  "extracted_at": "2026-03-28T20:39:08.299134+00:00"
+}

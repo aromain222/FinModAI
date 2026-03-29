@@ -1,0 +1,177 @@
+{
+  "id": "bmy_sec_public_filings",
+  "title": "BRISTOL MYERS SQUIBB CO General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-bmy",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent BMY SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "BRISTOL MYERS SQUIBB CO General SEC Filings",
+    "company_name": "BRISTOL MYERS SQUIBB CO",
+    "ticker": "BMY",
+    "cik": "0000014272",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-11",
+      "2026-02-05",
+      "2026-01-12",
+      "2025-11-18",
+      "2025-11-10",
+      "2025-11-03",
+      "2025-10-30",
+      "2025-10-30",
+      "2025-07-31",
+      "2025-07-31"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "In addition, we could, at any time, decide not to buy back any more shares in the market, or reduce the number of shares repurchased under our share repurchase program, which could also adversely affect our stock price.",
+      "From time to time thereafter, the Board approved additional share repurchase authorizations totaling an amount of $25.0 billion, including the most recent authorization of $3.0 billion in December 2023."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Evaluation of Disclosure Controls and Procedures As of December 31, 2025, management carried out an evaluation, under the supervision and with the participation of its chief executive officer and chief financial officer, of the effectiveness of the design and operation of its disclosure controls and procedures as defined in Exchange Act Rules 13a-15(e) and 15d-15(e), as of the end of the period covered by this 2025 Form 10-K.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Risk Factors\u2014Product, Industry and Operational Risks\u2014Increased pricing pressure and other restrictions in the U.S."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-bmy",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-bmy/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-bmy/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-bmy/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-02-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 FY FALSE P3Y0M0D http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-"
+      },
+      {
+        "label": "8-K 2026-02-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-05 2026-02-05 bmy:CommonStock0.10ParValueMember 2026-02-05 2026-02-05 bmy:CelgeneContingentValueRightsMember 2026-02-05 2026-02-05 bmy:A2.973NotesDue2030Member 2026-02-05 2026-02-05 bmy:A3.363NotesDue2033Member 2026-02-05 202"
+      },
+      {
+        "label": "8-K 2026-01-12",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-12 2026-01-12 bmy:Three857NotesDue2038Member 2026-01-12 2026-01-12 bmy:Three363NotesDue2033Member 2026-01-12 2026-01-12 bmy:CelgeneContingentValueRightsMember 2026-01-12 2026-01-12 bmy:Four289NotesDue2045Member 2026-01-12 2026-01-12 00000"
+      },
+      {
+        "label": "8-K 2025-11-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false NYSE NYSE NYSE NYSE NYSE NYSE NYSE NYSE - 2025-11-17 2025-11-17 bmy:Three857NotesDue2038Member 2025-11-17 2025-11-17 bmy:Four581NotesDue2055Member 2025-11-17 2025-11-17 bmy:Three363NotesDue2033Member 2025-11-17 2025-11-17 bmy:Four289NotesDue2045Mem"
+      },
+      {
+        "label": "8-K 2025-11-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false BRISTOL MYERS SQUIBB CO DE NJ NYSE NYSE NYSE - 2025-10-31 2025-10-31 bmy:CelgeneContingentValueRightsMember 2025-10-31 2025-10-31 2025-10-31 2025-10-31 bmy:One750NotesDue2035Member 2025-10-31 2025-10-31 UNITED STATES SECURITIES AND E"
+      },
+      {
+        "label": "8-K 2025-11-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false NYSE NYSE NYSE - 2025-11-03 2025-11-03 bmy:CelgeneContingentValueRightsMember 2025-11-03 2025-11-03 2025-11-03 2025-11-03 bmy:One750NotesDue2035Member 2025-11-03 2025-11-03 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington,"
+      },
+      {
+        "label": "10-Q 2025-10-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 Q3 --12-31 FALSE FALSE - bmy:right bmy:immunologyAsset bmy:customer bmy:lawsuit 2025-01-01 2025-09-30 bmy:CommonStock0.10ParValueMember 2025-01-01 2025-09-30 bmy:A1.750Notesdue2035Membe"
+      },
+      {
+        "label": "8-K 2025-10-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-30 2025-10-30 bmy:CommonStock0.10ParValueMember 2025-10-30 2025-10-30 bmy:A1.750Notesdue2035Member 2025-10-30 2025-10-30 bmy:CelgeneContingentValueRightsMember 2025-10-30 2025-10-30 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washi"
+      },
+      {
+        "label": "10-Q 2025-07-31",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 Q2 --12-31 FALSE FALSE 332 - bmy:right bmy:customer bmy:oncology_asset bmy:lawsuit 2025-01-01 2025-06-30 bmy:CommonStock0.10ParValueMember 2025-01-01 2025-06-30 bmy:A1.750Notesdue2035Me"
+      },
+      {
+        "label": "8-K 2025-07-31",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-07-31 2025-07-31 bmy:CommonStock0.10ParValueMember 2025-07-31 2025-07-31 bmy:A1.750Notesdue2035Member 2025-07-31 2025-07-31 bmy:CelgeneContingentValueRightsMember 2025-07-31 2025-07-31 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washi"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-02-11",
+      "text_preview": "2025 FY FALSE P3Y0M0D http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.",
+      "char_count": 592720,
+      "word_count": 83106,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/14272/000001427226000004/bmy-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-05",
+      "text_preview": "false - 2026-02-05 2026-02-05 bmy:CommonStock0.10ParValueMember 2026-02-05 2026-02-05 bmy:CelgeneContingentValueRightsMember 2026-02-05 2026-02-05 bmy:A2.973NotesDue2030Member 2026-02-05 2026-02-05 bmy:A3.363NotesDue2033Member 2026-02-05 2026-02-05 bmy:A1.750Notesdue2035Member 2026-02-05 2026-02-05 bmy:A3.857NotesDue2038Member 2026-02-05 2026-02-05 bmy:A4.289NotesDue2045Member 2026-02-05 2026-02-05 bmy:A4.581NotesDue2055Member 2026-02-05 2026-02-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _____________________________ FORM 8-K _____________",
+      "char_count": 6567,
+      "word_count": 944,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/14272/000001427226000002/bmy-20260205.htm"
+    },
+    {
+      "label": "8-K 2026-01-12",
+      "text_preview": "false - 2026-01-12 2026-01-12 bmy:Three857NotesDue2038Member 2026-01-12 2026-01-12 bmy:Three363NotesDue2033Member 2026-01-12 2026-01-12 bmy:CelgeneContingentValueRightsMember 2026-01-12 2026-01-12 bmy:Four289NotesDue2045Member 2026-01-12 2026-01-12 bmy:One750NotesDue2035Member 2026-01-12 2026-01-12 2026-01-12 2026-01-12 bmy:Four581NotesDue2055Member 2026-01-12 2026-01-12 bmy:Two973NotesDue2030Member 2026-01-12 2026-01-12 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Secu",
+      "char_count": 4667,
+      "word_count": 664,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/14272/000114036126000929/ef20062582_8k.htm"
+    }
+  ]
+}

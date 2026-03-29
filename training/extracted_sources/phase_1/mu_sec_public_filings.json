@@ -1,0 +1,177 @@
+{
+  "id": "mu_sec_public_filings",
+  "title": "MICRON TECHNOLOGY INC General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-mu",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent MU SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "MICRON TECHNOLOGY INC General SEC Filings",
+    "company_name": "MICRON TECHNOLOGY INC",
+    "ticker": "MU",
+    "cik": "0000723125",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-25",
+      "2026-03-19",
+      "2026-03-18",
+      "2026-01-21",
+      "2025-12-18",
+      "2025-12-17",
+      "2025-10-21",
+      "2025-10-03",
+      "2025-09-23",
+      "2025-08-11"
+    ],
+    "capital_markets_activity": [
+      "issued a press release announcing that it has commenced cash tender offers to purchase any and all of its outstanding 5.300% Senior Notes due 2031, 5.650% Senior Notes due 2032, 5.875% Senior Notes due 2033, 5.875% Senior Notes due 2033, 5.800% Senior Notes due 2035, and 6.050% Senior Notes due 2035."
+    ],
+    "capital_allocation_activity": [
+      "The amount and frequency of our share repurchases may fluctuate, and we cannot guarantee that we will purchase all of the shares under our share repurchase authorization, or that it will enhance long-term shareholder value.",
+      "Share repurchases could also increase the volatility of the trading price of our stock and would diminish our cash reserves."
+    ],
+    "liquidity_notes": [
+      "There can be no assurance that our business will generate cash flow from operations, or that additional capital will be available to us, in amounts sufficient to enable us to meet our debt payment obligations and to fund other liquidity needs."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "CONTROLS AND PROCEDURES An evaluation was carried out under the supervision and with the participation of our management, including our principal executive officer and principal financial officer, of the effectiveness of the design and operation of our disclosure controls and procedures (as defined in Rules 13a-15(e) and 15d-15(e) under the Securities Exchange Act of 1934, as amended (the \u201cExchange Act\u201d)) as of the end of the period covered by this report.",
+      "During the second quarter of 2026, there were no changes in our internal control over financial reporting that have materially affected, or are reasonably likely to materially affect, our internal control over financial reporting.",
+      "Risk Factors in this Quarterly Report on Form 10-Q."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-mu",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-mu/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-mu/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-mu/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-03-25 2026-03-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 March 25, 2026 Date of Report (date of earliest eve"
+      },
+      {
+        "label": "10-Q 2026-03-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "--09-03 2026 Q2 False P1Y http://fasb.org/us-gaap/2025#DebtCurrent http://fasb.org/us-gaap/2025#DebtCurrent http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations http://fasb.org/us-gaap/2025#SecuredOvernightFinancin"
+      },
+      {
+        "label": "8-K 2026-03-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-03-18 2026-03-18 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 March 18, 2026 Date of Report (date of earliest event reported) MICRON TECHNOLOGY, INC. ("
+      },
+      {
+        "label": "8-K 2026-01-21",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false --09-03 - 2026-01-15 2026-01-15 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 January 15, 2026 Date of Report (date of ea"
+      },
+      {
+        "label": "10-Q 2025-12-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "--09-03 2026 Q1 False P1Y http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization http://fasb.org"
+      },
+      {
+        "label": "8-K 2025-12-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-12-17 2025-12-17 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 December 17, 2025 Date of Report (date of earliest event reported) MICRON TECHNOLOGY, INC"
+      },
+      {
+        "label": "8-K 2025-10-21",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-15 2025-10-15 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 October 15, 2025 Date of Report (date of earliest e"
+      },
+      {
+        "label": "10-K 2025-10-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "--08-28 2025 FY False P1Y http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization http://fasb.org"
+      },
+      {
+        "label": "8-K 2025-09-23",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-09-23 2025-09-23 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 September 23, 2025 Date of Report (date of earliest event reported) MICRON TECHNOLOGY, IN"
+      },
+      {
+        "label": "8-K 2025-08-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-11 2025-08-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 August 11, 2025 Date of Report (date of earliest ev"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-25",
+      "text_preview": "false - 2026-03-25 2026-03-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 March 25, 2026 Date of Report (date of earliest event reported) Micron Technology, Inc. (Exact name of registrant as specified in its charter) Delaware 1-10658 75-1618004 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 8000 South Federal Way Boise , Idaho 83716-9632 (Address of principal executive offices and Zip Code) (208) 368-4000 (Registrant\u2019s telephone number,",
+      "char_count": 3076,
+      "word_count": 465,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/723125/000110465926034174/tm269755d1_8k.htm"
+    },
+    {
+      "label": "10-Q 2026-03-19",
+      "text_preview": "--09-03 2026 Q2 False P1Y http://fasb.org/us-gaap/2025#DebtCurrent http://fasb.org/us-gaap/2025#DebtCurrent http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations http://fasb.org/us-gaap/2025#SecuredOvernightFinancingRateSofrOvernightIndexSwapRateMember one one one four one P6M P6M 274 365 343 - utr:Rate mu:patent mu:segment 2025-08-29 2026-02-26 2026-03-11 2025-11-28 2026-02-26 2024-11-29 2025-02-27 2024-08-30 2025-02-27 2026-02-26 2025-08-28",
+      "char_count": 229251,
+      "word_count": 32815,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/723125/000072312526000006/mu-20260226.htm"
+    },
+    {
+      "label": "8-K 2026-03-18",
+      "text_preview": "FALSE - 2026-03-18 2026-03-18 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 March 18, 2026 Date of Report (date of earliest event reported) MICRON TECHNOLOGY, INC. (Exact name of registrant as specified in its charter) Delaware 1-10658 75-1618004 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 8000 South Federal Way Boise , Idaho 83716 -9632 (Address of principal executive offices and Zip Code) ( 208 ) 368-4000 (Registrant\u2019s telephone number, including area code) Check the app",
+      "char_count": 3519,
+      "word_count": 550,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/723125/000072312526000004/mu-20260318.htm"
+    }
+  ]
+}

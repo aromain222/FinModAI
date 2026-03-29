@@ -1,0 +1,177 @@
+{
+  "id": "low_sec_public_filings",
+  "title": "LOWES COMPANIES INC General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-low",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent LOW SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "LOWES COMPANIES INC General SEC Filings",
+    "company_name": "LOWES COMPANIES INC",
+    "ticker": "LOW",
+    "cik": "0000060667",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-23",
+      "2026-02-25",
+      "2025-11-26",
+      "2025-11-19",
+      "2025-10-09",
+      "2025-09-30",
+      "2025-09-19",
+      "2025-08-28",
+      "2025-08-20",
+      "2025-08-20"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "2 On December 7, 2022, the Company announced that its Board of Directors authorized an additional $15.0 billion of share repurchases with no expiration.",
+      "3 Excludes excise tax on share repurchases in excess of issuances, which is recognized as part of the cost basis of the shares acquired in the consolidated statements of shareholders\u2019 deficit."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Item 9A - Controls and Procedures The Company\u2019s management, with the participation of the Chief Executive Officer and Chief Financial Officer, has evaluated the effectiveness of the Company\u2019s \u201cdisclosure controls and procedures\u201d, (as such term is defined in Rule 13a-15(e) promulgated under the Securities Exchange Act of 1934, as amended, (the Exchange Act)).",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "For a detailed description of the risks and uncertainties that we are exposed to, you should read Item 1A , \u201cRisk Factors\u201d included elsewhere in this Annual Report."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-low",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-low/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-low/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-low/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-03-23",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY P1Y P5Y P5Y P1Y P1Y P1Y http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligationsCurrent http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligationsCurr"
+      },
+      {
+        "label": "8-K 2026-02-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "LOWES COMPANIES INC false - 2026-02-25 2026-02-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 25, 2026"
+      },
+      {
+        "label": "10-Q 2025-11-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q3 01-30 one - low:segment 2025-02-01 2025-10-31 2025-11-24 2025-08-02 2025-10-31 2024-08-03 2024-11-01 2024-02-03 2024-11-01 2025-10-31 2024-11-01"
+      },
+      {
+        "label": "8-K 2025-11-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "LOWES COMPANIES INC false - 2025-11-19 2025-11-19 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): November 19, 2025"
+      },
+      {
+        "label": "8-K 2025-10-09",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "LOWES COMPANIES INC false - 2025-08-20 2025-08-20 2025-10-09 2025-10-09 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest ev"
+      },
+      {
+        "label": "8-K 2025-09-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K LOWES COMPANIES INC false - 2025-09-23 2025-09-23 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported) September 23, 2025 LOWE\u0335"
+      },
+      {
+        "label": "8-K 2025-09-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K LOWES COMPANIES INC false - 2025-09-16 2025-09-16 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported) September 16, 2025 LOWE\u0335"
+      },
+      {
+        "label": "10-Q 2025-08-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q2 01-30 one - low:segment 2025-02-01 2025-08-01 2025-08-26 2025-05-03 2025-08-01 2024-05-04 2024-08-02 2024-02-03 2024-08-02 2025-08-01 2024-08-02"
+      },
+      {
+        "label": "8-K 2025-08-20",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "LOWES COMPANIES INC false - 2025-08-19 2025-08-19 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): August 19, 2025 LO"
+      },
+      {
+        "label": "8-K 2025-08-20",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "LOWES COMPANIES INC false - 2025-08-20 2025-08-20 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): August 20, 2025 LO"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-03-23",
+      "text_preview": "false 2025 FY P1Y P5Y P5Y P1Y P1Y P1Y http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligationsCurrent http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligationsCurrent http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations 33.00 33.00 33.00 0 0 - low:store low:branch low:option low:segment low:business_line 2025-02-01 2026-01-30 2025-08-01 2026-03-19 2024-",
+      "char_count": 321612,
+      "word_count": 46387,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/60667/000006066726000029/low-20260130.htm"
+    },
+    {
+      "label": "8-K 2026-02-25",
+      "text_preview": "LOWES COMPANIES INC false - 2026-02-25 2026-02-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 25, 2026 LOWE\u2019S COMPANIES, INC. (Exact name of registrant as specified in its charter) North Carolina 1-7898 56-0578072 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 1000 Lowes Blvd. , Mooresville , NC 28117 (Address of principal executive offices) (Zip Code) Registrant\u2019s telephone number, including area code: ( 704",
+      "char_count": 3806,
+      "word_count": 582,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/60667/000006066726000020/low-20260225.htm"
+    },
+    {
+      "label": "10-Q 2025-11-26",
+      "text_preview": "false 2025 Q3 01-30 one - low:segment 2025-02-01 2025-10-31 2025-11-24 2025-08-02 2025-10-31 2024-08-03 2024-11-01 2024-02-03 2024-11-01 2025-10-31 2024-11-01 2025-01-31 2025-08-01 2025-08-01 2025-08-01 2025-08-01 2025-08-01 2025-08-02 2025-10-31",
+      "char_count": 101612,
+      "word_count": 14281,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/60667/000006066725000210/low-20251031.htm"
+    }
+  ]
+}

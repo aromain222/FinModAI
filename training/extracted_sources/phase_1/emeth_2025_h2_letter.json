@@ -1,0 +1,157 @@
+{
+  "id": "emeth_2025_h2_letter",
+  "title": "Emeth Value Capital 2025 H2 Letter",
+  "file_path": "/Users/averyromain/Downloads/2025 H2 Letter vFinalWeb.pdf",
+  "source_type": "investor_letter",
+  "tier": "A",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "eval_cases",
+  "recommended_phase": 1,
+  "template_key": "investor_letter",
+  "assistant_training_targets": [
+    "thesis articulation",
+    "portfolio commentary",
+    "risk framing",
+    "what changed",
+    "decision language"
+  ],
+  "source_summary": "Real investor letter with explicit mistake analysis and long-only thesis framing.",
+  "strengths": [
+    "mistake analysis",
+    "industry structure reasoning",
+    "public-equity judgment"
+  ],
+  "weaknesses": [
+    "not a model source"
+  ],
+  "fields": {
+    "title": "Emeth Value Capital 2025 H2 Letter",
+    "manager": "Emeth Value Capital",
+    "date": "December 31, 2025",
+    "strategy_style": "long/short, value-oriented, small-cap, partnership letter",
+    "performance_context": [
+      "Emeth Value MSCI ACWI Capital Index Delta 6 Months -8.34 + 10.99 -19.33 1 Year -3.79 + 22.41 -26.20 3 Years +20.86 + 20.70 +0.16 5 Years +15.66 + 11.24 +4.42 Since Inception +18.15 + 11.87 +6.28 Emeth Value MSCI ACWI Capital Index Delta 2016 +9.33 + 8.40 +0.93 2017 +39.57 + 24.35",
+      "| 2 Reflections You are either richer or wiser, never both. (Bill Duhamel) Investing, if practiced long enough, has humbling ways of resurfacing rudimentary lessons. While we would all do well to heed the great Charlie Munger\u2019s advice and learn vicariously through the mistakes of",
+      "Competitive Landscape The propane distribution industry in the United States remains highly fragmented. The industry\u2019s four majors \u2013 AmeriGas (~8%), Ferrellgas (~6%), Suburban Propane (~4%), and Superior Plus (~4%) \u2013 account for just twenty-two percent of industry volumes. Beyond"
+    ],
+    "top_themes": [
+      "FOR THE YEAR ENDED VALUATION",
+      "BASE CASE SCENARIO"
+    ],
+    "positions_discussed": [
+      "Emeth Value MSCI ACWI",
+      "I. Market Share Fluidity",
+      "II. Leverageable Assets",
+      "IV. Directionally Wrong",
+      "V. Preexisting Outcomes",
+      "CNG",
+      "EIA",
+      "Competitive Landscape",
+      "ICG"
+    ],
+    "thesis_points": [
+      "I. Market Share Fluidity A characteristic that sets apart many of our worst investments from our best is actually a trait of the industry itself. And that is, within an industry, how quickly can market share change hands? For many of our best investments \u2013 in alternative asset ma",
+      "III. The Wrong Side of Scale Advantage A common thread that exists across nearly all of our worst performing investments is that they were on the wrong side of scale advantages. Scott Miller at Greenhaven Road Capital aptly describes these challenges in his Q1 2021 investor lette",
+      "IV. Directionally Wrong Investment outcomes \u2013 success or the lack thereof \u2013 occur along a broad spectrum of possibilities. They\u2019re not binary... until they are. In our very worst investments, we weren\u2019t just wrong; we were directionally wrong. There is almost no price cheap enoug",
+      "Below I highlight one of our portfolio companies, Superior Plus Corp, which I believe adheres to each of these learnings. The company (i) operates in an industry with very sticky customer relationships, (ii) provides non-discretionary services which generate predictable cash flow",
+      "| 7 markets, the majors have been perennial share losers to independents \u2013 effectively negating gains from acquisition activity. Of note, this dynamic has been largely self-inflicted. For example, most of the majors are structured as publicly traded master limited partnerships (M"
+    ],
+    "valuation_language": [
+      "TO: Investment Partners FROM: Emeth Value Capital | emethvaluecapital.com DATE: 2/4/ 2026 RE: 2025 H2 Letter Foreword I intend to share the updated results at the outset of each letter. It is worth reiterating that I ascribe little significance to short term results. I look out m",
+      "| 2 Reflections You are either richer or wiser, never both. (Bill Duhamel) Investing, if practiced long enough, has humbling ways of resurfacing rudimentary lessons. While we would all do well to heed the great Charlie Munger\u2019s advice and learn vicariously through the mistakes of",
+      "I. Market Share Fluidity A characteristic that sets apart many of our worst investments from our best is actually a trait of the industry itself. And that is, within an industry, how quickly can market share change hands? For many of our best investments \u2013 in alternative asset ma",
+      "II. Leverageable Assets Our worst performing investments were not highly leveraged businesses, but rather, were unleveraged businesses that became highly levered. One takeaway from this has been that",
+      "| 3 gross debt matters (i.e., not just net debt), particularly in businesses that are in a growth phase and have expected uses for the cash on the balance sheet. What begins as a clear path to inflecting profitability can, with an operational stumble, quickly devolve into an unco"
+    ],
+    "risks_discussed": [
+      "I. Market Share Fluidity A characteristic that sets apart many of our worst investments from our best is actually a trait of the industry itself. And that is, within an industry, how quickly can market share change hands? For many of our best investments \u2013 in alternative asset ma",
+      "| 3 gross debt matters (i.e., not just net debt), particularly in businesses that are in a growth phase and have expected uses for the cash on the balance sheet. What begins as a clear path to inflecting profitability can, with an operational stumble, quickly devolve into an unco",
+      "III. The Wrong Side of Scale Advantage A common thread that exists across nearly all of our worst performing investments is that they were on the wrong side of scale advantages. Scott Miller at Greenhaven Road Capital aptly describes these challenges in his Q1 2021 investor lette",
+      "| 7 markets, the majors have been perennial share losers to independents \u2013 effectively negating gains from acquisition activity. Of note, this dynamic has been largely self-inflicted. For example, most of the majors are structured as publicly traded master limited partnerships (M"
+    ],
+    "portfolio_actions": [
+      "III. The Wrong Side of Scale Advantage A common thread that exists across nearly all of our worst performing investments is that they were on the wrong side of scale advantages. Scott Miller at Greenhaven Road Capital aptly describes these challenges in his Q1 2021 investor lette",
+      "| 5 Overview Superior Plus is a leading North American distributor of propane, serving 750,000 residential and commercial customers across the U.S. and Canada. The company was founded in Ontario, Canada in 1951, and today delivers approximately one billion gallons of propane annu",
+      "| 6 manufacturing processes, agricultural irrigation and crop drying, and autogas for vehicle fleets. As with the residential market, commercial and industrial propane consumption has remained very stable in the U.S. over the last two decades. In Canada, the propane distribution ",
+      "| 7 markets, the majors have been perennial share losers to independents \u2013 effectively negating gains from acquisition activity. Of note, this dynamic has been largely self-inflicted. For example, most of the majors are structured as publicly traded master limited partnerships (M",
+      "Superior Propane was founded in 1951 and today is Canada\u2019s only nationwide propane distributor. While the business grew to become the country\u2019s second largest propane retailer by 1980 (holding a ten percent market share), its real market dominance was solidified through two pivot"
+    ],
+    "tone_notes": "Real investor letter with explicit mistake analysis and long-only thesis framing.",
+    "best_quotes_or_phrases": [
+      "why does this business need to exist?"
+    ]
+  },
+  "source_metadata": {
+    "file_present": true,
+    "source_extension": ".pdf",
+    "extraction_mode": "pdf_text",
+    "page_count": 24,
+    "headings_detected": [
+      "FOR THE YEAR ENDED VALUATION",
+      "BASE CASE SCENARIO"
+    ]
+  },
+  "chunking": {
+    "strategy": "page_groups",
+    "chunk_count": 8,
+    "chunks": [
+      {
+        "label": "pages_1_3",
+        "start_page": 1,
+        "end_page": 3,
+        "text_preview": "| 1 \n \n \nTO: Investment Partners \nFROM: Emeth Value Capital | emethvaluecapital.com \nDATE: 2/4/ 2026 \nRE: 2025 H2 Letter \n Foreword \nI intend to share the updated results at the outset of each letter. It is worth reiterating that I ascribe little \nsignificance to short term results. I look out many years when making investments for the partnership and \nbelieve our results are best weighed using a similar time horizon. \n \n \nEmeth Value MSCI ACWI\nCapital Index Delta\n6 Months -8.34 + 10.99 -19.33\n1 Year -3.79 + 22.41 -26.20\n3 Years +20.86 + 20.70 +0.16\n5 Years +15.66 + 11.24 +4.42\nSince Inception +18.15 + 11.87 +6.28\nEmeth Value MSCI ACWI\nCapital Index Delta\n2016 +9.33 + 8.40 +0.93\n2017 +39.57 + 24.35 +15.22\n2018 -17.14 - 9.18 -7.96\n2019 +87.40 + 26.58 +60.82\n2020 +8.08 + 16.33 -8.25\n2021 +36.31 + 18.67 +17.64\n2022 -13.99 - 18.37 +4.38\n2023 +42.77 + 22.30 +20.47\n2024 +28.54 + 17.46 +11.08\n2025 -3.79 + 22.41 -26.20\nCumulative Since Inception +430.07 + 207.04 +223.03\nAnnualized Net Returns to December 31, 2025\n(unanualized if < 1 year, inception 12/31/2015)\nCalendar Year Net Returns to December 31, 2025\n\n| 2 \nReflections \nYou are either richer or wiser, never both. (Bill Duhamel) \nInvesting, if practiced long enough, has humbling ways of resurfacing rudimentary lessons. While we would \nall do well to heed the great Charlie Munger\u2019s advice and learn vicariously through the mistakes of others, in \nmy experience, nothing quite internalizes a lesson like touching the stove yourself. N"
+      },
+      {
+        "label": "pages_4_6",
+        "start_page": 4,
+        "end_page": 6,
+        "text_preview": "| 4 \nmarket capitalization companies becoming the norm, the businesses that are becoming too \nsmall to pay attention to are growing very large. It is no longer unusual to find multibillion \ndollar revenue businesses, which are leaders in their industry, trading like ignored microcaps. \n \nIV. Directionally Wrong \nInvestment outcomes \u2013 success or the lack thereof \u2013 occur along a broad spectrum of \npossibilities. They\u2019re not binary... until they are. In our very worst investments, we weren\u2019t just \nwrong; we were directionally wrong. There is almost no price cheap enough for a business that \nis getting worse over time, and unfortunately most people believe that too and vote \naccordingly. Insofar as valuation correlates to the healthy fundamental growth of a business, \nwith worsening results you are walking backwards down a hill until at some point you reach a \ncliff, and it can be dangerous to think that the path is more evenly distributed than it is. And so, \nat the outset of any new investment it is a helpful framework to think through the odds \u2013 not \njust that you\u2019ll be wrong, but that you\u2019ll be directionally wrong. While hindsight is 20/20, \nmany of our best performing investments were exactly those where the probability that we \nwere wrong on the trajectory of the business was very low. \n \nV. Preexisting Outcomes \nFinally, in our worst performing investments we often got caught up in the trap of what \n\u201ccould\u201d or \u201cshould\u201d happen in a business for it to be a success, rather th"
+      },
+      {
+        "label": "pages_7_9",
+        "start_page": 7,
+        "end_page": 9,
+        "text_preview": "| 7 \nmarkets, the majors have been perennial share losers to independents \u2013 effectively negating gains from \nacquisition activity. Of note, this dynamic has been largely self-inflicted. For example, most of the majors \nare structured as publicly traded master limited partnerships (MLPs), which has led to an overreliance on \nprice increases to meet quarterly distribution targets \u2013 often at the direct expense of customer retention. In \naddition, the majors have uniformly suffered from organizational myopia on deal-making, resulting in \nneglected basic operational execution and customer service, further contributing to customer churn. While \nseemingly benign in any given period, the cumulative effects of this customer loss can have disastrous \neffects on the economics of a route-density business model (i.e., losing a customer not only impacts your \nrevenue, but it also impacts your cost to serve of every remaining customer on that route). That said, the \nseverity of these issues varies across the group. AmeriGas and Ferrellgas have experienced the most \npronounced operational lapses and customer attrition, whereas Suburban Propane and Superior Plus have \nshown comparatively better performance. A case in point on these challenges at the majors being self-\ninflicted is the continued success of large, family-owned platforms like Thompson Gas and Blossman Gas \nthat acquire and compete against the same group of smaller independents. Geographically, there are also \nsignificant regiona"
+      },
+      {
+        "label": "pages_10_12",
+        "start_page": 10,
+        "end_page": 12,
+        "text_preview": "| 10 \nthese companies were widely regarded in the industry as high-quality assets and located in attractive \nmarkets. Reflecting that, Superior Plus generally paid a premium, with pre-synergy acquisition multiples \naveraging about 9x EV/EBITDA compared to an industry benchmark closer to 7x EV/EBITDA. As a result, \ntoday sixty-five percent of Superior\u2019s volumes in the U.S. are located in the Northeast, where tailwinds from \nfuel oil switching are significant, and the group has almost no exposure to agricultural heavy midwestern \nstates where margins are slim. Moreover, Superior has a company-owned tank position in the U.S. of eighty-\nnine percent, which is significantly higher than industry averages. In total, Superior\u2019s U.S. operations deliver \napproximately 350 million gallons of propane annually to more than five hundred thousand residential and \ncommercial customers. In addition, fifty percent of Superior Plus\u2019s profits, or $240 million in annual \nEBITDA, is generated by the U.S. propane business. \nSuperior Delivers: Building A Modern Propane Company \nAs noted previously, the quality of service and operational execution at Superior Plus was not immune to its \ntorrid pace of dealmaking over the prior decade. Fortunately, the planned retirement of the company\u2019s \nlongtime CEO in 2023 created an opportunity for a new leadership team, under CEO Allan MacDonald, to \napproach the business with a fresh perspective. This culminated in the announcement of the \u201cSuperior \nDelivers\u201d tr"
+      },
+      {
+        "label": "pages_13_15",
+        "start_page": 13,
+        "end_page": 15,
+        "text_preview": "| 13 \nthe company then bridged the gap with pricing increases \u2013 setting into motion the negative flywheel. At the \noutset, price increases categorically raise churn, and so Superior has stopped all price increases over the last \neighteen months. Within propane markets, customer churn lags the root cause by about six to eighteen \nmonths \u2013 i.e., if a customer is upset by a price increase, they would only look to switch providers when their \ntank is nearing empty again \u2013 so the benefits of Superior\u2019s price freezes are now beginning to bear fruit. To \nadd to that, Superior Plus now has a centralized team that is in charge of customer retention and can \nproactively address churn. The company\u2019s new analytics platform ingests customer specific data like \naccount login activity, changes in usage patterns, or identified service issues and forecasts the customers that \nare most at risk to churn. Superior can then reach out to these customers, and with the new pricing models \ncan now be more aggressive on the offer they can provide to retain those customers. In total, the customer \ngrowth transformation is expected to deliver an incremental $30 million in EBITDA annually by 2027, or \napproximately two percent per annum expected net customer growth. \nWholesale Propane \nAn asset unique to Superior Plus among the propane majors is a significant wholesale propane business. \nThis segment operates under Superior Gas Liquids in Canada and Kiva United Energy in the U.S., and \nhandles logistics "
+      },
+      {
+        "label": "pages_16_18",
+        "start_page": 16,
+        "end_page": 18,
+        "text_preview": "| 16 \n($2.9 billion) and Inergy Propane ($1.8 billion), respectively. While the journey was not without challenges, \nnamely the subsequent operational missteps discussed previously, Superior Plus was largely successful in its \naim to acquire several high quality and attractively priced propane distribution assets. Today, with a renewed \nfocus on operations, we own this much larger collective platform at C$7.04 per share, or more than a forty \npercent discount to Brookfield\u2019s investment. Consider the base case scenario modeled below. \n \nThe assumptions embedded above, though forecasting attractive shareholder outcomes, are significantly \nmore conservative than management estimates. To start, this scenario assumes that by 2027 management \nYear +1 Year +2 Y ear +3 Year +4 Year +5($M) ($M) ( $M) ($M) ($M) Discount Rate 8%Terminal Multiple 12xU.S. Propane Terminal FCF/Share 1 .57Residential Volumes (million gallons) 187.4 187. 4 191.2 196.9 202.8 IV / Share 12.81Commercial Volumes (million gallons) 164.2 164. 2 167.5 172.5 177.7 Upside to IV 153%Total Volumes (million gallons) 351.6 351. 6 358.7 369.4 380.5\nRevenue ($ / gal) 2.95 2. 92 2.90 2.90 2.90Margin ($ / gal) 1.60 1. 58 1.56 1.54 1.52Opex ($ / gal) (0.96) ( 0.89) (0.87) (0.86) (0.85)\nRevenue 1,037.3 1 ,026.7 1,040.1 1,071.3 1,103.4Cost of Sales (473.3) ( 471.1) (481.0) (503.2) (526.1)------------- ------------- ------------- ------------- -------------Gross Profit 564.0 5 55.6 559.1 568.1 577.3Operating Costs (335.8) ( 312."
+      },
+      {
+        "label": "pages_19_21",
+        "start_page": 19,
+        "end_page": 21,
+        "text_preview": "| 19 \noutstanding shares in a one year period. In addition, looking forward, Superior plans to buyback a further \n$100 million (C$135 million) per year in 2026 and 2027. The base case scenario modeled above assumes \nthat the company completes these repurchases at an average price of C$9.0 in 2026 and C$11.0 in 2027; \nsignificantly higher than prevailing share prices, and implying a compounding rate of over twenty-percent \nper annum. Furthermore, recall the Brookfield perpetual preferreds. In July 2027, these preferreds become \ncallable by Superior Plus at par, which would generate $9 million in cash savings per annum if refinanced \nwith the company\u2019s existing revolver capacity, while also avoiding dilution. This scenario assumes that \nthose preferreds are called at par (note: while dilution is possible, that would also mean that shares are \ntrading above C$11.89 by July 2027, and we made at least a 1.7x MoC in eighteen months or less). Taken \ntogether, the output of the model above implies a fair value of C$17.79 (US$12.81) per share, or 153 percent \nupside to intrinsic value. Framed another way, over the course of five years, Superior Plus is expected to \ngenerate more than its current market capitalization in free cash flow. \nM&A \nAt present, Superior Plus is fully focused on setting the business back on proper operational footing. \nHowever, in the long term, this business should have clear platform value as a consolidator in this highly \nfragmented space. There are more th"
+      },
+      {
+        "label": "pages_22_24",
+        "start_page": 22,
+        "end_page": 24,
+        "text_preview": "| 22 \nAppendix B: Unrealized Investments \n \n*Table above reflects the IRR of unrealized portfolio investments (unannualized if < 1 Year), and the equivalent IRR that \nwould have been achieved to date had each invested dollar been allocated to MSCI ACWI. As of 1/28/2026. \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \nTicker Company IRR* MSCI ACWI Delta\n- - -6.05% 17.75% - 23.80%\n- - 22.21% 16.71% 5. 50%\n- - 17.78% 15.77% 2. 01%\n- - 11.88% 21.33% - 9.45%\n- - -9.16% 11.16% - 20.32%\n- - -84.12% 24.72% - 108.84%\n- - 12.08% 11.84% 0. 24%\n- - 70.90% 27.45% 43. 45%\n\n| 23 \nImportant Disclosures \nPerformance data for Emeth Value Capital and its predecessor shown in the chart on the first page of the letter is net of \nactual fees charged, reflecting our published management fee schedule, as well as performance incentive fees, if earned. \nResults include the effect of all trading and other custodial fees or expenses, and is current as of the date(s) indicated. \nReturns include the reinvestment of dividends and other earnings \n \nEmeth Value Capital became initially registered as an investment adviser on January 1, 2021. Performance prior to that date \nreflects the personal account performance of Emeth Value Capital, LLC\u2019s sole managing member, Andrew Carreon, and \ntherefore represents predecessor performance and not performance achieved by any account managed by Emeth Value \nCapital. After January 1, 2021, performance reflects a composite of all accounts subject to a performance fee a"
+      }
+    ]
+  },
+  "text_samples": [
+    "| 1 \n \n \nTO: Investment Partners \nFROM: Emeth Value Capital | emethvaluecapital.com \nDATE: 2/4/ 2026 \nRE: 2025 H2 Letter \n Foreword \nI intend to share the updated results at the outset of each letter. It is worth reiterating that I ascribe little \nsignificance to short term results. I look out many years when making investments for the partnership and \nbelieve our results are best weighed using a similar time horizon. \n \n \nEmeth Value MSCI ACWI\nCapital Index Delta\n6 Months -8.34 + 10.99 -19.33\n1 Year -3.79 + 22.41 -26.20\n3 Years +20.86 + 20.70 +0.16\n5 Years +15.66 + 11.24 +4.42\nSince Inception +18.15 + 11.87 +6.28\nEmeth Value MSCI ACWI\nCapital Index Delta\n2016 +9.33 + 8.40 +0.93\n2017 +39.57 + 24.35 +15.22\n2018 -17.14 - 9.18 -7.96\n2019 +87.40 + 26.58 +60.82\n2020 +8.08 + 16.33 -8.25\n2021 +36.31 + 18.67 +17.64\n2022 -13.99 - 18.37 +4.38\n2023 +42.77 + 22.30 +20.47\n2024 +28.54 + 17.46 +11.08\n2025 -3.79 + 22.41 -26.20\nCumulative Since Inception +430.07 + 207.04 +223.03\nAnnualized Net Returns to December 31, 2025\n(unanualized if < 1 year, inception 12/31/2015)\nCalendar Year Net Returns to December 31, 2025\n\n| 2 \nReflections \nYou are either richer or wiser, never both. (Bill Duhamel) \nInvesting, if practiced long enough, has humbling ways of resurfacing rudimentary lessons. While we would \nall do well to heed the great Charlie Munger\u2019s advice and learn vicariously through the mistakes of others, in \nmy experience, nothing quite internalizes a lesson like touching the stove yourself. N",
+    "| 4 \nmarket capitalization companies becoming the norm, the businesses that are becoming too \nsmall to pay attention to are growing very large. It is no longer unusual to find multibillion \ndollar revenue businesses, which are leaders in their industry, trading like ignored microcaps. \n \nIV. Directionally Wrong \nInvestment outcomes \u2013 success or the lack thereof \u2013 occur along a broad spectrum of \npossibilities. They\u2019re not binary... until they are. In our very worst investments, we weren\u2019t just \nwrong; we were directionally wrong. There is almost no price cheap enough for a business that \nis getting worse over time, and unfortunately most people believe that too and vote \naccordingly. Insofar as valuation correlates to the healthy fundamental growth of a business, \nwith worsening results you are walking backwards down a hill until at some point you reach a \ncliff, and it can be dangerous to think that the path is more evenly distributed than it is. And so, \nat the outset of any new investment it is a helpful framework to think through the odds \u2013 not \njust that you\u2019ll be wrong, but that you\u2019ll be directionally wrong. While hindsight is 20/20, \nmany of our best performing investments were exactly those where the probability that we \nwere wrong on the trajectory of the business was very low. \n \nV. Preexisting Outcomes \nFinally, in our worst performing investments we often got caught up in the trap of what \n\u201ccould\u201d or \u201cshould\u201d happen in a business for it to be a success, rather th",
+    "| 7 \nmarkets, the majors have been perennial share losers to independents \u2013 effectively negating gains from \nacquisition activity. Of note, this dynamic has been largely self-inflicted. For example, most of the majors \nare structured as publicly traded master limited partnerships (MLPs), which has led to an overreliance on \nprice increases to meet quarterly distribution targets \u2013 often at the direct expense of customer retention. In \naddition, the majors have uniformly suffered from organizational myopia on deal-making, resulting in \nneglected basic operational execution and customer service, further contributing to customer churn. While \nseemingly benign in any given period, the cumulative effects of this customer loss can have disastrous \neffects on the economics of a route-density business model (i.e., losing a customer not only impacts your \nrevenue, but it also impacts your cost to serve of every remaining customer on that route). That said, the \nseverity of these issues varies across the group. AmeriGas and Ferrellgas have experienced the most \npronounced operational lapses and customer attrition, whereas Suburban Propane and Superior Plus have \nshown comparatively better performance. A case in point on these challenges at the majors being self-\ninflicted is the continued success of large, family-owned platforms like Thompson Gas and Blossman Gas \nthat acquire and compete against the same group of smaller independents. Geographically, there are also \nsignificant regiona",
+    "| 10 \nthese companies were widely regarded in the industry as high-quality assets and located in attractive \nmarkets. Reflecting that, Superior Plus generally paid a premium, with pre-synergy acquisition multiples \naveraging about 9x EV/EBITDA compared to an industry benchmark closer to 7x EV/EBITDA. As a result, \ntoday sixty-five percent of Superior\u2019s volumes in the U.S. are located in the Northeast, where tailwinds from \nfuel oil switching are significant, and the group has almost no exposure to agricultural heavy midwestern \nstates where margins are slim. Moreover, Superior has a company-owned tank position in the U.S. of eighty-\nnine percent, which is significantly higher than industry averages. In total, Superior\u2019s U.S. operations deliver \napproximately 350 million gallons of propane annually to more than five hundred thousand residential and \ncommercial customers. In addition, fifty percent of Superior Plus\u2019s profits, or $240 million in annual \nEBITDA, is generated by the U.S. propane business. \nSuperior Delivers: Building A Modern Propane Company \nAs noted previously, the quality of service and operational execution at Superior Plus was not immune to its \ntorrid pace of dealmaking over the prior decade. Fortunately, the planned retirement of the company\u2019s \nlongtime CEO in 2023 created an opportunity for a new leadership team, under CEO Allan MacDonald, to \napproach the business with a fresh perspective. This culminated in the announcement of the \u201cSuperior \nDelivers\u201d tr",
+    "| 13 \nthe company then bridged the gap with pricing increases \u2013 setting into motion the negative flywheel. At the \noutset, price increases categorically raise churn, and so Superior has stopped all price increases over the last \neighteen months. Within propane markets, customer churn lags the root cause by about six to eighteen \nmonths \u2013 i.e., if a customer is upset by a price increase, they would only look to switch providers when their \ntank is nearing empty again \u2013 so the benefits of Superior\u2019s price freezes are now beginning to bear fruit. To \nadd to that, Superior Plus now has a centralized team that is in charge of customer retention and can \nproactively address churn. The company\u2019s new analytics platform ingests customer specific data like \naccount login activity, changes in usage patterns, or identified service issues and forecasts the customers that \nare most at risk to churn. Superior can then reach out to these customers, and with the new pricing models \ncan now be more aggressive on the offer they can provide to retain those customers. In total, the customer \ngrowth transformation is expected to deliver an incremental $30 million in EBITDA annually by 2027, or \napproximately two percent per annum expected net customer growth. \nWholesale Propane \nAn asset unique to Superior Plus among the propane majors is a significant wholesale propane business. \nThis segment operates under Superior Gas Liquids in Canada and Kiva United Energy in the U.S., and \nhandles logistics "
+  ],
+  "extraction_status": "extracted",
+  "extracted_at": "2026-03-27T18:47:21.139597+00:00"
+}

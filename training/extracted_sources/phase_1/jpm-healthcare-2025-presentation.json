@@ -1,0 +1,171 @@
+{
+  "id": "jpm-healthcare-2025-presentation",
+  "title": "JPM Healthcare 2025 Presentation",
+  "file_path": "/Users/averyromain/Downloads/JPM-Healthcare-2025.pdf",
+  "source_type": "investor_presentation",
+  "tier": "A",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "transaction_methodology",
+  "recommended_phase": 1,
+  "template_key": "investor_presentation",
+  "assistant_training_targets": [
+    "slide compression",
+    "contributor/detractor summaries",
+    "thesis slide structure"
+  ],
+  "source_summary": "Healthcare conference presentation for business overview compression, pipeline framing, and investor-facing KPI communication.",
+  "strengths": [
+    "conference presentation framing",
+    "business overview compression",
+    "KPI communication"
+  ],
+  "weaknesses": [
+    "selective disclosure emphasis",
+    "presentation shorthand"
+  ],
+  "fields": {
+    "title": "JPM Healthcare 2025 Presentation",
+    "manager": null,
+    "date": null,
+    "agenda": [
+      "FY2026",
+      "NVIDIA NIM",
+      "IQVIA",
+      "IQVIA",
+      "NVIDIA AI",
+      "DISCOVERY DEVELOPMENT",
+      "MAISI",
+      "VISTA-3D",
+      "VISTA-2D",
+      "GPU-MSA"
+    ],
+    "portfolio_contributors": [],
+    "portfolio_detractors": [],
+    "holdings_covered": [
+      "NVIDIA Healthcare and Life Sciences",
+      "The AI Revolution is Here",
+      "The AI Revolution is",
+      "NVIDIA Healthcare and Life Sciences Ecosystem",
+      "NVIDIA NeMo",
+      "Announcing",
+      "NVIDIA BioNeMo Platform"
+    ],
+    "valuation_points": [
+      "Except for the historical information contained herein, certain matters in this presentation including, but not limited to, statements as to: our market opportunity; the benefits, impact, performance, features, and availability of our products and technologies including NVIDIA AI",
+      "The AI Revolution is Here This will drive huge growth in industries around the world Software Factory AI Factory Tools Retrieval Instructions CPU Skills Generative LLMS GPU $100T Computing Healthcare Transportation Manufacturing",
+      "The AI Revolution is Here and Accelerating Speech Recognition Deep RECSYS Medical Imaging Perception AI Digital Marketing Content Creation Generative AI Coding Assistant Customer Service Patient Care Agentic AI Self-Driving Cars General Robotics Physical AI",
+      "One of the Most Important Applications of AI Healthcare and Life Sciences Digital Devices Billions of Sensors, Images & Procedures Digital Biology $300B in Drug Discovery R&D Digital Health 10Bs of Health Interactions",
+      "NVIDIA NeMo NVIDIA NIM Understanding & Reasoning Information Retrieval Visual Content Generation Digital Biology Physical AIDigital Human AI Safety Curator Customizer Evaluator Guardrails RAG Retriever Virtual Lab AI Agent 140+ NIM Microservices at ai.nvidia.com Model on MTEB NeM"
+    ],
+    "exit_or_trim_logic": [],
+    "slide_structure_patterns": [
+      "FY2026",
+      "NVIDIA NIM",
+      "IQVIA",
+      "IQVIA",
+      "NVIDIA AI",
+      "DISCOVERY DEVELOPMENT",
+      "MAISI",
+      "VISTA-3D",
+      "VISTA-2D",
+      "GPU-MSA",
+      "NVIDIA AI",
+      "NVIDIA IGX"
+    ]
+  },
+  "source_metadata": {
+    "file_present": true,
+    "source_extension": ".pdf",
+    "extraction_mode": "pdf_text",
+    "page_count": 29,
+    "headings_detected": [
+      "FY2026",
+      "NVIDIA NIM",
+      "IQVIA",
+      "IQVIA",
+      "NVIDIA AI",
+      "DISCOVERY DEVELOPMENT",
+      "MAISI",
+      "VISTA-3D",
+      "VISTA-2D",
+      "GPU-MSA",
+      "NVIDIA AI",
+      "NVIDIA IGX"
+    ]
+  },
+  "chunking": {
+    "strategy": "page_groups",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "pages_1_3",
+        "start_page": 1,
+        "end_page": 3,
+        "text_preview": "NVIDIA Healthcare and Life Sciences\nKimberly Powell | VP Healthcare and Life Sciences\nJP Morgan Health Conference 2025\n\nExcept for the historical information contained herein, certain matters in this presentation including, but not limited to, statements as to: our market opportunity; the benefits, impact, \nperformance, features, and availability of our products and technologies including NVIDIA AI Agent Platform, NVIDIA AI Blueprints, NVIDIA NeMo, NVIDIA NIM, NVIDIA BioNeMo \nPlatform, NVIDIA Clara, NVIDIA DGX, NVIDIA Cosmos, NVIDIA Omniverse, NVIDIA Holoscan, NVIDIA IGX, NVIDIA AI Enterprise Agents, and NVIDIA Isacc Robotics and AI Instruments; our \ncollaboration with third parties; the AI revolution driving huge growth in industries around the world and accelerating; healthcare rapidly becoming a technology industry; and every \nsensor, every room, every hospital becoming robotic are forward-looking statements. These forward-looking statements and any other forward-looking statements that go beyond \nhistorical facts that are made in this presentation are subject to risks and uncertainties that may cause actual results to differ materially. Important factors that could cause actual results \nto differ materially include: global economic conditions; our reliance on third parties to manufacture, assemble, package and test our products; the impact of technological development \nand competition; development of new products and technologies or enhancements to our existing product an"
+      },
+      {
+        "label": "pages_4_6",
+        "start_page": 4,
+        "end_page": 6,
+        "text_preview": "The AI Revolution is \nHere and Accelerating\nSpeech Recognition\nDeep RECSYS\nMedical Imaging\nPerception AI\nDigital Marketing\nContent Creation\nGenerative AI\nCoding Assistant\nCustomer Service\nPatient Care\nAgentic AI\nSelf-Driving Cars\nGeneral Robotics\nPhysical AI\n\nHealthcare is $100\u2019s B AI Factory Opportunity\nAI agents | AI instruments | AI robots\n$10T\nHealthcare Industry\nNVIDIA BioNeMo, Parabricks\u2026\nAI Biology & Drug Discovery\nNVIDIA Healthcare\nFY2026\n>$1B ARR\nNVIDIA AI Enterprise \nAI Agents\nNVIDIA Holoscan, Isaac\nAI Instruments & Robotics\n$3T+\nSpend\n$100\u2019s B\nAI Compute\nOpportunity\n\nNVIDIA Healthcare and Life Sciences Ecosystem\n3500+ NVIDIA Healthcare Inception Members\nSurgical Robotics\nDigital Health\nTechbio\nSolution & Service Providers\n Sensors & Systems\nReal World Data\nCadd Tools\nImaging\nBiopharma"
+      },
+      {
+        "label": "pages_7_9",
+        "start_page": 7,
+        "end_page": 9,
+        "text_preview": "One of the Most Important Applications of AI\nHealthcare and Life Sciences\nDigital Devices\nBillions of Sensors, Images & \nProcedures\nDigital Biology\n$300B in Drug \nDiscovery R&D\nDigital Health\n10Bs of Health\nInteractions\n\nToy Jensen \u201cTJ\u201d Summarizing NVIDIA Financials\n\nNVIDIA NeMo\nNVIDIA NIM\nUnderstanding \n& Reasoning\nInformation Retrieval\n Visual Content \nGeneration\nDigital Biology\n Physical AIDigital Human\nAI Safety\nCurator Customizer Evaluator Guardrails RAG Retriever\nVirtual Lab \nAI Agent\n140+\nNIM Microservices \nat ai.nvidia.com\nModel on MTEB\nNeMo Retriever \nEmbedding Model\n#1\nModel on ChatRAG\nNVIDIA Llama 3 \nChatQA 1.5 70B\n#1\nCommerical Model\non RewardBench\nNVIDIA Llama 3.1 \nNemotron 70B Reward\n#1\nNVIDIA AI Blueprints\nNVIDIA AI Agent Platform\nFull life-cycle of custom, domain expert agents"
+      },
+      {
+        "label": "pages_10_12",
+        "start_page": 10,
+        "end_page": 12,
+        "text_preview": "1000s of Digital Health Agents\nAlways-on | Services-as-software | Pre-During-Post\nPre-Operative Agent\nOttawa & Deloitte\nClinical Documentation\nAbridge\nPost Operative Care\nHippocratic.ai\nMedical Concierge\nIntrivo\nPatient Monitoring & Operations\nArtisight\nMental Health\nQARL\n\nAnnouncing \nIQVIA and NVIDIA\nAccelerate Agentic AI in Healthcare \nand Life Sciences\nIQVIA \nHealthcare-grade AI\nTM\nIQVIA \nConnected Intelligence\nTM\nNVIDIA AI \nAI Foundry | NeMo | AI Agent NIMs & Blueprints\n\nAI-Driven 2024 Nobel Prize\nProtein structure prediction and design \nDavid Baker\nUniversity of Washington\nDemis Hassabis\nGoogle DeepMind\nJohn M. Jumper\nGoogle DeepMind"
+      },
+      {
+        "label": "pages_13_15",
+        "start_page": 13,
+        "end_page": 15,
+        "text_preview": "Multimodal Foundation Models for Structural Biology\nAlphaFold3\nDeepMind\nBoltz-1\nMIT Jameel Clinic | Genesis Therapeutics\nChai-1\nChai Discovery\nNeuralPLexer3\nIambic\nProtenix\nByteDance\nESM3\nEvolutionaryScale\n\nNVIDIA BioNeMo Platform\nFull life-cycle of custom, domain expert CADD agents\nBioNeMo Training BioNeMo NIMs BioNeMo Blueprints\n\nIntroducing GenMol \nFoundation Model\nGoal-directed molecular generation \nfor hit to lead workflows\nGenerative De Novo Molecule Design\nFragment\nLibrary\nOracle\nGenerate\nGenMol\nUpdate\nNovel Molecule\nEvolve\nOptimized \nMolecule\nMask Only\n(for length)\n\u2026.\nEvaluate\nGenerative Lead Optimization\nFragment\nLibrary\nOracle\nGenerate\nGenMol\nUpdate\nLead Molecule \nVariant\nEvolve\nLead \nMolecule\nOptimized \nMolecule\nEvaluate\nGenerative Linker Design\nFragment\nLibrary\nOracle\nGenerate\nGenMol\nUpdate\nNew Linker\nEvolve\nInput \nFragments\nOptimized \nLinker\nEvaluate\nGenerative Motif Extension\nFragment\nLibrary\nOracle\nGenerate\nUpdate\nNew Molecule\nEvolve\nInput \nFragments\nOptimized \nMolecule\nEvaluate\nGenMol\n(Discrete Diffusion)"
+      },
+      {
+        "label": "pages_16_18",
+        "start_page": 16,
+        "end_page": 18,
+        "text_preview": "DISCOVERY DEVELOPMENT\nTarget\nDiscovery\nLead\nOptimization\nHit\nGeneration\nPre-Clinical\nImaging\nLead\nIdentification\nClinical\nTrials\nNVIDIA BioNeMo NIMs Power Drug Design AI Factory\nExpert models embedding, generating, predicting\nDeepVariant\nPhenom-Beta\nESM2\nAlphaFold-2\nESMFold\nESM2\nMolMIM\nRFDifffusion\nProteinMPNN\n UniDock\nDiffDock 2.0\nMAISI\nVISTA-3D\nVISTA-2D\nLlama Nemotron\nMistral\nRerank-QA\nEmbed-QA\nAlphaFold-Multimer\nDualBind\nESM3\nGeneformer\n GenMol\nCosmos Nemotron\nGenMol\n\nDrug Discovery Assistants\nBioNeMo Blueprints for drug discovery workflows\nVirtual Screening Assistant\n New! Protein Design Assistant\nProtein Binder\nDesign\nComplex Prediction\nProtein Structure Prediction\nUser\nProtein\nDatabase\nAlphaFold2\nMSA\n Multiple\nSequence\nAlignment\nRfDiffusion\n ProteinMPNN\nTarget Protein\nSequence(s)\nTarget Protein\nStructure\nBinder Structure Binder \nSequence\nProtein\nDatabase\nAlphaFold-2 \nMultimer\nMSA\n Multiple\nSequence\nAlignment\nOptimized \nProteins\nMolecule Generation\nMolMIM\nGradient-Free\nOptimization\nQED, Solubility, Human \nFeedback\nRanking\nDocking\nDiffDock 2.0\nProtein Folding\nProtein\nDatabase\nAlphaFold2\nGPU-MSA\n Multiple\nSequence\nAlignment\nTarget Protein \nStructure\nMolecules\nOptimized Hits\nUser\nHuman Feedback\nMolecule \nStructure \nLibrary\nTarget Protein \nSequence\n\na\nAnnouncing \nArc Institute and NVIDIA \nAccelerate Computational \nBiomedical Research\nArc \nComputational Technology Center\nArc\nInstitute\nNVIDIA BioNeMo\nDGX Cloud | BioNeMo OSS | NIMs | Blueprints"
+      },
+      {
+        "label": "pages_19_21",
+        "start_page": 19,
+        "end_page": 21,
+        "text_preview": "Helping Build Regional Population-Specific Genomics Data\nLaying the foundation for sovereign AI and healthcare innovation\n\nAnnouncing \nIllumina and NVIDIA \nUnlocking Next Generation \nof Genomics Insights\n NVIDIA Clara\nMulti-Omics | BioNeMo | RAPIDS | MONAI\nIllumina Connected Analytics\n\nEvery Sensor, Patient Room, Hospital Will Integrate Physical AI\n160K\nHospitals\n8B\nMedical Devices\n14M+\nHospital Beds\n400K\nOperating Rooms"
+      },
+      {
+        "label": "pages_22_24",
+        "start_page": 22,
+        "end_page": 24,
+        "text_preview": "NVIDIA AI\non DGX\nNVIDIA Holoscan on \nIGX\nNVIDIA Cosmos\n on Omniverse\nThree Computers to Build Physical AI\n\nBrain-Computing Interface\nPatient \nMonitoring\nRobotic \nSurgery\nImage Guided \nTherapy\nUltrasound\n Diagnostics\nNVIDIA Holoscan\nHealthcare AI robot platform\nSensor \nI/O\nSignal\nProcessing\nImage\nProcessing\nMulti-AI\nInference\nBlend\nRender\nXR\nVisualizationNVIDIA Holoscan\nEmbedded Cloud\nNVIDIA IGX\n\nUnderstanding the Physical World\nNVIDIA Cosmos Nemotron \u2013 Vision language models\nVideo Search and Summarization\nTweezers, Scalpel, Dissector, \nRetractor\nPrompt\nWhat kind of tools are \non the blue tray?"
+      },
+      {
+        "label": "pages_25_27",
+        "start_page": 25,
+        "end_page": 27,
+        "text_preview": "Creating Physics-Aware Virtual Worlds\nNVIDIA Cosmos \u2013 World foundation model - #1 AI at CES 2025 \nCAD of dVRK\nMulti-Modal Data Surgical Digital Twin\n\nIndustry First AI Robots for Healthcare\nHoloscan | Omniverse | Isaac Lab\nMaestroStentrode\nSurgical AssistantBrain Computer Interface\nPathfinder\nRobotic Endoscopy\nMIRA\nNext Gen Miniature Robotic Surgery\n\nAnnouncing \nMayo Clinic and NVIDIA Accelerate \nAI-Driven \nDigital Pathology\nMayo Clinic Digital Pathology\nMayo Clinic\nRobotic Digital Pathology Lab\nNVIDIA Clara\nDGX GB200 | MONAI | Cosmos Nemotron"
+      },
+      {
+        "label": "pages_28_29",
+        "start_page": 28,
+        "end_page": 29,
+        "text_preview": "NVIDIA Healthcare\n\u2022 AI AGENTS\nDevelop and Deploy Domain-expert Agents with NVIDIA AI Enterprise\n\u2022 AI DRUG DISCOVERY\nGenerate, Predict and Design with NVIDIA BioNeMo\n\u2022 AI ROBOTS\nBuilding Healthcare Robotics with Physical AI and NVIDIA 3 Computers\n\u2022 >>$100B AI FACTORY OPPORTUNITY\nAssisting Patients, Doctors, Nurses, Drug Hunters \u2013 Digitally and Physically"
+      }
+    ]
+  },
+  "text_samples": [
+    "NVIDIA Healthcare and Life Sciences\nKimberly Powell | VP Healthcare and Life Sciences\nJP Morgan Health Conference 2025\n\nExcept for the historical information contained herein, certain matters in this presentation including, but not limited to, statements as to: our market opportunity; the benefits, impact, \nperformance, features, and availability of our products and technologies including NVIDIA AI Agent Platform, NVIDIA AI Blueprints, NVIDIA NeMo, NVIDIA NIM, NVIDIA BioNeMo \nPlatform, NVIDIA Clara, NVIDIA DGX, NVIDIA Cosmos, NVIDIA Omniverse, NVIDIA Holoscan, NVIDIA IGX, NVIDIA AI Enterprise Agents, and NVIDIA Isacc Robotics and AI Instruments; our \ncollaboration with third parties; the AI revolution driving huge growth in industries around the world and accelerating; healthcare rapidly becoming a technology industry; and every \nsensor, every room, every hospital becoming robotic are forward-looking statements. These forward-looking statements and any other forward-looking statements that go beyond \nhistorical facts that are made in this presentation are subject to risks and uncertainties that may cause actual results to differ materially. Important factors that could cause actual results \nto differ materially include: global economic conditions; our reliance on third parties to manufacture, assemble, package and test our products; the impact of technological development \nand competition; development of new products and technologies or enhancements to our existing product an",
+    "The AI Revolution is \nHere and Accelerating\nSpeech Recognition\nDeep RECSYS\nMedical Imaging\nPerception AI\nDigital Marketing\nContent Creation\nGenerative AI\nCoding Assistant\nCustomer Service\nPatient Care\nAgentic AI\nSelf-Driving Cars\nGeneral Robotics\nPhysical AI\n\nHealthcare is $100\u2019s B AI Factory Opportunity\nAI agents | AI instruments | AI robots\n$10T\nHealthcare Industry\nNVIDIA BioNeMo, Parabricks\u2026\nAI Biology & Drug Discovery\nNVIDIA Healthcare\nFY2026\n>$1B ARR\nNVIDIA AI Enterprise \nAI Agents\nNVIDIA Holoscan, Isaac\nAI Instruments & Robotics\n$3T+\nSpend\n$100\u2019s B\nAI Compute\nOpportunity\n\nNVIDIA Healthcare and Life Sciences Ecosystem\n3500+ NVIDIA Healthcare Inception Members\nSurgical Robotics\nDigital Health\nTechbio\nSolution & Service Providers\n Sensors & Systems\nReal World Data\nCadd Tools\nImaging\nBiopharma",
+    "One of the Most Important Applications of AI\nHealthcare and Life Sciences\nDigital Devices\nBillions of Sensors, Images & \nProcedures\nDigital Biology\n$300B in Drug \nDiscovery R&D\nDigital Health\n10Bs of Health\nInteractions\n\nToy Jensen \u201cTJ\u201d Summarizing NVIDIA Financials\n\nNVIDIA NeMo\nNVIDIA NIM\nUnderstanding \n& Reasoning\nInformation Retrieval\n Visual Content \nGeneration\nDigital Biology\n Physical AIDigital Human\nAI Safety\nCurator Customizer Evaluator Guardrails RAG Retriever\nVirtual Lab \nAI Agent\n140+\nNIM Microservices \nat ai.nvidia.com\nModel on MTEB\nNeMo Retriever \nEmbedding Model\n#1\nModel on ChatRAG\nNVIDIA Llama 3 \nChatQA 1.5 70B\n#1\nCommerical Model\non RewardBench\nNVIDIA Llama 3.1 \nNemotron 70B Reward\n#1\nNVIDIA AI Blueprints\nNVIDIA AI Agent Platform\nFull life-cycle of custom, domain expert agents",
+    "1000s of Digital Health Agents\nAlways-on | Services-as-software | Pre-During-Post\nPre-Operative Agent\nOttawa & Deloitte\nClinical Documentation\nAbridge\nPost Operative Care\nHippocratic.ai\nMedical Concierge\nIntrivo\nPatient Monitoring & Operations\nArtisight\nMental Health\nQARL\n\nAnnouncing \nIQVIA and NVIDIA\nAccelerate Agentic AI in Healthcare \nand Life Sciences\nIQVIA \nHealthcare-grade AI\nTM\nIQVIA \nConnected Intelligence\nTM\nNVIDIA AI \nAI Foundry | NeMo | AI Agent NIMs & Blueprints\n\nAI-Driven 2024 Nobel Prize\nProtein structure prediction and design \nDavid Baker\nUniversity of Washington\nDemis Hassabis\nGoogle DeepMind\nJohn M. Jumper\nGoogle DeepMind",
+    "Multimodal Foundation Models for Structural Biology\nAlphaFold3\nDeepMind\nBoltz-1\nMIT Jameel Clinic | Genesis Therapeutics\nChai-1\nChai Discovery\nNeuralPLexer3\nIambic\nProtenix\nByteDance\nESM3\nEvolutionaryScale\n\nNVIDIA BioNeMo Platform\nFull life-cycle of custom, domain expert CADD agents\nBioNeMo Training BioNeMo NIMs BioNeMo Blueprints\n\nIntroducing GenMol \nFoundation Model\nGoal-directed molecular generation \nfor hit to lead workflows\nGenerative De Novo Molecule Design\nFragment\nLibrary\nOracle\nGenerate\nGenMol\nUpdate\nNovel Molecule\nEvolve\nOptimized \nMolecule\nMask Only\n(for length)\n\u2026.\nEvaluate\nGenerative Lead Optimization\nFragment\nLibrary\nOracle\nGenerate\nGenMol\nUpdate\nLead Molecule \nVariant\nEvolve\nLead \nMolecule\nOptimized \nMolecule\nEvaluate\nGenerative Linker Design\nFragment\nLibrary\nOracle\nGenerate\nGenMol\nUpdate\nNew Linker\nEvolve\nInput \nFragments\nOptimized \nLinker\nEvaluate\nGenerative Motif Extension\nFragment\nLibrary\nOracle\nGenerate\nUpdate\nNew Molecule\nEvolve\nInput \nFragments\nOptimized \nMolecule\nEvaluate\nGenMol\n(Discrete Diffusion)"
+  ],
+  "extraction_status": "extracted",
+  "extracted_at": "2026-03-28T20:39:04.902293+00:00"
+}

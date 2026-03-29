@@ -1,0 +1,62 @@
+{
+  "id": "scraped_pg_earnings_reference",
+  "title": "Procter & Gamble Scraped Earnings Package",
+  "file_path": "/Users/averyromain/FinModAI/finmodai-next/data/PG/earnings",
+  "source_type": "earnings_reference",
+  "tier": "B",
+  "primary_bucket": "financial_reasoning",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "earnings_reference",
+  "assistant_training_targets": [
+    "earnings-package interpretation",
+    "KPI extraction",
+    "prepared-remarks compression",
+    "investor-facing results framing"
+  ],
+  "source_summary": "Scraper-collected earnings releases and related materials for Procter & Gamble.",
+  "strengths": [
+    "official company earnings package",
+    "good for KPI prioritization",
+    "ties company messaging to investor materials"
+  ],
+  "weaknesses": [
+    "import is derived from scraped titles and document presence, not full manual extraction"
+  ],
+  "fields": {
+    "title": "Procter & Gamble Scraped Earnings Package",
+    "company_name": "Procter & Gamble",
+    "quarter": "recent periods",
+    "source_name": "Company Investor Relations",
+    "sections": [
+      "Download PDF P G Announces Fiscal Year 2025 First Quarter Results October 18 2024 opens in new window",
+      "Q2 2026 Earnings Release Open Event Link PDF file January 22 2026 opens in new window",
+      "P G to Webcast Discussion of Third Quarter 2025 26 Earnings Results on April 24",
+      "Download PDF P G Announces Fiscal Year 2026 First Quarter Results October 24 2025 opens in new window"
+    ],
+    "key_metrics": [
+      "Use the earnings package to anchor the reported quarter before relying on transcript tone or media interpretation.",
+      "Prioritize revenue, margin, guidance, and segment signals from the latest release set."
+    ],
+    "management_themes": [
+      "Management-selected earnings materials indicate which metrics and business lines investors are meant to focus on.",
+      "Cross-check the release package against filings before changing model assumptions."
+    ],
+    "analyst_relevance": [
+      "Good for earnings-package compression and KPI prioritization.",
+      "Useful source lane between raw filings and full transcripts."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_dir": "/Users/averyromain/FinModAI/finmodai-next/data/PG",
+    "categories": {
+      "10k": 7,
+      "10q": 4,
+      "earnings": 4,
+      "presentation": 4,
+      "transcript": 4
+    },
+    "document_count": 23
+  }
+}

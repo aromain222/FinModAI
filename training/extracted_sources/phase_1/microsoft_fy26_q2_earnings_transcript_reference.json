@@ -1,0 +1,64 @@
+{
+  "id": "microsoft_fy26_q2_earnings_transcript_reference",
+  "title": "Microsoft FY26 Q2 Earnings Transcript Reference",
+  "file_path": "/Users/averyromain/FinModAI/data/training/microsoft-fy26-q2-earnings-transcript-reference",
+  "source_type": "earnings_reference",
+  "tier": "A-",
+  "primary_bucket": "financial_reasoning",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "earnings_reference",
+  "assistant_training_targets": [
+    "earnings-package interpretation",
+    "KPI extraction",
+    "prepared-remarks compression",
+    "investor-facing results framing"
+  ],
+  "source_summary": "Official Microsoft FY26 Q2 earnings reference package anchored to IR pages because the Office viewer wrapper did not expose the transcript body directly.",
+  "strengths": [
+    "official company source",
+    "AI and cloud KPI framing",
+    "high-confidence earnings context"
+  ],
+  "weaknesses": [
+    "not a verbatim transcript body"
+  ],
+  "fields": {
+    "title": "Microsoft FY26 Q2 Earnings Transcript Reference",
+    "company_name": "Microsoft Corporation",
+    "quarter": "FY26 Q2",
+    "source_name": "Microsoft Investor Relations",
+    "sections": [
+      "reported results",
+      "segment drivers",
+      "investor metrics",
+      "training guidance"
+    ],
+    "key_metrics": [
+      "Revenue of $81.3 billion.",
+      "Operating income of $38.3 billion.",
+      "GAAP diluted EPS of $5.16.",
+      "Commercial remaining performance obligation of $625 billion."
+    ],
+    "management_themes": [
+      "cloud and AI strength across the business",
+      "Azure growth and AI infrastructure investment tradeoffs",
+      "large-scale enterprise demand visibility through backlog and cloud metrics"
+    ],
+    "analyst_relevance": [
+      "Useful for teaching official-source earnings compression even when the transcript body is unavailable.",
+      "Strong for cloud KPI prioritization and AI infrastructure margin tradeoff framing.",
+      "Good baseline before layering transcript or Q&A nuance from other sources."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/microsoft-fy26-q2-earnings-transcript-reference/manifest.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/microsoft-fy26-q2-earnings-transcript-reference/chunks.jsonl",
+    "dataset_dir": "/Users/averyromain/FinModAI/data/training/microsoft-fy26-q2-earnings-transcript-reference",
+    "page_count": null,
+    "chunk_count": 5,
+    "source_url": "https://view.officeapps.live.com/op/view.aspx?src=https://cdn-dynmedia-1.microsoft.com/is/content/microsoftcorp/TranscriptQandAFY26q2",
+    "access_status": "office_viewer_wrapper_only; transcript body not directly retrievable in this environment"
+  }
+}

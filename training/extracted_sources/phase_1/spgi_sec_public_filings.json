@@ -1,0 +1,179 @@
+{
+  "id": "spgi_sec_public_filings",
+  "title": "S&P Global Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-spgi",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent SPGI SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "S&P Global Inc. General SEC Filings",
+    "company_name": "S&P Global Inc.",
+    "ticker": "SPGI",
+    "cik": "0000064040",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-11",
+      "2026-02-10",
+      "2025-12-16",
+      "2025-12-04",
+      "2025-12-01",
+      "2025-11-13",
+      "2025-11-10",
+      "2025-10-30",
+      "2025-10-30",
+      "2025-08-01"
+    ],
+    "capital_markets_activity": [
+      "Senior Notes Offering On December 4, 2025, S&P Global Inc.",
+      "(the \u201cCompany\u201d) completed its previously announced private offering (the \u201cOffering\u201d) of $600,000,000 aggregate principal amount of the Company\u2019s 4.250% Senior Notes due 2031 (the \u201c2031 Notes\u201d) and $400,000,000 aggregate principal amount of the Company\u2019s 4.800% Senior Notes due 2035 (the \u201c2035 Notes\u201d and, together with the 2031 Notes, the \u201cNotes\u201d)."
+    ],
+    "capital_allocation_activity": [
+      "On June 22, 2022, the Board of Directors approved a share repurchase program authorizing the purchase of 30 million shares (the \u201c2022 Repurchase Program\u201d), which was approximately 9% of the total shares of our outstanding common stock at that time.",
+      "During the fourth quarter of 2025, we received 4.6 million shares under the 2022 Repurchase Program, which included 0.6 million shares received from the conclusion of our accelerated share repurchase (\"ASR\") agreement that we entered into on August 12, 2025."
+    ],
+    "liquidity_notes": [
+      "We cannot be certain that our business will generate cash flow from operations, or that future borrowings will be available to us under our existing or any future credit facilities or otherwise, in an amount sufficient to enable us to meet our indebtedness obligations and to fund other liquidity needs."
+    ],
+    "governance_notes": [
+      "Joly was appointed to serve on the Board\u2019s Compensation and Leadership Development Committee and Audit Committee.",
+      "Moritz was appointed to serve on the Board\u2019s Nominating and Corporate Governance Committee and Audit Committee."
+    ],
+    "controls_and_risk_notes": [
+      "As of December 31, 2025, an evaluation was performed under the supervision and with the participation of management, including the CEO and CFO, of the effectiveness of the design and operation of our disclosure controls and procedures (as defined in Rules 13a-15(e) and 15d-15(e) under the U.S.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Further information about the Company\u2019s businesses, including information about factors that could materially affect its results of operations and financial condition, is contained in the Company\u2019s filings with the SEC, including Item 1A, Risk Factors in this Annual Report on Form 10-K."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-spgi",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-spgi/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-spgi/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-spgi/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-02-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY P3Y 0.5 0.75 0.5 0.25 0.1 http://fasb.org/us-gaap/2025#SellingGeneralAndAdministrativeExpense http://fasb.org/us-gaap/2025#SellingGeneralAndAdministrativeExpense http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent -"
+      },
+      {
+        "label": "8-K 2026-02-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-02-10 2026-02-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report: February 10, 2026 S&P Global Inc. (Exact Name of Registrant as specifie"
+      },
+      {
+        "label": "8-K 2025-12-16",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-12-10 2025-12-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report: December 10, 2025 S&P Global Inc. (Exact Name of Registrant as specifie"
+      },
+      {
+        "label": "8-K 2025-12-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2025-12-04 2025-12-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of Earliest Event Reported): December 4, 2025 S&P Global Inc. (Exact Name of"
+      },
+      {
+        "label": "8-K 2025-12-01",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2025-12-01 2025-12-01 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of Earliest Event Reported): December 1, 2025 S&P Global Inc. (Exact Name of"
+      },
+      {
+        "label": "8-K 2025-11-13",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-11-13 2025-11-13 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report: November 13, 2025 S&P Global Inc. (Exact Name of Registrant as specifie"
+      },
+      {
+        "label": "8-K 2025-11-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-11-04 2025-11-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report: November 4, 2025 S&P Global Inc. (Exact Name of Registrant as specified"
+      },
+      {
+        "label": "10-Q 2025-10-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 2025 Q3 12/31 http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent - spgi:segment spgi:transaction spgi:position spgi:Segment spgi:plaintiff 2025-01-01 2025-09-30 0"
+      },
+      {
+        "label": "8-K 2025-10-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-10-30 2025-10-30 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report: October 30, 2025 S&P Global Inc. (Exact Name of Registrant as specified"
+      },
+      {
+        "label": "10-Q 2025-08-01",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 2025 Q2 12/31 http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent - spgi:segment spgi:transaction spgi:position spgi:Segment spgi:plaintiff 2025-01-01 2025-06-30 0"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-02-11",
+      "text_preview": "false 2025 FY P3Y 0.5 0.75 0.5 0.25 0.1 http://fasb.org/us-gaap/2025#SellingGeneralAndAdministrativeExpense http://fasb.org/us-gaap/2025#SellingGeneralAndAdministrativeExpense http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent - spgi:segment spgi:reporting_unit spgi:performanceIndicator spgi:trust spgi:transaction spgi:position 2025-01-01 2025-12-31 2025-06-30 2026-01-30 2024-01-01 2024-12-31 2023-01-01 2023-12-31 2025-12-31 2024-12-31 2023-12-31 2022-12-3",
+      "char_count": 605224,
+      "word_count": 83949,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/64040/000006404026000013/spgi-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-10",
+      "text_preview": "FALSE - 2026-02-10 2026-02-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report: February 10, 2026 S&P Global Inc. (Exact Name of Registrant as specified in its charter) New York 1-1023 13-1026995 (State or other jurisdiction of incorporation or organization) (Commission File No.) (IRS Employer Identification No.) 55 Water Street , New York , New York 10041 (Address of Principal Executive Offices) (Zip Code) ( 212 ) 438-1000 (Registrant\u2019s telephone number, including area code) Check the appropriate box below if the Form",
+      "char_count": 3639,
+      "word_count": 564,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/64040/000006404026000007/spgi-20260210.htm"
+    },
+    {
+      "label": "8-K 2025-12-16",
+      "text_preview": "FALSE - 2025-12-10 2025-12-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report: December 10, 2025 S&P Global Inc. (Exact Name of Registrant as specified in its charter) New York 1-1023 13-1026995 (State or other jurisdiction of incorporation or organization) (Commission File No.) (IRS Employer Identification No.) 55 Water Street , New York , New York 10041 (Address of Principal Executive Offices) (Zip Code) ( 212 ) 438-1000 (Registrant\u2019s telephone number, including area code) Check the appropriate box below if the Form",
+      "char_count": 4484,
+      "word_count": 686,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/64040/000006404025000179/spgi-20251210.htm"
+    }
+  ]
+}

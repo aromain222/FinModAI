@@ -1,0 +1,178 @@
+{
+  "id": "unh_sec_public_filings",
+  "title": "UNITEDHEALTH GROUP INC General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-unh",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent UNH SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "UNITEDHEALTH GROUP INC General SEC Filings",
+    "company_name": "UNITEDHEALTH GROUP INC",
+    "ticker": "UNH",
+    "cik": "0000731766",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-09",
+      "2026-03-02",
+      "2026-03-02",
+      "2026-02-25",
+      "2026-01-27",
+      "2026-01-12",
+      "2025-11-21",
+      "2025-11-13",
+      "2025-11-07",
+      "2025-10-28"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "ISSUER PURCHASES OF EQUITY SECURITIES In November 1997, our Board of Directors adopted a share repurchase program, which the Board of Directors evaluates periodically.",
+      "The Board of Directors from time to time may further amend the share repurchase program in order to increase the authorized number of shares which may be repurchased under the program."
+    ],
+    "liquidity_notes": [
+      "We believe our capital resources are sufficient to meet future, short-term and long-term, liquidity needs."
+    ],
+    "governance_notes": [
+      "On February 24, 2026, the Board of Directors appointed Dennis Stankiewicz, age 48, to the position of Chief Accounting Officer of UnitedHealth Group Incorporated (the \u201cCompany\u201d) effective March 2, 2026.",
+      "Gottlieb has not yet been appointed to any committees of the Board of Directors."
+    ],
+    "controls_and_risk_notes": [
+      "In connection with the filing of this Annual Report on Form 10-K, management evaluated, under the supervision and with the participation of our Chief Executive Officer and Chief Financial Officer, the effectiveness of the design and operation of our disclosure controls and procedures as of December 31, 2025.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "See Part I, Item 1A, \u201cRisk Factors\u201d for a discussion of the risks related to our compliance with U.S."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-unh",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-unh/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-unh/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-unh/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-09",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-03-09 2026-03-09 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014 FORM 8-K \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u0335"
+      },
+      {
+        "label": "8-K 2026-03-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-24 2026-02-24 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014 FORM 8-K \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u0335"
+      },
+      {
+        "label": "10-K 2026-03-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY 12/31 10 50 http://fasb.org/us-gaap/2025#OtherLiabilities P2Y P4Y P4Y P5Y P3Y indefinite 1/1/2026 1/1/2045 - utr:Rate unh:positions 2025-01-01 2025-12-31 2025-06-30 2026-02-20 2"
+      },
+      {
+        "label": "8-K 2026-02-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-23 2026-02-23 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014 FORM 8-K \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u0335"
+      },
+      {
+        "label": "8-K 2026-01-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-27 2026-01-27 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014 FORM 8-K \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u0335"
+      },
+      {
+        "label": "8-K 2026-01-12",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-12 2026-01-12 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014 FORM 8-K \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u0335"
+      },
+      {
+        "label": "8-K 2025-11-21",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-18 2025-11-18 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014 FORM 8-K \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u0335"
+      },
+      {
+        "label": "8-K 2025-11-13",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 12/31 - 2025-11-06 2025-11-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014 FORM 8-K \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014"
+      },
+      {
+        "label": "8-K 2025-11-07",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-07 2025-11-07 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014 FORM 8-K \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u0335"
+      },
+      {
+        "label": "10-Q 2025-10-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q3 12/31 50 - utr:Rate unh:reportableSegments 2025-01-01 2025-09-30 2025-10-24 2025-09-30 2024-12-31 2025-07-01 2025-09-30 2024-07-01 2024-09-30 20"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-09",
+      "text_preview": "false - 2026-03-09 2026-03-09 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014 FORM 8-K \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014 Current Report Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of report (Date of earliest event reported): March 9, 2026 \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014 UNITEDHEALTH GROUP INCORPORATED (Exact name of registrant as specified in its charter) \u2014\u2014\u2014\u2014\u2014\u2014",
+      "char_count": 3894,
+      "word_count": 523,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/731766/000073176626000067/unh-20260309.htm"
+    },
+    {
+      "label": "8-K 2026-03-02",
+      "text_preview": "false - 2026-02-24 2026-02-24 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014 FORM 8-K \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014 Current Report Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of report (Date of earliest event reported): February 24, 2026 \u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014\u2014 UNITEDHEALTH GROUP INCORPORATED (Exact name of registrant as specified in its charter) \u2014\u2014\u2014\u2014\u2014&#",
+      "char_count": 4995,
+      "word_count": 673,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/731766/000073176626000064/unh-20260224.htm"
+    },
+    {
+      "label": "10-K 2026-03-02",
+      "text_preview": "false 2025 FY 12/31 10 50 http://fasb.org/us-gaap/2025#OtherLiabilities P2Y P4Y P4Y P5Y P3Y indefinite 1/1/2026 1/1/2045 - utr:Rate unh:positions 2025-01-01 2025-12-31 2025-06-30 2026-02-20 2025-12-31 2024-12-31 2024-01-01 2024-12-31 2023-01-01 2023-12-31 2025-01-01 2025-12-31 2024-01-01 2024-12-31 2023-01-01 2023-12-31 2025-01-01 2025-12-31 2024-01-01 2024-12-31 0000731",
+      "char_count": 376371,
+      "word_count": 52101,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/731766/000073176626000062/unh-20251231.htm"
+    }
+  ]
+}

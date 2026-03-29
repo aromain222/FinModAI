@@ -1,0 +1,62 @@
+{
+  "id": "scraped_csco_earnings_reference",
+  "title": "Cisco Systems Scraped Earnings Package",
+  "file_path": "/Users/averyromain/FinModAI/finmodai-next/data/CSCO/earnings",
+  "source_type": "earnings_reference",
+  "tier": "B",
+  "primary_bucket": "financial_reasoning",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "earnings_reference",
+  "assistant_training_targets": [
+    "earnings-package interpretation",
+    "KPI extraction",
+    "prepared-remarks compression",
+    "investor-facing results framing"
+  ],
+  "source_summary": "Scraper-collected earnings releases and related materials for Cisco Systems.",
+  "strengths": [
+    "official company earnings package",
+    "good for KPI prioritization",
+    "ties company messaging to investor materials"
+  ],
+  "weaknesses": [
+    "import is derived from scraped titles and document presence, not full manual extraction"
+  ],
+  "fields": {
+    "title": "Cisco Systems Scraped Earnings Package",
+    "company_name": "Cisco Systems",
+    "quarter": "recent periods",
+    "source_name": "Company Investor Relations",
+    "sections": [
+      "Press Release of Q2 2026 PDF file opens in new window",
+      "Download PDF CISCO REPORTS SECOND QUARTER EARNINGS February 11 2026 opens in new window",
+      "CISCO REPORTS SECOND QUARTER EARNINGS",
+      "Cisco Q2FY26 Earnings Results"
+    ],
+    "key_metrics": [
+      "Use the earnings package to anchor the reported quarter before relying on transcript tone or media interpretation.",
+      "Prioritize revenue, margin, guidance, and segment signals from the latest release set."
+    ],
+    "management_themes": [
+      "Management-selected earnings materials indicate which metrics and business lines investors are meant to focus on.",
+      "Cross-check the release package against filings before changing model assumptions."
+    ],
+    "analyst_relevance": [
+      "Good for earnings-package compression and KPI prioritization.",
+      "Useful source lane between raw filings and full transcripts."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_dir": "/Users/averyromain/FinModAI/finmodai-next/data/CSCO",
+    "categories": {
+      "10k": 4,
+      "10q": 5,
+      "earnings": 4,
+      "presentation": 4,
+      "transcript": 4
+    },
+    "document_count": 21
+  }
+}

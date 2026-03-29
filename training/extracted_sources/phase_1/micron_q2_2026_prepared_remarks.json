@@ -1,0 +1,65 @@
+{
+  "id": "micron_q2_2026_prepared_remarks",
+  "title": "Micron Q2 2026 Prepared Remarks",
+  "file_path": "/Users/averyromain/FinModAI/data/training/q2-2026-prepared-remarks",
+  "source_type": "earnings_transcript",
+  "tier": "A",
+  "primary_bucket": "financial_reasoning",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "earnings_transcript",
+  "assistant_training_targets": [
+    "earnings-call interpretation",
+    "management signal extraction",
+    "guidance framing",
+    "question-and-answer dynamics"
+  ],
+  "source_summary": "Micron fiscal Q2 2026 prepared remarks with management discussion of memory markets, technology ramp, profitability, and outlook.",
+  "strengths": [
+    "management commentary",
+    "semiconductor cycle framing",
+    "technology-node and HBM positioning"
+  ],
+  "weaknesses": [
+    "prepared remarks only, without full analyst Q&A in this package"
+  ],
+  "fields": {
+    "title": "Micron Q2 2026 Prepared Remarks",
+    "company_name": "Micron Technology, Inc.",
+    "quarter": "Fiscal Q2 2026",
+    "management_themes": [
+      "exceptional quarter with record revenue, margin, EPS, and free cash flow",
+      "HBM, DRAM, and NAND demand strength tied to AI infrastructure",
+      "technology-node progress and manufacturing ramp discipline"
+    ],
+    "financial_highlights": [
+      "record revenue, gross margin, EPS, and free cash flow highlighted in the prepared remarks",
+      "strong business-unit and memory-segment performance",
+      "forward guidance signaling continued momentum"
+    ],
+    "guidance_or_outlook": [
+      "Q3 revenue guidance above the full-year revenue of prior years was highlighted in the deck text.",
+      "management tied outlook to AI-driven memory demand and node ramp execution"
+    ],
+    "qa_topics": [
+      "HBM and AI memory demand",
+      "node transitions and manufacturing yields",
+      "margin and free-cash-flow sustainability"
+    ],
+    "analyst_relevance": [
+      "Good source for understanding how Micron frames the memory upcycle and AI demand to investors.",
+      "Useful for semiconductor management-tone training and outlook compression.",
+      "Prepared remarks help separate structural demand claims from cyclical earnings beats."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/q2-2026-prepared-remarks/manifest.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/q2-2026-prepared-remarks/chunks.jsonl",
+    "dataset_dir": "/Users/averyromain/FinModAI/data/training/q2-2026-prepared-remarks",
+    "page_count": 10,
+    "chunk_count": 18,
+    "source_url": null,
+    "access_status": null
+  }
+}

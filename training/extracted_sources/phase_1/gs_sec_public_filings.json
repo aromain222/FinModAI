@@ -1,0 +1,177 @@
+{
+  "id": "gs_sec_public_filings",
+  "title": "GOLDMAN SACHS GROUP INC General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-gs",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent GS SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "GOLDMAN SACHS GROUP INC General SEC Filings",
+    "company_name": "GOLDMAN SACHS GROUP INC",
+    "ticker": "GS",
+    "cik": "0000886982",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-13",
+      "2026-03-05",
+      "2026-02-25",
+      "2026-02-13",
+      "2026-02-02",
+      "2026-01-23",
+      "2026-01-21",
+      "2026-01-15",
+      "2026-01-08",
+      "2025-10-31"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "is a holding company and, therefore, depends on dividends, distributions, loans and other payments from its subsidiaries to fund share repurchases and dividend payments and to fund payments on its obligations, including debt obligations.",
+      "In addition, regulation imposed on financial institutions or market participants generally, such as taxes on stock transfers, share repurchases and other financial transactions, could adversely impact levels of market activity more broadly, and thus impact our businesses."
+    ],
+    "liquidity_notes": [
+      "Statements about planned benchmark debt issuances are subject to the risk that actual issuances may differ, possibly materially, from that currently expected due to changes in market conditions, business opportunities or our funding and projected liquidity needs."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Controls and Procedures As of the end of the period covered by this report, an evaluation was carried out by our management, with the participation of our Chief Executive Officer and Chief Financial Officer, of the effectiveness of our disclosure controls and procedures (as defined in Rule 13a-15(e) under the Exchange Act).",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "See \u201cRegulation \u2014 Compensation Practices\u201d and \u201cRisk Factors \u2014 Competition \u2014 Our businesses would be adversely affected if we are unable to hire and retain qualified employees\u201d in Part I, Item 1A of this Form 10-K for further information about such regulation."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-gs",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-gs/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-gs/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-gs/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-13",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false GOLDMAN SACHS GROUP INC NY - 2026-03-09 2026-03-09 2026-03-09 2026-03-09 gs:MediumTermNotesSeriesFCallableFixedAndFloatingRateNotesDueMarch2031OfGsFinanceCorpMember 2026-03-09 2026-03-09 gs:FloatingRateNormalAutomaticPr"
+      },
+      {
+        "label": "8-K 2026-03-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K GOLDMAN SACHS GROUP INC 5.793% Fixed-to-Floating Rate Normal Automatic Preferred Enhanced Capital Securities of Goldman Sachs Capital II NY false - 2026-03-05 2026-03-05 2026-03-05 2026-03-05 2026-03-05 2026-03"
+      },
+      {
+        "label": "10-K 2026-02-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 2025 FY FALSE http://fasb.org/us-gaap/2025#InterestAndDividendIncomeOperating http://fasb.org/us-gaap/2025#InterestAndDividendIncomeOperating http://fasb.org/us-gaap/2025#InterestAndDividendIncomeOperating http://fasb.org/us-gaap/2025#InterestAndDividendIncomeOperating http://fasb.org/us-ga"
+      },
+      {
+        "label": "8-K 2026-02-13",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false NY - gs:SeriesAFloatingRatePreferredStockMember 2026-02-12 2026-02-12 2026-02-12 2026-02-12 gs:FivePointSevenNineThreePercentageFixedToFloatingRateNormalApexMember 2026-02-12 2026-02-12 2026-02-12 2026-02-12 gs:SeriesC"
+      },
+      {
+        "label": "8-K 2026-02-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K GOLDMAN SACHS GROUP INC 5.793% Fixed-to-Floating Rate Normal Automatic Preferred Enhanced Capital Securities of Goldman Sachs Capital II NY false - 2026-02-02 2026-02-02 2026-02-02 2026-02-02 2026-02-02 2026-02"
+      },
+      {
+        "label": "8-K 2026-01-23",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false NY - gs:SeriesDFloatingRatePreferredStockMember 2026-01-23 2026-01-23 2026-01-23 2026-01-23 gs:SeriesCFloatingRatePreferredStockMember 2026-01-23 2026-01-23 gs:FloatingRateNormalAutomaticPreferredEnhancedCapitalSecuritiesOfGoldma"
+      },
+      {
+        "label": "8-K 2026-01-21",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K GOLDMAN SACHS GROUP INC 5.793% Fixed-to-Floating Rate Normal Automatic Preferred Enhanced Capital Securities of Goldman Sachs Capital II NY false - 2026-01-21 2026-01-21 2026-01-21 2026-01-21 gs:SeriesAFloatingRatePreferredStockMember 2026-01-21"
+      },
+      {
+        "label": "8-K 2026-01-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-01-15 2026-01-15 2026-01-15 2026-01-15 gs:SeriesAFloatingRatePreferredStockMember 2026-01-15 2026-01-15 gs:SeriesCFloatingRatePreferredStockMember 2026-01-15 2026-01-15 gs:SeriesDFloatingRatePreferredSto"
+      },
+      {
+        "label": "8-K 2026-01-08",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-01-07 2026-01-07 2026-01-07 2026-01-07 gs:SeriesAFloatingRatePreferredStockMember 2026-01-07 2026-01-07 gs:SeriesCFloatingRatePreferredStockMember 2026-01-07 2026-01-07 gs:SeriesDFloatingRatePreferredSto"
+      },
+      {
+        "label": "10-Q 2025-10-31",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 2025 December 31 Q3 http://www.goldmansachs.com/20250930#MarketMakingNet http://www.goldmansachs.com/20250930#OtherPrincipalTransactions http://www.goldmansachs.com/20250930#MarketMakingNet http://www.goldmansachs.com/20250930#OtherPrincipalTransactions http://www.goldmansachs.com/20250930#"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-13",
+      "text_preview": "8-K false GOLDMAN SACHS GROUP INC NY - 2026-03-09 2026-03-09 2026-03-09 2026-03-09 gs:MediumTermNotesSeriesFCallableFixedAndFloatingRateNotesDueMarch2031OfGsFinanceCorpMember 2026-03-09 2026-03-09 gs:FloatingRateNormalAutomaticPreferredEnhancedCapitalSecuritiesOfGoldmanSachsCapitalIiiMember 2026-03-09 2026-03-09 2026-03-09 2026-03-09 gs:MediumTermNotesSeriesFCallableFixedAndFloatingRateNotesDueMay2031OfGsFinanceCorpMember 2026-03-09 2026-03-09 2026-03-09 2026-03-09",
+      "char_count": 4711,
+      "word_count": 622,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/886982/000119312526105328/gs-20260309.htm"
+    },
+    {
+      "label": "8-K 2026-03-05",
+      "text_preview": "8-K GOLDMAN SACHS GROUP INC 5.793% Fixed-to-Floating Rate Normal Automatic Preferred Enhanced Capital Securities of Goldman Sachs Capital II NY false - 2026-03-05 2026-03-05 2026-03-05 2026-03-05 2026-03-05 2026-03-05 2026-03-05 2026-03-05 2026-03-05 2026-03-05 gs:M5.793FixedToFloatingRateNormalAutomaticPreferredEnhancedCapitalSecuritiesOfGoldmanSachsCapitalIiMember 2026-03-05 2026-03-05 gs:FloatingRateNormalAutomaticPreferredEnhancedCapitalSecuritiesOfGoldmanSachsCapitalIi",
+      "char_count": 5572,
+      "word_count": 725,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/886982/000119312526094047/d926033d8k.htm"
+    },
+    {
+      "label": "10-K 2026-02-25",
+      "text_preview": "FALSE 2025 FY FALSE http://fasb.org/us-gaap/2025#InterestAndDividendIncomeOperating http://fasb.org/us-gaap/2025#InterestAndDividendIncomeOperating http://fasb.org/us-gaap/2025#InterestAndDividendIncomeOperating http://fasb.org/us-gaap/2025#InterestAndDividendIncomeOperating http://fasb.org/us-gaap/2025#InterestAndDividendIncomeOperating http://fasb.org/us-gaap/2025#InterestAndDividendIncomeOperating http://fasb.org/us-gaap/2025#InterestAndDividendIncomeOperating http://fasb.org/us-gaap/2025#InterestAndDividendIncomeOperating http://www.goldmansachs.com/20251231#MarketMakingNet http://www.goldmansachs.com/20251231#OtherPrincipalTransactions http://www.goldmansachs.com/",
+      "char_count": 1298560,
+      "word_count": 177469,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/886982/000088698226000091/gs-20251231.htm"
+    }
+  ]
+}

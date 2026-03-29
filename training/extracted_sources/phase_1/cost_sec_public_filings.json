@@ -1,0 +1,176 @@
+{
+  "id": "cost_sec_public_filings",
+  "title": "COSTCO WHOLESALE CORP /NEW General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-cost",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent COST SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "COSTCO WHOLESALE CORP /NEW General SEC Filings",
+    "company_name": "COSTCO WHOLESALE CORP /NEW",
+    "ticker": "COST",
+    "cik": "0000909832",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-11",
+      "2026-03-05",
+      "2026-01-21",
+      "2025-12-17",
+      "2025-12-11",
+      "2025-10-20",
+      "2025-10-15",
+      "2025-10-08",
+      "2025-09-25",
+      "2025-08-07"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Share Repurchase Program On January 19, 2023, the Board of Directors authorized a share repurchase program in the amount of $4,000, which expires in January 2027."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "The Chief Executive Officer and the Chief Financial Officer, with assistance from other members of management, have reviewed the effectiveness of our disclosure controls and procedures as of February 15, 2026, and, based on their evaluation, have concluded the disclosure controls and procedures were effective as of such date.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Item 1A\u2014Risk Factors In addition to the other information set forth in the Quarterly Report on Form 10-Q, you should carefully consider the factors discussed in Part I, Item 1A, \u201cRisk Factors\u201d in our Annual Report on Form 10-K, for the fiscal year ended August 31, 2025."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-cost",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-cost/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-cost/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-cost/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-Q 2026-03-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 2026 Q2 COSTCO WHOLESALE CORP /NEW 8/30 0.005 0.005 100,000,000 100,000,000 \u2014 \u2014 \u2014 \u2014 0.005 0.005 900,000,000 900,000,000 443,692,000 443,237,000 443,692,000 443,237,000 1 3 - cost:warehouse cost:states cos"
+      },
+      {
+        "label": "8-K 2026-03-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE COSTCO WHOLESALE CORP /NEW - 2026-03-05 2026-03-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of Earliest Event Reported): March 5, 2"
+      },
+      {
+        "label": "8-K 2026-01-21",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE COSTCO WHOLESALE CORP /NEW - 2026-01-15 2026-01-15 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): January 15"
+      },
+      {
+        "label": "10-Q 2025-12-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 2026 Q1 COSTCO WHOLESALE CORP /NEW 8/30 0.005 0.005 100,000,000 100,000,000 \u2014 \u2014 \u2014 \u2014 0.005 0.005 900,000,000 900,000,000 443,919,000 443,237,000 443,919,000 443,237,000 1 3 - cost:warehouse cost:states cos"
+      },
+      {
+        "label": "8-K 2025-12-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE COSTCO WHOLESALE CORP /NEW - 2025-12-11 2025-12-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of Earliest Event Reported): December 1"
+      },
+      {
+        "label": "8-K 2025-10-20",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE COSTCO WHOLESALE CORP /NEW - 2025-10-14 2025-10-14 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): October 14"
+      },
+      {
+        "label": "8-K 2025-10-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE COSTCO WHOLESALE CORP /NEW - 2025-10-15 2025-10-15 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): October 15"
+      },
+      {
+        "label": "10-K 2025-10-08",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false August 31, 2025 2025 FY COSTCO WHOLESALE CORP /NEW 08/31 0.005 0.005 100,000,000 100,000,000 \u2014 \u2014 \u2014 \u2014 0.005 0.005 900,000,000 900,000,000 443,237,000 443,126,000 443,237,000 443,126,000 P5Y P3Y 1 1 953 26 15 994 953 26 15 994 http://fasb.org/us-gaap/2025#OtherAssets"
+      },
+      {
+        "label": "8-K 2025-09-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE COSTCO WHOLESALE CORP /NEW - 2025-09-25 2025-09-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of Earliest Event Reported): September"
+      },
+      {
+        "label": "8-K 2025-08-07",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE COSTCO WHOLESALE CORP /NEW - 2025-08-04 2025-08-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): August 4,"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-Q 2026-03-11",
+      "text_preview": "FALSE 2026 Q2 COSTCO WHOLESALE CORP /NEW 8/30 0.005 0.005 100,000,000 100,000,000 \u2014 \u2014 \u2014 \u2014 0.005 0.005 900,000,000 900,000,000 443,692,000 443,237,000 443,692,000 443,237,000 1 3 - cost:warehouse cost:states cost:Reportable_segment 2025-09-01 2026-02-15 2026-03-04 2025-11-24 2026-02-15 2024-11-25 2025-02-16 2025-09-01 2026-02-15 2024-09-02 2025-02-16 2025-11-24 2026-02-15",
+      "char_count": 85175,
+      "word_count": 12306,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/909832/000090983226000029/cost-20260215.htm"
+    },
+    {
+      "label": "8-K 2026-03-05",
+      "text_preview": "FALSE COSTCO WHOLESALE CORP /NEW - 2026-03-05 2026-03-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of Earliest Event Reported): March 5, 2026 COSTCO WHOLESALE CORPORATION (Exact name of registrant as specified in its charter) Washington 0-20355 91-1223280 (State or other jurisdiction of incorporation) (Commission File No.) (I.R.S. Employer Identification No.) 999 Lake Drive Issaquah , WA 98027 (Address of principal executive offices and zip code) Registrant\u2019s telephone number, including area code: 425 - 313",
+      "char_count": 3108,
+      "word_count": 472,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/909832/000090983226000025/cost-20260305.htm"
+    },
+    {
+      "label": "8-K 2026-01-21",
+      "text_preview": "FALSE COSTCO WHOLESALE CORP /NEW - 2026-01-15 2026-01-15 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): January 15, 2026 COSTCO WHOLESALE CORPORATION (Exact name of registrant as specified in its charter) Washington 0-20355 91-1223280 (State or other jurisdiction of incorporation) (Commission File No.) (I.R.S. Employer Identification No.) 999 Lake Drive Issaquah , WA 98027 (Address of principal executive offices and zip code) Registrant\u2019s telephone number, including area code: 425 -",
+      "char_count": 4936,
+      "word_count": 724,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/909832/000090983226000016/cost-20260115.htm"
+    }
+  ]
+}

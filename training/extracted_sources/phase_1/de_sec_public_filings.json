@@ -1,0 +1,177 @@
+{
+  "id": "de_sec_public_filings",
+  "title": "DEERE & CO General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-de",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent DE SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "DEERE & CO General SEC Filings",
+    "company_name": "DEERE & CO",
+    "ticker": "DE",
+    "cik": "0000315189",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-16",
+      "2026-02-27",
+      "2026-02-26",
+      "2026-02-19",
+      "2026-01-22",
+      "2025-12-18",
+      "2025-12-04",
+      "2025-11-26",
+      "2025-10-09",
+      "2025-09-02"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Shares may be repurchased through various means, including on the open market or in private transactions, under accelerated share repurchase programs, or under plans complying with rules 10b5-1 and 10b-18 under the Securities Exchange Act of 1934.",
+      "There were no repurchases made during the three months ended November 2, 2025, pursuant to the share repurchase plan."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "CONTROLS AND PROCEDURES Our principal executive officer and principal financial officer have concluded that our disclosure controls and procedures (as defined in Rules 13a-15(e) and 15d-15(e) of the Securities Exchange Act of 1934, as amended (the Exchange Act)) were effective as of February 1, 2026, based on the evaluation of these controls and procedures required by Rule 13a-15(b) or 15d-15(b) of the Exchange Act.",
+      "During the first quarter of 2026, there were no changes that have materially affected or are reasonably likely to materially affect our internal control over financial reporting.",
+      "\u201cRisk Factors\u201d of our most recent Annual Report on Form 10-K and this Quarterly Report on Form 10-Q)."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-de",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-de/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-de/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-de/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-16",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "DEERE & CO_March 12, 2026 false DEERE & CO - 2026-03-12 2026-03-12 de:Debentures6.55PercentDue2028Member 2026-03-12 2026-03-12 2026-03-12 2026-03-12 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u200b \u200b \u200b \u0334"
+      },
+      {
+        "label": "8-K 2026-02-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "DEERE & CO_February 25, 2026 false DEERE & CO - 2026-02-25 2026-02-25 de:Debentures6.55PercentDue2028Member 2026-02-25 2026-02-25 2026-02-25 2026-02-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u200b \u200b \u200b &#"
+      },
+      {
+        "label": "10-Q 2026-02-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "DEERE & CO_February 1, 2026 http://fasb.org/us-gaap/2025#SecuredDebt http://fasb.org/us-gaap/2025#SecuredDebt http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#OtherCostAndExpenseOperating http://fasb.org/us-gaap/2025#OtherCostAndExpenseOperating http://fasb.org/us-gaap/2025#OtherCostAndExpenseOpera"
+      },
+      {
+        "label": "8-K 2026-02-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "DEERE & CO_February 19, 2026 false DEERE & CO - 2026-02-19 2026-02-19 de:Debentures6.55PercentDue2028Member 2026-02-19 2026-02-19 2026-02-19 2026-02-19 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u200b \u200b \u200b &#"
+      },
+      {
+        "label": "8-K 2026-01-22",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "DEERE & CO_January 20, 2026 false DEERE & CO - 2026-01-20 2026-01-20 de:Debentures6.55PercentDue2028Member 2026-01-20 2026-01-20 2026-01-20 2026-01-20 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u200b \u200b \u200b"
+      },
+      {
+        "label": "10-K 2025-12-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "DEERE & CO_November 2, 2025 http://fasb.org/us-gaap/2025#SecuredDebt http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#OtherCostAndExpenseOperating http://fasb.org/us-gaap/2025#OtherCostAndExpenseOperating http://fasb.org/us-gaap/2025#OtherCostAndExpenseOpera"
+      },
+      {
+        "label": "8-K 2025-12-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "DEERE & CO_December 3, 2025 false DEERE & CO - 2025-12-03 2025-12-03 de:Debentures6.55PercentDue2028Member 2025-12-03 2025-12-03 2025-12-03 2025-12-03 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u200b \u200b \u200b"
+      },
+      {
+        "label": "8-K 2025-11-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "DEERE & CO_November 26, 2025 false DEERE & CO - 2025-11-26 2025-11-26 de:Debentures6.55PercentDue2028Member 2025-11-26 2025-11-26 2025-11-26 2025-11-26 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u200b \u200b \u200b &#"
+      },
+      {
+        "label": "8-K 2025-10-09",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "DEERE & CO_October 2, 2025 false DEERE & CO - 2025-10-02 2025-10-02 de:Debentures6.55PercentDue2028Member 2025-10-02 2025-10-02 2025-10-02 2025-10-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u200b \u200b \u200b R"
+      },
+      {
+        "label": "8-K 2025-09-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "DEERE & CO_August 27, 2025 false DEERE & CO - 2025-08-27 2025-08-27 de:Debentures6.55PercentDue2028Member 2025-08-27 2025-08-27 2025-08-27 2025-08-27 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u200b \u200b \u200b R"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-16",
+      "text_preview": "DEERE & CO_March 12, 2026 false DEERE & CO - 2026-03-12 2026-03-12 de:Debentures6.55PercentDue2028Member 2026-03-12 2026-03-12 2026-03-12 2026-03-12 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u200b \u200b \u200b \u200b FORM 8-K \u200b CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 Date of Report: March 12, 2026 (Date of earliest event reported) DEERE & COMPANY (Exact name of registrant as specified in its charter) \u200b \u200b \u200b \u200b \u200b Delaware \u200b 1-4121 \u200b 36-2382580 (State or other jurisdiction of incorporation) \u200b",
+      "char_count": 8309,
+      "word_count": 1248,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/315189/000110465926028536/de-20260312x8k.htm"
+    },
+    {
+      "label": "8-K 2026-02-27",
+      "text_preview": "DEERE & CO_February 25, 2026 false DEERE & CO - 2026-02-25 2026-02-25 de:Debentures6.55PercentDue2028Member 2026-02-25 2026-02-25 2026-02-25 2026-02-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 \u200b \u200b \u200b \u200b FORM 8-K \u200b CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 Date of Report: February 25, 2026 (Date of earliest event reported) DEERE & COMPANY (Exact name of registrant as specified in its charter) \u200b \u200b \u200b \u200b \u200b Delaware \u200b 1-4121 \u200b 36-2382580 (State or other jurisdiction of incorporation) &#",
+      "char_count": 5857,
+      "word_count": 821,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/315189/000110465926021272/de-20260225x8k.htm"
+    },
+    {
+      "label": "10-Q 2026-02-26",
+      "text_preview": "DEERE & CO_February 1, 2026 http://fasb.org/us-gaap/2025#SecuredDebt http://fasb.org/us-gaap/2025#SecuredDebt http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#OtherCostAndExpenseOperating http://fasb.org/us-gaap/2025#OtherCostAndExpenseOperating http://fasb.org/us-gaap/2025#OtherCostAndExpenseOperating http://fasb.org/us-gaap/2025#OtherCostAndExpenseOperating http://fasb.org/us-gaap/2025#OtherCostAndExpenseOperating http://fasb.org/us-gaap/2025#OtherCostAndExpenseOperating http://fasb.org/us-gaap/2025#OtherCostAndExpenseOperating http://fasb.org/us-gaap/2025#SecuredDebt http://fasb.org/us-gaap/2025#SecuredDebt http://fasb.org/us-gaap/2025#SecuredDebt http://fasb.org/us-g",
+      "char_count": 258795,
+      "word_count": 31070,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/315189/000110465926020158/de-20260201x10q.htm"
+    }
+  ]
+}

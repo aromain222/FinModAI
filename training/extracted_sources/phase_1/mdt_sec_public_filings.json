@@ -1,0 +1,178 @@
+{
+  "id": "mdt_sec_public_filings",
+  "title": "Medtronic plc General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-mdt",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent MDT SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Medtronic plc General SEC Filings",
+    "company_name": "Medtronic plc",
+    "ticker": "MDT",
+    "cik": "0001613103",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-24",
+      "2026-02-24",
+      "2026-02-17",
+      "2025-11-25",
+      "2025-11-18",
+      "2025-11-03",
+      "2025-10-21",
+      "2025-09-29",
+      "2025-09-16",
+      "2025-08-26"
+    ],
+    "capital_markets_activity": [
+      "expects to use the net proceeds of the Offering to repay Medtronic Luxco\u2019s 0.000% Senior Notes due 2025 and Medtronic Luxco\u2019s 2.625% Senior Notes due 2025.",
+      "On September 29, 2025 (the \u201cRedemption Date\u201d), Medtronic Luxco redeemed all \u20ac500,000,000 of its outstanding 2.625% Senior Notes due 2025 (CUSIP Number: 58507L AX7) (the \u201cRedemption Notes\u201d)."
+    ],
+    "capital_allocation_activity": [
+      "We also consider capital allocation alternatives that balance returning value to shareholders through dividends and share repurchases, satisfying maturing debt, and acquiring businesses and technology.",
+      "During the nine months ended October 25, 2024, the Company issued four tranches of Euro-denominated Senior Notes with an aggregate principal of \u20ac3.0 billion, or $3.2 billion, partially offset by net share repurchases of $2.6 billion."
+    ],
+    "liquidity_notes": [
+      "We manage interest rate risk in the aggregate, while focusing on our immediate and intermediate liquidity needs."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Based upon that evaluation, the Chief Executive Officer and Chief Financial Officer have concluded that, as of the end of the period covered by this quarterly report, our disclosure controls and procedures (as defined in Rule 13a-15(e) of the Exchange Act) are effective.",
+      "CHANGES IN INTERNAL CONTROL OVER FINANCIAL REPORTING During the three months ended July 25, 2025, the Company implemented a new financial close and consolidation system.",
+      "These forward-looking statements speak only as of the date of this Quarterly Report on Form 10-Q and are subject to a number of risks, uncertainties and assumptions described in the \u201cRisk Factors\u201d section and elsewhere in our Annual Report on Form 10-K."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-mdt",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-mdt/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-mdt/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-mdt/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-24",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "Medtronic plc H91 VY19 false - 2026-03-24 2026-03-24 2026-03-24 2026-03-24 mdt:A1.125SeniorNotesDue2027Member 2026-03-24 2026-03-24 mdt:A0.375SeniorNotesDue2028Member 2026-03-24 2026-03-24 mdt:A3.000SeniorNotesDue20"
+      },
+      {
+        "label": "10-Q 2026-02-24",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "4/24 false Q3 2026 H91 4K49 http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#OtherOperatingIncomeExpenseNet http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#OtherOperatingIncomeExpenseNet P8Y P8Y P5Y P5Y P6Y P6Y P8Y P8Y P5Y"
+      },
+      {
+        "label": "8-K 2026-02-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "H91 VY19 false - 2026-02-17 2026-02-17 mdt:A1.125SeniorNotesDue2027Member 2026-02-17 2026-02-17 mdt:A0.375SeniorNotesDue2028Member 2026-02-17 2026-02-17 mdt:A3.000SeniorNotesDue2028Member 2026-02-17 2026-02-17 mdt:A3.650SeniorNotesDue2029Mem"
+      },
+      {
+        "label": "10-Q 2025-11-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "4/24 false Q2 2026 H91 4K49 P8Y P8Y P5Y P5Y P6Y P6Y P8Y P8Y P5Y P5Y P5Y P5Y P12Y P12Y P12Y P12Y P9Y P9Y P12Y P12Y P10Y P10Y P12Y P12Y P20Y P20Y P12Y P12Y P30Y P30Y P20Y P20Y P30Y P30Y P20Y P20Y P30Y P30Y P20Y P20Y P30Y P30Y P30Y P30Y P19Y P19Y P30Y P30Y P30Y P30Y P20Y P20Y P30Y P30Y P30Y P30Y P2"
+      },
+      {
+        "label": "8-K 2025-11-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "H91 VY19 false - 2025-11-18 2025-11-18 mdt:A1.125SeniorNotesDue2027Member 2025-11-18 2025-11-18 mdt:A0.375SeniorNotesDue2028Member 2025-11-18 2025-11-18 mdt:A3.000SeniorNotesDue2028Member 2025-11-18 2025-11-18 mdt:A3.650SeniorNotesDue2029Mem"
+      },
+      {
+        "label": "8-K 2025-11-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "Medtronic plc H91 VY19 false - 2025-11-01 2025-11-01 2025-11-01 2025-11-01 mdt:A1.125SeniorNotesDue2027Member 2025-11-01 2025-11-01 mdt:A0.375SeniorNotesDue2028Member 2025-11-01 2025-11-01 mdt:A3.000SeniorNotesDue20"
+      },
+      {
+        "label": "8-K 2025-10-21",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "Medtronic plc H91 VY19 false 04/24 - 2025-10-16 2025-10-16 2025-10-16 2025-10-16 mdt:A1.125SeniorNotesDue2027Member 2025-10-16 2025-10-16 mdt:A0.375SeniorNotesDue2028Member 2025-10-16 2025-10-16 mdt:A3.000SeniorNote"
+      },
+      {
+        "label": "8-K 2025-09-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K H91 VY19 false - 2025-09-29 2025-09-29 2025-09-29 2025-09-29 mdt:A0.000SeniorNotesDue2025Member 2025-09-29 2025-09-29 mdt:A2.625SeniorNotesDue2025Member 2025-09-29 2025-09-29 mdt:A1.125SeniorNotesDue2027Member 2025-09-29 202"
+      },
+      {
+        "label": "8-K 2025-09-16",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K H91 VY19 false - 2025-09-15 2025-09-15 2025-09-15 2025-09-15 mdt:A0.000SeniorNotesDue2025Member 2025-09-15 2025-09-15 mdt:A2.625SeniorNotesDue2025Member 2025-09-15 2025-09-15 mdt:A1.125SeniorNotesDue2027Member 2025-09-15 202"
+      },
+      {
+        "label": "10-Q 2025-08-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "4/24 false Q1 2026 H91 4K49 P8Y P8Y P5Y P5Y P6Y P6Y P8Y P8Y P5Y P5Y P12Y P12Y P12Y P12Y P9Y P9Y P12Y P12Y P10Y P10Y P12Y P12Y P20Y P20Y P12Y P12Y P30Y P30Y P20Y P20Y P30Y P30Y P20Y P20Y P30Y P30Y P20Y P20Y P30Y P30Y P30Y P30Y P19Y P19Y P30Y P30Y P30Y P30Y P30Y P30Y P30Y P30Y P29Y P29Y -"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-24",
+      "text_preview": "Medtronic plc H91 VY19 false - 2026-03-24 2026-03-24 2026-03-24 2026-03-24 mdt:A1.125SeniorNotesDue2027Member 2026-03-24 2026-03-24 mdt:A0.375SeniorNotesDue2028Member 2026-03-24 2026-03-24 mdt:A3.000SeniorNotesDue2028Member 2026-03-24 2026-03-24 mdt:A3.650SeniorNotesDue2029Member 2026-03-24 2026-03-24 mdt:A2.950SeniorNotesDue2030Member 2026-03-24 2026-03-24 mdt:A1.625SeniorNotesDue2031Member 2026-03-24 2026-03-24 mdt:A1.000SeniorNotesDue2031Member 2026-03-24 2026-03-24 mdt:A3.125SeniorNotesDue2031Member 2026-03-24 2026-03-24 000161310",
+      "char_count": 10712,
+      "word_count": 1460,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1613103/000161310326000005/mdt-20260324.htm"
+    },
+    {
+      "label": "10-Q 2026-02-24",
+      "text_preview": "4/24 false Q3 2026 H91 4K49 http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#OtherOperatingIncomeExpenseNet http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#OtherOperatingIncomeExpenseNet P8Y P8Y P5Y P5Y P6Y P6Y P8Y P8Y P5Y P5Y P5Y P5Y P12Y P12Y P12Y P12Y P9Y P9Y P12Y P12Y P10Y P10Y P12Y P12Y P20Y P20Y P12Y P12Y P30Y P30Y P20Y P20Y P30Y P30Y P20Y P20Y P30Y P30Y P20Y P20Y P30Y P30Y P30Y P30Y P19Y P19Y P30Y P30Y P30Y P30Y P20Y P20Y P30Y P30Y P30Y P30Y P29Y P29Y - mdt:tranche mdt:plaintiff mdt:lawsuit mdt:segment 000",
+      "char_count": 261172,
+      "word_count": 33775,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1613103/000162828026011107/mdt-20260123.htm"
+    },
+    {
+      "label": "8-K 2026-02-17",
+      "text_preview": "H91 VY19 false - 2026-02-17 2026-02-17 mdt:A1.125SeniorNotesDue2027Member 2026-02-17 2026-02-17 mdt:A0.375SeniorNotesDue2028Member 2026-02-17 2026-02-17 mdt:A3.000SeniorNotesDue2028Member 2026-02-17 2026-02-17 mdt:A3.650SeniorNotesDue2029Member 2026-02-17 2026-02-17 mdt:A2.950SeniorNotesDue2030Member 2026-02-17 2026-02-17 mdt:A1.625SeniorNotesDue2031Member 2026-02-17 2026-02-17 mdt:A1.000SeniorNotesDue2031Member 2026-02-17 2026-02-17 mdt:A3.125SeniorNotesDue2031Member 2026-02-17 2026-02-17 mdt:A0.750SeniorNotesDue2032Member 2026-02-17 2026-02-17 mdt",
+      "char_count": 5733,
+      "word_count": 747,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1613103/000162828026008300/mdt-20260217.htm"
+    }
+  ]
+}

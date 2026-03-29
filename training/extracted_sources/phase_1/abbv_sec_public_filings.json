@@ -1,0 +1,175 @@
+{
+  "id": "abbv_sec_public_filings",
+  "title": "AbbVie Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-abbv",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent ABBV SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "AbbVie Inc. General SEC Filings",
+    "company_name": "AbbVie Inc.",
+    "ticker": "ABBV",
+    "cik": "0001551152",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-04",
+      "2026-02-26",
+      "2026-02-20",
+      "2026-02-04",
+      "2026-01-07",
+      "2025-11-04",
+      "2025-10-31",
+      "2025-10-03",
+      "2025-09-11",
+      "2025-08-04"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Recent filings reference ongoing capital allocation actions, including repurchases and financing decisions."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "RISK FACTORS You should carefully consider the following risks and other information in this Form 10-K in evaluating AbbVie and AbbVie's common stock."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-abbv",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-abbv/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-abbv/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-abbv/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false Common Stock, $0.01 Par Value ABBV - 2026-03-04 2026-03-04 exch:XNYS 2026-03-04 2026-03-04 exch:XCHI 2026-03-04 2026-03-04 abbv:SeniorNotes0.750Percentdue2027Member exch:XNYS 2026-03-04 2026-03-04"
+      },
+      {
+        "label": "8-K 2026-02-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false Common Stock, $0.01 Par Value ABBV - 2026-02-24 2026-02-24 exch:XNYS 2026-02-24 2026-02-24 exch:XCHI 2026-02-24 2026-02-24 abbv:SeniorNotes0.750Percentdue2027Member exch:XNYS 2026-02-24 2026-02-24"
+      },
+      {
+        "label": "10-K 2026-02-20",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY http://fasb.org/us-gaap/2025#ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost http://fasb.org/us-gaap/2025#ResearchAndDevelop"
+      },
+      {
+        "label": "8-K 2026-02-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-04 2026-02-04 exch:XNYS 2026-02-04 2026-02-04 abbv:Sec0.750SeniorNotesDue2027Member exch:XNYS 2026-02-04 2026-02-04 abbv:Sec2.125SeniorNotesdue2028Member exch:XNYS 2026-02-04 2026-02-04 abbv:Sec2625"
+      },
+      {
+        "label": "8-K 2026-01-07",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-07 2026-01-07 exch:XNYS 2026-01-07 2026-01-07 abbv:Sec0.750SeniorNotesDue2027Member exch:XNYS 2026-01-07 2026-01-07 abbv:Sec2.125SeniorNotesdue2028Member exch:XNYS 2026-01-07 2026-01-07 abbv:Sec2625"
+      },
+      {
+        "label": "10-Q 2025-11-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false December 31 2025 Q3 http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#InterestIncomeExpenseNonoperatingNet http://fasb.org/us-gaap/2025#InterestIncomeExpenseNonoperatingNet http://fasb.org/us-gaap/2"
+      },
+      {
+        "label": "8-K 2025-10-31",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-31 2025-10-31 exch:XNYS 2025-10-31 2025-10-31 abbv:Sec0.750SeniorNotesDue2027Member exch:XNYS 2025-10-31 2025-10-31 abbv:Sec2.125SeniorNotesdue2028Member exch:XNYS 2025-10-31 2025-10-31 abbv:Sec2625"
+      },
+      {
+        "label": "8-K 2025-10-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-03 2025-10-03 exch:XNYS 2025-10-03 2025-10-03 exch:XCHI 2025-10-03 2025-10-03 abbv:Sec0.750SeniorNotesDue2027Member exch:XNYS 2025-10-03 2025-10-03 abbv:Sec2.125SeniorNotes"
+      },
+      {
+        "label": "8-K 2025-09-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-09-11 2025-09-11 exch:XNYS 2025-09-11 2025-09-11 abbv:SeniorNotes0.750Percentdue2027Member exch:XNYS 2025-09-11 2025-09-11 abbv:SeniorNotes2.125Percentdue2028Member exch:XNYS 2025-09-11 2025-09-11 abbv:SeniorNotes2."
+      },
+      {
+        "label": "10-Q 2025-08-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false December 31 2025 Q2 http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#InterestIncomeExpenseNonoperatingNet http://fasb.org/us-gaap/2025#InterestIncomeExpenseNonoperatingNet http://fasb.org/us-gaap/2"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-04",
+      "text_preview": "false Common Stock, $0.01 Par Value ABBV - 2026-03-04 2026-03-04 exch:XNYS 2026-03-04 2026-03-04 exch:XCHI 2026-03-04 2026-03-04 abbv:SeniorNotes0.750Percentdue2027Member exch:XNYS 2026-03-04 2026-03-04 abbv:SeniorNotes2.125Percentdue2028Member exch:XNYS 2026-03-04 2026-03-04 abbv:SeniorNotes2.625Percentdue2028Member exch:XNYS 2026-03-04 2026-03-04 abbv:SeniorNotes2.125Percentdue2029Member exch:XNYS 2026-03-04 2026-03-04 abbv:SeniorNotes1.250Percentdue2031Member exch:XNYS 2026-03-04 2026-03-04",
+      "char_count": 9293,
+      "word_count": 1425,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1551152/000110465926023534/tm266774d4_8k.htm"
+    },
+    {
+      "label": "8-K 2026-02-26",
+      "text_preview": "false Common Stock, $0.01 Par Value ABBV - 2026-02-24 2026-02-24 exch:XNYS 2026-02-24 2026-02-24 exch:XCHI 2026-02-24 2026-02-24 abbv:SeniorNotes0.750Percentdue2027Member exch:XNYS 2026-02-24 2026-02-24 abbv:SeniorNotes2.125Percentdue2028Member exch:XNYS 2026-02-24 2026-02-24 abbv:SeniorNotes2.625Percentdue2028Member exch:XNYS 2026-02-24 2026-02-24 abbv:SeniorNotes2.125Percentdue2029Member exch:XNYS 2026-02-24 2026-02-24 abbv:SeniorNotes1.250Percentdue2031Member exch:XNYS 2026-02-24 2026-02-24",
+      "char_count": 10209,
+      "word_count": 1487,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1551152/000110465926020643/tm266774d4_8k.htm"
+    },
+    {
+      "label": "10-K 2026-02-20",
+      "text_preview": "false 2025 FY http://fasb.org/us-gaap/2025#ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost http://fasb.org/us-gaap/2025#ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentNet http://fasb.org/us-gaap/2025#PropertyPlantAndEquipmentNet http://fasb.org/us-gaap/2025#AccountsPayableAndAccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccountsPayableAnd",
+      "char_count": 505111,
+      "word_count": 68065,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1551152/000155115226000008/abbv-20251231.htm"
+    }
+  ]
+}

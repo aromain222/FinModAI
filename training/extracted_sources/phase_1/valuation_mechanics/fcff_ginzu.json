@@ -1,0 +1,276 @@
+{
+  "id": "fcff_ginzu",
+  "title": "FCFF Ginzu",
+  "file_path": "/Users/averyromain/Downloads/fcffginzu.xlsx",
+  "source_type": "educational_workbook",
+  "tier": "B+",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "eval_cases",
+  "recommended_phase": 1,
+  "template_key": "workbook",
+  "assistant_training_targets": [
+    "model architecture",
+    "formula mapping",
+    "schedule logic",
+    "valuation mechanics"
+  ],
+  "source_summary": "Integrated Damodaran-style DCF workbook with multiple adjustment schedules.",
+  "strengths": [
+    "integrated DCF architecture",
+    "R&D and lease conversion",
+    "ratings and cost of capital"
+  ],
+  "weaknesses": [
+    "educational/template feel"
+  ],
+  "fields": {
+    "title": "FCFF Ginzu",
+    "model_type": "fcff / dcf",
+    "sheet_names": [
+      "Read me first",
+      "Master Inputs Start here",
+      "Valuation Model",
+      "Input Summary",
+      "Earnings Normalizer",
+      "R&D converter",
+      "Operating lease converter",
+      "Stories to Numbers",
+      "Option Value",
+      "Cost of capital worksheet",
+      "Ratings estimator",
+      "US Industry averages",
+      "Global Industry averages",
+      "Country ERP",
+      "Trailing 12-month numbers",
+      "Answers"
+    ],
+    "key_schedules": [
+      "Master Inputs Start here",
+      "Input Summary",
+      "Operating lease converter",
+      "Cost of capital worksheet",
+      "Ratings estimator",
+      "Earnings Normalizer",
+      "R&D converter",
+      "Operating lease converter",
+      "Option Value"
+    ],
+    "core_formulas": [
+      "Valuation Model: 275 formulas in first 1387 sampled cells",
+      "Country ERP: 226 formulas in first 1368 sampled cells",
+      "Cost of capital worksheet: 189 formulas in first 1088 sampled cells",
+      "R&D converter: 67 formulas in first 1420 sampled cells",
+      "Stories to Numbers: 32 formulas in first 186 sampled cells",
+      "Operating lease converter: 26 formulas in first 385 sampled cells",
+      "Option Value: 24 formulas in first 189 sampled cells",
+      "Master Inputs Start here: 19 formulas in first 522 sampled cells"
+    ],
+    "assumption_categories": [
+      "Master Inputs Start here",
+      "Input Summary",
+      "Operating lease converter",
+      "Cost of capital worksheet",
+      "Ratings estimator"
+    ],
+    "output_tabs": [
+      "Valuation Model",
+      "Input Summary"
+    ],
+    "sensitivity_support": [],
+    "quality_notes": [
+      "Contains answer-key or teaching-oriented tabs.",
+      "Includes explicit instructional/readme tab, indicating template usage."
+    ]
+  },
+  "source_metadata": {
+    "file_present": true,
+    "source_extension": ".xlsx",
+    "extraction_mode": "workbook_structure",
+    "sheet_names": [
+      "Read me first",
+      "Master Inputs Start here",
+      "Valuation Model",
+      "Input Summary",
+      "Earnings Normalizer",
+      "R&D converter",
+      "Operating lease converter",
+      "Stories to Numbers",
+      "Option Value",
+      "Cost of capital worksheet",
+      "Ratings estimator",
+      "US Industry averages",
+      "Global Industry averages",
+      "Country ERP",
+      "Trailing 12-month numbers",
+      "Answers"
+    ],
+    "formula_counts": {
+      "Read me first": 0,
+      "Master Inputs Start here": 19,
+      "Valuation Model": 275,
+      "Input Summary": 8,
+      "Earnings Normalizer": 10,
+      "R&D converter": 67,
+      "Operating lease converter": 26,
+      "Stories to Numbers": 32,
+      "Option Value": 24,
+      "Cost of capital worksheet": 189,
+      "Ratings estimator": 8,
+      "US Industry averages": 0,
+      "Global Industry averages": 0,
+      "Country ERP": 226,
+      "Trailing 12-month numbers": 10,
+      "Answers": 0
+    },
+    "dimensions": {
+      "Read me first": "A1:F22",
+      "Master Inputs Start here": "A1:F87",
+      "Valuation Model": "A1:S73",
+      "Input Summary": "A1:D5",
+      "Earnings Normalizer": "A1:G21",
+      "R&D converter": "A1:J142",
+      "Operating lease converter": "A1:K35",
+      "Stories to Numbers": "A1:F31",
+      "Option Value": "A1:G27",
+      "Cost of capital worksheet": "A1:Q64",
+      "Ratings estimator": "A1:P53",
+      "US Industry averages": "A1:AA97",
+      "Global Industry averages": "A1:AA97",
+      "Country ERP": "A1:F228",
+      "Trailing 12-month numbers": "A1:E22",
+      "Answers": "B1:L16"
+    },
+    "sampled_cells": {
+      "Read me first": 132,
+      "Master Inputs Start here": 522,
+      "Valuation Model": 1387,
+      "Input Summary": 20,
+      "Earnings Normalizer": 147,
+      "R&D converter": 1420,
+      "Operating lease converter": 385,
+      "Stories to Numbers": 186,
+      "Option Value": 189,
+      "Cost of capital worksheet": 1088,
+      "Ratings estimator": 848,
+      "US Industry averages": 2619,
+      "Global Industry averages": 2619,
+      "Country ERP": 1368,
+      "Trailing 12-month numbers": 110,
+      "Answers": 192
+    }
+  },
+  "chunking": {
+    "strategy": "sheet_level",
+    "chunk_count": 16,
+    "chunks": [
+      {
+        "label": "Read me first",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "dimension=A1:F22; formulas=0"
+      },
+      {
+        "label": "Master Inputs Start here",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "dimension=A1:F87; formulas=19"
+      },
+      {
+        "label": "Valuation Model",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "dimension=A1:S73; formulas=275"
+      },
+      {
+        "label": "Input Summary",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "dimension=A1:D5; formulas=8"
+      },
+      {
+        "label": "Earnings Normalizer",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "dimension=A1:G21; formulas=10"
+      },
+      {
+        "label": "R&D converter",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "dimension=A1:J142; formulas=67"
+      },
+      {
+        "label": "Operating lease converter",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "dimension=A1:K35; formulas=26"
+      },
+      {
+        "label": "Stories to Numbers",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "dimension=A1:F31; formulas=32"
+      },
+      {
+        "label": "Option Value",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "dimension=A1:G27; formulas=24"
+      },
+      {
+        "label": "Cost of capital worksheet",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "dimension=A1:Q64; formulas=189"
+      },
+      {
+        "label": "Ratings estimator",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "dimension=A1:P53; formulas=8"
+      },
+      {
+        "label": "US Industry averages",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "dimension=A1:AA97; formulas=0"
+      },
+      {
+        "label": "Global Industry averages",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "dimension=A1:AA97; formulas=0"
+      },
+      {
+        "label": "Country ERP",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "dimension=A1:F228; formulas=226"
+      },
+      {
+        "label": "Trailing 12-month numbers",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "dimension=A1:E22; formulas=10"
+      },
+      {
+        "label": "Answers",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "dimension=B1:L16; formulas=0"
+      }
+    ]
+  },
+  "text_samples": [
+    "dimension=A1:F22; formulas=0",
+    "dimension=A1:F87; formulas=19",
+    "dimension=A1:S73; formulas=275",
+    "dimension=A1:D5; formulas=8",
+    "dimension=A1:G21; formulas=10",
+    "dimension=A1:J142; formulas=67",
+    "dimension=A1:K35; formulas=26",
+    "dimension=A1:F31; formulas=32"
+  ],
+  "extraction_status": "extracted",
+  "extracted_at": "2026-03-27T18:48:11.159112+00:00"
+}

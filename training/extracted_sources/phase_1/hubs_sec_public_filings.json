@@ -1,0 +1,176 @@
+{
+  "id": "hubs_sec_public_filings",
+  "title": "HUBSPOT INC General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-hubs",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent HUBS SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "HUBSPOT INC General SEC Filings",
+    "company_name": "HUBSPOT INC",
+    "ticker": "HUBS",
+    "cik": "0001404655",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-11",
+      "2026-02-11",
+      "2026-02-11",
+      "2025-11-05",
+      "2025-11-05",
+      "2025-08-06",
+      "2025-08-06",
+      "2025-06-10",
+      "2025-05-08",
+      "2025-05-08"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "We cannot guarantee that our share repurchase program will be fully consummated or will enhance long-term stockholder value, and share repurchases could increase the volatility of the trading price of our common stock and diminish our cash reserves.",
+      "On February 7, 2026, our Board of Directors authorized a share repurchase program under which we are authorized to purchase up to $1.0 billion of our common stock from time to time (the \u201c2026 Share Repurchase Program\u201d)."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "If we fail to maintain an effective system of disclosure controls and internal control over financial reporting, our ability to produce timely and accurate financial statements or comply with applicable regulations could be impaired.",
+      "The outcome of the events described in these forward-looking statements is subject to risks, uncertainties and other factors described in \u201cRisk Factors\u201d and elsewhere in this Annual Report on Form 10-K."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-hubs",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-hubs/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-hubs/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-hubs/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false --12-31 - 2026-03-11 2026-03-11 2026-03-11 2026-03-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest"
+      },
+      {
+        "label": "10-K 2026-02-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "10-K false FY http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#UsefulLifeShorterOfTermOfLeaseOrAssetUtilityMember P2Y 2 http://fasb.org/us-gaap/2025#MoneyMarketFundsMember http://fasb.org/us-gaap/2025#MoneyMarketFundsMember htt"
+      },
+      {
+        "label": "8-K 2026-02-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2026-02-11 2026-02-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 11, 2026 HUBSPOT, INC. (Exact name of"
+      },
+      {
+        "label": "10-Q 2025-11-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "10-Q Q3 false --12-31 two year http://fasb.org/us-gaap/2025#MoneyMarketFundsMember http://fasb.org/us-gaap/2025#MoneyMarketFundsMember http://fasb.org/us-gaap/2025#MoneyMarketFundsMember http://fasb.org/us-gaap/2025#MoneyMarketFundsMember http://fasb.org/us-gaap/2025#MoneyMarketFundsMember http://fasb.org/us"
+      },
+      {
+        "label": "8-K 2025-11-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2025-11-03 2025-11-03 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): November 3, 2025 HUBSPOT, INC. (Exact name of R"
+      },
+      {
+        "label": "8-K 2025-08-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2025-08-06 2025-08-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): August 6, 2025 HUBSPOT, INC. (Exact name of Reg"
+      },
+      {
+        "label": "10-Q 2025-08-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "10-Q --12-31 false Q2 two year http://fasb.org/us-gaap/2025#MoneyMarketFundsMember http://fasb.org/us-gaap/2025#MoneyMarketFundsMember http://fasb.org/us-gaap/2025#MoneyMarketFundsMember http://fasb.org/us-gaap/2025#MoneyMarketFundsMember http://fasb.org/us-gaap/2025#MoneyMarketFundsMember http://fasb.org/us"
+      },
+      {
+        "label": "8-K 2025-06-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false --12-31 - 2025-06-04 2025-06-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): June 4, 2025 HUBSPOT, INC. (Exact name"
+      },
+      {
+        "label": "10-Q 2025-05-08",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "10-Q Q1 --12-31 false two year http://fasb.org/us-gaap/2024#MoneyMarketFundsMember http://fasb.org/us-gaap/2024#MoneyMarketFundsMember http://fasb.org/us-gaap/2024#MoneyMarketFundsMember http://fasb.org/us-gaap/2024#MoneyMarketFundsMember http://fasb.org/us-gaap/2024#MoneyMarketFundsMember http://fasb.org/us"
+      },
+      {
+        "label": "8-K 2025-05-08",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2025-05-08 2025-05-08 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): May 8, 2025 HUBSPOT, INC. (Exact name of Regist"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-11",
+      "text_preview": "8-K false --12-31 - 2026-03-11 2026-03-11 2026-03-11 2026-03-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): March 11, 2026 HubSpot, Inc. (Exact name of Registrant as Specified in Its Charter) Massachusetts 001-36680 20-2632791 (State or Other Jurisdiction of Incorporation) (Commission File Number) (IRS Employer Identification No.) Two Canal Park Cambridge , Massachusetts 02141 (Address of Principal Executive Offices) (Zip Code) Registrant\u2019s Telephone Number, I",
+      "char_count": 3869,
+      "word_count": 579,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1404655/000119312526102426/hubs-20260311.htm"
+    },
+    {
+      "label": "10-K 2026-02-11",
+      "text_preview": "10-K false FY http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#UsefulLifeShorterOfTermOfLeaseOrAssetUtilityMember P2Y 2 http://fasb.org/us-gaap/2025#MoneyMarketFundsMember http://fasb.org/us-gaap/2025#MoneyMarketFundsMember http://fasb.org/us-gaap/2025#MoneyMarketFundsMember http://fasb.org/us-gaap/2025#MoneyMarketFundsMember http://fasb.org/us-gaap/2025#MoneyMarketFundsMember http://fasb.org/us-gaap/2025#MoneyMarketFundsMember http://fasb.org/us-gaap/2025#MoneyMarketFundsMember http://fasb.org/us-gaap/2025#MoneyMarketFundsMember P2Y http://fasb.org/srt/2025#ChiefExecutiveOfficerMember http://fasb.or",
+      "char_count": 463273,
+      "word_count": 67290,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1404655/000119312526046646/hubs-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-11",
+      "text_preview": "8-K false - 2026-02-11 2026-02-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 11, 2026 HUBSPOT, INC. (Exact name of Registrant as Specified in Its Charter) Delaware 001-36680 20-2632791 (State or Other Jurisdiction of Incorporation) (Commission File Number) (IRS Employer Identification No.) Two Canal Park , Cambridge , Massachusetts 02141 (Address of Principal Executive Offices) (Zip Code) Registrant\u2019s Telephone Number, Including Area Code: (888) 482-7768 Not Applicable (Former Name or",
+      "char_count": 3506,
+      "word_count": 527,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1404655/000119312526046563/hubs-20260211.htm"
+    }
+  ]
+}

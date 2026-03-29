@@ -1,0 +1,140 @@
+{
+  "id": "nvidia-2025-ndr-deck",
+  "title": "NVIDIA 2025 NDR Deck",
+  "file_path": "/Users/averyromain/Downloads/NVIDIA-2025-NDR-Deck-1.pdf",
+  "source_type": "investor_presentation",
+  "tier": "A",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "transaction_methodology",
+  "recommended_phase": 1,
+  "template_key": "investor_presentation",
+  "assistant_training_targets": [
+    "slide compression",
+    "contributor/detractor summaries",
+    "thesis slide structure"
+  ],
+  "source_summary": "NVIDIA non-deal roadshow deck for AI infrastructure messaging, financial framing, and management presentation style.",
+  "strengths": [
+    "management framing",
+    "AI infrastructure positioning",
+    "financial KPI emphasis"
+  ],
+  "weaknesses": [
+    "presentation shorthand",
+    "marketing-style emphasis"
+  ],
+  "fields": {
+    "title": "NVIDIA 2025 NDR Deck",
+    "manager": null,
+    "date": null,
+    "agenda": [
+      "CUTLASS",
+      "CUDA-Q",
+      "GB200",
+      "AV AI",
+      "GB200",
+      "GB200",
+      "COMPUTE",
+      "NVL72",
+      "NVL576",
+      "NVLINK"
+    ],
+    "portfolio_contributors": [],
+    "portfolio_detractors": [],
+    "holdings_covered": [
+      "NVIDIA Non-Deal Roadshow",
+      "MONAI Aerial",
+      "SCALE-UP",
+      "SCALE-OUT",
+      "NVIDIA and OpenAI Partnership"
+    ],
+    "valuation_points": [
+      "Certain statements in this presentation including, but not limited to, statements as to: expectations with respect to growth, performance and benefits of NVIDIA\u2019s products, services and technologies, and related trends and drivers; expectations with respect to supply and demand f",
+      "NVIDIA\u2019s Evolution From Chips to an AI Infrastructure Company",
+      "$3-4 Trillion AI Infrastructure Spend by 2030 \u2022 End of Moore\u2019s Law drives fundamental shift from general-purpose to accelerated computing \u2022 For example, Data Processing: NVIDIA cuDF, cuML, cuVS accelerates structured and unstructured data processing 10-100X over CPU-based methods",
+      "Token Generation is Doubling Every Two Months \u2022 ChatGPT is at ~700M WAUs, with usage up ~4X y/y \u2022 OpenAI now counts 5M paying business users, up from 3M in June \u2022 Microsoft processed over 500 trillion tokens served by Foundry APIs in FY2025, up 7X y/y \u2022 Alphabet processed over 98",
+      "Annual Rhythm and Extreme Co-Design for Sustained Leadership Full-Stack | One Architecture | CUDA Everywhere 2025 2026 2027 2028 COMPUTE Rubin 8S HBM4 Rubin Ultra 16S HBM4e Oberon NVL72 Liquid Cooled Kyber NVL576 Liquid Cooled Blackwell Feynman NVLINK (SCALE-UP) NETWORKING (SCALE"
+    ],
+    "exit_or_trim_logic": [],
+    "slide_structure_patterns": [
+      "CUTLASS",
+      "CUDA-Q",
+      "GB200",
+      "AV AI",
+      "GB200",
+      "GB200",
+      "COMPUTE",
+      "NVL72",
+      "NVL576",
+      "NVLINK",
+      "NETWORKING",
+      "SYSTEM"
+    ]
+  },
+  "source_metadata": {
+    "file_present": true,
+    "source_extension": ".pdf",
+    "extraction_mode": "pdf_text",
+    "page_count": 15,
+    "headings_detected": [
+      "CUTLASS",
+      "CUDA-Q",
+      "GB200",
+      "AV AI",
+      "GB200",
+      "GB200",
+      "COMPUTE",
+      "NVL72",
+      "NVL576",
+      "NVLINK",
+      "NETWORKING",
+      "SYSTEM",
+      "GDDR7"
+    ]
+  },
+  "chunking": {
+    "strategy": "page_groups",
+    "chunk_count": 5,
+    "chunks": [
+      {
+        "label": "pages_1_3",
+        "start_page": 1,
+        "end_page": 3,
+        "text_preview": "NVIDIA Non-Deal Roadshow\nOctober 2025\n\nCertain statements in this presentation including, but not limited to, statements as to: expectations with respect to growth, performance and benefits of \nNVIDIA\u2019s products, services and technologies, and related trends and drivers; expectations with respect to supply and demand for NVIDIA\u2019s products, services \nand technologies, and related matters; expectations with respect to NVIDIA\u2019s third party arrangements, including with its collaborators and partners such as \nOpenAI, Intel and CoreWeave; expectations with respect to NVIDIA\u2019s investments; expectations with respect to energy efficiency; expectations with respect to \nNVIDIA\u2019s strategies; expectations with respect to technology developments, and related trends and drivers; projected market growth and trends; expectations \nwith respect to AI and related industries; and other statements that are not historical facts are forward-looking statements within the meaning of Section 27A \nof the Securities Act of 1933, as amended, and Section 21E of the Securities Exchange Act of 1934, as amended, which are subject to the \u201csafe harbor\u201d created \nby those sections based on management\u2019s beliefs and assumptions and on information currently available to management and are subject to risks and \nuncertainties that could cause results to be materially different than expectations. \nImportant factors that could cause actual results to differ materially include: global economic and political conditions; N"
+      },
+      {
+        "label": "pages_4_6",
+        "start_page": 4,
+        "end_page": 6,
+        "text_preview": "$3-4 Trillion AI Infrastructure \nSpend by 2030\n\u2022 End of Moore\u2019s Law drives fundamental shift from general-purpose \nto accelerated computing\n\u2022 For example, Data Processing: NVIDIA cuDF, cuML, cuVS accelerates \nstructured and unstructured data processing 10-100X over CPU-based \nmethods; Computational Lithography: NVIDIA cuLitho accelerates computation \nlithography tasks, such as creating photomasks, by as much as 40-60X over \nCPU-based methods; Genome Sequencing: deciphEHR was able to achieve \n>5X faster alignment runtimes and >10X faster variant calling runtimes, \nusing NVIDIA Parabricks\n\u2022 Hyperscale shift to Generative AI\n\u2022 For example, Ad Generation: Google AI-powered video campaigns on YouTube \ndeliver 17% higher ROAS (return on ad spend) than manual campaigns; \nRecommender Systems: Pinterest was able to move to 100X larger recommender \nmodels by adopting NVIDIA GPUs which increased engagement by 16%; Search \nand User-Generated-Content are moving to adopt LLM-powered generative AI\n\u2022 Model Makers \u2014 A new industry\n\u2022 OpenAI, Google, Anthropic, xAI, Meta are building the foundations of AI\n\u2022 Enterprise \u2014 Agentic AI enters the labor market\n\u2022 Coding: Developers using AI coding assistants could complete tasks up to 55% \nfaster, according to an MIT study; Vibe Coding: Lovable opens coding to new \nusers like product designers, creatives, marketing, IT, teachers; Legal: STARA, \nan AI designed for statutory research, conducted a task that would take two \nhumans 8 to13.5 hours and cost "
+      },
+      {
+        "label": "pages_7_9",
+        "start_page": 7,
+        "end_page": 9,
+        "text_preview": "GB200\nTraining \nRobot AI\nRTX PRO Server\nPracticing in \nDigital Twin\nJetson AGX Thor\nManipulating Robot\n$3-4 Trillion AI Infrastructure Spend by 2030\nNVIDIA 3-Computers Enable Physical AI \u2013 the Next Wave of AI\n\nTraining \nAV AI\nPracticing in \nDigital Twin\nDRIVE AGX Thor\nDriving Car\nGB200\n RTX PRO Server\n$3-4 Trillion AI Infrastructure Spend by 2030\nNVIDIA 3-Computers Enable Physical AI \u2013 the Next Wave of AI\n\nTraining \nFactory AI\nPracticing in \nDigital Twin\nGB200\n RTX PRO Server\nJetson AGX Thor\nRunning Factories\n$3-4 Trillion AI Infrastructure Spend by 2030\nNVIDIA 3-Computers Enable Physical AI \u2013 the Next Wave of AI"
+      },
+      {
+        "label": "pages_10_12",
+        "start_page": 10,
+        "end_page": 12,
+        "text_preview": "Annual Rhythm and Extreme Co-Design for Sustained Leadership\nFull-Stack | One Architecture | CUDA Everywhere\n2025 2026 2027 2028\nCOMPUTE\nRubin\n8S HBM4\nRubin Ultra\n16S HBM4e\nOberon\nNVL72\nLiquid Cooled\nKyber\nNVL576 \nLiquid Cooled\nBlackwell\nFeynman\nNVLINK\n(SCALE-UP)\nNETWORKING\n(SCALE-OUT)\nSYSTEM\nRubin\nRubin CPX\nGDDR7\nBlackwell\n8S HBM3e\nBlackwell Ultra\n8S HBM3e\nGrace \nCPU\nNVLink 5 Switch\n1800 GB/s\nSpectrum5\n51T\nNVLink 6 Switch\n3600 GB/s\nNVLink 7 Switch\n3600 GB/s\nCX8\n800G\n Spectrum6\n102T, CPO\nCX9\n1600G\nVera \nCPU\nSpectrum7\n204T, CPO\nCX10\nFeynman\nNext\u2013Gen HBM\nNVLink 8 Switch\nVera \nCPU\nBlueField-3 BlueField-4 BlueField-5\n\nAnnual Rhythm and Extreme Co-Design for Sustained Leadership\nCombining simultaneous breakthroughs in GPU, CPU, NIC, NVLink scale-up fabric, Spectrum-X Ethernet scale-out \nand scale-across network, system architecture, and a mountain of software and algorithms, \nwe are delivering leaps in performance and cost efficiency never seen before.\nNVIDIA extreme co-design has delivered 1,000,000X performance gain in past 10 years \u2013 versus \n100X of traditional Moore\u2019s law.\nChips to Systems to NVLink to networking to CUDA-X, DOCA, NCCL, TRT-LLM, NIXL, to Dynamo\n\n0\n50\n100\n150\n200\n250\n300\n2018 2019 2020 2021 2022 2023 2024 2025\nCumulative Wins\nMLPerf Training and Inference Wins\nNVIDIA GPU Google TPU All Others\nAnnual Rhythm and Extreme Co-Design for Sustained Leadership\nNVIDIA Leads MLPerf With Hundreds of Training and Inference Wins\n\u201cNVIDIA Blackwell Ultra Sets Reasoning Records"
+      },
+      {
+        "label": "pages_13_15",
+        "start_page": 13,
+        "end_page": 15,
+        "text_preview": "Annual Rhythm and Extreme Co-Design for Sustained Leadership\nGB NVL72 for Training to Inference \nOrder of Magnitude Leap in Inference Throughput and Cost Reduction\n\nNVIDIA and OpenAI Partnership\n\u2022 The OpenAI partnership is a powerful demonstration of \nNVIDIA\u2019s ability as an AI infrastructure partner \u2013 delivering \narchitecture, chips, systems, networking, data centers, \nsoftware, operations, and financing as one integrated solution\n\u2022 The partnership extends existing collaboration to scale \nmulti-giga-watts of infrastructure at Microsoft, OCI, \nand CoreWeave\n\u2022 In addition to CSP capacity, OpenAI and NVIDIA will build \nat least 10 gigawatts \u2013 millions of GPUs \u2013 of infrastructure \nto be operated by OpenAI; The first gigawatt launches in \n2026 on the Vera Rubin platform\n\u2022 For the first time, OpenAI will buy directly from NVIDIA, \nsecure multi-cycle supply, forging close engineering \ncollaboration to build AI factories\n\u2022 NVIDIA intends to invest in increments over time up to \n$100 billion in equity; Every 1GW build-out will require \n$50-60 billion in total spend. OpenAI will need to re-invest \nfuture revenue and/or secure other sources of financing to \ncover the total cost of their build outs.\nMulti-Year, Multi-Generational Build Out of \nat Least 10 Gigawatts"
+      }
+    ]
+  },
+  "text_samples": [
+    "NVIDIA Non-Deal Roadshow\nOctober 2025\n\nCertain statements in this presentation including, but not limited to, statements as to: expectations with respect to growth, performance and benefits of \nNVIDIA\u2019s products, services and technologies, and related trends and drivers; expectations with respect to supply and demand for NVIDIA\u2019s products, services \nand technologies, and related matters; expectations with respect to NVIDIA\u2019s third party arrangements, including with its collaborators and partners such as \nOpenAI, Intel and CoreWeave; expectations with respect to NVIDIA\u2019s investments; expectations with respect to energy efficiency; expectations with respect to \nNVIDIA\u2019s strategies; expectations with respect to technology developments, and related trends and drivers; projected market growth and trends; expectations \nwith respect to AI and related industries; and other statements that are not historical facts are forward-looking statements within the meaning of Section 27A \nof the Securities Act of 1933, as amended, and Section 21E of the Securities Exchange Act of 1934, as amended, which are subject to the \u201csafe harbor\u201d created \nby those sections based on management\u2019s beliefs and assumptions and on information currently available to management and are subject to risks and \nuncertainties that could cause results to be materially different than expectations. \nImportant factors that could cause actual results to differ materially include: global economic and political conditions; N",
+    "$3-4 Trillion AI Infrastructure \nSpend by 2030\n\u2022 End of Moore\u2019s Law drives fundamental shift from general-purpose \nto accelerated computing\n\u2022 For example, Data Processing: NVIDIA cuDF, cuML, cuVS accelerates \nstructured and unstructured data processing 10-100X over CPU-based \nmethods; Computational Lithography: NVIDIA cuLitho accelerates computation \nlithography tasks, such as creating photomasks, by as much as 40-60X over \nCPU-based methods; Genome Sequencing: deciphEHR was able to achieve \n>5X faster alignment runtimes and >10X faster variant calling runtimes, \nusing NVIDIA Parabricks\n\u2022 Hyperscale shift to Generative AI\n\u2022 For example, Ad Generation: Google AI-powered video campaigns on YouTube \ndeliver 17% higher ROAS (return on ad spend) than manual campaigns; \nRecommender Systems: Pinterest was able to move to 100X larger recommender \nmodels by adopting NVIDIA GPUs which increased engagement by 16%; Search \nand User-Generated-Content are moving to adopt LLM-powered generative AI\n\u2022 Model Makers \u2014 A new industry\n\u2022 OpenAI, Google, Anthropic, xAI, Meta are building the foundations of AI\n\u2022 Enterprise \u2014 Agentic AI enters the labor market\n\u2022 Coding: Developers using AI coding assistants could complete tasks up to 55% \nfaster, according to an MIT study; Vibe Coding: Lovable opens coding to new \nusers like product designers, creatives, marketing, IT, teachers; Legal: STARA, \nan AI designed for statutory research, conducted a task that would take two \nhumans 8 to13.5 hours and cost ",
+    "GB200\nTraining \nRobot AI\nRTX PRO Server\nPracticing in \nDigital Twin\nJetson AGX Thor\nManipulating Robot\n$3-4 Trillion AI Infrastructure Spend by 2030\nNVIDIA 3-Computers Enable Physical AI \u2013 the Next Wave of AI\n\nTraining \nAV AI\nPracticing in \nDigital Twin\nDRIVE AGX Thor\nDriving Car\nGB200\n RTX PRO Server\n$3-4 Trillion AI Infrastructure Spend by 2030\nNVIDIA 3-Computers Enable Physical AI \u2013 the Next Wave of AI\n\nTraining \nFactory AI\nPracticing in \nDigital Twin\nGB200\n RTX PRO Server\nJetson AGX Thor\nRunning Factories\n$3-4 Trillion AI Infrastructure Spend by 2030\nNVIDIA 3-Computers Enable Physical AI \u2013 the Next Wave of AI",
+    "Annual Rhythm and Extreme Co-Design for Sustained Leadership\nFull-Stack | One Architecture | CUDA Everywhere\n2025 2026 2027 2028\nCOMPUTE\nRubin\n8S HBM4\nRubin Ultra\n16S HBM4e\nOberon\nNVL72\nLiquid Cooled\nKyber\nNVL576 \nLiquid Cooled\nBlackwell\nFeynman\nNVLINK\n(SCALE-UP)\nNETWORKING\n(SCALE-OUT)\nSYSTEM\nRubin\nRubin CPX\nGDDR7\nBlackwell\n8S HBM3e\nBlackwell Ultra\n8S HBM3e\nGrace \nCPU\nNVLink 5 Switch\n1800 GB/s\nSpectrum5\n51T\nNVLink 6 Switch\n3600 GB/s\nNVLink 7 Switch\n3600 GB/s\nCX8\n800G\n Spectrum6\n102T, CPO\nCX9\n1600G\nVera \nCPU\nSpectrum7\n204T, CPO\nCX10\nFeynman\nNext\u2013Gen HBM\nNVLink 8 Switch\nVera \nCPU\nBlueField-3 BlueField-4 BlueField-5\n\nAnnual Rhythm and Extreme Co-Design for Sustained Leadership\nCombining simultaneous breakthroughs in GPU, CPU, NIC, NVLink scale-up fabric, Spectrum-X Ethernet scale-out \nand scale-across network, system architecture, and a mountain of software and algorithms, \nwe are delivering leaps in performance and cost efficiency never seen before.\nNVIDIA extreme co-design has delivered 1,000,000X performance gain in past 10 years \u2013 versus \n100X of traditional Moore\u2019s law.\nChips to Systems to NVLink to networking to CUDA-X, DOCA, NCCL, TRT-LLM, NIXL, to Dynamo\n\n0\n50\n100\n150\n200\n250\n300\n2018 2019 2020 2021 2022 2023 2024 2025\nCumulative Wins\nMLPerf Training and Inference Wins\nNVIDIA GPU Google TPU All Others\nAnnual Rhythm and Extreme Co-Design for Sustained Leadership\nNVIDIA Leads MLPerf With Hundreds of Training and Inference Wins\n\u201cNVIDIA Blackwell Ultra Sets Reasoning Records",
+    "Annual Rhythm and Extreme Co-Design for Sustained Leadership\nGB NVL72 for Training to Inference \nOrder of Magnitude Leap in Inference Throughput and Cost Reduction\n\nNVIDIA and OpenAI Partnership\n\u2022 The OpenAI partnership is a powerful demonstration of \nNVIDIA\u2019s ability as an AI infrastructure partner \u2013 delivering \narchitecture, chips, systems, networking, data centers, \nsoftware, operations, and financing as one integrated solution\n\u2022 The partnership extends existing collaboration to scale \nmulti-giga-watts of infrastructure at Microsoft, OCI, \nand CoreWeave\n\u2022 In addition to CSP capacity, OpenAI and NVIDIA will build \nat least 10 gigawatts \u2013 millions of GPUs \u2013 of infrastructure \nto be operated by OpenAI; The first gigawatt launches in \n2026 on the Vera Rubin platform\n\u2022 For the first time, OpenAI will buy directly from NVIDIA, \nsecure multi-cycle supply, forging close engineering \ncollaboration to build AI factories\n\u2022 NVIDIA intends to invest in increments over time up to \n$100 billion in equity; Every 1GW build-out will require \n$50-60 billion in total spend. OpenAI will need to re-invest \nfuture revenue and/or secure other sources of financing to \ncover the total cost of their build outs.\nMulti-Year, Multi-Generational Build Out of \nat Least 10 Gigawatts"
+  ],
+  "extraction_status": "extracted",
+  "extracted_at": "2026-03-28T20:38:59.241079+00:00"
+}

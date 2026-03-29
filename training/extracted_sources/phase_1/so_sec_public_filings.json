@@ -1,0 +1,177 @@
+{
+  "id": "so_sec_public_filings",
+  "title": "SOUTHERN CO General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-so",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent SO SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "SOUTHERN CO General SEC Filings",
+    "company_name": "SOUTHERN CO",
+    "ticker": "SO",
+    "cik": "0000092122",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-19",
+      "2026-02-25",
+      "2026-02-19",
+      "2026-02-19",
+      "2025-12-19",
+      "2025-12-10",
+      "2025-11-06",
+      "2025-10-30",
+      "2025-10-30",
+      "2025-09-15"
+    ],
+    "capital_markets_activity": [
+      "On September 15, 2025, The Southern Company (the \u201cCompany\u201d) announced an adjustment (the \u201cAdjustment\u201d) to the conversion rate for its Series 2023A 3.875% Convertible Senior Notes due December 15, 2025 (the \u201cSeries 2023A Convertible Senior Notes\u201d).",
+      "The Company advises that it intends to make public disclosures in this location of its website for conversion rate adjustments (if any) for the Series 2023A Convertible Senior Notes, its Series 2024A 4.50% Convertible Senior Notes due June 15, 2027, its Series 2025A 3.25% Convertible Senior Notes due June 15, 2028 and other convertible notes (if any) it issues in the future."
+    ],
+    "capital_allocation_activity": [
+      "Recent filings reference ongoing capital allocation actions, including repurchases and financing decisions."
+    ],
+    "liquidity_notes": [
+      "The Registrants plan to use commercial paper to manage seasonal variations in operating cash flows and for other working capital needs and continue to monitor their access to short-term and long-term capital markets as well as their bank credit arrangements to meet future capital and liquidity needs."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Based upon these evaluations, the Chief Executive Officer and the Chief Financial Officer, in each case, concluded that the disclosure controls and procedures are effective.",
+      "We also have audited Southern Company's internal control over financial reporting as of December 31, 2025, based on criteria established in Internal Control \u2013 Integrated Framework (2013) issued by the Committee of Sponsoring Organizations of the Treadway Commission (COSO).",
+      "The risk factors discussed below could adversely affect a Registrant's results of operations, financial condition, liquidity, and cash flow, as well as cause reputational damage."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-so",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-so/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-so/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-so/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-03-16 2026-03-16 2026-03-16 2026-03-16 so:Series2017B5.25JuniorSubordinatedNotesDue2077Member 2026-03-16 2026-03-16 so:Series2020A4.95JuniorSubordinatedNotesDue2080Member 2026-03-16 2026-03-16 so:Series2"
+      },
+      {
+        "label": "8-K 2026-02-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-02-20 2026-02-20 so:AlabamaPowerMember 2026-02-20 2026-02-20 so:GeorgiaPowerMember 2026-02-20 2026-02-20 2026-02-20 2026-02-20 so:Series2017B5.25JuniorSubordinatedNotesDue2077Member"
+      },
+      {
+        "label": "8-K 2026-02-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-02-19 2026-02-19 so:AlabamaPowerMember 2026-02-19 2026-02-19 so:GeorgiaPowerMember 2026-02-19 2026-02-19 so:MississippiPowerMember 2026-02-19 2026-02-19 so:SouthernPowerMembe"
+      },
+      {
+        "label": "10-K 2026-02-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 2025 FY three years, six months P7Y http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent 182 84 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 P5Y P5Y .000025 .000025 P3Y"
+      },
+      {
+        "label": "8-K 2025-12-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-12-19 2025-12-19 so:GeorgiaPowerMember 2025-12-19 2025-12-19 2025-12-19 2025-12-19 so:Series2017B5.25JuniorSubordinatedNotesDue2077Member 2025-12-19 2025-12-19 so:Series2020A4.95JuniorSubordin"
+      },
+      {
+        "label": "8-K 2025-12-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-12-09 2025-12-09 so:GeorgiaPowerMember 2025-12-09 2025-12-09 2025-12-09 2025-12-09 so:Series2017B5.25JuniorSubordinatedNotesDue2077Member 2025-12-09 2025-12-09 so:Series2020A4.95JuniorSubordin"
+      },
+      {
+        "label": "8-K 2025-11-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-11-03 2025-11-03 2025-11-03 2025-11-03 so:Series2017B5.25JuniorSubordinatedNotesDue2077Member 2025-11-03 2025-11-03 so:Series2020A4.95JuniorSubordinatedNotesDue2080Member 2025-11-03 2025-11-03 so:Series2"
+      },
+      {
+        "label": "8-K 2025-10-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-10-30 2025-10-30 so:AlabamaPowerMember 2025-10-30 2025-10-30 so:GeorgiaPowerMember 2025-10-30 2025-10-30 so:MississippiPowerMember 2025-10-30 2025-10-30 so:SouthernPowerMembe"
+      },
+      {
+        "label": "10-Q 2025-10-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE 2025 Q3 --12-31 http://fasb.org/us-gaap/2025#NaturalGasUsRegulatedMember http://fasb.org/us-gaap/2025#NaturalGasUsRegulatedMember http://fasb.org/us-gaap/2025#NaturalGasUsRegulatedMember http://fasb.org/us-gaap/2025#NaturalGasUsRegulate"
+      },
+      {
+        "label": "8-K 2025-09-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-09-15 2025-09-15 2025-09-15 2025-09-15 so:Series2017B5.25JuniorSubordinatedNotesDue2077Member 2025-09-15 2025-09-15 so:Series2020A4.95JuniorSubordinatedNotesDue2080Member 2025-09-15 2025-09-15 so:Series2"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-19",
+      "text_preview": "FALSE - 2026-03-16 2026-03-16 2026-03-16 2026-03-16 so:Series2017B5.25JuniorSubordinatedNotesDue2077Member 2026-03-16 2026-03-16 so:Series2020A4.95JuniorSubordinatedNotesDue2080Member 2026-03-16 2026-03-16 so:Series2020C420JuniorSubordinatedNotesDue2060Member 2026-03-16 2026-03-16 so:Series2021B1875FixedToFixedResetRateJuniorSubordinatedNotesDue2081Member 2026-03-16 2026-03-16 so:Series2025A6.50JuniorSubordinatedNotesDue2085Member 2026-03-16 2026-03-16 so:A2025SeriesACorporateUnitsMember 2026-03-16 2026-03-16 UNITED STATES SECURITIES AND EXCHANGE COMMISSION",
+      "char_count": 5468,
+      "word_count": 771,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/92122/000009212226000018/so-20260316.htm"
+    },
+    {
+      "label": "8-K 2026-02-25",
+      "text_preview": "FALSE - 2026-02-20 2026-02-20 so:AlabamaPowerMember 2026-02-20 2026-02-20 so:GeorgiaPowerMember 2026-02-20 2026-02-20 2026-02-20 2026-02-20 so:Series2017B5.25JuniorSubordinatedNotesDue2077Member 2026-02-20 2026-02-20 so:Series2020A4.95JuniorSubordinatedNotesDue2080Member 2026-02-20 2026-02-20 so:Series2020C420JuniorSubordinatedNotesDue2060Member 2026-02-20 2026-02-20 so:Series2021B1875FixedToFixedResetRateJuniorSubordinatedNotesDue2081Member 2026-02-20 2026-02-20 so:Series2025A6.50JuniorSubordinatedNotesDue2085Member 2026-02",
+      "char_count": 19279,
+      "word_count": 2784,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/92122/000009212226000010/so-20260220.htm"
+    },
+    {
+      "label": "8-K 2026-02-19",
+      "text_preview": "FALSE - 2026-02-19 2026-02-19 so:AlabamaPowerMember 2026-02-19 2026-02-19 so:GeorgiaPowerMember 2026-02-19 2026-02-19 so:MississippiPowerMember 2026-02-19 2026-02-19 so:SouthernPowerMember 2026-02-19 2026-02-19 so:SouthernCompanyGasMember 2026-02-19 2026-02-19 2026-02-19 2026-02-19 so:Series2017B5.25JuniorSubordinatedNotesDue2077Member 2026-02-19 2026-02-19 so:Series2020A4.95JuniorSubordinatedNotesDue2080Member 2026-02-19 2026-02-19 so:Series2020C420JuniorSubordinatedNotesDue2060Me",
+      "char_count": 9327,
+      "word_count": 1280,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/92122/000009212226000008/so-20260219.htm"
+    }
+  ]
+}

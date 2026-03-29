@@ -1,0 +1,177 @@
+{
+  "id": "team_sec_public_filings",
+  "title": "Atlassian Corp General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-team",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent TEAM SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Atlassian Corp General SEC Filings",
+    "company_name": "Atlassian Corp",
+    "ticker": "TEAM",
+    "cik": "0001650372",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-11",
+      "2026-02-18",
+      "2026-02-06",
+      "2026-02-05",
+      "2026-01-15",
+      "2025-12-22",
+      "2025-12-03",
+      "2025-10-31",
+      "2025-10-30",
+      "2025-09-18"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Share Repurchase Program In September 2024, the Board of Directors authorized a program to repurchase up to $ 1.5 billion of the Company\u2019s outstanding Class A Common Stock (the \u201c2024 Repurchase Program\u201d).",
+      "As of December 31, 2025, the Company was authorized to purchase a remaining $ 720.9 million and $ 2.5 billion of its Class A Common Stock under the 2024 Share Repurchase Program and 2025 Share Repurchase Program, respectively."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Limitations on Effectiveness of Controls and Procedures In designing and evaluating the disclosure controls and procedures and internal control over financial reporting, management recognizes that any controls and procedures, no matter how well designed and operated, can provide only reasonable assurance of achieving the desired control objectives.",
+      "In addition, the design of disclosure controls and procedures and internal control over financial reporting must reflect the fact that there are resource constraints and that management is required to apply its judgment in evaluating the benefits of possible controls and procedures relative to their costs.",
+      "Factors that could cause or contribute to such differences include, but are not limited to, those identified below, and those discussed in the section titled \u201cRisk Factors\u201d in Part II, Item 1A of this Quarterly Report on Form 10-Q."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-team",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-team/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-team/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-team/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-03-11 2026-03-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _________________ FORM 8-K _________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): M"
+      },
+      {
+        "label": "8-K 2026-02-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-02-18 2026-02-18 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _________________ FORM 8-K _________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): F"
+      },
+      {
+        "label": "10-Q 2026-02-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "6/30 2026 Q2 false P2Y 18. Subsequent Events Pending 457 455 - 2025-07-01 2025-12-31 2026-01-30 2026-01-30 2025-12-31 2025-06"
+      },
+      {
+        "label": "8-K 2026-02-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-02-05 2026-02-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _________________ FORM 8-K _________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): F"
+      },
+      {
+        "label": "8-K 2026-01-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-01-15 2026-01-15 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _________________ FORM 8-K _________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): J"
+      },
+      {
+        "label": "8-K 2025-12-22",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-12-18 2025-12-18 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _________________ FORM 8-K _________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): D"
+      },
+      {
+        "label": "8-K 2025-12-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-12-02 2025-12-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _________________ FORM 8-K _________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): D"
+      },
+      {
+        "label": "10-Q 2025-10-31",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "6/30 2026 Q1 false P2Y - 2025-07-01 2025-09-30 2025-10-24 2025-10-24 2025-09-30 2025-06-30"
+      },
+      {
+        "label": "8-K 2025-10-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-10-30 2025-10-30 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _________________ FORM 8-K _________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): O"
+      },
+      {
+        "label": "8-K 2025-09-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-09-18 2025-09-18 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _________________ FORM 8-K _________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): S"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-11",
+      "text_preview": "FALSE - 2026-03-11 2026-03-11 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _________________ FORM 8-K _________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): March 11, 2026 ATLASSIAN CORPORATION (Exact Name of Registrant as Specified in its Charter) _________________ Delaware 001-37651 88-3940934 (State or other jurisdiction of incorporation or organization) (Commission File Number) (I.R.S. Employer Identification No.) 350 Bush Street, Floor 13 San Francisco , California 94104 (Address of principal executive offices and Zip Code) ( 4",
+      "char_count": 8135,
+      "word_count": 1196,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1650372/000165037226000021/team-20260311.htm"
+    },
+    {
+      "label": "8-K 2026-02-18",
+      "text_preview": "FALSE - 2026-02-18 2026-02-18 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 _________________ FORM 8-K _________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 18, 2026 ATLASSIAN CORPORATION (Exact Name of Registrant as Specified in its Charter) _________________ Delaware 001-37651 88-3940934 (State or other jurisdiction of incorporation or organization) (Commission File Number) (I.R.S. Employer Identification No.) 350 Bush Street, Floor 13 San Francisco , California 94104 (Address of principal executive offices and Zip Code)",
+      "char_count": 5268,
+      "word_count": 793,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1650372/000165037226000017/team-20260218.htm"
+    },
+    {
+      "label": "10-Q 2026-02-06",
+      "text_preview": "6/30 2026 Q2 false P2Y 18. Subsequent Events Pending 457 455 - 2025-07-01 2025-12-31 2026-01-30 2026-01-30 2025-12-31 2025-06-30 2025-12-31 2025-06-30 2025-06-30 2025-12-31 2025-10-01 2025-12-31 2024-10-01 2024-12-31 2025-07",
+      "char_count": 337851,
+      "word_count": 48865,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1650372/000165037226000011/team-20251231.htm"
+    }
+  ]
+}

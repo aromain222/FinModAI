@@ -1,0 +1,177 @@
+{
+  "id": "crwd_sec_public_filings",
+  "title": "CrowdStrike Holdings, Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-crwd",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent CRWD SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "CrowdStrike Holdings, Inc. General SEC Filings",
+    "company_name": "CrowdStrike Holdings, Inc.",
+    "ticker": "CRWD",
+    "cik": "0001535527",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-05",
+      "2026-03-03",
+      "2025-12-29",
+      "2025-12-03",
+      "2025-12-02",
+      "2025-08-28",
+      "2025-08-27",
+      "2025-06-20",
+      "2025-06-04",
+      "2025-06-03"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Our share repurchase program may not result in benefits to stockholder value.",
+      "In June 2025, we announced that our board of directors authorized a program under which we are authorized to repurchase up to $1.0 billion of our outstanding shares of common stock (the \u201cShare Repurchase Program\u201d)."
+    ],
+    "liquidity_notes": [
+      "The primary objectives of our investment activities are the preservation of capital, the fulfillment of liquidity needs, and the fiduciary control of cash and investments."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "The Sarbanes-Oxley Act requires, among other things, that we maintain effective disclosure controls and procedures and internal control over financial reporting.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "RISK FACTORS A description of the risks and uncertainties associated with our business is set forth below."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-crwd",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-crwd/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-crwd/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-crwd/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-03-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2026 FY false P4Y P3Y P1Y .25 P1Y http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#SellingAndMarketingExpense http://fasb.org/us-gaap/2025#ResearchAndDevelopmentExpense http://fasb.org/us-gaap/2025#Gener"
+      },
+      {
+        "label": "8-K 2026-03-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-03-03 2026-03-03 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): March 3, 2026 CrowdStrike Holdings, I"
+      },
+      {
+        "label": "8-K 2025-12-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-12-22 2025-12-22 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): D"
+      },
+      {
+        "label": "10-Q 2025-12-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2026 Q3 false --01-31 .25 P1Y http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#SellingAndMa"
+      },
+      {
+        "label": "8-K 2025-12-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-12-02 2025-12-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): December 2, 2025 CrowdStrike Holdings"
+      },
+      {
+        "label": "10-Q 2025-08-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2026 Q2 false --01-31 .25 P1Y http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#SellingAndMa"
+      },
+      {
+        "label": "8-K 2025-08-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-27 2025-08-27 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): August 27, 2025 CrowdStrike Holdings,"
+      },
+      {
+        "label": "8-K 2025-06-20",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-06-18 2025-06-18 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): J"
+      },
+      {
+        "label": "10-Q 2025-06-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 Q1 false --01-31 .25 P1Y 463 - crwd:user crwd:installment crwd:day crwd:purchase_period crwd:change_in_contribution crwd:lawsuit crwd:reporting_unit 2025-02-01 2025-04-30 2025-05-29 2025-04-30 000"
+      },
+      {
+        "label": "8-K 2025-06-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-06-03 2025-06-03 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): June 3, 2025 CrowdStrike Holdings, In"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-03-05",
+      "text_preview": "2026 FY false P4Y P3Y P1Y .25 P1Y http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#CostOfGoodsAndServicesSold http://fasb.org/us-gaap/2025#SellingAndMarketingExpense http://fasb.org/us-gaap/2025#ResearchAndDevelopmentExpense http://fasb.org/us-gaap/2025#GeneralAndAdministrativeExpense 469 365 165 - crwd:user crwd:reporting_unit crwd:installment crwd:day crwd:purchase_period crwd:change_in_contribution crwd:lawsuit crwd:position 2025-02-01 2026-01-31 2025-07-31 2026-02-28 2026-01-31 2025-01-3",
+      "char_count": 562432,
+      "word_count": 81486,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1535527/000153552726000010/crwd-20260131.htm"
+    },
+    {
+      "label": "8-K 2026-03-03",
+      "text_preview": "false - 2026-03-03 2026-03-03 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): March 3, 2026 CrowdStrike Holdings, Inc. (Exact name of registrant as specified in its charter) ______________________________________________________________________________________________________ Delaware 001-38933 45-3788918 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 206 E. 9th Street Suite 1400 Austin Texas 78701 (Address of principal executive of",
+      "char_count": 3774,
+      "word_count": 555,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1535527/000153552726000007/crwd-20260303.htm"
+    },
+    {
+      "label": "8-K 2025-12-29",
+      "text_preview": "false - 2025-12-22 2025-12-22 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): December 22, 2025 CrowdStrike Holdings, Inc. (Exact name of registrant as specified in its charter) Delaware 001-38933 45-3788918 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 206 E. 9th Street Suite 1400 Austin , Texas 78701 (Address of principal executive office, including zip code) Registrant\u2019s telephone number",
+      "char_count": 18796,
+      "word_count": 2761,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1535527/000110465925124912/tm2534248d1_8k.htm"
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "id": "scraped_googl_investor_presentation",
+  "title": "Alphabet Scraped Investor Presentation Materials",
+  "file_path": "/Users/averyromain/FinModAI/finmodai-next/data/GOOGL/presentation",
+  "source_type": "investor_presentation",
+  "tier": "B",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "financial_reasoning",
+  "recommended_phase": 1,
+  "template_key": "investor_presentation",
+  "assistant_training_targets": [
+    "slide compression",
+    "contributor/detractor summaries",
+    "thesis slide structure"
+  ],
+  "source_summary": "Scraper-collected investor presentation and slide materials for Alphabet.",
+  "strengths": [
+    "management KPI emphasis",
+    "slide-structured communication",
+    "useful for compression and prioritization"
+  ],
+  "weaknesses": [
+    "presentation materials are management-selected and should not outweigh filings"
+  ],
+  "fields": {
+    "title": "Alphabet Scraped Investor Presentation Materials",
+    "manager": null,
+    "date": null,
+    "agenda": [
+      "Presentation Slides Open Event Link PDF file September 9 2025 opens in new window",
+      "Earnings Slides opens in new window"
+    ],
+    "portfolio_contributors": [],
+    "portfolio_detractors": [],
+    "holdings_covered": [
+      "Alphabet"
+    ],
+    "valuation_points": [
+      "Use presentation materials to identify which KPIs and segment narratives management wants investors to underwrite."
+    ],
+    "exit_or_trim_logic": [],
+    "slide_structure_patterns": [
+      "Lead with quarter highlights and KPI framing.",
+      "Use investor slides to compress the company's preferred narrative before testing it against filings."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_dir": "/Users/averyromain/FinModAI/finmodai-next/data/GOOGL",
+    "categories": {
+      "10k": 6,
+      "10q": 8,
+      "earnings": 18,
+      "presentation": 5,
+      "transcript": 20
+    },
+    "document_count": 57
+  }
+}

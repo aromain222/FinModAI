@@ -1,0 +1,177 @@
+{
+  "id": "rtx_sec_public_filings",
+  "title": "RTX Corp General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-rtx",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent RTX SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "RTX Corp General SEC Filings",
+    "company_name": "RTX Corp",
+    "ticker": "RTX",
+    "cik": "0000101829",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-05",
+      "2026-02-06",
+      "2026-01-27",
+      "2025-11-13",
+      "2025-10-21",
+      "2025-10-21",
+      "2025-09-24",
+      "2025-07-22",
+      "2025-07-22",
+      "2025-05-05"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "The increased indebtedness of RTX in connection with the $10 billion accelerated share repurchase (ASR) transactions that began in October 2023 and completed in September 2024 may have various negative impacts on our business.",
+      "Quarterly cash dividends and share repurchases are subject to uncertainties and may affect our common stock price ."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "CONTROLS AND PROCEDURES As required by Rule 13a-15 under the Securities Exchange Act of 1934, as amended, we carried out an evaluation under the supervision and with the participation of our management, including the Chairman and Chief Executive Officer (CEO), the Executive Vice President and Chief Financial Officer (CFO), and the Senior Vice President and Controller (Controller), of the effectiveness of the design and operation of our disclosure controls and procedures.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "\u201cRisk Factors,\u201d and \u201cNote 17: Commitments and Contingencies\u201d within Item 8 of this Form 10-K."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-rtx",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-rtx/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-rtx/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-rtx/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-03-05 2026-03-05 rtx:Two150NotesDue2030Member 2026-03-05 2026-03-05 2026-03-05 2026-03-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities E"
+      },
+      {
+        "label": "10-K 2026-02-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsCurrent 0.3333 http://fasb.org/us-gaap/2025#OtherAccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherAccruedLiabilitiesCurrent http://xbrl.sec.gov/country/2025#US http://fasb.org/us-gaap"
+      },
+      {
+        "label": "8-K 2026-01-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-27 2026-01-27 2026-01-27 2026-01-27 rtx:Notes2.150Due2030Member 2026-01-27 2026-01-27 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ____________________________________ FORM 8-K _________________"
+      },
+      {
+        "label": "8-K 2025-11-13",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-13 2025-11-13 2025-11-13 2025-11-13 rtx:Notes2.150Due2030Member 2025-11-13 2025-11-13 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ____________________________________ FORM 8-K _________________"
+      },
+      {
+        "label": "10-Q 2025-10-21",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q3 12/31 - rtx:claim rtx:count rtx:contract rtx:action rtx:segment 2025-01-01 2025-09-30 2025-01-01 2025-09-30 rtx:Notes2.150Due2030Member 2025-01-01 202"
+      },
+      {
+        "label": "8-K 2025-10-21",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-21 2025-10-21 2025-10-21 2025-10-21 rtx:Notes2.150Due2030Member 2025-10-21 2025-10-21 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ____________________________________ FORM 8-K _________________"
+      },
+      {
+        "label": "8-K 2025-09-24",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-09-19 2025-09-19 2025-09-19 2025-09-19 rtx:Notes2.150Due2030Member 2025-09-19 2025-09-19 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ____________________________________ FORM 8-K _________________"
+      },
+      {
+        "label": "10-Q 2025-07-22",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q2 12/31 - rtx:claim rtx:count rtx:contract rtx:action rtx:segment 2025-01-01 2025-06-30 2025-01-01 2025-06-30 rtx:Notes2.150Due2030Member 2025-01-01 202"
+      },
+      {
+        "label": "8-K 2025-07-22",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-07-22 2025-07-22 2025-07-22 2025-07-22 rtx:Notes2.150Due2030Member 2025-07-22 2025-07-22 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ____________________________________ FORM 8-K _________________"
+      },
+      {
+        "label": "8-K 2025-05-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-05-01 2025-05-01 2025-05-01 2025-05-01 rtx:Notes2.150Due2030Member 2025-05-01 2025-05-01 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ____________________________________ FORM 8-K _________________"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-05",
+      "text_preview": "false - 2026-03-05 2026-03-05 rtx:Two150NotesDue2030Member 2026-03-05 2026-03-05 2026-03-05 2026-03-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): March 5, 2026 RTX CORPORATION (Exact name of registrant as specified in its charter) Delaware 001-00812 06-0570975 (State or other jurisdiction of incorporation) (Commission File Number) (I.R.S. Employer Identification No.) 1000 Wilson Boulevard , Arlington , Virginia 22209 (Address of principal executive off",
+      "char_count": 3386,
+      "word_count": 497,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/101829/000114036126008070/ef20067286_8k.htm"
+    },
+    {
+      "label": "10-K 2026-02-06",
+      "text_preview": "false 2025 FY http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsCurrent 0.3333 http://fasb.org/us-gaap/2025#OtherAccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherAccruedLiabilitiesCurrent http://xbrl.sec.gov/country/2025#US http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAssetsCurrent http://fasb.org/us-gaap/2025#OtherAccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherAccruedLiabilitiesCurrent - rtx:participant rtx:claim rtx:count rtx:contract rtx:action rtx:tranche rtx:segment 2025-01-01 2025-1",
+      "char_count": 612204,
+      "word_count": 85334,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/101829/000010182926000006/rtx-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-01-27",
+      "text_preview": "false - 2026-01-27 2026-01-27 2026-01-27 2026-01-27 rtx:Notes2.150Due2030Member 2026-01-27 2026-01-27 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ____________________________________ FORM 8-K ____________________________________ CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): January 27, 2026 ____________________________________ RTX CORPORATION (Exact name of registrant as specified in its charter) ____________________________________ Delaware 001-00812 06-0570975 (State or other jurisdiction of",
+      "char_count": 3869,
+      "word_count": 563,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/101829/000010182926000003/rtx-20260127.htm"
+    }
+  ]
+}

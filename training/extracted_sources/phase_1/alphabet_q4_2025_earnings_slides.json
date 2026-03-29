@@ -1,0 +1,69 @@
+{
+  "id": "alphabet_q4_2025_earnings_slides",
+  "title": "Alphabet Q4 2025 Earnings Slides",
+  "file_path": "/Users/averyromain/FinModAI/data/training/2025q4-alphabet-earnings-slides",
+  "source_type": "investor_presentation",
+  "tier": "A",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "financial_reasoning",
+  "recommended_phase": 1,
+  "template_key": "investor_presentation",
+  "assistant_training_targets": [
+    "slide compression",
+    "contributor/detractor summaries",
+    "thesis slide structure"
+  ],
+  "source_summary": "Alphabet Q4 2025 earnings slides with KPI-heavy summary pages and segment result presentation.",
+  "strengths": [
+    "KPI prioritization",
+    "slide-level compression",
+    "segment framing"
+  ],
+  "weaknesses": [
+    "presentation shorthand",
+    "forward-looking statement boilerplate"
+  ],
+  "fields": {
+    "title": "Alphabet Q4 2025 Earnings Slides",
+    "manager": null,
+    "date": "2026-02-04",
+    "agenda": [
+      "earnings highlights",
+      "Google Cloud",
+      "Gemini App",
+      "Search and Other Ads",
+      "financial results"
+    ],
+    "portfolio_contributors": [],
+    "portfolio_detractors": [],
+    "holdings_covered": [
+      "Google Search & Other",
+      "YouTube",
+      "Google Cloud",
+      "Gemini App",
+      "consumer subscriptions"
+    ],
+    "valuation_points": [
+      "Annual revenues exceeded $400 billion for the first time.",
+      "Google Cloud annualized revenue run-rate above $70 billion.",
+      "Gemini App monthly active users reached 750 million.",
+      "Search & Other Ads revenue grew 17% year-over-year."
+    ],
+    "exit_or_trim_logic": [],
+    "slide_structure_patterns": [
+      "front-loaded KPI summary",
+      "segment-by-segment performance slides",
+      "financial tables and margin bridge visuals"
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/2025q4-alphabet-earnings-slides/manifest.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/2025q4-alphabet-earnings-slides/chunks.jsonl",
+    "dataset_dir": "/Users/averyromain/FinModAI/data/training/2025q4-alphabet-earnings-slides",
+    "page_count": 12,
+    "chunk_count": 4,
+    "source_url": null,
+    "access_status": null
+  }
+}

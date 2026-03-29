@@ -1,0 +1,177 @@
+{
+  "id": "now_sec_public_filings",
+  "title": "ServiceNow, Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-now",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent NOW SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "ServiceNow, Inc. General SEC Filings",
+    "company_name": "ServiceNow, Inc.",
+    "ticker": "NOW",
+    "cik": "0001373715",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-17",
+      "2026-02-11",
+      "2026-01-29",
+      "2026-01-28",
+      "2025-12-23",
+      "2025-12-15",
+      "2025-12-05",
+      "2025-10-30",
+      "2025-10-29",
+      "2025-09-26"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "In January 2025, our board of directors authorized an additional $3.0 billion in repurchases under the share repurchase program, and in January 2026, our board of directors authorized an additional $5.0 billion in repurchases under the Share Repurchase Program.",
+      "As of December 31, 2025, approximately $1.4 billion of the authorized amount under the share repurchase program remained available for future repurchases."
+    ],
+    "liquidity_notes": [
+      "We anticipate cash flows generated from operations, cash, cash equivalents, marketable securities and long-term marketable securities will be sufficient to meet our liquidity needs for at least the next 12 months, although we do expect to seek additional debt financing to fund our acquisition of Armis Security Ltd."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Our Chief Executive Officer and Chief Financial Officer have concluded, based on the evaluation of the effectiveness of the disclosure controls and procedures by our management as of December 31, 2025, that our disclosure controls and procedures were effective at the reasonable assurance level for this purpose.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Factors that might cause or contribute to such differences include, but are not limited to, those discussed in this Annual Report under \u201cRisk Factors\u201d in Item 1A of Part I and elsewhere herein and in other reports we file with the Securities and Exchange Commission (\u201cSEC\u201d)."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-now",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-now/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-now/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-now/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-02-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-13 2026-02-13 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 _____________________ FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): February 13, 2026"
+      },
+      {
+        "label": "8-K 2026-02-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-10 2026-02-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 _____________________ FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): February 10, 2026"
+      },
+      {
+        "label": "10-K 2026-01-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY P2Y P3Y http://fasb.org/us-gaap/2025#RevenueFromContractWithCustomerExcludingAssessedTax http://fasb.org/us-gaap/2025#AccountsPayableCurrent P1Y P5Y 1 1 191 - now:installment now:plan now:tranche now:segment 20"
+      },
+      {
+        "label": "8-K 2026-01-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-28 2026-01-28 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 _____________________ FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): January 28, 2026 _"
+      },
+      {
+        "label": "8-K 2025-12-23",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-12-23 2025-12-23 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 _____________________ FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): December 23, 2025"
+      },
+      {
+        "label": "8-K 2025-12-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-12-15 2025-12-15 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 _____________________ FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): December 15, 2025"
+      },
+      {
+        "label": "8-K 2025-12-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false --12-31 --12-31 - 2025-12-05 2025-12-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 _____________________ FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): De"
+      },
+      {
+        "label": "10-Q 2025-10-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q3 12/31 http://fasb.org/us-gaap/2025#AccountsPayableCurrent P1Y 12.5 12.5 12.5 12.5 12.5 12.5 12.5 12.5 350 271 - now:plan now:tranche 2025-01-01 2025-09-30 2025-09-30 2024-12-31"
+      },
+      {
+        "label": "8-K 2025-10-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-29 2025-10-29 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 _____________________ FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): October 29, 2025 _"
+      },
+      {
+        "label": "8-K 2025-09-26",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-09-26 2025-09-26 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 _____________________ FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): September 26, 2025"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-02-17",
+      "text_preview": "false - 2026-02-13 2026-02-13 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 _____________________ FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): February 13, 2026 ___________ SERVICENOW, INC. (Exact name of registrant as specified in its charter) ___________ Delaware 001-35580 20-2056195 (State or other jurisdiction of incorporation or organization) (Commission File Number) (I.R.S. Employer Identification Number) 2225 Lawson Lane Santa Clara , California 95054 (Address of principal executive offices and Zip Code) ( 408 ) 501-8550 (Regist",
+      "char_count": 4152,
+      "word_count": 623,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1373715/000137371526000014/now-20260213.htm"
+    },
+    {
+      "label": "8-K 2026-02-11",
+      "text_preview": "false - 2026-02-10 2026-02-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, DC 20549 _____________________ FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): February 10, 2026 ___________ SERVICENOW, INC. (Exact name of registrant as specified in its charter) ___________ Delaware 001-35580 20-2056195 (State or other jurisdiction of incorporation or organization) (Commission File Number) (I.R.S. Employer Identification Number) 2225 Lawson Lane Santa Clara , California 95054 (Address of principal executive offices and Zip Code) ( 408 ) 501-8550 (Regist",
+      "char_count": 4719,
+      "word_count": 699,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1373715/000137371526000012/now-20260210.htm"
+    },
+    {
+      "label": "10-K 2026-01-29",
+      "text_preview": "false 2025 FY P2Y P3Y http://fasb.org/us-gaap/2025#RevenueFromContractWithCustomerExcludingAssessedTax http://fasb.org/us-gaap/2025#AccountsPayableCurrent P1Y P5Y 1 1 191 - now:installment now:plan now:tranche now:segment 2025-01-01 2025-12-31 2025-06-30 2026-01-23 2025-12-31 2024-12-31 2025-01-01 2025-12-31 2024-01-01 2024-12-31 2023-01-01 2023-12-31 2025-01-01 2025-12-31 u",
+      "char_count": 376552,
+      "word_count": 54034,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1373715/000137371526000007/now-20251231.htm"
+    }
+  ]
+}

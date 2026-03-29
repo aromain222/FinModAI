@@ -1,0 +1,43 @@
+{
+  "id": "upslope_q4_2025",
+  "title": "Upslope Capital 2025 Q4 Letter",
+  "file_path": "/Users/averyromain/Downloads/Upslope+-+2025Q4+Letter.pdf",
+  "source_type": "investor_letter",
+  "tier": "B+",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "special_situations",
+  "recommended_phase": 2,
+  "template_key": "investor_letter",
+  "assistant_training_targets": [
+    "thesis articulation",
+    "portfolio commentary",
+    "risk framing",
+    "what changed",
+    "decision language"
+  ],
+  "source_summary": "Real hedge fund letter with concrete long-short exposure, contributor-detractor framing, and concise single-name thesis writeups.",
+  "strengths": [
+    "long-short portfolio construction language",
+    "exposure framing",
+    "concise thesis summaries"
+  ],
+  "weaknesses": [
+    "narrower than the strongest letters",
+    "some rhetorical market framing"
+  ],
+  "fields": {
+    "title": null,
+    "manager": null,
+    "date": null,
+    "strategy_style": null,
+    "performance_context": null,
+    "top_themes": null,
+    "positions_discussed": null,
+    "thesis_points": null,
+    "valuation_language": null,
+    "risks_discussed": null,
+    "portfolio_actions": null,
+    "tone_notes": null,
+    "best_quotes_or_phrases": null
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "id": "sequoia_strategy_2025_letter",
+  "title": "Sequoia Strategy Year-End 2025 Letter",
+  "file_path": "/Users/averyromain/Downloads/Sequoia-Strategy-Year-End-2025-Letter.pdf",
+  "source_type": "investor_letter",
+  "tier": "A",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "eval_cases",
+  "recommended_phase": 1,
+  "template_key": "investor_letter",
+  "assistant_training_targets": [
+    "thesis articulation",
+    "portfolio commentary",
+    "risk framing",
+    "what changed",
+    "decision language"
+  ],
+  "source_summary": "Real investor letter with strong portfolio commentary and public-equity judgment.",
+  "strengths": [
+    "trim/add/hold language",
+    "measured tone",
+    "company-level reasoning"
+  ],
+  "weaknesses": [
+    "not a worked model"
+  ],
+  "fields": {
+    "title": "Sequoia Strategy Year-End 2025 Letter",
+    "manager": "The Ruane Cunniff Investment Committee",
+    "date": "January 30, 2026",
+    "strategy_style": "long/short, value-oriented, partnership letter",
+    "performance_context": [
+      "Dear Clients: Sequoia Strategy Composite\u2019s (\u201cSequoia\u201d or \u201cthe Strategy\u201d) results for the quarter and year ended December 31, 2025 appear below with the results of the S&P 500 Index for the same periods: Through December 31, 2025 Sequoia CompositeS&P 500 Index Fourth Quarter 0.9% ",
+      "Ruane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 www.sequoiafund.com Over the balance of the year, the market soared. Though our portfolio participated in this rally, the early lead that we opened through the spring narrowed by year-",
+      "Ruane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 www.sequoiafund.com was eminently reasonable and perhaps even \u201cintelligent.\u201d Instead, we decided to stand pat, because our discomfort was balanced by our appreciation for the fundament"
+    ],
+    "top_themes": [],
+    "positions_discussed": [
+      "Universal Music Group",
+      "Charles Schwab Corp."
+    ],
+    "thesis_points": [
+      "Dear Clients: Sequoia Strategy Composite\u2019s (\u201cSequoia\u201d or \u201cthe Strategy\u201d) results for the quarter and year ended December 31, 2025 appear below with the results of the S&P 500 Index for the same periods: Through December 31, 2025 Sequoia CompositeS&P 500 Index Fourth Quarter 0.9% ",
+      "Ruane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 www.sequoiafund.com Over the balance of the year, the market soared. Though our portfolio participated in this rally, the early lead that we opened through the spring narrowed by year-",
+      "Ruane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 www.sequoiafund.com was eminently reasonable and perhaps even \u201cintelligent.\u201d Instead, we decided to stand pat, because our discomfort was balanced by our appreciation for the fundament",
+      "Ruane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 www.sequoiafund.com United\u2019s shares declined by over 33% in 2025, making it the worst performing position in the portfolio for the year. Elevance\u2019s shares declined by approximately 3% ",
+      "Ruane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 www.sequoiafund.com as fall protection and hard hats. In all but one of its core product categories, MSA is the #1 or #2 player. The company\u2019s total revenues amount to roughly $2 billi"
+    ],
+    "valuation_language": [
+      "Dear Clients: Sequoia Strategy Composite\u2019s (\u201cSequoia\u201d or \u201cthe Strategy\u201d) results for the quarter and year ended December 31, 2025 appear below with the results of the S&P 500 Index for the same periods: Through December 31, 2025 Sequoia CompositeS&P 500 Index Fourth Quarter 0.9% ",
+      "Ruane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 www.sequoiafund.com Over the balance of the year, the market soared. Though our portfolio participated in this rally, the early lead that we opened through the spring narrowed by year-",
+      "Ruane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 www.sequoiafund.com was eminently reasonable and perhaps even \u201cintelligent.\u201d Instead, we decided to stand pat, because our discomfort was balanced by our appreciation for the fundament",
+      "Ruane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 www.sequoiafund.com United\u2019s shares declined by over 33% in 2025, making it the worst performing position in the portfolio for the year. Elevance\u2019s shares declined by approximately 3% ",
+      "Ruane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 www.sequoiafund.com as fall protection and hard hats. In all but one of its core product categories, MSA is the #1 or #2 player. The company\u2019s total revenues amount to roughly $2 billi"
+    ],
+    "risks_discussed": [
+      "Dear Clients: Sequoia Strategy Composite\u2019s (\u201cSequoia\u201d or \u201cthe Strategy\u201d) results for the quarter and year ended December 31, 2025 appear below with the results of the S&P 500 Index for the same periods: Through December 31, 2025 Sequoia CompositeS&P 500 Index Fourth Quarter 0.9% ",
+      "Ruane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 www.sequoiafund.com Over the balance of the year, the market soared. Though our portfolio participated in this rally, the early lead that we opened through the spring narrowed by year-",
+      "Ruane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 www.sequoiafund.com was eminently reasonable and perhaps even \u201cintelligent.\u201d Instead, we decided to stand pat, because our discomfort was balanced by our appreciation for the fundament",
+      "Ruane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 www.sequoiafund.com We purchased our MSA shares at a mid/high-teens multiple of our estimate of forward earnings. If, as we expect, the trend towards technology-enabled safety equipmen",
+      "Ruane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 www.sequoiafund.com Sequoia Top 10 \u2013 Dec 31, 2025 Rolls-Royce Holdings (13.1% of Sequoia\u2019s capital at year-end, +120.1% total stock return in 20251) Shares in Rolls-Royce Holdings plc "
+    ],
+    "portfolio_actions": [
+      "Ruane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 www.sequoiafund.com Over the balance of the year, the market soared. Though our portfolio participated in this rally, the early lead that we opened through the spring narrowed by year-",
+      "Ruane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 www.sequoiafund.com was eminently reasonable and perhaps even \u201cintelligent.\u201d Instead, we decided to stand pat, because our discomfort was balanced by our appreciation for the fundament",
+      "Ruane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 www.sequoiafund.com United\u2019s shares declined by over 33% in 2025, making it the worst performing position in the portfolio for the year. Elevance\u2019s shares declined by approximately 3% ",
+      "Ruane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 www.sequoiafund.com Sequoia Top 10 \u2013 Dec 31, 2025 Rolls-Royce Holdings (13.1% of Sequoia\u2019s capital at year-end, +120.1% total stock return in 20251) Shares in Rolls-Royce Holdings plc ",
+      "Ruane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 www.sequoiafund.com of which we have long been aware but have never factored heavily in our valuation consideration, could become a meaningful profit contributor over the next decade. "
+    ],
+    "tone_notes": "Real investor letter with strong portfolio commentary and public-equity judgment.",
+    "best_quotes_or_phrases": [
+      "The Magnificent Seven",
+      "connected firefighting",
+      "Reinvention Services,"
+    ]
+  },
+  "source_metadata": {
+    "file_present": true,
+    "source_extension": ".pdf",
+    "extraction_mode": "pdf_text",
+    "page_count": 20,
+    "headings_detected": []
+  },
+  "chunking": {
+    "strategy": "page_groups",
+    "chunk_count": 7,
+    "chunks": [
+      {
+        "label": "pages_1_3",
+        "start_page": 1,
+        "end_page": 3,
+        "text_preview": "January 30, 2026 \n \nDear Clients: \nSequoia Strategy Composite\u2019s (\u201cSequoia\u201d or \u201cthe Strategy\u201d) results for the quarter and year ended December 31, 2025 \nappear below with the results of the S&P 500 Index for the same periods: \nThrough December 31, 2025 Sequoia CompositeS&P 500 Index\nFourth Quarter 0.9% 2.7%\n1 Year 21.9% 17.9%\n3 Years (Annualized) 22.7% 23.0%\n5 Years (Annualized) 10.3% 14.4%\n10 Years (Annualized) 10.7% 14.8%\nSince Inception (Annualized)** 13.5% 11.5%\nThe performance returns for the Sequoia Strategy Composite are presented net of investment advisory fees and transaction costs \nand all other fees and expenses that a client paid in connection with RC\u2019 s investment advisory services and reflect the reinvestment \nof dividends and other income / earnings, but do not reflect the deduction of custodial fees paid by the client. The performance \nreturns also reflect cash flows into and out of accounts. The net performance returns are calculated using the highest annual \nadvisory fee of 1% per annum, applied monthly. The performance presented does not represent the return of any one individual \ninvestor.**Inception Date: July 15, 1970. \nSequoia Strategy Composite returned 21.9% in 2025, versus 17.9% for the S&P 500. Since the Investment Committee \nbegan managing the Strategy in June of 2016, Sequoia and the S&P 500 Index (\u201cthe S&P 500\u201d) have compounded at \n13.0% and 15.2%, respectively. \nOur goal is to outperform the S&P 500 over the long term. As such, we are wary of mak"
+      },
+      {
+        "label": "pages_4_6",
+        "start_page": 4,
+        "end_page": 6,
+        "text_preview": "4 \n \nRuane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 \nwww.sequoiafund.com \nUnited\u2019s shares declined by over 33% in 2025, making it the worst performing position in the portfolio for the year. \nElevance\u2019s shares declined by approximately 3% in 2025, after having drawn down by over 20% the year prior. Both \ncompanies\u2019 share prices are now at levels first reached during 2021. Two investments that looked like big winners \nback in 2022 now look like big losers, at least relative to the market. We happen to believe both securities are attractive \nat current levels. In fact, we added modestly to Elevance during the year. \nGiven how the situation happens to have unfolded, it is easy and true to say that we wish we had trimmed both \npositions even more aggressively back in 2022. In the end, though, the wisdom of our decisions around our investments \nin United and Elevance will be determined by the long-term performance of the businesses relative to the price we \npaid for our shares. We would be lying if we said we felt every bit as confident about these two investments as we did \na few years ago. At the same time, when we reflect on our extensive and ongoing research, we believe it is entirely \npossible that our original purchases of United and Elevance shares prove to be winners over the long term. \nHow we have handled our investments in Rolls-Royce, Alphabet, United, and Elevance throws into stark relief, we \nthink, the important disti"
+      },
+      {
+        "label": "pages_7_9",
+        "start_page": 7,
+        "end_page": 9,
+        "text_preview": "7 \n \nRuane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 \nwww.sequoiafund.com \nAlign Technology, Inc. (\u201cAlign\u201d), the third and final of our notable new positions, is the company behind the Invisalign \nclear aligner orthodontic system. The company was founded in 1997. The idea of using plastic trays to move teeth was \nnot entirely new but Align was the first company to invest in the product and the business in a serious way. In its early \nyears, Invisalign was met with broad-based resistance and even hostility from the orthodontic community. Align was \nforced to bypass the channel to generate consumer demand, through an aggressive brand advertising campaign that \nestablished Invisalign as the first and only real consumer brand in the orthodontic and dental space. \nToday, Align\u2019s market capitalization stands at roughly $12 billion. We expect the company will have generated \nrevenues of roughly $4 billion in 2025, with Invisalign accounting for over $3 billion of this total, and intraoral \nscanners and lab-oriented digital design software accounting for the balance. Align\u2019s operating margins, as we \ncalculate them, are somewhat depressed but still running in the high teens on a percentage of sales basis. The company \nearns sky-high returns on tangible capital and therefore converts free cash flow in a pleasing manner. The company \nhas no debt and roughly $1 billion of cash on its balance sheet. Align is now a large, global and profitab"
+      },
+      {
+        "label": "pages_10_12",
+        "start_page": 10,
+        "end_page": 12,
+        "text_preview": "10 \n \nRuane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 \nwww.sequoiafund.com \nof which we have long been aware but have never factored heavily in our valuation consideration, could become a \nmeaningful profit contributor over the next decade. \nAt the current price, Rolls-Royce shares trade for a little more than 30 times our estimate of forward earnings power \nper share. We remain optimistic about the fundamentals of the Civil Aerospace business and excited about future \ngrowth options in Defense, Power Systems and Small Modular Reactors. However, given the position size and a \nvaluation that we find attractive but less so than previously, we reduced our shareholdings late in the year. \n \nAlphabet, Inc. \n(10.6% of Sequoia\u2019s capital at year-end, +66.0% total stock return in 2025) \nShares of Alphabet Inc. (\u201cAlphabet\u201d) returned 66% in 2025. We expect the company will have grown revenues and \nearnings per share at a mid-teens and low-thirties rate, respectively, for the year. \nWhile Alphabet\u2019s financial results last year were pleasing, the most fundamental developments regarding the \ncompany\u2019s businesses and their prospects do not show up in the filings. To start, the company released in November \na new version of its Gemini large language model whose first place performance across a wide array of intelligence \nmetrics saw it immediately soar to the top of the AI leaderboards. For many years, we watched Google assemble all \nthe necess"
+      },
+      {
+        "label": "pages_13_15",
+        "start_page": 13,
+        "end_page": 15,
+        "text_preview": "13 \n \nRuane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 \nwww.sequoiafund.com \nsweep deposits and into higher-yielding money market funds, but the spread that the company would earn on the \nremaining cash sweep deposits would more than make up for it. \nThe situation ended up playing out very differently than expected. For starters, the magnitude by which and the rapidity \nwith which interest rates rose led to a correspondingly large and swift erosion of the Schwab\u2019s cash sweep deposit \nbase. Around the same time, Schwab got caught up in the regional banking crisis. Given the scrutiny it was under, \nSchwab chose to fund deposit outflows by tapping high-cost, short-term funding sources as opposed to selling \nsecurities, which would have been the more elegant and economic approach. \nSchwab felt then, as we did, that it was being unfairly lumped in with regional banks whose financial positions were \nfundamentally different. We would submit that our view has now been borne out, but it does not change the fact that \nSchwab\u2019s net interest income, and therefore its earnings, got unnaturally pressured. This pressure has been abating \nprogressively over the past few years, as Schwab has been paying down high-cost short-term funding with operating \ncash flows and security maturations. By year-end 2025, Schwab had paid down nearly all this high-cost, short-term \nfunding. This paydown led to a mechanical expansion of the company\u2019s net interest "
+      },
+      {
+        "label": "pages_16_18",
+        "start_page": 16,
+        "end_page": 18,
+        "text_preview": "16 \n \nRuane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 \nwww.sequoiafund.com \nAt Formula One, sponsorship is where we saw the most notable revenue growth last year, as the 10-year $1.5 billion \ndeal with LVMH went live. Across media rights and race promotion, the other two primary revenue streams for \nFormula One, growth for the year was in the high single digits combined. \nAs we regularly emphasize, the long-term financial return we generate from our investment in Liberty will be \ndetermined first and foremost by the overall health and vibrancy of Formula One as a sport and a spectacle. As was \nthe case in 2024, it was a good year on both fronts. \nWe had another exciting season on the track, with the Drivers\u2019 Championship coming down to three drivers in \ncontention going into the final race. Ultimately, McLaren\u2019s Lando Norris beat out last year\u2019s Champion, Red Bull\u2019s \nMax Verstappen, and his teammate Oscar Piastri. The Constructors\u2019 Championship was less exciting, with McLaren \nonce again dominating, though Mercedes and Red Bull were neck and neck for second and third and Ferrari wasn\u2019t \nfar behind them. \nOff the track, Formula One continued its strong run of new sponsorship deals last year, welcoming PepsiCo as a global \nsponsor, signing cross-promotion deals with Disney and Nestle\u2019s KitKat brand, and expanding the highly successful \npartnership with LEGO. While no major new race cities were announced, Formula One had a producti"
+      },
+      {
+        "label": "pages_19_20",
+        "start_page": 19,
+        "end_page": 20,
+        "text_preview": "19 \n \nRuane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 \nwww.sequoiafund.com \ninvestor will still do well from current share price levels even if the AI tailwind abates. For perspective, consider that \neven when TSMC saw double-digit revenue declines after the dot-com crash and the global financial crisis, it \nmanaged to grow back to prior sales peaks within one to two years. \nRecognizing our limited ability to \u201ccall the cycle,\u201d our focus remains on TSMC\u2019s technology leadership, partner \necosystem, management, and culture, all of which remain as robust as ever. As we have from the beginning, we \nbalance the superlative aspects of this company and this business against the inherent geopolitical risks given the \nvast majority of TSMC\u2019s fab capacity remains located in Taiwan.\n\n20 \n \nRuane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 \nwww.sequoiafund.com \nDisclosures \nThe Sequoia Strategy Composite (the \u201cComposite\u201d) consists of all discretionary, fee-paying accounts that Ruane Cunniff LP (\u201cRC\u201d) manages in accordance \nwith its Sequoia Strategy. The Sequoia Strategy is a concentrated, long-only equity strategy focused primarily on domestic mid- and large-cap companies. \nThe performance of a client account may differ from that of the Composite due to account size, client- specific guidelines or restrictions, tax considerations, \ncash flows into and out of the account, the timing of transaction"
+      }
+    ]
+  },
+  "text_samples": [
+    "January 30, 2026 \n \nDear Clients: \nSequoia Strategy Composite\u2019s (\u201cSequoia\u201d or \u201cthe Strategy\u201d) results for the quarter and year ended December 31, 2025 \nappear below with the results of the S&P 500 Index for the same periods: \nThrough December 31, 2025 Sequoia CompositeS&P 500 Index\nFourth Quarter 0.9% 2.7%\n1 Year 21.9% 17.9%\n3 Years (Annualized) 22.7% 23.0%\n5 Years (Annualized) 10.3% 14.4%\n10 Years (Annualized) 10.7% 14.8%\nSince Inception (Annualized)** 13.5% 11.5%\nThe performance returns for the Sequoia Strategy Composite are presented net of investment advisory fees and transaction costs \nand all other fees and expenses that a client paid in connection with RC\u2019 s investment advisory services and reflect the reinvestment \nof dividends and other income / earnings, but do not reflect the deduction of custodial fees paid by the client. The performance \nreturns also reflect cash flows into and out of accounts. The net performance returns are calculated using the highest annual \nadvisory fee of 1% per annum, applied monthly. The performance presented does not represent the return of any one individual \ninvestor.**Inception Date: July 15, 1970. \nSequoia Strategy Composite returned 21.9% in 2025, versus 17.9% for the S&P 500. Since the Investment Committee \nbegan managing the Strategy in June of 2016, Sequoia and the S&P 500 Index (\u201cthe S&P 500\u201d) have compounded at \n13.0% and 15.2%, respectively. \nOur goal is to outperform the S&P 500 over the long term. As such, we are wary of mak",
+    "4 \n \nRuane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 \nwww.sequoiafund.com \nUnited\u2019s shares declined by over 33% in 2025, making it the worst performing position in the portfolio for the year. \nElevance\u2019s shares declined by approximately 3% in 2025, after having drawn down by over 20% the year prior. Both \ncompanies\u2019 share prices are now at levels first reached during 2021. Two investments that looked like big winners \nback in 2022 now look like big losers, at least relative to the market. We happen to believe both securities are attractive \nat current levels. In fact, we added modestly to Elevance during the year. \nGiven how the situation happens to have unfolded, it is easy and true to say that we wish we had trimmed both \npositions even more aggressively back in 2022. In the end, though, the wisdom of our decisions around our investments \nin United and Elevance will be determined by the long-term performance of the businesses relative to the price we \npaid for our shares. We would be lying if we said we felt every bit as confident about these two investments as we did \na few years ago. At the same time, when we reflect on our extensive and ongoing research, we believe it is entirely \npossible that our original purchases of United and Elevance shares prove to be winners over the long term. \nHow we have handled our investments in Rolls-Royce, Alphabet, United, and Elevance throws into stark relief, we \nthink, the important disti",
+    "7 \n \nRuane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 \nwww.sequoiafund.com \nAlign Technology, Inc. (\u201cAlign\u201d), the third and final of our notable new positions, is the company behind the Invisalign \nclear aligner orthodontic system. The company was founded in 1997. The idea of using plastic trays to move teeth was \nnot entirely new but Align was the first company to invest in the product and the business in a serious way. In its early \nyears, Invisalign was met with broad-based resistance and even hostility from the orthodontic community. Align was \nforced to bypass the channel to generate consumer demand, through an aggressive brand advertising campaign that \nestablished Invisalign as the first and only real consumer brand in the orthodontic and dental space. \nToday, Align\u2019s market capitalization stands at roughly $12 billion. We expect the company will have generated \nrevenues of roughly $4 billion in 2025, with Invisalign accounting for over $3 billion of this total, and intraoral \nscanners and lab-oriented digital design software accounting for the balance. Align\u2019s operating margins, as we \ncalculate them, are somewhat depressed but still running in the high teens on a percentage of sales basis. The company \nearns sky-high returns on tangible capital and therefore converts free cash flow in a pleasing manner. The company \nhas no debt and roughly $1 billion of cash on its balance sheet. Align is now a large, global and profitab",
+    "10 \n \nRuane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 \nwww.sequoiafund.com \nof which we have long been aware but have never factored heavily in our valuation consideration, could become a \nmeaningful profit contributor over the next decade. \nAt the current price, Rolls-Royce shares trade for a little more than 30 times our estimate of forward earnings power \nper share. We remain optimistic about the fundamentals of the Civil Aerospace business and excited about future \ngrowth options in Defense, Power Systems and Small Modular Reactors. However, given the position size and a \nvaluation that we find attractive but less so than previously, we reduced our shareholdings late in the year. \n \nAlphabet, Inc. \n(10.6% of Sequoia\u2019s capital at year-end, +66.0% total stock return in 2025) \nShares of Alphabet Inc. (\u201cAlphabet\u201d) returned 66% in 2025. We expect the company will have grown revenues and \nearnings per share at a mid-teens and low-thirties rate, respectively, for the year. \nWhile Alphabet\u2019s financial results last year were pleasing, the most fundamental developments regarding the \ncompany\u2019s businesses and their prospects do not show up in the filings. To start, the company released in November \na new version of its Gemini large language model whose first place performance across a wide array of intelligence \nmetrics saw it immediately soar to the top of the AI leaderboards. For many years, we watched Google assemble all \nthe necess",
+    "13 \n \nRuane Cunniff LP | 45 Rockefeller Plaza | 34th Floor | New York, NY 10111 | Tel: (212) 832-5280 \nwww.sequoiafund.com \nsweep deposits and into higher-yielding money market funds, but the spread that the company would earn on the \nremaining cash sweep deposits would more than make up for it. \nThe situation ended up playing out very differently than expected. For starters, the magnitude by which and the rapidity \nwith which interest rates rose led to a correspondingly large and swift erosion of the Schwab\u2019s cash sweep deposit \nbase. Around the same time, Schwab got caught up in the regional banking crisis. Given the scrutiny it was under, \nSchwab chose to fund deposit outflows by tapping high-cost, short-term funding sources as opposed to selling \nsecurities, which would have been the more elegant and economic approach. \nSchwab felt then, as we did, that it was being unfairly lumped in with regional banks whose financial positions were \nfundamentally different. We would submit that our view has now been borne out, but it does not change the fact that \nSchwab\u2019s net interest income, and therefore its earnings, got unnaturally pressured. This pressure has been abating \nprogressively over the past few years, as Schwab has been paying down high-cost short-term funding with operating \ncash flows and security maturations. By year-end 2025, Schwab had paid down nearly all this high-cost, short-term \nfunding. This paydown led to a mechanical expansion of the company\u2019s net interest "
+  ],
+  "extraction_status": "extracted",
+  "extracted_at": "2026-03-27T18:50:57.375759+00:00"
+}

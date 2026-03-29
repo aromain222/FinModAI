@@ -1,0 +1,62 @@
+{
+  "id": "micron_q2_2026_earnings_release",
+  "title": "Micron Q2 Fiscal 2026 Earnings Release",
+  "file_path": "/Users/averyromain/FinModAI/data/training/micron-technology-inc-reports-results-for-the-second-quarter-of-fiscal-2026",
+  "source_type": "earnings_reference",
+  "tier": "A",
+  "primary_bucket": "financial_reasoning",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "earnings_reference",
+  "assistant_training_targets": [
+    "earnings-package interpretation",
+    "KPI extraction",
+    "prepared-remarks compression",
+    "investor-facing results framing"
+  ],
+  "source_summary": "Micron's official results release for the second quarter of fiscal 2026.",
+  "strengths": [
+    "official reported results",
+    "semiconductor cycle context",
+    "high-signal headline financials"
+  ],
+  "weaknesses": [
+    "no management Q&A"
+  ],
+  "fields": {
+    "title": "Micron Q2 Fiscal 2026 Earnings Release",
+    "company_name": "Micron Technology, Inc.",
+    "quarter": "Fiscal Q2 2026",
+    "source_name": "Micron Investor Relations",
+    "sections": [
+      "reported results",
+      "financial highlights",
+      "forward-looking commentary"
+    ],
+    "key_metrics": [
+      "quarterly results and profitability metrics",
+      "memory-business revenue and margin context",
+      "cash flow and market outlook framing"
+    ],
+    "management_themes": [
+      "strong memory demand and business momentum",
+      "AI-driven demand environment",
+      "cyclical recovery framed through reported profitability and cash flow"
+    ],
+    "analyst_relevance": [
+      "Good anchor source for the quarter's factual baseline before using prepared remarks.",
+      "Useful for semiconductor earnings compression and cycle interpretation.",
+      "Should be paired with the deck and remarks for a fuller management picture."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/micron-technology-inc-reports-results-for-the-second-quarter-of-fiscal-2026/manifest.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/micron-technology-inc-reports-results-for-the-second-quarter-of-fiscal-2026/chunks.jsonl",
+    "dataset_dir": "/Users/averyromain/FinModAI/data/training/micron-technology-inc-reports-results-for-the-second-quarter-of-fiscal-2026",
+    "page_count": 6,
+    "chunk_count": 8,
+    "source_url": null,
+    "access_status": null
+  }
+}

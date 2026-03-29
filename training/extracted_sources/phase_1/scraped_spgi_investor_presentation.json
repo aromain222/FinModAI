@@ -1,0 +1,60 @@
+{
+  "id": "scraped_spgi_investor_presentation",
+  "title": "S&P Global Scraped Investor Presentation Materials",
+  "file_path": "/Users/averyromain/FinModAI/finmodai-next/data/SPGI/presentation",
+  "source_type": "investor_presentation",
+  "tier": "B",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "financial_reasoning",
+  "recommended_phase": 1,
+  "template_key": "investor_presentation",
+  "assistant_training_targets": [
+    "slide compression",
+    "contributor/detractor summaries",
+    "thesis slide structure"
+  ],
+  "source_summary": "Scraper-collected investor presentation and slide materials for S&P Global.",
+  "strengths": [
+    "management KPI emphasis",
+    "slide-structured communication",
+    "useful for compression and prioritization"
+  ],
+  "weaknesses": [
+    "presentation materials are management-selected and should not outweigh filings"
+  ],
+  "fields": {
+    "title": "S&P Global Scraped Investor Presentation Materials",
+    "manager": null,
+    "date": null,
+    "agenda": [
+      "Investor Presentation S P Global to Present at the Raymond James Associates 47th Annual Institutional Investors Conference",
+      "Investor Presentation S P Global to Present at the BofA Securities Information and Business Services Conference 2026 on March 12 2026",
+      "Investor Presentation Mobility Global Investor Day 2026"
+    ],
+    "portfolio_contributors": [],
+    "portfolio_detractors": [],
+    "holdings_covered": [
+      "S&P Global"
+    ],
+    "valuation_points": [
+      "Use presentation materials to identify which KPIs and segment narratives management wants investors to underwrite."
+    ],
+    "exit_or_trim_logic": [],
+    "slide_structure_patterns": [
+      "Lead with quarter highlights and KPI framing.",
+      "Use investor slides to compress the company's preferred narrative before testing it against filings."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_dir": "/Users/averyromain/FinModAI/finmodai-next/data/SPGI",
+    "categories": {
+      "10k": 6,
+      "10q": 5,
+      "earnings": 4,
+      "presentation": 3,
+      "transcript": 4
+    },
+    "document_count": 22
+  }
+}

@@ -1,0 +1,177 @@
+{
+  "id": "nflx_sec_public_filings",
+  "title": "NETFLIX INC General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-nflx",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent NFLX SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "NETFLIX INC General SEC Filings",
+    "company_name": "NETFLIX INC",
+    "ticker": "NFLX",
+    "cik": "0001065280",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-27",
+      "2026-01-23",
+      "2026-01-20",
+      "2026-01-20",
+      "2025-12-22",
+      "2025-12-05",
+      "2025-11-14",
+      "2025-11-04",
+      "2025-10-30",
+      "2025-10-22"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Our other uses of cash include strategic acquisitions and investments, as well as share repurchases.",
+      "Stock Repurchases In September 2023, the Board of Directors authorized the repurchase of up to $ 10 billion of the Company\u2019s common stock, with no expiration date, and in December 2024, the Board of Directors increased the share repurchase authorization by an additional $ 15 billion, also with no expiration date."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Controls and Procedures (a) Evaluation of Disclosure Controls and Procedures Our management, with the participation of our co-Chief Executive Officers and Chief Financial Officer, evaluated the effectiveness of our disclosure controls and procedures (as defined in Rules 13a-15(e) and 15d-15(e) under the Exchange Act) as of the end of the period covered by this Annual Report on Form 10-K.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management's assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "A detailed discussion of these and other risks and uncertainties that could cause actual results and events to differ materially from such forward-looking statements is included throughout this filing and particularly in Item 1A: \u201c Risk Factors \u201d section set forth in this Annual Report on Form 10-K."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-nflx",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-nflx/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-nflx/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-nflx/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-02-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K NETFLIX INC false - 2026-02-27 2026-02-27 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 27, 2026 NETFLIX, INC. (Ex"
+      },
+      {
+        "label": "10-K 2026-01-23",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 FY false 434 428 426 http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent h"
+      },
+      {
+        "label": "8-K 2026-01-20",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "NETFLIX INC false - 2026-01-20 2026-01-20 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 __________________________________ FORM 8-K __________________________________ CURRENT REPORT Pursuant to Section 13 OR 15(d) of the Securities Exchange Act of 1934 Date"
+      },
+      {
+        "label": "8-K 2026-01-20",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K NETFLIX INC false - 2026-01-19 2026-01-19 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): January 19, 2026 NETFLIX, INC. (Exa"
+      },
+      {
+        "label": "8-K 2025-12-22",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K NETFLIX INC NASDAQ false - 2025-12-19 2025-12-19 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): December 19, 2025 NETFLIX, I"
+      },
+      {
+        "label": "8-K 2025-12-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K NETFLIX INC false - 2025-12-05 2025-12-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): December 5, 2025 NETFLIX, INC. (Exa"
+      },
+      {
+        "label": "8-K 2025-11-14",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "NETFLIX INC false December 31 - 2025-11-14 2025-11-14 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 __________________________________ FORM 8-K __________________________________ CURRENT REPORT Pursuant to Section 13 OR 15(d) of the Securities Exchange Act o"
+      },
+      {
+        "label": "8-K 2025-11-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "NETFLIX INC false - 2025-10-30 2025-10-30 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 __________________________________ FORM 8-K __________________________________ CURRENT REPORT Pursuant to Section 13 OR 15(d) of the Securities Exchange Act of 1934 Date"
+      },
+      {
+        "label": "8-K 2025-10-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "NETFLIX INC false - 2025-10-30 2025-10-30 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 __________________________________ FORM 8-K __________________________________ CURRENT REPORT Pursuant to Section 13 OR 15(d) of the Securities Exchange Act of 1934 Date"
+      },
+      {
+        "label": "10-Q 2025-10-22",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 Q3 false --12-31 P1Y 644 366 238 - nflx:segment 2025-01-01 2025-09-30 2025-09-30 2025-07-01 2025-09-30 2024-07-01 2024-09-30 2024-01-01 2024-09-30 2025"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-02-27",
+      "text_preview": "8-K NETFLIX INC false - 2026-02-27 2026-02-27 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 27, 2026 NETFLIX, INC. (Exact Name of Registrant as Specified in Charter) Delaware 001-35727 77-0467272 (State or Other Jurisdiction of Incorporation) (Commission File Number) (I.R.S. Employer Identification No.) 121 Albright Way Los Gatos , California , 95032 (Address of principal executive offices) (Zip Code) (408) 540-3700 (Registrant\u2019s telephone number, include area code) Not applicable (Forme",
+      "char_count": 7349,
+      "word_count": 1114,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1065280/000119312526082247/d120618d8k.htm"
+    },
+    {
+      "label": "10-K 2026-01-23",
+      "text_preview": "2025 FY false 434 428 426 http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#Liabilities http://fasb.org/us-gaap/2025#Liabilities P1Y http://fasb.org/us-gaap/2025#OtherPensionPlansPostretirementOrSupplementalPlansDefinedBenefitMember - nflx:option nflx:vote nflx:segment 2025-01-01 2025-12",
+      "char_count": 313599,
+      "word_count": 43419,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1065280/000106528026000034/nflx-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-01-20",
+      "text_preview": "NETFLIX INC false - 2026-01-20 2026-01-20 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 __________________________________ FORM 8-K __________________________________ CURRENT REPORT Pursuant to Section 13 OR 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): January 20, 2026 __________________________________ NETFLIX, INC. (Exact name of registrant as specified in its charter) __________________________________ Delaware 001-35727 77-0467272 (State or other jurisdiction of incorporation) (Commission File Number) (I.R.S. Employer Identification No.) 121 Albright Way , Los Gatos , Californi",
+      "char_count": 13702,
+      "word_count": 1935,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1065280/000106528026000033/nflx-20260120.htm"
+    }
+  ]
+}

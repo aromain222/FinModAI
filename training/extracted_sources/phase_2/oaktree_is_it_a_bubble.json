@@ -1,0 +1,29 @@
+{
+  "id": "oaktree_is_it_a_bubble",
+  "title": "Howard Marks - Is It a Bubble?",
+  "file_path": "/Users/averyromain/Downloads/is-it-a-bubble.pdf",
+  "source_type": "market_memo",
+  "tier": "B+",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "concept_only",
+  "recommended_phase": 2,
+  "template_key": "generic",
+  "assistant_training_targets": [
+    "fallback extraction"
+  ],
+  "source_summary": "Howard Marks memo on AI bubble dynamics, investor psychology, and valuation discipline; better for market reasoning than for security-level underwriting.",
+  "strengths": [
+    "bubble framework",
+    "valuation discipline",
+    "investor psychology"
+  ],
+  "weaknesses": [
+    "macro and essay-driven",
+    "limited company-specific analysis"
+  ],
+  "fields": {
+    "title": null,
+    "summary": null,
+    "notes": null
+  }
+}

@@ -1,0 +1,176 @@
+{
+  "id": "amgn_sec_public_filings",
+  "title": "AMGEN INC General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-amgn",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent AMGN SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "AMGEN INC General SEC Filings",
+    "company_name": "AMGEN INC",
+    "ticker": "AMGN",
+    "cik": "0000318154",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-19",
+      "2026-02-13",
+      "2026-02-03",
+      "2026-01-30",
+      "2025-11-05",
+      "2025-11-04",
+      "2025-08-06",
+      "2025-08-05",
+      "2025-05-27",
+      "2025-05-02"
+    ],
+    "capital_markets_activity": [
+      "4.2 Officer\u2019s Certificate of the Company, dated as of February 19, 2026, including forms of the Company\u2019s 4.200% Senior Notes due 2031, 4.850% Senior Notes due 2036, 5.500% Senior Notes due 2046 and 5.650% Senior Notes due 2056."
+    ],
+    "capital_allocation_activity": [
+      "The manner of stock repurchases may include block purchases, tender offers, accelerated share repurchases and market transactions."
+    ],
+    "liquidity_notes": [
+      "We anticipate that our liquidity needs can be met through a variety of sources, including cash provided by operating activities, borrowings through commercial paper and/or syndicated credit facilities, and access to other domestic and foreign debt markets and equity markets."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "We have carried out an evaluation under the supervision and with the participation of our management, including Amgen\u2019s Chief Executive Officer and Chief Financial Officer, of the effectiveness of the design and operation of Amgen\u2019s disclosure controls and procedures.",
+      "\u00a8 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "In the United States, it is used in the indication for the treatment of osteoporosis in postmenopausal women at high risk for fracture, defined as a history of osteoporotic fracture, or multiple risk factors for fracture; or patients who have failed or are intolerant to other available osteoporosis therapy."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-amgn",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-amgn/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-amgn/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-amgn/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-02-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K AMGEN INC false - 2026-02-17 2026-02-17 2026-02-17 2026-02-17 2026-02-17 2026-02-17 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 Form 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of the S"
+      },
+      {
+        "label": "10-K 2026-02-13",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY http://fasb.org/srt/2025#PartnershipInterestMember http://fasb.org/srt/2025#PartnershipInterestMember http://fasb.org/us-gaap/2025#OtherGeneralExpense http://fasb.org/us-gaap/2025#OtherGeneralExpense http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#O"
+      },
+      {
+        "label": "8-K 2026-02-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-03 2026-02-03 exch:XNGS 2026-02-03 2026-02-03 amgn:A2.00SeniorNotesDue2026Member exch:XNGS 2026-02-03 2026-02-03 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to"
+      },
+      {
+        "label": "8-K 2026-01-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K AMGEN INC false - 2026-01-30 2026-01-30 2026-01-30 2026-01-30 2026-01-30 2026-01-30 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The S"
+      },
+      {
+        "label": "10-Q 2025-11-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q3 12/31 http://fasb.org/srt/2025#PartnershipInterestMember http://fasb.org/srt/2025#PartnershipInterestMember - amgn:segment amgn:notice amgn:case 2025-01-01 2025-09-30 us-gaap"
+      },
+      {
+        "label": "8-K 2025-11-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-11-04 2025-11-04 exch:XNGS 2025-11-04 2025-11-04 exch:XNGS amgn:A2.00SeniorNotesDue2026Member 2025-11-04 2025-11-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to"
+      },
+      {
+        "label": "10-Q 2025-08-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q2 12/31 http://fasb.org/srt/2025#PartnershipInterestMember http://fasb.org/srt/2025#PartnershipInterestMember - amgn:segment amgn:notice amgn:case 2025-01-01 2025-06-30 us-gaap"
+      },
+      {
+        "label": "8-K 2025-08-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-05 2025-08-05 exch:XNGS 2025-08-05 2025-08-05 exch:XNGS amgn:A2.00SeniorNotesDue2026Member 2025-08-05 2025-08-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to"
+      },
+      {
+        "label": "8-K 2025-05-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2025-05-23 2025-05-23 amgn:A2.00SeniorNotesDue2026Member 2025-05-23 2025-05-23 2025-05-23 2025-05-23 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Se"
+      },
+      {
+        "label": "10-Q 2025-05-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q1 12/31 http://fasb.org/srt/2024#PartnershipInterestMember http://fasb.org/srt/2024#PartnershipInterestMember - amgn:segment amgn:notice amgn:case 2025-01-01 2025-03-31 us-gaap"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-02-19",
+      "text_preview": "8-K AMGEN INC false - 2026-02-17 2026-02-17 2026-02-17 2026-02-17 2026-02-17 2026-02-17 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 Form 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 17, 2026 Amgen Inc. (Exact name of registrant as specified in its charter) Delaware 001-37702 95-3540776 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) One Amgen Center Drive Thousand Oaks California 91320-1799 (Address of principa",
+      "char_count": 7013,
+      "word_count": 1051,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/318154/000119312526059490/d106293d8k.htm"
+    },
+    {
+      "label": "10-K 2026-02-13",
+      "text_preview": "false 2025 FY http://fasb.org/srt/2025#PartnershipInterestMember http://fasb.org/srt/2025#PartnershipInterestMember http://fasb.org/us-gaap/2025#OtherGeneralExpense http://fasb.org/us-gaap/2025#OtherGeneralExpense http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccruedLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsNoncurrent http://fasb.org/us-gaap/2025#OtherAssetsCurrent -",
+      "char_count": 705616,
+      "word_count": 100489,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/318154/000031815426000010/amgn-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-03",
+      "text_preview": "false - 2026-02-03 2026-02-03 exch:XNGS 2026-02-03 2026-02-03 amgn:A2.00SeniorNotesDue2026Member exch:XNGS 2026-02-03 2026-02-03 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 Date of Report (Date of earliest event reported) February 3, 2026 - Amgen Inc. (Exact name of registrant as specified in its charter) Delaware 001-37702 95-3540776 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) One Amgen Center Drive Thousand Oaks California 91",
+      "char_count": 10074,
+      "word_count": 1440,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/318154/000031815426000003/amgn-20260203.htm"
+    }
+  ]
+}

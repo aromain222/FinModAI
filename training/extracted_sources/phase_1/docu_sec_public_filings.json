@@ -1,0 +1,177 @@
+{
+  "id": "docu_sec_public_filings",
+  "title": "DOCUSIGN, INC. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-docu",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent DOCU SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "DOCUSIGN, INC. General SEC Filings",
+    "company_name": "DOCUSIGN, INC.",
+    "ticker": "DOCU",
+    "cik": "0001261333",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-18",
+      "2026-03-17",
+      "2026-03-06",
+      "2025-12-05",
+      "2025-12-04",
+      "2025-09-05",
+      "2025-09-04",
+      "2025-06-06",
+      "2025-06-05",
+      "2025-05-30"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Recent filings reference ongoing capital allocation actions, including repurchases and financing decisions."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "(d) Following the recommendation of Docusign, Inc.\u2019s (the \u201cCompany\u201d) Nominating and Corporate Governance Committee of the Board of Directors (the \u201cBoard\u201d), the Board appointed Brian Roberts to fill an existing vacancy on the Board to serve as a director of the Company, effective March 5, 2026.",
+      "(d) Following the recommendation of the Company\u2019s Nominating and Corporate Governance Committee of the Board of Directors (the \u201cBoard\u201d), the Board appointed Mike Rosenbaum to fill a vacancy on the Board to serve as a director of the Company, effective September 3, 2025."
+    ],
+    "controls_and_risk_notes": [
+      "The requirements of being a public company, including developing and maintaining proper and effective disclosure controls and procedures and internal control over financial reporting, may strain our resources and divert management\u2019s attention away from other business concerns.",
+      "\u00a8 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "The outcome of the events described in these forward-looking statements is subject to risks, uncertainties, and other factors described in the section titled \u201cRisk Factors\u201d and elsewhere in this Annual Report on Form 10-K."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-docu",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-docu/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-docu/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-docu/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-03-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2026 FY FALSE P3Y P3Y 1 - docu:segment docu:reporting_unit docu:putative_case docu:case docu:plan 2025-02-01 2026-01-31 2025-07-31 2026-02-28 2026-01-31 2025-01-31 us-g"
+      },
+      {
+        "label": "8-K 2026-03-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-03-17 2026-03-17 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 ______________________________________ FORM 8-K ______________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of R"
+      },
+      {
+        "label": "8-K 2026-03-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-03-05 2026-03-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 ______________________________________ FORM 8-K ______________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of R"
+      },
+      {
+        "label": "10-Q 2025-12-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "January 31 false 2026 Q3 396 356 - docu:putative_case docu:stayed_case docu:case docu:plan docu:segment 2025-02-01 2025-10-31 2025-11-30 2025-10-31 2025-01-31"
+      },
+      {
+        "label": "8-K 2025-12-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-12-04 2025-12-04 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 ______________________________________ FORM 8-K ______________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of R"
+      },
+      {
+        "label": "10-Q 2025-09-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "January 31 false 2026 Q2 274 274 626 274 - docu:putative_case docu:stayed_case docu:case docu:plan docu:segment 2025-02-01 2025-07-31 2025-08-29 2025-07-31 2025-01-31"
+      },
+      {
+        "label": "8-K 2025-09-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-09-03 2025-09-03 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 ______________________________________ FORM 8-K ______________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of R"
+      },
+      {
+        "label": "10-Q 2025-06-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "January 31 false 2026 Q1 285 364 - docu:putative_case docu:stayed_case docu:plan docu:segment 2025-02-01 2025-04-30 2025-05-30 2025-04-30 2025-01-31"
+      },
+      {
+        "label": "8-K 2025-06-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-06-05 2025-06-05 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 ______________________________________ FORM 8-K ______________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of R"
+      },
+      {
+        "label": "8-K 2025-05-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-05-29 2025-05-29 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 ______________________________________ FORM 8-K ______________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of R"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-03-18",
+      "text_preview": "2026 FY FALSE P3Y P3Y 1 - docu:segment docu:reporting_unit docu:putative_case docu:case docu:plan 2025-02-01 2026-01-31 2025-07-31 2026-02-28 2026-01-31 2025-01-31 2025-02-01 2026-01-31 2024-02-01 2025-01-31 2023-02-01 2024-01-31 docu:ProfessionalServicesAndOtherMember 2025-02-01 2026-01-31 docu:ProfessionalServicesAndOtherMember 2024-02-01 2025-01-31 docu:Professiona",
+      "char_count": 411495,
+      "word_count": 60294,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1261333/000126133326000021/docu-20260131.htm"
+    },
+    {
+      "label": "8-K 2026-03-17",
+      "text_preview": "FALSE - 2026-03-17 2026-03-17 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 ______________________________________ FORM 8-K ______________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): March 17, 2026 Commission File Number: 001-38465 ______________________________________ DOCUSIGN, INC. (Exact name of registrant as specified in its charter) ______________________________________ Delaware 91-2183967 (State or Other Jurisdiction of Incorporation) (I.R.S. Employer Identification Number) 221 Main St. Suite 800 San Francisc",
+      "char_count": 3704,
+      "word_count": 545,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1261333/000126133326000017/docu-20260317.htm"
+    },
+    {
+      "label": "8-K 2026-03-06",
+      "text_preview": "FALSE - 2026-03-05 2026-03-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 ______________________________________ FORM 8-K ______________________________________ CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): March 5, 2026 Commission File Number: 001-38465 ______________________________________ DOCUSIGN, INC. (Exact name of registrant as specified in its charter) ______________________________________ Delaware 91-2183967 (State or Other Jurisdiction of Incorporation) (I.R.S. Employer Identification Number) 221 Main St. Suite 800 San Francisco",
+      "char_count": 4554,
+      "word_count": 662,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1261333/000126133326000006/docu-20260305.htm"
+    }
+  ]
+}

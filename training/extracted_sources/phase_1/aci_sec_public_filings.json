@@ -1,0 +1,179 @@
+{
+  "id": "aci_sec_public_filings",
+  "title": "Albertsons Companies, Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-aci",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent ACI SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "Albertsons Companies, Inc. General SEC Filings",
+    "company_name": "Albertsons Companies, Inc.",
+    "ticker": "ACI",
+    "cik": "0001646972",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-27",
+      "2026-02-02",
+      "2026-01-22",
+      "2026-01-07",
+      "2026-01-07",
+      "2025-11-14",
+      "2025-11-10",
+      "2025-10-21",
+      "2025-10-15",
+      "2025-10-14"
+    ],
+    "capital_markets_activity": [
+      "(the \u201cCompany\u201d), together with its subsidiaries, Safeway Inc., New Albertsons L.P., Albertsons\u2019s LLC and Albertsons Safeway LLC (collectively, the \u201cSubsidiary Co-Issuers\u201d and together with the Company, the \u201cCo-Issuers\u201d), issued $1,200 million in aggregate principal amount of new 5.625% senior notes due 2032 (the \u201c2032 Notes\u201d) and $900 million in aggregate principal amount of additional 5.750% senior notes due 2034 (the \u201c2034 Notes\u201d and together with the 2032 Notes, the \u201cNotes\u201d).",
+      "(the \u201cCompany\u201d), together with its subsidiaries, Safeway Inc., New Albertsons L.P., Albertson\u2019s LLC and Albertsons Safeway LLC (collectively, the \u201cSubsidiary Co-Issuers\u201d and together with the Company, the \u201cCo-Issuers\u201d), issued $700 million in aggregate principal amount of new 5.500% senior notes due 2031 (the \u201c2031 Notes\u201d) and $800 million in aggregate principal amount of new 5.750% senior notes due 2034 (the \u201c2034 Notes\u201d and together with the 2031 Notes, the \u201cNotes\u201d)."
+    ],
+    "capital_allocation_activity": [
+      "Common stock repurchase program: On October 14, 2025, the Company entered into an accelerated share repurchase agreement (the \"ASR Agreement\") with JPMorgan Chase Bank, National Association (\"JPMorgan\") to repurchase $ 750 million of shares of the Company's common stock.",
+      "Also on October 14, 2025, the Company announced that the Board of Directors has authorized an increase to the share repurchase program from $ 2.0 billion to $ 2.75 billion, inclusive of the ASR Agreement."
+    ],
+    "liquidity_notes": [
+      "Liquidity Based on current operating trends, we believe that we have significant sources of cash to meet our liquidity needs for the next 12 months and for the foreseeable future, including cash on hand, cash flows from operating activities and other sources of liquidity, including the ABL Facility.",
+      "We believe we have adequate cash flow to continue to maintain our current debt ratings and to respond effectively to competitive conditions."
+    ],
+    "governance_notes": [
+      "Brian Rice was appointed as a member of the Board of Directors (the \u201cBoard\u201d) of Albertsons Companies, Inc.",
+      "Rice has not been appointed to any committee of the Board."
+    ],
+    "controls_and_risk_notes": [
+      "Changes in Internal Control over Financial Reporting There were no changes in our internal control over financial reporting during the third quarter of fiscal 2025 that have materially affected, or are reasonably likely to materially affect, our internal control over financial reporting.",
+      "All forward-looking statements attributable to us or persons acting on our behalf are expressly qualified in their entirety by these cautionary statements and risk factors."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-aci",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-aci/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-aci/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-aci/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-02-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2026-02-25 2026-02-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D. C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 25, 2026 Albertsons Companie"
+      },
+      {
+        "label": "8-K 2026-02-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2026-02-02 2026-02-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 2, 2026 Albertsons Companies,"
+      },
+      {
+        "label": "8-K 2026-01-22",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2026-01-22 2026-01-22 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D. C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): January 22, 2026 Albertsons Companies"
+      },
+      {
+        "label": "10-Q 2026-01-07",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2/28 2025 Q3 false - 2025-02-23 2025-11-29 2026-01-02 2025-11-29 2025-02-22 2025-11-29 00"
+      },
+      {
+        "label": "8-K 2026-01-07",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 Q3 False - 2026-01-07 2026-01-07 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D. C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): January 7, 2026 Albertsons Co"
+      },
+      {
+        "label": "8-K 2025-11-14",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2025-11-12 2025-11-12 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D. C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): November 12, 2025 Albertsons Companie"
+      },
+      {
+        "label": "8-K 2025-11-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2025-11-10 2025-11-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D. C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): November 10, 2025 Albertsons Companie"
+      },
+      {
+        "label": "8-K 2025-10-21",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2025-10-20 2025-10-20 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D. C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): October 21, 2025 Albertsons Companies"
+      },
+      {
+        "label": "8-K 2025-10-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "False - 2025-10-14 2025-10-14 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D. C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): October 14, 2025 Albertsons Companies"
+      },
+      {
+        "label": "10-Q 2025-10-14",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2/28 2025 Q2 false - 2025-02-23 2025-09-06 2025-10-10 2025-09-06 2025-02-22 2025-09-06 00"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-02-27",
+      "text_preview": "False - 2026-02-25 2026-02-25 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D. C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 25, 2026 Albertsons Companies, Inc. (Exact Name of Registrant as Specified in Charter) Delaware 001-39350 47-4376911 (State or Other Jurisdiction of Incorporation) (Commission File Number) (IRS Employer Identification No.) 250 Parkcenter Blvd. Boise , Idaho 83706 (Address of principal executive office and zip code) ( 208 ) 395-6200 (Registrant\u2019s telephone number, including area code) Not Applicable",
+      "char_count": 5841,
+      "word_count": 856,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1646972/000164697226000023/aci-20260225.htm"
+    },
+    {
+      "label": "8-K 2026-02-02",
+      "text_preview": "False - 2026-02-02 2026-02-02 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): February 2, 2026 Albertsons Companies, Inc. (Exact Name of Registrant as Specified in Charter) Delaware 001-39350 47-4376911 (State or Other Jurisdiction of Incorporation) (Commission File Number) (IRS Employer Identification No.) 250 Parkcenter Blvd. Boise , Idaho 83706 (Address of principal executive office and zip code) ( 208 ) 395-6200 (Registrant\u2019s telephone number, including area code) Not Applicable (F",
+      "char_count": 11657,
+      "word_count": 1840,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1646972/000164697226000019/aci-20260202.htm"
+    },
+    {
+      "label": "8-K 2026-01-22",
+      "text_preview": "False - 2026-01-22 2026-01-22 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D. C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): January 22, 2026 Albertsons Companies, Inc. (Exact Name of Registrant as Specified in Charter) Delaware 001-39350 47-4376911 (State or Other Jurisdiction of Incorporation) (Commission File Number) (IRS Employer Identification No.) 250 Parkcenter Blvd. Boise , Idaho 83706 (Address of principal executive office and zip code) ( 208 ) 395-6200 (Registrant\u2019s telephone number, including area code) Not Applicable (",
+      "char_count": 6010,
+      "word_count": 931,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1646972/000164697226000015/aci-20260122.htm"
+    }
+  ]
+}

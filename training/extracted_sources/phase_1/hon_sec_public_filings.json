@@ -1,0 +1,179 @@
+{
+  "id": "hon_sec_public_filings",
+  "title": "HONEYWELL INTERNATIONAL INC General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-hon",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent HON SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "HONEYWELL INTERNATIONAL INC General SEC Filings",
+    "company_name": "HONEYWELL INTERNATIONAL INC",
+    "ticker": "HON",
+    "cik": "0000773840",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-23",
+      "2026-03-16",
+      "2026-03-06",
+      "2026-03-03",
+      "2026-02-17",
+      "2026-02-17",
+      "2026-01-29",
+      "2025-12-22",
+      "2025-12-10",
+      "2025-11-03"
+    ],
+    "capital_markets_activity": [
+      "Honeywell Debt Tender Offers and Honeywell Debt Redemptions On March 10, 2026, Honeywell issued a notice of redemption to redeem all \u20ac750,000,000 in outstanding principal amount of its 2.250% Senior Notes due 2028 on April 10, 2026, at a redemption price that includes an applicable \u201cmake-whole\u201d premium, plus any interest accrued and unpaid to the redemption date, all further to Honeywell\u2019s previously announced intention to redeem such notes as set forth in the Honeywell March 6, 2026 Form 8-K.",
+      "The 2.250% Senior Notes due 2028 are also included in the Honeywell Tender Offers."
+    ],
+    "capital_allocation_activity": [
+      "During the year, we deployed $10.0 billion to capital expenditures, dividends, share repurchases, and mergers and acquisitions.",
+      "\u2022 Share repurchases\u2014under our share repurchase program, $1.7 billion was available as of December 31, 2025, for additional share repurchases as authorized by the Board on April 24, 2023."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Indra Nooyi, 70, former Chair and Chief Executive Officer of PepsiCo, Inc., has been appointed, effective January 1, 2026, to serve as an Independent Director on the Company\u2019s Board of Directors.",
+      "Arnold has been appointed, effective immediately, to serve on the Company\u2019s Board of Directors in the interim."
+    ],
+    "controls_and_risk_notes": [
+      "Our management, with the participation of our CEO and CFO, evaluated the effectiveness of our disclosure controls and procedures (as defined in Rule 13a-15(e) promulgated under the Exchange Act) as of December 31, 2025.",
+      "\u2610 Indicate by check mark whether the Registrant has filed a report on and attestation to its management's assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "These forward-looking statements should be considered in light of the information included in this Form 10-K, including, in particular, the factors discussed within the section titled Risk Factors ."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-hon",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-hon/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-hon/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-hon/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-23",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K 2026-03-20 HONEYWELL INTERNATIONAL INC false - 2026-03-20 2026-03-20 2026-03-20 2026-03-20 hon:M3.500SeniorNotesDue20273Member 2026-03-20 2026-03-20 hon:Euro225NotesDue2028Member 2026-03-20 2026-03-20 hon:Euro3.375SeniorNote"
+      },
+      {
+        "label": "8-K 2026-03-16",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K 2026-03-10 HONEYWELL INTERNATIONAL INC false - 2026-03-10 2026-03-10 2026-03-10 2026-03-10 hon:A3500SeniorNotesDue2027Member 2026-03-10 2026-03-10 hon:Euro225NotesDue2028Member 2026-03-10 2026-03-10 hon:Euro3.375SeniorNotesD"
+      },
+      {
+        "label": "8-K 2026-03-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K 2026-03-06 HONEYWELL INTERNATIONAL INC false - 2026-03-06 2026-03-06 2026-03-06 2026-03-06 hon:A3500SeniorNotesDue2027Member 2026-03-06 2026-03-06 hon:Euro225NotesDue2028Member 2026-03-06 2026-03-06 hon:Euro3.375SeniorNotesD"
+      },
+      {
+        "label": "8-K 2026-03-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-03-03 2026-03-03 2026-03-03 2026-03-03 hon:A3500SeniorNotesDue2027Member 2026-03-03 2026-03-03 hon:Euro225NotesDue2028Member 2026-03-03 2026-03-03 hon:Euro3.375SeniorNotesDue2030Member 2026-03-03 2026-0"
+      },
+      {
+        "label": "8-K 2026-02-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-02-17 2026-02-17 2026-02-17 2026-02-17 hon:A3500SeniorNotesDue2027Member 2026-02-17 2026-02-17 hon:Euro225NotesDue2028Member 2026-02-17 2026-02-17 hon:Euro3.375SeniorNotesDue2030Member 2026-02-17 2026-0"
+      },
+      {
+        "label": "10-K 2026-02-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "2025 FY false P3Y P1Y http://fasb.org/us-gaap/2025#AccountsPayableCurrent P1Y P3Y P2Y http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense 0.25 http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2025#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2"
+      },
+      {
+        "label": "8-K 2026-01-29",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2026-01-29 2026-01-29 2026-01-29 2026-01-29 hon:A3500SeniorNotesDue2027Member 2026-01-29 2026-01-29 hon:Euro225NotesDue2028Member 2026-01-29 2026-01-29 hon:EuroNotes3.375Due2030Member 2026-01-29 2026-01-29 0"
+      },
+      {
+        "label": "8-K 2025-12-22",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-12-22 2025-12-22 2025-12-22 2025-12-22 hon:A3500SeniorNotesDue2027Member 2025-12-22 2025-12-22 hon:Euro225NotesDue2028Member 2025-12-22 2025-12-22 hon:Euro3.375SeniorNotesDue2030Member 2025-12-22 2025-1"
+      },
+      {
+        "label": "8-K 2025-12-10",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-12-10 2025-12-10 2025-12-10 2025-12-10 hon:A3500SeniorNotesDue2027Member 2025-12-10 2025-12-10 hon:Euro225NotesDue2028Member 2025-12-10 2025-12-10 hon:Euro3.375SeniorNotesDue2030Member 2025-12-10 2025-1"
+      },
+      {
+        "label": "8-K 2025-11-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "FALSE - 2025-11-03 2025-11-03 2025-11-03 2025-11-03 hon:A3500SeniorNotesDue2027Member 2025-11-03 2025-11-03 hon:Euro225NotesDue2028Member 2025-11-03 2025-11-03 hon:Euro3.375SeniorNotesDue2030Member 2025-11-03 2025-1"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-23",
+      "text_preview": "8-K 2026-03-20 HONEYWELL INTERNATIONAL INC false - 2026-03-20 2026-03-20 2026-03-20 2026-03-20 hon:M3.500SeniorNotesDue20273Member 2026-03-20 2026-03-20 hon:Euro225NotesDue2028Member 2026-03-20 2026-03-20 hon:Euro3.375SeniorNotesDue2030Member 2026-03-20 2026-03-20 hon:M0.750SeniorNotesDue20321Member 2026-03-20 2026-03-20 hon:M3.750SeniorNotesDue20322Member 2026-03-20 2026-03-20 hon:Euro4125SeniorNotesDue2034Member 2026-03-20 2026-03-20 hon:Euro3.75SeniorNotesDue2036Member 2026-03-20 2026-03-20 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C.",
+      "char_count": 10015,
+      "word_count": 1427,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/773840/000119312526118101/d118295d8k.htm"
+    },
+    {
+      "label": "8-K 2026-03-16",
+      "text_preview": "8-K 2026-03-10 HONEYWELL INTERNATIONAL INC false - 2026-03-10 2026-03-10 2026-03-10 2026-03-10 hon:A3500SeniorNotesDue2027Member 2026-03-10 2026-03-10 hon:Euro225NotesDue2028Member 2026-03-10 2026-03-10 hon:Euro3.375SeniorNotesDue2030Member 2026-03-10 2026-03-10 hon:M0.750SeniorNotesDue20322Member 2026-03-10 2026-03-10 hon:M3.750SeniorNotesDue20321Member 2026-03-10 2026-03-10 hon:Euro4125SeniorNotesDue2034Member 2026-03-10 2026-03-10 hon:Euro3.75SeniorNotesDue2036Member 2026-03-10 2026-03-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 2",
+      "char_count": 15199,
+      "word_count": 2291,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/773840/000119312526108366/d107386d8k.htm"
+    },
+    {
+      "label": "8-K 2026-03-06",
+      "text_preview": "8-K 2026-03-06 HONEYWELL INTERNATIONAL INC false - 2026-03-06 2026-03-06 2026-03-06 2026-03-06 hon:A3500SeniorNotesDue2027Member 2026-03-06 2026-03-06 hon:Euro225NotesDue2028Member 2026-03-06 2026-03-06 hon:Euro3.375SeniorNotesDue2030Member 2026-03-06 2026-03-06 hon:Euro75TermLoanDue2032Member 2026-03-06 2026-03-06 hon:A3750SeniorNotesDue2032Member 2026-03-06 2026-03-06 hon:Euro4125SeniorNotesDue2034Member 2026-03-06 2026-03-06 hon:Euro3.75SeniorNotesDue2036Member 2026-03-06 2026-03-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION WASHINGTON, D.C. 20549 F",
+      "char_count": 29745,
+      "word_count": 4429,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/773840/000119312526095179/d71810d8k.htm"
+    }
+  ]
+}

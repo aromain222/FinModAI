@@ -1,0 +1,36 @@
+{
+  "id": "fcff_simple_ginzu",
+  "title": "FCFF Simple Ginzu",
+  "file_path": "/Users/averyromain/Downloads/fcffsimpleginzu.xlsx",
+  "source_type": "educational_workbook",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "concept_only",
+  "recommended_phase": 2,
+  "template_key": "workbook",
+  "assistant_training_targets": [
+    "model architecture",
+    "formula mapping",
+    "schedule logic",
+    "valuation mechanics"
+  ],
+  "source_summary": "Educational FCFF workbook with diagnostics and story-to-numbers bridge.",
+  "strengths": [
+    "FCFF mechanics",
+    "diagnostics"
+  ],
+  "weaknesses": [
+    "template/classroom feel"
+  ],
+  "fields": {
+    "title": null,
+    "model_type": null,
+    "sheet_names": null,
+    "key_schedules": null,
+    "core_formulas": null,
+    "assumption_categories": null,
+    "output_tabs": null,
+    "sensitivity_support": null,
+    "quality_notes": null
+  }
+}

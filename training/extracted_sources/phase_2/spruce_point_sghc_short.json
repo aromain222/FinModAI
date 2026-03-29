@@ -1,0 +1,37 @@
+{
+  "id": "spruce_point_sghc_short",
+  "title": "Spruce Point SGHC Short Thesis",
+  "file_path": "/Users/averyromain/Downloads/698dda43ab1475370340d002_sghc_research_thesis_2-12-2026.pdf",
+  "source_type": "short_report",
+  "tier": "B",
+  "primary_bucket": "special_situations",
+  "secondary_bucket": "eval_cases",
+  "recommended_phase": 2,
+  "template_key": "special_situations",
+  "assistant_training_targets": [
+    "red-flag detection",
+    "forensic structure",
+    "downside thesis framing"
+  ],
+  "source_summary": "Forensic short report with accounting and ownership-structure critique.",
+  "strengths": [
+    "forensic structure",
+    "downside framing",
+    "evidence chaining"
+  ],
+  "weaknesses": [
+    "adversarial bias"
+  ],
+  "fields": {
+    "title": null,
+    "situation_type": null,
+    "security": null,
+    "core_claim": null,
+    "evidence_items": null,
+    "alleged_mismatch": null,
+    "downside_case": null,
+    "catalysts": null,
+    "governance_or_accounting_flags": null,
+    "bias_disclosure": null
+  }
+}

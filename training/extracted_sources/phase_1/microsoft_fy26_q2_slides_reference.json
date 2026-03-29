@@ -1,0 +1,65 @@
+{
+  "id": "microsoft_fy26_q2_slides_reference",
+  "title": "Microsoft FY26 Q2 Slides Reference",
+  "file_path": "/Users/averyromain/FinModAI/data/training/microsoft-fy26-q2-slides-reference",
+  "source_type": "investor_presentation",
+  "tier": "A-",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "financial_reasoning",
+  "recommended_phase": 1,
+  "template_key": "investor_presentation",
+  "assistant_training_targets": [
+    "slide compression",
+    "contributor/detractor summaries",
+    "thesis slide structure"
+  ],
+  "source_summary": "Microsoft FY26 Q2 earnings slide reference anchored to official quarter materials because the Office viewer did not expose the deck body directly.",
+  "strengths": [
+    "KPI prioritization",
+    "official quarter framing",
+    "cloud and AI narrative compression"
+  ],
+  "weaknesses": [
+    "reference package rather than literal slide pages"
+  ],
+  "fields": {
+    "title": "Microsoft FY26 Q2 Slides Reference",
+    "manager": null,
+    "date": null,
+    "agenda": [
+      "quarter overview",
+      "investor metrics",
+      "segment commentary",
+      "cloud and AI narrative"
+    ],
+    "portfolio_contributors": [],
+    "portfolio_detractors": [],
+    "holdings_covered": [
+      "Microsoft Cloud",
+      "commercial remaining performance obligation",
+      "Intelligent Cloud",
+      "productivity and business processes"
+    ],
+    "valuation_points": [
+      "Quarter materials emphasize cloud-scale monetization and demand visibility.",
+      "AI growth is framed alongside margin and infrastructure investment tradeoffs.",
+      "Top-line KPI selection reflects management's investor-priority message."
+    ],
+    "exit_or_trim_logic": [],
+    "slide_structure_patterns": [
+      "quarter-summary compression",
+      "KPI-led framing",
+      "segment and performance callouts"
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/microsoft-fy26-q2-slides-reference/manifest.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/microsoft-fy26-q2-slides-reference/chunks.jsonl",
+    "dataset_dir": "/Users/averyromain/FinModAI/data/training/microsoft-fy26-q2-slides-reference",
+    "page_count": null,
+    "chunk_count": 5,
+    "source_url": "https://view.officeapps.live.com/op/view.aspx?src=https://cdn-dynmedia-1.microsoft.com/is/content/microsoftcorp/SlidesFY26q2",
+    "access_status": "office_viewer_wrapper_only; slide deck body not directly retrievable in this environment"
+  }
+}

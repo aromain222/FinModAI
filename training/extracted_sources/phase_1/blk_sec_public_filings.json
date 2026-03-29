@@ -1,0 +1,177 @@
+{
+  "id": "blk_sec_public_filings",
+  "title": "BlackRock, Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-blk",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent BLK SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "BlackRock, Inc. General SEC Filings",
+    "company_name": "BlackRock, Inc.",
+    "ticker": "BLK",
+    "cik": "0002012383",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-25",
+      "2026-01-27",
+      "2026-01-16",
+      "2026-01-15",
+      "2025-11-05",
+      "2025-10-14",
+      "2025-08-06",
+      "2025-07-15",
+      "2025-07-01",
+      "2025-05-16"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "The Company announced its share repurchase plan in July 2010, which initially authorized the repurchase of 5.1 million shares with no stated expiration.",
+      "In January 2026, the Company announced that the Board of Directors authorized the repurchase of an additional seven million shares under the Company's existing share repurchase program, for a total of up to 9.2 million shares of BlackRock common stock."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Lemkau will be appointed to one or more Board committees following a review of the Board\u2019s existing committee composition."
+    ],
+    "controls_and_risk_notes": [
+      "Under the direction of BlackRock\u2019s Chief Executive Officer and Chief Financial Officer, BlackRock evaluated the effectiveness of its disclosure controls and procedures (as such term is defined in Rules 13a-15(e) and 15d-15(e) under the Exchange Act) as of the end of the period covered by this annual report on Form 10-K.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Risk Factors As a global investment management firm, risk is an inherent part of BlackRock\u2019s business."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-blk",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-blk/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-blk/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-blk/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-02-25",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "10-K false false false false false FY http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#NonoperatingIncomeExpense http://fasb.org/us-gaap/2025#BusinessCombinationContingentConsiderationLiabilityCurrent http://fasb.org/us-gaap/2025#NonoperatingIncom"
+      },
+      {
+        "label": "8-K 2026-01-27",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K DE false - 2026-01-27 2026-01-27 2026-01-27 2026-01-27 2026-01-27 2026-01-27 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Secu"
+      },
+      {
+        "label": "8-K 2026-01-16",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2026-01-13 2026-01-13 2026-01-13 2026-01-13 blk:NotesThreePointSevenFiveZeroPercentDueTwentyThirtyFiveMember 2026-01-13 2026-01-13 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to"
+      },
+      {
+        "label": "8-K 2026-01-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2026-01-15 2026-01-15 blk:NotesThreePointSevenFiveZeroPercentDueTwentyThirtyFiveMember 2026-01-15 2026-01-15 2026-01-15 2026-01-15 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to"
+      },
+      {
+        "label": "10-Q 2025-11-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "10-Q false false false false Q3 false --12-31 http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#NonoperatingIncomeExpense http://fasb.org/us-gaap/2025#BusinessCombinationContingentConsiderationLiabilityCurrent http://fasb.org/us-gaap/2025#Nonoperat"
+      },
+      {
+        "label": "8-K 2025-10-14",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2025-10-14 2025-10-14 blk:NotesThreePointSevenFiveZeroPercentDueTwentyThirtyFiveMember 2025-10-14 2025-10-14 2025-10-14 2025-10-14 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to"
+      },
+      {
+        "label": "10-Q 2025-08-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "10-Q Q2 --12-31 false false false false false http://fasb.org/us-gaap/2024#OtherAssets http://fasb.org/us-gaap/2024#OtherAssets http://fasb.org/us-gaap/2024#NonoperatingIncomeExpense http://fasb.org/us-gaap/2024#BusinessCombinationContingentConsiderationLiabilityCurrent http://fasb.org/us-gaap/2024#Nonoperat"
+      },
+      {
+        "label": "8-K 2025-07-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K false - 2025-07-15 2025-07-15 blk:NotesThreePointSevenFiveZeroPercentDueTwentyThirtyFiveMember 2025-07-15 2025-07-15 2025-07-15 2025-07-15 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to"
+      },
+      {
+        "label": "8-K 2025-07-01",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K DE false - 2025-07-01 2025-07-01 2025-07-01 2025-07-01 2025-07-01 2025-07-01 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Secu"
+      },
+      {
+        "label": "8-K 2025-05-16",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K DE false - 2025-05-15 2025-05-15 2025-05-15 2025-05-15 2025-05-15 2025-05-15 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of The Secu"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-02-25",
+      "text_preview": "10-K false false false false false FY http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#NonoperatingIncomeExpense http://fasb.org/us-gaap/2025#BusinessCombinationContingentConsiderationLiabilityCurrent http://fasb.org/us-gaap/2025#NonoperatingIncomeExpense http://fasb.org/us-gaap/2025#NonoperatingIncomeExpense http://fasb.org/us-gaap/2025#BusinessCombinationContingentConsiderationLiabilityCurrent http://fasb.org/us-gaap/2025#NonoperatingIncomeExpense http://fasb.org/us-gaap/2025#RealEstateFundsMember http://fasb.org/us-gaap/2025#RealEstateFundsMember 2026-03 2025-03 2026-03 2025-03 2026-03 2025-03 http://fasb.org/us-gaap",
+      "char_count": 720533,
+      "word_count": 98096,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/2012383/000119312526071966/blk-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-01-27",
+      "text_preview": "8-K DE false - 2026-01-27 2026-01-27 2026-01-27 2026-01-27 2026-01-27 2026-01-27 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): January 27, 2026 BLACKROCK, INC. (Exact name of registrant as specified in its charter) DELAWARE 001-42297 99-1116001 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 50 Hudson Yards , New York , New York 10001 (Address of principal executive of",
+      "char_count": 4356,
+      "word_count": 646,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/2012383/000119312526024549/d281445d8k.htm"
+    },
+    {
+      "label": "8-K 2026-01-16",
+      "text_preview": "8-K false - 2026-01-13 2026-01-13 2026-01-13 2026-01-13 blk:NotesThreePointSevenFiveZeroPercentDueTwentyThirtyFiveMember 2026-01-13 2026-01-13 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of Report (Date of earliest event reported): January 13, 2026 BLACKROCK, INC. (Exact name of registrant as specified in its charter) Delaware 001-42297 99-1116001 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 50 Hudson Yards , New York , New York 10001 (A",
+      "char_count": 8840,
+      "word_count": 1259,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/2012383/000119312526015405/d25677d8k.htm"
+    }
+  ]
+}

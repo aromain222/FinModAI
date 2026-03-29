@@ -1,0 +1,132 @@
+{
+  "id": "silver_ring_q4_2025",
+  "title": "Silver Ring Value Partners 2025 Q4 Letter",
+  "file_path": "/Users/averyromain/Downloads/SilverRingValuePartners_2025Q4_Letter.pdf",
+  "source_type": "investor_letter",
+  "tier": "A",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "eval_cases",
+  "recommended_phase": 1,
+  "template_key": "investor_letter",
+  "assistant_training_targets": [
+    "thesis articulation",
+    "portfolio commentary",
+    "risk framing",
+    "what changed",
+    "decision language"
+  ],
+  "source_summary": "Real investor letter with strong process explanation and a deep Warner Bros. case study.",
+  "strengths": [
+    "process language",
+    "risk framework",
+    "worked thesis explanation"
+  ],
+  "weaknesses": [
+    "narrower company breadth"
+  ],
+  "fields": {
+    "title": "Silver Ring Value Partners 2025 Q4 Letter",
+    "manager": null,
+    "date": null,
+    "strategy_style": "long/short, value-oriented, hedge-fund style, partnership letter",
+    "performance_context": [
+      "I hope that you are doing well. The Partnership had an excellent year, with net returns of 106% in 2025. More importantly, the hard work of improving the process over the last few years has resulted in better decision making and a better-balanced portfolio.",
+      "You can learn a lot about an investor when they go through a period of poor performance. Some quit. Others abandon their process and swing for the fences to try and recover or perhaps go to the other extreme and lose confidence in themselves and shy away from taking any risk, no ",
+      "\u2022 Excluding cash and hedges the investments in the portfolio were priced at 79% of Base Case Value, and at 87% when including cash and hedges."
+    ],
+    "top_themes": [
+      "IMPORTANT DISCLOSURE AND DISCLAIMERS"
+    ],
+    "positions_discussed": [
+      "WBD",
+      "It felt lonely owning Warner Bros."
+    ],
+    "thesis_points": [
+      "You can learn a lot about an investor when they go through a period of poor performance. Some quit. Others abandon their process and swing for the fences to try and recover or perhaps go to the other extreme and lose confidence in themselves and shy away from taking any risk, no ",
+      "What I am launching is a platform built around a weekly case study, the 10-Minute Investment Autopsy, of an investment thesis by an experienced investor. The aim is not to judge the investor, but to glean valuable lessons to help us improve. This will be furthered by weekly discu",
+      "\u25cf Light Gray: thesis is tracking roughly in-line with my base case \u25cf Orange: thesis is tracking somewhat below my base case \u25cf Red: thesis is tracking significantly below my base case \u25cf Dull Green: thesis is tracking somewhat better than my base case \u25cf Bright Green: thesis is trac",
+      "Not so with call options \u2013 their value decays with time. If you decide to stop here and never buy a call option in your life, I don\u2019t think you will be making a huge mistake. However, if you are willing to work to understand in what circumstances their benefits outweigh the short",
+      "\u2022 A meaningfully undervalued stock \u2022 Long-dated options \u2022 An event that has a good probability of acting as a catalyst to close the price/value gap"
+    ],
+    "valuation_language": [
+      "I am proud that I did none of those things but instead used it as motivation to improve myself as an investor and to work harder. I am still far from perfect, and there is always room for improvement. As much as the challenges over the prior years were trying, I believe the partn",
+      "Since Warner Bros. (WBD) was such a major contributor to results in 2025, I wanted to spend some time on it to illustrate the process. However, first I want to make two points:",
+      "1. Despite the magnitude of the contribution to returns from WBD, the position was structured such that we could never have lost more than 5% of the portfolio, consistent with my risk management parameters. 2. If we were to remove all gains from WBD, the portfolio would still hav",
+      "Yet, I was getting increasingly excited. Charlie Munger once described a lollapalooza effect as one where multiple mental models converge \u2013 and I strongly felt that was the case here. Below are the five mental models I used that allowed me to build conviction to make the investme",
+      "Imagine a company has two unrelated businesses, division A and division B. Division A is a good business and makes $2/share in earnings for the company while division B is a bad business and loses $1/share. The net effect is that the company makes $1/share in earnings."
+    ],
+    "risks_discussed": [
+      "You can learn a lot about an investor when they go through a period of poor performance. Some quit. Others abandon their process and swing for the fences to try and recover or perhaps go to the other extreme and lose confidence in themselves and shy away from taking any risk, no ",
+      "I am proud that I did none of those things but instead used it as motivation to improve myself as an investor and to work harder. I am still far from perfect, and there is always room for improvement. As much as the challenges over the prior years were trying, I believe the partn",
+      "1. Despite the magnitude of the contribution to returns from WBD, the position was structured such that we could never have lost more than 5% of the portfolio, consistent with my risk management parameters. 2. If we were to remove all gains from WBD, the portfolio would still hav",
+      "5 Silver Ring Value Partners Limited Partnership \u2022 One Boston Place, Suite 2600, Boston, MA 02108 \u2022 www.silverringvaluepartners.com In the case of Warner Bros., it had two excellent and profitable businesses, Warner Studios and HBO. It also had a secularly challenged, albeit stil",
+      "7 Silver Ring Value Partners Limited Partnership \u2022 One Boston Place, Suite 2600, Boston, MA 02108 \u2022 www.silverringvaluepartners.com Black-Scholes model. It assumes that the price fluctuations are random following a normal distribution around the current price, with a small increa"
+    ],
+    "portfolio_actions": [
+      "\u2022 Exited our position in Warner Brothers Discovery (WBD) \u2022 Reduced our position in Babcock (BAB LN)",
+      "My former colleagues were telling me I might be wrong. An investor friend, whom I highly respect, had sold his shares. A hedge-fund media specialist didn\u2019t want to touch it with a 10-foot pole.",
+      "Add on top of this a hefty amount of debt and management with damaged credibility from a merger that failed to live up to expectations, and you can probably begin to understand why most investors did not want to touch Warner Bros. with a 10-foot pole.",
+      "\u2022 The stock, near $10 this summer, was trading at less than 50% of my estimate of intrinsic value \u2022 It had LEAPs available \u2022 Management had just announced plans to spin-out the cable networks (the \u2018BadCo\u2019 from the first mental model) which meaningfully increased the probability o",
+      "I gave a talk some time ago at an investing conference where I sold $100 for $120. How?"
+    ],
+    "tone_notes": "Real investor letter with strong process explanation and a deep Warner Bros. case study.",
+    "best_quotes_or_phrases": [
+      "Hmm, I can get $20 for only $2, me like.",
+      "I don\u2019t understand how this works."
+    ]
+  },
+  "source_metadata": {
+    "file_present": true,
+    "source_extension": ".pdf",
+    "extraction_mode": "pdf_text",
+    "page_count": 15,
+    "headings_detected": [
+      "IMPORTANT DISCLOSURE AND DISCLAIMERS"
+    ]
+  },
+  "chunking": {
+    "strategy": "page_groups",
+    "chunk_count": 5,
+    "chunks": [
+      {
+        "label": "pages_1_3",
+        "start_page": 1,
+        "end_page": 3,
+        "text_preview": "1 \nSilver Ring Value Partners Limited Partnership \u2022 One Boston Place, Suite 2600, Boston, MA 02108 \u2022 www.silverringvaluepartners.com \nFebruary 6th, 2026 \n \n \nDear Partners: \n \nI hope that you are doing well. The Partnership had an excellent year, with net returns of 106% in \n2025. More importantly, the hard work of improving the process over the last few years has \nresulted in better decision making and a better-balanced portfolio. \n \nYou can learn a lot about an investor when they go through a period of poor performance. Some \nquit. Others abandon their process and swing for the fences to try and recover or perhaps go to the \nother extreme and lose confidence in themselves and shy away from taking any risk, no matter how \nattractive. \n \nI am proud that I did none of those things but instead used it as motivation to improve myself as an \ninvestor and to work harder. I am still far from perfect, and there is always room for improvement. \nAs much as the challenges over the prior years were trying, I believe the partnership is now in a \nmuch better place on the other side. \n \nSpeaking of improving as an investor, I launched a project that I am really excited about that aims \nto help me and others do just that. In my 25+ years as a professional investor I have come to \nrealize that there is a big gap for systematic improvement in a time-efficient way for experienced \ninvestors. \n \nWhat I am launching is a platform built around a weekly case study, the 10-Minute Investment \nAutops"
+      },
+      {
+        "label": "pages_4_6",
+        "start_page": 4,
+        "end_page": 6,
+        "text_preview": "4 \nSilver Ring Value Partners Limited Partnership \u2022 One Boston Place, Suite 2600, Boston, MA 02108 \u2022 www.silverringvaluepartners.com \nWarner Bros.: How 5 Mental Models Turned Lonely Conviction into a \nBig Win \n \nSince Warner Bros. (WBD) was such a major contributor to results in 2025, I wanted to spend some \ntime on it to illustrate the process. However, first I want to make two points: \n \n1. Despite the magnitude of the contribution to returns from WBD, the position was structured \nsuch that we could never have lost more than 5% of the portfolio, consistent with my risk \nmanagement parameters. \n2. If we were to remove all gains from WBD, the portfolio would still have been up over 30% in \n2025. \n \nIt felt lonely owning Warner Bros. \n \nMy former colleagues were telling me I might be wrong. An investor friend, whom I highly respect, \nhad sold his shares. A hedge-fund media specialist didn\u2019t want to touch it with a 10-foot pole. \n \nThe few people I knew who still owned Warner Bros. had only a small position. \n \nYet, I was getting increasingly excited. Charlie Munger once described a lollapalooza effect as one \nwhere multiple mental models converge \u2013 and I strongly felt that was the case here. Below are the \nfive mental models I used that allowed me to build conviction to make the investment a large \nposition and reap a huge profit for the Partnership. \n \n1. Good Business / Bad Business Combination \n \nThis pattern recurs from time to time and is useful to have in your arsenal. T"
+      },
+      {
+        "label": "pages_7_9",
+        "start_page": 7,
+        "end_page": 9,
+        "text_preview": "7 \nSilver Ring Value Partners Limited Partnership \u2022 One Boston Place, Suite 2600, Boston, MA 02108 \u2022 www.silverringvaluepartners.com \nBlack-Scholes model. It assumes that the price fluctuations are random following a normal \ndistribution around the current price, with a small increase in the likely price over time equal to the \nrisk-free rate. \n \nThat\u2019s not a bad way to price a short-term call option on a fairly-valued stock with no events. That \nstatement contains the ingredients for when you might want to investigate a LEAP: \n \n\u2022 A meaningfully undervalued stock \n\u2022 Long-dated options \n\u2022 An event that has a good probability of acting as a catalyst to close the price/value gap \n \nIn the case of Warner Bros., I had all three factors in my favor: \n \n\u2022 The stock, near $10 this summer, was trading at less than 50% of my estimate of intrinsic \nvalue \n\u2022 It had LEAPs available \n\u2022 Management had just announced plans to spin-out the cable networks (the \u2018BadCo\u2019 from \nthe first mental model) which meaningfully increased the probability of the gap between \nprice and value closing. \n \nWithout going into all the details, I was able to get greater than 10:1 risk/reward on options with \nlonger than a year until expiration. Inverted, you can think of it as I would have needed less than a \n10% chance for Warner Bros. to trade at my estimate of its value for the investment to be justified. \n \nWhile I can\u2019t tell you that I can precisely quantify the probabilities, all my analysis pointed to the "
+      },
+      {
+        "label": "pages_10_12",
+        "start_page": 10,
+        "end_page": 12,
+        "text_preview": "10 \nSilver Ring Value Partners Limited Partnership \u2022 One Boston Place, Suite 2600, Boston, MA 02108 \u2022 www.silverringvaluepartners.com \nPortfolio Metrics \nI track a number of metrics for the portfolio to help me better understand it and manage risk. I track \nthese both at a given point in time, and as a time series to analyze how the portfolio has changed \nover time to make sure that it is invested in the way that I intend for it to be. Below I share a \nnumber of these metrics, what each means, and what it can tell us about the portfolio. As time \npasses, you should be able to refer to these charts and graphs to help you gain deeper insight into \nhow I am applying my process. \n \nPrice % Base Case Value \nThis metric tracks the portfolio\u2019s weighted average ratio between market price and my Base Case \nintrinsic value estimate of each security. This ratio is presented both including cash and \nequivalents, which are valued at a Price to Value of 100%, and excluding those. All else being \nequal, the lower these numbers are, the better. Excluding cash and equivalents, a level above \n100% would be a red flag, indicating that the portfolio is trading above my estimate of intrinsic \nvalue. Levels between 90% and 100% I would characterize as a yellow flag, suggesting that the \nportfolio is very close to my estimate of value. Levels between 75% and 90% are lukewarm, while \nlevels below 75% are attractive.\n\n11 \nSilver Ring Value Partners Limited Partnership \u2022 One Boston Place, Suite 2600, "
+      },
+      {
+        "label": "pages_13_15",
+        "start_page": 13,
+        "end_page": 15,
+        "text_preview": "13 \nSilver Ring Value Partners Limited Partnership \u2022 One Boston Place, Suite 2600, Boston, MA 02108 \u2022 www.silverringvaluepartners.com \nNormalized Price-to-Earnings (P/E) Ratio \nI supplement my intrinsic value estimates, which are based on Discounted Cash Flow (DCF) \nanalysis, with a number of other metrics that I use to make sure that my value estimates make \nsense. One of the more useful ones is the Normalized P/E ratio. The denominator is my estimate of \nearnings over the next 12 months, adjusted for any one-time/unsustainable factors, and if \nnecessary adjusted for the cyclical nature of the business to reflect a mid-cycle economic \nenvironment. The numerator is adjusted for any excess assets (e.g. excess cash) not used to \ngenerate my estimate of normalized earnings. One way to interpret this number is that its inverse \nrepresents the rate of return we would receive on our purchase price if earnings remained \npermanently flat. So a normalized P/E of 10x would be consistent with an expectation of a 10% \nreturn. While the future is uncertain, it is typically my goal to invest in businesses whose value is \nincreasing over time. If I am correct in my analysis, our return should exceed the inverse of the \nnormalized P/E ratio over a long period of time. The graph below represents the weighted average \nnormalized P/E for the equities in the portfolio.\n\n14 \nSilver Ring Value Partners Limited Partnership \u2022 One Boston Place, Suite 2600, Boston, MA 02108 \u2022 www.silverringvaluepartne"
+      }
+    ]
+  },
+  "text_samples": [
+    "1 \nSilver Ring Value Partners Limited Partnership \u2022 One Boston Place, Suite 2600, Boston, MA 02108 \u2022 www.silverringvaluepartners.com \nFebruary 6th, 2026 \n \n \nDear Partners: \n \nI hope that you are doing well. The Partnership had an excellent year, with net returns of 106% in \n2025. More importantly, the hard work of improving the process over the last few years has \nresulted in better decision making and a better-balanced portfolio. \n \nYou can learn a lot about an investor when they go through a period of poor performance. Some \nquit. Others abandon their process and swing for the fences to try and recover or perhaps go to the \nother extreme and lose confidence in themselves and shy away from taking any risk, no matter how \nattractive. \n \nI am proud that I did none of those things but instead used it as motivation to improve myself as an \ninvestor and to work harder. I am still far from perfect, and there is always room for improvement. \nAs much as the challenges over the prior years were trying, I believe the partnership is now in a \nmuch better place on the other side. \n \nSpeaking of improving as an investor, I launched a project that I am really excited about that aims \nto help me and others do just that. In my 25+ years as a professional investor I have come to \nrealize that there is a big gap for systematic improvement in a time-efficient way for experienced \ninvestors. \n \nWhat I am launching is a platform built around a weekly case study, the 10-Minute Investment \nAutops",
+    "4 \nSilver Ring Value Partners Limited Partnership \u2022 One Boston Place, Suite 2600, Boston, MA 02108 \u2022 www.silverringvaluepartners.com \nWarner Bros.: How 5 Mental Models Turned Lonely Conviction into a \nBig Win \n \nSince Warner Bros. (WBD) was such a major contributor to results in 2025, I wanted to spend some \ntime on it to illustrate the process. However, first I want to make two points: \n \n1. Despite the magnitude of the contribution to returns from WBD, the position was structured \nsuch that we could never have lost more than 5% of the portfolio, consistent with my risk \nmanagement parameters. \n2. If we were to remove all gains from WBD, the portfolio would still have been up over 30% in \n2025. \n \nIt felt lonely owning Warner Bros. \n \nMy former colleagues were telling me I might be wrong. An investor friend, whom I highly respect, \nhad sold his shares. A hedge-fund media specialist didn\u2019t want to touch it with a 10-foot pole. \n \nThe few people I knew who still owned Warner Bros. had only a small position. \n \nYet, I was getting increasingly excited. Charlie Munger once described a lollapalooza effect as one \nwhere multiple mental models converge \u2013 and I strongly felt that was the case here. Below are the \nfive mental models I used that allowed me to build conviction to make the investment a large \nposition and reap a huge profit for the Partnership. \n \n1. Good Business / Bad Business Combination \n \nThis pattern recurs from time to time and is useful to have in your arsenal. T",
+    "7 \nSilver Ring Value Partners Limited Partnership \u2022 One Boston Place, Suite 2600, Boston, MA 02108 \u2022 www.silverringvaluepartners.com \nBlack-Scholes model. It assumes that the price fluctuations are random following a normal \ndistribution around the current price, with a small increase in the likely price over time equal to the \nrisk-free rate. \n \nThat\u2019s not a bad way to price a short-term call option on a fairly-valued stock with no events. That \nstatement contains the ingredients for when you might want to investigate a LEAP: \n \n\u2022 A meaningfully undervalued stock \n\u2022 Long-dated options \n\u2022 An event that has a good probability of acting as a catalyst to close the price/value gap \n \nIn the case of Warner Bros., I had all three factors in my favor: \n \n\u2022 The stock, near $10 this summer, was trading at less than 50% of my estimate of intrinsic \nvalue \n\u2022 It had LEAPs available \n\u2022 Management had just announced plans to spin-out the cable networks (the \u2018BadCo\u2019 from \nthe first mental model) which meaningfully increased the probability of the gap between \nprice and value closing. \n \nWithout going into all the details, I was able to get greater than 10:1 risk/reward on options with \nlonger than a year until expiration. Inverted, you can think of it as I would have needed less than a \n10% chance for Warner Bros. to trade at my estimate of its value for the investment to be justified. \n \nWhile I can\u2019t tell you that I can precisely quantify the probabilities, all my analysis pointed to the ",
+    "10 \nSilver Ring Value Partners Limited Partnership \u2022 One Boston Place, Suite 2600, Boston, MA 02108 \u2022 www.silverringvaluepartners.com \nPortfolio Metrics \nI track a number of metrics for the portfolio to help me better understand it and manage risk. I track \nthese both at a given point in time, and as a time series to analyze how the portfolio has changed \nover time to make sure that it is invested in the way that I intend for it to be. Below I share a \nnumber of these metrics, what each means, and what it can tell us about the portfolio. As time \npasses, you should be able to refer to these charts and graphs to help you gain deeper insight into \nhow I am applying my process. \n \nPrice % Base Case Value \nThis metric tracks the portfolio\u2019s weighted average ratio between market price and my Base Case \nintrinsic value estimate of each security. This ratio is presented both including cash and \nequivalents, which are valued at a Price to Value of 100%, and excluding those. All else being \nequal, the lower these numbers are, the better. Excluding cash and equivalents, a level above \n100% would be a red flag, indicating that the portfolio is trading above my estimate of intrinsic \nvalue. Levels between 90% and 100% I would characterize as a yellow flag, suggesting that the \nportfolio is very close to my estimate of value. Levels between 75% and 90% are lukewarm, while \nlevels below 75% are attractive.\n\n11 \nSilver Ring Value Partners Limited Partnership \u2022 One Boston Place, Suite 2600, ",
+    "13 \nSilver Ring Value Partners Limited Partnership \u2022 One Boston Place, Suite 2600, Boston, MA 02108 \u2022 www.silverringvaluepartners.com \nNormalized Price-to-Earnings (P/E) Ratio \nI supplement my intrinsic value estimates, which are based on Discounted Cash Flow (DCF) \nanalysis, with a number of other metrics that I use to make sure that my value estimates make \nsense. One of the more useful ones is the Normalized P/E ratio. The denominator is my estimate of \nearnings over the next 12 months, adjusted for any one-time/unsustainable factors, and if \nnecessary adjusted for the cyclical nature of the business to reflect a mid-cycle economic \nenvironment. The numerator is adjusted for any excess assets (e.g. excess cash) not used to \ngenerate my estimate of normalized earnings. One way to interpret this number is that its inverse \nrepresents the rate of return we would receive on our purchase price if earnings remained \npermanently flat. So a normalized P/E of 10x would be consistent with an expectation of a 10% \nreturn. While the future is uncertain, it is typically my goal to invest in businesses whose value is \nincreasing over time. If I am correct in my analysis, our return should exceed the inverse of the \nnormalized P/E ratio over a long period of time. The graph below represents the weighted average \nnormalized P/E for the equities in the portfolio.\n\n14 \nSilver Ring Value Partners Limited Partnership \u2022 One Boston Place, Suite 2600, Boston, MA 02108 \u2022 www.silverringvaluepartne"
+  ],
+  "extraction_status": "extracted",
+  "extracted_at": "2026-03-27T18:52:11.097292+00:00"
+}

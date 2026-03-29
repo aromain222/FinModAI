@@ -1,0 +1,64 @@
+{
+  "id": "alphabet_q4_2025_earnings_release",
+  "title": "Alphabet Q4 2025 Earnings Release",
+  "file_path": "/Users/averyromain/FinModAI/data/training/2025q4-alphabet-earnings-release",
+  "source_type": "earnings_reference",
+  "tier": "A",
+  "primary_bucket": "financial_reasoning",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "earnings_reference",
+  "assistant_training_targets": [
+    "earnings-package interpretation",
+    "KPI extraction",
+    "prepared-remarks compression",
+    "investor-facing results framing"
+  ],
+  "source_summary": "Alphabet's official Q4 2025 earnings release with reported metrics, segment performance, and supplemental financial tables.",
+  "strengths": [
+    "official reported metrics",
+    "segment-level results",
+    "supplemental financial tables"
+  ],
+  "weaknesses": [
+    "no adversarial Q&A layer"
+  ],
+  "fields": {
+    "title": "Alphabet Q4 2025 Earnings Release",
+    "company_name": "Alphabet Inc.",
+    "quarter": "Q4 2025",
+    "source_name": "Alphabet Investor Relations",
+    "sections": [
+      "headline results",
+      "supplemental financial information",
+      "segment revenue breakdown",
+      "webcast information"
+    ],
+    "key_metrics": [
+      "Consolidated revenue of $113.8 billion, up 18%.",
+      "Google Services revenue of $95.9 billion.",
+      "Google Cloud revenue of $17.7 billion, up 48%.",
+      "Operating cash flow and capital expenditure disclosures."
+    ],
+    "management_themes": [
+      "business acceleration in both Google Services and Google Cloud",
+      "AI-related demand and monetization across products",
+      "segment performance with Cloud as the fastest-growing major business"
+    ],
+    "analyst_relevance": [
+      "Useful baseline source for reported numbers before transcript interpretation.",
+      "Helps tie AI narrative back to the actual segment and cash-flow figures.",
+      "Good training source for earnings-release compression and KPI prioritization."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/2025q4-alphabet-earnings-release/manifest.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/2025q4-alphabet-earnings-release/chunks.jsonl",
+    "dataset_dir": "/Users/averyromain/FinModAI/data/training/2025q4-alphabet-earnings-release",
+    "page_count": 10,
+    "chunk_count": 11,
+    "source_url": null,
+    "access_status": null
+  }
+}

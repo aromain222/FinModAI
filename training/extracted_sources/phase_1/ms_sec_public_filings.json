@@ -1,0 +1,177 @@
+{
+  "id": "ms_sec_public_filings",
+  "title": "MORGAN STANLEY General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ms",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent MS SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "MORGAN STANLEY General SEC Filings",
+    "company_name": "MORGAN STANLEY",
+    "ticker": "MS",
+    "cik": "0000895421",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-19",
+      "2026-02-11",
+      "2026-01-15",
+      "2025-11-03",
+      "2025-10-15",
+      "2025-09-30",
+      "2025-09-23",
+      "2025-08-04",
+      "2025-07-16",
+      "2025-07-01"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "The Firm\u2019s Board of Directors has authorized the repurchase of the Firm\u2019s outstanding stock under a share repurchase program (\u201cShare Repurchase Program\u201d).",
+      "In addition to the Firm\u2019s Share Repurchase Program, Treasury stock purchases include repurchases of common stock for employee tax withholding."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Controls and Procedures Conclusion Regarding the Effectiveness of Disclosure Controls and Procedures Under the supervision and with the participation of the Firm\u2019s management, including the Chief Executive Officer and Chief Financial Officer, the Firm conducted an evaluation of the effectiveness of the Firm\u2019s disclosure controls and procedures (as defined in Rule 13a-15(e) of the Exchange Act).",
+      "\u2610 Indicate by check mark whether the Registrant has filed a report on and attestation to its management's assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "See also \u201cSupervision and Regulation\u201d herein and \u201cRisk Factors.\u201d There is increased competition in the U.S."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-ms",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ms/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ms/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-ms/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "10-K 2026-02-19",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY MORGAN STANLEY true false 3 3 http://fasb.org/us-gaap/2025#OtherComprehensiveIncomeLossNetOfTax http://fasb.org/us-gaap/2025#OtherComprehensiveIncomeLossNetOfTax http://fasb.org/us-gaap/2025#OtherComprehensiveIncomeLossNetOfTax http://fasb.org/us-gaap/2025#FinancialInstrumentsSoldNo"
+      },
+      {
+        "label": "8-K 2026-02-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-11 2026-02-11 2026-02-11 2026-02-11 2026-02-11 2026-02-11 2026-02-11 2026-02-11 2026-02-11 2026-02-11 0"
+      },
+      {
+        "label": "8-K 2026-01-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-01-15 2026-01-15 2026-01-15 2026-01-15 2026-01-15 2026-01-15 2026-01-15 2026-01-15 2026-01-15"
+      },
+      {
+        "label": "10-Q 2025-11-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q3 --12-31 MORGAN STANLEY true false http://fasb.org/us-gaap/2025#AssetPledgedAsCollateralMember http://fasb.org/us-gaap/2025#IncomeTaxExpenseBenefit http://fasb.org/us-gaap/2025#IncomeTaxExpenseBenefit http://fasb.org/us-gaap/2025#IncomeTaxExpenseBenefit http://fasb.org/us-gaap/2025#I"
+      },
+      {
+        "label": "8-K 2025-10-15",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15"
+      },
+      {
+        "label": "8-K 2025-09-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-09-30 2025-09-30 2025-09-30 2025-09-30 2025-09-30 2025-09-30 2025-09-30 2025-09-30 2025-09-30 2025-09-30 0"
+      },
+      {
+        "label": "8-K 2025-09-23",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-09-23 2025-09-23 MS:MorganStanleyFinanceLlcMember 2025-09-23 2025-09-23 2025-09-23 2025-09-23 2025-09-23 2025-09-23 2025-09-23 2025"
+      },
+      {
+        "label": "10-Q 2025-08-04",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 Q2 --12-31 MORGAN STANLEY true false http://fasb.org/us-gaap/2025#AssetPledgedAsCollateralMember http://fasb.org/us-gaap/2025#IncomeTaxExpenseBenefit http://fasb.org/us-gaap/2025#IncomeTaxExpenseBenefit http://fasb.org/us-gaap/2025#IncomeTaxExpenseBenefit http://fasb.org/us-gaap/2025#I"
+      },
+      {
+        "label": "8-K 2025-07-16",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-07-16 2025-07-16 2025-07-16 2025-07-16 2025-07-16 2025-07-16 2025-07-16 2025-07-16 2025-07-16"
+      },
+      {
+        "label": "8-K 2025-07-01",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-07-01 2025-07-01 MS:CommonStock0.01ParValueMember 2025-07-01 2025-07-01 2025-07-01 2025-07-01 2025-07-01 2025-07-01 2025-07-01 2025-0"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "10-K 2026-02-19",
+      "text_preview": "false 2025 FY MORGAN STANLEY true false 3 3 http://fasb.org/us-gaap/2025#OtherComprehensiveIncomeLossNetOfTax http://fasb.org/us-gaap/2025#OtherComprehensiveIncomeLossNetOfTax http://fasb.org/us-gaap/2025#OtherComprehensiveIncomeLossNetOfTax http://fasb.org/us-gaap/2025#FinancialInstrumentsSoldNotYetPurchasedAtFairValue http://fasb.org/us-gaap/2025#FinancialInstrumentsSoldNotYetPurchasedAtFairValue http://fasb.org/us-gaap/2025#AssetPledgedAsCollateralMember http://fasb.org/us-gaap/2025#AssetPledgedAsCollateralMember http://fasb.org/us-gaap/2025#OtherAssets http://fasb.org/us-gaap/2025#IncomeTaxExpenseBenefit http://fasb.org/us-gaap/2025#IncomeTaxExpenseBenefit http://f",
+      "char_count": 994883,
+      "word_count": 127401,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/895421/000089542126000086/ms-20251231.htm"
+    },
+    {
+      "label": "8-K 2026-02-11",
+      "text_preview": "false - 2026-02-11 2026-02-11 2026-02-11 2026-02-11 2026-02-11 2026-02-11 2026-02-11 2026-02-11 2026-02-11 2026-02-11 MS:SeriesIPreferredStockMember 2026-02-11 2026-02-11 MS:SeriesKPreferredStockMember 2026-02-11 2026-02-11 MS:SeriesLPreferredStockMember 2026-02-11 2026-02-11 MS:SeriesOPreferredStockMember 2026-02-11 2026-02-11 MS:SeriesPPreferredStockMember 2026-02-11 2026-02-11 MS:SeriesQPreferredStockMember 2026-02-11 2026-02-",
+      "char_count": 8434,
+      "word_count": 1145,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/895421/000095010326001967/dp240377_8k.htm"
+    },
+    {
+      "label": "8-K 2026-01-15",
+      "text_preview": "false - 2026-01-15 2026-01-15 2026-01-15 2026-01-15 2026-01-15 2026-01-15 2026-01-15 2026-01-15 2026-01-15 2026-01-15 ms:SeriesIPreferredStockMember 2026-01-15 2026-01-15 ms:SeriesKPreferredStockMember 2026-01-15 2026-01-15 ms:SeriesLPreferredStockMember 2026-01-15 2026-01-15 ms:SeriesOPreferredStockMember 2026-01-15 2026-01-15 ms:SeriesPPreferredStockMember 2026-01-15 2026-01-15 ms:SeriesQPreferredStockMember 2026-01",
+      "char_count": 9416,
+      "word_count": 1304,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/895421/000089542126000007/ms-20260115.htm"
+    }
+  ]
+}

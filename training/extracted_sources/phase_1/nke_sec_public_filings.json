@@ -1,0 +1,177 @@
+{
+  "id": "nke_sec_public_filings",
+  "title": "NIKE, Inc. General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-nke",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent NKE SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "NIKE, Inc. General SEC Filings",
+    "company_name": "NIKE, Inc.",
+    "ticker": "NKE",
+    "cik": "0000320187",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-03-09",
+      "2026-03-05",
+      "2025-12-30",
+      "2025-12-18",
+      "2025-12-02",
+      "2025-10-01",
+      "2025-09-30",
+      "2025-09-11",
+      "2025-07-28",
+      "2025-07-17"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Cash used by financing activities decreased $1,893 million, primarily driven by lower share repurchases.",
+      "As of November 30, 2025, we had repurchased 124.4 million shares at a cost of approximately $12.1 billion (an average price of $97.57 per share) under this $18 billion share repurchase program."
+    ],
+    "liquidity_notes": [
+      "The Company considers all available-for-sale debt securities, including those with maturity dates beyond 12 months, as available to support current operational liquidity needs and, therefore, classifies all securities with maturity dates beyond three months at the date of purchase as current assets within Short-term investments on the Consolidated Balance Sheets."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "We carry out a variety of ongoing procedures, under the supervision and with the participation of our management, including our Chief Executive Officer and Chief Financial Officer, to evaluate the effectiveness of the design and operation of our disclosure controls and procedures.",
+      "There have not been any changes in our internal control over financial reporting during our most recent fiscal quarter that have materially affected, or are reasonably likely to materially affect, our internal control over financial reporting.",
+      "For a discussion of these factors and other risks, refer to Risk Factors in Item 1A of Part 1 within our Annual Report on Form 10-K for the fiscal year ended May 31, 2025 (the \"Annual Report\")."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-nke",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-nke/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-nke/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-nke/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-03-09",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-03-06 2026-03-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 March 6, 2026 Date of Report (date of earliest event reported) NIKE, Inc. (Exact name of"
+      },
+      {
+        "label": "8-K 2026-03-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2026-02-27 2026-02-27 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 February 27, 2026 Date of Report (date of earliest event reported) NIKE, Inc. (Exact nam"
+      },
+      {
+        "label": "10-Q 2025-12-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2026 Q2 May 31 http://fasb.org/us-gaap/2024#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2024#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2024#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2024#OtherNonoperatingIncomeExpense 650 341 329 - iso4217:"
+      },
+      {
+        "label": "8-K 2025-12-18",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-12-18 2025-12-18 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 December 18, 2025 Date of Report (date of earliest event reported) NIKE, Inc. (Exact nam"
+      },
+      {
+        "label": "8-K 2025-12-02",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-12-01 2025-12-01 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 December 1, 2025 Date of Report (date of earliest event reported) NIKE, Inc. (Exact name"
+      },
+      {
+        "label": "10-Q 2025-10-01",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2026 Q1 May 31 http://fasb.org/us-gaap/2024#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2024#OtherNonoperatingIncomeExpense - 2025-06-01 2025-08-31 2025-09-24"
+      },
+      {
+        "label": "8-K 2025-09-30",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-09-30 2025-09-30 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 September 30, 2025 Date of Report (date of earliest event reported) NIKE, Inc. (Exact na"
+      },
+      {
+        "label": "8-K 2025-09-11",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-09-09 2025-09-09 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 September 9, 2025 Date of Report (date of earliest event reported) NIKE, Inc. (Exact nam"
+      },
+      {
+        "label": "8-K 2025-07-28",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-07-28 2025-07-28 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 July 28, 2025 Date of Report (date of earliest event reported) NIKE, Inc. (Exact name of"
+      },
+      {
+        "label": "10-K 2025-07-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false 2025 FY http://fasb.org/us-gaap/2024#Assets http://fasb.org/us-gaap/2024#PrepaidExpenseAndOtherAssetsCurrent http://fasb.org/us-gaap/2024#DeferredIncomeTaxesAndOtherAssetsNoncurrent http://fasb.org/us-gaap/2024#LiabilitiesAndStockholdersEquity http://fasb.org/us-gaap/2024#AccruedLiabilitie"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-03-09",
+      "text_preview": "false - 2026-03-06 2026-03-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 March 6, 2026 Date of Report (date of earliest event reported) NIKE, Inc. (Exact name of registrant as specified in its charter) Oregon 1-10635 93-0584541 (State or other jurisdiction of incorporation) (Commission File Number) (I.R.S. Employer Identification No.) ONE BOWERMAN DRIVE BEAVERTON , OR 97005-6453 (Address of principal executive offices and zip code) ( 503 ) 671-6453 Registrant's telephone number, including area code NO CHANGE (Former name or former addr",
+      "char_count": 7846,
+      "word_count": 1183,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/320187/000032018726000020/nke-20260306.htm"
+    },
+    {
+      "label": "8-K 2026-03-05",
+      "text_preview": "false - 2026-02-27 2026-02-27 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 OR 15(d) of The Securities Exchange Act of 1934 February 27, 2026 Date of Report (date of earliest event reported) NIKE, Inc. (Exact name of registrant as specified in its charter) Oregon 1-10635 93-0584541 (State or other jurisdiction of incorporation) (Commission File Number) (I.R.S. Employer Identification No.) ONE BOWERMAN DRIVE BEAVERTON , OR 97005-6453 (Address of principal executive offices and zip code) ( 503 ) 671-6453 Registrant's telephone number, including area code NO CHANGE (Former name or former",
+      "char_count": 3415,
+      "word_count": 501,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/320187/000032018726000017/nke-20260227.htm"
+    },
+    {
+      "label": "10-Q 2025-12-30",
+      "text_preview": "false 2026 Q2 May 31 http://fasb.org/us-gaap/2024#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2024#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2024#OtherNonoperatingIncomeExpense http://fasb.org/us-gaap/2024#OtherNonoperatingIncomeExpense 650 341 329 - 2025-06-01 2025-11-30 2025-12-22 2025-12-22 2025-09-01 2025-11-30 2024-09-01 2024-11-30 2024-06-01 2024-11-30 2025-11-30 2025-05-31 2025-11-30 us-gaa",
+      "char_count": 183231,
+      "word_count": 23917,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/320187/000032018725000151/nke-20251130.htm"
+    }
+  ]
+}

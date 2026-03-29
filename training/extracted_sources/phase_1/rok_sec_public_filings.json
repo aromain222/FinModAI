@@ -1,0 +1,177 @@
+{
+  "id": "rok_sec_public_filings",
+  "title": "ROCKWELL AUTOMATION, INC General SEC Filings",
+  "file_path": "/Users/averyromain/FinModAI/data/training/sec-filings-rok",
+  "source_type": "sec_public_filings",
+  "tier": "B",
+  "primary_bucket": "valuation_mechanics",
+  "secondary_bucket": "memo_style",
+  "recommended_phase": 1,
+  "template_key": "sec_public_filing",
+  "assistant_training_targets": [
+    "public filing interpretation",
+    "capital allocation extraction",
+    "liquidity and risk extraction",
+    "analyst underwriting takeaways"
+  ],
+  "source_summary": "Recent ROK SEC filings converted into underwriting-oriented disclosure summaries.",
+  "strengths": [
+    "primary-source disclosures",
+    "capital allocation signals",
+    "liquidity commentary"
+  ],
+  "weaknesses": [
+    "raw filings can be legalistic",
+    "8-K items are episodic"
+  ],
+  "fields": {
+    "title": "ROCKWELL AUTOMATION, INC General SEC Filings",
+    "company_name": "ROCKWELL AUTOMATION, INC",
+    "ticker": "ROK",
+    "cik": "0001024478",
+    "forms_covered": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_dates": [
+      "2026-02-17",
+      "2026-02-13",
+      "2026-02-05",
+      "2026-02-05",
+      "2025-11-21",
+      "2025-11-12",
+      "2025-11-06",
+      "2025-10-03",
+      "2025-08-06",
+      "2025-08-06"
+    ],
+    "capital_markets_activity": [
+      "Recent filings include debt issuance and financing-related 8-K disclosure."
+    ],
+    "capital_allocation_activity": [
+      "Outstanding common stock share repurchases of $ 2 million and $ 1 million that did not settle until the next quarter were accrued within Accounts payable at December 31, 2025 and 2024, respectively.",
+      "In our opinion, free cash flow provides useful information to investors regarding our ability to generate cash from business operations that is available for acquisitions and other investments, service of debt principal, dividends, and share repurchases."
+    ],
+    "liquidity_notes": [
+      "Recent 10-Q disclosures discuss liquidity needs and management's view of cash flow adequacy."
+    ],
+    "governance_notes": [
+      "Recent 8-K filings include governance and board composition updates."
+    ],
+    "controls_and_risk_notes": [
+      "Controls and Procedures Disclosure Controls and Procedures: We, with the participation of our Chief Executive Officer and Chief Financial Officer, have evaluated the effectiveness of our disclosure controls and procedures (as such term is defined in Rules 13a-15(e) and 15d-15(e) under the Securities Exchange Act of 1934, as amended (Exchange Act)) as of the end of the quarter covered by this report.",
+      "\u2610 Indicate by check mark whether the registrant has filed a report on and attestation to its management\u2019s assessment of the effectiveness of its internal control over financial reporting under Section 404(b) of the Sarbanes-Oxley Act (15 U.S.C.",
+      "Risk Factors , of our Annual Report on Form 10-K for the year ended September 30, 2025, and Item 1A."
+    ],
+    "analyst_relevance": [
+      "Update debt, interest, and refinancing assumptions from disclosed financing activity.",
+      "Reflect buyback pace and remaining authorization in share count and capital allocation assumptions.",
+      "Use management liquidity commentary as a check on near-term funding and rating pressure.",
+      "Treat governance and control disclosures as qualitative checks rather than direct valuation drivers."
+    ]
+  },
+  "extraction_status": "extracted",
+  "source_metadata": {
+    "dataset_slug": "sec-filings-rok",
+    "manifest_path": "/Users/averyromain/FinModAI/data/training/sec-filings-rok/manifest.json",
+    "filings_path": "/Users/averyromain/FinModAI/data/training/sec-filings-rok/filings.json",
+    "chunks_path": "/Users/averyromain/FinModAI/data/training/sec-filings-rok/chunks.jsonl",
+    "forms_queried": [
+      "10-K",
+      "10-Q",
+      "8-K"
+    ],
+    "filing_count": 10,
+    "chunk_count": 10
+  },
+  "chunking": {
+    "strategy": "filing_level",
+    "chunk_count": 10,
+    "chunks": [
+      {
+        "label": "8-K 2026-02-17",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K ROCKWELL AUTOMATION, INC false - 2026-02-10 2026-02-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): February 17, 2026 ( Fe"
+      },
+      {
+        "label": "8-K 2026-02-13",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-02-06 2025-02-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ________________ FORM 8-K ________________ CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of report (Date of earliest event reported): Febr"
+      },
+      {
+        "label": "10-Q 2026-02-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "9/30 2026 Q1 FALSE 339 339 339 339 339 339 339 268 339 - rok:segment 2025-10-01 2025-12-31 2025-12-31 2025-09-30 rok:ProductsandSolutionsMember 2025-10-01 2025-12-31 rok:Productsan"
+      },
+      {
+        "label": "8-K 2026-02-05",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-02-10 2025-02-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ________________ FORM 8-K ________________ CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of report (Date of earliest event reported): Febr"
+      },
+      {
+        "label": "8-K 2025-11-21",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K ROCKWELL AUTOMATION, INC false - 2025-11-18 2025-11-18 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): November 21, 2025 ( No"
+      },
+      {
+        "label": "10-K 2025-11-12",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "9/30 2025 FY FALSE http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2025#OtherLiabilitiesCurrent http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#AccountsPayableCurrent http://fasb.org/us-gaap/2025#GoodwillAndIntangibleAssetImpairment P"
+      },
+      {
+        "label": "8-K 2025-11-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2024-11-07 2024-11-07 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ________________ FORM 8-K ________________ CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of report (Date of earliest event reported): Nove"
+      },
+      {
+        "label": "8-K 2025-10-03",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "8-K ROCKWELL AUTOMATION, INC false - 2025-09-30 2025-09-30 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): October 3, 2025 ( Sept"
+      },
+      {
+        "label": "10-Q 2025-08-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "9/30 2025 Q3 FALSE 364 315 580 246 307 - rok:segment rok:period 2024-10-01 2025-06-30 2025-06-30 2024-09-30 rok:ProductsandSolutionsMember 2025-04-01 2025-06-30 rok:ProductsandSolu"
+      },
+      {
+        "label": "8-K 2025-08-06",
+        "start_page": null,
+        "end_page": null,
+        "text_preview": "false - 2025-08-06 2025-08-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ________________ FORM 8-K ________________ CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of report (Date of earliest event reported): Augu"
+      }
+    ]
+  },
+  "text_samples": [
+    {
+      "label": "8-K 2026-02-17",
+      "text_preview": "8-K ROCKWELL AUTOMATION, INC false - 2026-02-10 2026-02-10 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 FORM 8-K CURRENT REPORT Pursuant to Section 13 or 15(d) of the Securities Exchange Act of 1934 Date of report (Date of earliest event reported): February 17, 2026 ( February 10, 2026 ) Rockwell Automation, Inc. (Exact Name of Registrant as Specified in its Charter) Delaware 1-12383 25-1797617 (State or Other Jurisdiction of Incorporation) (Commission File Number) (IRS Employer Identification No.) 1201 South Second Street Milwaukee , Wisconsin 53204 (Address of Principal Executive Offices) (Zip Code) (414) 382-2000 (Registrant\u2019s telepho",
+      "char_count": 5086,
+      "word_count": 743,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1024478/000119312526054744/d104659d8k.htm"
+    },
+    {
+      "label": "8-K 2026-02-13",
+      "text_preview": "false - 2025-02-06 2025-02-06 UNITED STATES SECURITIES AND EXCHANGE COMMISSION Washington, D.C. 20549 ________________ FORM 8-K ________________ CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934 Date of report (Date of earliest event reported): February 13, 2026 (February 10, 2026) ________________ Rockwell Automation, Inc. (Exact name of registrant as specified in its charter) ________________ Delaware 1-12383 25-1797617 (State or other jurisdiction of incorporation) (Commission File Number) (IRS Employer Identification No.) 1201 South Second Street Milwaukee , Wisconsin 53204 (Address of principal executive offices, inc",
+      "char_count": 4303,
+      "word_count": 651,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1024478/000102447826000007/rok-20260213.htm"
+    },
+    {
+      "label": "10-Q 2026-02-05",
+      "text_preview": "9/30 2026 Q1 FALSE 339 339 339 339 339 339 339 268 339 - rok:segment 2025-10-01 2025-12-31 2025-12-31 2025-09-30 rok:ProductsandSolutionsMember 2025-10-01 2025-12-31 rok:ProductsandSolutionsMember 2024-10-01 2024-12-31 2025-10-01 2025-12-31 2024-10-01 2024-12-31 2024-10-01 2024-12-31 2024-09-30 2024-12-31 2025-09-30 2025-09-30 2025",
+      "char_count": 125661,
+      "word_count": 18060,
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1024478/000102447826000005/rok-20251231.htm"
+    }
+  ]
+}

@@ -1,0 +1,146 @@
+{
+  "id": "upslope_q4_2025",
+  "title": "Upslope Capital 2025 Q4 Letter",
+  "file_path": "/Users/averyromain/Downloads/Upslope+-+2025Q4+Letter.pdf",
+  "source_type": "investor_letter",
+  "tier": "B+",
+  "primary_bucket": "memo_style",
+  "secondary_bucket": "special_situations",
+  "recommended_phase": 2,
+  "template_key": "investor_letter",
+  "assistant_training_targets": [
+    "thesis articulation",
+    "portfolio commentary",
+    "risk framing",
+    "what changed",
+    "decision language"
+  ],
+  "source_summary": "Real hedge fund letter with concrete long-short exposure, contributor-detractor framing, and concise single-name thesis writeups.",
+  "strengths": [
+    "long-short portfolio construction language",
+    "exposure framing",
+    "concise thesis summaries"
+  ],
+  "weaknesses": [
+    "narrower than the strongest letters",
+    "some rhetorical market framing"
+  ],
+  "fields": {
+    "title": "Upslope Capital 2025 Q4 Letter",
+    "manager": "George K. Livadas",
+    "date": "January 13, 2026",
+    "strategy_style": "long/short, value-oriented, hedge-fund style",
+    "performance_context": [
+      "Upslope\u2019s objective is to deliver attractive, equity-like returns with significantly reduced market risk and low correlation versus traditional equity strategies. Q4 marked a solid ending to a strong year for Upslope \u2013 one that saw the Fund deliver strong absolute and relative re",
+      "Upslope Exposure & Returns1 Benchmark Returns Average Net Long2 Net Return S&P Midcap 400 ETF (MDY) HFRX Equity Hedge Index Q4 2025 34% +2.0% +1.6% +1.6% FY 2025 40% +14.8% +7.2% +10.1% Since Inception 36% +10.6% +9.7% +5.3% Downside Deviation 5.6% 12.6% 4.5% Sortino Ratio3 1.54 ",
+      "1 See important performance-related details and disclosures in Appendix A. 2 Beta-/delta-adjusted. 3 Calculated as: (Net return since inception - 2.0% risk-free rate) / downside deviation. 4 Source: CNBC transcript from May 7, 2024."
+    ],
+    "top_themes": [
+      "ETF (MDY)",
+      "PORTFOLIO POSITIONING",
+      "PORTFOLIO UPDATES",
+      "CLOSING THOUGHTS",
+      "IMPORTANT DISCLOSURES"
+    ],
+    "positions_discussed": [
+      "Upslope Exposure & Returns1 Benchmark Returns",
+      "MDY",
+      "Top Contributors Top Detractors",
+      "Key Exits",
+      "New Longs",
+      "Booz Allen Hamilton",
+      "BAH",
+      "CCK",
+      "Henry Schein",
+      "HSIC"
+    ],
+    "thesis_points": [
+      "Upslope\u2019s objective is to deliver attractive, equity-like returns with significantly reduced market risk and low correlation versus traditional equity strategies. Q4 marked a solid ending to a strong year for Upslope \u2013 one that saw the Fund deliver strong absolute and relative re",
+      "While BAH has seen earnings and contract award headwinds under the new administration, Upslope\u2019s view is that these will prove temporary and that the stock\u2019s current valuation more than compensates investors for short-term challenges and uncertainty. More importantly, Booz should",
+      "While defensive stocks have been extremely out of favor for some time, Crown has continued to execute well, seeing steady growth and positive earnings revisions. As a result of this and the unfavorable environment for defensives, shares have remained cheap at just 13x earnings an",
+      "Upslope first initiated a \u201cStarter\u201d position in Fanuc in April 2025. It has been an undisclosed Starter since and has grown (both organically and inorganically) into a full-sized position. A somewhat belated overview of Upslope\u2019s thesis is below.",
+      "Given Fanuc\u2019s dominant, embedded position in industrial automation and robotics, few companies appear better positioned to benefit from the potential move of AI into the \u201cphysical\u201d world. Rising trade barriers, which effectively boost global reshoring, sho uld also provide an ove"
+    ],
+    "valuation_language": [
+      "Upslope Exposure & Returns1 Benchmark Returns Average Net Long2 Net Return S&P Midcap 400 ETF (MDY) HFRX Equity Hedge Index Q4 2025 34% +2.0% +1.6% +1.6% FY 2025 40% +14.8% +7.2% +10.1% Since Inception 36% +10.6% +9.7% +5.3% Downside Deviation 5.6% 12.6% 4.5% Sortino Ratio3 1.54 ",
+      "While markets are ever-changing, the pace has felt much faster over the last few years. Two related shifts stand out. First, gambling \u2013 on sports, geopolitics, and stocks/options \u2013 is absolutely everywhere. This is a big and unfortunate cultural shift. Second, AI is also everywhe",
+      "In today\u2019s market, it certainly feels as if most dollars are being invested exactly like this: aggressive, thematic, and very short-term-focused. While it works for many (and I won\u2019t pretend Upslope hasn\u2019t participated at times), it also creates more opportunities than ever for n",
+      "1 See important performance-related details and disclosures in Appendix A. 2 Beta-/delta-adjusted. 3 Calculated as: (Net return since inception - 2.0% risk-free rate) / downside deviation. 4 Source: CNBC transcript from May 7, 2024.",
+      "As of this writing , gross and beta-adjusted net exposures were 174% and 40%, respectively. Positioning reflects a high number of perceived opportunities on both (long + short) sides of the portfolio . Gross is elevated above the Fund\u2019s typical 150% ceiling due to hedged position"
+    ],
+    "risks_discussed": [
+      "Upslope\u2019s objective is to deliver attractive, equity-like returns with significantly reduced market risk and low correlation versus traditional equity strategies. Q4 marked a solid ending to a strong year for Upslope \u2013 one that saw the Fund deliver strong absolute and relative re",
+      "In today\u2019s market, it certainly feels as if most dollars are being invested exactly like this: aggressive, thematic, and very short-term-focused. While it works for many (and I won\u2019t pretend Upslope hasn\u2019t participated at times), it also creates more opportunities than ever for n",
+      "1 See important performance-related details and disclosures in Appendix A. 2 Beta-/delta-adjusted. 3 Calculated as: (Net return since inception - 2.0% risk-free rate) / downside deviation. 4 Source: CNBC transcript from May 7, 2024.",
+      "The Fund also exited West Pharmaceutical (WST, producer of packaging/components for injectable drug delivery devices). This was due to better perceived risk/reward for existing and new components of the Fund\u2019s healthcare \u201cbasket\u201d (which includes: STERIS, Bio-Rad, and recently add",
+      "While BAH has seen earnings and contract award headwinds under the new administration, Upslope\u2019s view is that these will prove temporary and that the stock\u2019s current valuation more than compensates investors for short-term challenges and uncertainty. More importantly, Booz should"
+    ],
+    "portfolio_actions": [
+      "Upslope\u2019s objective is to deliver attractive, equity-like returns with significantly reduced market risk and low correlation versus traditional equity strategies. Q4 marked a solid ending to a strong year for Upslope \u2013 one that saw the Fund deliver strong absolute and relative re",
+      "\u201c\u2026do you want to hear how I invested in Argentina? It\u2019s a funny story \u2026I saw the speech in Davos and it was about 1:00 in the afternoon in my office. I dialed up Perplexity [AI] and I said, give me the five most liquid ADRs in Argentina\u2026It gave me enough of a description that I f",
+      "Key Exits",
+      "The Fund exited Chemring (CHG-LON, UK-based niche defense contractor focused on specialty explosives and cyber warfare ) due to full valuation and a view that the conflict in Ukraine is increasingly likely to begin winding down . This marks the first time since early 2022 that Up",
+      "The Fund also exited West Pharmaceutical (WST, producer of packaging/components for injectable drug delivery devices). This was due to better perceived risk/reward for existing and new components of the Fund\u2019s healthcare \u201cbasket\u201d (which includes: STERIS, Bio-Rad, and recently add"
+    ],
+    "tone_notes": "Real hedge fund letter with concrete long-short exposure, contributor-detractor framing, and concise single-name thesis writeups.",
+    "best_quotes_or_phrases": []
+  },
+  "source_metadata": {
+    "file_present": true,
+    "source_extension": ".pdf",
+    "extraction_mode": "pdf_text",
+    "page_count": 10,
+    "headings_detected": [
+      "ETF (MDY)",
+      "PORTFOLIO POSITIONING",
+      "PORTFOLIO UPDATES",
+      "CLOSING THOUGHTS",
+      "IMPORTANT DISCLOSURES"
+    ]
+  },
+  "chunking": {
+    "strategy": "page_groups",
+    "chunk_count": 5,
+    "chunks": [
+      {
+        "label": "pages_1_2",
+        "start_page": 1,
+        "end_page": 2,
+        "text_preview": "- 1 - \n2025-Q4 Update January 13, 2026 \n \n \nDear Fellow Investor, \n \nUpslope\u2019s objective is to deliver attractive, equity-like returns with significantly reduced market risk \nand low correlation versus traditional equity strategies. Q4 marked a solid ending to a strong year for \nUpslope \u2013 one that saw the Fund deliver strong absolute and relative returns with lower downside volatility. \n \n Upslope Exposure & Returns1 Benchmark Returns \n Average \nNet Long2 \nNet \nReturn \nS&P Midcap 400 \nETF (MDY) \nHFRX Equity \nHedge Index \nQ4 2025 34% +2.0% +1.6% +1.6% \nFY 2025 40% +14.8% +7.2% +10.1% \nSince Inception 36% +10.6% +9.7% +5.3% \n Downside Deviation 5.6% 12.6% 4.5% \n Sortino Ratio3 1.54 0.61 0.73 \nNote: LPs/clients should always check individual statements for returns, which may vary due to timing, fee schedules and \nother factors. Since inception returns, downside standard deviation, and Sortino are all annualized figures. \n \nMARKET CONDITIONS \u2013 DRUCK.AI \n \nWhile markets are ever-changing, the pace has felt much faster over the last few years. Two related shifts \nstand out. First, gambling \u2013 on sports, geopolitics, and stocks/options \u2013 is absolutely everywhere. This is a \nbig and unfortunate cultural shift. Second, AI is also everywhere \u2013 particularly on the desktops of buyside \nanalysts and PMs. I suspect this technological shift is part of a not-so-virtuous cycle with the cultural shift \ntowards gambling. A couple years ago legendary investor Stan Druckenmiller noted how he made "
+      },
+      {
+        "label": "pages_3_4",
+        "start_page": 3,
+        "end_page": 4,
+        "text_preview": "- 3 - \nPORTFOLIO UPDATES \n \nThe largest individual contributors to and detractors from quarterly performance are noted below. Gross \ncontribution to overall portfolio return is noted in parentheses. \n \nExhibit 3: Top Contributors to Quarterly Performance (Gross) \n \nTop Contributors Top Detractors \nLong: Alphabet (+145 bps) Long: Chemring (-135 bps) \nShort: Technology Co (+140 bps) Short: Teledyne (-75 bps) \nLong: Fanuc (+125 bps) Long: Korea Defense ETF (-65 bps) \n \nLongs \u2013 Total Contribution Shorts \u2013 Total Contribution \n+375 bps -120 bps \nSource: Upslope, Opus Fund Services, Interactive Brokers \nNote: Amounts may not tie with aggregate performance figures due to rounding. \n \nKey Exits \n \nThe Fund exited Chemring (CHG-LON, UK-based niche defense contractor focused on specialty \nexplosives and cyber warfare ) due to full valuation and a view that the conflict in Ukraine is increasingly \nlikely to begin winding down . This marks the first time since early 2022 that Upslope is not long any \nEuropean defense stocks. While the outlook for the sector seems likely to remain bright for years to come, \nthis appears more than adequately reflected in valuations and investor sentiment. \n \nThe Fund also exited West Pharmaceutical (WST, producer of packaging/components for injectable drug \ndelivery devices). This was due to better perceived risk/reward for existing and new components of the \nFund\u2019s healthcare \u201cbasket\u201d (which includes: STERIS, Bio-Rad, and recently added Henry Schein). \n \nN"
+      },
+      {
+        "label": "pages_5_6",
+        "start_page": 5,
+        "end_page": 6,
+        "text_preview": "- 5 - \nU.S., 28% EMEA, 20% Canada/RoW) in which it operates \u2013 generally holding ~25-40% share. Historically, \nthe company has been a slow, steady and mostly a-cyclical grower. \n \nIn January 2025, KKR announced an agreement to take a strategic stake in Henry Schein. Given their now-\n15% stake (up from an initial 12%), KKR has actively worked with the board and management to enhance \nshareholder value. In addition to cost controls, the company has also focused on and seen accelerated \ngrowth in its smaller, but (much) higher margin segments (Specialty Products, which includes the \ncompany\u2019s private label offerings, and Technology). At just 15x 2026 consensus earnings (vs. 12 -25x \nhistorically), with a highly defensive business model, and optionality surrounding KKR\u2019s stake and \ninvolvement (continue to improve the business or potentially take it private), HSIC shares appear attractive. \n \nKey risks for the company and shares include: uncertainty surrounding KKR\u2019s stake, CEO transition \n(potentially a positive as efficiency efforts accelerate , but still presents uncertainty), consolidating end \nmarkets, and broader healthcare policy uncertainty. \n \n \nCLOSING THOUGHTS \nIn the current environment, it is not difficult to find higher quality businesses trading at attractive valuations. \nIt is very difficult to be confident shares of such businesses will outperform in the near - or even medium-\nterm. This is against a backdrop where the m acro and ge opolitical risks are extremely "
+      },
+      {
+        "label": "pages_7_8",
+        "start_page": 7,
+        "end_page": 8,
+        "text_preview": "- 7 - \nAppendix B: Portfolio Company (Long) Descriptions5 \nBio-Rad Laboratories (BIO) : Global producer of clinical diagnostic and life sciences products, serving hospital and \nother labs, as well as academic, government, and biopharma customers. Also owns 35%+ of Sartorius (SRT -DE), a \nglobal leader in bioprocessing tools, equipment, and consumables. \nBooz Allen Hamilton (BAH) : Defense/security-focused consulting firm recently out of favor due to the prospect of \ngovernment funding cuts. Enjoys long-term secular tailwinds from rising geopolitical uncertainty and defense spending, \nas well as increasing pace of technological change. \nCrown Holdings (CCK) : One of the leading global aluminum beverage can producers, with strong geographic \ndiversification. Decade-low leverage and EV multiples provide an attractive entry point for a company operating well in \nan out of favor staples-like sector. \nDiploma (DPLM -LON): U.K.-based specialty distributor focused on essential consumable products across life \nsciences, seals (machinery), and controls (aerospace wiring/harnesses). Unique model and conservative M&A strategy \nhave historically enabled attractive free cash flow growth through the cycle. \nFanuc (6954 -JP): Leading global factory automation business exposed to reshoring and physical AI tailwinds. \nReasonable valuation and undemanding consensus outlook. Position is highly complementary to Upslope\u2019s long and \nshort holdings. \nFTI Consulting (FCN): Boutique consulting and adv"
+      },
+      {
+        "label": "pages_9_10",
+        "start_page": 9,
+        "end_page": 10,
+        "text_preview": "- 9 - \nIMPORTANT DISCLOSURES \nGeneral \n \nUpslope Capital Management, LLC (\u201cUpslope\u201d) is a Colorado registered investment adviser. Information presented is for discussion \nand educational purposes only. This presentation is not an offer to sell securities of any investment fund or a solicitation of offers \nto buy any such securities. Securities of the fund managed by Upslope are offered to selected investors only by means of a \ncomplete offering memorandum and related subscription materials which contain significant additional information about the terms \nof an investment in the fund (such documents, the \u201cOffering Documents\u201d). Any decision to invest must be based solely upon the \ninformation set forth in the Offering Documents, regardless of any information investors may have been otherwise furnished, \nincluding this presentation. Investments involve risk and, unless otherwise stated, are not guaranteed. \n \nThe information in this presentation was prepared by Upslope and is believed by Upslope to be reliable and has been obtained \nfrom public sources believed to be reliable. Upslope makes no representation as to the accuracy or completeness of such \ninformation. Opinions, estimates and projections in this presentation constitute the current judgment of Upslope and are subject to \nchange without notice. Any projections, forecasts and estimates contained in this presentation are necessarily speculative in nature \nand are based upon certain assumptions. It can be expected that so"
+      }
+    ]
+  },
+  "text_samples": [
+    "- 1 - \n2025-Q4 Update January 13, 2026 \n \n \nDear Fellow Investor, \n \nUpslope\u2019s objective is to deliver attractive, equity-like returns with significantly reduced market risk \nand low correlation versus traditional equity strategies. Q4 marked a solid ending to a strong year for \nUpslope \u2013 one that saw the Fund deliver strong absolute and relative returns with lower downside volatility. \n \n Upslope Exposure & Returns1 Benchmark Returns \n Average \nNet Long2 \nNet \nReturn \nS&P Midcap 400 \nETF (MDY) \nHFRX Equity \nHedge Index \nQ4 2025 34% +2.0% +1.6% +1.6% \nFY 2025 40% +14.8% +7.2% +10.1% \nSince Inception 36% +10.6% +9.7% +5.3% \n Downside Deviation 5.6% 12.6% 4.5% \n Sortino Ratio3 1.54 0.61 0.73 \nNote: LPs/clients should always check individual statements for returns, which may vary due to timing, fee schedules and \nother factors. Since inception returns, downside standard deviation, and Sortino are all annualized figures. \n \nMARKET CONDITIONS \u2013 DRUCK.AI \n \nWhile markets are ever-changing, the pace has felt much faster over the last few years. Two related shifts \nstand out. First, gambling \u2013 on sports, geopolitics, and stocks/options \u2013 is absolutely everywhere. This is a \nbig and unfortunate cultural shift. Second, AI is also everywhere \u2013 particularly on the desktops of buyside \nanalysts and PMs. I suspect this technological shift is part of a not-so-virtuous cycle with the cultural shift \ntowards gambling. A couple years ago legendary investor Stan Druckenmiller noted how he made ",
+    "- 3 - \nPORTFOLIO UPDATES \n \nThe largest individual contributors to and detractors from quarterly performance are noted below. Gross \ncontribution to overall portfolio return is noted in parentheses. \n \nExhibit 3: Top Contributors to Quarterly Performance (Gross) \n \nTop Contributors Top Detractors \nLong: Alphabet (+145 bps) Long: Chemring (-135 bps) \nShort: Technology Co (+140 bps) Short: Teledyne (-75 bps) \nLong: Fanuc (+125 bps) Long: Korea Defense ETF (-65 bps) \n \nLongs \u2013 Total Contribution Shorts \u2013 Total Contribution \n+375 bps -120 bps \nSource: Upslope, Opus Fund Services, Interactive Brokers \nNote: Amounts may not tie with aggregate performance figures due to rounding. \n \nKey Exits \n \nThe Fund exited Chemring (CHG-LON, UK-based niche defense contractor focused on specialty \nexplosives and cyber warfare ) due to full valuation and a view that the conflict in Ukraine is increasingly \nlikely to begin winding down . This marks the first time since early 2022 that Upslope is not long any \nEuropean defense stocks. While the outlook for the sector seems likely to remain bright for years to come, \nthis appears more than adequately reflected in valuations and investor sentiment. \n \nThe Fund also exited West Pharmaceutical (WST, producer of packaging/components for injectable drug \ndelivery devices). This was due to better perceived risk/reward for existing and new components of the \nFund\u2019s healthcare \u201cbasket\u201d (which includes: STERIS, Bio-Rad, and recently added Henry Schein). \n \nN",
+    "- 5 - \nU.S., 28% EMEA, 20% Canada/RoW) in which it operates \u2013 generally holding ~25-40% share. Historically, \nthe company has been a slow, steady and mostly a-cyclical grower. \n \nIn January 2025, KKR announced an agreement to take a strategic stake in Henry Schein. Given their now-\n15% stake (up from an initial 12%), KKR has actively worked with the board and management to enhance \nshareholder value. In addition to cost controls, the company has also focused on and seen accelerated \ngrowth in its smaller, but (much) higher margin segments (Specialty Products, which includes the \ncompany\u2019s private label offerings, and Technology). At just 15x 2026 consensus earnings (vs. 12 -25x \nhistorically), with a highly defensive business model, and optionality surrounding KKR\u2019s stake and \ninvolvement (continue to improve the business or potentially take it private), HSIC shares appear attractive. \n \nKey risks for the company and shares include: uncertainty surrounding KKR\u2019s stake, CEO transition \n(potentially a positive as efficiency efforts accelerate , but still presents uncertainty), consolidating end \nmarkets, and broader healthcare policy uncertainty. \n \n \nCLOSING THOUGHTS \nIn the current environment, it is not difficult to find higher quality businesses trading at attractive valuations. \nIt is very difficult to be confident shares of such businesses will outperform in the near - or even medium-\nterm. This is against a backdrop where the m acro and ge opolitical risks are extremely ",
+    "- 7 - \nAppendix B: Portfolio Company (Long) Descriptions5 \nBio-Rad Laboratories (BIO) : Global producer of clinical diagnostic and life sciences products, serving hospital and \nother labs, as well as academic, government, and biopharma customers. Also owns 35%+ of Sartorius (SRT -DE), a \nglobal leader in bioprocessing tools, equipment, and consumables. \nBooz Allen Hamilton (BAH) : Defense/security-focused consulting firm recently out of favor due to the prospect of \ngovernment funding cuts. Enjoys long-term secular tailwinds from rising geopolitical uncertainty and defense spending, \nas well as increasing pace of technological change. \nCrown Holdings (CCK) : One of the leading global aluminum beverage can producers, with strong geographic \ndiversification. Decade-low leverage and EV multiples provide an attractive entry point for a company operating well in \nan out of favor staples-like sector. \nDiploma (DPLM -LON): U.K.-based specialty distributor focused on essential consumable products across life \nsciences, seals (machinery), and controls (aerospace wiring/harnesses). Unique model and conservative M&A strategy \nhave historically enabled attractive free cash flow growth through the cycle. \nFanuc (6954 -JP): Leading global factory automation business exposed to reshoring and physical AI tailwinds. \nReasonable valuation and undemanding consensus outlook. Position is highly complementary to Upslope\u2019s long and \nshort holdings. \nFTI Consulting (FCN): Boutique consulting and adv",
+    "- 9 - \nIMPORTANT DISCLOSURES \nGeneral \n \nUpslope Capital Management, LLC (\u201cUpslope\u201d) is a Colorado registered investment adviser. Information presented is for discussion \nand educational purposes only. This presentation is not an offer to sell securities of any investment fund or a solicitation of offers \nto buy any such securities. Securities of the fund managed by Upslope are offered to selected investors only by means of a \ncomplete offering memorandum and related subscription materials which contain significant additional information about the terms \nof an investment in the fund (such documents, the \u201cOffering Documents\u201d). Any decision to invest must be based solely upon the \ninformation set forth in the Offering Documents, regardless of any information investors may have been otherwise furnished, \nincluding this presentation. Investments involve risk and, unless otherwise stated, are not guaranteed. \n \nThe information in this presentation was prepared by Upslope and is believed by Upslope to be reliable and has been obtained \nfrom public sources believed to be reliable. Upslope makes no representation as to the accuracy or completeness of such \ninformation. Opinions, estimates and projections in this presentation constitute the current judgment of Upslope and are subject to \nchange without notice. Any projections, forecasts and estimates contained in this presentation are necessarily speculative in nature \nand are based upon certain assumptions. It can be expected that so"
+  ],
+  "extraction_status": "extracted",
+  "extracted_at": "2026-03-27T18:50:11.366226+00:00"
+}
