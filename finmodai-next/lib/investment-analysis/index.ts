@@ -97,6 +97,8 @@ export type {
   InvestmentEventClassificationInput,
   InvestmentEventClassificationResult,
   InvestmentEventConfidence,
+  InvestmentHistoricalPattern,
+  InvestmentHistoricalPatternMatchResult,
   InvestmentEventTaxonomyEntry,
 } from '@/lib/investment-analysis/eventTypes';
 
@@ -107,6 +109,10 @@ export {
 export {
   classifyInvestmentEvent,
 } from '@/lib/investment-analysis/eventClassifier';
+
+export {
+  mapEventToHistoricalPatterns,
+} from '@/lib/investment-analysis/historicalPatterns';
 
 export type {
   InvestmentEventAssumptionDelta,
