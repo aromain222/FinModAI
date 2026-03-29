@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import type { UploadedAttachmentContext } from '@/lib/analyst/attachmentContext';
+import { extractPdfStatementPackage } from '@/lib/analyst/pdfFinancialStatements';
 import { routeAnalystQuery, type AnalystRoute } from '@/lib/analyst/router';
 import { retrieveDataForRoute } from '@/lib/analyst/dataRetrieval';
 import { extractVerifiedFacts, serializeFactsBriefForContext, type VerifiedFacts } from '@/lib/analyst/factsExtractor';
@@ -266,6 +267,15 @@ function attachmentContextBlock(attachment: UploadedAttachmentContext): string {
     `Size: ${attachment.sizeKb}kb`,
     warnings ? warnings.trimEnd() : null,
     signalLines,
+    attachment.statementPackage?.snapshot
+      ? `Structured statements extracted: ${[
+          attachment.statementPackage.incomeStatement.length > 0 ? 'income statement' : null,
+          attachment.statementPackage.balanceSheet.length > 0 ? 'balance sheet' : null,
+          attachment.statementPackage.cashFlowStatement.length > 0 ? 'cash flow statement' : null,
+        ]
+          .filter((item): item is string => Boolean(item))
+          .join(', ') || 'statement package'}`
+      : null,
     'Use this uploaded artifact as primary context when the user asks to explain, interpret, or turn it into a model.',
     `Attachment summary:\n${attachment.summary}`,
   ]
@@ -516,10 +526,12 @@ async function hydrateAttachmentContext(
       .replace(/\n{3,}/g, '\n\n')
       .trim();
     if (!extractedText) return attachment;
+    const statementPackage = extractPdfStatementPackage(extractedText) ?? attachment.statementPackage;
     return {
       ...attachment,
       summary: extractedText.slice(0, 7000),
       rawText: extractedText.slice(0, 120000),
+      ...(statementPackage ? { statementPackage } : {}),
       warnings: attachment.warnings.filter(
         (warning) => !warning.toLowerCase().includes('client-side pdf preview extraction'),
       ),
@@ -1019,6 +1031,7 @@ export async function POST(req: NextRequest) {
         const demo = await generateAnalystDcfDemo({
           prompt: effectiveUserMessage,
           explicitTicker: resolvedTicker,
+          attachmentStatementSnapshot: attachmentContext?.statementPackage?.snapshot ?? null,
         });
         const visualization = buildRevenueForecastVisualizationFromDcf(demo.payload);
         return NextResponse.json({
@@ -1049,7 +1062,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (route.intent === 'financial_model' || shouldReviseCurrentModel || shouldVisualizeCurrentModel || shouldVisualizeCurrentDcf) {
-      const modelType = classifyPrompt(lastUserMessage) ?? attachmentContext?.signals?.modelTypeHint ?? null;
+      const promptSelectedModelType = classifyPrompt(lastUserMessage);
+      const modelType =
+        promptSelectedModelType ??
+        (!attachmentContext?.statementPackage ? attachmentContext?.signals?.modelTypeHint ?? null : null);
       const coreTemplateModel = detectCoreTemplatePrompt(lastUserMessage);
 
       if (shouldVisualizeCurrentDcf && currentDcf) {
@@ -1176,7 +1192,9 @@ export async function POST(req: NextRequest) {
           classifyPrompt(lastUserMessage) === null && attachmentContext?.signals?.modelTypeHint === modelType
             ? `Build a ${modelType.replace(/_/g, ' ')} model using the uploaded context.\n\n${effectiveUserMessage}`
             : effectiveUserMessage;
-        const generatedModel = await generateAnalystStructuredModel(normalizedModelPrompt, sessionId);
+        const generatedModel = await generateAnalystStructuredModel(normalizedModelPrompt, sessionId, {
+          attachmentStatementSnapshot: attachmentContext?.statementPackage?.snapshot ?? null,
+        });
         if (generatedModel) {
           try {
             await savePromptModelRunVersion({
@@ -1245,6 +1263,7 @@ export async function POST(req: NextRequest) {
             ? `Build a DCF using the uploaded context.\n\n${effectiveUserMessage}`
             : effectiveUserMessage,
         explicitTicker: resolvedTicker,
+        attachmentStatementSnapshot: attachmentContext?.statementPackage?.snapshot ?? null,
       });
 
       return NextResponse.json({

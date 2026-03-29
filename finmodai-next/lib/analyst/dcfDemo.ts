@@ -6,6 +6,7 @@ import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKe
 import { inferTickerFromPrompt } from '@/lib/analyst/retrieval';
 import { resolveCompanyProfile } from '@/lib/data/company/resolveCompanyProfile';
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
+import type { AttachmentStatementSnapshot } from '@/lib/analyst/pdfFinancialStatements';
 
 export type AnalystDcfScenarioKey = 'base' | 'bull' | 'bear';
 
@@ -430,6 +431,35 @@ function mapStoredProfileToSnapshot(
       sharePrice: resolved.latestPrice?.close ?? null,
       marketCap: resolved.snapshot.marketCap,
       updatedAt: resolved.snapshot.asOfDate ?? null,
+    },
+  };
+}
+
+function buildResolvedCompanyFromAttachment(snapshot: AttachmentStatementSnapshot): ResolvedCompany | null {
+  if (!(typeof snapshot.revenue === 'number' && snapshot.revenue > 0)) return null;
+  const ticker = snapshot.ticker?.trim().toUpperCase() || 'ATTACHMENT';
+  return {
+    ticker,
+    source: snapshot.source,
+    asOfDate: snapshot.reportEndDate ?? null,
+    snapshot: {
+      ticker,
+      companyName: snapshot.companyName ?? ticker,
+      sector: null,
+      revenueLtm: snapshot.revenue,
+      grossProfitLtm: snapshot.grossProfit ?? null,
+      ebitLtm: snapshot.operatingIncome ?? null,
+      ebitdaLtm: snapshot.ebitda ?? null,
+      netIncomeLtm: snapshot.netIncome ?? null,
+      cash: snapshot.cash ?? null,
+      totalDebt: snapshot.totalDebt ?? null,
+      sharesOutstanding: snapshot.sharesOutstanding ?? null,
+      sharePrice: null,
+      marketCap: null,
+      updatedAt: snapshot.reportEndDate ?? null,
+      sourceMap: {
+        attachment: snapshot.source,
+      },
     },
   };
 }
@@ -1475,6 +1505,7 @@ export async function reviseAnalystDcfDemoFromEventShock(
 export async function generateAnalystDcfDemo(params: {
   prompt: string;
   explicitTicker?: string;
+  attachmentStatementSnapshot?: AttachmentStatementSnapshot | null;
 }): Promise<{
   reply: string;
   payload: AnalystDcfDemoPayload;
@@ -1484,14 +1515,18 @@ export async function generateAnalystDcfDemo(params: {
   const resolved = comparisonPair
     ? await hydrateResolvedCompany(comparisonPair.primary)
     : await resolveCompanyForDcf(params.prompt, params.explicitTicker);
+  const attachmentResolved = params.attachmentStatementSnapshot
+    ? buildResolvedCompanyFromAttachment(params.attachmentStatementSnapshot)
+    : null;
+  const effectiveResolved = attachmentResolved ?? resolved;
 
-  if (!resolved?.snapshot) {
+  if (!effectiveResolved?.snapshot) {
     throw new Error('No matching company profile was found for this prompt.');
   }
 
-  const parsed = parseDcfPrompt(params.prompt, resolved.ticker);
-  const snapshot = resolved.snapshot;
-  const companyName = snapshot.companyName || resolved.ticker;
+  const parsed = parseDcfPrompt(params.prompt, effectiveResolved.ticker);
+  const snapshot = effectiveResolved.snapshot;
+  const companyName = snapshot.companyName || effectiveResolved.ticker;
   const revenueLtm = snapshot.revenueLtm ?? 0;
   if (!(revenueLtm > 0)) {
     throw new Error(`Cached demo financials for ${resolved.ticker} are incomplete.`);
@@ -1513,7 +1548,7 @@ export async function generateAnalystDcfDemo(params: {
   const aiPatch = await generateAiAssumptionPatch({
     prompt: params.prompt,
     companyName,
-    ticker: resolved.ticker,
+    ticker: effectiveResolved.ticker,
     sector: snapshot.sector ?? null,
     revenueLtm,
     ebitdaMargin,
@@ -1561,11 +1596,11 @@ export async function generateAnalystDcfDemo(params: {
 
   return buildAnalystDcfDemoFromPayload({
     prompt: params.prompt,
-    ticker: resolved.ticker,
+    ticker: effectiveResolved.ticker,
     companyName,
     sector: snapshot.sector ?? null,
-    source: resolved.source,
-    asOfDate: resolved.asOfDate ?? snapshot.updatedAt ?? null,
+    source: effectiveResolved.source,
+    asOfDate: effectiveResolved.asOfDate ?? snapshot.updatedAt ?? null,
     years: parsed.years,
     baseMetrics: {
       revenueLtm,

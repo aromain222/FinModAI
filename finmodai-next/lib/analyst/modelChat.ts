@@ -1,4 +1,5 @@
 import { classifyPrompt, type ModelGeneratorType } from '@/lib/model-generator/classifyPrompt';
+import type { AttachmentStatementSnapshot } from '@/lib/analyst/pdfFinancialStatements';
 import {
   extractInputs,
   type CompsPeerInputs,
@@ -1269,14 +1270,22 @@ export async function reviseAnalystStructuredModelFromOverrides(
   };
 }
 
-export async function generateAnalystStructuredModel(prompt: string, sessionId?: string | null): Promise<{
+export async function generateAnalystStructuredModel(
+  prompt: string,
+  sessionId?: string | null,
+  options: {
+    attachmentStatementSnapshot?: AttachmentStatementSnapshot | null;
+  } = {},
+): Promise<{
   reply: string;
   payload: AnalystGeneratedModelPayload;
 } | null> {
   const modelType = classifyPrompt(prompt);
   if (!modelType || modelType === 'DCF') return null;
 
-  const extraction = await extractInputs(prompt, modelType);
+  const extraction = await extractInputs(prompt, modelType, {
+    attachmentStatementSnapshot: options.attachmentStatementSnapshot ?? null,
+  });
   return buildStructuredModelPayload({
     prompt,
     modelType,

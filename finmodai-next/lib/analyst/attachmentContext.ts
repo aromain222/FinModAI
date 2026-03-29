@@ -1,3 +1,9 @@
+import {
+  extractPdfStatementPackage,
+  type AttachmentStatementSnapshot,
+  type PdfStatementPackage,
+} from '@/lib/analyst/pdfFinancialStatements';
+
 export type AttachmentKind = 'earnings_report' | 'model_workbook' | 'spreadsheet' | 'document';
 
 export type AttachmentSignals = {
@@ -19,6 +25,7 @@ export type UploadedAttachmentContext = {
   rawText?: string;
   rawBase64?: string;
   signals?: AttachmentSignals;
+  statementPackage?: PdfStatementPackage;
 };
 
 const MAX_SPREADSHEET_SIZE_BYTES = 5 * 1024 * 1024;
@@ -224,6 +231,52 @@ function buildSignals(text: string): AttachmentSignals | undefined {
   };
 }
 
+function buildMetricsFromStatementSnapshot(snapshot: AttachmentStatementSnapshot): Array<{ label: string; value: string }> {
+  const metrics: Array<{ label: string; value: string }> = [];
+  const formatMoney = (value: number | null) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+    if (Math.abs(value) >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(1)}B`;
+    if (Math.abs(value) >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
+    return `$${Math.round(value).toLocaleString('en-US')}`;
+  };
+  const candidates: Array<[string, number | null]> = [
+    ['Revenue', snapshot.revenue],
+    ['EBITDA', snapshot.ebitda],
+    ['Operating income', snapshot.operatingIncome],
+    ['Net income', snapshot.netIncome],
+    ['Cash', snapshot.cash],
+    ['Total debt', snapshot.totalDebt],
+  ];
+  for (const [label, value] of candidates) {
+    const formatted = formatMoney(value);
+    if (formatted) metrics.push({ label, value: formatted });
+  }
+  return metrics.slice(0, 8);
+}
+
+function mergeSignalsWithStatementPackage(
+  base: AttachmentSignals | undefined,
+  statementPackage: PdfStatementPackage | undefined,
+): AttachmentSignals | undefined {
+  if (!statementPackage?.snapshot) return base;
+  const snapshot = statementPackage.snapshot;
+  const keyLines = [
+    ...(base?.keyLines ?? []),
+    ...statementPackage.incomeStatement.slice(0, 3).map((line) => line.rawLine),
+    ...statementPackage.balanceSheet.slice(0, 2).map((line) => line.rawLine),
+    ...statementPackage.cashFlowStatement.slice(0, 2).map((line) => line.rawLine),
+  ].filter(Boolean).slice(0, 6);
+  const extractedMetrics = buildMetricsFromStatementSnapshot(snapshot);
+  return {
+    companyName: base?.companyName ?? snapshot.companyName ?? undefined,
+    ticker: base?.ticker ?? snapshot.ticker ?? undefined,
+    modelTypeHint: base?.modelTypeHint ?? 'THREE_STATEMENT',
+    fiscalPeriod: base?.fiscalPeriod ?? snapshot.fiscalPeriod ?? undefined,
+    keyLines,
+    ...(extractedMetrics.length > 0 ? { extractedMetrics } : base?.extractedMetrics ? { extractedMetrics: base.extractedMetrics } : {}),
+  };
+}
+
 function decodePdfLiteral(raw: string): string {
   return raw
     .replace(/\\([\\()])/g, '$1')
@@ -357,6 +410,7 @@ export async function parseUploadedAttachment(file: File): Promise<UploadedAttac
   let summary = '';
   let rawText: string | undefined;
   let rawBase64: string | undefined;
+  let statementPackage: PdfStatementPackage | undefined;
 
   if (
     mimeType.includes('spreadsheet') ||
@@ -376,6 +430,7 @@ export async function parseUploadedAttachment(file: File): Promise<UploadedAttac
     const arrayBuffer = await file.arrayBuffer();
     summary = extractPdfText(arrayBuffer);
     rawBase64 = arrayBufferToBase64(arrayBuffer);
+    statementPackage = extractPdfStatementPackage(summary) ?? undefined;
     if (summary.length < 200) {
       warnings.push('Client-side PDF preview extraction was limited; server-side extraction will be used for the full chat context.');
     }
@@ -392,7 +447,10 @@ export async function parseUploadedAttachment(file: File): Promise<UploadedAttac
   }
 
   const kind = inferKind(file.name, mimeType, summary);
-  const signals = buildSignals(`${summary}\n\n${rawText ?? ''}`.slice(0, 16000));
+  const signals = mergeSignalsWithStatementPackage(
+    buildSignals(`${summary}\n\n${rawText ?? ''}`.slice(0, 16000)),
+    statementPackage,
+  );
   return {
     name: file.name,
     mimeType,
@@ -403,5 +461,6 @@ export async function parseUploadedAttachment(file: File): Promise<UploadedAttac
     ...(rawText ? { rawText } : {}),
     ...(rawBase64 ? { rawBase64 } : {}),
     ...(signals ? { signals } : {}),
+    ...(statementPackage ? { statementPackage } : {}),
   };
 }

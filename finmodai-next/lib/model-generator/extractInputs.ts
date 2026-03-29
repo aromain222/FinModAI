@@ -1,4 +1,5 @@
 import { inferTickerFromPrompt } from '@/lib/analyst/retrieval';
+import type { AttachmentStatementSnapshot } from '@/lib/analyst/pdfFinancialStatements';
 import type { ProvenanceSummary } from '@/lib/model-generator/runHistory';
 import type { ModelGeneratorType } from '@/lib/model-generator/classifyPrompt';
 import {
@@ -270,6 +271,7 @@ export type ExtractInputsOptions = {
   inputOverrides?: Record<string, unknown>;
   demoSnapshotsOverride?: Record<string, DemoCompanySnapshot>;
   marketCompanyUniverseOverride?: MarketCompanyListing[];
+  attachmentStatementSnapshot?: AttachmentStatementSnapshot | null;
 };
 
 type CompanyProfile = {
@@ -980,6 +982,38 @@ function mergeSnapshotValue<T>(primary: T | null | undefined, fallback: T | null
   return fallback;
 }
 
+function attachmentHasAnyFinancials(snapshot: AttachmentStatementSnapshot | null | undefined): boolean {
+  if (!snapshot) return false;
+  return [
+    snapshot.revenue,
+    snapshot.grossProfit,
+    snapshot.operatingIncome,
+    snapshot.ebitda,
+    snapshot.netIncome,
+    snapshot.cash,
+    snapshot.totalDebt,
+    snapshot.sharesOutstanding,
+    snapshot.capex,
+    snapshot.depreciationAndAmortization,
+  ].some((value) => typeof value === 'number' && Number.isFinite(value));
+}
+
+function attachmentMarginNumerator(
+  snapshot: AttachmentStatementSnapshot | null | undefined,
+  key: 'grossProfit' | 'operatingIncome' | 'ebitda',
+): number | null {
+  if (!snapshot || typeof snapshot.revenue !== 'number' || !(snapshot.revenue > 0)) return null;
+  const numerator = snapshot[key];
+  if (typeof numerator !== 'number' || !Number.isFinite(numerator)) return null;
+  return numerator / snapshot.revenue;
+}
+
+function buildMarginSeriesFromObservedMargin(baseMargin: number, years: number, cap = 0.4): number[] {
+  return Array.from({ length: years }, (_, index) =>
+    Number(Math.min(baseMargin + index * 0.005, cap).toFixed(4)),
+  );
+}
+
 function buildMergedCompsSubjectSnapshot(params: {
   ticker: string;
   companyName: string;
@@ -1105,6 +1139,7 @@ async function buildDcfInputs(prompt: string, options: ExtractInputsOptions = {}
     nwcPctRevenue: DCF_DEFAULTS.nwcPctRevenue,
   };
 
+  const attachmentSnapshot = options.attachmentStatementSnapshot ?? null;
   const stored = await resolveStoredCompany(prompt);
   const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt, options);
   const companyType =
@@ -1117,7 +1152,12 @@ async function buildDcfInputs(prompt: string, options: ExtractInputsOptions = {}
 
   const parsedCompanyName = extractCompanyName(prompt);
   if (parsedCompanyName || stored?.company.name || resolved?.snapshot.companyName) providedInputs.add('companyName');
-  const companyName = parsedCompanyName || stored?.company.name || resolved?.snapshot.companyName || deriveCompanyLabel(companyType, 'Demo Company');
+  const companyName =
+    parsedCompanyName ||
+    attachmentSnapshot?.companyName ||
+    stored?.company.name ||
+    resolved?.snapshot.companyName ||
+    deriveCompanyLabel(companyType, 'Demo Company');
 
   const revenueGrowthInput = extractGrowthRate(prompt);
   const ebitMarginInput = extractMargin(prompt, /(?:ebit|operating)\s+margin\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*%/i);
@@ -1129,10 +1169,11 @@ async function buildDcfInputs(prompt: string, options: ExtractInputsOptions = {}
   if (ebitMarginInput !== undefined) providedInputs.add('ebitMargin');
   if (waccInput !== undefined) providedInputs.add('wacc');
   if (terminalGrowthInput !== undefined) providedInputs.add('terminalGrowth');
-  if (baseRevenueInput !== undefined || stored?.snapshot?.revenueLtm !== null || resolved?.snapshot.revenueLtm !== undefined) {
+  if (baseRevenueInput !== undefined || attachmentSnapshot?.revenue != null || stored?.snapshot?.revenueLtm !== null || resolved?.snapshot.revenueLtm !== undefined) {
     providedInputs.add('baseRevenue');
   }
 
+  const observedAttachmentEbitMargin = attachmentMarginNumerator(attachmentSnapshot, 'operatingIncome');
   const revenueGrowth =
     revenueGrowthInput !== undefined
       ? fadeGrowthSeries(revenueGrowthInput, Math.max(0.05, revenueGrowthInput * 0.4), DCF_DEFAULTS.years)
@@ -1144,10 +1185,13 @@ async function buildDcfInputs(prompt: string, options: ExtractInputsOptions = {}
   const ebitMargin =
     ebitMarginInput !== undefined
       ? Array.from({ length: DCF_DEFAULTS.years }, (_, index) => Number(Math.min(ebitMarginInput + index * 0.01, 0.4).toFixed(4)))
+      : observedAttachmentEbitMargin !== null
+        ? buildMarginSeriesFromObservedMargin(observedAttachmentEbitMargin, DCF_DEFAULTS.years)
       : profile.dcfEbitMargin
         ? cloneArray(profile.dcfEbitMargin)
         : cloneArray(DCF_DEFAULTS.ebitMargin);
   if (ebitMarginInput === undefined) defaultsUsed.ebitMargin = ebitMargin;
+  if (observedAttachmentEbitMargin !== null) providedInputs.add('ebitMargin');
 
   const wacc = waccInput ?? DCF_DEFAULTS.wacc;
   if (waccInput === undefined) defaultsUsed.wacc = DCF_DEFAULTS.wacc;
@@ -1155,27 +1199,27 @@ async function buildDcfInputs(prompt: string, options: ExtractInputsOptions = {}
   const terminalGrowth = terminalGrowthInput ?? DCF_DEFAULTS.terminalGrowth;
   if (terminalGrowthInput === undefined) defaultsUsed.terminalGrowth = DCF_DEFAULTS.terminalGrowth;
 
-  const baseRevenue = stored?.snapshot?.revenueLtm ?? resolved?.snapshot.revenueLtm ?? baseRevenueInput ?? DCF_DEFAULTS.baseRevenue;
-  if (stored?.snapshot?.revenueLtm === null && resolved?.snapshot.revenueLtm === undefined && baseRevenueInput === undefined) {
+  const baseRevenue = baseRevenueInput ?? attachmentSnapshot?.revenue ?? stored?.snapshot?.revenueLtm ?? resolved?.snapshot.revenueLtm ?? DCF_DEFAULTS.baseRevenue;
+  if (baseRevenueInput === undefined && attachmentSnapshot?.revenue == null && stored?.snapshot?.revenueLtm === null && resolved?.snapshot.revenueLtm === undefined) {
     defaultsUsed.baseRevenue = DCF_DEFAULTS.baseRevenue;
   }
 
-  const cash = stored?.snapshot?.cash ?? resolved?.snapshot.cash ?? DCF_DEFAULTS.cash;
-  const debt = stored?.snapshot?.totalDebt ?? resolved?.snapshot.totalDebt ?? DCF_DEFAULTS.debt;
-  const sharesOutstanding = stored?.snapshot?.sharesOutstanding ?? resolved?.snapshot.sharesOutstanding ?? DCF_DEFAULTS.sharesOutstanding;
+  const cash = attachmentSnapshot?.cash ?? stored?.snapshot?.cash ?? resolved?.snapshot.cash ?? DCF_DEFAULTS.cash;
+  const debt = attachmentSnapshot?.totalDebt ?? stored?.snapshot?.totalDebt ?? resolved?.snapshot.totalDebt ?? DCF_DEFAULTS.debt;
+  const sharesOutstanding = attachmentSnapshot?.sharesOutstanding ?? stored?.snapshot?.sharesOutstanding ?? resolved?.snapshot.sharesOutstanding ?? DCF_DEFAULTS.sharesOutstanding;
   const sharePrice = stored?.latestPrice?.close ?? resolved?.snapshot.sharePrice ?? null;
   const marketCap = stored?.snapshot?.marketCap ?? resolved?.snapshot.marketCap ?? null;
 
-  if (stored?.snapshot?.cash === null && (resolved?.snapshot.cash === undefined || resolved.snapshot.cash === null)) {
+  if (attachmentSnapshot?.cash == null && stored?.snapshot?.cash === null && (resolved?.snapshot.cash === undefined || resolved.snapshot.cash === null)) {
     defaultsUsed.cash = DCF_DEFAULTS.cash;
   }
-  if (stored?.snapshot?.totalDebt === null && (resolved?.snapshot.totalDebt === undefined || resolved.snapshot.totalDebt === null)) {
+  if (attachmentSnapshot?.totalDebt == null && stored?.snapshot?.totalDebt === null && (resolved?.snapshot.totalDebt === undefined || resolved.snapshot.totalDebt === null)) {
     defaultsUsed.debt = DCF_DEFAULTS.debt;
   }
-  if (stored?.snapshot?.sharesOutstanding === null && (resolved?.snapshot.sharesOutstanding === undefined || resolved.snapshot.sharesOutstanding === null)) {
+  if (attachmentSnapshot?.sharesOutstanding == null && stored?.snapshot?.sharesOutstanding === null && (resolved?.snapshot.sharesOutstanding === undefined || resolved.snapshot.sharesOutstanding === null)) {
     defaultsUsed.sharesOutstanding = DCF_DEFAULTS.sharesOutstanding;
   }
-  if (!parsedCompanyName && !stored?.company.name && !resolved?.snapshot.companyName && companyType) {
+  if (!parsedCompanyName && !attachmentSnapshot?.companyName && !stored?.company.name && !resolved?.snapshot.companyName && companyType) {
     defaultsUsed.companyName = companyName;
   }
 
@@ -1193,8 +1237,11 @@ async function buildDcfInputs(prompt: string, options: ExtractInputsOptions = {}
       modelType: 'DCF',
       companyName,
       companyType: companyType ?? undefined,
-      ticker: stored?.company.ticker ?? resolved?.ticker,
-      source: stored?.snapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
+      ticker: stored?.company.ticker ?? attachmentSnapshot?.ticker ?? resolved?.ticker,
+      source:
+        attachmentHasAnyFinancials(attachmentSnapshot)
+          ? attachmentSnapshot?.source ?? 'attachment_pdf_statement'
+          : stored?.snapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
       years: DCF_DEFAULTS.years,
       baseRevenue,
       cash,
@@ -1215,8 +1262,11 @@ async function buildDcfInputs(prompt: string, options: ExtractInputsOptions = {}
     missingInputs,
     missingCriticalInputs,
     provenanceSummary: buildProvenanceSummary({
-      source: stored?.snapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
-      asOfDate: stored?.snapshot?.asOfDate ?? resolved?.snapshot.updatedAt ?? null,
+      source:
+        attachmentHasAnyFinancials(attachmentSnapshot)
+          ? attachmentSnapshot?.source ?? 'attachment_pdf_statement'
+          : stored?.snapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
+      asOfDate: attachmentSnapshot?.reportEndDate ?? stored?.snapshot?.asOfDate ?? resolved?.snapshot.updatedAt ?? null,
       lastSynced: stored?.snapshot?.createdAt ?? stored?.latestPrice?.createdAt ?? resolved?.snapshot.updatedAt ?? null,
     }),
   };
@@ -1231,6 +1281,7 @@ async function buildThreeStatementInputs(prompt: string, options: ExtractInputsO
     daPctRevenue: THREE_STATEMENT_DEFAULTS.daPctRevenue,
   };
 
+  const attachmentSnapshot = options.attachmentStatementSnapshot ?? null;
   const stored = await resolveStoredCompany(prompt);
   const resolved = await resolveDemoCompany(prompt, options);
   const storedSnapshot = stored?.snapshot ?? null;
@@ -1245,15 +1296,20 @@ async function buildThreeStatementInputs(prompt: string, options: ExtractInputsO
   const profile = getCompanyProfile(companyType);
 
   const parsedCompanyName = extractCompanyName(prompt);
-  if (parsedCompanyName || stored?.company.name || demoSnapshot?.companyName) providedInputs.add('companyName');
-  const companyName = parsedCompanyName || stored?.company.name || demoSnapshot?.companyName || deriveCompanyLabel(companyType, 'Demo Company');
+  if (parsedCompanyName || attachmentSnapshot?.companyName || stored?.company.name || demoSnapshot?.companyName) providedInputs.add('companyName');
+  const companyName =
+    parsedCompanyName ||
+    attachmentSnapshot?.companyName ||
+    stored?.company.name ||
+    demoSnapshot?.companyName ||
+    deriveCompanyLabel(companyType, 'Demo Company');
 
   const baseRevenueInput = extractBaseRevenue(prompt);
   const growthInput = extractGrowthRate(prompt);
   const grossMarginInput = extractMargin(prompt, /gross\s+margin\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*%/i);
   const opexInput = extractMargin(prompt, /(?:opex|operating\s+expense(?:s)?)\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*%/i);
 
-  if (baseRevenueInput !== undefined || storedSnapshot?.revenueLtm != null || demoSnapshot?.revenueLtm != null || companyType) {
+  if (baseRevenueInput !== undefined || attachmentSnapshot?.revenue != null || storedSnapshot?.revenueLtm != null || demoSnapshot?.revenueLtm != null || companyType) {
     providedInputs.add('baseRevenue');
   }
   if (growthInput !== undefined) providedInputs.add('revenueGrowth');
@@ -1261,10 +1317,11 @@ async function buildThreeStatementInputs(prompt: string, options: ExtractInputsO
   if (opexInput !== undefined) providedInputs.add('opexPctRevenue');
 
   const baseRevenue =
-    mergeSnapshotValue(storedSnapshot?.revenueLtm, demoSnapshot?.revenueLtm) ??
     baseRevenueInput ??
+    attachmentSnapshot?.revenue ??
+    mergeSnapshotValue(storedSnapshot?.revenueLtm, demoSnapshot?.revenueLtm) ??
     THREE_STATEMENT_DEFAULTS.baseRevenue;
-  if (storedSnapshot?.revenueLtm == null && demoSnapshot?.revenueLtm == null && baseRevenueInput === undefined) {
+  if (attachmentSnapshot?.revenue == null && storedSnapshot?.revenueLtm == null && demoSnapshot?.revenueLtm == null && baseRevenueInput === undefined) {
     defaultsUsed.baseRevenue = THREE_STATEMENT_DEFAULTS.baseRevenue;
   }
 
@@ -1276,25 +1333,53 @@ async function buildThreeStatementInputs(prompt: string, options: ExtractInputsO
         : cloneArray(THREE_STATEMENT_DEFAULTS.revenueGrowth);
   if (growthInput === undefined) defaultsUsed.revenueGrowth = revenueGrowth;
 
+  const attachmentGrossMargin = attachmentMarginNumerator(attachmentSnapshot, 'grossProfit');
   const snapshotGrossMargin =
     storedSnapshot?.grossProfitLtm && storedSnapshot?.revenueLtm
       ? storedSnapshot.grossProfitLtm / storedSnapshot.revenueLtm
       : null;
-  const grossMargin = grossMarginInput ?? snapshotGrossMargin ?? profile.threeGrossMargin ?? THREE_STATEMENT_DEFAULTS.grossMargin;
+  const grossMargin = grossMarginInput ?? attachmentGrossMargin ?? snapshotGrossMargin ?? profile.threeGrossMargin ?? THREE_STATEMENT_DEFAULTS.grossMargin;
   if (grossMarginInput === undefined) defaultsUsed.grossMargin = grossMargin;
+  if (attachmentGrossMargin !== null) providedInputs.add('grossMargin');
 
-  const opexPctRevenue = opexInput ?? profile.threeOpexPct ?? THREE_STATEMENT_DEFAULTS.opexPctRevenue;
+  const attachmentOpexPctRevenue =
+    attachmentSnapshot &&
+    typeof attachmentSnapshot.revenue === 'number' &&
+    attachmentSnapshot.revenue > 0 &&
+    typeof attachmentSnapshot.grossProfit === 'number' &&
+    typeof attachmentSnapshot.operatingIncome === 'number'
+      ? (attachmentSnapshot.grossProfit - attachmentSnapshot.operatingIncome) / attachmentSnapshot.revenue
+      : null;
+  const opexPctRevenue = opexInput ?? attachmentOpexPctRevenue ?? profile.threeOpexPct ?? THREE_STATEMENT_DEFAULTS.opexPctRevenue;
   if (opexInput === undefined) defaultsUsed.opexPctRevenue = opexPctRevenue;
+  if (attachmentOpexPctRevenue !== null) providedInputs.add('opexPctRevenue');
 
-  const debt = mergeSnapshotValue(storedSnapshot?.totalDebt, demoSnapshot?.totalDebt) ?? THREE_STATEMENT_DEFAULTS.debt;
-  const cash = mergeSnapshotValue(storedSnapshot?.cash, demoSnapshot?.cash) ?? THREE_STATEMENT_DEFAULTS.cash;
-  if (storedSnapshot?.totalDebt == null && demoSnapshot?.totalDebt == null) {
+  const attachmentCapexPctRevenue =
+    attachmentSnapshot &&
+    typeof attachmentSnapshot.revenue === 'number' &&
+    attachmentSnapshot.revenue > 0 &&
+    typeof attachmentSnapshot.capex === 'number'
+      ? attachmentSnapshot.capex / attachmentSnapshot.revenue
+      : null;
+  const attachmentDaPctRevenue =
+    attachmentSnapshot &&
+    typeof attachmentSnapshot.revenue === 'number' &&
+    attachmentSnapshot.revenue > 0 &&
+    typeof attachmentSnapshot.depreciationAndAmortization === 'number'
+      ? attachmentSnapshot.depreciationAndAmortization / attachmentSnapshot.revenue
+      : null;
+  if (attachmentCapexPctRevenue !== null) delete defaultsUsed.capexPctRevenue;
+  if (attachmentDaPctRevenue !== null) delete defaultsUsed.daPctRevenue;
+
+  const debt = attachmentSnapshot?.totalDebt ?? mergeSnapshotValue(storedSnapshot?.totalDebt, demoSnapshot?.totalDebt) ?? THREE_STATEMENT_DEFAULTS.debt;
+  const cash = attachmentSnapshot?.cash ?? mergeSnapshotValue(storedSnapshot?.cash, demoSnapshot?.cash) ?? THREE_STATEMENT_DEFAULTS.cash;
+  if (attachmentSnapshot?.totalDebt == null && storedSnapshot?.totalDebt == null && demoSnapshot?.totalDebt == null) {
     defaultsUsed.debt = THREE_STATEMENT_DEFAULTS.debt;
   }
-  if (storedSnapshot?.cash == null && demoSnapshot?.cash == null) {
+  if (attachmentSnapshot?.cash == null && storedSnapshot?.cash == null && demoSnapshot?.cash == null) {
     defaultsUsed.cash = THREE_STATEMENT_DEFAULTS.cash;
   }
-  if (!parsedCompanyName && !stored?.company.name && !demoSnapshot?.companyName && companyType) {
+  if (!parsedCompanyName && !attachmentSnapshot?.companyName && !stored?.company.name && !demoSnapshot?.companyName && companyType) {
     defaultsUsed.companyName = companyName;
   }
 
@@ -1312,16 +1397,19 @@ async function buildThreeStatementInputs(prompt: string, options: ExtractInputsO
       modelType: 'THREE_STATEMENT',
       companyName,
       companyType: companyType ?? undefined,
-      ticker: stored?.company.ticker ?? resolved?.ticker,
-      source: storedSnapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
+      ticker: stored?.company.ticker ?? attachmentSnapshot?.ticker ?? resolved?.ticker,
+      source:
+        attachmentHasAnyFinancials(attachmentSnapshot)
+          ? attachmentSnapshot?.source ?? 'attachment_pdf_statement'
+          : storedSnapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
       years: THREE_STATEMENT_DEFAULTS.years,
       baseRevenue,
       revenueGrowth,
       grossMargin,
       opexPctRevenue,
       taxRate: THREE_STATEMENT_DEFAULTS.taxRate,
-      capexPctRevenue: THREE_STATEMENT_DEFAULTS.capexPctRevenue,
-      daPctRevenue: THREE_STATEMENT_DEFAULTS.daPctRevenue,
+      capexPctRevenue: attachmentCapexPctRevenue ?? THREE_STATEMENT_DEFAULTS.capexPctRevenue,
+      daPctRevenue: attachmentDaPctRevenue ?? THREE_STATEMENT_DEFAULTS.daPctRevenue,
       debt,
       cash,
     },
@@ -1329,8 +1417,11 @@ async function buildThreeStatementInputs(prompt: string, options: ExtractInputsO
     missingInputs,
     missingCriticalInputs,
     provenanceSummary: buildProvenanceSummary({
-      source: stored?.snapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
-      asOfDate: stored?.snapshot?.asOfDate ?? resolved?.snapshot.updatedAt ?? null,
+      source:
+        attachmentHasAnyFinancials(attachmentSnapshot)
+          ? attachmentSnapshot?.source ?? 'attachment_pdf_statement'
+          : stored?.snapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
+      asOfDate: attachmentSnapshot?.reportEndDate ?? stored?.snapshot?.asOfDate ?? resolved?.snapshot.updatedAt ?? null,
       lastSynced: stored?.snapshot?.createdAt ?? stored?.latestPrice?.createdAt ?? resolved?.snapshot.updatedAt ?? null,
     }),
   };
@@ -1397,6 +1488,7 @@ async function buildCapTableInputs(prompt: string): Promise<ExtractInputsResult>
 async function buildCompsInputs(prompt: string, options: ExtractInputsOptions = {}): Promise<ExtractInputsResult> {
   const providedInputs = new Set<string>();
   const defaultsUsed: Record<string, unknown> = {};
+  const attachmentSnapshot = options.attachmentStatementSnapshot ?? null;
   const stored = await resolveStoredCompany(prompt);
   const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt, options);
   const storedSnapshot = stored?.snapshot ?? null;
@@ -1426,9 +1518,10 @@ async function buildCompsInputs(prompt: string, options: ExtractInputsOptions = 
     null;
   const parsedCompanyNameRaw = extractCompanyName(subjectPrompt) ?? extractCompanyName(prompt);
   const parsedCompanyName = isInstructionContaminatedName(parsedCompanyNameRaw) ? null : parsedCompanyNameRaw;
-  const ticker = explicitSubjectTicker ?? stored?.company.ticker ?? resolved?.ticker ?? undefined;
+  const ticker = explicitSubjectTicker ?? stored?.company.ticker ?? attachmentSnapshot?.ticker ?? resolved?.ticker ?? undefined;
   const companyName =
     stored?.company.name ||
+    attachmentSnapshot?.companyName ||
     explicitSubjectSnapshot?.companyName ||
     demoSnapshot?.companyName ||
     parsedCompanyName ||
@@ -1448,7 +1541,7 @@ async function buildCompsInputs(prompt: string, options: ExtractInputsOptions = 
       ? subjectLatestPrice.close * subjectStoredSnapshot.sharesOutstanding
       : null);
   if (companyType) providedInputs.add('companyType');
-  if (parsedCompanyName || stored?.company.name || explicitSubjectSnapshot?.companyName || resolved?.snapshot.companyName) {
+  if (parsedCompanyName || attachmentSnapshot?.companyName || stored?.company.name || explicitSubjectSnapshot?.companyName || resolved?.snapshot.companyName) {
     providedInputs.add('companyName');
   }
   if (explicitPeerUniverseTickers.length > 0) providedInputs.add('peerSet');
@@ -1470,6 +1563,14 @@ async function buildCompsInputs(prompt: string, options: ExtractInputsOptions = 
     ticker ?? 'SUBJECT',
     subjectSnapshot
   );
+  if (attachmentHasAnyFinancials(attachmentSnapshot)) {
+    subject.revenue = attachmentSnapshot?.revenue ?? subject.revenue;
+    subject.ebitda = attachmentSnapshot?.ebitda ?? subject.ebitda;
+    subject.netIncome = attachmentSnapshot?.netIncome ?? subject.netIncome;
+    subject.cash = attachmentSnapshot?.cash ?? subject.cash;
+    subject.totalDebt = attachmentSnapshot?.totalDebt ?? subject.totalDebt;
+    subject.sharesOutstanding = attachmentSnapshot?.sharesOutstanding ?? subject.sharesOutstanding;
+  }
 
   const peerInputs = peerUniverse.map(([peerTicker, snapshot]) => toPeerInputs(peerTicker, snapshot));
   if (peerInputs.length === 0) {
@@ -1490,7 +1591,9 @@ async function buildCompsInputs(prompt: string, options: ExtractInputsOptions = 
       companyType: companyType ?? undefined,
       ticker,
       source:
-        subjectStoredSnapshot?.source ??
+        attachmentHasAnyFinancials(attachmentSnapshot)
+          ? attachmentSnapshot?.source ?? 'attachment_pdf_statement'
+          : subjectStoredSnapshot?.source ??
         (subjectResolvedSnapshot ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
       peerSetLabel:
         explicitPeerUniverseTickers.length > 0
@@ -1508,9 +1611,11 @@ async function buildCompsInputs(prompt: string, options: ExtractInputsOptions = 
     missingCriticalInputs,
     provenanceSummary: buildProvenanceSummary({
       source:
-        subjectStoredSnapshot?.source ??
+        attachmentHasAnyFinancials(attachmentSnapshot)
+          ? attachmentSnapshot?.source ?? 'attachment_pdf_statement'
+          : subjectStoredSnapshot?.source ??
         (subjectResolvedSnapshot ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
-      asOfDate: subjectStoredSnapshot?.asOfDate ?? subjectResolvedSnapshot?.updatedAt ?? null,
+      asOfDate: attachmentSnapshot?.reportEndDate ?? subjectStoredSnapshot?.asOfDate ?? subjectResolvedSnapshot?.updatedAt ?? null,
       lastSynced: subjectStoredSnapshot?.createdAt ?? subjectLatestPrice?.createdAt ?? subjectResolvedSnapshot?.updatedAt ?? null,
       fallbackUsed: Object.keys(defaultsUsed),
     }),
@@ -1552,7 +1657,7 @@ async function buildFootballFieldInputs(prompt: string, options: ExtractInputsOp
   const companyName = parsedCompanyName || stored?.company.name || resolved?.snapshot.companyName || deriveCompanyLabel(companyType, 'Subject Company');
   const ticker = stored?.company.ticker ?? resolved?.ticker;
   if (companyType) providedInputs.add('companyType');
-  if (parsedCompanyName || stored?.company.name || resolved?.snapshot.companyName) providedInputs.add('companyName');
+  if (parsedCompanyName || attachmentSnapshot?.companyName || stored?.company.name || resolved?.snapshot.companyName) providedInputs.add('companyName');
 
   const subjectRevenue = stored?.snapshot?.revenueLtm ?? resolved?.snapshot.revenueLtm ?? null;
   const subjectEbitda = stored?.snapshot?.ebitdaLtm ?? resolved?.snapshot.ebitdaLtm ?? null;
@@ -2003,6 +2108,7 @@ async function buildPrecedentsInputs(prompt: string, options: ExtractInputsOptio
 async function buildLboInputs(prompt: string, options: ExtractInputsOptions = {}): Promise<ExtractInputsResult> {
   const providedInputs = new Set<string>();
   const defaultsUsed: Record<string, unknown> = {};
+  const attachmentSnapshot = options.attachmentStatementSnapshot ?? null;
   const stored = await resolveStoredCompany(prompt);
   const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt, options);
 
@@ -2013,8 +2119,9 @@ async function buildLboInputs(prompt: string, options: ExtractInputsOptions = {}
     resolved?.snapshot.sector ??
     null;
   const parsedCompanyName = extractCompanyName(prompt);
-  const companyName = parsedCompanyName || stored?.company.name || resolved?.snapshot.companyName || deriveCompanyLabel(companyType, 'Target Company');
-  const ticker = stored?.company.ticker ?? resolved?.ticker;
+  const companyName =
+    parsedCompanyName || attachmentSnapshot?.companyName || stored?.company.name || resolved?.snapshot.companyName || deriveCompanyLabel(companyType, 'Target Company');
+  const ticker = stored?.company.ticker ?? attachmentSnapshot?.ticker ?? resolved?.ticker;
   if (companyType) providedInputs.add('companyType');
   if (parsedCompanyName || stored?.company.name || resolved?.snapshot.companyName) providedInputs.add('companyName');
 
@@ -2026,15 +2133,16 @@ async function buildLboInputs(prompt: string, options: ExtractInputsOptions = {}
   const debtPercentInput = extractMargin(prompt, /(\d+(?:\.\d+)?)\s*%\s*debt/i);
   const holdingPeriodInput = extractHoldingPeriodYears(prompt);
 
-  const revenue = stored?.snapshot?.revenueLtm ?? resolved?.snapshot.revenueLtm ?? revenueInput ?? LBO_DEFAULTS.revenue;
-  if (stored?.snapshot?.revenueLtm != null || resolved?.snapshot.revenueLtm != null || revenueInput != null) providedInputs.add('revenue');
+  const revenue = revenueInput ?? attachmentSnapshot?.revenue ?? stored?.snapshot?.revenueLtm ?? resolved?.snapshot.revenueLtm ?? LBO_DEFAULTS.revenue;
+  if (attachmentSnapshot?.revenue != null || stored?.snapshot?.revenueLtm != null || resolved?.snapshot.revenueLtm != null || revenueInput != null) providedInputs.add('revenue');
   else defaultsUsed.revenue = LBO_DEFAULTS.revenue;
 
   const ebitda =
+    attachmentSnapshot?.ebitda ??
     stored?.snapshot?.ebitdaLtm ??
     resolved?.snapshot.ebitdaLtm ??
     (revenue * (ebitdaMarginInput ?? LBO_DEFAULTS.ebitdaMargin));
-  if (stored?.snapshot?.ebitdaLtm != null || resolved?.snapshot.ebitdaLtm != null || ebitdaMarginInput != null) providedInputs.add('ebitda');
+  if (attachmentSnapshot?.ebitda != null || stored?.snapshot?.ebitdaLtm != null || resolved?.snapshot.ebitdaLtm != null || ebitdaMarginInput != null) providedInputs.add('ebitda');
   else defaultsUsed.ebitda = ebitda;
 
   const entryMultiple = entryMultipleInput ?? LBO_DEFAULTS.entryMultiple;
@@ -2050,7 +2158,8 @@ async function buildLboInputs(prompt: string, options: ExtractInputsOptions = {}
     (revenue > 0 && ebitda > 0 ? Number((ebitda / revenue).toFixed(4)) : LBO_DEFAULTS.ebitdaMargin);
   const holdingPeriodYears = holdingPeriodInput ?? LBO_DEFAULTS.holdingPeriodYears;
   const netDebt =
-    (stored?.snapshot?.totalDebt ?? resolved?.snapshot.totalDebt ?? 0) - (stored?.snapshot?.cash ?? resolved?.snapshot.cash ?? 0);
+    (attachmentSnapshot?.totalDebt ?? stored?.snapshot?.totalDebt ?? resolved?.snapshot.totalDebt ?? 0) -
+    (attachmentSnapshot?.cash ?? stored?.snapshot?.cash ?? resolved?.snapshot.cash ?? 0);
 
   if (entryMultipleInput !== undefined) providedInputs.add('entryMultiple');
   else defaultsUsed.entryMultiple = LBO_DEFAULTS.entryMultiple;
@@ -2076,7 +2185,10 @@ async function buildLboInputs(prompt: string, options: ExtractInputsOptions = {}
       companyName,
       companyType: companyType ?? undefined,
       ticker,
-      source: stored?.snapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
+      source:
+        attachmentHasAnyFinancials(attachmentSnapshot)
+          ? attachmentSnapshot?.source ?? 'attachment_pdf_statement'
+          : stored?.snapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
       revenue,
       ebitda,
       netDebt,
@@ -2093,15 +2205,18 @@ async function buildLboInputs(prompt: string, options: ExtractInputsOptions = {}
       deltaNwcPctRevenue: LBO_DEFAULTS.deltaNwcPctRevenue,
       taxRate: LBO_DEFAULTS.taxRate,
       holdingPeriodYears,
-      sharesOutstanding: stored?.snapshot?.sharesOutstanding ?? resolved?.snapshot.sharesOutstanding ?? null,
+      sharesOutstanding: attachmentSnapshot?.sharesOutstanding ?? stored?.snapshot?.sharesOutstanding ?? resolved?.snapshot.sharesOutstanding ?? null,
       sharePrice: stored?.latestPrice?.close ?? resolved?.snapshot.sharePrice ?? null,
     },
     defaultsUsed,
     missingInputs,
     missingCriticalInputs,
     provenanceSummary: buildProvenanceSummary({
-      source: stored?.snapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
-      asOfDate: stored?.snapshot?.asOfDate ?? resolved?.snapshot.updatedAt ?? null,
+      source:
+        attachmentHasAnyFinancials(attachmentSnapshot)
+          ? attachmentSnapshot?.source ?? 'attachment_pdf_statement'
+          : stored?.snapshot?.source ?? (resolved ? 'demo_company_snapshots' : companyType ? 'company_type_defaults' : 'demo_defaults'),
+      asOfDate: attachmentSnapshot?.reportEndDate ?? stored?.snapshot?.asOfDate ?? resolved?.snapshot.updatedAt ?? null,
       lastSynced: stored?.snapshot?.createdAt ?? stored?.latestPrice?.createdAt ?? resolved?.snapshot.updatedAt ?? null,
       fallbackUsed: Object.keys(defaultsUsed),
     }),
