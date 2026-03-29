@@ -148,6 +148,25 @@ function explicitQuarterRequestUnresolved(
   return runtimeMeta.resolutionStatus === 'unresolved_exact';
 }
 
+function buildExplicitQuarterUnresolvedReply(params: {
+  ticker: string;
+  runtimeMeta: EarningsRetrievalRuntimeMeta;
+  earningsResult: EarningsRetrievalAgentResult | null;
+}): string {
+  const { ticker, runtimeMeta, earningsResult } = params;
+  const requestedQuarter = [runtimeMeta.request.fiscalPeriod, runtimeMeta.request.fiscalYear].filter(Boolean).join(' ').trim();
+  const requestedLabel = requestedQuarter.length > 0 ? `${ticker} ${requestedQuarter}` : ticker;
+
+  const missingLanes: string[] = [];
+  if (!earningsResult?.dataQuality.usedEarningsRelease) missingLanes.push('earnings release');
+  if (!earningsResult?.dataQuality.usedTranscript) missingLanes.push('prepared remarks or transcript');
+  if (!earningsResult?.dataQuality.usedFinancials) missingLanes.push('quarter financials');
+  if (!earningsResult?.quarter.reportUrl) missingLanes.push('report link');
+
+  const missingText = missingLanes.length > 0 ? missingLanes.join(', ') : 'exact-quarter source lanes';
+  return `${requestedLabel} was not resolved from the current exact-quarter sources. Missing lanes: ${missingText}. I did not substitute latest-quarter or unrelated annual data.`;
+}
+
 function isVisualizationPrompt(message: string): boolean {
   const text = message.toLowerCase();
   return (
@@ -1306,6 +1325,26 @@ export async function POST(req: NextRequest) {
       shouldSuppressGenericCompanyFacts
         ? null
         : stockLookupPayload;
+
+    if (explicitQuarterRequestUnresolved(earningsAgentResult, earningsRuntimeMeta) && resolvedTicker && earningsRuntimeMeta) {
+      return NextResponse.json({
+        reply: buildExplicitQuarterUnresolvedReply({
+          ticker: resolvedTicker,
+          runtimeMeta: earningsRuntimeMeta,
+          earningsResult: earningsAgentResult,
+        }),
+        fallback: false,
+        mode: 'live',
+        route: route.intent,
+        sources: [],
+        factsCount: 0,
+        retrievalWarnings: retrievedData.warnings.length > 0 ? retrievedData.warnings : undefined,
+        stockLookup: null,
+        earningsRetrieval: earningsAgentResult,
+        earningsPackageMeta: earningsRuntimeMeta,
+        attachmentUsed: attachmentLabel,
+      });
+    }
 
     /* ── Step 3: Extract verified facts ── */
     const facts = extractVerifiedFacts(retrievalRoute, retrievedData);
