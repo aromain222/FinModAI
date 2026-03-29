@@ -261,22 +261,22 @@ function uniqueStrings(values: Array<string | null | undefined>): string[] {
 
 function parseEntities(raw: unknown): SecMnaEntity[] {
   if (!Array.isArray(raw)) return [];
-  return raw
-    .map((entry) => {
-      if (!entry || typeof entry !== 'object') return null;
-      const record = entry as Record<string, unknown>;
-      return {
-        cik: typeof record.cik === 'string' ? record.cik : undefined,
-        companyName:
-          typeof record.companyName === 'string'
-            ? record.companyName
-            : typeof record.companyNameLong === 'string'
-              ? record.companyNameLong
-              : undefined,
-        ticker: typeof record.ticker === 'string' ? record.ticker : undefined,
-      } satisfies SecMnaEntity;
-    })
-    .filter((entry): entry is SecMnaEntity => entry !== null);
+  const entities: SecMnaEntity[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const record = entry as Record<string, unknown>;
+    entities.push({
+      cik: typeof record.cik === 'string' ? record.cik : undefined,
+      companyName:
+        typeof record.companyName === 'string'
+          ? record.companyName
+          : typeof record.companyNameLong === 'string'
+            ? record.companyNameLong
+            : undefined,
+      ticker: typeof record.ticker === 'string' ? record.ticker : undefined,
+    });
+  }
+  return entities;
 }
 
 function normalizeMnaFiling(source: Record<string, unknown>, company: CompanyIdentity): SecMnaFiling {
