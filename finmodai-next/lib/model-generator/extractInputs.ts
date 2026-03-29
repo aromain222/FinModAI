@@ -1643,6 +1643,7 @@ function percentileNumber(values: number[], percentile: number): number | null {
 async function buildFootballFieldInputs(prompt: string, options: ExtractInputsOptions = {}): Promise<ExtractInputsResult> {
   const providedInputs = new Set<string>();
   const defaultsUsed: Record<string, unknown> = {};
+  const attachmentSnapshot = options.attachmentStatementSnapshot ?? null;
   const stored = await resolveStoredCompany(prompt);
   const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt, options);
   const snapshots = await loadExpandedModelUniverseSnapshots(options);
@@ -1654,19 +1655,24 @@ async function buildFootballFieldInputs(prompt: string, options: ExtractInputsOp
     resolved?.snapshot.sector ??
     null;
   const parsedCompanyName = extractCompanyName(prompt);
-  const companyName = parsedCompanyName || stored?.company.name || resolved?.snapshot.companyName || deriveCompanyLabel(companyType, 'Subject Company');
-  const ticker = stored?.company.ticker ?? resolved?.ticker;
+  const companyName =
+    parsedCompanyName ||
+    attachmentSnapshot?.companyName ||
+    stored?.company.name ||
+    resolved?.snapshot.companyName ||
+    deriveCompanyLabel(companyType, 'Subject Company');
+  const ticker = stored?.company.ticker ?? attachmentSnapshot?.ticker ?? resolved?.ticker;
   if (companyType) providedInputs.add('companyType');
   if (parsedCompanyName || attachmentSnapshot?.companyName || stored?.company.name || resolved?.snapshot.companyName) providedInputs.add('companyName');
 
-  const subjectRevenue = stored?.snapshot?.revenueLtm ?? resolved?.snapshot.revenueLtm ?? null;
-  const subjectEbitda = stored?.snapshot?.ebitdaLtm ?? resolved?.snapshot.ebitdaLtm ?? null;
-  const subjectCash = stored?.snapshot?.cash ?? resolved?.snapshot.cash ?? null;
-  const subjectDebt = stored?.snapshot?.totalDebt ?? resolved?.snapshot.totalDebt ?? null;
+  const subjectRevenue = attachmentSnapshot?.revenue ?? stored?.snapshot?.revenueLtm ?? resolved?.snapshot.revenueLtm ?? null;
+  const subjectEbitda = attachmentSnapshot?.ebitda ?? stored?.snapshot?.ebitdaLtm ?? resolved?.snapshot.ebitdaLtm ?? null;
+  const subjectCash = attachmentSnapshot?.cash ?? stored?.snapshot?.cash ?? resolved?.snapshot.cash ?? null;
+  const subjectDebt = attachmentSnapshot?.totalDebt ?? stored?.snapshot?.totalDebt ?? resolved?.snapshot.totalDebt ?? null;
   const subjectNetDebt =
     subjectDebt !== null && subjectCash !== null
       ? subjectDebt - subjectCash
-      : stored?.snapshot?.totalDebt ?? resolved?.snapshot.totalDebt ?? null;
+      : attachmentSnapshot?.totalDebt ?? stored?.snapshot?.totalDebt ?? resolved?.snapshot.totalDebt ?? null;
   const subjectPrice =
     stored?.latestPrice?.close ??
     (stored?.snapshot?.marketCap && stored?.snapshot?.sharesOutstanding
@@ -1674,7 +1680,7 @@ async function buildFootballFieldInputs(prompt: string, options: ExtractInputsOp
       : null) ??
     resolved?.snapshot.sharePrice ??
     null;
-  const subjectShares = stored?.snapshot?.sharesOutstanding ?? resolved?.snapshot.sharesOutstanding ?? null;
+  const subjectShares = attachmentSnapshot?.sharesOutstanding ?? stored?.snapshot?.sharesOutstanding ?? resolved?.snapshot.sharesOutstanding ?? null;
 
   if (subjectRevenue !== null) providedInputs.add('revenue');
   if (subjectEbitda !== null) providedInputs.add('ebitda');

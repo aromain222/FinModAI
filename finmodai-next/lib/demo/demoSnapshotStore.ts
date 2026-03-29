@@ -6,6 +6,8 @@ export type DemoCompanySnapshot = {
   companyName?: string | null;
   sector?: string | null;
   revenueLtm?: number | null;
+  grossProfitLtm?: number | null;
+  ebitLtm?: number | null;
   ebitdaLtm?: number | null;
   netIncomeLtm?: number | null;
   cash?: number | null;
@@ -27,6 +29,8 @@ function normalizeSnapshotRow(row: any): DemoCompanySnapshot {
     companyName: row.company_name ?? row.companyName ?? meta.name ?? null,
     sector: row.sector ?? meta.sector ?? null,
     revenueLtm: row.revenue_ltm ?? row.revenueLtm ?? null,
+    grossProfitLtm: row.gross_profit_ltm ?? row.grossProfitLtm ?? null,
+    ebitLtm: row.ebit_ltm ?? row.ebitLtm ?? null,
     ebitdaLtm: row.ebitda_ltm ?? row.ebitdaLtm ?? null,
     netIncomeLtm: row.net_income_ltm ?? row.netIncomeLtm ?? null,
     cash: row.cash ?? null,

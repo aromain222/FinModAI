@@ -1529,7 +1529,7 @@ export async function generateAnalystDcfDemo(params: {
   const companyName = snapshot.companyName || effectiveResolved.ticker;
   const revenueLtm = snapshot.revenueLtm ?? 0;
   if (!(revenueLtm > 0)) {
-    throw new Error(`Cached demo financials for ${resolved.ticker} are incomplete.`);
+    throw new Error(`Cached demo financials for ${effectiveResolved.ticker} are incomplete.`);
   }
 
   const ebitdaLtm = snapshot.ebitdaLtm ?? 0;
