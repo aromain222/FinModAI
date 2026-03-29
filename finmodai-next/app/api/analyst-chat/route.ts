@@ -42,6 +42,12 @@ import {
 import { savePromptModelRunVersion } from '@/lib/model-generator/runHistory';
 import { classifyPrompt } from '@/lib/model-generator/classifyPrompt';
 import { ANALYST_SYSTEM_PROMPT, getIntentPrompt } from '@/lib/analyst/prompts';
+import {
+  runEarningsRetrievalAgent,
+  serializeEarningsRetrievalAgentResult,
+  type EarningsRetrievalAgentResult,
+  type EarningsRetrievalRuntimeMeta,
+} from '@/lib/analyst/earningsRetrievalAgent';
 import { getAnthropicKeyCandidates } from '@/lib/anthropicKey';
 import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKey';
 import { lookupStock } from '@/lib/data/company/lookupStock';
@@ -49,6 +55,7 @@ import { detectCoreTemplatePrompt } from '@/lib/analyst/coreModelTemplates';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
 import { getMarketEvents } from '@/lib/news/marketEventsPipeline';
 import type { MarketEvent } from '@/lib/news/marketEventsTypes';
+import { featureFlags } from '@/lib/env/server';
 import {
   buildComparisonVisualizationFromPrompt,
   buildRevenueForecastVisualizationFromDcf,
@@ -272,6 +279,8 @@ function overrideRouteFromAttachment(
       requiresLiveData: false,
       requiresNews: false,
       requiresFinancials: true,
+      prefersEarningsContext: false,
+      requiresQuarterReportContext: false,
     };
   }
 
@@ -282,6 +291,8 @@ function overrideRouteFromAttachment(
       requiresLiveData: false,
       requiresNews: false,
       requiresFinancials: false,
+      prefersEarningsContext: false,
+      requiresQuarterReportContext: false,
     };
   }
 
@@ -293,6 +304,8 @@ function overrideRouteFromAttachment(
         requiresLiveData: false,
         requiresNews: false,
         requiresFinancials: true,
+        prefersEarningsContext: false,
+        requiresQuarterReportContext: false,
       };
     }
     if (genericExplain || route.intent === 'general_finance') {
@@ -302,6 +315,8 @@ function overrideRouteFromAttachment(
         requiresLiveData: false,
         requiresNews: false,
         requiresFinancials: true,
+        prefersEarningsContext: true,
+        requiresQuarterReportContext: true,
       };
     }
   }
@@ -313,6 +328,8 @@ function overrideRouteFromAttachment(
       requiresLiveData: false,
       requiresNews: false,
       requiresFinancials: true,
+      prefersEarningsContext: false,
+      requiresQuarterReportContext: false,
     };
   }
 
@@ -323,6 +340,8 @@ function overrideRouteFromAttachment(
       requiresLiveData: false,
       requiresNews: false,
       requiresFinancials: attachment.kind !== 'model_workbook',
+      prefersEarningsContext: attachment.kind !== 'model_workbook',
+      requiresQuarterReportContext: attachment.kind === 'earnings_report',
     };
   }
 
@@ -357,6 +376,43 @@ function artifactTickerFromContext(params: {
     ? params.currentModel.extractedInputs.ticker
     : null;
   return extractedTicker?.trim().toUpperCase() || undefined;
+}
+
+function artifactLabelFromContext(params: {
+  currentModel: AnalystGeneratedModelPayload | null;
+  currentDcf: AnalystDcfDemoPayload | null;
+  currentStock: StockLookupResult | null;
+}): string | null {
+  if (params.currentDcf) return `${params.currentDcf.companyName} (${params.currentDcf.ticker})`;
+  if (params.currentStock) return `${params.currentStock.companyName ?? params.currentStock.ticker} (${params.currentStock.ticker})`;
+  if (params.currentModel) {
+    const extractedTicker = params.currentModel.extractedInputs
+      && 'ticker' in params.currentModel.extractedInputs
+      && typeof params.currentModel.extractedInputs.ticker === 'string'
+      ? params.currentModel.extractedInputs.ticker
+      : null;
+    const extractedCompanyName = params.currentModel.extractedInputs
+      && 'companyName' in params.currentModel.extractedInputs
+      && typeof params.currentModel.extractedInputs.companyName === 'string'
+      ? params.currentModel.extractedInputs.companyName
+      : null;
+    if (extractedCompanyName && extractedTicker) return `${extractedCompanyName} (${extractedTicker})`;
+    return params.currentModel.title;
+  }
+  return null;
+}
+
+function buildArtifactTickerMismatchReply(params: {
+  requestedTicker: string;
+  artifactTicker: string;
+  artifactLabel: string | null;
+}): string {
+  const artifactLabel = params.artifactLabel ?? params.artifactTicker;
+  return [
+    `The active workspace is still set to ${artifactLabel}, but you asked about ${params.requestedTicker}.`,
+    `I am not going to apply a shock or explain assumptions on the wrong company.`,
+    `Switch the active artifact to ${params.requestedTicker} or ask me to analyze ${params.requestedTicker} without using the current workspace.`,
+  ].join('\n\n');
 }
 
 function currentArtifactContextBlock(params: {
@@ -585,6 +641,8 @@ export async function POST(req: NextRequest) {
   let fallbackUserMessage = '';
   let verifiedFacts: VerifiedFacts | undefined;
   let stockLookupPayload: Awaited<ReturnType<typeof lookupStock>> | null = null;
+  let earningsAgentResult: EarningsRetrievalAgentResult | null = null;
+  let earningsRuntimeMeta: EarningsRetrievalRuntimeMeta | null = null;
 
   try {
     const body = await req.json();
@@ -647,6 +705,22 @@ export async function POST(req: NextRequest) {
     }
 
     if (currentDcf && dcfEventShockPrompt) {
+      const requestedTicker = tickerRaw ?? inferTickerFromPrompt(dcfEventShockPrompt);
+      const currentTicker = currentDcf.ticker?.trim().toUpperCase();
+      if (requestedTicker && currentTicker && requestedTicker !== currentTicker) {
+        return NextResponse.json({
+          reply: buildArtifactTickerMismatchReply({
+            requestedTicker,
+            artifactTicker: currentTicker,
+            artifactLabel: `${currentDcf.companyName} (${currentTicker})`,
+          }),
+          fallback: false,
+          mode: 'live',
+          route: 'financial_model',
+          factsCount: 0,
+        });
+      }
+
       const shockedDcf = await reviseAnalystDcfDemoFromEventShock(dcfEventShockPrompt, currentDcf);
       if (!shockedDcf) {
         return NextResponse.json(
@@ -751,13 +825,27 @@ export async function POST(req: NextRequest) {
       : null;
     const tickerFromAttachment = attachmentContext?.signals?.ticker?.toUpperCase();
     const tickerFromMessage = inferTickerFromPrompt(effectiveUserMessage);
-    const currentArtifactBlock = currentArtifactContextBlock({ currentModel, currentDcf, currentStock });
     const tickerFromCurrentArtifact = artifactTickerFromContext({ currentModel, currentDcf, currentStock });
-    const resolvedTicker = tickerRaw ?? tickerFromMessage ?? tickerFromAttachment ?? tickerFromCurrentArtifact;
+    const artifactLabel = artifactLabelFromContext({ currentModel, currentDcf, currentStock });
+    const explicitRequestedTicker = tickerRaw ?? tickerFromMessage ?? tickerFromAttachment;
+    const artifactTickerMismatch =
+      Boolean(explicitRequestedTicker && tickerFromCurrentArtifact && explicitRequestedTicker !== tickerFromCurrentArtifact);
+    const currentArtifactBlock = artifactTickerMismatch
+      ? null
+      : currentArtifactContextBlock({ currentModel, currentDcf, currentStock });
+    const resolvedTicker = explicitRequestedTicker ?? tickerFromCurrentArtifact;
     fallbackTicker = resolvedTicker;
     fallbackUserMessage = lastUserMessage;
+    const forceEarningsFirstRetrieval = routeAnalystQuery(
+      attachmentContext ? `${lastUserMessage}\nAttachment type: ${attachmentContext.kind}` : lastUserMessage,
+      resolvedTicker,
+    );
+    const mustRefreshCompanyContext =
+      forceEarningsFirstRetrieval.prefersEarningsContext || forceEarningsFirstRetrieval.requiresQuarterReportContext;
     const preferCurrentArtifact =
       Boolean(currentModel || currentDcf || currentStock) &&
+      !artifactTickerMismatch &&
+      !mustRefreshCompanyContext &&
       isCurrentArtifactAnalysisPrompt(lastUserMessage) &&
       !isVisualizationPrompt(lastUserMessage) &&
       !classifyPrompt(lastUserMessage);
@@ -766,35 +854,58 @@ export async function POST(req: NextRequest) {
       : null;
 
     /* ── Step 1: Route the question ── */
-    const baseRoute: AnalystRoute = routeAnalystQuery(
-      attachmentContext ? `${lastUserMessage}\nAttachment type: ${attachmentContext.kind}` : lastUserMessage,
-      resolvedTicker,
-    );
+    const baseRoute: AnalystRoute = forceEarningsFirstRetrieval;
     const route = overrideRouteFromAttachment(baseRoute, lastUserMessage, attachmentContext);
+    const shouldRunEarningsAgent =
+      featureFlags.ENABLE_EARNINGS_PACKAGE_CACHE &&
+      Boolean(resolvedTicker) &&
+      route.intent === 'company_question' &&
+      (route.prefersEarningsContext || route.requiresQuarterReportContext);
     const shouldReviseCurrentModel =
       currentModel &&
+      !artifactTickerMismatch &&
       isModelAdjustmentPrompt(lastUserMessage) &&
       !classifyPrompt(lastUserMessage);
     const shouldReviseCurrentDcf =
       currentDcf &&
+      !artifactTickerMismatch &&
       isModelAdjustmentPrompt(lastUserMessage) &&
       !classifyPrompt(lastUserMessage);
     const shouldApplyCurrentDcfEventShock =
       currentDcf &&
+      !artifactTickerMismatch &&
       isDcfEventShockPrompt(lastUserMessage) &&
       !classifyPrompt(lastUserMessage);
     const shouldVisualizeCurrentModel =
       currentModel &&
+      !artifactTickerMismatch &&
       isVisualizationPrompt(lastUserMessage) &&
       !classifyPrompt(lastUserMessage);
     const shouldVisualizeCurrentDcf =
       currentDcf &&
+      !artifactTickerMismatch &&
       isVisualizationPrompt(lastUserMessage) &&
       !classifyPrompt(lastUserMessage);
     const shouldVisualizeCurrentStock =
       currentStock &&
+      !artifactTickerMismatch &&
       isVisualizationPrompt(lastUserMessage) &&
       !classifyPrompt(lastUserMessage);
+
+    if (artifactTickerMismatch && explicitRequestedTicker && tickerFromCurrentArtifact) {
+      return NextResponse.json({
+        reply: buildArtifactTickerMismatchReply({
+          requestedTicker: explicitRequestedTicker,
+          artifactTicker: tickerFromCurrentArtifact,
+          artifactLabel,
+        }),
+        fallback: false,
+        mode: 'live',
+        route: 'financial_model',
+        factsCount: 0,
+        attachmentUsed: attachmentLabel,
+      });
+    }
     if (route.intent === 'company_question') {
       stockLookupPayload = preferCurrentArtifact && currentStock
         ? currentStock
@@ -803,6 +914,30 @@ export async function POST(req: NextRequest) {
               ? { prompt: lastUserMessage, ticker: resolvedTicker }
               : { prompt: lastUserMessage }
           );
+    }
+
+    if (shouldRunEarningsAgent && resolvedTicker) {
+      try {
+        const earningsEnvelope = await runEarningsRetrievalAgent({
+          ticker: resolvedTicker,
+          prompt: lastUserMessage,
+        });
+        earningsAgentResult = earningsEnvelope?.result ?? null;
+        earningsRuntimeMeta = earningsEnvelope?.runtime ?? null;
+        if (featureFlags.ENABLE_EARNINGS_PACKAGE_LOGS) {
+          console.info('[analyst-chat] earnings package context resolved', {
+            ticker: resolvedTicker,
+            packageKey: earningsRuntimeMeta?.packageKey ?? null,
+            packageId: earningsRuntimeMeta?.packageId ?? null,
+            cacheStatus: earningsRuntimeMeta?.cacheStatus ?? 'miss',
+          });
+        }
+      } catch (error) {
+        console.warn('[analyst-chat] earnings retrieval agent failed; falling back to base retrieval', {
+          ticker: resolvedTicker,
+          message: error instanceof Error ? redactSecrets(error.message) : 'unknown error',
+        });
+      }
     }
 
     const macroEventsContext = shouldInjectMacroEventsContext(route, effectiveUserMessage, attachmentContext)
@@ -1125,6 +1260,8 @@ export async function POST(req: NextRequest) {
           requiresLiveData: false,
           requiresNews: false,
           requiresFinancials: false,
+          prefersEarningsContext: false,
+          requiresQuarterReportContext: false,
         }
       : route;
 
@@ -1243,6 +1380,8 @@ export async function POST(req: NextRequest) {
         route: route.intent,
         factsCount: facts.numbers.length + facts.events.length,
         stockLookup: stockLookupPayload,
+        earningsRetrieval: earningsAgentResult,
+        earningsPackageMeta: earningsRuntimeMeta,
         attachmentUsed: attachmentLabel,
       }, { status: 200 });
     }
@@ -1253,11 +1392,27 @@ export async function POST(req: NextRequest) {
     const styleInstruction = userExplicitlyWantsStructuredOutput(lastUserMessage)
       ? 'Use the structure the user explicitly asked for. Keep it concise and finance-native.'
       : 'Default to natural analyst prose in short paragraphs. Do not use labeled section headers, bullet lists, memo scaffolding, or template headings unless the user explicitly asked for them.';
+    const numericDisciplineInstruction =
+      facts.numbers.length >= 3 || facts.companies.length > 0
+        ? 'Use verified numeric facts when they sharpen the point. Do not add unsupported numeric sensitivities, valuation percentages, debt balances, or basis-point rules that are not in the sourced context.'
+        : 'Verified numeric support is thin. Do not introduce precise numeric sensitivities, debt balances, WACC rules, valuation percentages, or basis-point estimates. Answer directionally and explain the mechanism instead.';
+    const earningsFirstInstruction =
+      featureFlags.ENABLE_EARNINGS_PACKAGE_CACHE && (route.prefersEarningsContext || route.requiresQuarterReportContext)
+        ? 'This is a company framework or quarter-report request. Use the latest company earnings context first: reported quarter metrics, earnings commentary, transcript highlights, and latest available quarterly report link. Do not treat this as a generic follow-up if fresher company context is available.'
+        : null;
+    const earningsAgentInstruction = earningsAgentResult
+      ? `EARNINGS RETRIEVAL AGENT OUTPUT (source of truth for quarter context):\n${serializeEarningsRetrievalAgentResult(
+          earningsAgentResult,
+        )}\nResolved package metadata:\n${JSON.stringify(earningsRuntimeMeta ?? {}, null, 2)}\nThe final answer must use this agent JSON as the primary quarter-context source. Do not invent facts beyond it.`
+      : null;
 
     const inputMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
       { role: 'system', content: ANALYST_SYSTEM_PROMPT },
       ...(intentPrompt ? [{ role: 'system' as const, content: intentPrompt }] : []),
       { role: 'system', content: styleInstruction },
+      { role: 'system', content: numericDisciplineInstruction },
+      ...(earningsFirstInstruction ? [{ role: 'system' as const, content: earningsFirstInstruction }] : []),
+      ...(earningsAgentInstruction ? [{ role: 'system' as const, content: earningsAgentInstruction }] : []),
       ...(currentArtifactInstruction ? [{ role: 'system' as const, content: currentArtifactInstruction }] : []),
       {
         role: 'system',
@@ -1444,11 +1599,19 @@ export async function POST(req: NextRequest) {
           ? ['CapitalBase active market event context']
           : []),
         ...(preferCurrentArtifact && currentArtifactBlock ? ['CapitalBase current artifact context'] : []),
+        ...(earningsAgentResult
+          ? [
+              ...earningsAgentResult.commentary.sourceNotes,
+              earningsAgentResult.quarter.reportUrl ? `Quarterly report: ${earningsAgentResult.quarter.reportUrl}` : null,
+            ].filter((item): item is string => Boolean(item))
+          : []),
       ],
       factsCount: facts.numbers.length + facts.events.length,
       dataGaps: facts.dataGaps.length > 0 ? facts.dataGaps : undefined,
       retrievalWarnings: retrievedData.warnings.length > 0 ? retrievedData.warnings : undefined,
       stockLookup: stockLookupPayload,
+      earningsRetrieval: earningsAgentResult,
+      earningsPackageMeta: earningsRuntimeMeta,
       attachmentUsed: attachmentLabel,
     });
   } catch (error) {
@@ -1476,6 +1639,8 @@ export async function POST(req: NextRequest) {
       reason: failureReason,
       error: message,
       stockLookup: stockLookupPayload,
+      earningsRetrieval: earningsAgentResult,
+      earningsPackageMeta: earningsRuntimeMeta,
     }, { status: 200 });
   }
 }

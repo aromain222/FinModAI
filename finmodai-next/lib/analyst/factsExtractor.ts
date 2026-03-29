@@ -28,13 +28,21 @@ export type VerifiedCompany = {
   price: string;
   marketCap: string;
   latestQuarterDate: string | null;
+  latestQuarterFiscalPeriod?: string | null;
+  latestQuarterSource?: string | null;
   quarterlyRevenue: string;
+  quarterlyOperatingIncome?: string;
   quarterlyEbitda: string;
   quarterlyNetIncome: string;
   quarterlyEps: string;
   annualRevenue: string;
   annualEbitda: string;
   annualNetIncome: string;
+  latestAnnualSource?: string | null;
+  transcriptHighlights?: string[];
+  latestQuarterReportUrl?: string | null;
+  latestQuarterReportForm?: string | null;
+  latestQuarterReportFiledAt?: string | null;
 };
 
 export type VerifiedFacts = {
@@ -104,13 +112,21 @@ function extractCompany(f: CompanyFinancials): VerifiedCompany {
     price: fmtUsd(f.price),
     marketCap: fmtUsd(f.marketCap),
     latestQuarterDate: f.latestQuarter.date,
+    latestQuarterFiscalPeriod: f.latestQuarter.fiscalPeriod ?? null,
+    latestQuarterSource: f.latestQuarter.source ?? null,
     quarterlyRevenue: fmtUsd(f.latestQuarter.revenue),
+    quarterlyOperatingIncome: fmtUsd(f.latestQuarter.operatingIncome ?? null),
     quarterlyEbitda: fmtUsd(f.latestQuarter.ebitda),
     quarterlyNetIncome: fmtUsd(f.latestQuarter.netIncome),
     quarterlyEps: f.latestQuarter.eps !== null ? `$${f.latestQuarter.eps.toFixed(2)}` : 'n/a',
     annualRevenue: fmtUsd(f.latestAnnual.revenue),
     annualEbitda: fmtUsd(f.latestAnnual.ebitda),
     annualNetIncome: fmtUsd(f.latestAnnual.netIncome),
+    latestAnnualSource: f.latestAnnual.source ?? null,
+    transcriptHighlights: f.earningsContext?.transcriptHighlights ?? [],
+    latestQuarterReportUrl: f.filingContext?.latestQuarterUrl ?? null,
+    latestQuarterReportForm: f.filingContext?.latestQuarterForm ?? null,
+    latestQuarterReportFiledAt: f.filingContext?.latestQuarterFiledAt ?? null,
   };
 }
 
@@ -153,6 +169,9 @@ function extractKeyNumbers(data: RetrievedData): string[] {
     }
     if (f.latestQuarter.netIncome !== null) {
       numbers.push(`${f.ticker} Q net income: ${fmtUsd(f.latestQuarter.netIncome)}`);
+    }
+    if (f.latestQuarter.operatingIncome != null) {
+      numbers.push(`${f.ticker} Q operating income: ${fmtUsd(f.latestQuarter.operatingIncome)}`);
     }
     if (f.latestQuarter.eps !== null) {
       numbers.push(`${f.ticker} Q EPS: $${f.latestQuarter.eps.toFixed(2)}`);
@@ -290,6 +309,9 @@ function companyBriefLine(company: VerifiedCompany, userMessage: string): string
   if (metrics.wantsRevenue && company.annualRevenue !== 'n/a') {
     parts.push(`annual revenue ${company.annualRevenue}`);
   }
+  if (metrics.wantsMargin && company.quarterlyOperatingIncome && company.quarterlyOperatingIncome !== 'n/a') {
+    parts.push(`latest quarter operating income ${company.quarterlyOperatingIncome}`);
+  }
   if (metrics.wantsMargin && company.quarterlyEbitda !== 'n/a') {
     parts.push(`latest quarter EBITDA ${company.quarterlyEbitda}`);
   }
@@ -298,6 +320,9 @@ function companyBriefLine(company: VerifiedCompany, userMessage: string): string
   }
   if (metrics.wantsEarnings && company.quarterlyEps !== 'n/a') {
     parts.push(`EPS ${company.quarterlyEps}`);
+  }
+  if (metrics.wantsEarnings && company.transcriptHighlights && company.transcriptHighlights.length > 0) {
+    parts.push(`management commentary: ${company.transcriptHighlights[0]}`);
   }
 
   if (parts.length === 0) {
@@ -325,6 +350,28 @@ export function serializeFactsBriefForContext(facts: VerifiedFacts, userMessage 
         .map((company) => `- ${companyBriefLine(company, userMessage)}`)
         .join('\n')
     );
+    const filingLines = facts.companies
+      .slice(0, 2)
+      .flatMap((company) =>
+        company.latestQuarterReportUrl
+          ? [
+              `- ${company.ticker} latest quarterly report: ${company.latestQuarterReportForm ?? 'filing'}${company.latestQuarterReportFiledAt ? ` filed ${fmtDate(company.latestQuarterReportFiledAt)}` : ''} — ${company.latestQuarterReportUrl}`,
+            ]
+          : []
+      );
+    if (filingLines.length > 0) {
+      sections.push('Quarterly report links:\n' + filingLines.join('\n'));
+    }
+    const transcriptLines = facts.companies
+      .slice(0, 2)
+      .flatMap((company) =>
+        (company.transcriptHighlights ?? []).slice(0, 2).map(
+          (highlight) => `- ${company.ticker} management commentary: ${highlight}`
+        )
+      );
+    if (transcriptLines.length > 0) {
+      sections.push('Transcript context:\n' + transcriptLines.join('\n'));
+    }
   }
 
   if (isMarketLike && facts.curatedHeadlines.length > 0) {

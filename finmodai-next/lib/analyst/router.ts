@@ -29,6 +29,8 @@ export type AnalystRoute = {
   requiresLiveData: boolean;
   requiresNews: boolean;
   requiresFinancials: boolean;
+  prefersEarningsContext: boolean;
+  requiresQuarterReportContext: boolean;
 };
 
 const TICKER_STOPWORDS = new Set([
@@ -146,6 +148,24 @@ export function classifyIntent(message: string, tickers: string[]): AnalystInten
   return 'general_finance';
 }
 
+function isCompanyFrameworkQuestion(message: string, tickers: string[]): boolean {
+  const text = message.toLowerCase();
+  if (tickers.length === 0) return false;
+  return (
+    /\b(revenue|margin|assumption|assumptions|framework|underwrite|underwriting|drivers|driver|segment|segments)\b/.test(text) &&
+    /\b(create|build|show|give|map|state|explain|outline|frame|analy[sz]e|assess)\b/.test(text)
+  );
+}
+
+function isQuarterReportQuestion(message: string, tickers: string[]): boolean {
+  const text = message.toLowerCase();
+  if (tickers.length === 0) return false;
+  return (
+    /\b(q[1-4]|quarter|quarterly|earnings|results)\b/.test(text) &&
+    /\b(report|financials|release|remarks|transcript|commentary|filing|numbers|pull|get|latest)\b/.test(text)
+  );
+}
+
 export function routeAnalystQuery(message: string, explicitTicker?: string): AnalystRoute {
   const tickers = extractTickers(message);
   if (explicitTicker && !tickers.includes(explicitTicker.toUpperCase())) {
@@ -153,6 +173,8 @@ export function routeAnalystQuery(message: string, explicitTicker?: string): Ana
   }
 
   const intent = classifyIntent(message, tickers);
+  const prefersEarningsContext = intent === 'company_question' && isCompanyFrameworkQuestion(message, tickers);
+  const requiresQuarterReportContext = intent === 'company_question' && isQuarterReportQuestion(message, tickers);
 
   return {
     intent,
@@ -160,5 +182,7 @@ export function routeAnalystQuery(message: string, explicitTicker?: string): Ana
     requiresLiveData: intent !== 'general_finance' && intent !== 'financial_model',
     requiresNews: intent === 'event_intelligence' || intent === 'market_question',
     requiresFinancials: intent === 'company_question' || intent === 'financial_model',
+    prefersEarningsContext,
+    requiresQuarterReportContext,
   };
 }

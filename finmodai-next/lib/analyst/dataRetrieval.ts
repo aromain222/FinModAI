@@ -16,6 +16,10 @@ import { fetchPolygonQuote } from '@/lib/data/providers/polygon';
 import { fetchAlphaVantageFundamentals, fetchAlphaVantageQuote } from '@/lib/data/providers/alphavantage';
 import { fetchTiingoFundamentals, fetchTiingoQuote } from '@/lib/data/providers/tiingo';
 import { fetchTwelveDataQuote } from '@/lib/data/providers/twelvedata';
+import { fetchSecEdgarAnnualFundamentals, fetchSecEdgarQuarterlyFundamentals } from '@/lib/data/providers/secEdgar';
+import { serverEnv } from '@/lib/env/server';
+import { fetchFilingIndex, resolveCompanyIdentity } from '@/lib/secApi';
+import type { EarningsRequestTarget } from './earningsRequest';
 
 /* ────────── Types ────────── */
 
@@ -36,16 +40,35 @@ export type CompanyFinancials = {
   provenance?: Record<string, string>;
   latestQuarter: {
     date: string | null;
+    fiscalPeriod?: string | null;
     revenue: number | null;
+    operatingIncome?: number | null;
     ebitda: number | null;
     netIncome: number | null;
     eps: number | null;
+    source?: string | null;
   };
   latestAnnual: {
     date: string | null;
+    fiscalYear?: number | null;
     revenue: number | null;
     ebitda: number | null;
     netIncome: number | null;
+    source?: string | null;
+  };
+  earningsContext?: {
+    releaseHighlights: string[];
+    releaseSourceNotes: string[];
+    releaseUrl: string | null;
+    transcriptHighlights: string[];
+    transcriptSourceNotes: string[];
+    sourceNotes: string[];
+  };
+  filingContext?: {
+    latestQuarterForm: string | null;
+    latestQuarterPeriodEnd: string | null;
+    latestQuarterFiledAt: string | null;
+    latestQuarterUrl: string | null;
   };
 };
 
@@ -62,6 +85,13 @@ export type RetrievedData = {
   curatedHeadlines: CuratedHeadline[];
   sources: string[];
   warnings: string[];
+};
+
+export type CompanyFinancialsRequest = {
+  fiscalPeriod?: string | null;
+  fiscalYear?: number | null;
+  reportEndDate?: string | null;
+  mode?: 'latest' | 'explicit_quarter';
 };
 
 /* ────────── Perigon News Retrieval ────────── */
@@ -149,6 +179,109 @@ function toNum(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+function normalizeRows<T>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (value && typeof value === 'object') {
+    const row = value as { data?: unknown; results?: unknown };
+    if (Array.isArray(row.data)) return row.data as T[];
+    if (Array.isArray(row.results)) return row.results as T[];
+  }
+  return [];
+}
+
+function pickString(record: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+  }
+  return null;
+}
+
+function pickNumber(record: Record<string, unknown>, keys: string[]): number | null {
+  for (const key of keys) {
+    const value = toNum(record[key]);
+    if (value !== null) return value;
+  }
+  return null;
+}
+
+function normalizeFiscalPeriod(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const match = value.trim().toUpperCase().match(/^Q([1-4])$/);
+  return match ? `Q${match[1]}` : null;
+}
+
+function deriveQuarterYear(record: Record<string, unknown>): number | null {
+  const fiscalYear = pickNumber(record, ['calendarYear', 'fiscalYear', 'year']);
+  if (fiscalYear !== null) return fiscalYear;
+  const date = pickString(record, ['date', 'acceptedDate', 'fillingDate']);
+  if (!date) return null;
+  const year = Number(date.slice(0, 4));
+  return Number.isFinite(year) ? year : null;
+}
+
+function matchesRequestedQuarter(record: Record<string, unknown>, request?: CompanyFinancialsRequest): boolean {
+  if (!request || request.mode !== 'explicit_quarter') return true;
+
+  const requestedDate = request.reportEndDate?.trim();
+  const requestedPeriod = normalizeFiscalPeriod(request.fiscalPeriod ?? null);
+  const requestedYear = typeof request.fiscalYear === 'number' ? request.fiscalYear : null;
+
+  if (requestedDate) {
+    const recordDate = pickString(record, ['date', 'acceptedDate', 'fillingDate']);
+    return recordDate === requestedDate;
+  }
+
+  const recordPeriod = normalizeFiscalPeriod(pickString(record, ['period', 'fiscalPeriod']));
+  const recordYear = deriveQuarterYear(record);
+
+  if (requestedPeriod && recordPeriod !== requestedPeriod) return false;
+  if (requestedYear !== null && recordYear !== requestedYear) return false;
+  return requestedPeriod !== null || requestedYear !== null;
+}
+
+function selectQuarterRow(rows: Record<string, unknown>[], request?: CompanyFinancialsRequest): Record<string, unknown> | null {
+  if (rows.length === 0) return null;
+  if (!request || request.mode !== 'explicit_quarter') return rows[0] ?? null;
+  const matched = rows.find((row) => matchesRequestedQuarter(row, request));
+  return matched ?? null;
+}
+
+function extractTranscriptHighlights(text: string, limit = 3): string[] {
+  const normalized = text
+    .replace(/\s+/g, ' ')
+    .replace(/\u2019/g, "'")
+    .trim();
+  if (!normalized) return [];
+
+  const keywords = [
+    'guidance', 'demand', 'pricing', 'margin', 'margins', 'capex', 'backlog', 'inventory',
+    'bookings', 'capacity', 'supply', 'tariff', 'macro', 'customer', 'ai', 'growth',
+  ];
+
+  const sentences = normalized
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length >= 40 && sentence.length <= 280);
+
+  const scored = sentences
+    .map((sentence) => ({
+      sentence,
+      score: keywords.reduce((count, keyword) => count + (sentence.toLowerCase().includes(keyword) ? 1 : 0), 0),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => right.score - left.score || left.sentence.length - right.sentence.length);
+
+  const unique: string[] = [];
+  for (const entry of scored) {
+    const normalizedSentence = entry.sentence.toLowerCase();
+    if (unique.some((candidate) => candidate.toLowerCase() === normalizedSentence)) continue;
+    unique.push(entry.sentence);
+    if (unique.length >= limit) break;
+  }
+  return unique;
 }
 
 type ProviderCompanySnapshot = {
@@ -290,68 +423,305 @@ async function fetchProviderBackedFinancials(ticker: string): Promise<ProviderCo
     sharesOutstanding,
     latestQuarter: {
       date: quoteAsOf,
+      fiscalPeriod: null,
       revenue: revenueLTM,
+      operatingIncome: null,
       ebitda: ebitdaLTM,
       netIncome: netIncomeLTM,
       eps: sharesOutstanding && netIncomeLTM ? netIncomeLTM / sharesOutstanding : null,
+      source: provenance.revenue ? `${provenance.revenue}_ltm_fallback` : null,
     },
     latestAnnual: {
       date: quoteAsOf,
+      fiscalYear: null,
       revenue: revenueLTM,
       ebitda: ebitdaLTM,
       netIncome: netIncomeLTM,
+      source: provenance.revenue ? `${provenance.revenue}_ltm_fallback` : null,
     },
     provenance,
   };
 }
 
-export async function fetchCompanyFinancials(ticker: string): Promise<CompanyFinancials | null> {
-  const apiKey = process.env.FMP_API_KEY;
+async function fetchFmpTranscriptContext(
+  ticker: string,
+  request?: CompanyFinancialsRequest,
+): Promise<{ transcriptHighlights: string[]; transcriptSourceNotes: string[] }> {
+  const apiKey = serverEnv.FMP_API_KEY;
+  if (!apiKey) return { transcriptHighlights: [], transcriptSourceNotes: [] };
+
+  const dateRows = normalizeRows<Record<string, unknown>>(
+    await fetchJson(`https://financialmodelingprep.com/stable/earning-call-transcript-dates?symbol=${ticker}&apikey=${apiKey}`)
+  );
+
+  const candidates = [...dateRows]
+    .map((row) => ({
+      date: pickString(row, ['date']),
+      year: pickNumber(row, ['year']),
+      quarter: pickNumber(row, ['quarter']),
+    }))
+    .filter((row) => row.date && row.year !== null && row.quarter !== null)
+    .sort((left, right) => String(right.date).localeCompare(String(left.date)));
+
+  const latest =
+    request?.mode === 'explicit_quarter'
+      ? candidates.find((row) => {
+          const requestedPeriod = normalizeFiscalPeriod(request.fiscalPeriod ?? null);
+          const requestedQuarter = requestedPeriod ? Number(requestedPeriod.replace('Q', '')) : null;
+          if (requestedQuarter !== null && row.quarter !== requestedQuarter) return false;
+          if (typeof request.fiscalYear === 'number' && row.year !== request.fiscalYear) return false;
+          if (request.reportEndDate && row.date !== request.reportEndDate) return false;
+          return true;
+        }) ?? null
+      : candidates[0] ?? null;
+
+  if (!latest || latest.year === null || latest.quarter === null) {
+    return { transcriptHighlights: [], transcriptSourceNotes: [] };
+  }
+
+  const transcriptRows = normalizeRows<Record<string, unknown>>(
+    await fetchJson(
+      `https://financialmodelingprep.com/stable/earning-call-transcript?symbol=${ticker}&year=${latest.year}&quarter=${latest.quarter}&apikey=${apiKey}`,
+      7000,
+    )
+  );
+  const transcriptRow = transcriptRows[0] ?? {};
+  const transcriptText = pickString(transcriptRow, ['content', 'transcript', 'text']) ?? '';
+  const transcriptHighlights = extractTranscriptHighlights(transcriptText, 3);
+
+  return {
+    transcriptHighlights,
+    transcriptSourceNotes:
+      transcriptHighlights.length > 0
+        ? [`FMP earnings transcript Q${latest.quarter} ${latest.year}`]
+        : [],
+  };
+}
+
+function summarizeEarningsReleaseRow(row: Record<string, unknown>): string[] {
+  const lines: string[] = [];
+  const eps = pickNumber(row, ['eps', 'epsActual', 'actualEps']);
+  const epsEstimate = pickNumber(row, ['epsEstimated', 'estimatedEps']);
+  const revenue = pickNumber(row, ['revenue', 'revenueActual', 'actualRevenue']);
+  const revenueEstimate = pickNumber(row, ['revenueEstimated', 'estimatedRevenue']);
+  const releaseDate = pickString(row, ['date', 'fillingDate', 'fiscalDateEnding', 'acceptedDate']);
+  const timeOfDay = pickString(row, ['time', 'timeOfDay']);
+
+  if (eps !== null && epsEstimate !== null) {
+    const delta = eps - epsEstimate;
+    lines.push(`Reported EPS of ${eps} versus consensus ${epsEstimate}, a ${delta >= 0 ? 'beat' : 'miss'} of ${Math.abs(delta).toFixed(2)}.`);
+  } else if (eps !== null) {
+    lines.push(`Reported EPS was ${eps}.`);
+  }
+
+  if (revenue !== null && revenueEstimate !== null) {
+    const delta = revenue - revenueEstimate;
+    lines.push(
+      `Reported revenue of ${revenue.toLocaleString('en-US')} versus consensus ${revenueEstimate.toLocaleString('en-US')}, a ${delta >= 0 ? 'beat' : 'miss'} of ${Math.abs(delta).toLocaleString('en-US')}.`,
+    );
+  } else if (revenue !== null) {
+    lines.push(`Reported revenue was ${revenue.toLocaleString('en-US')}.`);
+  }
+
+  if (releaseDate || timeOfDay) {
+    lines.push(
+      [releaseDate ? `Release date ${releaseDate}` : null, timeOfDay ? `scheduled ${timeOfDay}` : null]
+        .filter((item): item is string => Boolean(item))
+        .join(' • '),
+    );
+  }
+
+  return lines.filter((line) => line.length > 0).slice(0, 3);
+}
+
+async function fetchFmpEarningsReleaseContext(
+  ticker: string,
+  request?: CompanyFinancialsRequest,
+): Promise<{ releaseHighlights: string[]; releaseSourceNotes: string[]; releaseUrl: string | null }> {
+  const apiKey = serverEnv.FMP_API_KEY;
+  if (!apiKey) return { releaseHighlights: [], releaseSourceNotes: [], releaseUrl: null };
+
+  const rows = normalizeRows<Record<string, unknown>>(
+    await fetchJson(`https://financialmodelingprep.com/stable/earnings?symbol=${ticker}&apikey=${apiKey}`)
+  );
+  if (rows.length === 0) return { releaseHighlights: [], releaseSourceNotes: [], releaseUrl: null };
+
+  const selected = selectQuarterRow(rows, request);
+  if (!selected) return { releaseHighlights: [], releaseSourceNotes: [], releaseUrl: null };
+
+  const fiscalPeriod = normalizeFiscalPeriod(pickString(selected, ['period', 'fiscalPeriod']));
+  const fiscalYear = deriveQuarterYear(selected);
+  const releaseHighlights = summarizeEarningsReleaseRow(selected);
+
+  return {
+    releaseHighlights,
+    releaseSourceNotes:
+      releaseHighlights.length > 0
+        ? [`FMP earnings release summary${fiscalPeriod && fiscalYear ? ` ${fiscalPeriod} ${fiscalYear}` : ''}`.trim()]
+        : [],
+    releaseUrl: pickString(selected, ['link', 'finalLink', 'url']),
+  };
+}
+
+async function fetchLatestQuarterFilingContext(ticker: string): Promise<CompanyFinancials['filingContext']> {
+  try {
+    const company = await resolveCompanyIdentity(ticker);
+    if (!company?.cik) {
+      return {
+        latestQuarterForm: null,
+        latestQuarterPeriodEnd: null,
+        latestQuarterFiledAt: null,
+        latestQuarterUrl: null,
+      };
+    }
+    const asOfDate = new Date().toISOString().slice(0, 10);
+    const filingIndex = await fetchFilingIndex(company.cik, asOfDate);
+    const latestQuarter = filingIndex?.latestQuarter;
+    return {
+      latestQuarterForm: latestQuarter?.form ?? null,
+      latestQuarterPeriodEnd: latestQuarter?.periodEnd ?? null,
+      latestQuarterFiledAt: latestQuarter?.filedAt ?? null,
+      latestQuarterUrl: latestQuarter?.url ?? null,
+    };
+  } catch {
+    return {
+      latestQuarterForm: null,
+      latestQuarterPeriodEnd: null,
+      latestQuarterFiledAt: null,
+      latestQuarterUrl: null,
+    };
+  }
+}
+
+export async function fetchCompanyFinancials(ticker: string, request?: CompanyFinancialsRequest): Promise<CompanyFinancials | null> {
+  const apiKey = serverEnv.FMP_API_KEY;
   const providerFallbackPromise = fetchProviderBackedFinancials(ticker);
+  const secQuarterPromise = fetchSecEdgarQuarterlyFundamentals(ticker);
+  const secAnnualPromise = fetchSecEdgarAnnualFundamentals(ticker);
+  const releaseContextPromise = fetchFmpEarningsReleaseContext(ticker, request);
+  const transcriptContextPromise = fetchFmpTranscriptContext(ticker, request);
+  const filingContextPromise = fetchLatestQuarterFilingContext(ticker);
   if (!apiKey) {
-    const providerFallback = await providerFallbackPromise;
-    if (!providerFallback) return null;
+    const [providerFallback, secQuarter, secAnnual, releaseContext, transcriptContext, filingContext] = await Promise.all([
+      providerFallbackPromise,
+      secQuarterPromise,
+      secAnnualPromise,
+      releaseContextPromise,
+      transcriptContextPromise,
+      filingContextPromise,
+    ]);
+    if (!providerFallback && !secQuarter.ok && !secAnnual.ok) return null;
     return {
       ticker: ticker.toUpperCase(),
       companyName: ticker.toUpperCase(),
-      price: providerFallback.price,
-      marketCap: providerFallback.marketCap,
-      sharesOutstanding: providerFallback.sharesOutstanding,
-      provenance: providerFallback.provenance,
-      latestQuarter: providerFallback.latestQuarter,
-      latestAnnual: providerFallback.latestAnnual,
+      price: providerFallback?.price ?? null,
+      marketCap: providerFallback?.marketCap ?? null,
+      sharesOutstanding: providerFallback?.sharesOutstanding ?? null,
+      provenance: providerFallback?.provenance ?? {},
+      latestQuarter: {
+        date: (secQuarter.ok ? secQuarter.data.reportEndDate : null) ?? providerFallback?.latestQuarter.date ?? null,
+        fiscalPeriod: (secQuarter.ok ? secQuarter.data.period : null) ?? providerFallback?.latestQuarter.fiscalPeriod ?? null,
+        revenue: (secQuarter.ok ? secQuarter.data.revenueQ : null) ?? providerFallback?.latestQuarter.revenue ?? null,
+        operatingIncome: (secQuarter.ok ? secQuarter.data.operatingIncomeQ : null) ?? providerFallback?.latestQuarter.operatingIncome ?? null,
+        ebitda: providerFallback?.latestQuarter.ebitda ?? null,
+        netIncome: (secQuarter.ok ? secQuarter.data.netIncomeQ : null) ?? providerFallback?.latestQuarter.netIncome ?? null,
+        eps: (secQuarter.ok ? secQuarter.data.epsQ : null) ?? providerFallback?.latestQuarter.eps ?? null,
+        source: secQuarter.ok ? 'sec_edgar_quarterly' : providerFallback?.latestQuarter.source ?? null,
+      },
+      latestAnnual: {
+        date: (secAnnual.ok ? secAnnual.data.reportEndDate : null) ?? providerFallback?.latestAnnual.date ?? null,
+        fiscalYear: (secAnnual.ok ? secAnnual.data.fiscalYear : null) ?? providerFallback?.latestAnnual.fiscalYear ?? null,
+        revenue: (secAnnual.ok ? secAnnual.data.revenueFY : null) ?? providerFallback?.latestAnnual.revenue ?? null,
+        ebitda: (secAnnual.ok ? secAnnual.data.ebitdaFY : null) ?? providerFallback?.latestAnnual.ebitda ?? null,
+        netIncome: (secAnnual.ok ? secAnnual.data.netIncomeFY : null) ?? providerFallback?.latestAnnual.netIncome ?? null,
+        source: secAnnual.ok ? 'sec_edgar_annual' : providerFallback?.latestAnnual.source ?? null,
+      },
+      earningsContext: {
+        releaseHighlights: releaseContext.releaseHighlights,
+        releaseSourceNotes: releaseContext.releaseSourceNotes,
+        releaseUrl: releaseContext.releaseUrl,
+        transcriptHighlights: transcriptContext.transcriptHighlights,
+        transcriptSourceNotes: transcriptContext.transcriptSourceNotes,
+        sourceNotes: [...releaseContext.releaseSourceNotes, ...transcriptContext.transcriptSourceNotes],
+      },
+      filingContext,
     };
   }
 
-  const [quoteJson, quarterJson, annualJson] = await Promise.all([
+  const [quoteJson, quarterJson, annualJson, providerFallback, secQuarter, secAnnual, releaseContext, transcriptContext, filingContext] = await Promise.all([
     fetchJson(`https://financialmodelingprep.com/api/v3/quote/${ticker}?apikey=${apiKey}`),
-    fetchJson(`https://financialmodelingprep.com/api/v3/income-statement/${ticker}?period=quarter&limit=2&apikey=${apiKey}`),
+    fetchJson(`https://financialmodelingprep.com/api/v3/income-statement/${ticker}?period=quarter&limit=${request?.mode === 'explicit_quarter' ? 12 : 2}&apikey=${apiKey}`),
     fetchJson(`https://financialmodelingprep.com/api/v3/income-statement/${ticker}?limit=1&apikey=${apiKey}`),
+    providerFallbackPromise,
+    secQuarterPromise,
+    secAnnualPromise,
+    releaseContextPromise,
+    transcriptContextPromise,
+    filingContextPromise,
   ]);
 
   const q = Array.isArray(quoteJson) ? (quoteJson[0] as any) : null;
-  const qr = Array.isArray(quarterJson) ? (quarterJson[0] as any) : null;
+  const qrRows = normalizeRows<Record<string, unknown>>(quarterJson);
+  const qr = selectQuarterRow(qrRows, request) as any;
   const ar = Array.isArray(annualJson) ? (annualJson[0] as any) : null;
 
-  const providerFallback = await providerFallbackPromise;
-  if (!q && !qr && !ar && !providerFallback) return null;
+  if (!q && !qr && !ar && !providerFallback && !secQuarter.ok && !secAnnual.ok) return null;
 
   const quotePrice = toNum(q?.price) ?? providerFallback?.price ?? null;
   const quoteMarketCap = toNum(q?.marketCap) ?? providerFallback?.marketCap ?? null;
-  const quarterlyRevenue = toNum(qr?.revenue) ?? providerFallback?.latestQuarter.revenue ?? null;
-  const quarterlyEbitda = toNum(qr?.ebitda) ?? providerFallback?.latestQuarter.ebitda ?? null;
-  const quarterlyNetIncome = toNum(qr?.netIncome) ?? providerFallback?.latestQuarter.netIncome ?? null;
-  const quarterlyEps = toNum(qr?.eps) ?? providerFallback?.latestQuarter.eps ?? null;
-  const annualRevenue = toNum(ar?.revenue) ?? providerFallback?.latestAnnual.revenue ?? null;
-  const annualEbitda = toNum(ar?.ebitda) ?? providerFallback?.latestAnnual.ebitda ?? null;
-  const annualNetIncome = toNum(ar?.netIncome) ?? providerFallback?.latestAnnual.netIncome ?? null;
+  const allowLatestQuarterFallback = request?.mode !== 'explicit_quarter';
+  const quarterlyRevenue =
+    toNum(qr?.revenue) ??
+    (allowLatestQuarterFallback && secQuarter.ok ? secQuarter.data.revenueQ : null) ??
+    (allowLatestQuarterFallback ? providerFallback?.latestQuarter.revenue : null) ??
+    null;
+  const quarterlyOperatingIncome =
+    toNum(qr?.operatingIncome) ??
+    toNum(qr?.operatingIncomeLoss) ??
+    (allowLatestQuarterFallback && secQuarter.ok ? secQuarter.data.operatingIncomeQ : null) ??
+    (allowLatestQuarterFallback ? providerFallback?.latestQuarter.operatingIncome : null) ??
+    null;
+  const quarterlyEbitda = toNum(qr?.ebitda) ?? (allowLatestQuarterFallback ? providerFallback?.latestQuarter.ebitda : null) ?? null;
+  const quarterlyNetIncome =
+    toNum(qr?.netIncome) ??
+    (allowLatestQuarterFallback && secQuarter.ok ? secQuarter.data.netIncomeQ : null) ??
+    (allowLatestQuarterFallback ? providerFallback?.latestQuarter.netIncome : null) ??
+    null;
+  const quarterlyEps =
+    toNum(qr?.eps) ??
+    (allowLatestQuarterFallback && secQuarter.ok ? secQuarter.data.epsQ : null) ??
+    (allowLatestQuarterFallback ? providerFallback?.latestQuarter.eps : null) ??
+    null;
+  const annualRevenue =
+    toNum(ar?.revenue) ??
+    (secAnnual.ok ? secAnnual.data.revenueFY : null) ??
+    providerFallback?.latestAnnual.revenue ??
+    null;
+  const annualEbitda =
+    toNum(ar?.ebitda) ??
+    (secAnnual.ok ? secAnnual.data.ebitdaFY : null) ??
+    providerFallback?.latestAnnual.ebitda ??
+    null;
+  const annualNetIncome =
+    toNum(ar?.netIncome) ??
+    (secAnnual.ok ? secAnnual.data.netIncomeFY : null) ??
+    providerFallback?.latestAnnual.netIncome ??
+    null;
   const provenance: Record<string, string> = { ...(providerFallback?.provenance ?? {}) };
   if (toNum(q?.price) !== null) provenance.price = 'fmp';
   if (toNum(q?.marketCap) !== null) provenance.marketCap = 'fmp';
-  if (toNum(qr?.revenue) !== null) provenance.revenue = 'fmp';
-  if (toNum(qr?.ebitda) !== null) provenance.ebitda = 'fmp';
-  if (toNum(qr?.netIncome) !== null) provenance.netIncome = 'fmp';
-  if (toNum(qr?.eps) !== null) provenance.eps = 'fmp';
+  if (toNum(qr?.revenue) !== null) provenance.revenue = 'fmp_latest_quarter';
+  else if (secQuarter.ok && secQuarter.data.revenueQ !== null) provenance.revenue = 'sec_edgar_quarterly';
+  if (toNum(qr?.operatingIncome) !== null || toNum(qr?.operatingIncomeLoss) !== null) provenance.operatingIncome = 'fmp_latest_quarter';
+  else if (secQuarter.ok && secQuarter.data.operatingIncomeQ !== null) provenance.operatingIncome = 'sec_edgar_quarterly';
+  if (toNum(qr?.ebitda) !== null) provenance.ebitda = 'fmp_latest_quarter';
+  else if (secAnnual.ok && secAnnual.data.ebitdaFY !== null) provenance.ebitda = 'sec_edgar_annual';
+  if (toNum(qr?.netIncome) !== null) provenance.netIncome = 'fmp_latest_quarter';
+  else if (secQuarter.ok && secQuarter.data.netIncomeQ !== null) provenance.netIncome = 'sec_edgar_quarterly';
+  if (toNum(qr?.eps) !== null) provenance.eps = 'fmp_latest_quarter';
+  else if (secQuarter.ok && secQuarter.data.epsQ !== null) provenance.eps = 'sec_edgar_quarterly';
+  if (toNum(ar?.revenue) !== null) provenance.annualRevenue = 'fmp_annual';
+  else if (secAnnual.ok && secAnnual.data.revenueFY !== null) provenance.annualRevenue = 'sec_edgar_annual';
 
   return {
     ticker: (q?.symbol || ticker).toUpperCase(),
@@ -361,18 +731,42 @@ export async function fetchCompanyFinancials(ticker: string): Promise<CompanyFin
     sharesOutstanding: providerFallback?.sharesOutstanding ?? null,
     provenance,
     latestQuarter: {
-      date: qr?.date ?? providerFallback?.latestQuarter.date ?? null,
+      date:
+        qr?.date ??
+        (allowLatestQuarterFallback && secQuarter.ok ? secQuarter.data.reportEndDate : null) ??
+        (allowLatestQuarterFallback ? providerFallback?.latestQuarter.date : null) ??
+        request?.reportEndDate ??
+        null,
+      fiscalPeriod:
+        normalizeFiscalPeriod(qr?.period ?? qr?.fiscalPeriod) ??
+        (allowLatestQuarterFallback && secQuarter.ok ? secQuarter.data.period : null) ??
+        (allowLatestQuarterFallback ? providerFallback?.latestQuarter.fiscalPeriod : null) ??
+        request?.fiscalPeriod ??
+        null,
       revenue: quarterlyRevenue,
+      operatingIncome: quarterlyOperatingIncome,
       ebitda: quarterlyEbitda,
       netIncome: quarterlyNetIncome,
       eps: quarterlyEps,
+      source: provenance.revenue ?? providerFallback?.latestQuarter.source ?? null,
     },
     latestAnnual: {
-      date: ar?.date ?? providerFallback?.latestAnnual.date ?? null,
+      date: ar?.date ?? (secAnnual.ok ? secAnnual.data.reportEndDate : null) ?? providerFallback?.latestAnnual.date ?? null,
+      fiscalYear: (ar?.calendarYear ? Number(ar.calendarYear) : null) ?? (secAnnual.ok ? secAnnual.data.fiscalYear : null) ?? providerFallback?.latestAnnual.fiscalYear ?? null,
       revenue: annualRevenue,
       ebitda: annualEbitda,
       netIncome: annualNetIncome,
+      source: provenance.annualRevenue ?? providerFallback?.latestAnnual.source ?? null,
     },
+    earningsContext: {
+      releaseHighlights: releaseContext.releaseHighlights,
+      releaseSourceNotes: releaseContext.releaseSourceNotes,
+      releaseUrl: releaseContext.releaseUrl,
+      transcriptHighlights: transcriptContext.transcriptHighlights,
+      transcriptSourceNotes: transcriptContext.transcriptSourceNotes,
+      sourceNotes: [...releaseContext.releaseSourceNotes, ...transcriptContext.transcriptSourceNotes],
+    },
+    filingContext,
   };
 }
 
@@ -522,6 +916,14 @@ export async function retrieveDataForRoute(
       .slice(0, 6)
       .join(', ');
     allSources.push(`Company data providers — ${f.ticker}${sourceLabels ? ` (${sourceLabels})` : ''}`);
+    for (const note of f.earningsContext?.sourceNotes ?? []) {
+      allSources.push(`${f.ticker} earnings context — ${note}`);
+    }
+    if (f.filingContext?.latestQuarterUrl) {
+      allSources.push(
+        `${f.ticker} latest quarterly filing — ${f.filingContext.latestQuarterForm ?? 'filing'} (${f.filingContext.latestQuarterPeriodEnd ?? 'period n/a'}) — ${f.filingContext.latestQuarterUrl}`
+      );
+    }
   }
   for (const s of webSnippets) {
     allSources.push(`${s.title} — ${s.url}`);

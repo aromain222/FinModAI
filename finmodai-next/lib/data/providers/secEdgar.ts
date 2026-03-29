@@ -23,6 +23,16 @@ export type SecAnnualFundamentals = {
   reportEndDate: string | null;
 };
 
+export type SecQuarterlyFundamentals = {
+  revenueQ: number | null;
+  operatingIncomeQ: number | null;
+  netIncomeQ: number | null;
+  epsQ: number | null;
+  fiscalYear: number | null;
+  period: string | null;
+  reportEndDate: string | null;
+};
+
 const cikCache = new Map<string, string>();
 
 async function fetchCikForTicker(ticker: string): Promise<string | null> {
@@ -77,6 +87,12 @@ function isAnnualEntry(item: any): boolean {
   const fp = String(item?.fp || '').toUpperCase();
   const form = String(item?.form || '').toUpperCase();
   return fp === 'FY' || form === '10-K' || form === '20-F';
+}
+
+function isQuarterlyEntry(item: any): boolean {
+  const fp = String(item?.fp || '').toUpperCase();
+  const form = String(item?.form || '').toUpperCase();
+  return /^Q[1-4]$/.test(fp) || form === '10-Q';
 }
 
 function deriveFiscalYear(entry: any): number | null {
@@ -281,6 +297,96 @@ export async function fetchSecEdgarAnnualFundamentals(
       netIncomeFY: Number.isFinite(netIncomeFY) ? netIncomeFY : null,
       cash: Number.isFinite(cash) ? cash : null,
       totalDebt: Number.isFinite(totalDebt) ? totalDebt : null,
+      fiscalYear: Number.isFinite(fiscalYear as number) ? (fiscalYear as number) : null,
+      period,
+      reportEndDate,
+    },
+    raw: res.data,
+    latencyMs: res.latencyMs,
+  };
+}
+
+export async function fetchSecEdgarQuarterlyFundamentals(
+  ticker: string
+): Promise<ProviderResult<SecQuarterlyFundamentals>> {
+  const userAgent = serverEnv.SEC_UA_EMAIL;
+  if (!userAgent) {
+    return { ok: false, error: { provider: 'sec_edgar', message: 'SEC_UA_EMAIL missing' } };
+  }
+
+  const cik = await fetchCikForTicker(ticker);
+  if (!cik) {
+    return { ok: false, error: { provider: 'sec_edgar', message: `CIK not found for ${ticker}` } };
+  }
+
+  const res = await fetchJsonWithRetry<any>({
+    provider: 'sec_edgar',
+    url: `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`,
+    cacheKey: `sec_edgar:companyfacts:${cik}`,
+    ttlMs: 24 * 60 * 60 * 1000,
+    options: {
+      headers: { 'User-Agent': userAgent },
+    },
+  });
+  if (!res.ok) return res as ProviderResult<SecQuarterlyFundamentals>;
+
+  const facts = res.data?.facts?.['us-gaap'];
+  const revenueEntry =
+    pickLatestUsdEntry(
+      facts,
+      [
+        'Revenues',
+        'SalesRevenueNet',
+        'RevenueFromContractWithCustomerExcludingAssessedTax',
+      ],
+      isQuarterlyEntry
+    ) ||
+    pickLatestUsdEntry(facts, [
+      'Revenues',
+      'SalesRevenueNet',
+      'RevenueFromContractWithCustomerExcludingAssessedTax',
+    ]);
+  const operatingIncomeEntry =
+    pickLatestUsdEntry(facts, ['OperatingIncomeLoss'], isQuarterlyEntry) ||
+    pickLatestUsdEntry(facts, ['OperatingIncomeLoss']);
+  const netIncomeEntry =
+    pickLatestUsdEntry(facts, ['NetIncomeLoss'], isQuarterlyEntry) ||
+    pickLatestUsdEntry(facts, ['NetIncomeLoss']);
+
+  const epsUnits =
+    facts?.EarningsPerShareDiluted?.units?.['USD/shares'] ||
+    facts?.EarningsPerShareBasic?.units?.['USD/shares'] ||
+    [];
+  const epsEntry = Array.isArray(epsUnits)
+    ? [...epsUnits]
+        .filter((item) => isQuarterlyEntry(item) || !item?.fp)
+        .sort((a, b) => new Date(b.end || b.filed || 0).getTime() - new Date(a.end || a.filed || 0).getTime())
+        .find((item) => typeof item?.val === 'number') ?? null
+    : null;
+
+  const fiscalYear = deriveFiscalYear(revenueEntry ?? operatingIncomeEntry ?? netIncomeEntry ?? epsEntry);
+  const period = (
+    revenueEntry?.fp ||
+    operatingIncomeEntry?.fp ||
+    netIncomeEntry?.fp ||
+    epsEntry?.fp ||
+    null
+  ) as string | null;
+  const reportEndDate = (
+    revenueEntry?.end ||
+    operatingIncomeEntry?.end ||
+    netIncomeEntry?.end ||
+    epsEntry?.end ||
+    null
+  ) as string | null;
+
+  return {
+    ok: true,
+    data: {
+      revenueQ: revenueEntry?.val !== undefined ? Number(revenueEntry.val) : null,
+      operatingIncomeQ: operatingIncomeEntry?.val !== undefined ? Number(operatingIncomeEntry.val) : null,
+      netIncomeQ: netIncomeEntry?.val !== undefined ? Number(netIncomeEntry.val) : null,
+      epsQ: epsEntry?.val !== undefined ? Number(epsEntry.val) : null,
       fiscalYear: Number.isFinite(fiscalYear as number) ? (fiscalYear as number) : null,
       period,
       reportEndDate,

@@ -41,6 +41,12 @@ function flag(key: string): boolean {
   return process.env[key] === 'true' || process.env[key] === '1';
 }
 
+function intEnv(key: string, fallback: number): number {
+  const raw = process.env[key];
+  const parsed = raw ? Number(raw) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 export const featureFlags = {
   ENABLE_POLYGON: flag('ENABLE_POLYGON'),
   ENABLE_FINNHUB: flag('ENABLE_FINNHUB'),
@@ -55,4 +61,10 @@ export const featureFlags = {
   ENABLE_WEBZ: flag('ENABLE_WEBZ'),
   ENABLE_MASSIVE: flag('ENABLE_MASSIVE'),
   ENABLE_DATABENTO: flag('ENABLE_DATABENTO'),
+  ENABLE_EARNINGS_PACKAGE_CACHE: flag('ENABLE_EARNINGS_PACKAGE_CACHE'),
+  ENABLE_EARNINGS_PACKAGE_LOGS: flag('ENABLE_EARNINGS_PACKAGE_LOGS'),
 } as const;
+
+export function getEarningsPackageCacheTtlHours(): number {
+  return intEnv('EARNINGS_PACKAGE_CACHE_TTL_HOURS', 24);
+}
