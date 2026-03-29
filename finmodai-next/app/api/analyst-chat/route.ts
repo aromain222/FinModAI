@@ -140,6 +140,20 @@ function fmtMillions(value: number | null | undefined): string {
   return `$${value.toLocaleString('en-US')}`;
 }
 
+function explicitQuarterRequestUnresolved(
+  earningsResult: EarningsRetrievalAgentResult | null,
+  runtimeMeta: EarningsRetrievalRuntimeMeta | null,
+): boolean {
+  if (!earningsResult || !runtimeMeta || runtimeMeta.request.mode !== 'explicit_quarter') return false;
+  return (
+    earningsResult.quarter.revenue == null &&
+    earningsResult.quarter.operatingIncome == null &&
+    earningsResult.quarter.netIncome == null &&
+    earningsResult.quarter.eps == null &&
+    !earningsResult.quarter.reportUrl
+  );
+}
+
 function isVisualizationPrompt(message: string): boolean {
   const text = message.toLowerCase();
   return (
@@ -1265,7 +1279,7 @@ export async function POST(req: NextRequest) {
         }
       : route;
 
-    const retrievedData = preferCurrentArtifact
+    const retrievedDataBase = preferCurrentArtifact
       ? {
           news: [],
           financials: [],
@@ -1275,6 +1289,19 @@ export async function POST(req: NextRequest) {
           warnings: [],
         }
       : await retrieveDataForRoute(route, lastUserMessage);
+    const retrievedData =
+      explicitQuarterRequestUnresolved(earningsAgentResult, earningsRuntimeMeta) && resolvedTicker
+        ? {
+            ...retrievedDataBase,
+            financials: retrievedDataBase.financials.filter((financial) => financial.ticker !== resolvedTicker),
+            warnings: [
+              ...retrievedDataBase.warnings,
+              `Exact quarter package for ${resolvedTicker} ${earningsRuntimeMeta?.request.fiscalPeriod ?? ''} ${earningsRuntimeMeta?.request.fiscalYear ?? ''}`.trim() +
+                ' was not resolved; suppressed latest-company snapshot context for this reply.',
+            ],
+            sources: retrievedDataBase.sources.filter((source) => !source.includes(resolvedTicker)),
+          }
+        : retrievedDataBase;
 
     /* ── Step 3: Extract verified facts ── */
     const facts = extractVerifiedFacts(retrievalRoute, retrievedData);
@@ -1405,6 +1432,9 @@ export async function POST(req: NextRequest) {
           earningsAgentResult,
         )}\nResolved package metadata:\n${JSON.stringify(earningsRuntimeMeta ?? {}, null, 2)}\nThe final answer must use this agent JSON as the primary quarter-context source. Do not invent facts beyond it.`
       : null;
+    const exactQuarterGuardInstruction = explicitQuarterRequestUnresolved(earningsAgentResult, earningsRuntimeMeta)
+      ? `The user asked for an explicit historical quarter. That exact quarter was not resolved. Do not substitute latest-quarter company financials. State clearly that the exact requested quarter was not resolved from current sources, keep the requested quarter identity, and do not blend in other period metrics as if they were the answer.`
+      : null;
 
     const inputMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
       { role: 'system', content: ANALYST_SYSTEM_PROMPT },
@@ -1413,6 +1443,7 @@ export async function POST(req: NextRequest) {
       { role: 'system', content: numericDisciplineInstruction },
       ...(earningsFirstInstruction ? [{ role: 'system' as const, content: earningsFirstInstruction }] : []),
       ...(earningsAgentInstruction ? [{ role: 'system' as const, content: earningsAgentInstruction }] : []),
+      ...(exactQuarterGuardInstruction ? [{ role: 'system' as const, content: exactQuarterGuardInstruction }] : []),
       ...(currentArtifactInstruction ? [{ role: 'system' as const, content: currentArtifactInstruction }] : []),
       {
         role: 'system',
