@@ -60,8 +60,16 @@ export type CompanyFinancials = {
     releaseHighlights: string[];
     releaseSourceNotes: string[];
     releaseUrl: string | null;
+    releaseFiscalPeriod?: string | null;
+    releaseFiscalYear?: number | null;
+    releaseReportEndDate?: string | null;
+    releaseRevenue?: number | null;
+    releaseEps?: number | null;
     transcriptHighlights: string[];
     transcriptSourceNotes: string[];
+    transcriptFiscalPeriod?: string | null;
+    transcriptFiscalYear?: number | null;
+    transcriptReportEndDate?: string | null;
     sourceNotes: string[];
   };
   filingContext?: {
@@ -446,9 +454,23 @@ async function fetchProviderBackedFinancials(ticker: string): Promise<ProviderCo
 async function fetchFmpTranscriptContext(
   ticker: string,
   request?: CompanyFinancialsRequest,
-): Promise<{ transcriptHighlights: string[]; transcriptSourceNotes: string[] }> {
+): Promise<{
+  transcriptHighlights: string[];
+  transcriptSourceNotes: string[];
+  transcriptFiscalPeriod: string | null;
+  transcriptFiscalYear: number | null;
+  transcriptReportEndDate: string | null;
+}> {
   const apiKey = serverEnv.FMP_API_KEY;
-  if (!apiKey) return { transcriptHighlights: [], transcriptSourceNotes: [] };
+  if (!apiKey) {
+    return {
+      transcriptHighlights: [],
+      transcriptSourceNotes: [],
+      transcriptFiscalPeriod: null,
+      transcriptFiscalYear: null,
+      transcriptReportEndDate: null,
+    };
+  }
 
   const dateRows = normalizeRows<Record<string, unknown>>(
     await fetchJson(`https://financialmodelingprep.com/stable/earning-call-transcript-dates?symbol=${ticker}&apikey=${apiKey}`)
@@ -476,7 +498,13 @@ async function fetchFmpTranscriptContext(
       : candidates[0] ?? null;
 
   if (!latest || latest.year === null || latest.quarter === null) {
-    return { transcriptHighlights: [], transcriptSourceNotes: [] };
+    return {
+      transcriptHighlights: [],
+      transcriptSourceNotes: [],
+      transcriptFiscalPeriod: null,
+      transcriptFiscalYear: null,
+      transcriptReportEndDate: null,
+    };
   }
 
   const transcriptRows = normalizeRows<Record<string, unknown>>(
@@ -495,6 +523,9 @@ async function fetchFmpTranscriptContext(
       transcriptHighlights.length > 0
         ? [`FMP earnings transcript Q${latest.quarter} ${latest.year}`]
         : [],
+    transcriptFiscalPeriod: `Q${latest.quarter}`,
+    transcriptFiscalYear: latest.year,
+    transcriptReportEndDate: latest.date,
   };
 }
 
@@ -537,17 +568,59 @@ function summarizeEarningsReleaseRow(row: Record<string, unknown>): string[] {
 async function fetchFmpEarningsReleaseContext(
   ticker: string,
   request?: CompanyFinancialsRequest,
-): Promise<{ releaseHighlights: string[]; releaseSourceNotes: string[]; releaseUrl: string | null }> {
+): Promise<{
+  releaseHighlights: string[];
+  releaseSourceNotes: string[];
+  releaseUrl: string | null;
+  releaseFiscalPeriod: string | null;
+  releaseFiscalYear: number | null;
+  releaseReportEndDate: string | null;
+  releaseRevenue: number | null;
+  releaseEps: number | null;
+}> {
   const apiKey = serverEnv.FMP_API_KEY;
-  if (!apiKey) return { releaseHighlights: [], releaseSourceNotes: [], releaseUrl: null };
+  if (!apiKey) {
+    return {
+      releaseHighlights: [],
+      releaseSourceNotes: [],
+      releaseUrl: null,
+      releaseFiscalPeriod: null,
+      releaseFiscalYear: null,
+      releaseReportEndDate: null,
+      releaseRevenue: null,
+      releaseEps: null,
+    };
+  }
 
   const rows = normalizeRows<Record<string, unknown>>(
     await fetchJson(`https://financialmodelingprep.com/stable/earnings?symbol=${ticker}&apikey=${apiKey}`)
   );
-  if (rows.length === 0) return { releaseHighlights: [], releaseSourceNotes: [], releaseUrl: null };
+  if (rows.length === 0) {
+    return {
+      releaseHighlights: [],
+      releaseSourceNotes: [],
+      releaseUrl: null,
+      releaseFiscalPeriod: null,
+      releaseFiscalYear: null,
+      releaseReportEndDate: null,
+      releaseRevenue: null,
+      releaseEps: null,
+    };
+  }
 
   const selected = selectQuarterRow(rows, request);
-  if (!selected) return { releaseHighlights: [], releaseSourceNotes: [], releaseUrl: null };
+  if (!selected) {
+    return {
+      releaseHighlights: [],
+      releaseSourceNotes: [],
+      releaseUrl: null,
+      releaseFiscalPeriod: null,
+      releaseFiscalYear: null,
+      releaseReportEndDate: null,
+      releaseRevenue: null,
+      releaseEps: null,
+    };
+  }
 
   const fiscalPeriod = normalizeFiscalPeriod(pickString(selected, ['period', 'fiscalPeriod']));
   const fiscalYear = deriveQuarterYear(selected);
@@ -560,7 +633,41 @@ async function fetchFmpEarningsReleaseContext(
         ? [`FMP earnings release summary${fiscalPeriod && fiscalYear ? ` ${fiscalPeriod} ${fiscalYear}` : ''}`.trim()]
         : [],
     releaseUrl: pickString(selected, ['link', 'finalLink', 'url']),
+    releaseFiscalPeriod: fiscalPeriod,
+    releaseFiscalYear: fiscalYear,
+    releaseReportEndDate: pickString(selected, ['date', 'fillingDate', 'fiscalDateEnding', 'acceptedDate']),
+    releaseRevenue: pickNumber(selected, ['revenue', 'revenueActual', 'actualRevenue']),
+    releaseEps: pickNumber(selected, ['eps', 'epsActual', 'actualEps']),
   };
+}
+
+function isYearEndRequest(request?: CompanyFinancialsRequest): boolean {
+  if (!request || request.mode !== 'explicit_quarter') return false;
+  return normalizeFiscalPeriod(request.fiscalPeriod ?? null) === 'Q4';
+}
+
+function selectAnnualRow(rows: Record<string, unknown>[], request?: CompanyFinancialsRequest): Record<string, unknown> | null {
+  if (rows.length === 0) return null;
+  if (!isYearEndRequest(request)) return rows[0] ?? null;
+
+  const requestedYear =
+    typeof request?.fiscalYear === 'number'
+      ? request.fiscalYear
+      : request?.reportEndDate
+        ? Number(request.reportEndDate.slice(0, 4))
+        : null;
+
+  if (requestedYear !== null) {
+    const matched = rows.find((row) => {
+      const year = pickNumber(row, ['calendarYear', 'fiscalYear', 'year']);
+      if (year !== null) return year === requestedYear;
+      const date = pickString(row, ['date', 'acceptedDate', 'fillingDate']);
+      return date ? Number(date.slice(0, 4)) === requestedYear : false;
+    });
+    if (matched) return matched;
+  }
+
+  return null;
 }
 
 async function fetchLatestQuarterFilingContext(ticker: string): Promise<CompanyFinancials['filingContext']> {
@@ -640,8 +747,16 @@ export async function fetchCompanyFinancials(ticker: string, request?: CompanyFi
         releaseHighlights: releaseContext.releaseHighlights,
         releaseSourceNotes: releaseContext.releaseSourceNotes,
         releaseUrl: releaseContext.releaseUrl,
+        releaseFiscalPeriod: releaseContext.releaseFiscalPeriod,
+        releaseFiscalYear: releaseContext.releaseFiscalYear,
+        releaseReportEndDate: releaseContext.releaseReportEndDate,
+        releaseRevenue: releaseContext.releaseRevenue,
+        releaseEps: releaseContext.releaseEps,
         transcriptHighlights: transcriptContext.transcriptHighlights,
         transcriptSourceNotes: transcriptContext.transcriptSourceNotes,
+        transcriptFiscalPeriod: transcriptContext.transcriptFiscalPeriod,
+        transcriptFiscalYear: transcriptContext.transcriptFiscalYear,
+        transcriptReportEndDate: transcriptContext.transcriptReportEndDate,
         sourceNotes: [...releaseContext.releaseSourceNotes, ...transcriptContext.transcriptSourceNotes],
       },
       filingContext,
@@ -651,7 +766,7 @@ export async function fetchCompanyFinancials(ticker: string, request?: CompanyFi
   const [quoteJson, quarterJson, annualJson, providerFallback, secQuarter, secAnnual, releaseContext, transcriptContext, filingContext] = await Promise.all([
     fetchJson(`https://financialmodelingprep.com/api/v3/quote/${ticker}?apikey=${apiKey}`),
     fetchJson(`https://financialmodelingprep.com/api/v3/income-statement/${ticker}?period=quarter&limit=${request?.mode === 'explicit_quarter' ? 12 : 2}&apikey=${apiKey}`),
-    fetchJson(`https://financialmodelingprep.com/api/v3/income-statement/${ticker}?limit=1&apikey=${apiKey}`),
+    fetchJson(`https://financialmodelingprep.com/api/v3/income-statement/${ticker}?limit=${isYearEndRequest(request) ? 4 : 1}&apikey=${apiKey}`),
     providerFallbackPromise,
     secQuarterPromise,
     secAnnualPromise,
@@ -663,15 +778,19 @@ export async function fetchCompanyFinancials(ticker: string, request?: CompanyFi
   const q = Array.isArray(quoteJson) ? (quoteJson[0] as any) : null;
   const qrRows = normalizeRows<Record<string, unknown>>(quarterJson);
   const qr = selectQuarterRow(qrRows, request) as any;
-  const ar = Array.isArray(annualJson) ? (annualJson[0] as any) : null;
+  const arRows = normalizeRows<Record<string, unknown>>(annualJson);
+  const ar = selectAnnualRow(arRows, request) as any;
 
   if (!q && !qr && !ar && !providerFallback && !secQuarter.ok && !secAnnual.ok) return null;
 
   const quotePrice = toNum(q?.price) ?? providerFallback?.price ?? null;
   const quoteMarketCap = toNum(q?.marketCap) ?? providerFallback?.marketCap ?? null;
   const allowLatestQuarterFallback = request?.mode !== 'explicit_quarter';
+  const explicitReleaseRevenue = request?.mode === 'explicit_quarter' ? releaseContext.releaseRevenue : null;
+  const explicitReleaseEps = request?.mode === 'explicit_quarter' ? releaseContext.releaseEps : null;
   const quarterlyRevenue =
     toNum(qr?.revenue) ??
+    explicitReleaseRevenue ??
     (allowLatestQuarterFallback && secQuarter.ok ? secQuarter.data.revenueQ : null) ??
     (allowLatestQuarterFallback ? providerFallback?.latestQuarter.revenue : null) ??
     null;
@@ -689,6 +808,7 @@ export async function fetchCompanyFinancials(ticker: string, request?: CompanyFi
     null;
   const quarterlyEps =
     toNum(qr?.eps) ??
+    explicitReleaseEps ??
     (allowLatestQuarterFallback && secQuarter.ok ? secQuarter.data.epsQ : null) ??
     (allowLatestQuarterFallback ? providerFallback?.latestQuarter.eps : null) ??
     null;
@@ -711,6 +831,7 @@ export async function fetchCompanyFinancials(ticker: string, request?: CompanyFi
   if (toNum(q?.price) !== null) provenance.price = 'fmp';
   if (toNum(q?.marketCap) !== null) provenance.marketCap = 'fmp';
   if (toNum(qr?.revenue) !== null) provenance.revenue = 'fmp_latest_quarter';
+  else if (explicitReleaseRevenue !== null) provenance.revenue = 'fmp_earnings_release_summary';
   else if (secQuarter.ok && secQuarter.data.revenueQ !== null) provenance.revenue = 'sec_edgar_quarterly';
   if (toNum(qr?.operatingIncome) !== null || toNum(qr?.operatingIncomeLoss) !== null) provenance.operatingIncome = 'fmp_latest_quarter';
   else if (secQuarter.ok && secQuarter.data.operatingIncomeQ !== null) provenance.operatingIncome = 'sec_edgar_quarterly';
@@ -719,6 +840,7 @@ export async function fetchCompanyFinancials(ticker: string, request?: CompanyFi
   if (toNum(qr?.netIncome) !== null) provenance.netIncome = 'fmp_latest_quarter';
   else if (secQuarter.ok && secQuarter.data.netIncomeQ !== null) provenance.netIncome = 'sec_edgar_quarterly';
   if (toNum(qr?.eps) !== null) provenance.eps = 'fmp_latest_quarter';
+  else if (explicitReleaseEps !== null) provenance.eps = 'fmp_earnings_release_summary';
   else if (secQuarter.ok && secQuarter.data.epsQ !== null) provenance.eps = 'sec_edgar_quarterly';
   if (toNum(ar?.revenue) !== null) provenance.annualRevenue = 'fmp_annual';
   else if (secAnnual.ok && secAnnual.data.revenueFY !== null) provenance.annualRevenue = 'sec_edgar_annual';
@@ -733,12 +855,14 @@ export async function fetchCompanyFinancials(ticker: string, request?: CompanyFi
     latestQuarter: {
       date:
         qr?.date ??
+        releaseContext.releaseReportEndDate ??
         (allowLatestQuarterFallback && secQuarter.ok ? secQuarter.data.reportEndDate : null) ??
         (allowLatestQuarterFallback ? providerFallback?.latestQuarter.date : null) ??
         request?.reportEndDate ??
         null,
       fiscalPeriod:
         normalizeFiscalPeriod(qr?.period ?? qr?.fiscalPeriod) ??
+        releaseContext.releaseFiscalPeriod ??
         (allowLatestQuarterFallback && secQuarter.ok ? secQuarter.data.period : null) ??
         (allowLatestQuarterFallback ? providerFallback?.latestQuarter.fiscalPeriod : null) ??
         request?.fiscalPeriod ??
@@ -762,8 +886,16 @@ export async function fetchCompanyFinancials(ticker: string, request?: CompanyFi
       releaseHighlights: releaseContext.releaseHighlights,
       releaseSourceNotes: releaseContext.releaseSourceNotes,
       releaseUrl: releaseContext.releaseUrl,
+      releaseFiscalPeriod: releaseContext.releaseFiscalPeriod,
+      releaseFiscalYear: releaseContext.releaseFiscalYear,
+      releaseReportEndDate: releaseContext.releaseReportEndDate,
+      releaseRevenue: releaseContext.releaseRevenue,
+      releaseEps: releaseContext.releaseEps,
       transcriptHighlights: transcriptContext.transcriptHighlights,
       transcriptSourceNotes: transcriptContext.transcriptSourceNotes,
+      transcriptFiscalPeriod: transcriptContext.transcriptFiscalPeriod,
+      transcriptFiscalYear: transcriptContext.transcriptFiscalYear,
+      transcriptReportEndDate: transcriptContext.transcriptReportEndDate,
       sourceNotes: [...releaseContext.releaseSourceNotes, ...transcriptContext.transcriptSourceNotes],
     },
     filingContext,

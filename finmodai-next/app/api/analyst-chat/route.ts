@@ -145,13 +145,7 @@ function explicitQuarterRequestUnresolved(
   runtimeMeta: EarningsRetrievalRuntimeMeta | null,
 ): boolean {
   if (!earningsResult || !runtimeMeta || runtimeMeta.request.mode !== 'explicit_quarter') return false;
-  return (
-    earningsResult.quarter.revenue == null &&
-    earningsResult.quarter.operatingIncome == null &&
-    earningsResult.quarter.netIncome == null &&
-    earningsResult.quarter.eps == null &&
-    !earningsResult.quarter.reportUrl
-  );
+  return runtimeMeta.resolutionStatus === 'unresolved_exact';
 }
 
 function isVisualizationPrompt(message: string): boolean {
@@ -1289,15 +1283,20 @@ export async function POST(req: NextRequest) {
           warnings: [],
         }
       : await retrieveDataForRoute(route, lastUserMessage);
+    const shouldSuppressGenericCompanyFacts =
+      Boolean(resolvedTicker) &&
+      earningsRuntimeMeta?.request.mode === 'explicit_quarter';
     const retrievedData =
-      explicitQuarterRequestUnresolved(earningsAgentResult, earningsRuntimeMeta) && resolvedTicker
+      shouldSuppressGenericCompanyFacts && resolvedTicker
         ? {
             ...retrievedDataBase,
             financials: retrievedDataBase.financials.filter((financial) => financial.ticker !== resolvedTicker),
             warnings: [
               ...retrievedDataBase.warnings,
-              `Exact quarter package for ${resolvedTicker} ${earningsRuntimeMeta?.request.fiscalPeriod ?? ''} ${earningsRuntimeMeta?.request.fiscalYear ?? ''}`.trim() +
-                ' was not resolved; suppressed latest-company snapshot context for this reply.',
+              explicitQuarterRequestUnresolved(earningsAgentResult, earningsRuntimeMeta)
+                ? `Exact quarter package for ${resolvedTicker} ${earningsRuntimeMeta?.request.fiscalPeriod ?? ''} ${earningsRuntimeMeta?.request.fiscalYear ?? ''}`.trim() +
+                  ' was not resolved; suppressed latest-company snapshot context for this reply.'
+                : `Suppressed generic latest-company snapshot context for explicit historical quarter request on ${resolvedTicker}.`,
             ],
             sources: retrievedDataBase.sources.filter((source) => !source.includes(resolvedTicker)),
           }
