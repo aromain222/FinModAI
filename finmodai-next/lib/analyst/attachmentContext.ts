@@ -3,6 +3,10 @@ import {
   type AttachmentStatementSnapshot,
   type PdfStatementPackage,
 } from '@/lib/analyst/pdfFinancialStatements';
+import {
+  assessPdfStatementExtraction,
+  type StatementExtractionStatus,
+} from '@/lib/analyst/pdfModelSeeding';
 
 export type AttachmentKind = 'earnings_report' | 'model_workbook' | 'spreadsheet' | 'document';
 
@@ -26,6 +30,9 @@ export type UploadedAttachmentContext = {
   rawBase64?: string;
   signals?: AttachmentSignals;
   statementPackage?: PdfStatementPackage;
+  statementExtractionStatus?: StatementExtractionStatus;
+  statementExtractionWarnings?: string[];
+  isFinancialModelSeedable?: boolean;
 };
 
 const MAX_SPREADSHEET_SIZE_BYTES = 5 * 1024 * 1024;
@@ -411,6 +418,9 @@ export async function parseUploadedAttachment(file: File): Promise<UploadedAttac
   let rawText: string | undefined;
   let rawBase64: string | undefined;
   let statementPackage: PdfStatementPackage | undefined;
+  let statementExtractionStatus: StatementExtractionStatus | undefined;
+  let statementExtractionWarnings: string[] = [];
+  let isFinancialModelSeedable: boolean | undefined;
 
   if (
     mimeType.includes('spreadsheet') ||
@@ -431,6 +441,13 @@ export async function parseUploadedAttachment(file: File): Promise<UploadedAttac
     summary = extractPdfText(arrayBuffer);
     rawBase64 = arrayBufferToBase64(arrayBuffer);
     statementPackage = extractPdfStatementPackage(summary) ?? undefined;
+    const extractionAssessment = assessPdfStatementExtraction({
+      statementPackage,
+      authoritative: false,
+    });
+    statementExtractionStatus = extractionAssessment.statementExtractionStatus;
+    statementExtractionWarnings = extractionAssessment.statementExtractionWarnings;
+    isFinancialModelSeedable = extractionAssessment.isFinancialModelSeedable;
     if (summary.length < 200) {
       warnings.push('Client-side PDF preview extraction was limited; server-side extraction will be used for the full chat context.');
     }
@@ -462,5 +479,8 @@ export async function parseUploadedAttachment(file: File): Promise<UploadedAttac
     ...(rawBase64 ? { rawBase64 } : {}),
     ...(signals ? { signals } : {}),
     ...(statementPackage ? { statementPackage } : {}),
+    ...(statementExtractionStatus ? { statementExtractionStatus } : {}),
+    ...(statementExtractionWarnings.length > 0 ? { statementExtractionWarnings } : {}),
+    ...(typeof isFinancialModelSeedable === 'boolean' ? { isFinancialModelSeedable } : {}),
   };
 }

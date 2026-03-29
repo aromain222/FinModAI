@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { extractPdfStatementPackage } from '@/lib/analyst/pdfFinancialStatements';
+import { assessPdfModelCoverage, assessPdfStatementExtraction } from '@/lib/analyst/pdfModelSeeding';
 import { extractInputs } from '@/lib/model-generator/extractInputs';
 
 const SAMPLE_FINANCIAL_PDF_TEXT = `
@@ -38,6 +39,61 @@ test('extractPdfStatementPackage parses structured statements from text-based fi
   assert.equal(parsed?.snapshot?.cash, 30_000_000_000);
   assert.equal(parsed?.snapshot?.totalDebt, 15_000_000_000);
   assert.equal(parsed?.snapshot?.capex, 24_000_000_000);
+});
+
+test('financial PDF extraction only becomes seedable after trusted server-side extraction', () => {
+  const parsed = extractPdfStatementPackage(SAMPLE_FINANCIAL_PDF_TEXT);
+  assert.ok(parsed, 'expected statement package');
+
+  const clientAssessment = assessPdfStatementExtraction({
+    statementPackage: parsed,
+    authoritative: false,
+  });
+  assert.equal(clientAssessment.statementExtractionStatus, 'low_confidence');
+  assert.equal(clientAssessment.isFinancialModelSeedable, false);
+
+  const serverAssessment = assessPdfStatementExtraction({
+    statementPackage: parsed,
+    authoritative: true,
+  });
+  assert.equal(serverAssessment.statementExtractionStatus, 'trusted');
+  assert.equal(serverAssessment.isFinancialModelSeedable, true);
+
+  const unsupportedAssessment = assessPdfStatementExtraction({
+    failureMode: 'unsupported',
+    authoritative: true,
+  });
+  assert.equal(unsupportedAssessment.statementExtractionStatus, 'unsupported');
+  assert.equal(unsupportedAssessment.isFinancialModelSeedable, false);
+
+  const failedAssessment = assessPdfStatementExtraction({
+    failureMode: 'failed',
+    authoritative: true,
+  });
+  assert.equal(failedAssessment.statementExtractionStatus, 'failed');
+  assert.equal(failedAssessment.isFinancialModelSeedable, false);
+});
+
+test('trusted financial PDFs must satisfy minimum field coverage for each model type', () => {
+  const parsed = extractPdfStatementPackage(SAMPLE_FINANCIAL_PDF_TEXT);
+  assert.ok(parsed, 'expected statement package');
+
+  assert.equal(assessPdfModelCoverage('DCF', parsed).ok, true);
+  assert.equal(assessPdfModelCoverage('THREE_STATEMENT', parsed).ok, true);
+  assert.equal(assessPdfModelCoverage('COMPS', parsed).ok, true);
+  assert.equal(assessPdfModelCoverage('LBO', parsed).ok, true);
+
+  const sparse = extractPdfStatementPackage(`
+Microsoft Corporation (MSFT)
+Condensed Consolidated Statements of Income
+(In millions)
+Three Months Ended 2025-12-31
+Revenue 70,000
+`);
+  assert.equal(sparse, null);
+  const sparseCoverage = assessPdfModelCoverage('DCF', sparse);
+  assert.equal(sparseCoverage.ok, false);
+  assert.deepEqual(sparseCoverage.missing, ['trusted statement package']);
 });
 
 test('extractInputs uses attachment statement snapshots ahead of defaults for DCF and three-statement models', async () => {

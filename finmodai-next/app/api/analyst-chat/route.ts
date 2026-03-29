@@ -19,6 +19,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import type { UploadedAttachmentContext } from '@/lib/analyst/attachmentContext';
 import { extractPdfStatementPackage } from '@/lib/analyst/pdfFinancialStatements';
+import {
+  assessPdfModelCoverage,
+  assessPdfStatementExtraction,
+  isPdfAttachment,
+} from '@/lib/analyst/pdfModelSeeding';
 import { routeAnalystQuery, type AnalystRoute } from '@/lib/analyst/router';
 import { retrieveDataForRoute } from '@/lib/analyst/dataRetrieval';
 import { extractVerifiedFacts, serializeFactsBriefForContext, type VerifiedFacts } from '@/lib/analyst/factsExtractor';
@@ -509,7 +514,7 @@ async function hydrateAttachmentContext(
   attachment: UploadedAttachmentContext | null,
 ): Promise<UploadedAttachmentContext | null> {
   if (!attachment) return null;
-  if (attachment.mimeType !== 'application/pdf' && !/\.pdf$/i.test(attachment.name)) {
+  if (!isPdfAttachment({ mimeType: attachment.mimeType, name: attachment.name })) {
     return attachment;
   }
   if (!attachment.rawBase64) return attachment;
@@ -525,23 +530,80 @@ async function hydrateAttachmentContext(
       .replace(/[ \t]+/g, ' ')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
-    if (!extractedText) return attachment;
-    const statementPackage = extractPdfStatementPackage(extractedText) ?? attachment.statementPackage;
+    if (!extractedText) {
+      const extractionAssessment = assessPdfStatementExtraction({
+        failureMode: 'unsupported',
+        authoritative: true,
+      });
+      return {
+        ...attachment,
+        rawText: undefined,
+        statementPackage: undefined,
+        statementExtractionStatus: extractionAssessment.statementExtractionStatus,
+        statementExtractionWarnings: extractionAssessment.statementExtractionWarnings,
+        isFinancialModelSeedable: extractionAssessment.isFinancialModelSeedable,
+      };
+    }
+    const statementPackage = extractPdfStatementPackage(extractedText);
+    const extractionAssessment = assessPdfStatementExtraction({
+      statementPackage,
+      authoritative: true,
+    });
     return {
       ...attachment,
       summary: extractedText.slice(0, 7000),
       rawText: extractedText.slice(0, 120000),
       ...(statementPackage ? { statementPackage } : {}),
+      ...(!statementPackage ? { statementPackage: undefined } : {}),
+      statementExtractionStatus: extractionAssessment.statementExtractionStatus,
+      statementExtractionWarnings: extractionAssessment.statementExtractionWarnings,
+      isFinancialModelSeedable: extractionAssessment.isFinancialModelSeedable,
       warnings: attachment.warnings.filter(
         (warning) => !warning.toLowerCase().includes('client-side pdf preview extraction'),
       ),
     };
   } catch (error) {
+    const extractionAssessment = assessPdfStatementExtraction({
+      failureMode: 'failed',
+      authoritative: true,
+    });
     return {
       ...attachment,
-      warnings: [...attachment.warnings, 'Server-side PDF extraction failed; using limited preview text instead.'],
+      statementPackage: undefined,
+      statementExtractionStatus: extractionAssessment.statementExtractionStatus,
+      statementExtractionWarnings: extractionAssessment.statementExtractionWarnings,
+      isFinancialModelSeedable: extractionAssessment.isFinancialModelSeedable,
+      warnings: [...attachment.warnings, 'Server-side PDF extraction failed.'],
     };
   }
+}
+
+function buildFinancialPdfModelFailureReply(params: {
+  modelType: 'DCF' | 'THREE_STATEMENT' | 'COMPS' | 'LBO' | null;
+  status: UploadedAttachmentContext['statementExtractionStatus'];
+  extractionWarnings: string[];
+  missingCoverage?: string[];
+}): string {
+  const modelLabel = params.modelType ? params.modelType.replace(/_/g, ' ') : 'financial model';
+  if (params.status !== 'trusted') {
+    const statusLabel = params.status ?? 'low_confidence';
+    const warningText =
+      params.extractionWarnings.length > 0
+        ? ` ${params.extractionWarnings.join(' ')}`
+        : '';
+    return `I could not build a ${modelLabel} from the attached financial PDF because server-side statement extraction was ${statusLabel}.${warningText}`;
+  }
+
+  if (params.missingCoverage && params.missingCoverage.length > 0) {
+    return `I could not build a ${modelLabel} from the attached financial PDF because the extracted statements did not include the minimum required fields: ${params.missingCoverage.join(', ')}.`;
+  }
+
+  return `I could not build a ${modelLabel} from the attached financial PDF because the extracted statement package was not usable for model seeding.`;
+}
+
+function buildFinancialModelSourceLabel(source: string): string {
+  if (source === 'attachment_pdf_statement') return 'Attachment PDF statement package';
+  return `Demo snapshot cache — ${source}`;
 }
 
 function serializeMarketEventsContext(events: MarketEvent[]): string {
@@ -1066,6 +1128,14 @@ export async function POST(req: NextRequest) {
       const modelType =
         promptSelectedModelType ??
         (!attachmentContext?.statementPackage ? attachmentContext?.signals?.modelTypeHint ?? null : null);
+      const requestedPdfModelType =
+        modelType === 'DCF' || modelType === 'THREE_STATEMENT' || modelType === 'COMPS' || modelType === 'LBO'
+          ? modelType
+          : null;
+      const isFinancialPdfRequest = Boolean(
+        attachmentContext &&
+          isPdfAttachment({ mimeType: attachmentContext.mimeType, name: attachmentContext.name })
+      );
       const coreTemplateModel = detectCoreTemplatePrompt(lastUserMessage);
 
       if (shouldVisualizeCurrentDcf && currentDcf) {
@@ -1187,13 +1257,61 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      if (isFinancialPdfRequest) {
+        const extractionStatus = attachmentContext?.statementExtractionStatus ?? 'low_confidence';
+        if (attachmentContext?.isFinancialModelSeedable !== true) {
+          return NextResponse.json({
+            reply: buildFinancialPdfModelFailureReply({
+              modelType: requestedPdfModelType,
+              status: extractionStatus,
+              extractionWarnings: attachmentContext?.statementExtractionWarnings ?? [],
+            }),
+            fallback: false,
+            mode: 'live',
+            route: 'financial_model',
+            sources: [
+              'Attachment financial PDF',
+              `Statement extraction status: ${extractionStatus}`,
+            ],
+            factsCount: 0,
+            attachmentUsed: attachmentLabel,
+          });
+        }
+
+        if (requestedPdfModelType) {
+          const coverage = assessPdfModelCoverage(requestedPdfModelType, attachmentContext?.statementPackage);
+          if (!coverage.ok) {
+            return NextResponse.json({
+              reply: buildFinancialPdfModelFailureReply({
+                modelType: requestedPdfModelType,
+                status: 'trusted',
+                extractionWarnings: attachmentContext?.statementExtractionWarnings ?? [],
+                missingCoverage: coverage.missing,
+              }),
+              fallback: false,
+              mode: 'live',
+              route: 'financial_model',
+              sources: [
+                'Attachment PDF statement package',
+                `Missing model coverage: ${coverage.missing.join(', ')}`,
+              ],
+              factsCount: 0,
+              attachmentUsed: attachmentLabel,
+            });
+          }
+        }
+      }
+
       if (modelType && modelType !== 'DCF') {
         const normalizedModelPrompt =
           classifyPrompt(lastUserMessage) === null && attachmentContext?.signals?.modelTypeHint === modelType
             ? `Build a ${modelType.replace(/_/g, ' ')} model using the uploaded context.\n\n${effectiveUserMessage}`
             : effectiveUserMessage;
         const generatedModel = await generateAnalystStructuredModel(normalizedModelPrompt, sessionId, {
-          attachmentStatementSnapshot: attachmentContext?.statementPackage?.snapshot ?? null,
+          attachmentStatementSnapshot:
+            attachmentContext?.isFinancialModelSeedable === true
+              ? attachmentContext?.statementPackage?.snapshot ?? null
+              : null,
         });
         if (generatedModel) {
           try {
@@ -1228,6 +1346,10 @@ export async function POST(req: NextRequest) {
             route: 'financial_model',
             generatedModel: generatedModel.payload,
             sources: [
+              ...(attachmentContext?.isFinancialModelSeedable === true &&
+              attachmentContext?.statementPackage?.snapshot?.source === 'attachment_pdf_statement'
+                ? ['Attachment PDF statement package']
+                : []),
               ...generatedModel.payload.provenanceSummary.sources,
               'CapitalBase local model templates',
               'Deterministic prompt extraction and defaults',
@@ -1263,7 +1385,10 @@ export async function POST(req: NextRequest) {
             ? `Build a DCF using the uploaded context.\n\n${effectiveUserMessage}`
             : effectiveUserMessage,
         explicitTicker: resolvedTicker,
-        attachmentStatementSnapshot: attachmentContext?.statementPackage?.snapshot ?? null,
+        attachmentStatementSnapshot:
+          attachmentContext?.isFinancialModelSeedable === true
+            ? attachmentContext?.statementPackage?.snapshot ?? null
+            : null,
       });
 
       return NextResponse.json({
@@ -1273,7 +1398,7 @@ export async function POST(req: NextRequest) {
         route: 'financial_model',
         dcfDemo: demo.payload,
         sources: [
-          `Demo snapshot cache — ${demo.payload.source}`,
+          buildFinancialModelSourceLabel(demo.payload.source),
           ...(demo.payload.asOfDate ? [`Snapshot updated ${demo.payload.asOfDate}`] : []),
         ],
         factsCount: 0,
