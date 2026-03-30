@@ -5,6 +5,7 @@ import { addEquationsSheet, type EquationRow } from '@/lib/model-generator/excel
 import {
   applyWorkbookMeta,
   enableWorkbookRecalculation,
+  finalizeWorkbookCompatibility,
   mergeAndCenter,
   setupSheet,
   styleAccentOutput,
@@ -358,5 +359,5 @@ export async function buildWorkbook(inputs: CapTableModelInputs): Promise<ExcelJ
 
   addEquationsSheet(workbook, `${inputs.roundType} Cap Table`, equations);
 
-  return workbook;
+  return finalizeWorkbookCompatibility(workbook);
 }

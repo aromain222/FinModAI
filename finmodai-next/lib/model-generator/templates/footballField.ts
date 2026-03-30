@@ -5,6 +5,7 @@ import { addEquationsSheet, type EquationRow } from '@/lib/model-generator/excel
 import {
   applyWorkbookMeta,
   enableWorkbookRecalculation,
+  finalizeWorkbookCompatibility,
   setupSheet,
   styleAccentOutput,
   styleFormula,
@@ -219,5 +220,5 @@ export async function buildWorkbook(inputs: FootballFieldModelInputs): Promise<E
   writeCheckRow(checks, 6, 'Share count anchor available', `=${inputs.sharesOutstanding !== null && inputs.sharesOutstanding > 0 ? '"PASS"' : '"FLAG"'}`, 'Need diluted shares to translate equity value into price-per-share outputs.');
   finalizeChecksSheet(checks, 4, 6);
 
-  return workbook;
+  return finalizeWorkbookCompatibility(workbook);
 }

@@ -34,6 +34,7 @@ import {
   styleTotal,
 } from '@/lib/model-generator/excel/formatting';
 import { sanitizeWorkbookText, sanitizeWorkbookValue } from '@/lib/excel/workbookText';
+import { finalizeWorkbookCompatibility } from '@/lib/model-generator/excel/formatting';
 
 type ValueKind = 'currency' | 'percent' | 'number' | 'text';
 
@@ -1261,22 +1262,22 @@ export async function buildAnalystGeneratedWorkbook(payload: AnalystGeneratedMod
   if (payload.extractedInputs.modelType === 'DCF') {
     const workbook = await dcfTemplate.buildWorkbook(payload.extractedInputs as DcfModelInputs);
     appendSummarySheet(workbook, payload);
-    return workbook;
+    return finalizeWorkbookCompatibility(workbook);
   }
   if (payload.extractedInputs.modelType === 'COMPS') {
     const workbook = await compsTemplate.buildWorkbook(payload.extractedInputs as CompsModelInputs);
     appendSummarySheet(workbook, payload);
-    return workbook;
+    return finalizeWorkbookCompatibility(workbook);
   }
   if (payload.extractedInputs.modelType === 'PRECEDENTS') {
     const workbook = await precedentsTemplate.buildWorkbook(payload.extractedInputs as PrecedentsModelInputs);
     appendSummarySheet(workbook, payload);
-    return workbook;
+    return finalizeWorkbookCompatibility(workbook);
   }
   if (payload.extractedInputs.modelType === 'LBO') {
     const workbook = await lboTemplate.buildWorkbook(payload.extractedInputs as LboModelInputs);
     appendSummarySheet(workbook, payload);
-    return workbook;
+    return finalizeWorkbookCompatibility(workbook);
   }
 
   const workbook = new ExcelJS.Workbook();
@@ -1284,7 +1285,7 @@ export async function buildAnalystGeneratedWorkbook(payload: AnalystGeneratedMod
   enableWorkbookRecalculation(workbook);
   buildWorkbookForPayload(workbook, payload);
   appendSummarySheet(workbook, payload);
-  return workbook;
+  return finalizeWorkbookCompatibility(workbook);
 }
 
 export function buildAnalystGeneratedFilename(payload: AnalystGeneratedModelPayload): string {

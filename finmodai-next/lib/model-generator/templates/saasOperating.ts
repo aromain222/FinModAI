@@ -6,6 +6,7 @@ import {
   applyWorkbookMeta,
   col,
   enableWorkbookRecalculation,
+  finalizeWorkbookCompatibility,
   mergeAndCenter,
   setupSheet,
   styleAccentOutput,
@@ -492,5 +493,5 @@ export async function buildWorkbook(inputs: SaasOperatingModelInputs): Promise<E
 
   addEquationsSheet(workbook, `${inputs.companyName} SaaS Operating Model`, equations);
 
-  return workbook;
+  return finalizeWorkbookCompatibility(workbook);
 }

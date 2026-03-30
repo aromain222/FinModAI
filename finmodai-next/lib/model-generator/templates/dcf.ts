@@ -7,6 +7,7 @@ import {
   applyWorkbookMeta,
   col,
   enableWorkbookRecalculation,
+  finalizeWorkbookCompatibility,
   mergeAndCenter,
   setupSheet,
   styleFormula,
@@ -642,5 +643,5 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
 
   addEquationsSheet(workbook, `${inputs.companyName} DCF`, equations);
 
-  return workbook;
+  return finalizeWorkbookCompatibility(workbook);
 }

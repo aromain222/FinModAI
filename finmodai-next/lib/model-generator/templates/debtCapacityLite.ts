@@ -1,6 +1,7 @@
 import type { DebtCapacityLiteModelInputs } from '@/lib/model-generator/extractInputs';
 import { calculateDebtCapacityPreview } from '@/lib/model-generator/debtCapacitySummary';
 import { generateDebtCapacityLiteWorkbook } from '@/lib/models/debtCapacityLite/excel';
+import { finalizeWorkbookCompatibility } from '@/lib/model-generator/excel/formatting';
 
 export function getPreview(inputs: DebtCapacityLiteModelInputs) {
   return {
@@ -15,8 +16,9 @@ export async function buildWorkbook(inputs: DebtCapacityLiteModelInputs) {
     throw new Error('Debt Capacity Lite requires positive EBITDA.');
   }
 
-  return generateDebtCapacityLiteWorkbook({
+  const workbook = await generateDebtCapacityLiteWorkbook({
     ticker: inputs.ticker || inputs.companyName.slice(0, 5).toUpperCase(),
     summary,
   });
+  return finalizeWorkbookCompatibility(workbook);
 }

@@ -2,6 +2,7 @@ import type { LboInputs } from '@/lib/lboEngine';
 import { runLboModel } from '@/lib/lboEngine';
 import { generateLBOWorkbook } from '@/lib/models/lbo/excel';
 import type { LboModelInputs } from '@/lib/model-generator/extractInputs';
+import { finalizeWorkbookCompatibility } from '@/lib/model-generator/excel/formatting';
 
 export function getPreview(inputs: LboModelInputs) {
   return {
@@ -36,7 +37,7 @@ export async function buildWorkbook(inputs: LboModelInputs) {
   };
 
   const output = runLboModel(lboInputs);
-  return generateLBOWorkbook(output, {
+  const workbook = await generateLBOWorkbook(output, {
     ticker: lboInputs.ticker,
     companyName: inputs.companyName,
     revenue: inputs.revenue,
@@ -53,4 +54,5 @@ export async function buildWorkbook(inputs: LboModelInputs) {
     marketSharePrice: inputs.sharePrice ?? undefined,
     notes: [`Source: ${inputs.source}`, 'Generated from CapitalBase LBO workflow defaults and cached company data.'],
   });
+  return finalizeWorkbookCompatibility(workbook);
 }

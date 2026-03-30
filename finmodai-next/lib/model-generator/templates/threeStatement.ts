@@ -7,6 +7,7 @@ import {
   applyWorkbookMeta,
   col,
   enableWorkbookRecalculation,
+  finalizeWorkbookCompatibility,
   mergeAndCenter,
   setupSheet,
   styleFormula,
@@ -716,5 +717,5 @@ export async function buildWorkbook(inputs: ThreeStatementModelInputs): Promise<
 
   addEquationsSheet(workbook, `${inputs.companyName} Three-Statement`, equations);
 
-  return workbook;
+  return finalizeWorkbookCompatibility(workbook);
 }

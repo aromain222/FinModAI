@@ -1,5 +1,6 @@
 import type { MergerModelInputs } from '@/lib/model-generator/extractInputs';
 import { generateMergerWorkbook, type MergerInputs } from '@/lib/models/merger/excel';
+import { finalizeWorkbookCompatibility } from '@/lib/model-generator/excel/formatting';
 
 export function getPreview(inputs: MergerModelInputs) {
   return {
@@ -52,5 +53,6 @@ export function toWorkbookInputs(inputs: MergerModelInputs): MergerInputs {
 }
 
 export async function buildWorkbook(inputs: MergerModelInputs) {
-  return generateMergerWorkbook(toWorkbookInputs(inputs));
+  const workbook = await generateMergerWorkbook(toWorkbookInputs(inputs));
+  return finalizeWorkbookCompatibility(workbook);
 }

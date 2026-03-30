@@ -6,6 +6,7 @@ import { addEquationsSheet, type EquationRow } from '@/lib/model-generator/excel
 import {
   applyWorkbookMeta,
   enableWorkbookRecalculation,
+  finalizeWorkbookCompatibility,
   setupSheet,
   styleAccentOutput,
   styleFormula,
@@ -413,5 +414,5 @@ export async function buildWorkbook(inputs: CompsModelInputs): Promise<ExcelJS.W
   writeCheckRow(checks, 6, 'EV / EBITDA available', `=${result.medianMultiples.evToEbitda ? '"PASS"' : '"FLAG"'}`, 'EBITDA multiple supports banking and ER valuation framing.');
   finalizeChecksSheet(checks, 4, 6);
 
-  return workbook;
+  return finalizeWorkbookCompatibility(workbook);
 }
