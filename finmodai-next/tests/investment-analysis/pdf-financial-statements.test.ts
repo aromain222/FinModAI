@@ -158,6 +158,31 @@ test('extractPdfTextServer returns dependency_failed when pdf-parse cannot load'
   assert.match(extraction.warnings.join(' '), /Cannot find package pdf-parse/);
 });
 
+test('extractPdfTextServer returns runtime_bootstrap_failed when pdf worker helper cannot load', async () => {
+  const extraction = await extractPdfTextServer(Buffer.from('fake pdf'), {
+    loadPdfParse: async () => ({
+      PDFParse: class {
+        static setWorker() {
+          return '';
+        }
+        async getText() {
+          assert.fail('parser should not run when worker bootstrap fails');
+        }
+        destroy() {
+          return undefined;
+        }
+      },
+    }),
+    loadPdfParseWorker: async () => {
+      throw new Error('Cannot find module pdf-parse/worker');
+    },
+  });
+
+  assert.equal(extraction.stage, 'runtime_bootstrap_failed');
+  assert.equal(extraction.text, null);
+  assert.match(extraction.warnings.join(' '), /PDF worker bootstrap failed: Cannot find module pdf-parse\/worker/);
+});
+
 test('ensurePdfRuntimeGlobals injects missing PDF.js globals from canvas runtime', async () => {
   const originalDomMatrix = globalThis.DOMMatrix;
   const originalImageData = globalThis.ImageData;
@@ -258,6 +283,7 @@ test('extractPdfTextServer bootstraps runtime globals before constructing PDFPar
     class FakeImageData {}
     class FakePath2D {}
     let sawGlobalsAtConstruction = false;
+    let workerPayloadSeen: string | null = null;
 
     const extraction = await extractPdfTextServer(Buffer.from('fake pdf'), {
       loadCanvasRuntime: async () => ({
@@ -267,6 +293,10 @@ test('extractPdfTextServer bootstraps runtime globals before constructing PDFPar
       }),
       loadPdfParse: async () => ({
         PDFParse: class {
+          static setWorker(workerSrc?: string) {
+            workerPayloadSeen = workerSrc ?? null;
+            return workerSrc ?? '';
+          }
           constructor() {
             sawGlobalsAtConstruction =
               globalThis.DOMMatrix === (FakeDOMMatrix as unknown as typeof globalThis.DOMMatrix) &&
@@ -281,9 +311,13 @@ test('extractPdfTextServer bootstraps runtime globals before constructing PDFPar
           }
         },
       }),
+      loadPdfParseWorker: async () => ({
+        getData: () => 'data:text/javascript;base64,ZmFrZQ==',
+      }),
     });
 
     assert.equal(sawGlobalsAtConstruction, true);
+    assert.equal(workerPayloadSeen, 'data:text/javascript;base64,ZmFrZQ==');
     assert.equal(extraction.stage, 'text_extracted');
     assert.deepEqual(extraction.runtimeBootstrap?.injectedGlobals ?? [], ['DOMMatrix', 'ImageData', 'Path2D']);
     assert.match(extraction.text ?? '', /Microsoft Corporation/);

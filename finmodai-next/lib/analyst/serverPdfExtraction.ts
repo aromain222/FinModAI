@@ -28,6 +28,12 @@ type PdfParseModule = {
 
 type PdfParseLoader = () => Promise<PdfParseModule>;
 
+type PdfParseWorkerModule = {
+  getData: () => string;
+};
+
+type PdfParseWorkerLoader = () => Promise<PdfParseWorkerModule>;
+
 type CanvasRuntimeModule = Partial<Record<'DOMMatrix' | 'ImageData' | 'Path2D', unknown>>;
 
 type CanvasRuntimeLoader = () => Promise<CanvasRuntimeModule>;
@@ -64,6 +70,14 @@ async function loadPdfParse(): Promise<PdfParseModule> {
   return { PDFParse };
 }
 
+async function loadPdfParseWorker(): Promise<PdfParseWorkerModule> {
+  const mod = (await import(/* webpackIgnore: true */ 'pdf-parse/worker')) as Partial<PdfParseWorkerModule>;
+  if (typeof mod.getData !== 'function') {
+    throw new Error('pdf-parse worker helper did not expose getData');
+  }
+  return { getData: mod.getData };
+}
+
 async function loadCanvasRuntime(): Promise<CanvasRuntimeModule> {
   const mod = (await import(/* webpackIgnore: true */ '@napi-rs/canvas')) as CanvasRuntimeModule;
   return {
@@ -95,16 +109,42 @@ export async function ensurePdfRuntimeGlobals(
 
 export async function extractPdfTextServer(
   pdfBuffer: Buffer,
-  options?: { loadPdfParse?: PdfParseLoader; loadCanvasRuntime?: CanvasRuntimeLoader },
+  options?: {
+    loadPdfParse?: PdfParseLoader;
+    loadPdfParseWorker?: PdfParseWorkerLoader;
+    loadCanvasRuntime?: CanvasRuntimeLoader;
+  },
 ): Promise<PdfTextExtractionResult> {
-  const loader = options?.loadPdfParse ?? loadPdfParse;
+  const pdfParseLoader = options?.loadPdfParse ?? loadPdfParse;
+  const workerLoader = options?.loadPdfParseWorker ?? loadPdfParseWorker;
   let parser: PdfParseInstance | null = null;
   let injectedGlobals: Array<'DOMMatrix' | 'ImageData' | 'Path2D'> = [];
   try {
     injectedGlobals = await ensurePdfRuntimeGlobals({
       loadCanvasRuntime: options?.loadCanvasRuntime,
     });
-    const { PDFParse } = await loader();
+    const { PDFParse } = await pdfParseLoader();
+    try {
+      const { getData } = await workerLoader();
+      const workerData = getData();
+      if (!workerData) {
+        throw new Error('pdf-parse worker helper returned an empty worker payload');
+      }
+      const setWorker = (PDFParse as typeof PDFParse & { setWorker?: (workerSrc?: string) => string }).setWorker;
+      if (typeof setWorker !== 'function') {
+        throw new Error('pdf-parse did not expose PDFParse.setWorker');
+      }
+      setWorker(workerData);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown PDF worker bootstrap error';
+      return {
+        text: null,
+        extractor: 'pdf_parse',
+        warnings: [`PDF worker bootstrap failed: ${message}`],
+        stage: 'runtime_bootstrap_failed',
+        runtimeBootstrap: { injectedGlobals },
+      };
+    }
     parser = new PDFParse({ data: pdfBuffer });
     const parsed = await parser.getText();
     const text = normalizePdfText(parsed.text ?? '');
