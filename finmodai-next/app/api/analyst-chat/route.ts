@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import type { UploadedAttachmentContext } from '@/lib/analyst/attachmentContext';
 import { overrideRouteFromAttachment } from '@/lib/analyst/attachmentRouting';
+import { buildAttachmentStatus, type AttachmentStatusPayload } from '@/lib/analyst/attachmentStatus';
 import { extractPdfStatementPackage } from '@/lib/analyst/pdfFinancialStatements';
 import {
   assessPdfModelCoverage,
@@ -678,6 +679,7 @@ export async function POST(req: NextRequest) {
   let responseStockLookup: Awaited<ReturnType<typeof lookupStock>> | null = null;
   let earningsAgentResult: EarningsRetrievalAgentResult | null = null;
   let earningsRuntimeMeta: EarningsRetrievalRuntimeMeta | null = null;
+  let responseAttachmentStatus: AttachmentStatusPayload | null = null;
 
   try {
     const body = await req.json();
@@ -710,6 +712,18 @@ export async function POST(req: NextRequest) {
         ],
       } satisfies UploadedAttachmentContext;
     });
+    responseAttachmentStatus = buildAttachmentStatus({
+      attachment: attachmentContext,
+      attachmentInputProvided: Boolean(attachmentContextInput),
+      isPdf: Boolean(attachmentContext && isPdfAttachment({ mimeType: attachmentContext.mimeType, name: attachmentContext.name })),
+    });
+    const withAttachmentStatus = <T extends Record<string, unknown>>(payload: T): T => {
+      if (!responseAttachmentStatus) return payload;
+      return {
+        ...payload,
+        attachmentStatus: responseAttachmentStatus,
+      };
+    };
     const sessionId = typeof body?.sessionId === 'string' && body.sessionId.trim().length > 0 ? body.sessionId.trim() : null;
     const currentModel =
       body?.currentModel && typeof body.currentModel === 'object'
@@ -741,12 +755,12 @@ export async function POST(req: NextRequest) {
       const revisedDcf = await reviseAnalystDcfDemoFromAdjustment(dcfAdjustment, currentDcf);
       if (!revisedDcf) {
         return NextResponse.json(
-          { error: 'No valid DCF control adjustments were provided.' },
+          withAttachmentStatus({ error: 'No valid DCF control adjustments were provided.' }),
           { status: 400 },
         );
       }
 
-      return NextResponse.json({
+      return NextResponse.json(withAttachmentStatus({
         reply: revisedDcf.reply,
         fallback: false,
         mode: 'live',
@@ -758,14 +772,14 @@ export async function POST(req: NextRequest) {
           'Analyst Chat scenario controls',
         ],
         factsCount: 0,
-      });
+      }));
     }
 
     if (currentDcf && dcfEventShockPrompt) {
       const requestedTicker = tickerRaw ?? inferTickerFromPrompt(dcfEventShockPrompt);
       const currentTicker = currentDcf.ticker?.trim().toUpperCase();
       if (requestedTicker && currentTicker && requestedTicker !== currentTicker) {
-        return NextResponse.json({
+        return NextResponse.json(withAttachmentStatus({
           reply: buildArtifactTickerMismatchReply({
             requestedTicker,
             artifactTicker: currentTicker,
@@ -775,18 +789,18 @@ export async function POST(req: NextRequest) {
           mode: 'live',
           route: 'financial_model',
           factsCount: 0,
-        });
+        }));
       }
 
       const shockedDcf = await reviseAnalystDcfDemoFromEventShock(dcfEventShockPrompt, currentDcf);
       if (!shockedDcf) {
         return NextResponse.json(
-          { error: 'No supported event shock was detected for the active DCF.' },
+          withAttachmentStatus({ error: 'No supported event shock was detected for the active DCF.' }),
           { status: 400 },
         );
       }
 
-      return NextResponse.json({
+      return NextResponse.json(withAttachmentStatus({
         reply: shockedDcf.reply,
         fallback: false,
         mode: 'live',
@@ -798,7 +812,7 @@ export async function POST(req: NextRequest) {
           'Deterministic event shock mapping',
         ],
         factsCount: 0,
-      });
+      }));
     }
 
     if (currentModel && modelAdjustment) {
@@ -822,7 +836,7 @@ export async function POST(req: NextRequest) {
         sessionId,
       );
       if (!revisedModel && promptAdjustedModelResult) {
-        return NextResponse.json({
+        return NextResponse.json(withAttachmentStatus({
           reply: promptAdjustedModelResult.reply,
           fallback: false,
           mode: 'live',
@@ -833,16 +847,16 @@ export async function POST(req: NextRequest) {
             'Analyst Chat model controls',
           ],
           factsCount: 0,
-        });
+        }));
       }
       if (!revisedModel) {
         return NextResponse.json(
-          { error: 'No valid structured model control adjustments were provided.' },
+          withAttachmentStatus({ error: 'No valid structured model control adjustments were provided.' }),
           { status: 400 },
         );
       }
 
-      return NextResponse.json({
+      return NextResponse.json(withAttachmentStatus({
         reply: revisedModel.reply,
         fallback: false,
         mode: 'live',
@@ -853,7 +867,7 @@ export async function POST(req: NextRequest) {
           'Analyst Chat model controls',
         ],
         factsCount: 0,
-      });
+      }));
     }
 
     const safeMessages = messages
@@ -950,7 +964,7 @@ export async function POST(req: NextRequest) {
       !classifyPrompt(lastUserMessage);
 
     if (artifactTickerMismatch && explicitRequestedTicker && tickerFromCurrentArtifact) {
-      return NextResponse.json({
+      return NextResponse.json(withAttachmentStatus({
         reply: buildArtifactTickerMismatchReply({
           requestedTicker: explicitRequestedTicker,
           artifactTicker: tickerFromCurrentArtifact,
@@ -961,7 +975,7 @@ export async function POST(req: NextRequest) {
         route: 'financial_model',
         factsCount: 0,
         attachmentUsed: attachmentLabel,
-      });
+      }));
     }
     if (route.intent === 'company_question') {
       stockLookupPayload = preferCurrentArtifact && currentStock
@@ -1015,7 +1029,7 @@ export async function POST(req: NextRequest) {
     if (isVisualizationPrompt(lastUserMessage)) {
       const comparisonVisualization = await buildComparisonVisualizationFromPrompt(lastUserMessage);
       if (comparisonVisualization) {
-        return NextResponse.json({
+        return NextResponse.json(withAttachmentStatus({
           reply: `Here is a standalone comparison chart for ${comparisonVisualization.visualization.contextLabel}. ${comparisonVisualization.explanation}`,
           fallback: false,
           mode: 'live',
@@ -1024,7 +1038,7 @@ export async function POST(req: NextRequest) {
           sources: comparisonVisualization.visualization.notes,
           factsCount: 0,
           attachmentUsed: attachmentLabel,
-        });
+        }));
       }
 
       const singleCompanyRevenueGrowthVisualization = await buildSingleCompanyRevenueGrowthVisualization({
@@ -1032,7 +1046,7 @@ export async function POST(req: NextRequest) {
         ticker: resolvedTicker,
       });
       if (singleCompanyRevenueGrowthVisualization) {
-        return NextResponse.json({
+        return NextResponse.json(withAttachmentStatus({
           reply: `Here is a standalone revenue growth chart for ${singleCompanyRevenueGrowthVisualization.visualization.contextLabel}. ${singleCompanyRevenueGrowthVisualization.explanation}`,
           fallback: false,
           mode: 'live',
@@ -1041,7 +1055,7 @@ export async function POST(req: NextRequest) {
           sources: singleCompanyRevenueGrowthVisualization.sources,
           factsCount: 0,
           attachmentUsed: attachmentLabel,
-        });
+        }));
       }
 
       if (!currentModel && !currentDcf && !currentStock && isRevenueForecastVisualizationPrompt(lastUserMessage) && resolvedTicker) {
@@ -1051,7 +1065,7 @@ export async function POST(req: NextRequest) {
           attachmentStatementSnapshot: attachmentContext?.statementPackage?.snapshot ?? null,
         });
         const visualization = buildRevenueForecastVisualizationFromDcf(demo.payload);
-        return NextResponse.json({
+        return NextResponse.json(withAttachmentStatus({
           reply: `Here is a standalone ${demo.payload.years}-year revenue forecast chart for ${demo.payload.companyName} (${demo.payload.ticker}). ${revenueDriverSummary(demo.payload.ticker)}`,
           fallback: false,
           mode: 'live',
@@ -1064,7 +1078,7 @@ export async function POST(req: NextRequest) {
           ],
           factsCount: 0,
           attachmentUsed: attachmentLabel,
-        });
+        }));
       }
     }
 
@@ -1095,7 +1109,7 @@ export async function POST(req: NextRequest) {
 
       if (shouldVisualizeCurrentDcf && currentDcf) {
         const visualization = buildVisualizationFromCurrentArtifact({ currentDcf });
-        return NextResponse.json({
+        return NextResponse.json(withAttachmentStatus({
           reply: `Here is a standalone chart package for ${currentDcf.companyName} (${currentDcf.ticker}). This is separate from the DCF model card and is meant purely for visualization.`,
           fallback: false,
           mode: 'live',
@@ -1108,12 +1122,12 @@ export async function POST(req: NextRequest) {
           ],
           factsCount: 0,
           attachmentUsed: attachmentLabel,
-        });
+        }));
       }
 
       if (shouldVisualizeCurrentModel && currentModel) {
         const visualization = buildVisualizationFromCurrentArtifact({ currentModel });
-        return NextResponse.json({
+        return NextResponse.json(withAttachmentStatus({
           reply: `Here is a standalone visualization for the current ${currentModel.modelType.replace(/_/g, ' ')} output. This is separate from the model card so the chart can stand on its own.`,
           fallback: false,
           mode: 'live',
@@ -1125,7 +1139,7 @@ export async function POST(req: NextRequest) {
           ],
           factsCount: 0,
           attachmentUsed: attachmentLabel,
-        });
+        }));
       }
 
       if (shouldReviseCurrentModel && currentModel) {
@@ -1155,7 +1169,7 @@ export async function POST(req: NextRequest) {
             console.error('[analyst-chat] unable to persist revised model run', error);
           }
 
-          return NextResponse.json({
+          return NextResponse.json(withAttachmentStatus({
             reply: revisedModel.reply,
             fallback: false,
             mode: 'live',
@@ -1168,14 +1182,14 @@ export async function POST(req: NextRequest) {
             ],
             factsCount: 0,
             attachmentUsed: attachmentLabel,
-          });
+          }));
         }
       }
 
       if (shouldApplyCurrentDcfEventShock && currentDcf) {
         const shockedDcf = await reviseAnalystDcfDemoFromEventShock(lastUserMessage, currentDcf);
         if (shockedDcf) {
-          return NextResponse.json({
+          return NextResponse.json(withAttachmentStatus({
             reply: shockedDcf.reply,
             fallback: false,
             mode: 'live',
@@ -1188,14 +1202,14 @@ export async function POST(req: NextRequest) {
             ],
             factsCount: 0,
             attachmentUsed: attachmentLabel,
-          });
+          }));
         }
       }
 
       if (shouldReviseCurrentDcf && currentDcf) {
         const revisedDcf = await reviseAnalystDcfDemo(lastUserMessage, currentDcf);
         if (revisedDcf) {
-          return NextResponse.json({
+          return NextResponse.json(withAttachmentStatus({
             reply: revisedDcf.reply,
             fallback: false,
             mode: 'live',
@@ -1208,7 +1222,7 @@ export async function POST(req: NextRequest) {
             ],
             factsCount: 0,
             attachmentUsed: attachmentLabel,
-          });
+          }));
         }
       }
 
@@ -1221,7 +1235,7 @@ export async function POST(req: NextRequest) {
           seedable: attachmentContext?.isFinancialModelSeedable ?? false,
         });
         if (attachmentContext?.isFinancialModelSeedable !== true) {
-          return NextResponse.json({
+          return NextResponse.json(withAttachmentStatus({
             reply: buildFinancialPdfModelFailureReply({
               modelType: requestedPdfModelType,
               status: extractionStatus,
@@ -1236,13 +1250,13 @@ export async function POST(req: NextRequest) {
             ],
             factsCount: 0,
             attachmentUsed: attachmentLabel,
-          });
+          }));
         }
 
         if (requestedPdfModelType) {
           const coverage = assessPdfModelCoverage(requestedPdfModelType, attachmentContext?.statementPackage);
           if (!coverage.ok) {
-            return NextResponse.json({
+            return NextResponse.json(withAttachmentStatus({
               reply: buildFinancialPdfModelFailureReply({
                 modelType: requestedPdfModelType,
                 status: 'trusted',
@@ -1258,7 +1272,7 @@ export async function POST(req: NextRequest) {
               ],
               factsCount: 0,
               attachmentUsed: attachmentLabel,
-            });
+            }));
           }
         }
       }
@@ -1300,7 +1314,7 @@ export async function POST(req: NextRequest) {
             console.error('[analyst-chat] unable to persist generated model run', error);
           }
 
-          return NextResponse.json({
+          return NextResponse.json(withAttachmentStatus({
             reply: generatedModel.reply,
             fallback: false,
             mode: 'live',
@@ -1317,12 +1331,12 @@ export async function POST(req: NextRequest) {
             ],
             factsCount: 0,
             attachmentUsed: attachmentLabel,
-          });
+          }));
         }
       }
 
       if (coreTemplateModel) {
-        return NextResponse.json({
+        return NextResponse.json(withAttachmentStatus({
           reply:
             coreTemplateModel.surface === 'template_library'
               ? `I routed this request into the deterministic template library. ${coreTemplateModel.name} already exists as a dedicated workbook model in CapitalBase, so the right workflow is to open the wizard, set the specific assumptions, and export the file from there.`
@@ -1337,7 +1351,7 @@ export async function POST(req: NextRequest) {
               : ['CapitalBase automated builder', 'Existing model generation workflow'],
           factsCount: 0,
           attachmentUsed: attachmentLabel,
-        });
+        }));
       }
 
       const demo = await generateAnalystDcfDemo({
@@ -1352,7 +1366,7 @@ export async function POST(req: NextRequest) {
             : null,
       });
 
-      return NextResponse.json({
+      return NextResponse.json(withAttachmentStatus({
         reply: demo.reply,
         fallback: false,
         mode: 'live',
@@ -1364,12 +1378,12 @@ export async function POST(req: NextRequest) {
         ],
         factsCount: 0,
         attachmentUsed: attachmentLabel,
-      });
+      }));
     }
 
     if (shouldVisualizeCurrentStock && currentStock) {
       const visualization = buildVisualizationFromCurrentArtifact({ currentStock });
-      return NextResponse.json({
+      return NextResponse.json(withAttachmentStatus({
         reply: `Here is a standalone market chart for ${currentStock.companyName ?? currentStock.ticker} (${currentStock.ticker}). This is separate from the full company lookup card.`,
         fallback: false,
         mode: 'live',
@@ -1383,7 +1397,7 @@ export async function POST(req: NextRequest) {
         factsCount: 0,
         stockLookup: currentStock,
         attachmentUsed: attachmentLabel,
-      });
+      }));
     }
 
     /* ── Step 2: Retrieve data based on route ── */
@@ -1432,7 +1446,7 @@ export async function POST(req: NextRequest) {
         : stockLookupPayload;
 
     if (explicitQuarterRequestUnresolved(earningsAgentResult, earningsRuntimeMeta) && resolvedTicker && earningsRuntimeMeta) {
-      return NextResponse.json({
+      return NextResponse.json(withAttachmentStatus({
         reply: buildExplicitQuarterUnresolvedReply({
           ticker: resolvedTicker,
           runtimeMeta: earningsRuntimeMeta,
@@ -1448,7 +1462,7 @@ export async function POST(req: NextRequest) {
         earningsRetrieval: earningsAgentResult,
         earningsPackageMeta: earningsRuntimeMeta,
         attachmentUsed: attachmentLabel,
-      });
+      }));
     }
 
     /* ── Step 3: Extract verified facts ── */
@@ -1489,7 +1503,7 @@ export async function POST(req: NextRequest) {
           'Anthropic constrained chart spec generation',
         ].filter((item): item is string => Boolean(item));
 
-        return NextResponse.json({
+        return NextResponse.json(withAttachmentStatus({
           reply: `Here is a chart for ${visualizationContextLabel({
             currentModel,
             currentDcf,
@@ -1532,7 +1546,7 @@ export async function POST(req: NextRequest) {
           factsCount: facts.numbers.length + facts.events.length,
           stockLookup: chartStockLookup,
           attachmentUsed: attachmentLabel,
-        });
+        }));
       }
     }
 
@@ -1547,7 +1561,7 @@ export async function POST(req: NextRequest) {
         reason: 'missing_key',
         preferSilent: Boolean(stockLookupPayload),
       });
-      return NextResponse.json({
+      return NextResponse.json(withAttachmentStatus({
         reply: fallback,
         fallback: true,
         mode: 'fallback',
@@ -1558,7 +1572,7 @@ export async function POST(req: NextRequest) {
         earningsRetrieval: earningsAgentResult,
         earningsPackageMeta: earningsRuntimeMeta,
         attachmentUsed: attachmentLabel,
-      }, { status: 200 });
+      }), { status: 200 });
     }
 
     /* ── Step 4: Build LLM messages with intent-specific prompt + verified facts ── */
@@ -1767,7 +1781,7 @@ export async function POST(req: NextRequest) {
       throw (lastError instanceof Error ? lastError : new Error('LLM request failed across all provider candidates'));
     }
 
-    return NextResponse.json({
+    return NextResponse.json(withAttachmentStatus({
       reply: replyText.trim(),
       fallback: false,
       mode: 'live',
@@ -1792,7 +1806,7 @@ export async function POST(req: NextRequest) {
       earningsRetrieval: earningsAgentResult,
       earningsPackageMeta: earningsRuntimeMeta,
       attachmentUsed: attachmentLabel,
-    });
+    }));
   } catch (error) {
     const message = error instanceof Error ? redactSecrets(error.message) : 'Unable to generate response';
     console.error('Analyst chat error', { message });
@@ -1820,6 +1834,7 @@ export async function POST(req: NextRequest) {
       stockLookup: responseStockLookup,
       earningsRetrieval: earningsAgentResult,
       earningsPackageMeta: earningsRuntimeMeta,
+      ...(responseAttachmentStatus ? { attachmentStatus: responseAttachmentStatus } : {}),
     }, { status: 200 });
   }
 }

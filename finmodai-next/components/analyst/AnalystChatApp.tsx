@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { parseUploadedAttachment, type UploadedAttachmentContext } from '@/lib/analyst/attachmentContext';
+import type { AttachmentStatusPayload as AnalystAttachmentStatus } from '@/lib/analyst/attachmentStatus';
 import { buildClientVisibleBackendError } from '@/lib/analyst/clientErrorResponse';
 import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplates';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
@@ -35,6 +36,7 @@ type Message = {
     coreTemplateModel?: AnalystCoreTemplatePayload;
     stockLookup?: StockLookupResult;
     visualization?: AnalystVisualizationPayload;
+    attachmentStatus?: AnalystAttachmentStatus;
   };
 };
 
@@ -110,6 +112,17 @@ function tryParseJson<T>(value: string): T | null {
   } catch {
     return null;
   }
+}
+
+function parseAttachmentStatus(payload: Record<string, unknown> | null): AnalystAttachmentStatus | undefined {
+  if (!payload || !payload.attachmentStatus || typeof payload.attachmentStatus !== 'object') return undefined;
+  return payload.attachmentStatus as AnalystAttachmentStatus;
+}
+
+function attachmentReadStatusLabel(readStatus: AnalystAttachmentStatus['readStatus']): string {
+  if (readStatus === 'read_success') return 'Server PDF read: succeeded';
+  if (readStatus === 'read_failed') return 'Server PDF read: failed';
+  return 'Server PDF read: partial';
 }
 
 function getLoadingMessage(prompt: string): { title: string; detail: string } {
@@ -350,6 +363,7 @@ export function AnalystChatApp() {
             payload?.visualization && typeof payload.visualization === 'object'
               ? (payload.visualization as AnalystVisualizationPayload)
               : undefined,
+          attachmentStatus: parseAttachmentStatus(payload),
         },
       };
       setMessages((prev) => [...prev, reply]);
@@ -428,6 +442,7 @@ export function AnalystChatApp() {
               parsed?.dcfDemo && typeof parsed.dcfDemo === 'object'
                 ? (parsed.dcfDemo as AnalystDcfDemoPayload)
                 : message.meta?.dcfDemo,
+            attachmentStatus: parseAttachmentStatus(parsed) ?? message.meta?.attachmentStatus,
           },
         };
       }),
@@ -486,6 +501,7 @@ export function AnalystChatApp() {
               parsed?.dcfDemo && typeof parsed.dcfDemo === 'object'
                 ? (parsed.dcfDemo as AnalystDcfDemoPayload)
                 : message.meta?.dcfDemo,
+            attachmentStatus: parseAttachmentStatus(parsed) ?? message.meta?.attachmentStatus,
           },
         };
       }),
@@ -544,6 +560,7 @@ export function AnalystChatApp() {
               parsed?.generatedModel && typeof parsed.generatedModel === 'object'
                 ? (parsed.generatedModel as AnalystGeneratedModelPayload)
                 : message.meta?.generatedModel,
+            attachmentStatus: parseAttachmentStatus(parsed) ?? message.meta?.attachmentStatus,
           },
         };
       }),
@@ -580,7 +597,8 @@ export function AnalystChatApp() {
             <div className="font-medium text-[var(--cb-text-primary)]">
               Attached: {attachment.name} • {attachment.kind.replace(/_/g, ' ')}
             </div>
-            <div>{attachment.sizeKb}kb • parsed for chat context</div>
+            <div>{attachment.sizeKb}kb • Client preview ready</div>
+            <div>Waiting for server parse on submit</div>
             {(attachment.signals?.ticker || attachment.signals?.companyName || attachment.signals?.modelTypeHint || attachment.signals?.fiscalPeriod) && (
               <div className="mt-1">
                 {[
@@ -638,6 +656,37 @@ export function AnalystChatApp() {
                 {message.role === 'assistant' && message.meta?.attachmentUsed && (
                   <div className="mt-2 text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
                     {message.meta.attachmentUsed}
+                  </div>
+                )}
+                {message.role === 'assistant' && message.meta?.attachmentStatus && (
+                  <div className="mt-3 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3 text-[11px] text-[var(--cb-text-muted)]">
+                    <div className="mb-1 uppercase tracking-wide">Server Read Status</div>
+                    <div className="text-[var(--cb-text-primary)]">
+                      {attachmentReadStatusLabel(message.meta.attachmentStatus.readStatus)}
+                    </div>
+                    <div className="mt-1">
+                      Seedable: {message.meta.attachmentStatus.isFinancialModelSeedable ? 'yes' : 'no'} • Package: {message.meta.attachmentStatus.hasStatementPackage ? 'present' : 'missing'}
+                    </div>
+                    <div className="mt-1">
+                      Coverage: {message.meta.attachmentStatus.statementCoverage.incomeStatement ? 'IS' : '-'} / {message.meta.attachmentStatus.statementCoverage.balanceSheet ? 'BS' : '-'} / {message.meta.attachmentStatus.statementCoverage.cashFlowStatement ? 'CF' : '-'}
+                    </div>
+                    {(message.meta.attachmentStatus.extractedIdentity.companyName ||
+                      message.meta.attachmentStatus.extractedIdentity.ticker ||
+                      message.meta.attachmentStatus.extractedIdentity.fiscalPeriod) && (
+                      <div className="mt-1">
+                        {[message.meta.attachmentStatus.extractedIdentity.companyName, message.meta.attachmentStatus.extractedIdentity.ticker, message.meta.attachmentStatus.extractedIdentity.fiscalPeriod]
+                          .filter((item): item is string => Boolean(item))
+                          .join(' • ')}
+                      </div>
+                    )}
+                    {message.meta.attachmentStatus.warnings.length > 0 && (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-amber-300/90">Warnings</summary>
+                        <div className="mt-1 text-amber-300/90">
+                          {message.meta.attachmentStatus.warnings[0]}
+                        </div>
+                      </details>
+                    )}
                   </div>
                 )}
                 {message.role === 'assistant' &&
