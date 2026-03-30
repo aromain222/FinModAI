@@ -1,3 +1,5 @@
+import { createRequire } from 'node:module';
+
 export type PdfTextExtractionStage =
   | 'text_extracted'
   | 'parser_failed'
@@ -32,6 +34,8 @@ type CanvasRuntimeModule = Partial<Record<'DOMMatrix' | 'ImageData' | 'Path2D', 
 
 type CanvasRuntimeLoader = () => Promise<CanvasRuntimeModule>;
 
+const nodeRequire = createRequire(import.meta.url);
+
 function normalizePdfText(text: string): string {
   const normalized = text
     .replace(/\r\n/g, '\n')
@@ -65,11 +69,11 @@ async function loadPdfParse(): Promise<PdfParseModule> {
 }
 
 async function loadCanvasRuntime(): Promise<CanvasRuntimeModule> {
-  const mod = await import('@napi-rs/canvas');
+  const mod = nodeRequire('@napi-rs/canvas') as CanvasRuntimeModule;
   return {
-    DOMMatrix: mod?.DOMMatrix,
-    ImageData: mod?.ImageData,
-    Path2D: mod?.Path2D,
+    DOMMatrix: mod.DOMMatrix,
+    ImageData: mod.ImageData,
+    Path2D: mod.Path2D,
   };
 }
 
