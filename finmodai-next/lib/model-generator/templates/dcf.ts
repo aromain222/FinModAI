@@ -355,8 +355,8 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
   );
   styleOutput(forecastSheet.getCell(`B${forecastRows.ufcf}`), 'currency');
 
-  let previousRevenueName = RANGE_NAMES.baseRevenue;
-  let previousNwcValue = `B${forecastRows.revenue}*${yearName('NWCPct', forecastYears[0])}`;
+  let previousRevenueName: string = RANGE_NAMES.baseRevenue;
+  let previousNwcValue: string = `B${forecastRows.revenue}*${yearName('NWCPct', forecastYears[0])}`;
   forecastYears.forEach((year, index) => {
     const letter = col(3 + index);
     const revenueName = yearName('Revenue', year);
