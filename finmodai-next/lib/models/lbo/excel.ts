@@ -34,6 +34,7 @@ import {
 } from '../../excel/styleKit';
 import type { LboEngineOutput } from '../../lboEngine';
 import { writeValuationBlock } from '../../excel/valuationBlock';
+import { WORKBOOK_FONT_NAME, sanitizeWorkbookText } from '../../excel/workbookText';
 
 const MONEY_FMT = '$#,##0;($#,##0)';
 const PERCENT_FMT = '0.0%';
@@ -150,8 +151,8 @@ function createLBOSummarySheet(
   sectionHeader(sheet, row, 'Banker Takeaway', lastDataCol);
   row++;
   sheet.mergeCells(row, 1, row, lastDataCol);
-  sheet.getCell(row, 1).value = irrRead;
-  sheet.getCell(row, 1).font = { name: 'Aptos', size: 10, color: { argb: 'FF475569' } };
+  sheet.getCell(row, 1).value = sanitizeWorkbookText(irrRead);
+  sheet.getCell(row, 1).font = { name: WORKBOOK_FONT_NAME, size: 10, color: { argb: 'FF475569' } };
   sheet.getCell(row, 1).fill = {
     type: 'pattern',
     pattern: 'solid',
@@ -256,9 +257,10 @@ function createLBOSummarySheet(
   sectionHeader(sheet, row, 'Sponsor Case Overview', lastDataCol);
   row++;
   sheet.mergeCells(row, 1, row, lastDataCol);
-  sheet.getCell(row, 1).value =
-    'Start on this sheet to judge whether the entry price, leverage package, and exit underwriting support the target return. Then move into Sources & Uses, Debt Schedule, and Returns before changing the case.';
-  sheet.getCell(row, 1).font = { name: 'Aptos', size: 10, color: { argb: 'FF475569' } };
+  sheet.getCell(row, 1).value = sanitizeWorkbookText(
+    'Start on this sheet to judge whether the entry price, leverage package, and exit underwriting support the target return. Then move into Sources & Uses, Debt Schedule, and Returns before changing the case.'
+  );
+  sheet.getCell(row, 1).font = { name: WORKBOOK_FONT_NAME, size: 10, color: { argb: 'FF475569' } };
   sheet.getCell(row, 1).fill = {
     type: 'pattern',
     pattern: 'solid',
@@ -315,9 +317,10 @@ function createLBOSummarySheet(
 
   row += 1;
   sheet.mergeCells(row, 1, row, lastDataCol);
-  sheet.getCell(row, 1).value =
-    'The value-driver view is directional. Use Returns and the Debt Schedule for the exact sponsor payoff mechanics, especially when fees or excess cash are material.';
-  sheet.getCell(row, 1).font = { name: 'Aptos', size: 10, color: { argb: 'FF64748B' } };
+  sheet.getCell(row, 1).value = sanitizeWorkbookText(
+    'The value-driver view is directional. Use Returns and the Debt Schedule for the exact sponsor payoff mechanics, especially when fees or excess cash are material.'
+  );
+  sheet.getCell(row, 1).font = { name: WORKBOOK_FONT_NAME, size: 10, color: { argb: 'FF64748B' } };
   sheet.getCell(row, 1).fill = {
     type: 'pattern',
     pattern: 'solid',
@@ -814,9 +817,10 @@ function createReturnsSheet(
 
   row += 1;
   sheet.mergeCells(row, 1, row, lastDataCol);
-  sheet.getCell(row, 1).value =
-    'Use the bridge to separate operating improvement from multiple movement and deleveraging. The sponsor payoff should not be treated as a single black-box IRR output.';
-  sheet.getCell(row, 1).font = { name: 'Aptos', size: 10, color: { argb: 'FF64748B' } };
+  sheet.getCell(row, 1).value = sanitizeWorkbookText(
+    'Use the bridge to separate operating improvement from multiple movement and deleveraging. The sponsor payoff should not be treated as a single black-box IRR output.'
+  );
+  sheet.getCell(row, 1).font = { name: WORKBOOK_FONT_NAME, size: 10, color: { argb: 'FF64748B' } };
   sheet.getCell(row, 1).fill = {
     type: 'pattern',
     pattern: 'solid',
@@ -1114,7 +1118,7 @@ function createLBOSourcesNotesSheet(
   ];
 
   notes.forEach(note => {
-    sheet.getCell(row, 1).value = `• ${note}`;
+    sheet.getCell(row, 1).value = sanitizeWorkbookText(`- ${note}`);
     sheet.getCell(row, 1).style = { ...createNormalStyle(), alignment: { wrapText: true } };
     row++;
   });

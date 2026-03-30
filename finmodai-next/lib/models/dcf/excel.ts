@@ -33,6 +33,7 @@ import {
   borderBox,
 } from '../../excel/styleKit';
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
+import { sanitizeWorkbookText, workbookPlaceholder } from '../../excel/workbookText';
 
 const MONEY_NUM_FMT = '#,##0;(#,##0)';
 const PERCENT_NUM_FMT = '0.0%';
@@ -109,7 +110,7 @@ async function generateModelBriefSummary(params: {
     });
     const content = response?.text?.trim();
     if (!content) return fallback;
-    return content.replace(/\n+/g, ' ');
+    return sanitizeWorkbookText(content.replace(/\n+/g, ' '));
   } catch {
     return fallback;
   }
@@ -245,10 +246,10 @@ async function createModelBriefSheet(
   ];
 
   for (const item of riskRows) {
-    sheet.getCell(row, 1).value = item.label;
+    sheet.getCell(row, 1).value = sanitizeWorkbookText(item.label);
     applyLabelStyle(sheet.getCell(row, 1));
     const valueCell = sheet.getCell(row, 2);
-    valueCell.value = item.value as any;
+    valueCell.value = typeof item.value === 'string' ? sanitizeWorkbookText(item.value) : (item.value as any);
     if (item.format) applyNumberFormat(valueCell, item.format);
     valueCell.alignment = { vertical: 'top', horizontal: item.format ? 'right' : 'left', wrapText: true };
     valueCell.font = createNormalStyle().font ?? {};
@@ -278,7 +279,7 @@ async function createModelBriefSheet(
 
   sheet.mergeCells(row, 1, row + 3, lastDataCol);
   const summaryCell = sheet.getCell(row, 1);
-  summaryCell.value = summary;
+  summaryCell.value = sanitizeWorkbookText(summary);
   summaryCell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
   summaryCell.font = createNormalStyle().font ?? {};
 
@@ -527,7 +528,7 @@ function applyInputCellStyle(cell: ExcelJS.Cell): void {
 }
 
 function applyMutedValue(cell: ExcelJS.Cell): void {
-  cell.value = '—';
+  cell.value = workbookPlaceholder();
   cell.style = {
     ...createNormalStyle(),
     font: { ...createNormalStyle().font, color: { argb: 'FF9CA3AF' }, italic: true },
@@ -814,7 +815,7 @@ function createDCFSummarySheet(
 
   const netDebtSource = output.inputs.netDebtSource ?? (derived.netDebtMissing ? 'unknown' : 'reported');
   const netDebtIsEstimated = netDebtSource === 'estimated_rules' || netDebtSource === 'estimated_ai';
-  const netDebtLabel = netDebtSource === 'estimated_ai' ? 'Net Debt (USD mm) — Estimated' : 'Net Debt (USD mm)';
+  const netDebtLabel = netDebtSource === 'estimated_ai' ? 'Net Debt (USD mm) - Estimated' : 'Net Debt (USD mm)';
   const netDebtNote =
     output.inputs.netDebtNote ||
     (netDebtSource === 'estimated_ai'
@@ -829,7 +830,7 @@ function createDCFSummarySheet(
     { label: 'Revenue Growth', formula: "='Assumptions'!$E$8", value: toNumber(output.inputs.revenueGrowth, 0.08), format: 'PERCENTAGE' },
     { label: 'EBITDA Margin', formula: "='Assumptions'!$E$9", value: toNumber(output.inputs.ebitdaMargin, 0.25), format: 'PERCENTAGE' },
     { label: 'Capex % Revenue', formula: "='Assumptions'!$E$10", value: toNumber(output.inputs.capexPctRevenue, 0.04), format: 'PERCENTAGE' },
-    { label: 'ΔNWC % Revenue', formula: "='Assumptions'!$E$11", value: toNumber(output.inputs.nwcPctRevenue, 0.10), format: 'PERCENTAGE' },
+    { label: 'Change in NWC % Revenue', formula: "='Assumptions'!$E$11", value: toNumber(output.inputs.nwcPctRevenue, 0.10), format: 'PERCENTAGE' },
     { label: 'Effective Tax Rate', formula: "='Assumptions'!$B$23", value: output.inputs.taxRate || 0, format: 'PERCENTAGE' },
     { label: 'Terminal Growth', formula: "='Assumptions'!$E$12", value: output.inputs.terminalGrowth || 0, format: 'PERCENTAGE' },
     { label: 'Discount Rate (WACC)', formula: "='Assumptions'!$E$13", value: output.inputs.wacc || 0, format: 'PERCENTAGE' },
@@ -998,7 +999,7 @@ function createDCFAssumptionsSheet(
     { label: 'Revenue Growth (%)', base: baseGrowth, bull: bullGrowth, bear: bearGrowth },
     { label: 'EBITDA Margin (%)', base: baseMargin, bull: bullMargin, bear: bearMargin },
     { label: 'Capex % Revenue (%)', base: baseCapex, bull: bullCapex, bear: bearCapex },
-    { label: 'ΔNWC % Revenue (%)', base: baseNwc, bull: bullNwc, bear: bearNwc },
+    { label: 'Change in NWC % Revenue (%)', base: baseNwc, bull: bullNwc, bear: bearNwc },
     { label: 'Terminal Growth Rate (%)', base: baseTerminal, bull: bullTerminal, bear: bearTerminal },
     { label: 'Discount Rate (WACC) (%)', base: baseWacc, bull: bullWacc, bear: bearWacc },
   ];
@@ -1233,7 +1234,7 @@ function createForecastSheet(
     { label: 'Taxes', row: taxRow },
     { label: 'NOPAT', row: nopatRow },
     { label: 'Capex', row: capexRow },
-    { label: 'ΔNWC', row: nwcRow },
+    { label: 'Change in NWC', row: nwcRow },
     { label: 'Unlevered FCF', row: fcfRow },
   ];
 
@@ -1395,7 +1396,7 @@ function createValuationSheet(
   sheet.getCell(row, 2).style = createFormulaStyle();
   applyLabelStyle(sheet.getCell(row, 1));
   try {
-    sheet.getCell(row, 2).note = { texts: [{ font: { size: 9 }, text: 'Debt – Cash. Used to convert Enterprise Value to Equity Value.' }] };
+    sheet.getCell(row, 2).note = { texts: [{ font: { size: 9 }, text: sanitizeWorkbookText('Debt - Cash. Used to convert Enterprise Value to Equity Value.') }] };
   } catch {
     /* comments may not be supported in all environments */
   }
@@ -1857,7 +1858,7 @@ function createDCFSourcesNotesSheet(
 
   const classifications = [
     { label: 'Fetched', detail: 'LTM Revenue, Net Debt, Shares Outstanding' },
-    { label: 'Assumed', detail: 'Revenue Growth, EBITDA Margin, Capex %, ΔNWC %, Terminal Growth, Discount Rate' },
+    { label: 'Assumed', detail: 'Revenue Growth, EBITDA Margin, Capex %, Change in NWC %, Terminal Growth, Discount Rate' },
     { label: 'Advanced Override', detail: 'Risk-Free Rate, ERP, Beta, Cost of Debt, Capital Structure, Tax Rate' },
     { label: 'Calculated', detail: 'Revenue, EBITDA, EBIT, NOPAT, UFCF, Discount Factors, Valuation Outputs' },
   ];
@@ -1886,7 +1887,7 @@ function createDCFSourcesNotesSheet(
   ];
 
   notes.forEach(note => {
-    sheet.getCell(row, 1).value = `• ${note}`;
+    sheet.getCell(row, 1).value = sanitizeWorkbookText(`- ${note}`);
     sheet.getCell(row, 1).style = { ...createNormalStyle(), alignment: { wrapText: true } };
     row++;
   });

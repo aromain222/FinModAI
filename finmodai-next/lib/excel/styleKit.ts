@@ -5,8 +5,9 @@
  */
 
 import type ExcelJS from 'exceljs';
+import { WORKBOOK_FONT_NAME, sanitizeWorkbookText } from './workbookText';
 
-const FONT = 'Calibri';
+const FONT = WORKBOOK_FONT_NAME;
 const TITLE_SIZE = 17;
 const HEADER_SIZE = 12;
 const BODY_SIZE = 11;
@@ -131,7 +132,7 @@ export function hideUnusedArea(ws: ExcelJS.Worksheet, lastCol: number, lastRow: 
 export function titleBar(ws: ExcelJS.Worksheet, titleText: string, colSpan: number = 10): number {
   const titleRow = 1;
   const titleCell = ws.getCell(titleRow, 1);
-  titleCell.value = titleText;
+  titleCell.value = sanitizeWorkbookText(titleText);
   titleCell.font = { name: FONT, size: 16, bold: true, color: { argb: 'FF111827' } };
   titleCell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
   if (colSpan > 1) {
@@ -155,7 +156,7 @@ export function titleBar(ws: ExcelJS.Worksheet, titleText: string, colSpan: numb
 /** Section header row: subtle fill, bold. */
 export function sectionHeader(ws: ExcelJS.Worksheet, row: number, label: string, colSpan: number = 10): void {
   const cell = ws.getCell(row, 1);
-  cell.value = label;
+  cell.value = sanitizeWorkbookText(label);
   cell.font = { name: FONT, size: HEADER_SIZE, bold: true, color: { argb: COLORS.text } };
   cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.sectionFill } };
   cell.alignment = { vertical: 'middle', horizontal: 'left' };

@@ -15,6 +15,7 @@ import {
   applyBorders,
   COLORS,
 } from './formatting';
+import { sanitizeWorkbookText } from './workbookText';
 
 const INPUT_FILL = 'FFE6F2FF';
 
@@ -182,12 +183,12 @@ export function writeValuationBlock(
   // B) MODEL-SPECIFIC ENTERPRISE VALUE
   const evSectionStart = row;
   if (evSourceLabel) {
-    sheet.getCell(row, 1).value = evSourceLabel;
+    sheet.getCell(row, 1).value = sanitizeWorkbookText(evSourceLabel);
     applyLabelStyle(sheet.getCell(row, 1));
     row++;
   }
   if (evSourceDetail) {
-    sheet.getCell(row, 1).value = evSourceDetail;
+    sheet.getCell(row, 1).value = sanitizeWorkbookText(evSourceDetail);
     sheet.getCell(row, 1).style = { ...createNormalStyle(), font: { ...createNormalStyle().font, size: 9 }, alignment: { horizontal: 'left' } };
     row++;
   }

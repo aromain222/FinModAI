@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { WORKBOOK_FONT_NAME } from '@/lib/excel/workbookText';
 
 const COLORS = {
   ink: 'FF0F172A',
@@ -88,13 +89,13 @@ export function formatCell(cell: ExcelJS.Cell, kind: CellKind) {
 }
 
 export function styleTitle(cell: ExcelJS.Cell) {
-  cell.font = { bold: true, size: 18, color: { argb: 'FFFFFFFF' } };
+  cell.font = { name: WORKBOOK_FONT_NAME, bold: true, size: 18, color: { argb: 'FFFFFFFF' } };
   cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.titleBg } };
   cell.alignment = { vertical: 'middle', horizontal: 'center' };
 }
 
 export function styleSubtitle(cell: ExcelJS.Cell) {
-  cell.font = { size: 10, color: { argb: COLORS.slate }, italic: true };
+  cell.font = { name: WORKBOOK_FONT_NAME, size: 10, color: { argb: COLORS.slate }, italic: true };
   cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.titleSubBg } };
   cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
 }
@@ -103,7 +104,7 @@ export function styleNarrativeBlock(sheet: ExcelJS.Worksheet, row: number, start
   for (let column = startCol; column <= endCol; column += 1) {
     const cell = sheet.getCell(row, column);
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.titleSubBg } };
-    cell.font = { color: { argb: COLORS.slate }, size: 10 };
+    cell.font = { name: WORKBOOK_FONT_NAME, color: { argb: COLORS.slate }, size: 10 };
     cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
     applyBorder(cell);
   }
@@ -111,9 +112,9 @@ export function styleNarrativeBlock(sheet: ExcelJS.Worksheet, row: number, start
 
 export function styleModelMeta(sheet: ExcelJS.Worksheet, row: number, label: string, value: string) {
   sheet.getCell(row, 1).value = label;
-  sheet.getCell(row, 1).font = { bold: true, color: { argb: COLORS.slate }, size: 10 };
+  sheet.getCell(row, 1).font = { name: WORKBOOK_FONT_NAME, bold: true, color: { argb: COLORS.slate }, size: 10 };
   sheet.getCell(row, 2).value = value;
-  sheet.getCell(row, 2).font = { color: { argb: COLORS.ink }, size: 10 };
+  sheet.getCell(row, 2).font = { name: WORKBOOK_FONT_NAME, color: { argb: COLORS.ink }, size: 10 };
 }
 
 export function styleSectionHeader(sheet: ExcelJS.Worksheet, row: number, title: string, endCol = 8) {
@@ -121,7 +122,7 @@ export function styleSectionHeader(sheet: ExcelJS.Worksheet, row: number, title:
   for (let column = 1; column <= endCol; column += 1) {
     const cell = sheet.getCell(row, column);
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.titleBg } };
-    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+    cell.font = { name: WORKBOOK_FONT_NAME, bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
     cell.alignment = { vertical: 'middle', horizontal: column === 1 ? 'left' : 'center' };
     applyBorder(cell);
   }
@@ -130,7 +131,7 @@ export function styleSectionHeader(sheet: ExcelJS.Worksheet, row: number, title:
 export function styleTableHeader(sheet: ExcelJS.Worksheet, row: number, startCol: number, endCol: number) {
   for (let column = startCol; column <= endCol; column += 1) {
     const cell = sheet.getCell(row, column);
-    cell.font = { bold: true, color: { argb: COLORS.ink } };
+    cell.font = { name: WORKBOOK_FONT_NAME, bold: true, color: { argb: COLORS.ink } };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.headerBg } };
     cell.alignment = { vertical: 'middle', horizontal: 'center' };
     applyBorder(cell);
@@ -138,11 +139,11 @@ export function styleTableHeader(sheet: ExcelJS.Worksheet, row: number, startCol
 }
 
 export function styleLabel(cell: ExcelJS.Cell) {
-  cell.font = { color: { argb: COLORS.ink }, size: 10 };
+  cell.font = { name: WORKBOOK_FONT_NAME, color: { argb: COLORS.ink }, size: 10 };
 }
 
 export function styleInput(cell: ExcelJS.Cell, kind: CellKind = 'text') {
-  cell.font = { color: { argb: 'FF1D4ED8' }, bold: true };
+  cell.font = { name: WORKBOOK_FONT_NAME, color: { argb: 'FF1D4ED8' }, bold: true };
   cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.inputBg } };
   cell.protection = { locked: false };
   applyBorder(cell);
@@ -150,7 +151,7 @@ export function styleInput(cell: ExcelJS.Cell, kind: CellKind = 'text') {
 }
 
 export function styleFormula(cell: ExcelJS.Cell, kind: CellKind = 'text') {
-  cell.font = { color: { argb: COLORS.ink } };
+  cell.font = { name: WORKBOOK_FONT_NAME, color: { argb: COLORS.ink } };
   cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.formulaBg } };
   cell.protection = { locked: true };
   applyBorder(cell);
@@ -158,7 +159,7 @@ export function styleFormula(cell: ExcelJS.Cell, kind: CellKind = 'text') {
 }
 
 export function styleOutput(cell: ExcelJS.Cell, kind: CellKind = 'text') {
-  cell.font = { color: { argb: COLORS.accent }, bold: true };
+  cell.font = { name: WORKBOOK_FONT_NAME, color: { argb: COLORS.accent }, bold: true };
   cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.outputBg } };
   cell.protection = { locked: true };
   applyBorder(cell);
@@ -166,7 +167,7 @@ export function styleOutput(cell: ExcelJS.Cell, kind: CellKind = 'text') {
 }
 
 export function styleAccentOutput(cell: ExcelJS.Cell, kind: CellKind = 'text') {
-  cell.font = { color: { argb: COLORS.titleBg }, bold: true, size: 11 };
+  cell.font = { name: WORKBOOK_FONT_NAME, color: { argb: COLORS.titleBg }, bold: true, size: 11 };
   cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.accentSoft } };
   cell.protection = { locked: true };
   applyBorder(cell);
@@ -174,7 +175,7 @@ export function styleAccentOutput(cell: ExcelJS.Cell, kind: CellKind = 'text') {
 }
 
 export function styleCheck(cell: ExcelJS.Cell) {
-  cell.font = { color: { argb: COLORS.danger }, bold: true };
+  cell.font = { name: WORKBOOK_FONT_NAME, color: { argb: COLORS.danger }, bold: true };
   cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.checkBg } };
   cell.protection = { locked: true };
   applyBorder(cell);
@@ -201,7 +202,7 @@ export function addPassFailConditionalFormatting(sheet: ExcelJS.Worksheet, range
         formulae: [`EXACT(${topLeftCell},"PASS")`],
         style: {
           fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: COLORS.passBg }, fgColor: { argb: COLORS.passBg } },
-          font: { bold: true, color: { argb: COLORS.accent } },
+          font: { name: WORKBOOK_FONT_NAME, bold: true, color: { argb: COLORS.accent } },
         },
       },
       {
@@ -209,7 +210,7 @@ export function addPassFailConditionalFormatting(sheet: ExcelJS.Worksheet, range
         formulae: [`EXACT(${topLeftCell},"FLAG")`],
         style: {
           fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: COLORS.failBg }, fgColor: { argb: COLORS.failBg } },
-          font: { bold: true, color: { argb: COLORS.danger } },
+          font: { name: WORKBOOK_FONT_NAME, bold: true, color: { argb: COLORS.danger } },
         },
       },
     ] as any,

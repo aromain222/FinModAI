@@ -4,6 +4,7 @@
  */
 
 import ExcelJS from 'exceljs';
+import { WORKBOOK_FONT_NAME, sanitizeWorkbookText } from './workbookText';
 
 // Color constants (ARGB format)
 export const COLORS = {
@@ -38,10 +39,10 @@ export function addModelHeader(
   sheet.properties.showGridLines = false;
 
   sheet.getRow(1).height = 26;
-  sheet.getCell(1, 1).value = title;
+  sheet.getCell(1, 1).value = sanitizeWorkbookText(title);
   sheet.mergeCells(1, 1, 1, totalColumns);
   sheet.getCell(1, 1).font = {
-    name: 'Calibri',
+    name: WORKBOOK_FONT_NAME,
     size: 16,
     bold: true,
     color: { argb: 'FF111827' },
@@ -53,7 +54,7 @@ export function addModelHeader(
   sheet.getCell(2, 1).value = 'All financial figures are in USD millions unless otherwise noted.';
   sheet.mergeCells(2, 1, 2, totalColumns);
   sheet.getCell(2, 1).font = {
-    name: 'Calibri',
+    name: WORKBOOK_FONT_NAME,
     size: 11,
     italic: true,
     color: { argb: 'FF4B5563' },
@@ -72,7 +73,7 @@ export function addModelHeader(
 export function createHeaderStyle(): Partial<ExcelJS.Style> {
   return {
     font: {
-      name: 'Calibri',
+      name: WORKBOOK_FONT_NAME,
       size: 12,
       bold: true,
       color: { argb: COLORS.WHITE },
@@ -99,7 +100,7 @@ export function createHeaderStyle(): Partial<ExcelJS.Style> {
 export function createInputStyle(isConstant: boolean = false): Partial<ExcelJS.Style> {
   return {
     font: {
-      name: 'Calibri',
+      name: WORKBOOK_FONT_NAME,
       size: 11,
       color: { argb: COLORS.BLUE_INPUT },
       italic: isConstant,
@@ -118,7 +119,7 @@ export function createInputStyle(isConstant: boolean = false): Partial<ExcelJS.S
 export function createFormulaStyle(): Partial<ExcelJS.Style> {
   return {
     font: {
-      name: 'Calibri',
+      name: WORKBOOK_FONT_NAME,
       size: 11,
       color: { argb: COLORS.BLACK },
     },
@@ -136,7 +137,7 @@ export function createFormulaStyle(): Partial<ExcelJS.Style> {
 export function createLinkStyle(): Partial<ExcelJS.Style> {
   return {
     font: {
-      name: 'Calibri',
+      name: WORKBOOK_FONT_NAME,
       size: 11,
       color: { argb: COLORS.GREEN_LINK },
     },
@@ -154,7 +155,7 @@ export function createLinkStyle(): Partial<ExcelJS.Style> {
 export function createTotalStyle(): Partial<ExcelJS.Style> {
   return {
     font: {
-      name: 'Calibri',
+      name: WORKBOOK_FONT_NAME,
       size: 11,
       bold: true,
       color: { argb: COLORS.BLACK },
@@ -176,7 +177,7 @@ export function createTotalStyle(): Partial<ExcelJS.Style> {
 export function createSubHeaderStyle(): Partial<ExcelJS.Style> {
   return {
     font: {
-      name: 'Calibri',
+      name: WORKBOOK_FONT_NAME,
       size: 10,
       bold: true,
       color: { argb: COLORS.BLACK },
@@ -206,7 +207,7 @@ export function createSubHeaderStyle(): Partial<ExcelJS.Style> {
 export function createNormalStyle(): Partial<ExcelJS.Style> {
   return {
     font: {
-      name: 'Calibri',
+      name: WORKBOOK_FONT_NAME,
       size: 11,
       color: { argb: COLORS.BLACK },
     },

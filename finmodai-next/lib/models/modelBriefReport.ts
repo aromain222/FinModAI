@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
+import { WORKBOOK_FONT_NAME, sanitizeWorkbookText, workbookPlaceholder } from '@/lib/excel/workbookText';
 
 export type BriefModelType = 'dcf' | 'reverse-dcf' | 'comps' | 'three-statement';
 
@@ -386,7 +387,7 @@ function buildRiskNotes(
         },
         {
           label: 'Terminal growth sensitivity',
-          value: 'Terminal value assumptions dominate the reverse solve — high sensitivity to long-duration inputs.',
+          value: 'Terminal value assumptions dominate the reverse solve - high sensitivity to long-duration inputs.',
           format: 'text',
         },
         {
@@ -525,8 +526,8 @@ export async function generateModelReport(params: {
 
 function writeValueCell(cell: ExcelJS.Cell, row: BriefRow): void {
   if (row.value === null || row.value === undefined || row.value === '') {
-    cell.value = '—';
-    cell.font = { name: 'Calibri', size: 11, color: { argb: 'FF9CA3AF' }, italic: true };
+    cell.value = workbookPlaceholder();
+    cell.font = { name: WORKBOOK_FONT_NAME, size: 11, color: { argb: 'FF9CA3AF' }, italic: true };
     cell.alignment = { vertical: 'middle', horizontal: 'right' };
     return;
   }
@@ -537,10 +538,10 @@ function writeValueCell(cell: ExcelJS.Cell, row: BriefRow): void {
     if (row.format === 'percent') cell.numFmt = '0.0%';
     cell.alignment = { vertical: 'middle', horizontal: 'right' };
   } else {
-    cell.value = row.value;
+    cell.value = sanitizeWorkbookText(row.value);
     cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
   }
-  cell.font = { name: 'Calibri', size: 11, color: { argb: 'FF000000' } };
+  cell.font = { name: WORKBOOK_FONT_NAME, size: 11, color: { argb: 'FF000000' } };
 }
 
 export async function upsertModelBriefSheet(
@@ -569,27 +570,27 @@ export async function upsertModelBriefSheet(
 
   sheet.getCell(1, 1).value = 'Model Brief';
   sheet.mergeCells(1, 1, 1, 4);
-  sheet.getCell(1, 1).font = { name: 'Calibri', size: 17, bold: true, color: { argb: 'FF111827' } };
+  sheet.getCell(1, 1).font = { name: WORKBOOK_FONT_NAME, size: 17, bold: true, color: { argb: 'FF111827' } };
   sheet.getCell(1, 1).alignment = { vertical: 'middle', horizontal: 'center' };
 
   sheet.getCell(2, 1).value = 'All figures in USD millions unless otherwise noted.';
   sheet.mergeCells(2, 1, 2, 4);
-  sheet.getCell(2, 1).font = { name: 'Calibri', size: 11, italic: true, color: { argb: 'FF4B5563' } };
+  sheet.getCell(2, 1).font = { name: WORKBOOK_FONT_NAME, size: 11, italic: true, color: { argb: 'FF4B5563' } };
   sheet.getCell(2, 1).alignment = { vertical: 'middle', horizontal: 'center' };
 
   let row = 4;
   for (const section of report.sections) {
-    sheet.getCell(row, 1).value = section.title;
+    sheet.getCell(row, 1).value = sanitizeWorkbookText(section.title);
     sheet.mergeCells(row, 1, row, 4);
     const sectionHeader = sheet.getCell(row, 1);
-    sectionHeader.font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF2C3E50' } };
+    sectionHeader.font = { name: WORKBOOK_FONT_NAME, size: 14, bold: true, color: { argb: 'FF2C3E50' } };
     sectionHeader.alignment = { vertical: 'middle', horizontal: 'left' };
     row += 1;
 
     for (const item of section.rows) {
       const labelCell = sheet.getCell(row, 1);
-      labelCell.value = item.label;
-      labelCell.font = { name: 'Calibri', size: 11, color: { argb: 'FF000000' } };
+      labelCell.value = sanitizeWorkbookText(item.label);
+      labelCell.font = { name: WORKBOOK_FONT_NAME, size: 11, color: { argb: 'FF000000' } };
       labelCell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
       writeValueCell(sheet.getCell(row, 2), item);
       row += 1;
@@ -600,12 +601,12 @@ export async function upsertModelBriefSheet(
 
   sheet.getCell(row, 1).value = 'Executive Summary';
   sheet.mergeCells(row, 1, row, 4);
-  sheet.getCell(row, 1).font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF2C3E50' } };
+  sheet.getCell(row, 1).font = { name: WORKBOOK_FONT_NAME, size: 14, bold: true, color: { argb: 'FF2C3E50' } };
   row += 1;
 
   sheet.mergeCells(row, 1, row + 4, 4);
   const summaryCell = sheet.getCell(row, 1);
-  summaryCell.value = report.summary;
-  summaryCell.font = { name: 'Calibri', size: 11, color: { argb: 'FF000000' } };
+  summaryCell.value = sanitizeWorkbookText(report.summary);
+  summaryCell.font = { name: WORKBOOK_FONT_NAME, size: 11, color: { argb: 'FF000000' } };
   summaryCell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
 }

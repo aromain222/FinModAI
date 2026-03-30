@@ -31,6 +31,7 @@ import {
   styleTitle,
   styleTotal,
 } from '@/lib/model-generator/excel/formatting';
+import { sanitizeWorkbookText, sanitizeWorkbookValue } from '@/lib/excel/workbookText';
 
 type ValueKind = 'currency' | 'percent' | 'number' | 'text';
 
@@ -50,7 +51,7 @@ function renderValue(value: unknown): string {
   if (Array.isArray(value)) return value.map((item) => renderValue(item)).join(', ');
   if (value && typeof value === 'object') {
     try {
-      return JSON.stringify(value);
+      return sanitizeWorkbookText(JSON.stringify(value));
     } catch {
       return '[unserializable object]';
     }
@@ -62,7 +63,7 @@ function renderValue(value: unknown): string {
   }
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (value === null || value === undefined || value === '') return 'n/a';
-  return String(value);
+  return sanitizeWorkbookText(String(value));
 }
 
 function flattenExtractedInputEntries(
@@ -121,14 +122,14 @@ function applyKind(cell: ExcelJS.Cell, kind?: ValueKind) {
 }
 
 function setStatic(cell: ExcelJS.Cell, value: number | string, kind?: ValueKind, output = false) {
-  cell.value = value;
+  cell.value = sanitizeWorkbookValue(value);
   if (output) styleOutput(cell, kind === 'text' ? 'text' : kind);
   else styleFormula(cell, kind === 'text' ? 'text' : kind);
   applyKind(cell, kind);
 }
 
 function setFormula(cell: ExcelJS.Cell, formula: string, result: number | string, kind?: ValueKind, output = false) {
-  cell.value = { formula, result };
+  cell.value = { formula, result: sanitizeWorkbookValue(result) };
   if (output) styleOutput(cell, kind === 'text' ? 'text' : kind);
   else styleFormula(cell, kind === 'text' ? 'text' : kind);
   applyKind(cell, kind);
@@ -143,7 +144,7 @@ function addEquationSheet(workbook: ExcelJS.Workbook, title: string, rows: Equat
     columnWidths: [24, 42, 36, 32, 22],
   });
 
-  sheet.getCell('A1').value = `${title} — Key Equations`;
+  sheet.getCell('A1').value = sanitizeWorkbookText(`${title} - Key Equations`);
   mergeAndCenter(sheet, 'A1:E1');
   styleTitle(sheet.getCell('A1'));
 
@@ -154,11 +155,11 @@ function addEquationSheet(workbook: ExcelJS.Workbook, title: string, rows: Equat
 
   rows.forEach((row, index) => {
     const excelRow = 4 + index;
-    sheet.getCell(excelRow, 1).value = row.metric;
-    sheet.getCell(excelRow, 2).value = row.description;
-    sheet.getCell(excelRow, 3).value = row.formula;
-    sheet.getCell(excelRow, 4).value = row.dependencies;
-    sheet.getCell(excelRow, 5).value = row.range;
+    sheet.getCell(excelRow, 1).value = sanitizeWorkbookText(row.metric);
+    sheet.getCell(excelRow, 2).value = sanitizeWorkbookText(row.description);
+    sheet.getCell(excelRow, 3).value = sanitizeWorkbookText(row.formula);
+    sheet.getCell(excelRow, 4).value = sanitizeWorkbookText(row.dependencies);
+    sheet.getCell(excelRow, 5).value = sanitizeWorkbookText(row.range);
     for (let column = 1; column <= 5; column += 1) {
       styleFormula(sheet.getCell(excelRow, column));
     }
@@ -174,18 +175,18 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystGenerate
     columnWidths: [26, 26, 24, 24, 24, 24],
   });
 
-  sheet.getCell('A1').value = `${payload.title} — Analyst Chat Summary`;
+  sheet.getCell('A1').value = sanitizeWorkbookText(`${payload.title} - Analyst Chat Summary`);
   mergeAndCenter(sheet, 'A1:F1');
   styleTitle(sheet.getCell('A1'));
 
   sheet.getCell('A3').value = 'Prompt';
-  sheet.getCell('B3').value = payload.prompt;
+  sheet.getCell('B3').value = sanitizeWorkbookText(payload.prompt);
   sheet.getCell('A4').value = 'Model Type';
   sheet.getCell('B4').value = payload.modelType;
   sheet.getCell('A5').value = 'Key Outputs';
-  sheet.getCell('B5').value = payload.keyOutputs.join(', ');
+  sheet.getCell('B5').value = sanitizeWorkbookText(payload.keyOutputs.join(', '));
   sheet.getCell('A6').value = 'Data Source';
-  sheet.getCell('B6').value = payload.provenanceSummary.sources.join(', ') || payload.provenanceSummary.sourceType;
+  sheet.getCell('B6').value = sanitizeWorkbookText(payload.provenanceSummary.sources.join(', ') || payload.provenanceSummary.sourceType);
   sheet.getCell('D3').value = 'As of Date';
   sheet.getCell('E3').value = payload.provenanceSummary.asOfDate ?? 'n/a';
   sheet.getCell('D4').value = 'Last Synced';
@@ -195,7 +196,7 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystGenerate
 
   styleSectionHeader(sheet, 8, 'Workbook Tabs', 4);
   payload.tabs.forEach((tab, index) => {
-    sheet.getCell(9 + index, 1).value = tab;
+    sheet.getCell(9 + index, 1).value = sanitizeWorkbookText(tab);
     styleFormula(sheet.getCell(9 + index, 1));
   });
 
@@ -205,8 +206,8 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystGenerate
   );
   extractedEntries.forEach(({ key, value }, index) => {
     const row = 9 + index;
-    sheet.getCell(`D${row}`).value = key;
-    sheet.getCell(`E${row}`).value = value;
+    sheet.getCell(`D${row}`).value = sanitizeWorkbookText(key);
+    sheet.getCell(`E${row}`).value = sanitizeWorkbookText(value);
     styleLabel(sheet.getCell(`D${row}`));
     styleFormula(sheet.getCell(`E${row}`));
   });
@@ -220,7 +221,7 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystGenerate
   } else {
     defaultEntries.forEach(([key, value], index) => {
       const row = defaultsRow + 1 + index;
-      sheet.getCell(`A${row}`).value = key;
+      sheet.getCell(`A${row}`).value = sanitizeWorkbookText(key);
       sheet.getCell(`B${row}`).value = renderValue(value);
       styleLabel(sheet.getCell(`A${row}`));
       styleFormula(sheet.getCell(`B${row}`));
@@ -234,7 +235,7 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystGenerate
   sheet.getCell(`A${comparisonRow + 2}`).value = 'Current Version';
   sheet.getCell(`B${comparisonRow + 2}`).value = payload.comparisonSummary?.currentVersionNumber ?? payload.recentRun?.versionNumber ?? 'n/a';
   sheet.getCell(`A${comparisonRow + 3}`).value = 'Changed Keys';
-  sheet.getCell(`B${comparisonRow + 3}`).value = payload.comparisonSummary?.changedKeys.join(', ') || 'None';
+  sheet.getCell(`B${comparisonRow + 3}`).value = sanitizeWorkbookText(payload.comparisonSummary?.changedKeys.join(', ') || 'None');
   ['A', 'B'].forEach((column) => {
     styleLabel(sheet.getCell(`${column}${comparisonRow + 1}`));
     styleLabel(sheet.getCell(`${column}${comparisonRow + 2}`));
@@ -250,8 +251,8 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystGenerate
   styleSectionHeader(sheet, narrativeRow, 'Analyst Framing', 6);
   payload.narrativeBlocks.forEach((block, index) => {
     const row = narrativeRow + 1 + index * 3;
-    sheet.getCell(`A${row}`).value = block.title;
-    sheet.getCell(`A${row + 1}`).value = block.body;
+    sheet.getCell(`A${row}`).value = sanitizeWorkbookText(block.title);
+    sheet.getCell(`A${row + 1}`).value = sanitizeWorkbookText(block.body);
     styleLabel(sheet.getCell(`A${row}`));
     styleFormula(sheet.getCell(`A${row + 1}`));
     mergeAndCenter(sheet, `A${row + 1}:F${row + 1}`);
@@ -293,7 +294,7 @@ function buildSaasWorkbook(workbook: ExcelJS.Workbook, inputs: SaasOperatingMode
     gaPct: 15,
   } as const;
 
-  assumptions.getCell('A1').value = `${inputs.companyName} — SaaS Assumptions`;
+  assumptions.getCell('A1').value = sanitizeWorkbookText(`${inputs.companyName} - SaaS Assumptions`);
   mergeAndCenter(assumptions, 'A1:D1');
   styleTitle(assumptions.getCell('A1'));
   assumptions.getCell('A3').value = 'Assumption';
@@ -342,7 +343,7 @@ function buildSaasWorkbook(workbook: ExcelJS.Workbook, inputs: SaasOperatingMode
     currentArr = endingValue;
   }
 
-  arrBridge.getCell('A1').value = `${inputs.companyName} — ARR Bridge`;
+  arrBridge.getCell('A1').value = sanitizeWorkbookText(`${inputs.companyName} - ARR Bridge`);
   mergeAndCenter(arrBridge, 'A1:H1');
   styleTitle(arrBridge.getCell('A1'));
   arrBridge.getCell('A3').value = 'Metric';
@@ -399,7 +400,7 @@ function buildSaasWorkbook(workbook: ExcelJS.Workbook, inputs: SaasOperatingMode
   const grossProfitSeries = revenueSeries.map((value) => value * inputs.grossMargin);
   const customerSeries = endingArr.map((value) => value / inputs.arpu);
 
-  revenueForecast.getCell('A1').value = `${inputs.companyName} — Revenue Forecast`;
+  revenueForecast.getCell('A1').value = sanitizeWorkbookText(`${inputs.companyName} - Revenue Forecast`);
   mergeAndCenter(revenueForecast, 'A1:H1');
   styleTitle(revenueForecast.getCell('A1'));
   revenueForecast.getCell('A3').value = 'Metric';
@@ -456,7 +457,7 @@ function buildSaasWorkbook(workbook: ExcelJS.Workbook, inputs: SaasOperatingMode
   const ltvToCac = ltv / inputs.cac;
   const paybackMonths = inputs.cac / (grossProfitPerCustomer / 12);
 
-  unitEconomics.getCell('A1').value = `${inputs.companyName} — Unit Economics`;
+  unitEconomics.getCell('A1').value = sanitizeWorkbookText(`${inputs.companyName} - Unit Economics`);
   mergeAndCenter(unitEconomics, 'A1:F1');
   styleTitle(unitEconomics.getCell('A1'));
   ['Metric', 'Formula', 'Value'].forEach((label, index) => {
@@ -485,7 +486,7 @@ function buildSaasWorkbook(workbook: ExcelJS.Workbook, inputs: SaasOperatingMode
   const gaSeries = revenueSeries.map((value) => value * 0.1);
   const totalOpexSeries = rndSeries.map((value, index) => value + gaSeries[index]);
 
-  hiring.getCell('A1').value = `${inputs.companyName} — Hiring & Opex`;
+  hiring.getCell('A1').value = sanitizeWorkbookText(`${inputs.companyName} - Hiring & Opex`);
   mergeAndCenter(hiring, 'A1:H1');
   styleTitle(hiring.getCell('A1'));
   hiring.getCell('A3').value = 'Metric';
@@ -529,7 +530,7 @@ function buildSaasWorkbook(workbook: ExcelJS.Workbook, inputs: SaasOperatingMode
     setFormula(dashboard.getCell(`B${row}`), formula, result, kind, true);
   });
 
-  checks.getCell('A1').value = `${inputs.companyName} — Checks`;
+  checks.getCell('A1').value = sanitizeWorkbookText(`${inputs.companyName} - Checks`);
   mergeAndCenter(checks, 'A1:D1');
   styleTitle(checks.getCell('A1'));
   ['Check', 'Formula', 'Status'].forEach((label, index) => {
@@ -976,7 +977,7 @@ function buildThreeStatementWorkbook(workbook: ExcelJS.Workbook, inputs: ThreeSt
     (value, index) => value + oclSeries[index] + endingDebt[index] + 60 + 300 + retainedEarningsSeries[index]
   );
 
-  income.getCell('A1').value = `${inputs.companyName} — Income Statement`;
+  income.getCell('A1').value = sanitizeWorkbookText(`${inputs.companyName} - Income Statement`);
   mergeAndCenter(income, 'A1:H1');
   styleTitle(income.getCell('A1'));
   income.getCell('A3').value = 'Line Item';
@@ -1015,7 +1016,7 @@ function buildThreeStatementWorkbook(workbook: ExcelJS.Workbook, inputs: ThreeSt
     setFormula(income.getCell(`${column}${isRows.ni}`), `=${column}${isRows.ebt}+${column}${isRows.taxes}`, netIncomeSeries[index], 'currency', true);
   }
 
-  wc.getCell('A1').value = `${inputs.companyName} — Working Capital Schedule`;
+  wc.getCell('A1').value = sanitizeWorkbookText(`${inputs.companyName} - Working Capital Schedule`);
   mergeAndCenter(wc, 'A1:H1');
   styleTitle(wc.getCell('A1'));
   wc.getCell('A3').value = 'Metric';
@@ -1052,7 +1053,7 @@ function buildThreeStatementWorkbook(workbook: ExcelJS.Workbook, inputs: ThreeSt
     );
   }
 
-  ppe.getCell('A1').value = `${inputs.companyName} — PP&E & Depreciation`;
+  ppe.getCell('A1').value = sanitizeWorkbookText(`${inputs.companyName} - PP&E & Depreciation`);
   mergeAndCenter(ppe, 'A1:H1');
   styleTitle(ppe.getCell('A1'));
   ppe.getCell('A3').value = 'Metric';
@@ -1073,7 +1074,7 @@ function buildThreeStatementWorkbook(workbook: ExcelJS.Workbook, inputs: ThreeSt
     setFormula(ppe.getCell(`${column}${ppeRows.ending}`), `=${column}${ppeRows.beginning}-${column}${ppeRows.capex}+${column}${ppeRows.da}`, endingPpe[index], 'currency', true);
   }
 
-  debt.getCell('A1').value = `${inputs.companyName} — Debt Schedule`;
+  debt.getCell('A1').value = sanitizeWorkbookText(`${inputs.companyName} - Debt Schedule`);
   mergeAndCenter(debt, 'A1:H1');
   styleTitle(debt.getCell('A1'));
   debt.getCell('A3').value = 'Metric';
@@ -1095,7 +1096,7 @@ function buildThreeStatementWorkbook(workbook: ExcelJS.Workbook, inputs: ThreeSt
     setFormula(debt.getCell(`${column}${debtRows.interest}`), `=-AVERAGE(${column}${debtRows.beginning},${column}${debtRows.ending})*Control Panel!$B$${controlRows.interestRate}`, interestSeries[index], 'currency');
   }
 
-  cashFlow.getCell('A1').value = `${inputs.companyName} — Cash Flow Statement`;
+  cashFlow.getCell('A1').value = sanitizeWorkbookText(`${inputs.companyName} - Cash Flow Statement`);
   mergeAndCenter(cashFlow, 'A1:H1');
   styleTitle(cashFlow.getCell('A1'));
   cashFlow.getCell('A3').value = 'Line Item';
@@ -1126,7 +1127,7 @@ function buildThreeStatementWorkbook(workbook: ExcelJS.Workbook, inputs: ThreeSt
   }
   styleTotal(cashFlow, cfRows.cash, 1, allYears.length + 1);
 
-  balance.getCell('A1').value = `${inputs.companyName} — Balance Sheet`;
+  balance.getCell('A1').value = sanitizeWorkbookText(`${inputs.companyName} - Balance Sheet`);
   mergeAndCenter(balance, 'A1:H1');
   styleTitle(balance.getCell('A1'));
   balance.getCell('A3').value = 'Line Item';
