@@ -1382,6 +1382,7 @@ export async function POST(req: NextRequest) {
               : null,
           inputOverrides: attachmentModelOverrides,
           clarificationAnswer,
+          attachmentDriven: requestedPdfModelType !== null,
         });
         if (generatedModel) {
           try {

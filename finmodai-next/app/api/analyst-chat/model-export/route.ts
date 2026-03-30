@@ -15,12 +15,16 @@ function isAnalystGeneratedModelPayload(value: unknown): value is AnalystGenerat
   const row = value as Record<string, unknown>;
   return (
     (
+      row.modelType === 'DCF' ||
       row.modelType === 'THREE_STATEMENT' ||
       row.modelType === 'CAP_TABLE' ||
       row.modelType === 'SAAS_OPERATING_MODEL' ||
       row.modelType === 'COMPS' ||
       row.modelType === 'PRECEDENTS' ||
-      row.modelType === 'LBO'
+      row.modelType === 'LBO' ||
+      row.modelType === 'FOOTBALL_FIELD' ||
+      row.modelType === 'MERGER' ||
+      row.modelType === 'DEBT_CAPACITY_LITE'
     ) &&
     typeof row.prompt === 'string' &&
     typeof row.title === 'string' &&

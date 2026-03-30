@@ -132,6 +132,19 @@ function fmtAbsoluteCurrency(value: number | null | undefined): string {
   return `$${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
+function fmtModelCurrencyFromMillions(value: number | null | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
+  return fmtAbsoluteCurrency(value * 1_000_000);
+}
+
+function fmtModelSharesFromMillions(value: number | null | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
+  const actualShares = value * 1_000_000;
+  if (Math.abs(actualShares) >= 1_000_000_000) return `${(actualShares / 1_000_000_000).toFixed(1)}B`;
+  if (Math.abs(actualShares) >= 1_000_000) return `${(actualShares / 1_000_000).toFixed(1)}M`;
+  return actualShares.toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+
 function fmtPercent(value: number | null | undefined): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
   return `${(value * 100).toFixed(1)}%`;
@@ -282,7 +295,7 @@ function buildNarrativeBlocks(
         ...scenarioBlock,
         {
           title: 'VALUATION FRAME',
-          body: `${dcfInputs.companyName} is being framed through a canonical DCF with base revenue of ${fmtAbsoluteCurrency(dcfInputs.baseRevenue)}, cash of ${fmtAbsoluteCurrency(dcfInputs.cash)}, debt of ${fmtAbsoluteCurrency(dcfInputs.debt)}, and ${dcfInputs.sharesOutstanding.toLocaleString('en-US')} diluted shares.`,
+          body: `${dcfInputs.companyName} is being framed through a canonical DCF with base revenue of ${fmtModelCurrencyFromMillions(dcfInputs.baseRevenue)}, cash of ${fmtModelCurrencyFromMillions(dcfInputs.cash)}, debt of ${fmtModelCurrencyFromMillions(dcfInputs.debt)}, and ${fmtModelSharesFromMillions(dcfInputs.sharesOutstanding)} diluted shares.`,
         },
         {
           title: 'KEY ASSUMPTIONS',
@@ -1304,6 +1317,7 @@ export async function generateAnalystStructuredModel(
     attachmentStatementSnapshot?: AttachmentStatementSnapshot | null;
     inputOverrides?: Record<string, unknown>;
     clarificationAnswer?: string;
+    attachmentDriven?: boolean;
   } = {},
 ): Promise<{
   reply: string;
@@ -1316,6 +1330,7 @@ export async function generateAnalystStructuredModel(
     attachmentStatementSnapshot: options.attachmentStatementSnapshot ?? null,
     inputOverrides: options.inputOverrides,
     clarificationAnswer: options.clarificationAnswer,
+    attachmentDriven: options.attachmentDriven === true,
   });
   return buildStructuredModelPayload({
     prompt,

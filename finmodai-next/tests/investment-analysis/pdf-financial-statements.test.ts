@@ -398,10 +398,10 @@ test('extractInputs uses attachment statement snapshots ahead of defaults for DC
   assert.equal(dcf.extractedInputs.modelType, 'DCF');
   if (dcf.extractedInputs.modelType !== 'DCF') return;
   assert.equal(dcf.extractedInputs.source, 'attachment_pdf_statement');
-  assert.equal(dcf.extractedInputs.baseRevenue, 280_000_000_000);
-  assert.equal(dcf.extractedInputs.cash, 30_000_000_000);
-  assert.equal(dcf.extractedInputs.debt, 15_000_000_000);
-  assert.equal(dcf.extractedInputs.sharesOutstanding, 7_400_000_000);
+  assert.equal(dcf.extractedInputs.baseRevenue, 280_000);
+  assert.equal(dcf.extractedInputs.cash, 30_000);
+  assert.equal(dcf.extractedInputs.debt, 15_000);
+  assert.equal(dcf.extractedInputs.sharesOutstanding, 7_400);
 
   const threeStatement = await extractInputs('Build a three statement model from this PDF for Microsoft', 'THREE_STATEMENT', {
     attachmentStatementSnapshot: parsed?.snapshot ?? null,
@@ -409,9 +409,9 @@ test('extractInputs uses attachment statement snapshots ahead of defaults for DC
   assert.equal(threeStatement.extractedInputs.modelType, 'THREE_STATEMENT');
   if (threeStatement.extractedInputs.modelType !== 'THREE_STATEMENT') return;
   assert.equal(threeStatement.extractedInputs.source, 'attachment_pdf_statement');
-  assert.equal(threeStatement.extractedInputs.baseRevenue, 280_000_000_000);
-  assert.equal(threeStatement.extractedInputs.capexPctRevenue, 24_000_000_000 / 280_000_000_000);
-  assert.equal(threeStatement.extractedInputs.daPctRevenue, 16_000_000_000 / 280_000_000_000);
+  assert.equal(threeStatement.extractedInputs.baseRevenue, 280_000);
+  assert.equal(threeStatement.extractedInputs.capexPctRevenue, 24_000 / 280_000);
+  assert.equal(threeStatement.extractedInputs.daPctRevenue, 16_000 / 280_000);
 });
 
 test('extractInputs uses attachment subject financials for comps and LBO', async () => {
@@ -433,7 +433,7 @@ test('extractInputs uses attachment subject financials for comps and LBO', async
   assert.equal(lbo.extractedInputs.modelType, 'LBO');
   if (lbo.extractedInputs.modelType !== 'LBO') return;
   assert.equal(lbo.extractedInputs.source, 'attachment_pdf_statement');
-  assert.equal(lbo.extractedInputs.revenue, 280_000_000_000);
-  assert.equal(lbo.extractedInputs.ebitda, 144_000_000_000);
-  assert.equal(lbo.extractedInputs.netDebt, -15_000_000_000);
+  assert.equal(lbo.extractedInputs.revenue, 280_000);
+  assert.equal(lbo.extractedInputs.ebitda, 144_000);
+  assert.equal(lbo.extractedInputs.netDebt, -15_000);
 });

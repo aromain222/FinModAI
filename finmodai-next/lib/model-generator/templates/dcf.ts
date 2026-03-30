@@ -38,6 +38,29 @@ function buildAxis(base: number, step: number, size: number, floor = 0): number[
   return Array.from({ length: size }, (_, index) => Number(Math.max(start + step * index, floor).toFixed(4)));
 }
 
+const RANGE_NAMES = {
+  forecastYears: 'CB_ForecastYears',
+  baseRevenue: 'CB_BaseRevenue',
+  cashBalance: 'CB_CashBalance',
+  debtBalance: 'CB_DebtBalance',
+  sharesOutstanding: 'CB_SharesOutstanding',
+  currentSharePrice: 'CB_CurrentSharePrice',
+  wacc: 'CB_WACC',
+  terminalGrowth: 'CB_TerminalGrowth',
+  exitMultiple: 'CB_ExitMultiple',
+  terminalMethod: 'CB_TerminalMethod',
+  taxRate: 'CB_TaxRate',
+  daPctRevenue: 'CB_DAPctRevenue',
+  capexPctRevenue: 'CB_CapexPctRevenue',
+  nwcPctRevenue: 'CB_NWCPctRevenue',
+  pvExplicitFcf: 'CB_PVExplicitFCF',
+  pvTerminalValue: 'CB_PVTerminalValue',
+  enterpriseValue: 'CB_EnterpriseValue',
+  netDebt: 'CB_NetDebt',
+  equityValue: 'CB_EquityValue',
+  impliedSharePrice: 'CB_ImpliedSharePrice',
+} as const;
+
 export function getPreview(inputs: DcfModelInputs) {
   return {
     title: `${inputs.companyName} DCF`,
@@ -92,15 +115,15 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
 
   styleSectionHeader(coverSheet, 10, 'Assumption Snapshot', 3);
   coverSheet.getCell('A11').value = 'Forecast years';
-  coverSheet.getCell('B11').value = { formula: '=ForecastYears' };
+  coverSheet.getCell('B11').value = { formula: `=${RANGE_NAMES.forecastYears}` };
   coverSheet.getCell('A12').value = 'WACC';
-  coverSheet.getCell('B12').value = { formula: '=WACC' };
+  coverSheet.getCell('B12').value = { formula: `=${RANGE_NAMES.wacc}` };
   coverSheet.getCell('A13').value = 'Terminal growth';
-  coverSheet.getCell('B13').value = { formula: '=TerminalGrowth' };
+  coverSheet.getCell('B13').value = { formula: `=${RANGE_NAMES.terminalGrowth}` };
   coverSheet.getCell('A14').value = 'Exit multiple';
-  coverSheet.getCell('B14').value = { formula: '=ExitMultiple' };
+  coverSheet.getCell('B14').value = { formula: `=${RANGE_NAMES.exitMultiple}` };
   coverSheet.getCell('A15').value = 'Terminal method';
-  coverSheet.getCell('B15').value = { formula: '=TerminalMethod' };
+  coverSheet.getCell('B15').value = { formula: `=${RANGE_NAMES.terminalMethod}` };
   ['A11', 'A12', 'A13', 'A14', 'A15'].forEach((ref) => styleLabel(coverSheet.getCell(ref)));
   styleFormula(coverSheet.getCell('B11'), 'number');
   styleFormula(coverSheet.getCell('B12'), 'percent');
@@ -110,15 +133,15 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
 
   styleSectionHeader(coverSheet, 10, 'Valuation Snapshot', 7);
   coverSheet.getCell('E11').value = 'Enterprise Value';
-  coverSheet.getCell('F11').value = { formula: '=EnterpriseValue' };
+  coverSheet.getCell('F11').value = { formula: `=${RANGE_NAMES.enterpriseValue}` };
   coverSheet.getCell('E12').value = 'Equity Value';
-  coverSheet.getCell('F12').value = { formula: '=EquityValue' };
+  coverSheet.getCell('F12').value = { formula: `=${RANGE_NAMES.equityValue}` };
   coverSheet.getCell('E13').value = 'Implied Share Price';
-  coverSheet.getCell('F13').value = { formula: '=ImpliedSharePrice' };
+  coverSheet.getCell('F13').value = { formula: `=${RANGE_NAMES.impliedSharePrice}` };
   coverSheet.getCell('E14').value = 'PV of Explicit FCF';
-  coverSheet.getCell('F14').value = { formula: '=PVExplicitFCF' };
+  coverSheet.getCell('F14').value = { formula: `=${RANGE_NAMES.pvExplicitFcf}` };
   coverSheet.getCell('E15').value = 'PV of Terminal Value';
-  coverSheet.getCell('F15').value = { formula: '=PVTerminalValue' };
+  coverSheet.getCell('F15').value = { formula: `=${RANGE_NAMES.pvTerminalValue}` };
   ['E11', 'E12', 'E13', 'E14', 'E15'].forEach((ref) => styleLabel(coverSheet.getCell(ref)));
   styleAccentOutput(coverSheet.getCell('F11'), 'currency');
   styleAccentOutput(coverSheet.getCell('F12'), 'currency');
@@ -130,15 +153,15 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
 
   styleSectionHeader(coverSheet, 18, 'Valuation Bridge', 3);
   coverSheet.getCell('A19').value = 'PV of Explicit FCF';
-  coverSheet.getCell('B19').value = { formula: '=PVExplicitFCF' };
+  coverSheet.getCell('B19').value = { formula: `=${RANGE_NAMES.pvExplicitFcf}` };
   coverSheet.getCell('A20').value = 'PV of Terminal Value';
-  coverSheet.getCell('B20').value = { formula: '=PVTerminalValue' };
+  coverSheet.getCell('B20').value = { formula: `=${RANGE_NAMES.pvTerminalValue}` };
   coverSheet.getCell('A21').value = 'Enterprise Value';
-  coverSheet.getCell('B21').value = { formula: '=EnterpriseValue' };
+  coverSheet.getCell('B21').value = { formula: `=${RANGE_NAMES.enterpriseValue}` };
   coverSheet.getCell('A22').value = 'Net debt / (cash)';
-  coverSheet.getCell('B22').value = { formula: '=NetDebt' };
+  coverSheet.getCell('B22').value = { formula: `=${RANGE_NAMES.netDebt}` };
   coverSheet.getCell('A23').value = 'Equity Value';
-  coverSheet.getCell('B23').value = { formula: '=EquityValue' };
+  coverSheet.getCell('B23').value = { formula: `=${RANGE_NAMES.equityValue}` };
   ['A19', 'A20', 'A21', 'A22', 'A23'].forEach((ref) => styleLabel(coverSheet.getCell(ref)));
   ['B19', 'B20', 'B21', 'B22', 'B23'].forEach((ref, index) =>
     index === 2 || index === 4 ? styleOutput(coverSheet.getCell(ref), 'currency') : styleFormula(coverSheet.getCell(ref), 'currency')
@@ -146,11 +169,13 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
 
   styleSectionHeader(coverSheet, 18, 'Sensitivity Snapshot', 8);
   coverSheet.getCell('E19').value = 'Implied Share Price';
-  coverSheet.getCell('F19').value = { formula: '=ImpliedSharePrice' };
+  coverSheet.getCell('F19').value = { formula: `=${RANGE_NAMES.impliedSharePrice}` };
   coverSheet.getCell('E20').value = 'Current Share Price';
-  coverSheet.getCell('F20').value = { formula: '=CurrentSharePrice' };
+  coverSheet.getCell('F20').value = { formula: `=${RANGE_NAMES.currentSharePrice}` };
   coverSheet.getCell('E21').value = 'Upside / (Downside)';
-  coverSheet.getCell('F21').value = { formula: '=IF(CurrentSharePrice>0,ImpliedSharePrice/CurrentSharePrice-1,"")' };
+  coverSheet.getCell('F21').value = {
+    formula: `=IF(${RANGE_NAMES.currentSharePrice}>0,${RANGE_NAMES.impliedSharePrice}/${RANGE_NAMES.currentSharePrice}-1,"")`,
+  };
   coverSheet.getCell('E22').value = 'Low Sensitivity Price';
   coverSheet.getCell('F22').value = { formula: '=MIN(Sensitivity!C5:G9)' };
   coverSheet.getCell('E23').value = 'High Sensitivity Price';
@@ -250,20 +275,20 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
   });
 
   defineNamedCells(workbook, assumptionsSheet, [
-    { name: 'ForecastYears', cellRef: 'B8' },
-    { name: 'BaseRevenue', cellRef: 'B9' },
-    { name: 'CashBalance', cellRef: 'B10' },
-    { name: 'DebtBalance', cellRef: 'B11' },
-    { name: 'SharesOutstanding', cellRef: 'B12' },
-    { name: 'CurrentSharePrice', cellRef: 'B13' },
-    { name: 'WACC', cellRef: 'B15' },
-    { name: 'TerminalGrowth', cellRef: 'B16' },
-    { name: 'ExitMultiple', cellRef: 'B17' },
-    { name: 'TerminalMethod', cellRef: 'B18' },
-    { name: 'TaxRate', cellRef: 'B19' },
-    { name: 'DAPctRevenue', cellRef: 'B20' },
-    { name: 'CapexPctRevenue', cellRef: 'B21' },
-    { name: 'NWCPctRevenue', cellRef: 'B22' },
+    { name: RANGE_NAMES.forecastYears, cellRef: 'B8' },
+    { name: RANGE_NAMES.baseRevenue, cellRef: 'B9' },
+    { name: RANGE_NAMES.cashBalance, cellRef: 'B10' },
+    { name: RANGE_NAMES.debtBalance, cellRef: 'B11' },
+    { name: RANGE_NAMES.sharesOutstanding, cellRef: 'B12' },
+    { name: RANGE_NAMES.currentSharePrice, cellRef: 'B13' },
+    { name: RANGE_NAMES.wacc, cellRef: 'B15' },
+    { name: RANGE_NAMES.terminalGrowth, cellRef: 'B16' },
+    { name: RANGE_NAMES.exitMultiple, cellRef: 'B17' },
+    { name: RANGE_NAMES.terminalMethod, cellRef: 'B18' },
+    { name: RANGE_NAMES.taxRate, cellRef: 'B19' },
+    { name: RANGE_NAMES.daPctRevenue, cellRef: 'B20' },
+    { name: RANGE_NAMES.capexPctRevenue, cellRef: 'B21' },
+    { name: RANGE_NAMES.nwcPctRevenue, cellRef: 'B22' },
   ]);
   forecastYears.forEach((year, index) => {
     defineNamedCell(workbook, yearName('RevenueGrowth', year), assumptionsSheet, `${col(3 + index)}26`);
@@ -313,14 +338,14 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
     styleLabel(forecastSheet.getCell(`A${row}`));
   });
 
-  forecastSheet.getCell(`B${forecastRows.revenue}`).value = { formula: '=BaseRevenue' };
+  forecastSheet.getCell(`B${forecastRows.revenue}`).value = { formula: `=${RANGE_NAMES.baseRevenue}` };
   forecastSheet.getCell(`B${forecastRows.revenueGrowth}`).value = '';
   forecastSheet.getCell(`B${forecastRows.ebitMargin}`).value = inputs.ebitMargin[0];
   forecastSheet.getCell(`B${forecastRows.ebit}`).value = { formula: `=B${forecastRows.revenue}*B${forecastRows.ebitMargin}` };
-  forecastSheet.getCell(`B${forecastRows.taxes}`).value = { formula: `=MAX(B${forecastRows.ebit},0)*TaxRate` };
+  forecastSheet.getCell(`B${forecastRows.taxes}`).value = { formula: `=MAX(B${forecastRows.ebit},0)*${RANGE_NAMES.taxRate}` };
   forecastSheet.getCell(`B${forecastRows.nopat}`).value = { formula: `=B${forecastRows.ebit}-B${forecastRows.taxes}` };
-  forecastSheet.getCell(`B${forecastRows.da}`).value = { formula: `=B${forecastRows.revenue}*DAPctRevenue` };
-  forecastSheet.getCell(`B${forecastRows.capex}`).value = { formula: `=B${forecastRows.revenue}*CapexPctRevenue` };
+  forecastSheet.getCell(`B${forecastRows.da}`).value = { formula: `=B${forecastRows.revenue}*${RANGE_NAMES.daPctRevenue}` };
+  forecastSheet.getCell(`B${forecastRows.capex}`).value = { formula: `=B${forecastRows.revenue}*${RANGE_NAMES.capexPctRevenue}` };
   forecastSheet.getCell(`B${forecastRows.deltaNwc}`).value = 0;
   forecastSheet.getCell(`B${forecastRows.ufcf}`).value = { formula: `=B${forecastRows.nopat}+B${forecastRows.da}-B${forecastRows.capex}-B${forecastRows.deltaNwc}` };
   styleFormula(forecastSheet.getCell(`B${forecastRows.revenue}`), 'currency');
@@ -330,7 +355,7 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
   );
   styleOutput(forecastSheet.getCell(`B${forecastRows.ufcf}`), 'currency');
 
-  let previousRevenueName = 'BaseRevenue';
+  let previousRevenueName = RANGE_NAMES.baseRevenue;
   let previousNwcValue = `B${forecastRows.revenue}*${yearName('NWCPct', forecastYears[0])}`;
   forecastYears.forEach((year, index) => {
     const letter = col(3 + index);
@@ -351,7 +376,7 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
     forecastSheet.getCell(`${letter}${forecastRows.revenueGrowth}`).value = { formula: `=${growthName}` };
     forecastSheet.getCell(`${letter}${forecastRows.ebit}`).value = { formula: `=${revenueName}*${marginName}` };
     forecastSheet.getCell(`${letter}${forecastRows.ebitMargin}`).value = { formula: `=${marginName}` };
-    forecastSheet.getCell(`${letter}${forecastRows.taxes}`).value = { formula: `=MAX(${ebitName},0)*TaxRate` };
+    forecastSheet.getCell(`${letter}${forecastRows.taxes}`).value = { formula: `=MAX(${ebitName},0)*${RANGE_NAMES.taxRate}` };
     forecastSheet.getCell(`${letter}${forecastRows.nopat}`).value = { formula: `=${ebitName}-${letter}${forecastRows.taxes}` };
     forecastSheet.getCell(`${letter}${forecastRows.da}`).value = { formula: `=${revenueName}*${daPctName}` };
     forecastSheet.getCell(`${letter}${forecastRows.capex}`).value = { formula: `=${revenueName}*${capexPctName}` };
@@ -457,7 +482,7 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
     const letter = col(3 + index);
     valuationSheet.getCell(`${letter}${valRows.ufcf}`).value = { formula: `=${yearName('UFCF', year)}` };
     valuationSheet.getCell(`${letter}${valRows.period}`).value = index + 1;
-    valuationSheet.getCell(`${letter}${valRows.discountFactor}`).value = { formula: `=1/(1+WACC)^${index + 1}` };
+    valuationSheet.getCell(`${letter}${valRows.discountFactor}`).value = { formula: `=1/(1+${RANGE_NAMES.wacc})^${index + 1}` };
     valuationSheet.getCell(`${letter}${valRows.pvFcf}`).value = { formula: `=${letter}${valRows.ufcf}*${letter}${valRows.discountFactor}` };
     valuationSheet.getCell(`${letter}${valRows.ebitda}`).value = { formula: `=${yearName('EBIT', year)}+${yearName('DA', year)}` };
     styleFormula(valuationSheet.getCell(`${letter}${valRows.ufcf}`), 'currency');
@@ -468,10 +493,10 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
   });
 
   const lastLetter = col(2 + inputs.years);
-  valuationSheet.getCell(`C${valRows.exitMultipleTv}`).value = { formula: `=${lastLetter}${valRows.ebitda}*ExitMultiple` };
-  valuationSheet.getCell(`C${valRows.perpetuityTv}`).value = { formula: `=(${yearName('UFCF', lastForecastYear)}*(1+TerminalGrowth))/(WACC-TerminalGrowth)` };
+  valuationSheet.getCell(`C${valRows.exitMultipleTv}`).value = { formula: `=${lastLetter}${valRows.ebitda}*${RANGE_NAMES.exitMultiple}` };
+  valuationSheet.getCell(`C${valRows.perpetuityTv}`).value = { formula: `=(${yearName('UFCF', lastForecastYear)}*(1+${RANGE_NAMES.terminalGrowth}))/(${RANGE_NAMES.wacc}-${RANGE_NAMES.terminalGrowth})` };
   valuationSheet.getCell(`C${valRows.selectedTv}`).value = {
-    formula: `=IF(TerminalMethod="Exit Multiple",C${valRows.exitMultipleTv},C${valRows.perpetuityTv})`,
+    formula: `=IF(${RANGE_NAMES.terminalMethod}="Exit Multiple",C${valRows.exitMultipleTv},C${valRows.perpetuityTv})`,
   };
   valuationSheet.getCell(`C${valRows.pvTv}`).value = { formula: `=C${valRows.selectedTv}*${lastLetter}${valRows.discountFactor}` };
   styleFormula(valuationSheet.getCell(`C${valRows.exitMultipleTv}`), 'currency');
@@ -482,10 +507,10 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
   valuationSheet.getCell('B4').value = { formula: `=SUM(C${valRows.pvFcf}:${lastLetter}${valRows.pvFcf})` };
   valuationSheet.getCell('B5').value = { formula: `=C${valRows.pvTv}` };
   valuationSheet.getCell('B6').value = { formula: '=B4+B5' };
-  valuationSheet.getCell('B7').value = { formula: '=DebtBalance-CashBalance' };
+  valuationSheet.getCell('B7').value = { formula: `=${RANGE_NAMES.debtBalance}-${RANGE_NAMES.cashBalance}` };
   valuationSheet.getCell('B8').value = { formula: '=B6-B7' };
-  valuationSheet.getCell('B9').value = { formula: '=IF(SharesOutstanding>0,B8/SharesOutstanding,0)' };
-  valuationSheet.getCell('B10').value = { formula: '=CurrentSharePrice' };
+  valuationSheet.getCell('B9').value = { formula: `=IF(${RANGE_NAMES.sharesOutstanding}>0,B8/${RANGE_NAMES.sharesOutstanding},0)` };
+  valuationSheet.getCell('B10').value = { formula: `=${RANGE_NAMES.currentSharePrice}` };
   styleOutput(valuationSheet.getCell('B4'), 'currency');
   styleOutput(valuationSheet.getCell('B5'), 'currency');
   styleTotal(valuationSheet, 6, 1, 2);
@@ -495,23 +520,23 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
   styleFormula(valuationSheet.getCell('B10'), 'currency');
 
   defineNamedCells(workbook, valuationSheet, [
-    { name: 'PVExplicitFCF', cellRef: 'B4' },
-    { name: 'PVTerminalValue', cellRef: 'B5' },
-    { name: 'EnterpriseValue', cellRef: 'B6' },
-    { name: 'NetDebt', cellRef: 'B7' },
-    { name: 'EquityValue', cellRef: 'B8' },
-    { name: 'ImpliedSharePrice', cellRef: 'B9' },
+    { name: RANGE_NAMES.pvExplicitFcf, cellRef: 'B4' },
+    { name: RANGE_NAMES.pvTerminalValue, cellRef: 'B5' },
+    { name: RANGE_NAMES.enterpriseValue, cellRef: 'B6' },
+    { name: RANGE_NAMES.netDebt, cellRef: 'B7' },
+    { name: RANGE_NAMES.equityValue, cellRef: 'B8' },
+    { name: RANGE_NAMES.impliedSharePrice, cellRef: 'B9' },
   ]);
 
   styleSectionHeader(valuationSheet, 25, 'Value Driver Mix', 4);
   valuationSheet.getCell('A26').value = 'Explicit FCF as % EV';
-  valuationSheet.getCell('B26').value = { formula: '=IF(EnterpriseValue<>0,PVExplicitFCF/EnterpriseValue,0)' };
+  valuationSheet.getCell('B26').value = { formula: `=IF(${RANGE_NAMES.enterpriseValue}<>0,${RANGE_NAMES.pvExplicitFcf}/${RANGE_NAMES.enterpriseValue},0)` };
   valuationSheet.getCell('A27').value = 'Terminal value as % EV';
-  valuationSheet.getCell('B27').value = { formula: '=IF(EnterpriseValue<>0,PVTerminalValue/EnterpriseValue,0)' };
+  valuationSheet.getCell('B27').value = { formula: `=IF(${RANGE_NAMES.enterpriseValue}<>0,${RANGE_NAMES.pvTerminalValue}/${RANGE_NAMES.enterpriseValue},0)` };
   valuationSheet.getCell('A28').value = 'Net debt as % EV';
-  valuationSheet.getCell('B28').value = { formula: '=IF(EnterpriseValue<>0,NetDebt/EnterpriseValue,0)' };
+  valuationSheet.getCell('B28').value = { formula: `=IF(${RANGE_NAMES.enterpriseValue}<>0,${RANGE_NAMES.netDebt}/${RANGE_NAMES.enterpriseValue},0)` };
   valuationSheet.getCell('A29').value = 'Equity value / EV';
-  valuationSheet.getCell('B29').value = { formula: '=IF(EnterpriseValue<>0,EquityValue/EnterpriseValue,0)' };
+  valuationSheet.getCell('B29').value = { formula: `=IF(${RANGE_NAMES.enterpriseValue}<>0,${RANGE_NAMES.equityValue}/${RANGE_NAMES.enterpriseValue},0)` };
   ['A26', 'A27', 'A28', 'A29'].forEach((ref) => styleLabel(valuationSheet.getCell(ref)));
   ['B26', 'B27', 'B28', 'B29'].forEach((ref) => styleOutput(valuationSheet.getCell(ref), 'percent'));
   styleThinGrid(valuationSheet, 26, 29, 1, 2);
@@ -520,22 +545,22 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
     {
       metric: 'Terminal value (perpetuity)',
       description: 'Terminal-year unlevered FCF grown by terminal growth and divided by the WACC spread.',
-      excelFormula: `=(${yearName('UFCF', lastForecastYear)}*(1+TerminalGrowth))/(WACC-TerminalGrowth)`,
-      dependencies: `${yearName('UFCF', lastForecastYear)}, TerminalGrowth, WACC`,
+      excelFormula: `=(${yearName('UFCF', lastForecastYear)}*(1+${RANGE_NAMES.terminalGrowth}))/(${RANGE_NAMES.wacc}-${RANGE_NAMES.terminalGrowth})`,
+      dependencies: `${yearName('UFCF', lastForecastYear)}, ${RANGE_NAMES.terminalGrowth}, ${RANGE_NAMES.wacc}`,
       location: `'DCF Valuation'!C21`,
     },
     {
       metric: 'Terminal value (exit multiple)',
       description: 'Terminal-year EBITDA multiplied by the assumed exit multiple.',
-      excelFormula: `=${lastLetter}${valRows.ebitda}*ExitMultiple`,
-      dependencies: `${lastLetter}${valRows.ebitda}, ExitMultiple`,
+      excelFormula: `=${lastLetter}${valRows.ebitda}*${RANGE_NAMES.exitMultiple}`,
+      dependencies: `${lastLetter}${valRows.ebitda}, ${RANGE_NAMES.exitMultiple}`,
       location: `'DCF Valuation'!C20`,
     },
     {
       metric: 'Enterprise value',
       description: 'Present value of explicit forecast plus present value of terminal value.',
-      excelFormula: '=PVExplicitFCF+PVTerminalValue',
-      dependencies: 'PVExplicitFCF, PVTerminalValue',
+      excelFormula: `=${RANGE_NAMES.pvExplicitFcf}+${RANGE_NAMES.pvTerminalValue}`,
+      dependencies: `${RANGE_NAMES.pvExplicitFcf}, ${RANGE_NAMES.pvTerminalValue}`,
       location: `'DCF Valuation'!B6`,
     }
   );
@@ -568,7 +593,7 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
           `=IF(${terminalRef}>=${waccRef},"",((` +
           `${explicitPv})+((` +
           `${yearName('UFCF', lastForecastYear)}*(1+${terminalRef}))/(${waccRef}-${terminalRef})` +
-          `)/(1+${waccRef})^${inputs.years}-(DebtBalance-CashBalance))/SharesOutstanding)`,
+          `)/(1+${waccRef})^${inputs.years}-(${RANGE_NAMES.debtBalance}-${RANGE_NAMES.cashBalance}))/${RANGE_NAMES.sharesOutstanding})`,
       };
       styleFormula(sensitivitySheet.getCell(row, 3 + colIndex), 'currency');
     });
@@ -595,7 +620,7 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
       sensitivitySheet.getCell(row, 3 + colIndex).value = {
         formula:
           `=((` +
-          `${explicitPv})+((${lastLetter}${valRows.ebitda}*${multipleRef})/(1+${waccRef})^${inputs.years})-(DebtBalance-CashBalance))/SharesOutstanding`,
+          `${explicitPv})+((${lastLetter}${valRows.ebitda}*${multipleRef})/(1+${waccRef})^${inputs.years})-(${RANGE_NAMES.debtBalance}-${RANGE_NAMES.cashBalance}))/${RANGE_NAMES.sharesOutstanding}`,
       };
       styleFormula(sensitivitySheet.getCell(row, 3 + colIndex), 'currency');
     });
@@ -608,10 +633,10 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
   checksSheet.getCell('A3').value = 'Check';
   checksSheet.getCell('B3').value = 'Result';
   checksSheet.getCell('C3').value = 'Commentary';
-  writeCheckRow(checksSheet, 4, 'Terminal growth < WACC', 'IF(TerminalGrowth<WACC,"PASS","FLAG")', 'Perpetuity growth must remain below WACC.');
+  writeCheckRow(checksSheet, 4, 'Terminal growth < WACC', `IF(${RANGE_NAMES.terminalGrowth}<${RANGE_NAMES.wacc},"PASS","FLAG")`, 'Perpetuity growth must remain below WACC.');
   writeCheckRow(checksSheet, 5, 'FCF is populated', `IF(COUNTA('Operating Forecast'!C14:${lastLetter}14)=${inputs.years},"PASS","FLAG")`, 'All forecast FCF cells should be populated.');
   writeCheckRow(checksSheet, 6, 'Sensitivity tables generated', 'IF(COUNTA(Sensitivity!C5:G9)+COUNTA(Sensitivity!C14:G18)=50,"PASS","FLAG")', 'Both sensitivity tables should be fully populated.');
-  writeCheckRow(checksSheet, 7, 'Value per share available', 'IF(AND(SharesOutstanding>0,ImpliedSharePrice>0),"PASS","FLAG")', 'Share price requires a positive share count and valuation.');
+  writeCheckRow(checksSheet, 7, 'Value per share available', `IF(AND(${RANGE_NAMES.sharesOutstanding}>0,${RANGE_NAMES.impliedSharePrice}>0),"PASS","FLAG")`, 'Share price requires a positive share count and valuation.');
   styleThinGrid(checksSheet, 4, 7, 1, 3);
   finalizeChecksSheet(checksSheet, 4, 7);
 

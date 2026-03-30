@@ -22,11 +22,11 @@ export function defineNamedRange(
   sheetName: string,
   cellRef: string
 ) {
-  workbook.definedNames.add(sanitizeName(name), `'${sheetName}'!${toAbsoluteReference(cellRef)}`);
+  workbook.definedNames.add(`'${sheetName}'!${toAbsoluteReference(cellRef)}`, sanitizeName(name));
 }
 
 export function defineNamedCell(workbook: ExcelJS.Workbook, name: string, sheet: ExcelJS.Worksheet, cellRef: string) {
-  workbook.definedNames.add(sanitizeName(name), `'${sheet.name}'!${toAbsoluteReference(cellRef)}`);
+  workbook.definedNames.add(`'${sheet.name}'!${toAbsoluteReference(cellRef)}`, sanitizeName(name));
 }
 
 export function defineNamedCells(

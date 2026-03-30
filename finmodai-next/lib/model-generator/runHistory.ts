@@ -2,7 +2,7 @@ import { getSupabaseServiceClient } from '@/lib/events/store';
 import type { ModelGeneratorType } from '@/lib/model-generator/classifyPrompt';
 
 export type ProvenanceSummary = {
-  sourceType: 'cached_real' | 'demo_fallback' | 'prompt_defaults' | 'inferred';
+  sourceType: 'cached_real' | 'demo_fallback' | 'prompt_defaults' | 'inferred' | 'attachment_statement';
   sources: string[];
   asOfDate: string | null;
   lastSynced: string | null;

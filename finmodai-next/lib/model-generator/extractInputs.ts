@@ -272,6 +272,7 @@ export type ExtractInputsOptions = {
   demoSnapshotsOverride?: Record<string, DemoCompanySnapshot>;
   marketCompanyUniverseOverride?: MarketCompanyListing[];
   attachmentStatementSnapshot?: AttachmentStatementSnapshot | null;
+  attachmentDriven?: boolean;
 };
 
 type CompanyProfile = {
@@ -406,45 +407,57 @@ export async function extractInputs(
   options: ExtractInputsOptions = {}
 ): Promise<ExtractInputsResult> {
   const fullPrompt = [prompt, options.clarificationAnswer].filter(Boolean).join(' ').trim();
+  const normalizedOptions: ExtractInputsOptions = {
+    ...options,
+    attachmentStatementSnapshot: normalizeAttachmentStatementSnapshotForModel(
+      modelType,
+      options.attachmentStatementSnapshot ?? null,
+    ),
+  };
 
   let result: ExtractInputsResult;
   switch (modelType) {
     case 'DCF':
-      result = await buildDcfInputs(fullPrompt, options);
+      result = await buildDcfInputs(fullPrompt, normalizedOptions);
       break;
     case 'THREE_STATEMENT':
-      result = await buildThreeStatementInputs(fullPrompt, options);
+      result = await buildThreeStatementInputs(fullPrompt, normalizedOptions);
       break;
     case 'CAP_TABLE':
       result = await buildCapTableInputs(fullPrompt);
       break;
     case 'COMPS':
-      result = await buildCompsInputs(fullPrompt, options);
+      result = await buildCompsInputs(fullPrompt, normalizedOptions);
       break;
     case 'DEBT_CAPACITY_LITE':
       result = await buildDebtCapacityLiteInputs(fullPrompt);
       break;
     case 'FOOTBALL_FIELD':
-      result = await buildFootballFieldInputs(fullPrompt, options);
+      result = await buildFootballFieldInputs(fullPrompt, normalizedOptions);
       break;
     case 'MERGER':
-      result = await buildMergerInputs(fullPrompt, options);
+      result = await buildMergerInputs(fullPrompt, normalizedOptions);
       break;
     case 'PRECEDENTS':
-      result = await buildPrecedentsInputs(fullPrompt, options);
+      result = await buildPrecedentsInputs(fullPrompt, normalizedOptions);
       break;
     case 'LBO':
-      result = await buildLboInputs(fullPrompt, options);
+      result = await buildLboInputs(fullPrompt, normalizedOptions);
       break;
     case 'SAAS_OPERATING_MODEL':
       result = await buildSaasInputs(fullPrompt);
       break;
   }
 
-  if (options.inputOverrides && Object.keys(options.inputOverrides).length > 0) {
+  const normalizedOverrides = normalizeInputOverridesForModel(
+    modelType,
+    options.inputOverrides,
+    normalizedOptions.attachmentDriven === true,
+  );
+  if (normalizedOverrides && Object.keys(normalizedOverrides).length > 0) {
     result = {
       ...result,
-      extractedInputs: applyInputOverrides(result.extractedInputs, options.inputOverrides),
+      extractedInputs: applyInputOverrides(result.extractedInputs, normalizedOverrides),
     };
   }
 
@@ -1008,6 +1021,79 @@ function attachmentMarginNumerator(
   return numerator / snapshot.revenue;
 }
 
+function usesMillionModelUnits(modelType: ModelGeneratorType): boolean {
+  return modelType === 'DCF' || modelType === 'THREE_STATEMENT' || modelType === 'LBO';
+}
+
+function normalizeCurrencyToModelMillions(value: number | null | undefined): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  return value / 1_000_000;
+}
+
+function normalizeSharesToModelMillions(value: number | null | undefined): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  return value / 1_000_000;
+}
+
+function attachmentFlowAnnualizationMultiplier(snapshot: AttachmentStatementSnapshot): number {
+  return snapshot.periodType === 'quarter' && snapshot.annualizedFromQuarter !== true ? 4 : 1;
+}
+
+function normalizeAttachmentStatementSnapshotForModel(
+  modelType: ModelGeneratorType,
+  snapshot: AttachmentStatementSnapshot | null,
+): AttachmentStatementSnapshot | null {
+  if (!snapshot || !usesMillionModelUnits(modelType)) return snapshot;
+
+  const flowMultiplier = attachmentFlowAnnualizationMultiplier(snapshot);
+  const normalizeFlow = (value: number | null | undefined): number | null =>
+    normalizeCurrencyToModelMillions(typeof value === 'number' ? value * flowMultiplier : value);
+
+  return {
+    ...snapshot,
+    annualizedFromQuarter: snapshot.annualizedFromQuarter || flowMultiplier !== 1,
+    revenue: normalizeFlow(snapshot.revenue),
+    grossProfit: normalizeFlow(snapshot.grossProfit),
+    operatingIncome: normalizeFlow(snapshot.operatingIncome),
+    ebitda: normalizeFlow(snapshot.ebitda),
+    netIncome: normalizeFlow(snapshot.netIncome),
+    cash: normalizeCurrencyToModelMillions(snapshot.cash),
+    totalDebt: normalizeCurrencyToModelMillions(snapshot.totalDebt),
+    sharesOutstanding: normalizeSharesToModelMillions(snapshot.sharesOutstanding),
+    capex: normalizeFlow(snapshot.capex),
+    depreciationAndAmortization: normalizeFlow(snapshot.depreciationAndAmortization),
+  };
+}
+
+function normalizeInputOverridesForModel(
+  modelType: ModelGeneratorType,
+  overrides: Record<string, unknown> | undefined,
+  attachmentDriven: boolean,
+): Record<string, unknown> | undefined {
+  if (!overrides || Object.keys(overrides).length === 0) return overrides;
+  if (!attachmentDriven || !usesMillionModelUnits(modelType)) return overrides;
+
+  const next = { ...overrides };
+  const currencyKeys =
+    modelType === 'DCF'
+      ? ['baseRevenue', 'cash', 'debt', 'marketCap']
+      : modelType === 'THREE_STATEMENT'
+        ? ['baseRevenue', 'cash', 'debt']
+        : ['revenue', 'ebitda', 'netDebt'];
+
+  for (const key of currencyKeys) {
+    if (typeof next[key] === 'number' && Number.isFinite(next[key])) {
+      next[key] = normalizeCurrencyToModelMillions(next[key] as number);
+    }
+  }
+
+  if (typeof next.sharesOutstanding === 'number' && Number.isFinite(next.sharesOutstanding)) {
+    next.sharesOutstanding = normalizeSharesToModelMillions(next.sharesOutstanding);
+  }
+
+  return next;
+}
+
 function buildMarginSeriesFromObservedMargin(baseMargin: number, years: number, cap = 0.4): number[] {
   return Array.from({ length: years }, (_, index) =>
     Number(Math.min(baseMargin + index * 0.005, cap).toFixed(4)),
@@ -1060,7 +1146,9 @@ function buildProvenanceSummary(params: {
 }): ProvenanceSummary {
   const source = params.source;
   const sourceType =
-    source.includes('demo')
+    source.includes('attachment')
+      ? 'attachment_statement'
+      : source.includes('demo')
       ? 'demo_fallback'
       : source.includes('default') || source.includes('profile')
         ? 'prompt_defaults'
@@ -1140,18 +1228,19 @@ async function buildDcfInputs(prompt: string, options: ExtractInputsOptions = {}
   };
 
   const attachmentSnapshot = options.attachmentStatementSnapshot ?? null;
-  const stored = await resolveStoredCompany(prompt);
-  const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt, options);
+  const attachmentDriven = options.attachmentDriven === true && attachmentHasAnyFinancials(attachmentSnapshot);
+  const stored = attachmentDriven ? null : await resolveStoredCompany(prompt);
+  const resolved = attachmentDriven || stored?.snapshot ? null : await resolveDemoCompany(prompt, options);
   const companyType =
     extractCompanyType(prompt) ??
-    stored?.company.companyType ??
-    stored?.company.sector ??
+    (attachmentDriven ? null : stored?.company.companyType) ??
+    (attachmentDriven ? null : stored?.company.sector) ??
     null;
   if (companyType) providedInputs.add('companyType');
   const profile = getCompanyProfile(companyType);
 
   const parsedCompanyName = extractCompanyName(prompt);
-  if (parsedCompanyName || stored?.company.name || resolved?.snapshot.companyName) providedInputs.add('companyName');
+  if (parsedCompanyName || attachmentSnapshot?.companyName || stored?.company.name || resolved?.snapshot.companyName) providedInputs.add('companyName');
   const companyName =
     parsedCompanyName ||
     attachmentSnapshot?.companyName ||
@@ -1163,13 +1252,13 @@ async function buildDcfInputs(prompt: string, options: ExtractInputsOptions = {}
   const ebitMarginInput = extractMargin(prompt, /(?:ebit|operating)\s+margin\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*%/i);
   const waccInput = extractWacc(prompt);
   const terminalGrowthInput = extractTerminalGrowth(prompt);
-  const baseRevenueInput = extractBaseRevenue(prompt);
+  const baseRevenueInput = normalizeCurrencyToModelMillions(extractBaseRevenue(prompt)) ?? undefined;
 
   if (revenueGrowthInput !== undefined) providedInputs.add('revenueGrowth');
   if (ebitMarginInput !== undefined) providedInputs.add('ebitMargin');
   if (waccInput !== undefined) providedInputs.add('wacc');
   if (terminalGrowthInput !== undefined) providedInputs.add('terminalGrowth');
-  if (baseRevenueInput !== undefined || attachmentSnapshot?.revenue != null || stored?.snapshot?.revenueLtm !== null || resolved?.snapshot.revenueLtm !== undefined) {
+  if (baseRevenueInput !== undefined || attachmentSnapshot?.revenue != null || stored?.snapshot?.revenueLtm != null || resolved?.snapshot.revenueLtm != null) {
     providedInputs.add('baseRevenue');
   }
 
@@ -1200,23 +1289,23 @@ async function buildDcfInputs(prompt: string, options: ExtractInputsOptions = {}
   if (terminalGrowthInput === undefined) defaultsUsed.terminalGrowth = DCF_DEFAULTS.terminalGrowth;
 
   const baseRevenue = baseRevenueInput ?? attachmentSnapshot?.revenue ?? stored?.snapshot?.revenueLtm ?? resolved?.snapshot.revenueLtm ?? DCF_DEFAULTS.baseRevenue;
-  if (baseRevenueInput === undefined && attachmentSnapshot?.revenue == null && stored?.snapshot?.revenueLtm === null && resolved?.snapshot.revenueLtm === undefined) {
+  if (baseRevenueInput === undefined && attachmentSnapshot?.revenue == null && stored?.snapshot?.revenueLtm == null && resolved?.snapshot.revenueLtm == null) {
     defaultsUsed.baseRevenue = DCF_DEFAULTS.baseRevenue;
   }
 
   const cash = attachmentSnapshot?.cash ?? stored?.snapshot?.cash ?? resolved?.snapshot.cash ?? DCF_DEFAULTS.cash;
   const debt = attachmentSnapshot?.totalDebt ?? stored?.snapshot?.totalDebt ?? resolved?.snapshot.totalDebt ?? DCF_DEFAULTS.debt;
   const sharesOutstanding = attachmentSnapshot?.sharesOutstanding ?? stored?.snapshot?.sharesOutstanding ?? resolved?.snapshot.sharesOutstanding ?? DCF_DEFAULTS.sharesOutstanding;
-  const sharePrice = stored?.latestPrice?.close ?? resolved?.snapshot.sharePrice ?? null;
-  const marketCap = stored?.snapshot?.marketCap ?? resolved?.snapshot.marketCap ?? null;
+  const sharePrice = attachmentDriven ? null : stored?.latestPrice?.close ?? resolved?.snapshot.sharePrice ?? null;
+  const marketCap = attachmentDriven ? null : stored?.snapshot?.marketCap ?? resolved?.snapshot.marketCap ?? null;
 
-  if (attachmentSnapshot?.cash == null && stored?.snapshot?.cash === null && (resolved?.snapshot.cash === undefined || resolved.snapshot.cash === null)) {
+  if (attachmentSnapshot?.cash == null && stored?.snapshot?.cash == null && resolved?.snapshot.cash == null) {
     defaultsUsed.cash = DCF_DEFAULTS.cash;
   }
-  if (attachmentSnapshot?.totalDebt == null && stored?.snapshot?.totalDebt === null && (resolved?.snapshot.totalDebt === undefined || resolved.snapshot.totalDebt === null)) {
+  if (attachmentSnapshot?.totalDebt == null && stored?.snapshot?.totalDebt == null && resolved?.snapshot.totalDebt == null) {
     defaultsUsed.debt = DCF_DEFAULTS.debt;
   }
-  if (attachmentSnapshot?.sharesOutstanding == null && stored?.snapshot?.sharesOutstanding === null && (resolved?.snapshot.sharesOutstanding === undefined || resolved.snapshot.sharesOutstanding === null)) {
+  if (attachmentSnapshot?.sharesOutstanding == null && stored?.snapshot?.sharesOutstanding == null && resolved?.snapshot.sharesOutstanding == null) {
     defaultsUsed.sharesOutstanding = DCF_DEFAULTS.sharesOutstanding;
   }
   if (!parsedCompanyName && !attachmentSnapshot?.companyName && !stored?.company.name && !resolved?.snapshot.companyName && companyType) {
@@ -1237,7 +1326,7 @@ async function buildDcfInputs(prompt: string, options: ExtractInputsOptions = {}
       modelType: 'DCF',
       companyName,
       companyType: companyType ?? undefined,
-      ticker: stored?.company.ticker ?? attachmentSnapshot?.ticker ?? resolved?.ticker,
+      ticker: attachmentDriven ? attachmentSnapshot?.ticker ?? undefined : stored?.company.ticker ?? attachmentSnapshot?.ticker ?? resolved?.ticker,
       source:
         attachmentHasAnyFinancials(attachmentSnapshot)
           ? attachmentSnapshot?.source ?? 'attachment_pdf_statement'
@@ -1282,14 +1371,15 @@ async function buildThreeStatementInputs(prompt: string, options: ExtractInputsO
   };
 
   const attachmentSnapshot = options.attachmentStatementSnapshot ?? null;
-  const stored = await resolveStoredCompany(prompt);
-  const resolved = await resolveDemoCompany(prompt, options);
+  const attachmentDriven = options.attachmentDriven === true && attachmentHasAnyFinancials(attachmentSnapshot);
+  const stored = attachmentDriven ? null : await resolveStoredCompany(prompt);
+  const resolved = attachmentDriven ? null : await resolveDemoCompany(prompt, options);
   const storedSnapshot = stored?.snapshot ?? null;
   const demoSnapshot = resolved?.snapshot ?? null;
   const companyType =
     extractCompanyType(prompt) ??
-    stored?.company.companyType ??
-    stored?.company.sector ??
+    (attachmentDriven ? null : stored?.company.companyType) ??
+    (attachmentDriven ? null : stored?.company.sector) ??
     demoSnapshot?.sector ??
     null;
   if (companyType) providedInputs.add('companyType');
@@ -1304,7 +1394,7 @@ async function buildThreeStatementInputs(prompt: string, options: ExtractInputsO
     demoSnapshot?.companyName ||
     deriveCompanyLabel(companyType, 'Demo Company');
 
-  const baseRevenueInput = extractBaseRevenue(prompt);
+  const baseRevenueInput = normalizeCurrencyToModelMillions(extractBaseRevenue(prompt)) ?? undefined;
   const growthInput = extractGrowthRate(prompt);
   const grossMarginInput = extractMargin(prompt, /gross\s+margin\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*%/i);
   const opexInput = extractMargin(prompt, /(?:opex|operating\s+expense(?:s)?)\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*%/i);
@@ -1397,7 +1487,7 @@ async function buildThreeStatementInputs(prompt: string, options: ExtractInputsO
       modelType: 'THREE_STATEMENT',
       companyName,
       companyType: companyType ?? undefined,
-      ticker: stored?.company.ticker ?? attachmentSnapshot?.ticker ?? resolved?.ticker,
+      ticker: attachmentDriven ? attachmentSnapshot?.ticker ?? undefined : stored?.company.ticker ?? attachmentSnapshot?.ticker ?? resolved?.ticker,
       source:
         attachmentHasAnyFinancials(attachmentSnapshot)
           ? attachmentSnapshot?.source ?? 'attachment_pdf_statement'
@@ -2115,23 +2205,24 @@ async function buildLboInputs(prompt: string, options: ExtractInputsOptions = {}
   const providedInputs = new Set<string>();
   const defaultsUsed: Record<string, unknown> = {};
   const attachmentSnapshot = options.attachmentStatementSnapshot ?? null;
-  const stored = await resolveStoredCompany(prompt);
-  const resolved = stored?.snapshot ? null : await resolveDemoCompany(prompt, options);
+  const attachmentDriven = options.attachmentDriven === true && attachmentHasAnyFinancials(attachmentSnapshot);
+  const stored = attachmentDriven ? null : await resolveStoredCompany(prompt);
+  const resolved = attachmentDriven || stored?.snapshot ? null : await resolveDemoCompany(prompt, options);
 
   const companyType =
     extractCompanyType(prompt) ??
-    stored?.company.companyType ??
-    stored?.company.sector ??
+    (attachmentDriven ? null : stored?.company.companyType) ??
+    (attachmentDriven ? null : stored?.company.sector) ??
     resolved?.snapshot.sector ??
     null;
   const parsedCompanyName = extractCompanyName(prompt);
   const companyName =
     parsedCompanyName || attachmentSnapshot?.companyName || stored?.company.name || resolved?.snapshot.companyName || deriveCompanyLabel(companyType, 'Target Company');
-  const ticker = stored?.company.ticker ?? attachmentSnapshot?.ticker ?? resolved?.ticker;
+  const ticker = attachmentDriven ? attachmentSnapshot?.ticker ?? undefined : stored?.company.ticker ?? attachmentSnapshot?.ticker ?? resolved?.ticker;
   if (companyType) providedInputs.add('companyType');
-  if (parsedCompanyName || stored?.company.name || resolved?.snapshot.companyName) providedInputs.add('companyName');
+  if (parsedCompanyName || attachmentSnapshot?.companyName || stored?.company.name || resolved?.snapshot.companyName) providedInputs.add('companyName');
 
-  const revenueInput = extractBaseRevenue(prompt);
+  const revenueInput = normalizeCurrencyToModelMillions(extractBaseRevenue(prompt)) ?? undefined;
   const ebitdaMarginInput = extractMargin(prompt, /(?:ebitda)\s+margin\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*%/i);
   const growthInput = extractGrowthRate(prompt);
   const entryMultipleInput = extractMultiple(prompt, /entry\s+multiple\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*x?/i) ?? extractMultiple(prompt, /(\d+(?:\.\d+)?)\s*x\s*entry/i);
@@ -2212,7 +2303,7 @@ async function buildLboInputs(prompt: string, options: ExtractInputsOptions = {}
       taxRate: LBO_DEFAULTS.taxRate,
       holdingPeriodYears,
       sharesOutstanding: attachmentSnapshot?.sharesOutstanding ?? stored?.snapshot?.sharesOutstanding ?? resolved?.snapshot.sharesOutstanding ?? null,
-      sharePrice: stored?.latestPrice?.close ?? resolved?.snapshot.sharePrice ?? null,
+      sharePrice: attachmentDriven ? null : stored?.latestPrice?.close ?? resolved?.snapshot.sharePrice ?? null,
     },
     defaultsUsed,
     missingInputs,

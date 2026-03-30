@@ -36,7 +36,42 @@ function isMultipleKey(key?: string): boolean {
   return /(multiple|coverage|leverage|moic|ltv|turnover)/i.test(key);
 }
 
-function renderValue(value: unknown, key?: string): string {
+function formatAbsoluteCurrencyCompact(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000_000_000) return `$${(value / 1_000_000_000_000).toFixed(1)}T`;
+  if (abs >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(1)}B`;
+  if (abs >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
+  return `$${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+}
+
+function formatModelSharesMillions(value: number): string {
+  const actualShares = value * 1_000_000;
+  if (Math.abs(actualShares) >= 1_000_000_000) return `${(actualShares / 1_000_000_000).toFixed(1)}B`;
+  if (Math.abs(actualShares) >= 1_000_000) return `${(actualShares / 1_000_000).toFixed(1)}M`;
+  return actualShares.toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+
+function usesMillionCurrencyDisplay(modelType: AnalystGeneratedModelPayload['modelType'], key?: string): boolean {
+  if (!key) return false;
+  if (modelType !== 'DCF' && modelType !== 'THREE_STATEMENT' && modelType !== 'LBO') return false;
+  if (key === 'sharePrice') return false;
+  return isCurrencyKey(key);
+}
+
+function usesMillionShareDisplay(modelType: AnalystGeneratedModelPayload['modelType'], key?: string): boolean {
+  return (modelType === 'DCF' || modelType === 'LBO') && key === 'sharesOutstanding';
+}
+
+function prettifySourceType(value: string): string {
+  return value.replace(/_/g, ' ');
+}
+
+function renderValue(
+  value: unknown,
+  key?: string,
+  modelType?: AnalystGeneratedModelPayload['modelType'],
+): string {
   if (Array.isArray(value)) {
     if (value.every((item) => item && typeof item === 'object' && !Array.isArray(item))) {
       return value
@@ -46,16 +81,22 @@ function renderValue(value: unknown, key?: string): string {
         })
         .join(', ');
     }
-    return value.map((item) => renderValue(item, key)).join(', ');
+    return value.map((item) => renderValue(item, key, modelType)).join(', ');
   }
   if (value && typeof value === 'object') {
     const entries = Object.entries(value as Record<string, unknown>)
       .filter(([, item]) => typeof item === 'string' || typeof item === 'number')
       .slice(0, 4)
-      .map(([entryKey, item]) => `${entryKey}: ${renderValue(item, entryKey)}`);
+      .map(([entryKey, item]) => `${entryKey}: ${renderValue(item, entryKey, modelType)}`);
     return entries.length > 0 ? entries.join(', ') : 'Structured object';
   }
   if (typeof value === 'number') {
+    if (modelType && usesMillionShareDisplay(modelType, key)) {
+      return formatModelSharesMillions(value);
+    }
+    if (modelType && usesMillionCurrencyDisplay(modelType, key)) {
+      return formatAbsoluteCurrencyCompact(value * 1_000_000);
+    }
     if (isPercentKey(key)) {
       const percentValue = Math.abs(value) <= 1 ? value * 100 : value;
       return `${percentValue.toLocaleString('en-US', { maximumFractionDigits: 1 })}%`;
@@ -75,7 +116,12 @@ function renderValue(value: unknown, key?: string): string {
   return String(value);
 }
 
-function ObjectGrid(props: { title: string; values: Record<string, unknown>; emptyMessage: string }) {
+function ObjectGrid(props: {
+  title: string;
+  values: Record<string, unknown>;
+  emptyMessage: string;
+  modelType?: AnalystGeneratedModelPayload['modelType'];
+}) {
   const entries = Object.entries(props.values);
   return (
     <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
@@ -87,7 +133,7 @@ function ObjectGrid(props: { title: string; values: Record<string, unknown>; emp
           {entries.map(([key, value]) => (
             <div key={key} className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
               <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">{key}</div>
-              <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{renderValue(value, key)}</div>
+              <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{renderValue(value, key, props.modelType)}</div>
             </div>
           ))}
         </div>
@@ -1319,7 +1365,7 @@ export function AnalystModelCard({
             <div className="grid gap-3 md:grid-cols-2">
               <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
                 <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">Source Type</div>
-                <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{payload.provenanceSummary.sourceType}</div>
+                <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{prettifySourceType(payload.provenanceSummary.sourceType)}</div>
               </div>
               <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
                 <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">As Of</div>
@@ -1362,8 +1408,8 @@ export function AnalystModelCard({
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <ObjectGrid title="Extracted Inputs" values={payload.extractedInputs as Record<string, unknown>} emptyMessage="No structured inputs were extracted." />
-          <ObjectGrid title="Defaults Used" values={payload.defaultsUsed} emptyMessage="No defaults were required." />
+          <ObjectGrid title="Extracted Inputs" values={payload.extractedInputs as Record<string, unknown>} emptyMessage="No structured inputs were extracted." modelType={payload.modelType} />
+          <ObjectGrid title="Defaults Used" values={payload.defaultsUsed} emptyMessage="No defaults were required." modelType={payload.modelType} />
         </div>
 
         <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
