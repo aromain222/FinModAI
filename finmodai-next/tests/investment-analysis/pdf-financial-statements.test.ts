@@ -30,6 +30,28 @@ Capital expenditures (6,000) (5,500)
 Depreciation and amortization 4,000 3,600
 `;
 
+const APPLE_STYLE_SHARE_UNITS_TEXT = `
+Apple Inc.
+Condensed Consolidated Statements of Operations
+(In millions, except number of shares, which are reflected in thousands, and per-share amounts)
+Three Months Ended December 27, 2025
+Net sales 124,300 119,575
+Operating income 42,832 39,449
+Net income 36,330 33,916
+Shares used in computing earnings per share:
+Basic 14,748,158 15,081,724
+Diluted 14,810,356 15,150,865
+
+Condensed Consolidated Balance Sheets
+Cash and cash equivalents 45,317 29,943
+Commercial paper 10,000 10,998
+Term debt 86,000 98,959
+
+Condensed Consolidated Statements of Cash Flows
+Payments for acquisition of property, plant and equipment (2,907) (2,465)
+Depreciation and amortization 3,211 2,929
+`;
+
 const APPLE_PDF_PATH = '/Users/averyromain/Downloads/FY26_Q1_Consolidated_Financial_Statements (1).pdf';
 
 test('extractPdfStatementPackage parses structured statements from text-based financial PDFs', () => {
@@ -45,6 +67,16 @@ test('extractPdfStatementPackage parses structured statements from text-based fi
   assert.equal(parsed?.snapshot?.cash, 30_000_000_000);
   assert.equal(parsed?.snapshot?.totalDebt, 15_000_000_000);
   assert.equal(parsed?.snapshot?.capex, 24_000_000_000);
+});
+
+test('extractPdfStatementPackage keeps statement values in millions while applying share-specific thousands exceptions', () => {
+  const parsed = extractPdfStatementPackage(APPLE_STYLE_SHARE_UNITS_TEXT);
+
+  assert.ok(parsed, 'expected statement package');
+  assert.equal(parsed?.units, 'millions');
+  assert.equal(parsed?.snapshot?.sharesOutstanding, 14_810_356_000);
+  assert.equal(parsed?.snapshot?.revenue, 497_200_000_000);
+  assert.equal(parsed?.snapshot?.cash, 45_317_000_000);
 });
 
 test('financial PDF extraction only becomes seedable after trusted server-side extraction', () => {
@@ -115,11 +147,13 @@ test('server-side extractor and statement parser handle the Apple quarterly fina
   const parsed = extractPdfStatementPackage(extraction.text ?? '');
   assert.ok(parsed, 'expected trusted statement package');
   assert.equal(parsed?.companyName, 'Apple Inc.');
+  assert.equal(parsed?.units, 'millions');
   assert.equal(parsed?.periodType, 'quarter');
   assert.ok(typeof parsed?.snapshot?.revenue === 'number' && parsed.snapshot.revenue > 0);
   assert.ok(typeof parsed?.snapshot?.operatingIncome === 'number' && parsed.snapshot.operatingIncome > 0);
   assert.ok(typeof parsed?.snapshot?.netIncome === 'number' && parsed.snapshot.netIncome > 0);
   assert.ok(typeof parsed?.snapshot?.cash === 'number' && parsed.snapshot.cash > 0);
+  assert.ok(typeof parsed?.snapshot?.sharesOutstanding === 'number' && parsed.snapshot.sharesOutstanding > 10_000_000_000);
 
   const trust = assessPdfStatementExtraction({
     statementPackage: parsed,
@@ -167,6 +201,7 @@ test('extractPdfTextServer returns runtime_bootstrap_failed when pdf worker help
         }
         async getText() {
           assert.fail('parser should not run when worker bootstrap fails');
+          return { text: '' };
         }
         destroy() {
           return undefined;

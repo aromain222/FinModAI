@@ -8,6 +8,7 @@ import {
 } from '@/lib/model-generator/extractInputs';
 import type { ComparisonSummary, PromptRunRecord, ProvenanceSummary } from '@/lib/model-generator/runHistory';
 import { getLatestComparableRun } from '@/lib/model-generator/runHistory';
+import * as dcfTemplate from '@/lib/model-generator/templates/dcf';
 import * as compsTemplate from '@/lib/model-generator/templates/comps';
 import { calculateDebtCapacityPreview } from '@/lib/model-generator/debtCapacitySummary';
 import * as debtCapacityLiteTemplate from '@/lib/model-generator/templates/debtCapacityLite';
@@ -28,7 +29,7 @@ type ModelNarrativeBlock = {
 
 export type AnalystGeneratedModelPayload = {
   prompt: string;
-  modelType: Exclude<ModelGeneratorType, 'DCF'>;
+  modelType: ModelGeneratorType;
   title: string;
   tabs: string[];
   keyOutputs: string[];
@@ -51,13 +52,14 @@ export type AnalystStructuredModelAdjustment = {
   prompt?: string;
 };
 
-type StructuredModelType = Exclude<ModelGeneratorType, 'DCF'>;
+type StructuredModelType = ModelGeneratorType;
 
 type PreviewBuilder = {
   getPreview: (inputs: ExtractedModelInputs) => { title: string; tabs: string[] };
 };
 
 const TEMPLATE_MAP: Record<StructuredModelType, PreviewBuilder> = {
+  DCF: dcfTemplate as PreviewBuilder,
   COMPS: compsTemplate as PreviewBuilder,
   DEBT_CAPACITY_LITE: debtCapacityLiteTemplate as PreviewBuilder,
   FOOTBALL_FIELD: footballFieldTemplate as PreviewBuilder,
@@ -70,6 +72,7 @@ const TEMPLATE_MAP: Record<StructuredModelType, PreviewBuilder> = {
 };
 
 const KEY_OUTPUTS: Record<StructuredModelType, string[]> = {
+  DCF: ['Enterprise Value', 'Equity Value', 'Implied Share Price', 'Sensitivity Table'],
   COMPS: ['Peer Trading Multiples', 'Implied Valuation Range', 'Premium / Discount View', 'Peer Set Summary'],
   DEBT_CAPACITY_LITE: ['Leverage-Based Cap', 'Coverage-Based Cap', 'Selected Max Debt', 'Headroom vs Current Net Debt'],
   FOOTBALL_FIELD: ['Trading Range', 'Precedent Range', 'Equity Value Bridge', 'Implied Share Price Range'],
@@ -83,6 +86,8 @@ const KEY_OUTPUTS: Record<StructuredModelType, string[]> = {
 
 function labelForModelType(modelType: StructuredModelType): string {
   switch (modelType) {
+    case 'DCF':
+      return 'discounted cash flow';
     case 'COMPS':
       return 'trading comparables';
     case 'DEBT_CAPACITY_LITE':
@@ -263,6 +268,28 @@ function buildNarrativeBlocks(
     : [];
 
   switch (modelType) {
+    case 'DCF': {
+      const dcfInputs = inputs as ExtractedModelInputs & {
+        companyName: string;
+        baseRevenue: number;
+        cash: number;
+        debt: number;
+        sharesOutstanding: number;
+        wacc: number;
+        terminalGrowth: number;
+      };
+      return [
+        ...scenarioBlock,
+        {
+          title: 'VALUATION FRAME',
+          body: `${dcfInputs.companyName} is being framed through a canonical DCF with base revenue of ${fmtAbsoluteCurrency(dcfInputs.baseRevenue)}, cash of ${fmtAbsoluteCurrency(dcfInputs.cash)}, debt of ${fmtAbsoluteCurrency(dcfInputs.debt)}, and ${dcfInputs.sharesOutstanding.toLocaleString('en-US')} diluted shares.`,
+        },
+        {
+          title: 'KEY ASSUMPTIONS',
+          body: `The current case discounts cash flow at a WACC of ${fmtPercent(dcfInputs.wacc)} with terminal growth of ${fmtPercent(dcfInputs.terminalGrowth)}. Use the workbook to pressure-test operating drivers, discount rate sensitivity, and per-share value.`,
+        },
+      ];
+    }
     case 'COMPS': {
       const compsInputs = inputs as ExtractedModelInputs & {
         companyName: string;
@@ -1275,16 +1302,20 @@ export async function generateAnalystStructuredModel(
   sessionId?: string | null,
   options: {
     attachmentStatementSnapshot?: AttachmentStatementSnapshot | null;
+    inputOverrides?: Record<string, unknown>;
+    clarificationAnswer?: string;
   } = {},
 ): Promise<{
   reply: string;
   payload: AnalystGeneratedModelPayload;
 } | null> {
   const modelType = classifyPrompt(prompt);
-  if (!modelType || modelType === 'DCF') return null;
+  if (!modelType) return null;
 
   const extraction = await extractInputs(prompt, modelType, {
     attachmentStatementSnapshot: options.attachmentStatementSnapshot ?? null,
+    inputOverrides: options.inputOverrides,
+    clarificationAnswer: options.clarificationAnswer,
   });
   return buildStructuredModelPayload({
     prompt,

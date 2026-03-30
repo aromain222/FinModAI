@@ -9,10 +9,11 @@ import { Slider } from '@/components/ui/slider';
 import { EditableFinanceChart } from '@/components/charts/EditableFinanceChart';
 import { FormattedTextBlock } from '@/components/ui/formatted-text-block';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
+import { formatCompactCurrency } from '@/lib/analyst/dcfFormatting';
 import { buildAnalystDcfPreviewPayload } from '@/lib/analyst/dcfPreview';
 
 function fmtMillions(value: number): string {
-  return `$${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}M`;
+  return formatCompactCurrency(value);
 }
 
 function fmtPrice(value: number | null): string {
@@ -136,7 +137,7 @@ export function AnalystDcfCard({
       y: displayPayload.forecast.map((row) => row.revenue),
       line: { color: '#2563eb', width: 2.5, shape: 'spline' },
       marker: { color: '#2563eb', size: 6 },
-      hovertemplate: '%{x}<br>Revenue: $%{y:,.0f}M<extra></extra>',
+      hovertemplate: '%{x}<br>Revenue: $%{y:,.0f}<extra></extra>',
       yaxis: 'y',
     },
     {
@@ -147,7 +148,7 @@ export function AnalystDcfCard({
       y: displayPayload.forecast.map((row) => row.fcff),
       line: { color: '#16a34a', width: 2.5, shape: 'spline' },
       marker: { color: '#16a34a', size: 6 },
-      hovertemplate: '%{x}<br>FCFF: $%{y:,.0f}M<extra></extra>',
+      hovertemplate: '%{x}<br>FCFF: $%{y:,.0f}<extra></extra>',
       yaxis: 'y2',
     },
   ];

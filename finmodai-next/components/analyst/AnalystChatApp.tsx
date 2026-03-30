@@ -16,6 +16,7 @@ import type { AttachmentStatusPayload as AnalystAttachmentStatus } from '@/lib/a
 import { buildClientVisibleBackendError } from '@/lib/analyst/clientErrorResponse';
 import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplates';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
+import type { PendingModelRequest } from '@/lib/analyst/modelReadiness';
 import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } from '@/lib/analyst/modelChat';
 import type { AnalystVisualizationPayload } from '@/lib/analyst/visualization';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
@@ -37,6 +38,12 @@ type Message = {
     stockLookup?: StockLookupResult;
     visualization?: AnalystVisualizationPayload;
     attachmentStatus?: AnalystAttachmentStatus;
+    needsClarification?: boolean;
+    clarificationQuestion?: string;
+    clarificationField?: string;
+    clarificationFieldLabel?: string;
+    remainingMissingInputs?: string[];
+    pendingModelRequest?: PendingModelRequest;
   };
 };
 
@@ -171,6 +178,7 @@ export function AnalystChatApp() {
   const [loadingState, setLoadingState] = useState<{ title: string; detail: string } | null>(null);
   const [memoPdfLoadingId, setMemoPdfLoadingId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string>('');
+  const [pendingModelRequest, setPendingModelRequest] = useState<PendingModelRequest | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
 
@@ -220,12 +228,14 @@ export function AnalystChatApp() {
     if (!file) {
       setAttachment(null);
       setAttachmentError(null);
+      setPendingModelRequest(null);
       return;
     }
     try {
       setAttachmentError(null);
       const parsed = await parseUploadedAttachment(file);
       setAttachment(parsed);
+      setPendingModelRequest(null);
     } catch (error) {
       console.error('Attachment parse error', error);
       setAttachment(null);
@@ -281,6 +291,7 @@ export function AnalystChatApp() {
     setLoadingState(getLoadingMessage(prompt));
     const preserveStructure = userExplicitlyWantsStructuredOutput(prompt);
     const latestArtifact = getLatestGeneratedArtifact();
+    const isClarificationTurn = Boolean(pendingModelRequest);
 
     try {
       const response = await fetch('/api/analyst-chat', {
@@ -294,7 +305,10 @@ export function AnalystChatApp() {
           currentModel: latestArtifact.generatedModel,
           currentDcf: latestArtifact.dcfDemo,
           currentStock: latestArtifact.stockLookup,
-          messages: [...messages, userMessage]
+          messages: [...messages, userMessage],
+          clarificationAnswer: isClarificationTurn ? prompt : undefined,
+          inputOverrides: pendingModelRequest?.inputOverrides,
+          pendingModelRequest: pendingModelRequest ?? undefined,
         })
       });
       const rawBody = await response.text();
@@ -364,9 +378,24 @@ export function AnalystChatApp() {
               ? (payload.visualization as AnalystVisualizationPayload)
               : undefined,
           attachmentStatus: parseAttachmentStatus(payload),
+          needsClarification: payload?.needsClarification === true,
+          clarificationQuestion:
+            typeof payload?.clarificationQuestion === 'string' ? payload.clarificationQuestion : undefined,
+          clarificationField:
+            typeof payload?.clarificationField === 'string' ? payload.clarificationField : undefined,
+          clarificationFieldLabel:
+            typeof payload?.clarificationFieldLabel === 'string' ? payload.clarificationFieldLabel : undefined,
+          remainingMissingInputs: Array.isArray(payload?.remainingMissingInputs)
+            ? payload.remainingMissingInputs.filter((item: unknown): item is string => typeof item === 'string')
+            : undefined,
+          pendingModelRequest:
+            payload?.pendingModelRequest && typeof payload.pendingModelRequest === 'object'
+              ? (payload.pendingModelRequest as PendingModelRequest)
+              : undefined,
         },
       };
       setMessages((prev) => [...prev, reply]);
+      setPendingModelRequest(reply.meta?.needsClarification ? reply.meta?.pendingModelRequest ?? null : null);
     } catch (error) {
       console.error('Chat error', error);
       const failureMessage =
@@ -805,7 +834,11 @@ export function AnalystChatApp() {
             ref={promptRef}
             id="analyst-prompt"
             name="analyst-prompt"
-            placeholder="Ask about valuations, KPIs, diligence follow-ups..."
+            placeholder={
+              pendingModelRequest?.clarificationField
+                ? 'Answer the missing-input question so the model can continue...'
+                : 'Ask about valuations, KPIs, diligence follow-ups...'
+            }
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDownCapture={(event) => {
@@ -822,13 +855,17 @@ export function AnalystChatApp() {
             spellCheck={false}
           />
           <div className="mt-3 flex items-center justify-between text-xs text-[var(--cb-text-muted)]">
-            {attachment ? (
+            {pendingModelRequest ? (
+              <span>
+                Waiting for {pendingModelRequest.clarificationField?.replace(/([A-Z])/g, ' $1').toLowerCase() || 'the next required input'} to continue the model build.
+              </span>
+            ) : attachment ? (
               <span>Using {attachment.kind.replace(/_/g, ' ')} context from {attachment.name}.</span>
             ) : (
               <span>Attach earnings reports, model files, or notes for additional context.</span>
             )}
             <Button type="submit" disabled={isLoading || !input.trim()}>
-              {isLoading ? 'Thinking…' : 'Ask'}
+              {isLoading ? 'Thinking…' : pendingModelRequest ? 'Continue Model' : 'Ask'}
             </Button>
           </div>
         </form>

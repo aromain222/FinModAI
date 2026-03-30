@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import type {
   CapTableModelInputs,
   CompsModelInputs,
+  DcfModelInputs,
   ExtractedModelInputs,
   LboModelInputs,
   PrecedentsModelInputs,
@@ -9,6 +10,7 @@ import type {
   ThreeStatementModelInputs,
 } from '@/lib/model-generator/extractInputs';
 import type { AnalystGeneratedModelPayload } from '@/lib/analyst/modelChat';
+import * as dcfTemplate from '@/lib/model-generator/templates/dcf';
 import * as compsTemplate from '@/lib/model-generator/templates/comps';
 import * as precedentsTemplate from '@/lib/model-generator/templates/precedents';
 import * as lboTemplate from '@/lib/model-generator/templates/lbo';
@@ -1233,6 +1235,8 @@ function buildThreeStatementWorkbook(workbook: ExcelJS.Workbook, inputs: ThreeSt
 
 function buildWorkbookForPayload(workbook: ExcelJS.Workbook, payload: AnalystGeneratedModelPayload) {
   switch (payload.extractedInputs.modelType) {
+    case 'DCF':
+      throw new Error('DCF workbook should be built directly from the DCF template.');
     case 'COMPS':
       throw new Error('COMPS workbook should be built directly from the comps template.');
     case 'PRECEDENTS':
@@ -1254,6 +1258,11 @@ function buildWorkbookForPayload(workbook: ExcelJS.Workbook, payload: AnalystGen
 }
 
 export async function buildAnalystGeneratedWorkbook(payload: AnalystGeneratedModelPayload) {
+  if (payload.extractedInputs.modelType === 'DCF') {
+    const workbook = await dcfTemplate.buildWorkbook(payload.extractedInputs as DcfModelInputs);
+    appendSummarySheet(workbook, payload);
+    return workbook;
+  }
   if (payload.extractedInputs.modelType === 'COMPS') {
     const workbook = await compsTemplate.buildWorkbook(payload.extractedInputs as CompsModelInputs);
     appendSummarySheet(workbook, payload);

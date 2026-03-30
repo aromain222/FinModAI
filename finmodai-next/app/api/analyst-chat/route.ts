@@ -22,7 +22,6 @@ import { overrideRouteFromAttachment } from '@/lib/analyst/attachmentRouting';
 import { buildAttachmentStatus, type AttachmentStatusPayload } from '@/lib/analyst/attachmentStatus';
 import { extractPdfStatementPackage } from '@/lib/analyst/pdfFinancialStatements';
 import {
-  assessPdfModelCoverage,
   assessPdfStatementExtraction,
   isPdfAttachment,
 } from '@/lib/analyst/pdfModelSeeding';
@@ -48,6 +47,12 @@ import {
   type AnalystStructuredModelAdjustment,
   type AnalystGeneratedModelPayload,
 } from '@/lib/analyst/modelChat';
+import {
+  evaluateAttachmentModelReadiness,
+  parseAttachmentClarificationAnswer,
+  type AttachmentDrivenModelType,
+  type PendingModelRequest,
+} from '@/lib/analyst/modelReadiness';
 import { savePromptModelRunVersion } from '@/lib/model-generator/runHistory';
 import { classifyPrompt } from '@/lib/model-generator/classifyPrompt';
 import { ANALYST_SYSTEM_PROMPT, getIntentPrompt } from '@/lib/analyst/prompts';
@@ -535,6 +540,33 @@ function buildFinancialPdfModelFailureReply(params: {
   return `I could not build a ${modelLabel} from the attached financial PDF because the extracted statement package was not usable for model seeding.`;
 }
 
+function isPendingModelRequest(value: unknown): value is PendingModelRequest {
+  if (!value || typeof value !== 'object') return false;
+  const row = value as Record<string, unknown>;
+  return (
+    (row.modelType === 'DCF' ||
+      row.modelType === 'THREE_STATEMENT' ||
+      row.modelType === 'COMPS' ||
+      row.modelType === 'LBO') &&
+    typeof row.originalPrompt === 'string'
+  );
+}
+
+function buildAttachmentClarificationReply(params: {
+  modelType: AttachmentDrivenModelType;
+  clarificationQuestion: string;
+  missingInputs: string[];
+  clarificationFieldLabel?: string;
+  parseFailed?: boolean;
+}): string {
+  const modelLabel = params.modelType.replace(/_/g, ' ');
+  const missingSummary = params.missingInputs.join(', ');
+  if (params.parseFailed && params.clarificationFieldLabel) {
+    return `I still need ${params.clarificationFieldLabel} before I can build the ${modelLabel} from the attached PDF. ${params.clarificationQuestion}`;
+  }
+  return `I can build the ${modelLabel} from the attached PDF once I have the remaining required inputs: ${missingSummary}. ${params.clarificationQuestion}`;
+}
+
 function buildFinancialModelSourceLabel(source: string): string {
   if (source === 'attachment_pdf_statement') return 'Attachment PDF statement package';
   return `Demo snapshot cache — ${source}`;
@@ -749,6 +781,25 @@ export async function POST(req: NextRequest) {
       body?.currentStock && typeof body.currentStock === 'object'
         ? (body.currentStock as StockLookupResult)
         : null;
+    const clarificationAnswer =
+      typeof body?.clarificationAnswer === 'string' && body.clarificationAnswer.trim().length > 0
+        ? body.clarificationAnswer.trim()
+        : null;
+    const requestInputOverrides =
+      body?.inputOverrides && typeof body.inputOverrides === 'object' && !Array.isArray(body.inputOverrides)
+        ? (body.inputOverrides as Record<string, unknown>)
+        : undefined;
+    const pendingModelRequest = isPendingModelRequest(body?.pendingModelRequest)
+      ? ({
+          ...body.pendingModelRequest,
+          inputOverrides:
+            body.pendingModelRequest.inputOverrides &&
+            typeof body.pendingModelRequest.inputOverrides === 'object' &&
+            !Array.isArray(body.pendingModelRequest.inputOverrides)
+              ? (body.pendingModelRequest.inputOverrides as Record<string, unknown>)
+              : undefined,
+        } satisfies PendingModelRequest)
+      : null;
     const messages = Array.isArray(body?.messages) ? body.messages : [];
 
     if (currentDcf && dcfAdjustment) {
@@ -926,7 +977,15 @@ export async function POST(req: NextRequest) {
 
     /* ── Step 1: Route the question ── */
     const baseRoute: AnalystRoute = forceEarningsFirstRetrieval;
-    const route = overrideRouteFromAttachment(baseRoute, lastUserMessage, attachmentContext);
+    const route: AnalystRoute = pendingModelRequest
+      ? {
+          ...baseRoute,
+          intent: 'financial_model',
+          requiresFinancials: true,
+          requiresNews: false,
+          requiresLiveData: false,
+        }
+      : overrideRouteFromAttachment(baseRoute, lastUserMessage, attachmentContext);
     const shouldRunEarningsAgent =
       featureFlags.ENABLE_EARNINGS_PACKAGE_CACHE &&
       Boolean(resolvedTicker) &&
@@ -1093,7 +1152,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (route.intent === 'financial_model' || shouldReviseCurrentModel || shouldVisualizeCurrentModel || shouldVisualizeCurrentDcf) {
-      const promptSelectedModelType = classifyPrompt(lastUserMessage);
+      const activeModelPrompt = pendingModelRequest?.originalPrompt?.trim() || lastUserMessage;
+      const activeEffectiveUserMessage = attachmentContext
+        ? `${activeModelPrompt}\n\n${attachmentContextBlock(attachmentContext)}`
+        : activeModelPrompt;
+      const promptSelectedModelType = pendingModelRequest?.modelType ?? classifyPrompt(activeModelPrompt);
       const modelType =
         promptSelectedModelType ??
         (!attachmentContext?.statementPackage ? attachmentContext?.signals?.modelTypeHint ?? null : null);
@@ -1101,11 +1164,24 @@ export async function POST(req: NextRequest) {
         modelType === 'DCF' || modelType === 'THREE_STATEMENT' || modelType === 'COMPS' || modelType === 'LBO'
           ? modelType
           : null;
+      let attachmentModelOverrides = pendingModelRequest?.inputOverrides ?? requestInputOverrides ?? {};
+      let clarificationParseFailed = false;
       const isFinancialPdfRequest = Boolean(
         attachmentContext &&
           isPdfAttachment({ mimeType: attachmentContext.mimeType, name: attachmentContext.name })
       );
-      const coreTemplateModel = detectCoreTemplatePrompt(lastUserMessage);
+      const coreTemplateModel = pendingModelRequest ? null : detectCoreTemplatePrompt(lastUserMessage);
+
+      if (pendingModelRequest && requestedPdfModelType && clarificationAnswer) {
+        const parsedClarification = parseAttachmentClarificationAnswer({
+          modelType: requestedPdfModelType,
+          answer: clarificationAnswer,
+          currentField: pendingModelRequest.clarificationField,
+          inputOverrides: attachmentModelOverrides,
+        });
+        attachmentModelOverrides = parsedClarification.inputOverrides;
+        clarificationParseFailed = parsedClarification.matchedFields.length === 0;
+      }
 
       if (shouldVisualizeCurrentDcf && currentDcf) {
         const visualization = buildVisualizationFromCurrentArtifact({ currentDcf });
@@ -1252,23 +1328,40 @@ export async function POST(req: NextRequest) {
             attachmentUsed: attachmentLabel,
           }));
         }
-
         if (requestedPdfModelType) {
-          const coverage = assessPdfModelCoverage(requestedPdfModelType, attachmentContext?.statementPackage);
-          if (!coverage.ok) {
+          const readiness = evaluateAttachmentModelReadiness({
+            modelType: requestedPdfModelType,
+            attachmentSnapshot: attachmentContext?.statementPackage?.snapshot ?? null,
+            inputOverrides: attachmentModelOverrides,
+          });
+          if (!readiness.ready) {
             return NextResponse.json(withAttachmentStatus({
-              reply: buildFinancialPdfModelFailureReply({
+              reply: buildAttachmentClarificationReply({
                 modelType: requestedPdfModelType,
-                status: 'trusted',
-                extractionWarnings: attachmentContext?.statementExtractionWarnings ?? [],
-                missingCoverage: coverage.missing,
+                clarificationQuestion: readiness.clarificationQuestion ?? 'Please provide the missing input.',
+                missingInputs: readiness.missingInputs,
+                clarificationFieldLabel: readiness.clarificationFieldLabel,
+                parseFailed: clarificationParseFailed,
               }),
               fallback: false,
               mode: 'live',
               route: 'financial_model',
+              needsClarification: true,
+              clarificationQuestion: readiness.clarificationQuestion,
+              clarificationField: readiness.clarificationField,
+              clarificationFieldLabel: readiness.clarificationFieldLabel,
+              clarificationParseType: readiness.clarificationParseType,
+              remainingMissingInputs: readiness.missingInputs,
+              pendingModelRequest: {
+                modelType: requestedPdfModelType,
+                originalPrompt: activeModelPrompt,
+                attachmentName: attachmentContext?.name ?? null,
+                inputOverrides: attachmentModelOverrides,
+                clarificationField: readiness.clarificationField ?? null,
+              },
               sources: [
                 'Attachment PDF statement package',
-                `Missing model coverage: ${coverage.missing.join(', ')}`,
+                `Awaiting required inputs: ${readiness.missingInputs.join(', ')}`,
               ],
               factsCount: 0,
               attachmentUsed: attachmentLabel,
@@ -1277,23 +1370,25 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      if (modelType && modelType !== 'DCF') {
+      if (modelType) {
         const normalizedModelPrompt =
-          classifyPrompt(lastUserMessage) === null && attachmentContext?.signals?.modelTypeHint === modelType
-            ? `Build a ${modelType.replace(/_/g, ' ')} model using the uploaded context.\n\n${effectiveUserMessage}`
-            : effectiveUserMessage;
+          classifyPrompt(activeModelPrompt) === null && attachmentContext?.signals?.modelTypeHint === modelType
+            ? `Build a ${modelType.replace(/_/g, ' ')} model using the uploaded context.\n\n${activeEffectiveUserMessage}`
+            : activeEffectiveUserMessage;
         const generatedModel = await generateAnalystStructuredModel(normalizedModelPrompt, sessionId, {
           attachmentStatementSnapshot:
             attachmentContext?.isFinancialModelSeedable === true
               ? attachmentContext?.statementPackage?.snapshot ?? null
               : null,
+          inputOverrides: attachmentModelOverrides,
+          clarificationAnswer,
         });
         if (generatedModel) {
           try {
             await savePromptModelRunVersion({
               surface: 'analyst_chat',
               sessionId,
-              prompt: lastUserMessage,
+              prompt: activeModelPrompt,
               // Preserve the original user request in run history, not the synthetic attachment block.
               modelType: generatedModel.payload.modelType,
               companyName:

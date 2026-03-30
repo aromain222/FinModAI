@@ -142,9 +142,20 @@ function sanitizeLine(input: string): string {
 
 function detectUnits(text: string): PdfStatementUnits {
   const head = text.slice(0, 2500).toLowerCase();
-  if (/\bin thousands\b/.test(head)) return 'thousands';
+  if (/\bin millions\b[^.\n]{0,120}\bexcept\b[^.\n]{0,120}\bshares?\b[^.\n]{0,120}\bthousands\b/.test(head)) return 'millions';
+  if (/\bin thousands\b[^.\n]{0,120}\bexcept\b[^.\n]{0,120}\bshares?\b[^.\n]{0,120}\bmillions\b/.test(head)) return 'thousands';
   if (/\bin millions\b/.test(head) || /\$\s+in millions\b/.test(head)) return 'millions';
+  if (/\bin thousands\b/.test(head)) return 'thousands';
   return 'actual';
+}
+
+function detectShareCountUnits(text: string, statementUnits: PdfStatementUnits): PdfStatementUnits {
+  const head = text.slice(0, 2500).toLowerCase();
+  if (/\bshares?\b[^.\n]{0,120}\breflected in thousands\b/.test(head)) return 'thousands';
+  if (/\bexcept\b[^.\n]{0,120}\bshares?\b[^.\n]{0,120}\bthousands\b/.test(head)) return 'thousands';
+  if (/\bshares?\b[^.\n]{0,120}\breflected in millions\b/.test(head)) return 'millions';
+  if (/\bexcept\b[^.\n]{0,120}\bshares?\b[^.\n]{0,120}\bmillions\b/.test(head)) return 'millions';
+  return statementUnits;
 }
 
 function detectCurrency(text: string): 'USD' | 'unknown' {
@@ -281,7 +292,7 @@ function chooseCandidateValue(line: string, units: PdfStatementUnits): { raw: st
   return null;
 }
 
-function buildStatementLines(text: string, units: PdfStatementUnits): PdfStatementLine[] {
+function buildStatementLines(text: string, units: PdfStatementUnits, shareUnits: PdfStatementUnits): PdfStatementLine[] {
   const pages = text.split('\f');
   const lines: PdfStatementLine[] = [];
   const seen = new Set<string>();
@@ -300,7 +311,10 @@ function buildStatementLines(text: string, units: PdfStatementUnits): PdfStateme
       const alias = inferAlias(line, currentSection);
       if (!alias) return;
 
-      const candidate = chooseCandidateValue(line, units);
+      const candidate = chooseCandidateValue(
+        line,
+        alias.normalizedLabel === 'shares_outstanding' ? shareUnits : units,
+      );
       if (!candidate) return;
 
       const dedupeKey = `${alias.statement}:${alias.normalizedLabel}`;
@@ -323,7 +337,12 @@ function buildStatementLines(text: string, units: PdfStatementUnits): PdfStateme
   return lines;
 }
 
-function buildFallbackStatementLines(text: string, units: PdfStatementUnits, existing: PdfStatementLine[]): PdfStatementLine[] {
+function buildFallbackStatementLines(
+  text: string,
+  units: PdfStatementUnits,
+  shareUnits: PdfStatementUnits,
+  existing: PdfStatementLine[],
+): PdfStatementLine[] {
   const seen = new Set(existing.map((line) => `${line.statement}:${line.normalizedLabel}`));
   const normalizedText = sanitizeText(text);
   const fallback: PdfStatementLine[] = [];
@@ -337,7 +356,10 @@ function buildFallbackStatementLines(text: string, units: PdfStatementUnits, exi
       const match = normalizedText.match(source);
       if (!match) continue;
       const rawLine = sanitizeLine(match[0]);
-      const candidate = chooseCandidateValue(rawLine, units);
+      const candidate = chooseCandidateValue(
+        rawLine,
+        alias.normalizedLabel === 'shares_outstanding' ? shareUnits : units,
+      );
       if (!candidate) continue;
       fallback.push({
         statement: alias.statement,
@@ -370,6 +392,24 @@ function computeTotalDebt(lines: PdfStatementLine[]): number | null {
   return sum > 0 ? sum : null;
 }
 
+function extractSharesOutstanding(text: string, units: PdfStatementUnits): number | null {
+  const patterns = [
+    /\bdiluted weighted average shares outstanding\b[^\d]{0,40}([\d,]+(?:\.\d+)?)/i,
+    /shares used in computing earnings per share:[\s\S]{0,240}?diluted[^\d]{0,20}([\d,]+(?:\.\d+)?)/i,
+    /\bauthorized;\s*([\d,]+(?:\.\d+)?)\s+and\s+[\d,]+(?:\.\d+)?\s+shares issued and outstanding\b/i,
+    /\bshares outstanding\b[^\d]{0,20}([\d,]+(?:\.\d+)?)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match?.[1]) continue;
+    const parsed = parseValueToken(match[1], units);
+    if (parsed !== null) return Math.abs(parsed);
+  }
+
+  return null;
+}
+
 function countDetectedStatements(lines: PdfStatementLine[]): PdfStatementKind[] {
   const kinds = new Set<PdfStatementKind>();
   lines.forEach((line) => kinds.add(line.statement));
@@ -383,7 +423,9 @@ function annualizeFlow(value: number | null, periodType: PdfStatementPeriodType)
 }
 
 function buildSnapshot(params: {
+  rawText: string;
   lines: PdfStatementLine[];
+  shareUnits: PdfStatementUnits;
   companyName: string | null;
   ticker: string | null;
   reportEndDate: string | null;
@@ -409,7 +451,10 @@ function buildSnapshot(params: {
       : null);
   const cash = getLine(params.lines, 'cash')?.value ?? null;
   const totalDebt = computeTotalDebt(params.lines);
-  const sharesOutstandingRaw = getLine(params.lines, 'shares_outstanding')?.value ?? null;
+  const sharesOutstandingRaw =
+    getLine(params.lines, 'shares_outstanding')?.value ??
+    extractSharesOutstanding(params.rawText, params.shareUnits) ??
+    null;
   const sharesOutstanding = typeof sharesOutstandingRaw === 'number' ? Math.abs(sharesOutstandingRaw) : null;
 
   const hasUsableFlows =
@@ -455,13 +500,14 @@ export function extractPdfStatementPackage(text: string): PdfStatementPackage | 
   }
 
   const units = detectUnits(raw);
+  const shareUnits = detectShareCountUnits(raw, units);
   const currency = detectCurrency(raw);
   const periodType = detectPeriodType(raw);
   const fiscalPeriod = detectFiscalPeriod(raw);
   const reportEndDate = detectReportEndDate(raw);
   const company = detectCompany(raw);
-  const statementLines = buildStatementLines(raw, units);
-  const fallbackLines = buildFallbackStatementLines(raw, units, statementLines);
+  const statementLines = buildStatementLines(raw, units, shareUnits);
+  const fallbackLines = buildFallbackStatementLines(raw, units, shareUnits, statementLines);
   const allStatementLines = [...statementLines, ...fallbackLines];
 
   if (allStatementLines.length < 3) {
@@ -481,7 +527,9 @@ export function extractPdfStatementPackage(text: string): PdfStatementPackage | 
   }
 
   const snapshot = buildSnapshot({
+    rawText: raw,
     lines: allStatementLines,
+    shareUnits,
     companyName: company.companyName,
     ticker: company.ticker,
     reportEndDate,

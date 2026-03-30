@@ -6,6 +6,7 @@ import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKe
 import { inferTickerFromPrompt } from '@/lib/analyst/retrieval';
 import { resolveCompanyProfile } from '@/lib/data/company/resolveCompanyProfile';
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
+import { formatCompactCurrency } from '@/lib/analyst/dcfFormatting';
 import type { AttachmentStatementSnapshot } from '@/lib/analyst/pdfFinancialStatements';
 
 export type AnalystDcfScenarioKey = 'base' | 'bull' | 'bear';
@@ -674,7 +675,7 @@ export function buildDeterministicAssumptions(
   if (typeof parsed.overrides.terminalGrowth === 'number') terminalGrowth = parsed.overrides.terminalGrowth;
 
   const notes = [
-    `Base year revenue uses stored LTM revenue of $${revenueLtm.toLocaleString('en-US')} million.`,
+    `Base year revenue uses stored LTM revenue of ${formatCompactCurrency(revenueLtm)}.`,
     `Operating margin anchors off available EBITDA with a ${Math.round(daPctRevenue * 1000) / 10}% D&A assumption.`,
     'Discount rate and terminal growth are deterministic modeling assumptions, not market-calibrated cost of capital outputs.',
   ];
@@ -1023,6 +1024,7 @@ async function generateAiMemo(
 function buildReply(payload: AnalystDcfDemoPayload): string {
   const formatPrice = (value: number | null) => (value === null ? 'n/a' : `$${value.toFixed(2)}`);
   const formatPct = (value: number | null) => (value === null ? 'n/a' : `${(value * 100).toFixed(1)}%`);
+  const formatValue = (value: number) => formatCompactCurrency(value);
   const base = payload.scenarios.base;
   const bull = payload.scenarios.bull;
   const bear = payload.scenarios.bear;
@@ -1040,7 +1042,7 @@ function buildReply(payload: AnalystDcfDemoPayload): string {
 
   return [
     'VALUATION SUMMARY',
-    `- Base case implied value: ${formatPrice(base.pricePerShare)} per share on $${base.enterpriseValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}M EV.`,
+    `- Base case implied value: ${formatPrice(base.pricePerShare)} per share on ${formatValue(base.enterpriseValue)} EV.`,
     `- Bull case implied value: ${formatPrice(bull.pricePerShare)} per share.`,
     `- Bear case implied value: ${formatPrice(bear.pricePerShare)} per share.`,
     '',
