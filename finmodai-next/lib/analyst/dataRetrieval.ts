@@ -99,7 +99,7 @@ export type CompanyFinancialsRequest = {
   fiscalPeriod?: string | null;
   fiscalYear?: number | null;
   reportEndDate?: string | null;
-  mode?: 'latest' | 'explicit_quarter';
+  mode?: 'latest' | 'explicit_quarter' | 'yearless_quarter';
 };
 
 /* ────────── Perigon News Retrieval ────────── */
@@ -231,7 +231,7 @@ function deriveQuarterYear(record: Record<string, unknown>): number | null {
 }
 
 function matchesRequestedQuarter(record: Record<string, unknown>, request?: CompanyFinancialsRequest): boolean {
-  if (!request || request.mode !== 'explicit_quarter') return true;
+  if (!request || request.mode === 'latest') return true;
 
   const requestedDate = request.reportEndDate?.trim();
   const requestedPeriod = normalizeFiscalPeriod(request.fiscalPeriod ?? null);
@@ -246,13 +246,13 @@ function matchesRequestedQuarter(record: Record<string, unknown>, request?: Comp
   const recordYear = deriveQuarterYear(record);
 
   if (requestedPeriod && recordPeriod !== requestedPeriod) return false;
-  if (requestedYear !== null && recordYear !== requestedYear) return false;
+  if (request.mode === 'explicit_quarter' && requestedYear !== null && recordYear !== requestedYear) return false;
   return requestedPeriod !== null || requestedYear !== null;
 }
 
 function selectQuarterRow(rows: Record<string, unknown>[], request?: CompanyFinancialsRequest): Record<string, unknown> | null {
   if (rows.length === 0) return null;
-  if (!request || request.mode !== 'explicit_quarter') return rows[0] ?? null;
+  if (!request || request.mode === 'latest') return rows[0] ?? null;
   const matched = rows.find((row) => matchesRequestedQuarter(row, request));
   return matched ?? null;
 }
@@ -642,7 +642,7 @@ async function fetchFmpEarningsReleaseContext(
 }
 
 function isYearEndRequest(request?: CompanyFinancialsRequest): boolean {
-  if (!request || request.mode !== 'explicit_quarter') return false;
+  if (!request || (request.mode !== 'explicit_quarter' && request.mode !== 'yearless_quarter')) return false;
   return normalizeFiscalPeriod(request.fiscalPeriod ?? null) === 'Q4';
 }
 
@@ -765,7 +765,7 @@ export async function fetchCompanyFinancials(ticker: string, request?: CompanyFi
 
   const [quoteJson, quarterJson, annualJson, providerFallback, secQuarter, secAnnual, releaseContext, transcriptContext, filingContext] = await Promise.all([
     fetchJson(`https://financialmodelingprep.com/api/v3/quote/${ticker}?apikey=${apiKey}`),
-    fetchJson(`https://financialmodelingprep.com/api/v3/income-statement/${ticker}?period=quarter&limit=${request?.mode === 'explicit_quarter' ? 12 : 2}&apikey=${apiKey}`),
+    fetchJson(`https://financialmodelingprep.com/api/v3/income-statement/${ticker}?period=quarter&limit=${request?.mode && request.mode !== 'latest' ? 12 : 2}&apikey=${apiKey}`),
     fetchJson(`https://financialmodelingprep.com/api/v3/income-statement/${ticker}?limit=${isYearEndRequest(request) ? 4 : 1}&apikey=${apiKey}`),
     providerFallbackPromise,
     secQuarterPromise,
@@ -786,8 +786,8 @@ export async function fetchCompanyFinancials(ticker: string, request?: CompanyFi
   const quotePrice = toNum(q?.price) ?? providerFallback?.price ?? null;
   const quoteMarketCap = toNum(q?.marketCap) ?? providerFallback?.marketCap ?? null;
   const allowLatestQuarterFallback = request?.mode !== 'explicit_quarter';
-  const explicitReleaseRevenue = request?.mode === 'explicit_quarter' ? releaseContext.releaseRevenue : null;
-  const explicitReleaseEps = request?.mode === 'explicit_quarter' ? releaseContext.releaseEps : null;
+  const explicitReleaseRevenue = request?.mode && request.mode !== 'latest' ? releaseContext.releaseRevenue : null;
+  const explicitReleaseEps = request?.mode && request.mode !== 'latest' ? releaseContext.releaseEps : null;
   const quarterlyRevenue =
     toNum(qr?.revenue) ??
     explicitReleaseRevenue ??

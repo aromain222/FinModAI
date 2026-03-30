@@ -1,10 +1,18 @@
-export type PdfTextExtractionStage = 'text_extracted' | 'parser_failed' | 'extract_failed' | 'dependency_failed';
+export type PdfTextExtractionStage =
+  | 'text_extracted'
+  | 'parser_failed'
+  | 'extract_failed'
+  | 'dependency_failed'
+  | 'runtime_bootstrap_failed';
 
 export type PdfTextExtractionResult = {
   text: string | null;
   extractor: 'pdf_parse';
   warnings: string[];
   stage: PdfTextExtractionStage;
+  runtimeBootstrap?: {
+    injectedGlobals: Array<'DOMMatrix' | 'ImageData' | 'Path2D'>;
+  };
 };
 
 type PdfParseInstance = {
@@ -19,6 +27,10 @@ type PdfParseModule = {
 };
 
 type PdfParseLoader = () => Promise<PdfParseModule>;
+
+type CanvasRuntimeModule = Partial<Record<'DOMMatrix' | 'ImageData' | 'Path2D', unknown>>;
+
+type CanvasRuntimeLoader = () => Promise<CanvasRuntimeModule>;
 
 function normalizePdfText(text: string): string {
   const normalized = text
@@ -52,13 +64,46 @@ async function loadPdfParse(): Promise<PdfParseModule> {
   return { PDFParse };
 }
 
+async function loadCanvasRuntime(): Promise<CanvasRuntimeModule> {
+  const mod = await import('@napi-rs/canvas');
+  return {
+    DOMMatrix: mod?.DOMMatrix,
+    ImageData: mod?.ImageData,
+    Path2D: mod?.Path2D,
+  };
+}
+
+export async function ensurePdfRuntimeGlobals(
+  options?: { loadCanvasRuntime?: CanvasRuntimeLoader },
+): Promise<Array<'DOMMatrix' | 'ImageData' | 'Path2D'>> {
+  const missingGlobals: Array<'DOMMatrix' | 'ImageData' | 'Path2D'> = [];
+  if (typeof globalThis.DOMMatrix === 'undefined') missingGlobals.push('DOMMatrix');
+  if (typeof globalThis.ImageData === 'undefined') missingGlobals.push('ImageData');
+  if (typeof globalThis.Path2D === 'undefined') missingGlobals.push('Path2D');
+  if (missingGlobals.length === 0) return [];
+
+  const runtime = await (options?.loadCanvasRuntime ?? loadCanvasRuntime)();
+  for (const globalName of missingGlobals) {
+    const runtimeValue = runtime[globalName];
+    if (typeof runtimeValue === 'undefined') {
+      throw new Error(`Canvas runtime did not expose ${globalName}`);
+    }
+    (globalThis as Record<string, unknown>)[globalName] = runtimeValue;
+  }
+  return missingGlobals;
+}
+
 export async function extractPdfTextServer(
   pdfBuffer: Buffer,
-  options?: { loadPdfParse?: PdfParseLoader },
+  options?: { loadPdfParse?: PdfParseLoader; loadCanvasRuntime?: CanvasRuntimeLoader },
 ): Promise<PdfTextExtractionResult> {
   const loader = options?.loadPdfParse ?? loadPdfParse;
   let parser: PdfParseInstance | null = null;
+  let injectedGlobals: Array<'DOMMatrix' | 'ImageData' | 'Path2D'> = [];
   try {
+    injectedGlobals = await ensurePdfRuntimeGlobals({
+      loadCanvasRuntime: options?.loadCanvasRuntime,
+    });
     const { PDFParse } = await loader();
     parser = new PDFParse({ data: pdfBuffer });
     const parsed = await parser.getText();
@@ -69,6 +114,7 @@ export async function extractPdfTextServer(
         extractor: 'pdf_parse',
         warnings: ['PDF text extraction returned no readable text.'],
         stage: 'parser_failed',
+        runtimeBootstrap: { injectedGlobals },
       };
     }
     return {
@@ -76,9 +122,12 @@ export async function extractPdfTextServer(
       extractor: 'pdf_parse',
       warnings: [],
       stage: 'text_extracted',
+      runtimeBootstrap: { injectedGlobals },
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown PDF extraction error';
+    const runtimeBootstrapFailed =
+      /Canvas runtime did not expose|DOMMatrix is not defined|ImageData is not defined|Path2D is not defined/i.test(message);
     const dependencyFailed =
       /did not expose the PDFParse class|Cannot find package|Cannot find module|ERR_MODULE_NOT_FOUND|ERR_PACKAGE_PATH_NOT_EXPORTED/i.test(
         message,
@@ -87,7 +136,8 @@ export async function extractPdfTextServer(
       text: null,
       extractor: 'pdf_parse',
       warnings: [`PDF text extraction failed: ${message}`],
-      stage: dependencyFailed ? 'dependency_failed' : 'extract_failed',
+      stage: runtimeBootstrapFailed ? 'runtime_bootstrap_failed' : dependencyFailed ? 'dependency_failed' : 'extract_failed',
+      runtimeBootstrap: { injectedGlobals },
     };
   } finally {
     if (parser) {

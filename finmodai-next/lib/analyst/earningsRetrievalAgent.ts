@@ -51,7 +51,7 @@ export type EarningsRetrievalRuntimeMeta = {
   packageId: string | null;
   cacheStatus: 'hit_fresh' | 'hit_stale' | 'miss';
   request: EarningsRequestTarget;
-  resolutionStatus: 'latest' | 'exact_match' | 'unresolved_exact';
+  resolutionStatus: 'latest' | 'exact_match' | 'unresolved_exact' | 'latest_matching_quarter';
   resolvedFrom:
     | 'cached_package'
     | 'annual_results_package'
@@ -229,7 +229,7 @@ function buildFinancialRequest(target: EarningsRequestTarget): CompanyFinancials
 }
 
 function isYearEndRequest(target: EarningsRequestTarget): boolean {
-  return target.mode === 'explicit_quarter' && target.fiscalPeriod === 'Q4';
+  return (target.mode === 'explicit_quarter' || target.mode === 'yearless_quarter') && target.fiscalPeriod === 'Q4';
 }
 
 function yearFromDate(value: string | null | undefined): number | null {
@@ -250,6 +250,14 @@ function identityMatchesTarget(
     if (candidateYear !== target.fiscalYear) return false;
   }
   return Boolean(target.reportEndDate || target.fiscalPeriod || typeof target.fiscalYear === 'number');
+}
+
+function matchesRequestedSeason(
+  target: EarningsRequestTarget,
+  identity: { fiscalPeriod?: string | null } | null | undefined,
+): boolean {
+  if (!identity || target.mode !== 'yearless_quarter') return false;
+  return Boolean(target.fiscalPeriod && identity.fiscalPeriod === target.fiscalPeriod);
 }
 
 function annualPackageMatchesTarget(target: EarningsRequestTarget, financials: CompanyFinancials): boolean {
@@ -299,7 +307,7 @@ function exactQuarterResolved(target: EarningsRequestTarget, financials: Company
   resolvedFrom: EarningsRetrievalRuntimeMeta['resolvedFrom'];
   matchedIdentity: EarningsRetrievalRuntimeMeta['matchedIdentity'];
 } {
-  if (target.mode !== 'explicit_quarter') {
+  if (target.mode === 'latest') {
     return {
       resolved: true,
       resolvedFrom: 'quarter_financials',
@@ -307,6 +315,66 @@ function exactQuarterResolved(target: EarningsRequestTarget, financials: Company
         fiscalPeriod: financials.latestQuarter.fiscalPeriod ?? null,
         fiscalYear: yearFromDate(financials.latestQuarter.date),
         reportEndDate: financials.latestQuarter.date ?? null,
+      },
+    };
+  }
+
+  if (target.mode === 'yearless_quarter') {
+    const releaseSeasonMatch = matchesRequestedSeason(target, {
+      fiscalPeriod: financials.earningsContext?.releaseFiscalPeriod ?? null,
+    });
+    if (
+      releaseSeasonMatch &&
+      ((financials.earningsContext?.releaseHighlights.length ?? 0) > 0 ||
+        financials.earningsContext?.releaseUrl ||
+        financials.earningsContext?.releaseRevenue !== null ||
+        financials.earningsContext?.releaseEps !== null)
+    ) {
+      return {
+        resolved: true,
+        resolvedFrom: 'earnings_release',
+        matchedIdentity: {
+          fiscalPeriod: financials.earningsContext?.releaseFiscalPeriod ?? null,
+          fiscalYear: financials.earningsContext?.releaseFiscalYear ?? null,
+          reportEndDate: financials.earningsContext?.releaseReportEndDate ?? null,
+        },
+      };
+    }
+
+    const transcriptSeasonMatch = matchesRequestedSeason(target, {
+      fiscalPeriod: financials.earningsContext?.transcriptFiscalPeriod ?? null,
+    });
+    if (transcriptSeasonMatch && (financials.earningsContext?.transcriptHighlights.length ?? 0) > 0) {
+      return {
+        resolved: true,
+        resolvedFrom: 'prepared_remarks',
+        matchedIdentity: {
+          fiscalPeriod: financials.earningsContext?.transcriptFiscalPeriod ?? null,
+          fiscalYear: financials.earningsContext?.transcriptFiscalYear ?? null,
+          reportEndDate: financials.earningsContext?.transcriptReportEndDate ?? null,
+        },
+      };
+    }
+
+    if (financials.latestQuarter.fiscalPeriod === target.fiscalPeriod && sameQuarterAsRequested({ ...target, mode: 'explicit_quarter' }, financials)) {
+      return {
+        resolved: true,
+        resolvedFrom: 'quarter_financials',
+        matchedIdentity: {
+          fiscalPeriod: financials.latestQuarter.fiscalPeriod ?? null,
+          fiscalYear: yearFromDate(financials.latestQuarter.date),
+          reportEndDate: financials.latestQuarter.date ?? null,
+        },
+      };
+    }
+
+    return {
+      resolved: false,
+      resolvedFrom: 'none',
+      matchedIdentity: {
+        fiscalPeriod: target.fiscalPeriod,
+        fiscalYear: null,
+        reportEndDate: null,
       },
     };
   }
@@ -376,31 +444,40 @@ function exactQuarterResolved(target: EarningsRequestTarget, financials: Company
 }
 
 function storedPackageMatchesTarget(target: EarningsRequestTarget, pkg: StoredEarningsPackage): boolean {
-  if (target.mode !== 'explicit_quarter') return true;
+  if (target.mode === 'latest') return true;
   const metadata = (pkg.sourceMetadata ?? {}) as Record<string, unknown>;
   if (metadata.packageSchemaVersion !== EARNINGS_PACKAGE_SCHEMA_VERSION) return false;
-  if (metadata.requestMode !== 'explicit_quarter') return false;
-  if (metadata.resolutionStatus !== 'exact_match') return false;
+  if (target.mode === 'explicit_quarter') {
+    if (metadata.requestMode !== 'explicit_quarter') return false;
+    if (metadata.resolutionStatus !== 'exact_match') return false;
+  } else {
+    if (metadata.requestMode !== 'yearless_quarter') return false;
+    if (metadata.resolutionStatus !== 'latest_matching_quarter') return false;
+  }
 
   const matchedIdentity =
     metadata.matchedIdentity && typeof metadata.matchedIdentity === 'object'
       ? (metadata.matchedIdentity as Record<string, unknown>)
       : null;
-  if (
-    !identityMatchesTarget(target, {
-      fiscalPeriod: typeof matchedIdentity?.fiscalPeriod === 'string' ? (matchedIdentity.fiscalPeriod as string) : null,
-      fiscalYear: typeof matchedIdentity?.fiscalYear === 'number' ? (matchedIdentity.fiscalYear as number) : null,
-      reportEndDate: typeof matchedIdentity?.reportEndDate === 'string' ? (matchedIdentity.reportEndDate as string) : null,
-    })
-  ) {
+  const matchedIdentityRow = {
+    fiscalPeriod: typeof matchedIdentity?.fiscalPeriod === 'string' ? (matchedIdentity.fiscalPeriod as string) : null,
+    fiscalYear: typeof matchedIdentity?.fiscalYear === 'number' ? (matchedIdentity.fiscalYear as number) : null,
+    reportEndDate: typeof matchedIdentity?.reportEndDate === 'string' ? (matchedIdentity.reportEndDate as string) : null,
+  };
+  if (target.mode === 'explicit_quarter') {
+    if (!identityMatchesTarget(target, matchedIdentityRow)) return false;
+  } else if (!matchesRequestedSeason(target, matchedIdentityRow)) {
     return false;
   }
 
-  if (!identityMatchesTarget(target, {
+  const pkgIdentity = {
     fiscalPeriod: pkg.fiscalPeriod,
     fiscalYear: pkg.fiscalYear,
     reportEndDate: pkg.reportEndDate,
-  })) {
+  };
+  if (target.mode === 'explicit_quarter') {
+    if (!identityMatchesTarget(target, pkgIdentity)) return false;
+  } else if (!matchesRequestedSeason(target, pkgIdentity)) {
     return false;
   }
 
@@ -418,10 +495,10 @@ function storedPackageMatchesTarget(target: EarningsRequestTarget, pkg: StoredEa
 }
 
 function sameQuarterAsRequested(target: EarningsRequestTarget, financials: CompanyFinancials): boolean {
-  if (target.mode !== 'explicit_quarter') return true;
+  if (target.mode === 'latest') return true;
   if (target.reportEndDate && financials.latestQuarter.date !== target.reportEndDate) return false;
   if (target.fiscalPeriod && financials.latestQuarter.fiscalPeriod !== target.fiscalPeriod) return false;
-  if (typeof target.fiscalYear === 'number' && financials.latestQuarter.date) {
+  if (target.mode === 'explicit_quarter' && typeof target.fiscalYear === 'number' && financials.latestQuarter.date) {
     const year = Number(financials.latestQuarter.date.slice(0, 4));
     if (Number.isFinite(year) && year !== target.fiscalYear) return false;
   }
@@ -452,7 +529,7 @@ function buildResultFromFinancials(target: EarningsRequestTarget, financials: Co
   const transcriptHighlights = financials.earningsContext?.transcriptHighlights ?? [];
   const commentaryHighlights = dedupeLines([...releaseHighlights, ...transcriptHighlights]);
   const commentarySourceNotes = dedupeLines(financials.earningsContext?.sourceNotes ?? []);
-  const allowAnnualLane = target.mode !== 'explicit_quarter' || annualPackageMatchesTarget(target, financials);
+  const allowAnnualLane = target.mode === 'latest' || annualPackageMatchesTarget(target, financials);
 
   const result: EarningsRetrievalAgentResult = {
     ticker: financials.ticker,
@@ -497,11 +574,11 @@ async function maybeLoadCachedPackage(target: EarningsRequestTarget): Promise<{
   cacheStatus: 'hit_fresh' | 'hit_stale' | 'miss';
 }> {
   const pkg =
-    target.mode === 'explicit_quarter'
-      ? await getEarningsPackageByQuarter(target)
-      : await getLatestEarningsPackage(target.ticker);
+    target.mode === 'latest'
+      ? await getLatestEarningsPackage(target.ticker)
+      : await getEarningsPackageByQuarter(target);
   if (!pkg) return { pkg: null, cacheStatus: 'miss' };
-  if (target.mode === 'explicit_quarter' && !storedPackageMatchesTarget(target, pkg)) {
+  if (target.mode !== 'latest' && !storedPackageMatchesTarget(target, pkg)) {
     if (featureFlags.ENABLE_EARNINGS_PACKAGE_LOGS) {
       console.warn('[earnings-agent] invalidated legacy or mismatched explicit-quarter cache row', {
         ticker: target.ticker,
@@ -512,7 +589,7 @@ async function maybeLoadCachedPackage(target: EarningsRequestTarget): Promise<{
     }
     return { pkg: null, cacheStatus: 'miss' };
   }
-  if (target.mode === 'explicit_quarter') return { pkg, cacheStatus: 'hit_fresh' };
+  if (target.mode !== 'latest') return { pkg, cacheStatus: 'hit_fresh' };
   return { pkg, cacheStatus: isEarningsPackageFresh(pkg) ? 'hit_fresh' : 'hit_stale' };
 }
 
@@ -549,7 +626,8 @@ export async function runEarningsRetrievalAgent(params: {
         packageId: cachedPackage.id,
         cacheStatus,
         request,
-        resolutionStatus: request.mode === 'explicit_quarter' ? 'exact_match' : 'latest',
+        resolutionStatus:
+          request.mode === 'explicit_quarter' ? 'exact_match' : request.mode === 'yearless_quarter' ? 'latest_matching_quarter' : 'latest',
         resolvedFrom: 'cached_package',
         matchedIdentity: {
           fiscalPeriod: cachedPackage.fiscalPeriod,
@@ -579,7 +657,8 @@ export async function runEarningsRetrievalAgent(params: {
         packageId: cachedPackage.id,
         cacheStatus: 'hit_stale',
         request,
-        resolutionStatus: request.mode === 'explicit_quarter' ? 'unresolved_exact' : 'latest',
+        resolutionStatus:
+          request.mode === 'explicit_quarter' ? 'unresolved_exact' : request.mode === 'yearless_quarter' ? 'latest_matching_quarter' : 'latest',
         resolvedFrom: 'stale_cache',
         matchedIdentity: {
           fiscalPeriod: cachedPackage.fiscalPeriod,
@@ -594,7 +673,7 @@ export async function runEarningsRetrievalAgent(params: {
 
   const financialResult = buildResultFromFinancials(request, financials);
   const exactResolution = exactQuarterResolved(request, financials);
-  if (request.mode === 'explicit_quarter' && !exactResolution.resolved) {
+  if ((request.mode === 'explicit_quarter' || request.mode === 'yearless_quarter') && !exactResolution.resolved) {
     if (featureFlags.ENABLE_EARNINGS_PACKAGE_LOGS) {
       console.warn('[earnings-agent] explicit quarter mismatch', {
         ticker: normalizedTicker,
@@ -614,10 +693,16 @@ export async function runEarningsRetrievalAgent(params: {
     financialResult.quarter.filedAt = null;
     financialResult.commentary.highlights = [];
     financialResult.commentary.sourceNotes = [];
-    financialResult.dataQuality.gaps = buildExplicitQuarterUnresolvedGaps();
+    financialResult.dataQuality.gaps =
+      request.mode === 'explicit_quarter'
+        ? buildExplicitQuarterUnresolvedGaps()
+        : [
+            `Latest filed ${request.fiscalPeriod ?? 'requested quarter'} was not resolved from current sources.`,
+            `No matching-quarter release, transcript, or report link was resolved for ${request.fiscalPeriod ?? 'the requested quarter'}.`,
+          ];
   }
 
-  const shouldPersistExactPackage = request.mode !== 'explicit_quarter' || exactResolution.resolved;
+  const shouldPersistExactPackage = request.mode === 'latest' || exactResolution.resolved;
   const storedPackage = shouldPersistExactPackage
     ? await upsertEarningsPackage({
         packageKey,
@@ -636,7 +721,7 @@ export async function runEarningsRetrievalAgent(params: {
         annualData: {
           ...financialResult.annual,
           fiscalYear:
-            request.mode === 'explicit_quarter' && exactResolution.resolvedFrom !== 'annual_results_package'
+            request.mode !== 'latest' && exactResolution.resolvedFrom !== 'annual_results_package'
               ? null
               : financials.latestAnnual.fiscalYear ?? null,
         },
@@ -652,7 +737,8 @@ export async function runEarningsRetrievalAgent(params: {
         sourceMetadata: {
           packageSchemaVersion: EARNINGS_PACKAGE_SCHEMA_VERSION,
           cacheStatusAtWrite: cacheStatus,
-          resolutionStatus: request.mode === 'explicit_quarter' ? 'exact_match' : 'latest',
+          resolutionStatus:
+            request.mode === 'explicit_quarter' ? 'exact_match' : request.mode === 'yearless_quarter' ? 'latest_matching_quarter' : 'latest',
           resolvedFrom: exactResolution.resolvedFrom,
           matchedIdentity: exactResolution.matchedIdentity,
           usedTranscript: financialResult.dataQuality.usedTranscript,
@@ -672,7 +758,11 @@ export async function runEarningsRetrievalAgent(params: {
           filingContext: financials.filingContext ?? null,
         },
         reviewReasonCodes: [
-          request.mode === 'explicit_quarter' ? 'historical_quarter_request' : 'latest_quarter_request',
+          request.mode === 'explicit_quarter'
+            ? 'historical_quarter_request'
+            : request.mode === 'yearless_quarter'
+              ? 'latest_matching_quarter_request'
+              : 'latest_quarter_request',
           financialResult.dataQuality.usedTranscript ? 'has_transcript_context' : 'financials_only',
         ],
       })
@@ -696,8 +786,10 @@ export async function runEarningsRetrievalAgent(params: {
       resolutionStatus:
         request.mode === 'explicit_quarter'
           ? (exactResolution.resolved ? 'exact_match' : 'unresolved_exact')
-          : 'latest',
-      resolvedFrom: request.mode === 'explicit_quarter' ? exactResolution.resolvedFrom : 'quarter_financials',
+          : request.mode === 'yearless_quarter'
+            ? 'latest_matching_quarter'
+            : 'latest',
+      resolvedFrom: request.mode !== 'latest' ? exactResolution.resolvedFrom : 'quarter_financials',
       matchedIdentity: exactResolution.matchedIdentity,
       freshnessExpiresAt: storedPackage?.freshnessExpiresAt ?? cachedPackage?.freshnessExpiresAt ?? null,
       lastFetchedAt: storedPackage?.lastFetchedAt ?? cachedPackage?.lastFetchedAt ?? null,

@@ -6,7 +6,7 @@ import { PDFParse } from 'pdf-parse';
 import { buildClientVisibleBackendError, responseBodyLooksLikeHtml } from '@/lib/analyst/clientErrorResponse';
 import { extractPdfStatementPackage } from '@/lib/analyst/pdfFinancialStatements';
 import { assessPdfModelCoverage, assessPdfStatementExtraction } from '@/lib/analyst/pdfModelSeeding';
-import { extractPdfTextServer } from '@/lib/analyst/serverPdfExtraction';
+import { ensurePdfRuntimeGlobals, extractPdfTextServer } from '@/lib/analyst/serverPdfExtraction';
 import { extractInputs } from '@/lib/model-generator/extractInputs';
 
 const SAMPLE_FINANCIAL_PDF_TEXT = `
@@ -156,6 +156,154 @@ test('extractPdfTextServer returns dependency_failed when pdf-parse cannot load'
   assert.equal(extraction.stage, 'dependency_failed');
   assert.equal(extraction.text, null);
   assert.match(extraction.warnings.join(' '), /Cannot find package pdf-parse/);
+});
+
+test('ensurePdfRuntimeGlobals injects missing PDF.js globals from canvas runtime', async () => {
+  const originalDomMatrix = globalThis.DOMMatrix;
+  const originalImageData = globalThis.ImageData;
+  const originalPath2D = globalThis.Path2D;
+
+  try {
+    delete (globalThis as Record<string, unknown>).DOMMatrix;
+    delete (globalThis as Record<string, unknown>).ImageData;
+    delete (globalThis as Record<string, unknown>).Path2D;
+
+    class FakeDOMMatrix {}
+    class FakeImageData {}
+    class FakePath2D {}
+
+    const injected = await ensurePdfRuntimeGlobals({
+      loadCanvasRuntime: async () => ({
+        DOMMatrix: FakeDOMMatrix as unknown as typeof globalThis.DOMMatrix,
+        ImageData: FakeImageData as unknown as typeof globalThis.ImageData,
+        Path2D: FakePath2D as unknown as typeof globalThis.Path2D,
+      }),
+    });
+
+    assert.deepEqual(injected, ['DOMMatrix', 'ImageData', 'Path2D']);
+    assert.equal(globalThis.DOMMatrix, FakeDOMMatrix as unknown as typeof globalThis.DOMMatrix);
+    assert.equal(globalThis.ImageData, FakeImageData as unknown as typeof globalThis.ImageData);
+    assert.equal(globalThis.Path2D, FakePath2D as unknown as typeof globalThis.Path2D);
+  } finally {
+    if (typeof originalDomMatrix === 'undefined') {
+      delete (globalThis as Record<string, unknown>).DOMMatrix;
+    } else {
+      globalThis.DOMMatrix = originalDomMatrix;
+    }
+    if (typeof originalImageData === 'undefined') {
+      delete (globalThis as Record<string, unknown>).ImageData;
+    } else {
+      globalThis.ImageData = originalImageData;
+    }
+    if (typeof originalPath2D === 'undefined') {
+      delete (globalThis as Record<string, unknown>).Path2D;
+    } else {
+      globalThis.Path2D = originalPath2D;
+    }
+  }
+});
+
+test('extractPdfTextServer returns runtime_bootstrap_failed when canvas globals cannot be installed', async () => {
+  const originalDomMatrix = globalThis.DOMMatrix;
+  const originalImageData = globalThis.ImageData;
+  const originalPath2D = globalThis.Path2D;
+
+  try {
+    delete (globalThis as Record<string, unknown>).DOMMatrix;
+    delete (globalThis as Record<string, unknown>).ImageData;
+    delete (globalThis as Record<string, unknown>).Path2D;
+
+    const extraction = await extractPdfTextServer(Buffer.from('fake pdf'), {
+      loadCanvasRuntime: async () => {
+        throw new Error('DOMMatrix is not defined');
+      },
+      loadPdfParse: async () => {
+        assert.fail('pdf-parse should not load when runtime bootstrap fails first');
+      },
+    });
+
+    assert.equal(extraction.stage, 'runtime_bootstrap_failed');
+    assert.equal(extraction.text, null);
+    assert.match(extraction.warnings.join(' '), /DOMMatrix is not defined/);
+  } finally {
+    if (typeof originalDomMatrix === 'undefined') {
+      delete (globalThis as Record<string, unknown>).DOMMatrix;
+    } else {
+      globalThis.DOMMatrix = originalDomMatrix;
+    }
+    if (typeof originalImageData === 'undefined') {
+      delete (globalThis as Record<string, unknown>).ImageData;
+    } else {
+      globalThis.ImageData = originalImageData;
+    }
+    if (typeof originalPath2D === 'undefined') {
+      delete (globalThis as Record<string, unknown>).Path2D;
+    } else {
+      globalThis.Path2D = originalPath2D;
+    }
+  }
+});
+
+test('extractPdfTextServer bootstraps runtime globals before constructing PDFParse', async () => {
+  const originalDomMatrix = globalThis.DOMMatrix;
+  const originalImageData = globalThis.ImageData;
+  const originalPath2D = globalThis.Path2D;
+
+  try {
+    delete (globalThis as Record<string, unknown>).DOMMatrix;
+    delete (globalThis as Record<string, unknown>).ImageData;
+    delete (globalThis as Record<string, unknown>).Path2D;
+
+    class FakeDOMMatrix {}
+    class FakeImageData {}
+    class FakePath2D {}
+    let sawGlobalsAtConstruction = false;
+
+    const extraction = await extractPdfTextServer(Buffer.from('fake pdf'), {
+      loadCanvasRuntime: async () => ({
+        DOMMatrix: FakeDOMMatrix as unknown as typeof globalThis.DOMMatrix,
+        ImageData: FakeImageData as unknown as typeof globalThis.ImageData,
+        Path2D: FakePath2D as unknown as typeof globalThis.Path2D,
+      }),
+      loadPdfParse: async () => ({
+        PDFParse: class {
+          constructor() {
+            sawGlobalsAtConstruction =
+              globalThis.DOMMatrix === (FakeDOMMatrix as unknown as typeof globalThis.DOMMatrix) &&
+              globalThis.ImageData === (FakeImageData as unknown as typeof globalThis.ImageData) &&
+              globalThis.Path2D === (FakePath2D as unknown as typeof globalThis.Path2D);
+          }
+          async getText() {
+            return { text: SAMPLE_FINANCIAL_PDF_TEXT };
+          }
+          destroy() {
+            return undefined;
+          }
+        },
+      }),
+    });
+
+    assert.equal(sawGlobalsAtConstruction, true);
+    assert.equal(extraction.stage, 'text_extracted');
+    assert.deepEqual(extraction.runtimeBootstrap?.injectedGlobals ?? [], ['DOMMatrix', 'ImageData', 'Path2D']);
+    assert.match(extraction.text ?? '', /Microsoft Corporation/);
+  } finally {
+    if (typeof originalDomMatrix === 'undefined') {
+      delete (globalThis as Record<string, unknown>).DOMMatrix;
+    } else {
+      globalThis.DOMMatrix = originalDomMatrix;
+    }
+    if (typeof originalImageData === 'undefined') {
+      delete (globalThis as Record<string, unknown>).ImageData;
+    } else {
+      globalThis.ImageData = originalImageData;
+    }
+    if (typeof originalPath2D === 'undefined') {
+      delete (globalThis as Record<string, unknown>).Path2D;
+    } else {
+      globalThis.Path2D = originalPath2D;
+    }
+  }
 });
 
 test('client-visible backend error handling suppresses raw html 500 pages', () => {

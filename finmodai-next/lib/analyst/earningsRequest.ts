@@ -1,6 +1,6 @@
 export type EarningsRequestTarget = {
   ticker: string;
-  mode: 'latest' | 'explicit_quarter';
+  mode: 'latest' | 'explicit_quarter' | 'yearless_quarter';
   fiscalPeriod: string | null;
   fiscalYear: number | null;
   reportEndDate: string | null;
@@ -74,7 +74,7 @@ export function extractEarningsRequestTarget(params: {
     if (quarterOnly) {
       return {
         ticker,
-        mode: 'explicit_quarter',
+        mode: 'yearless_quarter',
         fiscalPeriod: `Q${quarterOnly[1]}`,
         fiscalYear: null,
         reportEndDate: null,
