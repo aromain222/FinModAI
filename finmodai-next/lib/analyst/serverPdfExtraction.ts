@@ -1,6 +1,4 @@
-import { PDFParse } from 'pdf-parse';
-
-export type PdfTextExtractionStage = 'text_extracted' | 'parser_failed' | 'extract_failed';
+export type PdfTextExtractionStage = 'text_extracted' | 'parser_failed' | 'extract_failed' | 'dependency_failed';
 
 export type PdfTextExtractionResult = {
   text: string | null;
@@ -8,6 +6,19 @@ export type PdfTextExtractionResult = {
   warnings: string[];
   stage: PdfTextExtractionStage;
 };
+
+type PdfParseInstance = {
+  getText(): Promise<{ text?: string | null }>;
+  destroy(): Promise<void> | void;
+};
+
+type PdfParseConstructor = new (params: { data: Buffer }) => PdfParseInstance;
+
+type PdfParseModule = {
+  PDFParse: PdfParseConstructor;
+};
+
+type PdfParseLoader = () => Promise<PdfParseModule>;
 
 function normalizePdfText(text: string): string {
   const normalized = text
@@ -32,9 +43,23 @@ function normalizePdfText(text: string): string {
     .trim();
 }
 
-export async function extractPdfTextServer(pdfBuffer: Buffer): Promise<PdfTextExtractionResult> {
-  let parser: PDFParse | null = null;
+async function loadPdfParse(): Promise<PdfParseModule> {
+  const mod = await import('pdf-parse');
+  const PDFParse = mod?.PDFParse;
+  if (typeof PDFParse !== 'function') {
+    throw new Error('pdf-parse did not expose the PDFParse class');
+  }
+  return { PDFParse };
+}
+
+export async function extractPdfTextServer(
+  pdfBuffer: Buffer,
+  options?: { loadPdfParse?: PdfParseLoader },
+): Promise<PdfTextExtractionResult> {
+  const loader = options?.loadPdfParse ?? loadPdfParse;
+  let parser: PdfParseInstance | null = null;
   try {
+    const { PDFParse } = await loader();
     parser = new PDFParse({ data: pdfBuffer });
     const parsed = await parser.getText();
     const text = normalizePdfText(parsed.text ?? '');
@@ -54,11 +79,15 @@ export async function extractPdfTextServer(pdfBuffer: Buffer): Promise<PdfTextEx
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown PDF extraction error';
+    const dependencyFailed =
+      /did not expose the PDFParse class|Cannot find package|Cannot find module|ERR_MODULE_NOT_FOUND|ERR_PACKAGE_PATH_NOT_EXPORTED/i.test(
+        message,
+      );
     return {
       text: null,
       extractor: 'pdf_parse',
       warnings: [`PDF text extraction failed: ${message}`],
-      stage: 'extract_failed',
+      stage: dependencyFailed ? 'dependency_failed' : 'extract_failed',
     };
   } finally {
     if (parser) {

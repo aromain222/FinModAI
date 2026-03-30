@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { parseUploadedAttachment, type UploadedAttachmentContext } from '@/lib/analyst/attachmentContext';
+import { buildClientVisibleBackendError } from '@/lib/analyst/clientErrorResponse';
 import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplates';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } from '@/lib/analyst/modelChat';
@@ -287,12 +288,17 @@ export function AnalystChatApp() {
       const payload = rawBody ? tryParseJson<Record<string, unknown>>(rawBody) : null;
 
       if (!response.ok) {
-        const backendMessage =
-          (payload && typeof payload.reply === 'string' && payload.reply.trim().length > 0
-            ? payload.reply
-            : payload && typeof payload.error === 'string' && payload.error.trim().length > 0
-              ? payload.error
-              : rawBody.trim());
+        const backendMessage = buildClientVisibleBackendError({
+          rawBody,
+          payload,
+          fallbackStatusText: `Analyst Chat request failed (${response.status}).`,
+        });
+        if (rawBody.trim().length > 0 && rawBody.trim().startsWith('<')) {
+          console.error('Analyst Chat returned non-JSON error body', {
+            status: response.status,
+            body: rawBody.slice(0, 1000),
+          });
+        }
         throw new Error(backendMessage || `Analyst Chat request failed (${response.status}).`);
       }
 
@@ -389,12 +395,11 @@ export function AnalystChatApp() {
     const rawBody = await response.text();
     const parsed = rawBody ? tryParseJson<Record<string, unknown>>(rawBody) : null;
     if (!response.ok) {
-      const backendMessage =
-        (parsed && typeof parsed.reply === 'string' && parsed.reply.trim().length > 0
-          ? parsed.reply
-          : parsed && typeof parsed.error === 'string' && parsed.error.trim().length > 0
-            ? parsed.error
-            : rawBody.trim());
+      const backendMessage = buildClientVisibleBackendError({
+        rawBody,
+        payload: parsed,
+        fallbackStatusText: `DCF adjustment failed (${response.status}).`,
+      });
       throw new Error(backendMessage || `DCF adjustment failed (${response.status}).`);
     }
     if (!parsed) {

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import test from 'node:test';
 
 import { PDFParse } from 'pdf-parse';
+import { buildClientVisibleBackendError, responseBodyLooksLikeHtml } from '@/lib/analyst/clientErrorResponse';
 import { extractPdfStatementPackage } from '@/lib/analyst/pdfFinancialStatements';
 import { assessPdfModelCoverage, assessPdfStatementExtraction } from '@/lib/analyst/pdfModelSeeding';
 import { extractPdfTextServer } from '@/lib/analyst/serverPdfExtraction';
@@ -143,6 +144,31 @@ test('pdf-parse class path returns clean text for the Apple quarterly financial 
   assert.match(parsed.text ?? '', /Apple Inc\./);
   assert.match(parsed.text ?? '', /Cash and cash equivalents/);
   assert.match(parsed.text ?? '', /Operating income/);
+});
+
+test('extractPdfTextServer returns dependency_failed when pdf-parse cannot load', async () => {
+  const extraction = await extractPdfTextServer(Buffer.from('fake pdf'), {
+    loadPdfParse: async () => {
+      throw new Error('Cannot find package pdf-parse');
+    },
+  });
+
+  assert.equal(extraction.stage, 'dependency_failed');
+  assert.equal(extraction.text, null);
+  assert.match(extraction.warnings.join(' '), /Cannot find package pdf-parse/);
+});
+
+test('client-visible backend error handling suppresses raw html 500 pages', () => {
+  const html = '<!DOCTYPE html><html><head><title>500</title></head><body>Internal Server Error</body></html>';
+  assert.equal(responseBodyLooksLikeHtml(html), true);
+  assert.equal(
+    buildClientVisibleBackendError({
+      rawBody: html,
+      payload: null,
+      fallbackStatusText: 'Analyst Chat request failed (500).',
+    }),
+    'The server returned an unexpected internal error page before Analyst Chat could produce a structured response.',
+  );
 });
 
 test('extractInputs uses attachment statement snapshots ahead of defaults for DCF and three-statement models', async () => {

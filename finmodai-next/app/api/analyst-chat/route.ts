@@ -522,8 +522,12 @@ async function hydrateAttachmentContext(
 
   try {
     const pdfBuffer = Buffer.from(attachment.rawBase64, 'base64');
+    console.info('[analyst-chat] pdf extraction started', {
+      attachment: attachment.name,
+      sizeKb: attachment.sizeKb,
+    });
     const extraction = await extractPdfTextServer(pdfBuffer);
-    if (extraction.stage === 'extract_failed') {
+    if (extraction.stage === 'dependency_failed' || extraction.stage === 'extract_failed') {
       const extractionAssessment = assessPdfStatementExtraction({
         failureMode: 'failed',
         authoritative: true,
@@ -545,6 +549,12 @@ async function hydrateAttachmentContext(
     }
 
     const extractedText = extraction.text ?? '';
+    console.info('[analyst-chat] pdf text extraction completed', {
+      attachment: attachment.name,
+      extractor: extraction.extractor,
+      stage: extraction.stage,
+      textLength: extractedText.length,
+    });
     const statementPackage = extractPdfStatementPackage(extractedText);
     const parserFailure = extraction.stage === 'parser_failed' || !statementPackage;
     const extractionAssessment = assessPdfStatementExtraction({
@@ -562,6 +572,7 @@ async function hydrateAttachmentContext(
       stage: extraction.stage,
       statementPackageBuilt: Boolean(statementPackage),
       trustStatus: resolvedStatus,
+      missingStatements: statementPackage?.missingStatements ?? [],
     });
     return {
       ...attachment,
@@ -577,6 +588,10 @@ async function hydrateAttachmentContext(
       ),
     };
   } catch (error) {
+    console.error('[analyst-chat] pdf attachment hydration crashed', {
+      attachment: attachment.name,
+      message: error instanceof Error ? redactSecrets(error.message) : 'unknown error',
+    });
     const extractionAssessment = assessPdfStatementExtraction({
       failureMode: 'failed',
       authoritative: true,
@@ -768,7 +783,29 @@ export async function POST(req: NextRequest) {
       ? body.ticker.trim().toUpperCase()
       : undefined;
     const attachmentContextInput = isUploadedAttachmentContext(body?.attachmentContext) ? body.attachmentContext : null;
-    const attachmentContext = await hydrateAttachmentContext(attachmentContextInput);
+    const attachmentContext = await hydrateAttachmentContext(attachmentContextInput).catch((error) => {
+      console.error('[analyst-chat] attachment hydration failed before routing', {
+        attachment: attachmentContextInput?.name ?? null,
+        message: error instanceof Error ? redactSecrets(error.message) : 'unknown error',
+      });
+      if (!attachmentContextInput) return null;
+      const extractionAssessment = assessPdfStatementExtraction({
+        failureMode: 'failed',
+        authoritative: true,
+      });
+      return {
+        ...attachmentContextInput,
+        rawText: undefined,
+        statementPackage: undefined,
+        statementExtractionStatus: extractionAssessment.statementExtractionStatus,
+        statementExtractionWarnings: extractionAssessment.statementExtractionWarnings,
+        isFinancialModelSeedable: extractionAssessment.isFinancialModelSeedable,
+        warnings: [
+          ...attachmentContextInput.warnings,
+          'Server-side PDF extraction failed before attachment hydration completed.',
+        ],
+      } satisfies UploadedAttachmentContext;
+    });
     const sessionId = typeof body?.sessionId === 'string' && body.sessionId.trim().length > 0 ? body.sessionId.trim() : null;
     const currentModel =
       body?.currentModel && typeof body.currentModel === 'object'
@@ -1273,6 +1310,12 @@ export async function POST(req: NextRequest) {
 
       if (isFinancialPdfRequest) {
         const extractionStatus = attachmentContext?.statementExtractionStatus ?? 'low_confidence';
+        console.info('[analyst-chat] pdf model seed assessment', {
+          attachment: attachmentContext?.name ?? null,
+          requestedPdfModelType,
+          extractionStatus,
+          seedable: attachmentContext?.isFinancialModelSeedable ?? false,
+        });
         if (attachmentContext?.isFinancialModelSeedable !== true) {
           return NextResponse.json({
             reply: buildFinancialPdfModelFailureReply({
