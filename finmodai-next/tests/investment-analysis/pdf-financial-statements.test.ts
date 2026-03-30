@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 
+import { PDFParse } from 'pdf-parse';
 import { extractPdfStatementPackage } from '@/lib/analyst/pdfFinancialStatements';
 import { assessPdfModelCoverage, assessPdfStatementExtraction } from '@/lib/analyst/pdfModelSeeding';
+import { extractPdfTextServer } from '@/lib/analyst/serverPdfExtraction';
 import { extractInputs } from '@/lib/model-generator/extractInputs';
 
 const SAMPLE_FINANCIAL_PDF_TEXT = `
@@ -25,6 +28,8 @@ Condensed Consolidated Statements of Cash Flows
 Capital expenditures (6,000) (5,500)
 Depreciation and amortization 4,000 3,600
 `;
+
+const APPLE_PDF_PATH = '/Users/averyromain/Downloads/FY26_Q1_Consolidated_Financial_Statements (1).pdf';
 
 test('extractPdfStatementPackage parses structured statements from text-based financial PDFs', () => {
   const parsed = extractPdfStatementPackage(SAMPLE_FINANCIAL_PDF_TEXT);
@@ -94,6 +99,50 @@ Revenue 70,000
   const sparseCoverage = assessPdfModelCoverage('DCF', sparse);
   assert.equal(sparseCoverage.ok, false);
   assert.deepEqual(sparseCoverage.missing, ['trusted statement package']);
+});
+
+test('server-side extractor and statement parser handle the Apple quarterly financial PDF', async () => {
+  if (!fs.existsSync(APPLE_PDF_PATH)) {
+    assert.fail(`Expected Apple PDF fixture at ${APPLE_PDF_PATH}`);
+  }
+
+  const buffer = fs.readFileSync(APPLE_PDF_PATH);
+  const extraction = await extractPdfTextServer(buffer);
+  assert.equal(extraction.stage, 'text_extracted');
+  assert.ok(extraction.text, 'expected extracted text');
+
+  const parsed = extractPdfStatementPackage(extraction.text ?? '');
+  assert.ok(parsed, 'expected trusted statement package');
+  assert.equal(parsed?.companyName, 'Apple Inc.');
+  assert.equal(parsed?.periodType, 'quarter');
+  assert.ok(typeof parsed?.snapshot?.revenue === 'number' && parsed.snapshot.revenue > 0);
+  assert.ok(typeof parsed?.snapshot?.operatingIncome === 'number' && parsed.snapshot.operatingIncome > 0);
+  assert.ok(typeof parsed?.snapshot?.netIncome === 'number' && parsed.snapshot.netIncome > 0);
+  assert.ok(typeof parsed?.snapshot?.cash === 'number' && parsed.snapshot.cash > 0);
+
+  const trust = assessPdfStatementExtraction({
+    statementPackage: parsed,
+    authoritative: true,
+  });
+  assert.equal(trust.statementExtractionStatus, 'trusted');
+  assert.equal(trust.isFinancialModelSeedable, true);
+
+  const dcfCoverage = assessPdfModelCoverage('DCF', parsed);
+  assert.equal(dcfCoverage.ok, true);
+});
+
+test('pdf-parse class path returns clean text for the Apple quarterly financial PDF', async () => {
+  if (!fs.existsSync(APPLE_PDF_PATH)) {
+    assert.fail(`Expected Apple PDF fixture at ${APPLE_PDF_PATH}`);
+  }
+
+  const data = fs.readFileSync(APPLE_PDF_PATH);
+  const parser = new PDFParse({ data });
+  const parsed = await parser.getText();
+  await parser.destroy();
+  assert.match(parsed.text ?? '', /Apple Inc\./);
+  assert.match(parsed.text ?? '', /Cash and cash equivalents/);
+  assert.match(parsed.text ?? '', /Operating income/);
 });
 
 test('extractInputs uses attachment statement snapshots ahead of defaults for DCF and three-statement models', async () => {

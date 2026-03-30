@@ -24,6 +24,7 @@ import {
   assessPdfStatementExtraction,
   isPdfAttachment,
 } from '@/lib/analyst/pdfModelSeeding';
+import { extractPdfTextServer } from '@/lib/analyst/serverPdfExtraction';
 import { routeAnalystQuery, type AnalystRoute } from '@/lib/analyst/router';
 import { retrieveDataForRoute } from '@/lib/analyst/dataRetrieval';
 import { extractVerifiedFacts, serializeFactsBriefForContext, type VerifiedFacts } from '@/lib/analyst/factsExtractor';
@@ -520,34 +521,47 @@ async function hydrateAttachmentContext(
   if (!attachment.rawBase64) return attachment;
 
   try {
-    const pdfParseModule = await import('pdf-parse');
     const pdfBuffer = Buffer.from(attachment.rawBase64, 'base64');
-    const parser = new pdfParseModule.PDFParse({ data: pdfBuffer });
-    const parsed = await parser.getText();
-    await parser.destroy();
-    const extractedText = parsed.text
-      .replace(/\r\n/g, '\n')
-      .replace(/[ \t]+/g, ' ')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-    if (!extractedText) {
+    const extraction = await extractPdfTextServer(pdfBuffer);
+    if (extraction.stage === 'extract_failed') {
       const extractionAssessment = assessPdfStatementExtraction({
-        failureMode: 'unsupported',
+        failureMode: 'failed',
         authoritative: true,
+      });
+      console.warn('[analyst-chat] pdf text extraction failed', {
+        attachment: attachment.name,
+        extractor: extraction.extractor,
+        stage: extraction.stage,
+        warnings: extraction.warnings,
       });
       return {
         ...attachment,
         rawText: undefined,
         statementPackage: undefined,
         statementExtractionStatus: extractionAssessment.statementExtractionStatus,
-        statementExtractionWarnings: extractionAssessment.statementExtractionWarnings,
+        statementExtractionWarnings: extraction.warnings,
         isFinancialModelSeedable: extractionAssessment.isFinancialModelSeedable,
       };
     }
+
+    const extractedText = extraction.text ?? '';
     const statementPackage = extractPdfStatementPackage(extractedText);
+    const parserFailure = extraction.stage === 'parser_failed' || !statementPackage;
     const extractionAssessment = assessPdfStatementExtraction({
       statementPackage,
+      ...(parserFailure ? { failureMode: null } : {}),
       authoritative: true,
+    });
+    const parserWarnings = parserFailure
+      ? [...extraction.warnings, 'PDF text was extracted, but no trusted financial statement package could be built from it.']
+      : extraction.warnings;
+    const resolvedStatus = parserFailure ? 'low_confidence' : extractionAssessment.statementExtractionStatus;
+    console.info('[analyst-chat] pdf extraction stage resolved', {
+      attachment: attachment.name,
+      extractor: extraction.extractor,
+      stage: extraction.stage,
+      statementPackageBuilt: Boolean(statementPackage),
+      trustStatus: resolvedStatus,
     });
     return {
       ...attachment,
@@ -555,9 +569,9 @@ async function hydrateAttachmentContext(
       rawText: extractedText.slice(0, 120000),
       ...(statementPackage ? { statementPackage } : {}),
       ...(!statementPackage ? { statementPackage: undefined } : {}),
-      statementExtractionStatus: extractionAssessment.statementExtractionStatus,
-      statementExtractionWarnings: extractionAssessment.statementExtractionWarnings,
-      isFinancialModelSeedable: extractionAssessment.isFinancialModelSeedable,
+      statementExtractionStatus: resolvedStatus,
+      statementExtractionWarnings: parserWarnings.length > 0 ? parserWarnings : extractionAssessment.statementExtractionWarnings,
+      isFinancialModelSeedable: parserFailure ? false : extractionAssessment.isFinancialModelSeedable,
       warnings: attachment.warnings.filter(
         (warning) => !warning.toLowerCase().includes('client-side pdf preview extraction'),
       ),

@@ -162,12 +162,37 @@ function detectPeriodType(text: string): PdfStatementPeriodType {
 
 function detectFiscalPeriod(text: string): string | null {
   const match = text.match(/\b(Q[1-4]\s*(?:FY)?\s*\d{2,4}|FY\s*\d{2,4}|fiscal\s+(?:year|quarter)\s+\d{2,4})\b/i);
-  return match ? sanitizeText(match[1]) : null;
+  if (match) return sanitizeText(match[1]);
+
+  const quarterHead = text.match(/\bThree Months Ended\s+([A-Za-z]+ \d{1,2}, \d{4})/i);
+  if (quarterHead) {
+    const date = new Date(quarterHead[1]);
+    if (!Number.isNaN(date.getTime())) {
+      const month = date.getUTCMonth();
+      const quarter = month <= 2 ? 1 : month <= 5 ? 2 : month <= 8 ? 3 : 4;
+      return `Q${quarter} ${date.getUTCFullYear()}`;
+    }
+  }
+
+  const yearHead = text.match(/\bYear Ended\s+([A-Za-z]+ \d{1,2}, \d{4})/i);
+  if (yearHead) {
+    const date = new Date(yearHead[1]);
+    if (!Number.isNaN(date.getTime())) {
+      return `FY ${date.getUTCFullYear()}`;
+    }
+  }
+
+  return null;
 }
 
 function detectReportEndDate(text: string): string | null {
   const iso = text.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
   if (iso) return iso[1];
+  const dateMatch = text.match(/\b(?:Three Months Ended|Year Ended|As of)\s+([A-Za-z]+ \d{1,2}, \d{4})/i);
+  if (dateMatch) {
+    const parsed = new Date(dateMatch[1]);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  }
   return null;
 }
 
@@ -182,6 +207,10 @@ function detectCompany(text: string): { companyName: string | null; ticker: stri
     if (namedTicker) {
       return { companyName: namedTicker[1].trim(), ticker: namedTicker[2].trim() };
     }
+  }
+  const headerMatch = text.match(/(?:^|\n)\s*([A-Z][A-Za-z0-9&.,' -]{2,100}?)\s+(?:CONDENSED\s+)?CONSOLIDATED\s+STATEMENTS?/i);
+  if (headerMatch) {
+    return { companyName: sanitizeText(headerMatch[1]), ticker: null };
   }
   const tickerOnly = text.match(/\bTicker\b[:| ]+([A-Z]{1,5})\b/i);
   return { companyName: null, ticker: tickerOnly ? tickerOnly[1].toUpperCase() : null };
@@ -245,6 +274,7 @@ function inferAlias(line: string, currentSection: PdfStatementKind | null): Stat
 function chooseCandidateValue(line: string, units: PdfStatementUnits): { raw: string; value: number } | null {
   const rawMatches = line.match(/(?:\(\$?\d[\d,]*(?:\.\d+)?\)|-?\$?\d[\d,]*(?:\.\d+)?)/g) ?? [];
   for (const match of rawMatches) {
+    if (/^\(\d+\)$/.test(match.trim())) continue;
     const parsed = parseValueToken(match, units);
     if (parsed !== null) return { raw: match, value: parsed };
   }
@@ -291,6 +321,40 @@ function buildStatementLines(text: string, units: PdfStatementUnits): PdfStateme
   });
 
   return lines;
+}
+
+function buildFallbackStatementLines(text: string, units: PdfStatementUnits, existing: PdfStatementLine[]): PdfStatementLine[] {
+  const seen = new Set(existing.map((line) => `${line.statement}:${line.normalizedLabel}`));
+  const normalizedText = sanitizeText(text);
+  const fallback: PdfStatementLine[] = [];
+
+  for (const alias of STATEMENT_ALIASES) {
+    const dedupeKey = `${alias.statement}:${alias.normalizedLabel}`;
+    if (seen.has(dedupeKey)) continue;
+
+    for (const pattern of alias.patterns) {
+      const source = new RegExp(`${pattern.source}[^\\n]{0,120}`, pattern.flags);
+      const match = normalizedText.match(source);
+      if (!match) continue;
+      const rawLine = sanitizeLine(match[0]);
+      const candidate = chooseCandidateValue(rawLine, units);
+      if (!candidate) continue;
+      fallback.push({
+        statement: alias.statement,
+        normalizedLabel: alias.normalizedLabel,
+        label: rawLine.split(candidate.raw)[0]?.trim() || alias.normalizedLabel,
+        value: candidate.value,
+        rawValue: candidate.raw,
+        page: null,
+        lineNumber: 0,
+        rawLine,
+      });
+      seen.add(dedupeKey);
+      break;
+    }
+  }
+
+  return fallback;
 }
 
 function getLine(lines: PdfStatementLine[], label: string): PdfStatementLine | null {
@@ -397,12 +461,14 @@ export function extractPdfStatementPackage(text: string): PdfStatementPackage | 
   const reportEndDate = detectReportEndDate(raw);
   const company = detectCompany(raw);
   const statementLines = buildStatementLines(raw, units);
+  const fallbackLines = buildFallbackStatementLines(raw, units, statementLines);
+  const allStatementLines = [...statementLines, ...fallbackLines];
 
-  if (statementLines.length < 3) {
+  if (allStatementLines.length < 3) {
     return null;
   }
 
-  const detectedStatements = countDetectedStatements(statementLines);
+  const detectedStatements = countDetectedStatements(allStatementLines);
   const warnings: string[] = [];
   if (periodType === 'unknown') warnings.push('Could not determine whether the PDF is quarterly or annual.');
   if (!company.companyName && !company.ticker) warnings.push('Could not determine company identity from the PDF text.');
@@ -415,7 +481,7 @@ export function extractPdfStatementPackage(text: string): PdfStatementPackage | 
   }
 
   const snapshot = buildSnapshot({
-    lines: statementLines,
+    lines: allStatementLines,
     companyName: company.companyName,
     ticker: company.ticker,
     reportEndDate,
@@ -450,9 +516,9 @@ export function extractPdfStatementPackage(text: string): PdfStatementPackage | 
     confidence,
     warnings,
     missingStatements,
-    incomeStatement: statementLines.filter((line) => line.statement === 'income_statement'),
-    balanceSheet: statementLines.filter((line) => line.statement === 'balance_sheet'),
-    cashFlowStatement: statementLines.filter((line) => line.statement === 'cash_flow_statement'),
+    incomeStatement: allStatementLines.filter((line) => line.statement === 'income_statement'),
+    balanceSheet: allStatementLines.filter((line) => line.statement === 'balance_sheet'),
+    cashFlowStatement: allStatementLines.filter((line) => line.statement === 'cash_flow_statement'),
     snapshot,
   };
 }
