@@ -55,6 +55,7 @@ function formatModelSharesMillions(value: number): string {
 function usesMillionCurrencyDisplay(modelType: AnalystGeneratedModelPayload['modelType'], key?: string): boolean {
   if (!key) return false;
   if (modelType !== 'DCF' && modelType !== 'THREE_STATEMENT' && modelType !== 'LBO') return false;
+  if (isPercentKey(key) || isMultipleKey(key)) return false;
   if (key === 'sharePrice') return false;
   return isCurrencyKey(key);
 }
@@ -67,7 +68,7 @@ function prettifySourceType(value: string): string {
   return value.replace(/_/g, ' ');
 }
 
-function renderValue(
+export function formatAnalystModelValue(
   value: unknown,
   key?: string,
   modelType?: AnalystGeneratedModelPayload['modelType'],
@@ -81,25 +82,25 @@ function renderValue(
         })
         .join(', ');
     }
-    return value.map((item) => renderValue(item, key, modelType)).join(', ');
+    return value.map((item) => formatAnalystModelValue(item, key, modelType)).join(', ');
   }
   if (value && typeof value === 'object') {
     const entries = Object.entries(value as Record<string, unknown>)
       .filter(([, item]) => typeof item === 'string' || typeof item === 'number')
       .slice(0, 4)
-      .map(([entryKey, item]) => `${entryKey}: ${renderValue(item, entryKey, modelType)}`);
+      .map(([entryKey, item]) => `${entryKey}: ${formatAnalystModelValue(item, entryKey, modelType)}`);
     return entries.length > 0 ? entries.join(', ') : 'Structured object';
   }
   if (typeof value === 'number') {
+    if (isPercentKey(key)) {
+      const percentValue = Math.abs(value) <= 1 ? value * 100 : value;
+      return `${percentValue.toLocaleString('en-US', { maximumFractionDigits: 1 })}%`;
+    }
     if (modelType && usesMillionShareDisplay(modelType, key)) {
       return formatModelSharesMillions(value);
     }
     if (modelType && usesMillionCurrencyDisplay(modelType, key)) {
       return formatAbsoluteCurrencyCompact(value * 1_000_000);
-    }
-    if (isPercentKey(key)) {
-      const percentValue = Math.abs(value) <= 1 ? value * 100 : value;
-      return `${percentValue.toLocaleString('en-US', { maximumFractionDigits: 1 })}%`;
     }
     if (isMultipleKey(key)) return `${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}x`;
     if (isCurrencyKey(key)) {
@@ -131,9 +132,9 @@ function ObjectGrid(props: {
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {entries.map(([key, value]) => (
-            <div key={key} className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
+              <div key={key} className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
               <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">{key}</div>
-              <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{renderValue(value, key, props.modelType)}</div>
+              <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{formatAnalystModelValue(value, key, props.modelType)}</div>
             </div>
           ))}
         </div>
