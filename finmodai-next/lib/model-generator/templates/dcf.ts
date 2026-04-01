@@ -39,6 +39,199 @@ function buildAxis(base: number, step: number, size: number, floor = 0): number[
   return Array.from({ length: size }, (_, index) => Number(Math.max(start + step * index, floor).toFixed(4)));
 }
 
+type DcfForecastCacheRow = {
+  year: string;
+  revenue: number;
+  revenueGrowth: number;
+  ebitMargin: number;
+  ebit: number;
+  taxes: number;
+  nopat: number;
+  da: number;
+  capex: number;
+  endingNwc: number;
+  deltaNwc: number;
+  ufcf: number;
+  discountPeriod: number;
+  discountFactor: number;
+  pvFcf: number;
+  ebitda: number;
+};
+
+type DcfWorkbookCache = {
+  baseYear: {
+    revenue: number;
+    ebitMargin: number;
+    ebit: number;
+    taxes: number;
+    nopat: number;
+    da: number;
+    capex: number;
+    endingNwc: number;
+    deltaNwc: number;
+    ufcf: number;
+  };
+  forecast: DcfForecastCacheRow[];
+  pvExplicitFcf: number;
+  exitMultipleTv: number;
+  perpetuityTv: number;
+  selectedTv: number;
+  pvTerminalValue: number;
+  enterpriseValue: number;
+  netDebt: number;
+  equityValue: number;
+  impliedSharePrice: number;
+  valueDriverMix: {
+    explicitFcfPctEv: number;
+    terminalValuePctEv: number;
+    netDebtPctEv: number;
+    equityValuePctEv: number;
+  };
+  sensitivity: {
+    perpetuity: number[][];
+    exitMultiple: number[][];
+  };
+};
+
+function formulaValue(formula: string, result: number | string): ExcelJS.CellValue {
+  return { formula, result };
+}
+
+function roundCache(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Number(value.toFixed(6));
+}
+
+function computeDcfWorkbookCache(
+  inputs: DcfModelInputs,
+  forecastYears: string[],
+  waccAxis: number[],
+  growthAxis: number[],
+  multipleAxis: number[],
+  exitMultiple: number,
+  terminalMethod: 'Perpetuity Growth' | 'Exit Multiple'
+): DcfWorkbookCache {
+  const baseRevenue = inputs.baseRevenue;
+  const baseEbitMargin = inputs.ebitMargin[0] ?? 0;
+  const baseEbit = baseRevenue * baseEbitMargin;
+  const baseTaxes = Math.max(baseEbit, 0) * inputs.taxRate;
+  const baseNopat = baseEbit - baseTaxes;
+  const baseDa = baseRevenue * inputs.daPctRevenue;
+  const baseCapex = baseRevenue * inputs.capexPctRevenue;
+  const baseEndingNwc = baseRevenue * inputs.nwcPctRevenue;
+  const baseDeltaNwc = 0;
+  const baseUfcf = baseNopat + baseDa - baseCapex - baseDeltaNwc;
+
+  let previousRevenue = baseRevenue;
+  let previousEndingNwc = baseEndingNwc;
+
+  const forecast = forecastYears.map((year, index) => {
+    const revenueGrowth = inputs.revenueGrowth[index] ?? 0;
+    const ebitMargin = inputs.ebitMargin[index] ?? inputs.ebitMargin[inputs.ebitMargin.length - 1] ?? 0;
+    const revenue = previousRevenue * (1 + revenueGrowth);
+    const ebit = revenue * ebitMargin;
+    const taxes = Math.max(ebit, 0) * inputs.taxRate;
+    const nopat = ebit - taxes;
+    const da = revenue * inputs.daPctRevenue;
+    const capex = revenue * inputs.capexPctRevenue;
+    const endingNwc = revenue * inputs.nwcPctRevenue;
+    const deltaNwc = endingNwc - previousEndingNwc;
+    const ufcf = nopat + da - capex - deltaNwc;
+    const discountPeriod = index + 1;
+    const discountFactor = 1 / (1 + inputs.wacc) ** discountPeriod;
+    const pvFcf = ufcf * discountFactor;
+    const ebitda = ebit + da;
+
+    previousRevenue = revenue;
+    previousEndingNwc = endingNwc;
+
+    return {
+      year,
+      revenue: roundCache(revenue),
+      revenueGrowth: roundCache(revenueGrowth),
+      ebitMargin: roundCache(ebitMargin),
+      ebit: roundCache(ebit),
+      taxes: roundCache(taxes),
+      nopat: roundCache(nopat),
+      da: roundCache(da),
+      capex: roundCache(capex),
+      endingNwc: roundCache(endingNwc),
+      deltaNwc: roundCache(deltaNwc),
+      ufcf: roundCache(ufcf),
+      discountPeriod,
+      discountFactor: roundCache(discountFactor),
+      pvFcf: roundCache(pvFcf),
+      ebitda: roundCache(ebitda),
+    };
+  });
+
+  const lastForecast = forecast[forecast.length - 1];
+  const pvExplicitFcf = roundCache(forecast.reduce((sum, row) => sum + row.pvFcf, 0));
+  const exitMultipleTv = roundCache((lastForecast?.ebitda ?? 0) * exitMultiple);
+  const perpetuityTv =
+    inputs.wacc > inputs.terminalGrowth
+      ? roundCache(((lastForecast?.ufcf ?? 0) * (1 + inputs.terminalGrowth)) / (inputs.wacc - inputs.terminalGrowth))
+      : 0;
+  const selectedTv = terminalMethod === 'Exit Multiple' ? exitMultipleTv : perpetuityTv;
+  const pvTerminalValue = roundCache(selectedTv * (lastForecast?.discountFactor ?? 0));
+  const enterpriseValue = roundCache(pvExplicitFcf + pvTerminalValue);
+  const netDebt = roundCache(inputs.debt - inputs.cash);
+  const equityValue = roundCache(enterpriseValue - netDebt);
+  const impliedSharePrice = inputs.sharesOutstanding > 0 ? roundCache(equityValue / inputs.sharesOutstanding) : 0;
+
+  const perpetuitySensitivity = waccAxis.map((wacc) =>
+    growthAxis.map((terminalGrowth) => {
+      if (terminalGrowth >= wacc) return '';
+      const explicitPv = forecast.reduce((sum, row, index) => sum + row.ufcf / (1 + wacc) ** (index + 1), 0);
+      const terminalValue = ((lastForecast?.ufcf ?? 0) * (1 + terminalGrowth)) / (wacc - terminalGrowth);
+      const pvTv = terminalValue / (1 + wacc) ** inputs.years;
+      return roundCache((explicitPv + pvTv - netDebt) / inputs.sharesOutstanding);
+    })
+  );
+  const exitMultipleSensitivity = waccAxis.map((wacc) =>
+    multipleAxis.map((multiple) => {
+      const explicitPv = forecast.reduce((sum, row, index) => sum + row.ufcf / (1 + wacc) ** (index + 1), 0);
+      const pvTv = ((lastForecast?.ebitda ?? 0) * multiple) / (1 + wacc) ** inputs.years;
+      return roundCache((explicitPv + pvTv - netDebt) / inputs.sharesOutstanding);
+    })
+  );
+
+  return {
+    baseYear: {
+      revenue: roundCache(baseRevenue),
+      ebitMargin: roundCache(baseEbitMargin),
+      ebit: roundCache(baseEbit),
+      taxes: roundCache(baseTaxes),
+      nopat: roundCache(baseNopat),
+      da: roundCache(baseDa),
+      capex: roundCache(baseCapex),
+      endingNwc: roundCache(baseEndingNwc),
+      deltaNwc: roundCache(baseDeltaNwc),
+      ufcf: roundCache(baseUfcf),
+    },
+    forecast,
+    pvExplicitFcf,
+    exitMultipleTv,
+    perpetuityTv,
+    selectedTv: roundCache(selectedTv),
+    pvTerminalValue,
+    enterpriseValue,
+    netDebt,
+    equityValue,
+    impliedSharePrice,
+    valueDriverMix: {
+      explicitFcfPctEv: enterpriseValue !== 0 ? roundCache(pvExplicitFcf / enterpriseValue) : 0,
+      terminalValuePctEv: enterpriseValue !== 0 ? roundCache(pvTerminalValue / enterpriseValue) : 0,
+      netDebtPctEv: enterpriseValue !== 0 ? roundCache(netDebt / enterpriseValue) : 0,
+      equityValuePctEv: enterpriseValue !== 0 ? roundCache(equityValue / enterpriseValue) : 0,
+    },
+    sensitivity: {
+      perpetuity: perpetuitySensitivity,
+      exitMultiple: exitMultipleSensitivity,
+    },
+  };
+}
+
 const RANGE_NAMES = {
   forecastYears: 'CB_ForecastYears',
   baseRevenue: 'CB_BaseRevenue',
@@ -82,6 +275,11 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
   const lastForecastYear = forecastYears[forecastYears.length - 1];
   const sharePrice = inputs.sharePrice ?? 0;
   const exitMultiple = 14;
+  const terminalMethod: 'Perpetuity Growth' | 'Exit Multiple' = 'Perpetuity Growth';
+  const waccAxis = buildAxis(inputs.wacc, 0.005, 5, 0.05);
+  const growthAxis = buildAxis(inputs.terminalGrowth, 0.005, 5, 0);
+  const multipleAxis = [10, 12, 14, 16, 18];
+  const cache = computeDcfWorkbookCache(inputs, forecastYears, waccAxis, growthAxis, multipleAxis, exitMultiple, terminalMethod);
   const equations: EquationRow[] = [];
 
   applyWorkbookMeta(workbook, `${inputs.companyName} DCF Valuation`);
@@ -116,15 +314,15 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
 
   styleSectionHeader(coverSheet, 10, 'Assumption Snapshot', 3);
   coverSheet.getCell('A11').value = 'Forecast years';
-  coverSheet.getCell('B11').value = { formula: `=${RANGE_NAMES.forecastYears}` };
+  coverSheet.getCell('B11').value = formulaValue(`=${RANGE_NAMES.forecastYears}`, inputs.years);
   coverSheet.getCell('A12').value = 'WACC';
-  coverSheet.getCell('B12').value = { formula: `=${RANGE_NAMES.wacc}` };
+  coverSheet.getCell('B12').value = formulaValue(`=${RANGE_NAMES.wacc}`, inputs.wacc);
   coverSheet.getCell('A13').value = 'Terminal growth';
-  coverSheet.getCell('B13').value = { formula: `=${RANGE_NAMES.terminalGrowth}` };
+  coverSheet.getCell('B13').value = formulaValue(`=${RANGE_NAMES.terminalGrowth}`, inputs.terminalGrowth);
   coverSheet.getCell('A14').value = 'Exit multiple';
-  coverSheet.getCell('B14').value = { formula: `=${RANGE_NAMES.exitMultiple}` };
+  coverSheet.getCell('B14').value = formulaValue(`=${RANGE_NAMES.exitMultiple}`, exitMultiple);
   coverSheet.getCell('A15').value = 'Terminal method';
-  coverSheet.getCell('B15').value = { formula: `=${RANGE_NAMES.terminalMethod}` };
+  coverSheet.getCell('B15').value = formulaValue(`=${RANGE_NAMES.terminalMethod}`, terminalMethod);
   ['A11', 'A12', 'A13', 'A14', 'A15'].forEach((ref) => styleLabel(coverSheet.getCell(ref)));
   styleFormula(coverSheet.getCell('B11'), 'number');
   styleFormula(coverSheet.getCell('B12'), 'percent');
@@ -134,15 +332,15 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
 
   styleSectionHeader(coverSheet, 10, 'Valuation Snapshot', 7);
   coverSheet.getCell('E11').value = 'Enterprise Value';
-  coverSheet.getCell('F11').value = { formula: `=${RANGE_NAMES.enterpriseValue}` };
+  coverSheet.getCell('F11').value = formulaValue(`=${RANGE_NAMES.enterpriseValue}`, cache.enterpriseValue);
   coverSheet.getCell('E12').value = 'Equity Value';
-  coverSheet.getCell('F12').value = { formula: `=${RANGE_NAMES.equityValue}` };
+  coverSheet.getCell('F12').value = formulaValue(`=${RANGE_NAMES.equityValue}`, cache.equityValue);
   coverSheet.getCell('E13').value = 'Implied Share Price';
-  coverSheet.getCell('F13').value = { formula: `=${RANGE_NAMES.impliedSharePrice}` };
+  coverSheet.getCell('F13').value = formulaValue(`=${RANGE_NAMES.impliedSharePrice}`, cache.impliedSharePrice);
   coverSheet.getCell('E14').value = 'PV of Explicit FCF';
-  coverSheet.getCell('F14').value = { formula: `=${RANGE_NAMES.pvExplicitFcf}` };
+  coverSheet.getCell('F14').value = formulaValue(`=${RANGE_NAMES.pvExplicitFcf}`, cache.pvExplicitFcf);
   coverSheet.getCell('E15').value = 'PV of Terminal Value';
-  coverSheet.getCell('F15').value = { formula: `=${RANGE_NAMES.pvTerminalValue}` };
+  coverSheet.getCell('F15').value = formulaValue(`=${RANGE_NAMES.pvTerminalValue}`, cache.pvTerminalValue);
   ['E11', 'E12', 'E13', 'E14', 'E15'].forEach((ref) => styleLabel(coverSheet.getCell(ref)));
   styleAccentOutput(coverSheet.getCell('F11'), 'currency');
   styleAccentOutput(coverSheet.getCell('F12'), 'currency');
@@ -154,15 +352,15 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
 
   styleSectionHeader(coverSheet, 18, 'Valuation Bridge', 3);
   coverSheet.getCell('A19').value = 'PV of Explicit FCF';
-  coverSheet.getCell('B19').value = { formula: `=${RANGE_NAMES.pvExplicitFcf}` };
+  coverSheet.getCell('B19').value = formulaValue(`=${RANGE_NAMES.pvExplicitFcf}`, cache.pvExplicitFcf);
   coverSheet.getCell('A20').value = 'PV of Terminal Value';
-  coverSheet.getCell('B20').value = { formula: `=${RANGE_NAMES.pvTerminalValue}` };
+  coverSheet.getCell('B20').value = formulaValue(`=${RANGE_NAMES.pvTerminalValue}`, cache.pvTerminalValue);
   coverSheet.getCell('A21').value = 'Enterprise Value';
-  coverSheet.getCell('B21').value = { formula: `=${RANGE_NAMES.enterpriseValue}` };
+  coverSheet.getCell('B21').value = formulaValue(`=${RANGE_NAMES.enterpriseValue}`, cache.enterpriseValue);
   coverSheet.getCell('A22').value = 'Net debt / (cash)';
-  coverSheet.getCell('B22').value = { formula: `=${RANGE_NAMES.netDebt}` };
+  coverSheet.getCell('B22').value = formulaValue(`=${RANGE_NAMES.netDebt}`, cache.netDebt);
   coverSheet.getCell('A23').value = 'Equity Value';
-  coverSheet.getCell('B23').value = { formula: `=${RANGE_NAMES.equityValue}` };
+  coverSheet.getCell('B23').value = formulaValue(`=${RANGE_NAMES.equityValue}`, cache.equityValue);
   ['A19', 'A20', 'A21', 'A22', 'A23'].forEach((ref) => styleLabel(coverSheet.getCell(ref)));
   ['B19', 'B20', 'B21', 'B22', 'B23'].forEach((ref, index) =>
     index === 2 || index === 4 ? styleOutput(coverSheet.getCell(ref), 'currency') : styleFormula(coverSheet.getCell(ref), 'currency')
@@ -170,17 +368,24 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
 
   styleSectionHeader(coverSheet, 18, 'Sensitivity Snapshot', 8);
   coverSheet.getCell('E19').value = 'Implied Share Price';
-  coverSheet.getCell('F19').value = { formula: `=${RANGE_NAMES.impliedSharePrice}` };
+  coverSheet.getCell('F19').value = formulaValue(`=${RANGE_NAMES.impliedSharePrice}`, cache.impliedSharePrice);
   coverSheet.getCell('E20').value = 'Current Share Price';
-  coverSheet.getCell('F20').value = { formula: `=${RANGE_NAMES.currentSharePrice}` };
+  coverSheet.getCell('F20').value = formulaValue(`=${RANGE_NAMES.currentSharePrice}`, sharePrice);
   coverSheet.getCell('E21').value = 'Upside / (Downside)';
-  coverSheet.getCell('F21').value = {
-    formula: `=IF(${RANGE_NAMES.currentSharePrice}>0,${RANGE_NAMES.impliedSharePrice}/${RANGE_NAMES.currentSharePrice}-1,"")`,
-  };
+  coverSheet.getCell('F21').value = formulaValue(
+    `=IF(${RANGE_NAMES.currentSharePrice}>0,${RANGE_NAMES.impliedSharePrice}/${RANGE_NAMES.currentSharePrice}-1,"")`,
+    sharePrice > 0 ? roundCache(cache.impliedSharePrice / sharePrice - 1) : ''
+  );
   coverSheet.getCell('E22').value = 'Low Sensitivity Price';
-  coverSheet.getCell('F22').value = { formula: '=MIN(Sensitivity!C5:G9)' };
+  coverSheet.getCell('F22').value = formulaValue(
+    '=MIN(Sensitivity!C5:G9)',
+    Math.min(...cache.sensitivity.perpetuity.flat().filter((value): value is number => typeof value === 'number'))
+  );
   coverSheet.getCell('E23').value = 'High Sensitivity Price';
-  coverSheet.getCell('F23').value = { formula: '=MAX(Sensitivity!C5:G9)' };
+  coverSheet.getCell('F23').value = formulaValue(
+    '=MAX(Sensitivity!C5:G9)',
+    Math.max(...cache.sensitivity.perpetuity.flat().filter((value): value is number => typeof value === 'number'))
+  );
   ['E19', 'E20', 'E21', 'E22', 'E23'].forEach((ref) => styleLabel(coverSheet.getCell(ref)));
   styleAccentOutput(coverSheet.getCell('F19'), 'currency');
   styleFormula(coverSheet.getCell('F20'), 'currency');
@@ -234,7 +439,7 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
   assumptionsSheet.getCell('A17').value = 'Exit EBITDA multiple';
   assumptionsSheet.getCell('B17').value = exitMultiple;
   assumptionsSheet.getCell('A18').value = 'Terminal method';
-  assumptionsSheet.getCell('B18').value = 'Perpetuity Growth';
+  assumptionsSheet.getCell('B18').value = terminalMethod;
   assumptionsSheet.getCell('A19').value = 'Tax rate';
   assumptionsSheet.getCell('B19').value = inputs.taxRate;
   assumptionsSheet.getCell('A20').value = 'D&A % revenue';
@@ -339,16 +544,16 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
     styleLabel(forecastSheet.getCell(`A${row}`));
   });
 
-  forecastSheet.getCell(`B${forecastRows.revenue}`).value = { formula: `=${RANGE_NAMES.baseRevenue}` };
+  forecastSheet.getCell(`B${forecastRows.revenue}`).value = formulaValue(`=${RANGE_NAMES.baseRevenue}`, cache.baseYear.revenue);
   forecastSheet.getCell(`B${forecastRows.revenueGrowth}`).value = '';
   forecastSheet.getCell(`B${forecastRows.ebitMargin}`).value = inputs.ebitMargin[0];
-  forecastSheet.getCell(`B${forecastRows.ebit}`).value = { formula: `=B${forecastRows.revenue}*B${forecastRows.ebitMargin}` };
-  forecastSheet.getCell(`B${forecastRows.taxes}`).value = { formula: `=MAX(B${forecastRows.ebit},0)*${RANGE_NAMES.taxRate}` };
-  forecastSheet.getCell(`B${forecastRows.nopat}`).value = { formula: `=B${forecastRows.ebit}-B${forecastRows.taxes}` };
-  forecastSheet.getCell(`B${forecastRows.da}`).value = { formula: `=B${forecastRows.revenue}*${RANGE_NAMES.daPctRevenue}` };
-  forecastSheet.getCell(`B${forecastRows.capex}`).value = { formula: `=B${forecastRows.revenue}*${RANGE_NAMES.capexPctRevenue}` };
+  forecastSheet.getCell(`B${forecastRows.ebit}`).value = formulaValue(`=B${forecastRows.revenue}*B${forecastRows.ebitMargin}`, cache.baseYear.ebit);
+  forecastSheet.getCell(`B${forecastRows.taxes}`).value = formulaValue(`=MAX(B${forecastRows.ebit},0)*${RANGE_NAMES.taxRate}`, cache.baseYear.taxes);
+  forecastSheet.getCell(`B${forecastRows.nopat}`).value = formulaValue(`=B${forecastRows.ebit}-B${forecastRows.taxes}`, cache.baseYear.nopat);
+  forecastSheet.getCell(`B${forecastRows.da}`).value = formulaValue(`=B${forecastRows.revenue}*${RANGE_NAMES.daPctRevenue}`, cache.baseYear.da);
+  forecastSheet.getCell(`B${forecastRows.capex}`).value = formulaValue(`=B${forecastRows.revenue}*${RANGE_NAMES.capexPctRevenue}`, cache.baseYear.capex);
   forecastSheet.getCell(`B${forecastRows.deltaNwc}`).value = 0;
-  forecastSheet.getCell(`B${forecastRows.ufcf}`).value = { formula: `=B${forecastRows.nopat}+B${forecastRows.da}-B${forecastRows.capex}-B${forecastRows.deltaNwc}` };
+  forecastSheet.getCell(`B${forecastRows.ufcf}`).value = formulaValue(`=B${forecastRows.nopat}+B${forecastRows.da}-B${forecastRows.capex}-B${forecastRows.deltaNwc}`, cache.baseYear.ufcf);
   styleFormula(forecastSheet.getCell(`B${forecastRows.revenue}`), 'currency');
   styleFormula(forecastSheet.getCell(`B${forecastRows.ebitMargin}`), 'percent');
   [forecastRows.ebit, forecastRows.taxes, forecastRows.nopat, forecastRows.da, forecastRows.capex, forecastRows.deltaNwc].forEach((row) =>
@@ -360,6 +565,7 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
   let previousNwcValue: string = `B${forecastRows.revenue}*${yearName('NWCPct', forecastYears[0])}`;
   forecastYears.forEach((year, index) => {
     const letter = col(3 + index);
+    const rowCache = cache.forecast[index];
     const revenueName = yearName('Revenue', year);
     const ebitName = yearName('EBIT', year);
     const nopatName = yearName('NOPAT', year);
@@ -373,16 +579,16 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
     const capexPctName = yearName('CapexPct', year);
     const nwcPctName = yearName('NWCPct', year);
 
-    forecastSheet.getCell(`${letter}${forecastRows.revenue}`).value = { formula: `=${previousRevenueName}*(1+${growthName})` };
-    forecastSheet.getCell(`${letter}${forecastRows.revenueGrowth}`).value = { formula: `=${growthName}` };
-    forecastSheet.getCell(`${letter}${forecastRows.ebit}`).value = { formula: `=${revenueName}*${marginName}` };
-    forecastSheet.getCell(`${letter}${forecastRows.ebitMargin}`).value = { formula: `=${marginName}` };
-    forecastSheet.getCell(`${letter}${forecastRows.taxes}`).value = { formula: `=MAX(${ebitName},0)*${RANGE_NAMES.taxRate}` };
-    forecastSheet.getCell(`${letter}${forecastRows.nopat}`).value = { formula: `=${ebitName}-${letter}${forecastRows.taxes}` };
-    forecastSheet.getCell(`${letter}${forecastRows.da}`).value = { formula: `=${revenueName}*${daPctName}` };
-    forecastSheet.getCell(`${letter}${forecastRows.capex}`).value = { formula: `=${revenueName}*${capexPctName}` };
-    forecastSheet.getCell(`${letter}${forecastRows.deltaNwc}`).value = { formula: `=(${revenueName}*${nwcPctName})-(${previousNwcValue})` };
-    forecastSheet.getCell(`${letter}${forecastRows.ufcf}`).value = { formula: `=${nopatName}+${daName}-${capexName}-${deltaNwcName}` };
+    forecastSheet.getCell(`${letter}${forecastRows.revenue}`).value = formulaValue(`=${previousRevenueName}*(1+${growthName})`, rowCache.revenue);
+    forecastSheet.getCell(`${letter}${forecastRows.revenueGrowth}`).value = formulaValue(`=${growthName}`, rowCache.revenueGrowth);
+    forecastSheet.getCell(`${letter}${forecastRows.ebit}`).value = formulaValue(`=${revenueName}*${marginName}`, rowCache.ebit);
+    forecastSheet.getCell(`${letter}${forecastRows.ebitMargin}`).value = formulaValue(`=${marginName}`, rowCache.ebitMargin);
+    forecastSheet.getCell(`${letter}${forecastRows.taxes}`).value = formulaValue(`=MAX(${ebitName},0)*${RANGE_NAMES.taxRate}`, rowCache.taxes);
+    forecastSheet.getCell(`${letter}${forecastRows.nopat}`).value = formulaValue(`=${ebitName}-${letter}${forecastRows.taxes}`, rowCache.nopat);
+    forecastSheet.getCell(`${letter}${forecastRows.da}`).value = formulaValue(`=${revenueName}*${daPctName}`, rowCache.da);
+    forecastSheet.getCell(`${letter}${forecastRows.capex}`).value = formulaValue(`=${revenueName}*${capexPctName}`, rowCache.capex);
+    forecastSheet.getCell(`${letter}${forecastRows.deltaNwc}`).value = formulaValue(`=(${revenueName}*${nwcPctName})-(${previousNwcValue})`, rowCache.deltaNwc);
+    forecastSheet.getCell(`${letter}${forecastRows.ufcf}`).value = formulaValue(`=${nopatName}+${daName}-${capexName}-${deltaNwcName}`, rowCache.ufcf);
 
     styleFormula(forecastSheet.getCell(`${letter}${forecastRows.revenue}`), 'currency');
     styleInput(forecastSheet.getCell(`${letter}${forecastRows.revenueGrowth}`), 'percent');
@@ -481,11 +687,11 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
 
   forecastYears.forEach((year, index) => {
     const letter = col(3 + index);
-    valuationSheet.getCell(`${letter}${valRows.ufcf}`).value = { formula: `=${yearName('UFCF', year)}` };
+    valuationSheet.getCell(`${letter}${valRows.ufcf}`).value = formulaValue(`=${yearName('UFCF', year)}`, cache.forecast[index].ufcf);
     valuationSheet.getCell(`${letter}${valRows.period}`).value = index + 1;
-    valuationSheet.getCell(`${letter}${valRows.discountFactor}`).value = { formula: `=1/(1+${RANGE_NAMES.wacc})^${index + 1}` };
-    valuationSheet.getCell(`${letter}${valRows.pvFcf}`).value = { formula: `=${letter}${valRows.ufcf}*${letter}${valRows.discountFactor}` };
-    valuationSheet.getCell(`${letter}${valRows.ebitda}`).value = { formula: `=${yearName('EBIT', year)}+${yearName('DA', year)}` };
+    valuationSheet.getCell(`${letter}${valRows.discountFactor}`).value = formulaValue(`=1/(1+${RANGE_NAMES.wacc})^${index + 1}`, cache.forecast[index].discountFactor);
+    valuationSheet.getCell(`${letter}${valRows.pvFcf}`).value = formulaValue(`=${letter}${valRows.ufcf}*${letter}${valRows.discountFactor}`, cache.forecast[index].pvFcf);
+    valuationSheet.getCell(`${letter}${valRows.ebitda}`).value = formulaValue(`=${yearName('EBIT', year)}+${yearName('DA', year)}`, cache.forecast[index].ebitda);
     styleFormula(valuationSheet.getCell(`${letter}${valRows.ufcf}`), 'currency');
     styleFormula(valuationSheet.getCell(`${letter}${valRows.period}`), 'number');
     styleFormula(valuationSheet.getCell(`${letter}${valRows.discountFactor}`), 'multiple');
@@ -494,24 +700,25 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
   });
 
   const lastLetter = col(2 + inputs.years);
-  valuationSheet.getCell(`C${valRows.exitMultipleTv}`).value = { formula: `=${lastLetter}${valRows.ebitda}*${RANGE_NAMES.exitMultiple}` };
-  valuationSheet.getCell(`C${valRows.perpetuityTv}`).value = { formula: `=(${yearName('UFCF', lastForecastYear)}*(1+${RANGE_NAMES.terminalGrowth}))/(${RANGE_NAMES.wacc}-${RANGE_NAMES.terminalGrowth})` };
-  valuationSheet.getCell(`C${valRows.selectedTv}`).value = {
-    formula: `=IF(${RANGE_NAMES.terminalMethod}="Exit Multiple",C${valRows.exitMultipleTv},C${valRows.perpetuityTv})`,
-  };
-  valuationSheet.getCell(`C${valRows.pvTv}`).value = { formula: `=C${valRows.selectedTv}*${lastLetter}${valRows.discountFactor}` };
+  valuationSheet.getCell(`C${valRows.exitMultipleTv}`).value = formulaValue(`=${lastLetter}${valRows.ebitda}*${RANGE_NAMES.exitMultiple}`, cache.exitMultipleTv);
+  valuationSheet.getCell(`C${valRows.perpetuityTv}`).value = formulaValue(`=(${yearName('UFCF', lastForecastYear)}*(1+${RANGE_NAMES.terminalGrowth}))/(${RANGE_NAMES.wacc}-${RANGE_NAMES.terminalGrowth})`, cache.perpetuityTv);
+  valuationSheet.getCell(`C${valRows.selectedTv}`).value = formulaValue(
+    `=IF(${RANGE_NAMES.terminalMethod}="Exit Multiple",C${valRows.exitMultipleTv},C${valRows.perpetuityTv})`,
+    cache.selectedTv
+  );
+  valuationSheet.getCell(`C${valRows.pvTv}`).value = formulaValue(`=C${valRows.selectedTv}*${lastLetter}${valRows.discountFactor}`, cache.pvTerminalValue);
   styleFormula(valuationSheet.getCell(`C${valRows.exitMultipleTv}`), 'currency');
   styleFormula(valuationSheet.getCell(`C${valRows.perpetuityTv}`), 'currency');
   styleOutput(valuationSheet.getCell(`C${valRows.selectedTv}`), 'currency');
   styleOutput(valuationSheet.getCell(`C${valRows.pvTv}`), 'currency');
 
-  valuationSheet.getCell('B4').value = { formula: `=SUM(C${valRows.pvFcf}:${lastLetter}${valRows.pvFcf})` };
-  valuationSheet.getCell('B5').value = { formula: `=C${valRows.pvTv}` };
-  valuationSheet.getCell('B6').value = { formula: '=B4+B5' };
-  valuationSheet.getCell('B7').value = { formula: `=${RANGE_NAMES.debtBalance}-${RANGE_NAMES.cashBalance}` };
-  valuationSheet.getCell('B8').value = { formula: '=B6-B7' };
-  valuationSheet.getCell('B9').value = { formula: `=IF(${RANGE_NAMES.sharesOutstanding}>0,B8/${RANGE_NAMES.sharesOutstanding},0)` };
-  valuationSheet.getCell('B10').value = { formula: `=${RANGE_NAMES.currentSharePrice}` };
+  valuationSheet.getCell('B4').value = formulaValue(`=SUM(C${valRows.pvFcf}:${lastLetter}${valRows.pvFcf})`, cache.pvExplicitFcf);
+  valuationSheet.getCell('B5').value = formulaValue(`=C${valRows.pvTv}`, cache.pvTerminalValue);
+  valuationSheet.getCell('B6').value = formulaValue('=B4+B5', cache.enterpriseValue);
+  valuationSheet.getCell('B7').value = formulaValue(`=${RANGE_NAMES.debtBalance}-${RANGE_NAMES.cashBalance}`, cache.netDebt);
+  valuationSheet.getCell('B8').value = formulaValue('=B6-B7', cache.equityValue);
+  valuationSheet.getCell('B9').value = formulaValue(`=IF(${RANGE_NAMES.sharesOutstanding}>0,B8/${RANGE_NAMES.sharesOutstanding},0)`, cache.impliedSharePrice);
+  valuationSheet.getCell('B10').value = formulaValue(`=${RANGE_NAMES.currentSharePrice}`, sharePrice);
   styleOutput(valuationSheet.getCell('B4'), 'currency');
   styleOutput(valuationSheet.getCell('B5'), 'currency');
   styleTotal(valuationSheet, 6, 1, 2);
@@ -531,13 +738,13 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
 
   styleSectionHeader(valuationSheet, 25, 'Value Driver Mix', 4);
   valuationSheet.getCell('A26').value = 'Explicit FCF as % EV';
-  valuationSheet.getCell('B26').value = { formula: `=IF(${RANGE_NAMES.enterpriseValue}<>0,${RANGE_NAMES.pvExplicitFcf}/${RANGE_NAMES.enterpriseValue},0)` };
+  valuationSheet.getCell('B26').value = formulaValue(`=IF(${RANGE_NAMES.enterpriseValue}<>0,${RANGE_NAMES.pvExplicitFcf}/${RANGE_NAMES.enterpriseValue},0)`, cache.valueDriverMix.explicitFcfPctEv);
   valuationSheet.getCell('A27').value = 'Terminal value as % EV';
-  valuationSheet.getCell('B27').value = { formula: `=IF(${RANGE_NAMES.enterpriseValue}<>0,${RANGE_NAMES.pvTerminalValue}/${RANGE_NAMES.enterpriseValue},0)` };
+  valuationSheet.getCell('B27').value = formulaValue(`=IF(${RANGE_NAMES.enterpriseValue}<>0,${RANGE_NAMES.pvTerminalValue}/${RANGE_NAMES.enterpriseValue},0)`, cache.valueDriverMix.terminalValuePctEv);
   valuationSheet.getCell('A28').value = 'Net debt as % EV';
-  valuationSheet.getCell('B28').value = { formula: `=IF(${RANGE_NAMES.enterpriseValue}<>0,${RANGE_NAMES.netDebt}/${RANGE_NAMES.enterpriseValue},0)` };
+  valuationSheet.getCell('B28').value = formulaValue(`=IF(${RANGE_NAMES.enterpriseValue}<>0,${RANGE_NAMES.netDebt}/${RANGE_NAMES.enterpriseValue},0)`, cache.valueDriverMix.netDebtPctEv);
   valuationSheet.getCell('A29').value = 'Equity value / EV';
-  valuationSheet.getCell('B29').value = { formula: `=IF(${RANGE_NAMES.enterpriseValue}<>0,${RANGE_NAMES.equityValue}/${RANGE_NAMES.enterpriseValue},0)` };
+  valuationSheet.getCell('B29').value = formulaValue(`=IF(${RANGE_NAMES.enterpriseValue}<>0,${RANGE_NAMES.equityValue}/${RANGE_NAMES.enterpriseValue},0)`, cache.valueDriverMix.equityValuePctEv);
   ['A26', 'A27', 'A28', 'A29'].forEach((ref) => styleLabel(valuationSheet.getCell(ref)));
   ['B26', 'B27', 'B28', 'B29'].forEach((ref) => styleOutput(valuationSheet.getCell(ref), 'percent'));
   styleThinGrid(valuationSheet, 26, 29, 1, 2);
@@ -573,8 +780,6 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
   styleSectionHeader(sensitivitySheet, 3, 'WACC vs Terminal Growth', 8);
   styleTableHeader(sensitivitySheet, 4, 1, 7);
   sensitivitySheet.getCell('A4').value = 'WACC \\ Terminal g';
-  const waccAxis = buildAxis(inputs.wacc, 0.005, 5, 0.05);
-  const growthAxis = buildAxis(inputs.terminalGrowth, 0.005, 5, 0);
   growthAxis.forEach((value, index) => {
     sensitivitySheet.getCell(4, 3 + index).value = value;
     styleInput(sensitivitySheet.getCell(4, 3 + index), 'percent');
@@ -595,6 +800,7 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
           `${explicitPv})+((` +
           `${yearName('UFCF', lastForecastYear)}*(1+${terminalRef}))/(${waccRef}-${terminalRef})` +
           `)/(1+${waccRef})^${inputs.years}-(${RANGE_NAMES.debtBalance}-${RANGE_NAMES.cashBalance}))/${RANGE_NAMES.sharesOutstanding})`,
+        result: cache.sensitivity.perpetuity[rowIndex][colIndex] as number | string,
       };
       styleFormula(sensitivitySheet.getCell(row, 3 + colIndex), 'currency');
     });
@@ -603,7 +809,6 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
   styleSectionHeader(sensitivitySheet, 12, 'WACC vs Exit Multiple', 8);
   styleTableHeader(sensitivitySheet, 13, 1, 7);
   sensitivitySheet.getCell('A13').value = 'WACC \\ Exit multiple';
-  const multipleAxis = [10, 12, 14, 16, 18];
   multipleAxis.forEach((value, index) => {
     sensitivitySheet.getCell(13, 3 + index).value = value;
     styleInput(sensitivitySheet.getCell(13, 3 + index), 'multiple');
@@ -622,6 +827,7 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
         formula:
           `=((` +
           `${explicitPv})+((${lastLetter}${valRows.ebitda}*${multipleRef})/(1+${waccRef})^${inputs.years})-(${RANGE_NAMES.debtBalance}-${RANGE_NAMES.cashBalance}))/${RANGE_NAMES.sharesOutstanding}`,
+        result: cache.sensitivity.exitMultiple[rowIndex][colIndex],
       };
       styleFormula(sensitivitySheet.getCell(row, 3 + colIndex), 'currency');
     });

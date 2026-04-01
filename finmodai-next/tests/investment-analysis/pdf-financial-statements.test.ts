@@ -77,6 +77,7 @@ test('extractPdfStatementPackage keeps statement values in millions while applyi
   assert.equal(parsed?.snapshot?.sharesOutstanding, 14_810_356_000);
   assert.equal(parsed?.snapshot?.revenue, 497_200_000_000);
   assert.equal(parsed?.snapshot?.cash, 45_317_000_000);
+  assert.equal(parsed?.snapshot?.totalDebt, 96_000_000_000);
 });
 
 test('financial PDF extraction only becomes seedable after trusted server-side extraction', () => {
@@ -153,6 +154,7 @@ test('server-side extractor and statement parser handle the Apple quarterly fina
   assert.ok(typeof parsed?.snapshot?.operatingIncome === 'number' && parsed.snapshot.operatingIncome > 0);
   assert.ok(typeof parsed?.snapshot?.netIncome === 'number' && parsed.snapshot.netIncome > 0);
   assert.ok(typeof parsed?.snapshot?.cash === 'number' && parsed.snapshot.cash > 0);
+  assert.ok(typeof parsed?.snapshot?.totalDebt === 'number' && parsed.snapshot.totalDebt > 80_000_000_000);
   assert.ok(typeof parsed?.snapshot?.sharesOutstanding === 'number' && parsed.snapshot.sharesOutstanding > 10_000_000_000);
 
   const trust = assessPdfStatementExtraction({

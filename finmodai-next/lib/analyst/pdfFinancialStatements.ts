@@ -392,6 +392,41 @@ function computeTotalDebt(lines: PdfStatementLine[]): number | null {
   return sum > 0 ? sum : null;
 }
 
+function extractDebtFromText(text: string, units: PdfStatementUnits): number | null {
+  const lines = sanitizeText(text)
+    .split('\n')
+    .map((line) => sanitizeLine(line))
+    .filter(Boolean);
+
+  let shortTermDebt = 0;
+  let longTermDebt = 0;
+
+  for (const line of lines) {
+    if (/\b(?:repayments?|payments?)\b/i.test(line)) continue;
+    if (!/\b(?:commercial paper|term debt|short term debt|short-term debt|long term debt|long-term debt|current portion of long term debt|current portion of long-term debt|total debt|debt obligations|borrowings)\b/i.test(line)) {
+      continue;
+    }
+
+    const candidate = chooseCandidateValue(line, units);
+    if (!candidate) continue;
+    const value = Math.abs(candidate.value);
+
+    if (/\b(?:total debt|debt obligations|borrowings)\b/i.test(line)) {
+      return value;
+    }
+    if (/\b(?:commercial paper|short term debt|short-term debt|current portion of long term debt|current portion of long-term debt)\b/i.test(line)) {
+      shortTermDebt += value;
+      continue;
+    }
+    if (/\b(?:term debt|long term debt|long-term debt)\b/i.test(line)) {
+      longTermDebt += value;
+    }
+  }
+
+  const sum = shortTermDebt + longTermDebt;
+  return sum > 0 ? sum : null;
+}
+
 function extractSharesOutstanding(text: string, units: PdfStatementUnits): number | null {
   const patterns = [
     /\bdiluted weighted average shares outstanding\b[^\d]{0,40}([\d,]+(?:\.\d+)?)/i,
@@ -450,7 +485,7 @@ function buildSnapshot(params: {
       ? operatingIncome.value + da.value
       : null);
   const cash = getLine(params.lines, 'cash')?.value ?? null;
-  const totalDebt = computeTotalDebt(params.lines);
+  const totalDebt = computeTotalDebt(params.lines) ?? extractDebtFromText(params.rawText, params.units);
   const sharesOutstandingRaw =
     getLine(params.lines, 'shares_outstanding')?.value ??
     extractSharesOutstanding(params.rawText, params.shareUnits) ??
