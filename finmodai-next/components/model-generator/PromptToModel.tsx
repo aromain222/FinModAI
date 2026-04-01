@@ -17,6 +17,12 @@ import { calculateDebtCapacityPreview } from '@/lib/model-generator/debtCapacity
 import { calculateMergerSummary } from '@/lib/model-generator/mergerSummary';
 import type { ComparisonSummary, ProvenanceSummary } from '@/lib/model-generator/runHistory';
 import { cn } from '@/lib/utils';
+import {
+  createGoogleSheetsPendingWindow,
+  downloadWorkbookArtifact,
+  fetchWorkbookArtifact,
+  openWorkbookInGoogleSheets,
+} from '@/lib/workbookOpen';
 
 type PreviewSummary = {
   modelName: string;
@@ -419,9 +425,11 @@ export function PromptToModel() {
   const [recentRuns, setRecentRuns] = useState<RecentRun[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [generateLoading, setGenerateLoading] = useState(false);
+  const [sheetsLoading, setSheetsLoading] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
   const [runsLoading, setRunsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sheetsNotice, setSheetsNotice] = useState<string | null>(null);
   const [reportError, setReportError] = useState<string | null>(null);
   const hydratedPromptRef = useRef<string | null>(null);
 
@@ -506,37 +514,29 @@ export function PromptToModel() {
 
     setGenerateLoading(true);
     setError(null);
+    setSheetsNotice(null);
 
     try {
       const overrides = parseOverrides();
-      const response = await fetch('/api/model-generator/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      const workbook = await fetchWorkbookArtifact(
+        '/api/model-generator/generate',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          },
+          body: JSON.stringify({
+            prompt: activePrompt,
+            clarificationAnswer: activeClarification || undefined,
+            sessionId: sessionId || undefined,
+            inputOverrides: overrides,
+          }),
         },
-        body: JSON.stringify({
-          prompt: activePrompt,
-          clarificationAnswer: activeClarification || undefined,
-          sessionId: sessionId || undefined,
-          inputOverrides: overrides,
-        }),
-      });
+        'CapitalBase_Model.xlsx',
+      );
 
-      if (!response.ok) {
-        const maybeJson = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(maybeJson?.error || 'Failed to generate workbook.');
-      }
-
-      const blob = await response.blob();
-      const filenameMatch = response.headers.get('Content-Disposition')?.match(/filename="?([^"]+)"?/i);
-      const filename = filenameMatch?.[1] || 'CapitalBase_Model.xlsx';
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = filename;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      downloadWorkbookArtifact(workbook);
 
       if (sessionId) {
         await loadRecentRuns(sessionId);
@@ -546,6 +546,55 @@ export function PromptToModel() {
       setError(err instanceof Error ? err.message : 'Unable to generate workbook.');
     } finally {
       setGenerateLoading(false);
+    }
+  }
+
+  async function handleOpenInGoogleSheets() {
+    const activePrompt = prompt.trim();
+    const activeClarification = clarificationAnswer.trim();
+    if (!activePrompt || !preview?.supported || preview.handoffOnly || preview.needsClarification || sheetsLoading) return;
+
+    setSheetsLoading(true);
+    setError(null);
+    setSheetsNotice(null);
+    const pendingWindow = typeof window !== 'undefined' ? createGoogleSheetsPendingWindow(window) : null;
+
+    try {
+      const overrides = parseOverrides();
+      const workbook = await fetchWorkbookArtifact(
+        '/api/model-generator/generate',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          },
+          body: JSON.stringify({
+            prompt: activePrompt,
+            clarificationAnswer: activeClarification || undefined,
+            sessionId: sessionId || undefined,
+            inputOverrides: overrides,
+          }),
+        },
+        'CapitalBase_Model.xlsx',
+      );
+
+      const result = await openWorkbookInGoogleSheets(workbook, { pendingWindow });
+      if (result.status === 'downloaded_fallback') {
+        setSheetsNotice(result.message);
+      }
+
+      if (sessionId) {
+        await loadRecentRuns(sessionId);
+        await requestPreview(activePrompt, activeClarification);
+      }
+    } catch (err) {
+      if (pendingWindow && !pendingWindow.closed) {
+        pendingWindow.close();
+      }
+      setError(err instanceof Error ? err.message : 'Unable to open workbook in Google Sheets.');
+    } finally {
+      setSheetsLoading(false);
     }
   }
 
@@ -763,12 +812,22 @@ export function PromptToModel() {
                 {generateLoading ? 'Generating Banker Output…' : 'Generate Banker Output'}
               </Button>
             )}
+            {!preview?.handoffOnly ? (
+              <Button variant="outline" onClick={() => void handleOpenInGoogleSheets()} disabled={!canGenerate || sheetsLoading}>
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                {sheetsLoading ? 'Opening Google Sheets…' : 'Open in Google Sheets'}
+              </Button>
+            ) : null}
             {preview?.modelType === 'FOOTBALL_FIELD' || preview?.modelType === 'MERGER' || preview?.modelType === 'DEBT_CAPACITY_LITE' ? (
               <Button variant="outline" onClick={() => void handleGenerateReport()} disabled={!canGenerateReport}>
                 {reportLoading ? 'Generating Report PDF…' : 'Generate Report PDF'}
               </Button>
             ) : null}
+            <p className="text-xs text-[var(--cb-text-muted)]">
+              Open in Google Sheets bypasses local `.xlsx` app associations like Apple Numbers.
+            </p>
             {error ? <p className="text-sm text-[#fda4af]">{error}</p> : null}
+            {sheetsNotice ? <p className="text-sm text-[#fde68a]">{sheetsNotice}</p> : null}
             {reportError ? <p className="text-sm text-[#fda4af]">{reportError}</p> : null}
           </div>
         </CardContent>

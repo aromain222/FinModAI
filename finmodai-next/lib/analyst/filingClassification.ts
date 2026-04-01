@@ -74,7 +74,7 @@ function detectRawFilingType(params: {
   summary: string;
   rawText?: string;
   kind: AttachmentKind;
-}): { rawFilingType: RawFilingType | null; confidence: 'low' | 'medium' | 'high' } {
+}): { rawFilingType: RawFilingType | null; confidence: 'low' | 'medium' | 'high' } | null {
   const haystack = `${params.name}\n${params.mimeType}\n${params.summary}\n${params.rawText ?? ''}`.toLowerCase();
   const byPattern = (pattern: RegExp, type: RawFilingType, confidence: 'low' | 'medium' | 'high' = 'high') =>
     pattern.test(haystack) ? { rawFilingType: type, confidence } : null;

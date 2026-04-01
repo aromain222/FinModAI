@@ -11,6 +11,12 @@ import { FormattedTextBlock } from '@/components/ui/formatted-text-block';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 import { formatCompactCurrency } from '@/lib/analyst/dcfFormatting';
 import { buildAnalystDcfPreviewPayload } from '@/lib/analyst/dcfPreview';
+import {
+  createGoogleSheetsPendingWindow,
+  downloadWorkbookArtifact,
+  fetchWorkbookArtifact,
+  openWorkbookInGoogleSheets,
+} from '@/lib/workbookOpen';
 
 function fmtMillions(value: number): string {
   return formatCompactCurrency(value);
@@ -61,6 +67,8 @@ export function AnalystDcfCard({
 }) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [isOpeningInSheets, setIsOpeningInSheets] = useState(false);
+  const [sheetsNotice, setSheetsNotice] = useState<string | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
   const [showControls, setShowControls] = useState(true);
@@ -168,35 +176,63 @@ export function AnalystDcfCard({
 
     setIsDownloading(true);
     setDownloadError(null);
+    setSheetsNotice(null);
 
     try {
-      const response = await fetch('/api/analyst-chat/dcf-export', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      const workbook = await fetchWorkbookArtifact(
+        '/api/analyst-chat/dcf-export',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          },
+          body: JSON.stringify({ payload }),
         },
-        body: JSON.stringify({ payload }),
-      });
+        `${payload.ticker}_DCF_Demo.xlsx`,
+      );
 
-      if (!response.ok) {
-        const maybeJson = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(maybeJson?.error || 'Failed to export DCF workbook.');
-      }
-
-      const blob = await response.blob();
-      const filenameMatch = response.headers.get('Content-Disposition')?.match(/filename="?([^"]+)"?/i);
-      const filename = filenameMatch?.[1] || `${payload.ticker}_DCF_Demo.xlsx`;
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = filename;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      downloadWorkbookArtifact(workbook);
     } catch (error) {
       setDownloadError(error instanceof Error ? error.message : 'Unable to download workbook.');
     } finally {
       setIsDownloading(false);
+    }
+  }
+
+  async function handleOpenInGoogleSheets() {
+    if (isOpeningInSheets) return;
+
+    setIsOpeningInSheets(true);
+    setDownloadError(null);
+    setSheetsNotice(null);
+    const pendingWindow = typeof window !== 'undefined' ? createGoogleSheetsPendingWindow(window) : null;
+
+    try {
+      const workbook = await fetchWorkbookArtifact(
+        '/api/analyst-chat/dcf-export',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          },
+          body: JSON.stringify({ payload }),
+        },
+        `${payload.ticker}_DCF_Demo.xlsx`,
+      );
+
+      const result = await openWorkbookInGoogleSheets(workbook, { pendingWindow });
+      if (result.status === 'downloaded_fallback') {
+        setSheetsNotice(result.message);
+      }
+    } catch (error) {
+      if (pendingWindow && !pendingWindow.closed) {
+        pendingWindow.close();
+      }
+      setDownloadError(error instanceof Error ? error.message : 'Unable to open workbook in Google Sheets.');
+    } finally {
+      setIsOpeningInSheets(false);
     }
   }
 
@@ -315,6 +351,9 @@ export function AnalystDcfCard({
             <CardDescription>
               {payload.companyName} ({payload.ticker}) with deterministic valuation math, editable live preview, and export-ready workbook output.
             </CardDescription>
+            <div className="text-xs text-[var(--cb-text-muted)]">
+              Use Google Sheets to bypass local `.xlsx` app associations like Apple Numbers.
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">{payload.years}Y</Badge>
@@ -322,6 +361,9 @@ export function AnalystDcfCard({
             <Badge variant="outline">{payload.source}</Badge>
             <Button type="button" variant="outline" size="sm" onClick={() => void handleGenerateReport()} disabled={isGeneratingReport}>
               {isGeneratingReport ? 'Generating Memo PDF…' : 'Generate Memo PDF'}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => void handleOpenInGoogleSheets()} disabled={isOpeningInSheets}>
+              {isOpeningInSheets ? 'Opening Google Sheets…' : 'Open in Google Sheets'}
             </Button>
             <Button type="button" variant="outline" size="sm" onClick={() => void handleDownload()} disabled={isDownloading}>
               {isDownloading ? 'Preparing Excel…' : 'Download Excel'}
@@ -333,6 +375,11 @@ export function AnalystDcfCard({
         {downloadError ? (
           <div className="rounded-xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.16)] px-3 py-2 text-sm text-[#fecaca]">
             {downloadError}
+          </div>
+        ) : null}
+        {sheetsNotice ? (
+          <div className="rounded-xl border border-[rgba(245,158,11,0.45)] bg-[rgba(245,158,11,0.12)] px-3 py-2 text-sm text-[#fde68a]">
+            {sheetsNotice}
           </div>
         ) : null}
         {reportError ? (

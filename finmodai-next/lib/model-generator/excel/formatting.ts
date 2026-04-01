@@ -94,7 +94,10 @@ export function finalizeWorkbookCompatibility<T extends ExcelJS.Workbook>(workbo
           cell.value = sanitizeCellValue(cell.value);
         }
         if (cell.note) {
-          cell.note = sanitizeCellNote(cell.note);
+          const sanitizedNote = sanitizeCellNote(cell.note);
+          if (sanitizedNote !== undefined) {
+            cell.note = sanitizedNote;
+          }
         }
         if (cell.value !== null && cell.value !== undefined || cell.font || cell.fill || cell.border || cell.alignment) {
           cell.font = ensureFontName(cell.font);

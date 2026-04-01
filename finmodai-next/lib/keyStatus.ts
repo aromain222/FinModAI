@@ -14,6 +14,7 @@ const keysToCheck: { env: string; label: string; required?: boolean }[] = [
   { env: 'SUPABASE_ANON_KEY', label: 'Supabase Anon', required: true },
   { env: 'NEXT_PUBLIC_SUPABASE_URL', label: 'Supabase URL (public)' },
   { env: 'NEXT_PUBLIC_SUPABASE_ANON_KEY', label: 'Supabase Anon (public)' },
+  { env: 'NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID', label: 'Google Drive Client ID (public)' },
   { env: 'REDIS_URL', label: 'Redis (BullMQ)' },
   { env: 'SENTRY_DSN', label: 'Sentry DSN' },
 ];

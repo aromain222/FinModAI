@@ -9,6 +9,12 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { EditableFinanceChart } from '@/components/charts/EditableFinanceChart';
 import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } from '@/lib/analyst/modelChat';
+import {
+  createGoogleSheetsPendingWindow,
+  downloadWorkbookArtifact,
+  fetchWorkbookArtifact,
+  openWorkbookInGoogleSheets,
+} from '@/lib/workbookOpen';
 
 type CompsTickerAdjustment = {
   revenueShiftPct: number;
@@ -631,6 +637,8 @@ export function AnalystModelCard({
 }) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [isOpeningInSheets, setIsOpeningInSheets] = useState(false);
+  const [sheetsNotice, setSheetsNotice] = useState<string | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
   const [showControls, setShowControls] = useState(payload.modelType !== 'COMPS');
@@ -822,37 +830,67 @@ export function AnalystModelCard({
 
     setIsDownloading(true);
     setDownloadError(null);
+    setSheetsNotice(null);
 
     try {
-      const response = await fetch('/api/analyst-chat/model-export', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      const workbook = await fetchWorkbookArtifact(
+        '/api/analyst-chat/model-export',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          },
+          body: JSON.stringify({
+            payload,
+          }),
         },
-        body: JSON.stringify({
-          payload,
-        }),
-      });
+        defaultWorkbookFilename(payload),
+      );
 
-      if (!response.ok) {
-        const maybeJson = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(maybeJson?.error || 'Failed to export model workbook.');
-      }
-
-      const blob = await response.blob();
-      const filenameMatch = response.headers.get('Content-Disposition')?.match(/filename="?([^"]+)"?/i);
-      const filename = filenameMatch?.[1] || defaultWorkbookFilename(payload);
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = filename;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      downloadWorkbookArtifact(workbook);
     } catch (error) {
       setDownloadError(error instanceof Error ? error.message : 'Unable to download workbook.');
     } finally {
       setIsDownloading(false);
+    }
+  }
+
+  async function handleOpenInGoogleSheets() {
+    if (isOpeningInSheets) return;
+
+    setIsOpeningInSheets(true);
+    setDownloadError(null);
+    setSheetsNotice(null);
+    const pendingWindow = typeof window !== 'undefined' ? createGoogleSheetsPendingWindow(window) : null;
+
+    try {
+      const workbook = await fetchWorkbookArtifact(
+        '/api/analyst-chat/model-export',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          },
+          body: JSON.stringify({
+            payload,
+          }),
+        },
+        defaultWorkbookFilename(payload),
+      );
+
+      const result = await openWorkbookInGoogleSheets(workbook, { pendingWindow });
+      if (result.status === 'downloaded_fallback') {
+        setSheetsNotice(result.message);
+      }
+    } catch (error) {
+      if (pendingWindow && !pendingWindow.closed) {
+        pendingWindow.close();
+      }
+      setDownloadError(error instanceof Error ? error.message : 'Unable to open workbook in Google Sheets.');
+    } finally {
+      setIsOpeningInSheets(false);
     }
   }
 
@@ -1018,6 +1056,9 @@ export function AnalystModelCard({
           <div className="space-y-1">
             <CardTitle className="text-base">{displayWorkspaceTitle(payload.modelType)}</CardTitle>
             <CardDescription>{displayModelTitle(payload)}</CardDescription>
+            <div className="text-xs text-[var(--cb-text-muted)]">
+              Use Google Sheets to bypass local `.xlsx` app associations like Apple Numbers.
+            </div>
             {payload.modelType === 'COMPS' && payload.scenarioContext ? (
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <Badge variant="outline">Scenario</Badge>
@@ -1030,6 +1071,9 @@ export function AnalystModelCard({
             <Button type="button" variant="outline" size="sm" onClick={() => void handleGenerateReport()} disabled={isGeneratingReport}>
               {isGeneratingReport ? 'Generating PDF…' : pdfActionLabel(payload.modelType)}
             </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => void handleOpenInGoogleSheets()} disabled={isOpeningInSheets}>
+              {isOpeningInSheets ? 'Opening Google Sheets…' : 'Open in Google Sheets'}
+            </Button>
             <Button type="button" variant="outline" size="sm" onClick={() => void handleDownload()} disabled={isDownloading}>
               {isDownloading ? 'Preparing Excel…' : excelActionLabel(payload.modelType)}
             </Button>
@@ -1040,6 +1084,11 @@ export function AnalystModelCard({
         {downloadError ? (
           <div className="rounded-xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.16)] px-3 py-2 text-sm text-[#fecaca]">
             {downloadError}
+          </div>
+        ) : null}
+        {sheetsNotice ? (
+          <div className="rounded-xl border border-[rgba(245,158,11,0.45)] bg-[rgba(245,158,11,0.12)] px-3 py-2 text-sm text-[#fde68a]">
+            {sheetsNotice}
           </div>
         ) : null}
         {reportError ? (
