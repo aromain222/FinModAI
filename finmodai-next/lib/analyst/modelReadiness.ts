@@ -1,4 +1,5 @@
 import type { AttachmentStatementSnapshot } from '@/lib/analyst/pdfFinancialStatements';
+import type { AttachmentModelExtractionContext } from '@/lib/analyst/claudeModelExtraction';
 import type { ModelGeneratorType } from '@/lib/model-generator/classifyPrompt';
 
 export type AttachmentDrivenModelType = Extract<ModelGeneratorType, 'DCF' | 'THREE_STATEMENT' | 'COMPS' | 'LBO'>;
@@ -15,6 +16,9 @@ export type PendingModelRequest = {
 export type AttachmentModelReadiness = {
   ready: boolean;
   missingInputs: string[];
+  missingRequiredFields?: string[];
+  requiredCategories?: string[];
+  satisfiedBy?: Record<string, string[]>;
   clarificationField?: string;
   clarificationFieldLabel?: string;
   clarificationParseType?: ClarificationParseType;
@@ -192,20 +196,34 @@ export function evaluateAttachmentModelReadiness(params: {
   modelType: AttachmentDrivenModelType;
   attachmentSnapshot?: AttachmentStatementSnapshot | null;
   inputOverrides?: Record<string, unknown>;
+  extractionContext?: AttachmentModelExtractionContext | null;
 }): AttachmentModelReadiness {
-  const snapshot = params.attachmentSnapshot ?? null;
+  const snapshot = params.extractionContext?.snapshot ?? params.attachmentSnapshot ?? null;
   const overrides = params.inputOverrides ?? {};
   const specs = MODEL_FIELD_ORDER[params.modelType];
-  const missing = specs.filter((spec) => !spec.present(snapshot, overrides));
+  const missingFields = new Set(params.extractionContext?.missingRequiredFields ?? []);
+  const missing = specs.filter((spec) => missingFields.has(spec.field) || !spec.present(snapshot, overrides));
+  const satisfiedBy = Object.fromEntries(
+    specs.map((spec) => [spec.field, spec.present(snapshot, overrides) && !missingFields.has(spec.field) ? [spec.label] : []]),
+  );
 
   if (missing.length === 0) {
-    return { ready: true, missingInputs: [] };
+    return {
+      ready: true,
+      missingInputs: [],
+      missingRequiredFields: [],
+      requiredCategories: specs.map((spec) => spec.label),
+      satisfiedBy,
+    };
   }
 
   const current = missing[0];
   return {
     ready: false,
     missingInputs: missing.map((item) => item.label),
+    missingRequiredFields: missing.map((item) => item.field),
+    requiredCategories: specs.map((spec) => spec.label),
+    satisfiedBy,
     clarificationField: current.field,
     clarificationFieldLabel: current.label,
     clarificationParseType: current.parseType,

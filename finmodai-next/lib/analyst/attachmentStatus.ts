@@ -1,4 +1,5 @@
 import type { UploadedAttachmentContext } from '@/lib/analyst/attachmentContext';
+import type { FamiliarFilingCategory, RawFilingType } from '@/lib/analyst/filingClassification';
 
 export type AttachmentReadStatus = 'read_success' | 'read_partial' | 'read_failed';
 
@@ -20,6 +21,18 @@ export type AttachmentStatusPayload = {
     ticker: string | null;
     fiscalPeriod: string | null;
   };
+  filingView: {
+    rawFilingType: RawFilingType | null;
+    familiarCategory: FamiliarFilingCategory | null;
+    packetFamily: FamiliarFilingCategory | null;
+  };
+  packetView: {
+    packetKey: string | null;
+    label: string | null;
+    companyKey: string | null;
+    periodKey: string | null;
+    rawFilingTypes: RawFilingType[];
+  } | null;
   warnings: string[];
 };
 
@@ -58,9 +71,28 @@ export function buildAttachmentStatus(params: {
       ticker: attachment.statementPackage?.ticker ?? attachment.signals?.ticker ?? null,
       fiscalPeriod: attachment.statementPackage?.fiscalPeriod ?? attachment.signals?.fiscalPeriod ?? null,
     },
+    filingView: {
+      rawFilingType: attachment.filingClassification?.rawFilingType ?? null,
+      familiarCategory: attachment.filingClassification?.familiarCategory ?? null,
+      packetFamily: attachment.filingClassification?.packetFamily ?? null,
+    },
+    packetView: attachment.filingPacket
+      ? {
+          packetKey: attachment.filingPacket.packetKey,
+          label: attachment.filingPacket.label,
+          companyKey: attachment.filingPacket.companyKey,
+          periodKey: attachment.filingPacket.periodKey,
+          rawFilingTypes: attachment.filingPacket.rawFilingTypes,
+        }
+      : null,
     warnings:
-      attachment.statementExtractionWarnings && attachment.statementExtractionWarnings.length > 0
-        ? attachment.statementExtractionWarnings
-        : attachment.warnings,
+      Array.from(
+        new Set([
+          ...(attachment.statementExtractionWarnings && attachment.statementExtractionWarnings.length > 0
+            ? attachment.statementExtractionWarnings
+            : attachment.warnings),
+          ...(attachment.filingClassification?.warnings ?? []),
+        ]),
+      ),
   };
 }

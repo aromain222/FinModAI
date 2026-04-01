@@ -628,6 +628,17 @@ export function AnalystChatApp() {
             </div>
             <div>{attachment.sizeKb}kb • Client preview ready</div>
             <div>Waiting for server parse on submit</div>
+            {(attachment.filingClassification?.familiarCategory || attachment.filingClassification?.rawFilingType || attachment.filingPacket?.label) && (
+              <div className="mt-1">
+                {[
+                  attachment.filingClassification?.familiarCategory,
+                  attachment.filingClassification?.rawFilingType,
+                  attachment.filingPacket?.label,
+                ]
+                  .filter((item): item is string => Boolean(item))
+                  .join(' • ')}
+              </div>
+            )}
             {(attachment.signals?.ticker || attachment.signals?.companyName || attachment.signals?.modelTypeHint || attachment.signals?.fiscalPeriod) && (
               <div className="mt-1">
                 {[
@@ -708,6 +719,24 @@ export function AnalystChatApp() {
                           .join(' • ')}
                       </div>
                     )}
+                    {(message.meta.attachmentStatus.filingView.familiarCategory ||
+                      message.meta.attachmentStatus.filingView.rawFilingType ||
+                      message.meta.attachmentStatus.packetView?.label) && (
+                      <div className="mt-1">
+                        {[
+                          message.meta.attachmentStatus.filingView.familiarCategory,
+                          message.meta.attachmentStatus.filingView.rawFilingType,
+                          message.meta.attachmentStatus.packetView?.label,
+                        ]
+                          .filter((item): item is string => Boolean(item))
+                          .join(' • ')}
+                      </div>
+                    )}
+                    {message.meta.attachmentStatus.packetView?.rawFilingTypes.length ? (
+                      <div className="mt-1">
+                        Packet filings: {message.meta.attachmentStatus.packetView.rawFilingTypes.join(', ')}
+                      </div>
+                    ) : null}
                     {message.meta.attachmentStatus.warnings.length > 0 && (
                       <details className="mt-2">
                         <summary className="cursor-pointer text-amber-300/90">Warnings</summary>

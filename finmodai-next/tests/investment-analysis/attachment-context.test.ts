@@ -49,3 +49,20 @@ test('invalid workbook attachments do not crash parsing', async () => {
   assert.match(parsed.summary, /Workbook file: broken\.xlsx/);
   assert.ok(parsed.warnings.length >= 0);
 });
+
+test('text attachments classify familiar filing category and packet metadata', async () => {
+  const file = new File(
+    [
+      'Apple Inc. (AAPL)\nQ1 FY26 earnings release\nRevenue was $124.3 billion.\nPrepared remarks and supplemental results are attached.',
+    ],
+    'AAPL_Q1_FY26_earnings_release.txt',
+    { type: 'text/plain' },
+  );
+
+  const parsed = await parseUploadedAttachment(file);
+
+  assert.equal(parsed.filingClassification?.rawFilingType, 'earnings_release');
+  assert.equal(parsed.filingClassification?.familiarCategory, 'Earnings');
+  assert.equal(parsed.filingPacket?.family, 'Earnings');
+  assert.match(parsed.filingPacket?.label ?? '', /Earnings packet/);
+});

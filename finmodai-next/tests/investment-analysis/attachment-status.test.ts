@@ -21,6 +21,32 @@ function baseAttachment(): UploadedAttachmentContext {
       fiscalPeriod: 'Q1 FY26',
       keyLines: [],
     },
+    filingClassification: {
+      rawFilingType: '10-Q',
+      familiarCategory: 'Earnings',
+      packetFamily: 'Earnings',
+      periodKey: 'Q1_FY26',
+      companyKey: 'AAPL',
+      confidence: 'high',
+      warnings: [],
+    },
+    filingPacket: {
+      packetKey: 'AAPL::Q1_FY26::Earnings',
+      family: 'Earnings',
+      label: 'Apple Inc. Q1 FY26 Earnings packet',
+      companyKey: 'AAPL',
+      periodKey: 'Q1_FY26',
+      rawFilingTypes: ['10-Q'],
+      filings: [
+        {
+          label: '10-Q',
+          rawFilingType: '10-Q',
+          primary: true,
+          kind: 'document',
+        },
+      ],
+      provenanceSources: ['FY26_Q1_Consolidated_Financial_Statements.pdf'],
+    },
   };
 }
 
@@ -80,6 +106,9 @@ test('buildAttachmentStatus maps trusted package to read_success', () => {
   assert.equal(status.statementCoverage.balanceSheet, true);
   assert.equal(status.statementCoverage.cashFlowStatement, true);
   assert.equal(status.extractedIdentity.ticker, 'AAPL');
+  assert.equal(status.filingView.rawFilingType, '10-Q');
+  assert.equal(status.filingView.familiarCategory, 'Earnings');
+  assert.equal(status.packetView?.label, 'Apple Inc. Q1 FY26 Earnings packet');
 });
 
 test('buildAttachmentStatus maps failed extraction to read_failed', () => {

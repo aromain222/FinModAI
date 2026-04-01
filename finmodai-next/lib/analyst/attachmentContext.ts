@@ -7,6 +7,12 @@ import {
   assessPdfStatementExtraction,
   type StatementExtractionStatus,
 } from '@/lib/analyst/pdfModelSeeding';
+import {
+  buildFilingPacket,
+  classifyAttachmentFiling,
+  type FilingClassification,
+  type FilingPacket,
+} from '@/lib/analyst/filingClassification';
 
 export type AttachmentKind = 'earnings_report' | 'model_workbook' | 'spreadsheet' | 'document';
 
@@ -33,6 +39,8 @@ export type UploadedAttachmentContext = {
   statementExtractionStatus?: StatementExtractionStatus;
   statementExtractionWarnings?: string[];
   isFinancialModelSeedable?: boolean;
+  filingClassification?: FilingClassification;
+  filingPacket?: FilingPacket;
 };
 
 const MAX_SPREADSHEET_SIZE_BYTES = 5 * 1024 * 1024;
@@ -284,6 +292,37 @@ function mergeSignalsWithStatementPackage(
   };
 }
 
+function deriveFilingMetadata(params: {
+  name: string;
+  mimeType: string;
+  kind: AttachmentKind;
+  summary: string;
+  rawText?: string;
+  signals?: AttachmentSignals;
+  statementPackage?: PdfStatementPackage;
+}): Pick<UploadedAttachmentContext, 'filingClassification' | 'filingPacket'> {
+  const filingClassification = classifyAttachmentFiling({
+    name: params.name,
+    mimeType: params.mimeType,
+    summary: params.summary,
+    rawText: params.rawText,
+    kind: params.kind,
+    signals: params.signals,
+    statementPackage: params.statementPackage,
+  });
+  const filingPacket = buildFilingPacket({
+    attachmentName: params.name,
+    kind: params.kind,
+    classification: filingClassification,
+    signals: params.signals,
+    statementPackage: params.statementPackage,
+  });
+  return {
+    filingClassification,
+    ...(filingPacket ? { filingPacket } : {}),
+  };
+}
+
 function decodePdfLiteral(raw: string): string {
   return raw
     .replace(/\\([\\()])/g, '$1')
@@ -468,6 +507,15 @@ export async function parseUploadedAttachment(file: File): Promise<UploadedAttac
     buildSignals(`${summary}\n\n${rawText ?? ''}`.slice(0, 16000)),
     statementPackage,
   );
+  const filingMetadata = deriveFilingMetadata({
+    name: file.name,
+    mimeType,
+    kind,
+    summary: truncate(summary, 7000),
+    rawText,
+    signals,
+    statementPackage,
+  });
   return {
     name: file.name,
     mimeType,
@@ -482,5 +530,6 @@ export async function parseUploadedAttachment(file: File): Promise<UploadedAttac
     ...(statementExtractionStatus ? { statementExtractionStatus } : {}),
     ...(statementExtractionWarnings.length > 0 ? { statementExtractionWarnings } : {}),
     ...(typeof isFinancialModelSeedable === 'boolean' ? { isFinancialModelSeedable } : {}),
+    ...filingMetadata,
   };
 }

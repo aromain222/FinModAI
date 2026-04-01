@@ -20,6 +20,7 @@ import OpenAI from 'openai';
 import type { UploadedAttachmentContext } from '@/lib/analyst/attachmentContext';
 import { overrideRouteFromAttachment } from '@/lib/analyst/attachmentRouting';
 import { buildAttachmentStatus, type AttachmentStatusPayload } from '@/lib/analyst/attachmentStatus';
+import { buildFilingPacket, classifyAttachmentFiling } from '@/lib/analyst/filingClassification';
 import { extractPdfStatementPackage } from '@/lib/analyst/pdfFinancialStatements';
 import {
   assessPdfStatementExtraction,
@@ -53,6 +54,7 @@ import {
   type AttachmentDrivenModelType,
   type PendingModelRequest,
 } from '@/lib/analyst/modelReadiness';
+import { resolveAttachmentModelExtraction } from '@/lib/analyst/claudeModelExtraction';
 import { savePromptModelRunVersion } from '@/lib/model-generator/runHistory';
 import { classifyPrompt } from '@/lib/model-generator/classifyPrompt';
 import { ANALYST_SYSTEM_PROMPT, getIntentPrompt } from '@/lib/analyst/prompts';
@@ -272,6 +274,19 @@ function attachmentContextBlock(attachment: UploadedAttachmentContext): string {
         .filter((item): item is string => Boolean(item))
         .join('\n')
     : null;
+  const filingLines = attachment.filingClassification
+    ? [
+        attachment.filingClassification.rawFilingType
+          ? `Raw filing type: ${attachment.filingClassification.rawFilingType}`
+          : null,
+        attachment.filingClassification.familiarCategory
+          ? `Familiar category: ${attachment.filingClassification.familiarCategory}`
+          : null,
+        attachment.filingPacket?.label ? `Packet: ${attachment.filingPacket.label}` : null,
+      ]
+        .filter((item): item is string => Boolean(item))
+        .join('\n')
+    : null;
   const warnings = attachment.warnings.length > 0 ? `Warnings: ${attachment.warnings.join(' | ')}\n` : '';
   return [
     `Uploaded attachment: ${attachment.name}`,
@@ -279,6 +294,7 @@ function attachmentContextBlock(attachment: UploadedAttachmentContext): string {
     `MIME type: ${attachment.mimeType}`,
     `Size: ${attachment.sizeKb}kb`,
     warnings ? warnings.trimEnd() : null,
+    filingLines,
     signalLines,
     attachment.statementPackage?.snapshot
       ? `Structured statements extracted: ${[
@@ -416,14 +432,38 @@ function currentArtifactContextBlock(params: {
   return null;
 }
 
+function withDerivedFilingMetadata(attachment: UploadedAttachmentContext): UploadedAttachmentContext {
+  const filingClassification = classifyAttachmentFiling({
+    name: attachment.name,
+    mimeType: attachment.mimeType,
+    summary: attachment.summary,
+    rawText: attachment.rawText,
+    kind: attachment.kind,
+    signals: attachment.signals,
+    statementPackage: attachment.statementPackage,
+  });
+  const filingPacket = buildFilingPacket({
+    attachmentName: attachment.name,
+    kind: attachment.kind,
+    classification: filingClassification,
+    signals: attachment.signals,
+    statementPackage: attachment.statementPackage,
+  });
+  return {
+    ...attachment,
+    filingClassification,
+    ...(filingPacket ? { filingPacket } : { filingPacket: undefined }),
+  };
+}
+
 async function hydrateAttachmentContext(
   attachment: UploadedAttachmentContext | null,
 ): Promise<UploadedAttachmentContext | null> {
   if (!attachment) return null;
   if (!isPdfAttachment({ mimeType: attachment.mimeType, name: attachment.name })) {
-    return attachment;
+    return withDerivedFilingMetadata(attachment);
   }
-  if (!attachment.rawBase64) return attachment;
+  if (!attachment.rawBase64) return withDerivedFilingMetadata(attachment);
 
   try {
     const pdfBuffer = Buffer.from(attachment.rawBase64, 'base64');
@@ -448,14 +488,14 @@ async function hydrateAttachmentContext(
         runtimeBootstrap: extraction.runtimeBootstrap ?? null,
         warnings: extraction.warnings,
       });
-      return {
+      return withDerivedFilingMetadata({
         ...attachment,
         rawText: undefined,
         statementPackage: undefined,
         statementExtractionStatus: extractionAssessment.statementExtractionStatus,
         statementExtractionWarnings: extraction.warnings,
         isFinancialModelSeedable: extractionAssessment.isFinancialModelSeedable,
-      };
+      });
     }
 
     const extractedText = extraction.text ?? '';
@@ -484,7 +524,7 @@ async function hydrateAttachmentContext(
       trustStatus: resolvedStatus,
       missingStatements: statementPackage?.missingStatements ?? [],
     });
-    return {
+    return withDerivedFilingMetadata({
       ...attachment,
       summary: extractedText.slice(0, 7000),
       rawText: extractedText.slice(0, 120000),
@@ -496,7 +536,7 @@ async function hydrateAttachmentContext(
       warnings: attachment.warnings.filter(
         (warning) => !warning.toLowerCase().includes('client-side pdf preview extraction'),
       ),
-    };
+    });
   } catch (error) {
     console.error('[analyst-chat] pdf attachment hydration crashed', {
       attachment: attachment.name,
@@ -506,14 +546,14 @@ async function hydrateAttachmentContext(
       failureMode: 'failed',
       authoritative: true,
     });
-    return {
+    return withDerivedFilingMetadata({
       ...attachment,
       statementPackage: undefined,
       statementExtractionStatus: extractionAssessment.statementExtractionStatus,
       statementExtractionWarnings: extractionAssessment.statementExtractionWarnings,
       isFinancialModelSeedable: extractionAssessment.isFinancialModelSeedable,
       warnings: [...attachment.warnings, 'Server-side PDF extraction failed.'],
-    };
+    });
   }
 }
 
@@ -1164,6 +1204,7 @@ export async function POST(req: NextRequest) {
         modelType === 'DCF' || modelType === 'THREE_STATEMENT' || modelType === 'COMPS' || modelType === 'LBO'
           ? modelType
           : null;
+      let attachmentExtractionContext = null;
       let attachmentModelOverrides = pendingModelRequest?.inputOverrides ?? requestInputOverrides ?? {};
       let clarificationParseFailed = false;
       const isFinancialPdfRequest = Boolean(
@@ -1329,10 +1370,19 @@ export async function POST(req: NextRequest) {
           }));
         }
         if (requestedPdfModelType) {
+          attachmentExtractionContext = await resolveAttachmentModelExtraction({
+            modelType: requestedPdfModelType,
+            prompt: activeModelPrompt,
+            snapshot: attachmentContext?.statementPackage?.snapshot ?? null,
+            inputOverrides: attachmentModelOverrides,
+            attachmentText: attachmentContext?.rawText ?? null,
+            attachmentSummary: attachmentContext?.summary ?? null,
+          });
           const readiness = evaluateAttachmentModelReadiness({
             modelType: requestedPdfModelType,
             attachmentSnapshot: attachmentContext?.statementPackage?.snapshot ?? null,
             inputOverrides: attachmentModelOverrides,
+            extractionContext: attachmentExtractionContext,
           });
           if (!readiness.ready) {
             return NextResponse.json(withAttachmentStatus({
@@ -1351,7 +1401,7 @@ export async function POST(req: NextRequest) {
               clarificationField: readiness.clarificationField,
               clarificationFieldLabel: readiness.clarificationFieldLabel,
               clarificationParseType: readiness.clarificationParseType,
-              remainingMissingInputs: readiness.missingInputs,
+              remainingMissingInputs: readiness.missingRequiredFields ?? readiness.missingInputs,
               pendingModelRequest: {
                 modelType: requestedPdfModelType,
                 originalPrompt: activeModelPrompt,
@@ -1378,11 +1428,14 @@ export async function POST(req: NextRequest) {
         const generatedModel = await generateAnalystStructuredModel(normalizedModelPrompt, sessionId, {
           attachmentStatementSnapshot:
             attachmentContext?.isFinancialModelSeedable === true
-              ? attachmentContext?.statementPackage?.snapshot ?? null
+              ? attachmentExtractionContext?.snapshot ?? attachmentContext?.statementPackage?.snapshot ?? null
               : null,
           inputOverrides: attachmentModelOverrides,
           clarificationAnswer,
           attachmentDriven: requestedPdfModelType !== null,
+          attachmentText: attachmentContext?.rawText ?? null,
+          attachmentSummary: attachmentContext?.summary ?? null,
+          attachmentExtractionContext,
         });
         if (generatedModel) {
           try {

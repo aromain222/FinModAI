@@ -1,5 +1,11 @@
 import { inferTickerFromPrompt } from '@/lib/analyst/retrieval';
 import type { AttachmentStatementSnapshot } from '@/lib/analyst/pdfFinancialStatements';
+import {
+  resolveAttachmentModelExtraction,
+  type AttachmentModelExtractionContext,
+  type ExtractionFieldConflict,
+  type ModelExtractionCategorySet,
+} from '@/lib/analyst/claudeModelExtraction';
 import type { ProvenanceSummary } from '@/lib/model-generator/runHistory';
 import type { ModelGeneratorType } from '@/lib/model-generator/classifyPrompt';
 import {
@@ -264,6 +270,9 @@ export type ExtractInputsResult = {
   missingInputs: string[];
   missingCriticalInputs: string[];
   provenanceSummary: ProvenanceSummary;
+  categories?: ModelExtractionCategorySet;
+  fieldConflicts?: ExtractionFieldConflict[];
+  providerTrace?: 'deterministic' | 'claude' | 'mixed';
 };
 
 export type ExtractInputsOptions = {
@@ -273,6 +282,9 @@ export type ExtractInputsOptions = {
   marketCompanyUniverseOverride?: MarketCompanyListing[];
   attachmentStatementSnapshot?: AttachmentStatementSnapshot | null;
   attachmentDriven?: boolean;
+  attachmentText?: string | null;
+  attachmentSummary?: string | null;
+  attachmentExtractionContext?: AttachmentModelExtractionContext | null;
 };
 
 type CompanyProfile = {
@@ -407,11 +419,30 @@ export async function extractInputs(
   options: ExtractInputsOptions = {}
 ): Promise<ExtractInputsResult> {
   const fullPrompt = [prompt, options.clarificationAnswer].filter(Boolean).join(' ').trim();
+  const attachmentModelType =
+    modelType === 'DCF' || modelType === 'THREE_STATEMENT' || modelType === 'COMPS' || modelType === 'LBO'
+      ? modelType
+      : null;
+  const resolvedAttachmentExtraction =
+    attachmentModelType && options.attachmentDriven === true
+      ? options.attachmentExtractionContext ??
+        (await resolveAttachmentModelExtraction({
+          modelType: attachmentModelType,
+          prompt: fullPrompt,
+          snapshot: options.attachmentStatementSnapshot ?? null,
+          inputOverrides: options.inputOverrides,
+          attachmentText: options.attachmentText,
+          attachmentSummary: options.attachmentSummary,
+        }))
+      : options.attachmentExtractionContext ?? null;
+  const baseAttachmentSnapshot =
+    resolvedAttachmentExtraction?.snapshot ?? options.attachmentStatementSnapshot ?? null;
   const normalizedOptions: ExtractInputsOptions = {
     ...options,
+    attachmentExtractionContext: resolvedAttachmentExtraction,
     attachmentStatementSnapshot: normalizeAttachmentStatementSnapshotForModel(
       modelType,
-      options.attachmentStatementSnapshot ?? null,
+      baseAttachmentSnapshot,
     ),
   };
 
@@ -461,7 +492,26 @@ export async function extractInputs(
     };
   }
 
-  return result;
+  const provenanceSummary =
+    resolvedAttachmentExtraction?.providerTrace === 'mixed' || resolvedAttachmentExtraction?.providerTrace === 'claude'
+      ? {
+          ...result.provenanceSummary,
+          sources: Array.from(new Set([...result.provenanceSummary.sources, 'claude_pdf_extraction'])),
+          fallbackUsed: Array.from(new Set([...result.provenanceSummary.fallbackUsed, 'claude_pdf_extraction'])),
+        }
+      : result.provenanceSummary;
+
+  return {
+    ...result,
+    provenanceSummary,
+    ...(resolvedAttachmentExtraction
+      ? {
+          categories: resolvedAttachmentExtraction.categories,
+          fieldConflicts: resolvedAttachmentExtraction.fieldConflicts,
+          providerTrace: resolvedAttachmentExtraction.providerTrace,
+        }
+      : {}),
+  };
 }
 
 function normalizeText(value: string): string {

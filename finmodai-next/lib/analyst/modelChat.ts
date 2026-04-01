@@ -1,5 +1,6 @@
 import { classifyPrompt, type ModelGeneratorType } from '@/lib/model-generator/classifyPrompt';
 import type { AttachmentStatementSnapshot } from '@/lib/analyst/pdfFinancialStatements';
+import type { AttachmentModelExtractionContext } from '@/lib/analyst/claudeModelExtraction';
 import {
   extractInputs,
   type CompsPeerInputs,
@@ -21,11 +22,21 @@ import * as threeStatementTemplate from '@/lib/model-generator/templates/threeSt
 import * as capTableTemplate from '@/lib/model-generator/templates/capTable';
 import * as saasOperatingTemplate from '@/lib/model-generator/templates/saasOperating';
 import { loadDemoSnapshots, type DemoCompanySnapshot } from '@/lib/demo/demoSnapshotStore';
+import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 
 type ModelNarrativeBlock = {
   title: string;
   body: string;
 };
+
+function extractJsonObject(text: string): string | null {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]+?)\s*```/i);
+  if (fenced?.[1]) return fenced[1].trim();
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace === -1 || lastBrace <= firstBrace) return null;
+  return text.slice(firstBrace, lastBrace + 1);
+}
 
 export type AnalystGeneratedModelPayload = {
   prompt: string;
@@ -45,6 +56,14 @@ export type AnalystGeneratedModelPayload = {
     status: string;
   } | null;
   narrativeBlocks: ModelNarrativeBlock[];
+  attachmentExtraction?: {
+    providerTrace: 'deterministic' | 'claude' | 'mixed';
+    fieldConflicts: Array<{
+      field: string;
+      resolution: 'deterministic' | 'claude' | 'user_override';
+      warning: string;
+    }>;
+  } | null;
 };
 
 export type AnalystStructuredModelAdjustment = {
@@ -1144,6 +1163,46 @@ function buildAdjustedReply(modelType: StructuredModelType, overrides: Record<st
   return `Updated the ${labelForModelType(modelType)} model by setting ${labels.join(', ')}. The attached card now reflects the revised assumptions and remains downloadable in Excel.`;
 }
 
+async function buildClaudeNarrativeBlocks(params: {
+  modelType: StructuredModelType;
+  extractedInputs: ExtractedModelInputs;
+  provenanceSummary: ProvenanceSummary;
+}): Promise<ModelNarrativeBlock[] | null> {
+  try {
+    const result = await generateTextWithProviderFallback({
+      preferredProvider: 'anthropic',
+      clientType: 'service',
+      temperature: 0.1,
+      maxTokens: 700,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You write concise buy-side model framing. Return JSON only with shape {"blocks":[{"title":"VALUATION FRAME","body":"..."},{"title":"KEY ASSUMPTIONS","body":"..."}]}. Do not invent numbers beyond the provided inputs.',
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            modelType: params.modelType,
+            extractedInputs: params.extractedInputs,
+            provenanceSummary: params.provenanceSummary,
+          }),
+        },
+      ],
+    });
+    const payloadText = result?.text ? extractJsonObject(result.text) : null;
+    if (!payloadText) return null;
+    const parsed = JSON.parse(payloadText) as { blocks?: Array<{ title?: string; body?: string }> };
+    const blocks = (parsed.blocks ?? [])
+      .filter((block) => typeof block?.title === 'string' && typeof block?.body === 'string')
+      .map((block) => ({ title: block.title!.trim(), body: block.body!.trim() }))
+      .filter((block) => block.title.length > 0 && block.body.length > 0);
+    return blocks.length > 0 ? blocks : null;
+  } catch {
+    return null;
+  }
+}
+
 async function buildStructuredModelPayload(params: {
   prompt: string;
   modelType: StructuredModelType;
@@ -1152,8 +1211,9 @@ async function buildStructuredModelPayload(params: {
   provenanceSummary: ProvenanceSummary;
   sessionId?: string | null;
   replyPrefix?: string;
+  attachmentExtractionContext?: AttachmentModelExtractionContext | null;
 }): Promise<{ reply: string; payload: AnalystGeneratedModelPayload }> {
-  const { prompt, modelType, extractedInputs, defaultsUsed, provenanceSummary, sessionId, replyPrefix } = params;
+  const { prompt, modelType, extractedInputs, defaultsUsed, provenanceSummary, sessionId, replyPrefix, attachmentExtractionContext } = params;
   const preview = TEMPLATE_MAP[modelType].getPreview(extractedInputs);
   const modelLabel = labelForModelType(modelType);
   const defaultsSummary = summarizeDefaults(defaultsUsed);
@@ -1174,7 +1234,9 @@ async function buildStructuredModelPayload(params: {
           changedKeys: computeChangedKeys(recentRun.latestVersion.assumptions, currentAssumptions),
         }
       : null;
-  const narrativeBlocks = buildNarrativeBlocks(modelType, extractedInputs, scenarioContext);
+  const deterministicNarrativeBlocks = buildNarrativeBlocks(modelType, extractedInputs, scenarioContext);
+  const narrativeBlocks =
+    (await buildClaudeNarrativeBlocks({ modelType, extractedInputs, provenanceSummary })) ?? deterministicNarrativeBlocks;
 
   return {
     reply: [
@@ -1196,6 +1258,16 @@ async function buildStructuredModelPayload(params: {
       comparisonSummary,
       recentRun: buildRecentRunSummary(recentRun),
       narrativeBlocks,
+      attachmentExtraction: attachmentExtractionContext
+        ? {
+            providerTrace: attachmentExtractionContext.providerTrace,
+            fieldConflicts: attachmentExtractionContext.fieldConflicts.map((conflict) => ({
+              field: conflict.field,
+              resolution: conflict.resolution,
+              warning: conflict.warning,
+            })),
+          }
+        : null,
     },
   };
 }
@@ -1238,6 +1310,7 @@ export async function reviseAnalystStructuredModel(
     },
     sessionId,
     replyPrefix: buildAdjustedReply(existingPayload.modelType, mergedOverrides),
+    attachmentExtractionContext: null,
   });
 
   return {
@@ -1292,6 +1365,7 @@ export async function reviseAnalystStructuredModelFromOverrides(
     },
     sessionId,
     replyPrefix: buildAdjustedReply(existingPayload.modelType, safeOverrides),
+    attachmentExtractionContext: null,
   });
 
   return {
@@ -1318,6 +1392,9 @@ export async function generateAnalystStructuredModel(
     inputOverrides?: Record<string, unknown>;
     clarificationAnswer?: string;
     attachmentDriven?: boolean;
+    attachmentText?: string | null;
+    attachmentSummary?: string | null;
+    attachmentExtractionContext?: AttachmentModelExtractionContext | null;
   } = {},
 ): Promise<{
   reply: string;
@@ -1331,6 +1408,9 @@ export async function generateAnalystStructuredModel(
     inputOverrides: options.inputOverrides,
     clarificationAnswer: options.clarificationAnswer,
     attachmentDriven: options.attachmentDriven === true,
+    attachmentText: options.attachmentText,
+    attachmentSummary: options.attachmentSummary,
+    attachmentExtractionContext: options.attachmentExtractionContext ?? null,
   });
   return buildStructuredModelPayload({
     prompt,
@@ -1339,5 +1419,6 @@ export async function generateAnalystStructuredModel(
     defaultsUsed: extraction.defaultsUsed,
     provenanceSummary: extraction.provenanceSummary,
     sessionId,
+    attachmentExtractionContext: options.attachmentExtractionContext ?? null,
   });
 }
