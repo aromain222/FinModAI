@@ -88,8 +88,8 @@ type DcfWorkbookCache = {
     equityValuePctEv: number;
   };
   sensitivity: {
-    perpetuity: number[][];
-    exitMultiple: number[][];
+    perpetuity: Array<Array<number | ''>>;
+    exitMultiple: Array<Array<number | ''>>;
   };
 };
 
