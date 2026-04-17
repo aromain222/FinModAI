@@ -19,11 +19,44 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  buildCompactModelImpactPreview,
+  formatSuggestionChip,
+  transcribeEventForModeling,
+} from '@/lib/model-events/transcribeEventForModeling';
 import type { MacroNewsArticle } from '@/types/macro';
 import { cn } from '@/lib/utils';
 
 type TimeWindow = 'today' | '1W' | '1M';
 type SentimentFilter = 'all' | 'bullish' | 'neutral' | 'bearish';
+
+function buildArticleModelImpactPreview(article: MacroNewsArticle) {
+  const rawEventText = [
+    article.title,
+    ...(article.analysis?.what_happened_sentences ?? []),
+    ...(article.analysis?.market_impact_sentences ?? []),
+    ...(article.analysis?.second_order_effects ?? []),
+    article.summary,
+  ]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join(' ');
+
+  const transcription = transcribeEventForModeling({
+    event: {
+      sourceType: 'feed_item',
+      eventId: article.id,
+      title: article.title,
+      rawEventText,
+      publishedAt: article.publishedAt,
+      sourceUrl: article.url,
+      sourceLabel: article.source,
+      impactedSectors: article.analysis?.affected_channels ?? [],
+    },
+  }).transcription;
+
+  return buildCompactModelImpactPreview(transcription);
+}
 
 export default function MacroNewsPage() {
   const [articles, setArticles] = useState<MacroNewsArticle[]>([]);
@@ -66,6 +99,29 @@ export default function MacroNewsPage() {
     : articles.filter(article => article.sentiment === sentimentFilter);
 
   const timeWindows: TimeWindow[] = ['today', '1W', '1M'];
+
+  const buildModelCreateHref = (article: MacroNewsArticle): string => {
+    const eventText = [
+      ...(article.analysis?.what_happened_sentences ?? []),
+      ...(article.analysis?.market_impact_sentences ?? []).slice(0, 2),
+      article.summary,
+    ]
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .join(' ');
+
+    const params = new URLSearchParams({
+      eventSourceType: 'feed_item',
+      eventId: article.id,
+      eventTitle: article.title,
+      eventText,
+      eventUrl: article.url,
+      eventSource: article.source,
+      eventPublishedAt: article.publishedAt,
+    });
+
+    return `/models/create?${params.toString()}`;
+  };
 
   return (
     <div className="space-y-6">
@@ -193,7 +249,9 @@ export default function MacroNewsPage() {
               </CardContent>
             </Card>
           ) : (
-            filteredArticles.map((article) => (
+            filteredArticles.map((article) => {
+              const modelImpactPreview = buildArticleModelImpactPreview(article);
+              return (
               <Card key={article.id} className="hover:shadow-md transition-shadow">
                 <CardHeader>
                   <div className="flex items-start justify-between gap-4">
@@ -233,6 +291,30 @@ export default function MacroNewsPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-primary">AI model impact</span>
+                      {modelImpactPreview.suggestions.slice(0, 3).map((suggestion) => (
+                        <span
+                          key={suggestion.driver}
+                          className="inline-flex items-center rounded-full border border-primary/20 bg-background px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-foreground"
+                        >
+                          {formatSuggestionChip(suggestion)}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-sm text-foreground leading-relaxed">{modelImpactPreview.summary}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {modelImpactPreview.impacts.slice(0, 3).map((impact) => (
+                        <span
+                          key={impact.key}
+                          className="inline-flex items-center rounded-full border border-border bg-background px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground"
+                        >
+                          {impact.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                   {/* Summary Bullets */}
                   {article.analysis?.what_happened_sentences && article.analysis.what_happened_sentences.length > 0 ? (
                     <div>
@@ -321,9 +403,23 @@ export default function MacroNewsPage() {
                       </p>
                     </div>
                   )}
+
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={buildModelCreateHref(article)}>
+                        Apply to model
+                      </Link>
+                    </Button>
+                    <Button asChild variant="ghost" size="sm">
+                      <a href={article.url} target="_blank" rel="noopener noreferrer">
+                        Open source
+                      </a>
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
-            ))
+            );
+            })
           )}
         </div>
       )}

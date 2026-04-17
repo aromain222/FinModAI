@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { applyEventAssumptionDeltas } from '@/lib/investment-analysis/eventAssumptionApplication';
-import { deriveEventAwareAssumptionDeltas } from '@/lib/investment-analysis/eventAssumptions';
+import {
+  buildEventDeltaResultFromDriverAdjustmentResponse,
+  deriveEventAwareAssumptionDeltas,
+} from '@/lib/investment-analysis/eventAssumptions';
 import { classifyInvestmentEvent } from '@/lib/investment-analysis/eventClassifier';
 import { mapEventToHistoricalPatterns } from '@/lib/investment-analysis/historicalPatterns';
 import {
@@ -256,6 +259,46 @@ test('assumption delta generation produces inflation-shock uplift for commodity-
   assertAlmostEqual(result.adjustedAssumptions.wacc, 0.0975);
   assertAlmostEqual(result.adjustedAssumptions.revenueGrowthByYear[0] ?? 0, 0.13);
   assertAlmostEqual(result.adjustedAssumptions.operatingMarginByYear[0] ?? 0, 0.345);
+});
+
+test('AI driver adjustment response translates into event-aware deltas conservatively', () => {
+  const fallback = deriveEventAwareAssumptionDeltas({
+    baseAssumptions: BASE_DCF_ASSUMPTIONS,
+    event: makeEvent({ category: 'management_transition' }),
+    company: TEST_COMPANY,
+  });
+
+  const translated = buildEventDeltaResultFromDriverAdjustmentResponse(
+    {
+      baseAssumptions: BASE_DCF_ASSUMPTIONS,
+      event: makeEvent({ category: 'management_transition' }),
+      company: TEST_COMPANY,
+    },
+    {
+      event_type: 'management change',
+      affected_drivers: ['revenue_growth', 'operating_margin', 'wacc', 'terminal_growth_rate'],
+      changes: {
+        revenue_growth: { old: 0.12, new: 0.105 },
+        operating_margin: { old: 0.34, new: 0.325 },
+        cogs_percentage: { old: null, new: null },
+        opex_percentage: { old: null, new: null },
+        wacc: { old: 0.095, new: 0.1 },
+        terminal_growth_rate: { old: 0.03, new: 0.0275 },
+        multiple: { old: null, new: null },
+      },
+      summary: 'Higher execution risk trims growth and margin while lifting the discount rate.',
+      detailed_reasoning: 'Test only.',
+    },
+    fallback,
+  );
+
+  assert.ok(translated);
+  assert.equal(translated?.scenarioBias, 'bearish');
+  assertAlmostEqual(translated?.adjustedAssumptions.revenueGrowthByYear[0] ?? 0, 0.105);
+  assertAlmostEqual(translated?.adjustedAssumptions.operatingMarginByYear[0] ?? 0, 0.325);
+  assertAlmostEqual(translated?.adjustedAssumptions.wacc ?? 0, 0.1);
+  assertAlmostEqual(translated?.adjustedAssumptions.terminalGrowthRate ?? 0, 0.0275);
+  assert.equal(translated?.deltas.length, 4);
 });
 
 test('delta application preserves base assumptions and creates display-friendly change log', () => {

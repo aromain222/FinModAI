@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
+import { Textarea } from '@/components/ui/textarea';
 import { EditableFinanceChart } from '@/components/charts/EditableFinanceChart';
 import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } from '@/lib/analyst/modelChat';
 import {
@@ -78,7 +79,9 @@ export function formatAnalystModelValue(
   value: unknown,
   key?: string,
   modelType?: AnalystGeneratedModelPayload['modelType'],
+  fieldDisplayMap?: AnalystGeneratedModelPayload['fieldDisplayMap'],
 ): string {
+  const semantic = key ? fieldDisplayMap?.[key] : undefined;
   if (Array.isArray(value)) {
     if (value.every((item) => item && typeof item === 'object' && !Array.isArray(item))) {
       return value
@@ -88,16 +91,34 @@ export function formatAnalystModelValue(
         })
         .join(', ');
     }
-    return value.map((item) => formatAnalystModelValue(item, key, modelType)).join(', ');
+    return value.map((item) => formatAnalystModelValue(item, key, modelType, fieldDisplayMap)).join(', ');
   }
   if (value && typeof value === 'object') {
     const entries = Object.entries(value as Record<string, unknown>)
       .filter(([, item]) => typeof item === 'string' || typeof item === 'number')
       .slice(0, 4)
-      .map(([entryKey, item]) => `${entryKey}: ${formatAnalystModelValue(item, entryKey, modelType)}`);
+      .map(([entryKey, item]) => `${entryKey}: ${formatAnalystModelValue(item, entryKey, modelType, fieldDisplayMap)}`);
     return entries.length > 0 ? entries.join(', ') : 'Structured object';
   }
   if (typeof value === 'number') {
+    if (semantic === 'percent') {
+      const percentValue = Math.abs(value) <= 1 ? value * 100 : value;
+      return `${percentValue.toLocaleString('en-US', { maximumFractionDigits: 1 })}%`;
+    }
+    if (semantic === 'model_millions_shares') {
+      return formatModelSharesMillions(value);
+    }
+    if (semantic === 'model_millions_currency') {
+      return formatAbsoluteCurrencyCompact(value * 1_000_000);
+    }
+    if (semantic === 'multiple') {
+      return `${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}x`;
+    }
+    if (semantic === 'currency') {
+      return `$${value.toLocaleString('en-US', {
+        maximumFractionDigits: Math.abs(value) >= 1000 ? 0 : 2,
+      })}`;
+    }
     if (isPercentKey(key)) {
       const percentValue = Math.abs(value) <= 1 ? value * 100 : value;
       return `${percentValue.toLocaleString('en-US', { maximumFractionDigits: 1 })}%`;
@@ -128,6 +149,7 @@ function ObjectGrid(props: {
   values: Record<string, unknown>;
   emptyMessage: string;
   modelType?: AnalystGeneratedModelPayload['modelType'];
+  fieldDisplayMap?: AnalystGeneratedModelPayload['fieldDisplayMap'];
 }) {
   const entries = Object.entries(props.values);
   return (
@@ -140,7 +162,7 @@ function ObjectGrid(props: {
           {entries.map(([key, value]) => (
               <div key={key} className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
               <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">{key}</div>
-              <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{formatAnalystModelValue(value, key, props.modelType)}</div>
+              <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{formatAnalystModelValue(value, key, props.modelType, props.fieldDisplayMap)}</div>
             </div>
           ))}
         </div>
@@ -642,9 +664,17 @@ export function AnalystModelCard({
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
   const [showControls, setShowControls] = useState(payload.modelType !== 'COMPS');
+  const [showEventPanel, setShowEventPanel] = useState(false);
   const [isApplyingControls, setIsApplyingControls] = useState(false);
   const [controlsError, setControlsError] = useState<string | null>(null);
   const [isApplyingEventShock, setIsApplyingEventShock] = useState(false);
+  const [structuredEventTitle, setStructuredEventTitle] = useState('');
+  const [structuredEventText, setStructuredEventText] = useState('');
+  const [structuredEventSourceUrl, setStructuredEventSourceUrl] = useState('');
+  const [structuredEventSourceLabel, setStructuredEventSourceLabel] = useState('');
+  const exportRunId = payload.recentRun?.runId?.trim() ?? '';
+  const exportVersionNumber = payload.recentRun?.versionNumber ?? undefined;
+  const canExportWorkbook = exportRunId.length > 0;
   const chartSpec = inferChartSpec(payload);
   const threeStatementInputs =
     payload.modelType === 'THREE_STATEMENT' ? (payload.extractedInputs as Record<string, unknown>) : null;
@@ -827,6 +857,10 @@ export function AnalystModelCard({
 
   async function handleDownload() {
     if (isDownloading) return;
+    if (!canExportWorkbook) {
+      setDownloadError('This model needs to be rerun before workbook export is available.');
+      return;
+    }
 
     setIsDownloading(true);
     setDownloadError(null);
@@ -842,7 +876,8 @@ export function AnalystModelCard({
             accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           },
           body: JSON.stringify({
-            payload,
+            runId: exportRunId,
+            versionNumber: exportVersionNumber,
           }),
         },
         defaultWorkbookFilename(payload),
@@ -858,6 +893,10 @@ export function AnalystModelCard({
 
   async function handleOpenInGoogleSheets() {
     if (isOpeningInSheets) return;
+    if (!canExportWorkbook) {
+      setDownloadError('This model needs to be rerun before workbook export is available.');
+      return;
+    }
 
     setIsOpeningInSheets(true);
     setDownloadError(null);
@@ -874,7 +913,8 @@ export function AnalystModelCard({
             accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           },
           body: JSON.stringify({
-            payload,
+            runId: exportRunId,
+            versionNumber: exportVersionNumber,
           }),
         },
         defaultWorkbookFilename(payload),
@@ -998,6 +1038,32 @@ export function AnalystModelCard({
     }
   }
 
+  async function handleApplyStructuredEvent() {
+    if (!onAdjust || isApplyingControls || isApplyingEventShock || !structuredEventText.trim()) return;
+    setIsApplyingEventShock(true);
+    setControlsError(null);
+    try {
+      await onAdjust({
+        changes: {},
+        eventContext: {
+          sourceType: 'pasted_text',
+          title: structuredEventTitle.trim() || null,
+          rawEventText: structuredEventText.trim(),
+          sourceUrl: structuredEventSourceUrl.trim() || null,
+          sourceLabel: structuredEventSourceLabel.trim() || null,
+        },
+      });
+      setStructuredEventTitle('');
+      setStructuredEventText('');
+      setStructuredEventSourceUrl('');
+      setStructuredEventSourceLabel('');
+    } catch (error) {
+      setControlsError(error instanceof Error ? error.message : 'Unable to apply event update.');
+    } finally {
+      setIsApplyingEventShock(false);
+    }
+  }
+
   async function handleApplyCompsControls() {
     if (!onAdjust || payload.modelType !== 'COMPS' || isApplyingControls || !hasCompsControlChanges || !adjustedCompsSubject) return;
     setIsApplyingControls(true);
@@ -1059,6 +1125,11 @@ export function AnalystModelCard({
             <div className="text-xs text-[var(--cb-text-muted)]">
               Use Google Sheets to bypass local `.xlsx` app associations like Apple Numbers.
             </div>
+            {!canExportWorkbook ? (
+              <div className="text-xs text-[#fca5a5]">
+                Workbook export is unavailable for this artifact until the model is rerun and saved server-side.
+              </div>
+            ) : null}
             {payload.modelType === 'COMPS' && payload.scenarioContext ? (
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <Badge variant="outline">Scenario</Badge>
@@ -1071,10 +1142,10 @@ export function AnalystModelCard({
             <Button type="button" variant="outline" size="sm" onClick={() => void handleGenerateReport()} disabled={isGeneratingReport}>
               {isGeneratingReport ? 'Generating PDF…' : pdfActionLabel(payload.modelType)}
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => void handleOpenInGoogleSheets()} disabled={isOpeningInSheets}>
+            <Button type="button" variant="outline" size="sm" onClick={() => void handleOpenInGoogleSheets()} disabled={isOpeningInSheets || !canExportWorkbook}>
               {isOpeningInSheets ? 'Opening Google Sheets…' : 'Open in Google Sheets'}
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => void handleDownload()} disabled={isDownloading}>
+            <Button type="button" variant="outline" size="sm" onClick={() => void handleDownload()} disabled={isDownloading || !canExportWorkbook}>
               {isDownloading ? 'Preparing Excel…' : excelActionLabel(payload.modelType)}
             </Button>
           </div>
@@ -1111,6 +1182,99 @@ export function AnalystModelCard({
         <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
           <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Decision Outputs</div>
           <p className="text-sm leading-6 text-[var(--cb-text-primary)]">{payload.keyOutputs.join(', ')}</p>
+        </div>
+
+        <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Apply Event</div>
+              <div className="mt-1 text-sm text-[var(--cb-text-primary)]">
+                Paste a market event, headline, or catalyst and apply a reviewed assumption update to the active model.
+              </div>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={() => setShowEventPanel((value) => !value)}>
+              {showEventPanel ? 'Hide Event Panel' : 'Show Event Panel'}
+            </Button>
+          </div>
+          {payload.eventAdjustmentSummary ? (
+            <div className="mt-3 rounded-xl border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline">{payload.eventAdjustmentSummary.eventCategory.replace(/_/g, ' ')}</Badge>
+                <Badge variant="outline">{payload.eventAdjustmentSummary.confidence}</Badge>
+                <Badge variant="outline">{payload.eventAdjustmentSummary.scenarioBias}</Badge>
+              </div>
+              <p className="mt-2 text-[var(--cb-text-primary)]">{payload.eventAdjustmentSummary.normalizedEventSummary}</p>
+              {payload.eventAdjustmentSummary.transcription?.suggestedAssumptions?.length ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {payload.eventAdjustmentSummary.transcription.suggestedAssumptions.slice(0, 3).map((suggestion) => (
+                    <Badge key={suggestion.driver} variant="outline">
+                      {suggestion.label} {suggestion.direction === 'up' ? '↑' : suggestion.direction === 'down' ? '↓' : '→'}
+                    </Badge>
+                  ))}
+                </div>
+              ) : null}
+              {payload.appliedEventDeltas?.length ? (
+                <p className="mt-2 text-[var(--cb-text-muted)]">
+                  Applied changes: {payload.appliedEventDeltas.map((delta) => delta.label).join(', ')}.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {showEventPanel ? (
+            <div className="mt-4 space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="structured-event-title">Event title</Label>
+                  <Input
+                    id="structured-event-title"
+                    value={structuredEventTitle}
+                    placeholder="Tariffs increase on imported components"
+                    onChange={(event) => setStructuredEventTitle(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="structured-event-source-label">Source label</Label>
+                  <Input
+                    id="structured-event-source-label"
+                    value={structuredEventSourceLabel}
+                    placeholder="Reuters"
+                    onChange={(event) => setStructuredEventSourceLabel(event.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="structured-event-text">Event text</Label>
+                <Textarea
+                  id="structured-event-text"
+                  value={structuredEventText}
+                  placeholder="Paste the headline, article excerpt, or short event description."
+                  onChange={(event) => setStructuredEventText(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="structured-event-source-url">Source URL</Label>
+                <Input
+                  id="structured-event-source-url"
+                  value={structuredEventSourceUrl}
+                  placeholder="https://example.com/article"
+                  onChange={(event) => setStructuredEventSourceUrl(event.target.value)}
+                />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--cb-border-subtle)] pt-4">
+                <div className="text-xs text-[var(--cb-text-muted)]">
+                  This creates a new persistent model version only if the event produces a material assumption change.
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void handleApplyStructuredEvent()}
+                  disabled={!onAdjust || isApplyingEventShock || !structuredEventText.trim()}
+                >
+                  {isApplyingEventShock ? 'Applying…' : 'Apply Event'}
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {payload.modelType === 'THREE_STATEMENT' ? (
@@ -1440,9 +1604,9 @@ export function AnalystModelCard({
             <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Version Context</div>
             <div className="grid gap-3">
               <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
-                <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">Previous Run</div>
+                <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">Saved Run</div>
                 <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">
-                  {payload.recentRun ? `Version ${payload.recentRun.versionNumber ?? 'n/a'} • ${payload.recentRun.status}` : 'No prior analyst chat run'}
+                  {payload.recentRun ? `Version ${payload.recentRun.versionNumber ?? 'n/a'} • ${payload.recentRun.status}` : 'No saved analyst chat run'}
                 </div>
               </div>
               <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
@@ -1458,7 +1622,7 @@ export function AnalystModelCard({
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <ObjectGrid title="Extracted Inputs" values={payload.extractedInputs as Record<string, unknown>} emptyMessage="No structured inputs were extracted." modelType={payload.modelType} />
+          <ObjectGrid title="Extracted Inputs" values={payload.extractedInputs as Record<string, unknown>} emptyMessage="No structured inputs were extracted." modelType={payload.modelType} fieldDisplayMap={payload.fieldDisplayMap} />
           <ObjectGrid title="Defaults Used" values={payload.defaultsUsed} emptyMessage="No defaults were required." modelType={payload.modelType} />
         </div>
 

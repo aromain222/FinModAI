@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ExternalLink,
@@ -19,6 +20,11 @@ import {
 import { Button } from '@/components/ui/button';
 import ImpactChips from '@/components/news/ImpactChips';
 import { getMacroEventFallbackImage } from '@/lib/macroEventImageQueries';
+import {
+  buildCompactModelImpactPreview,
+  formatSuggestionChip,
+  transcribeEventForModeling,
+} from '@/lib/model-events/transcribeEventForModeling';
 import { headlineEnrichmentSchema, type HeadlineEnrichment, type NewsRange, type NewsTopic } from '@/lib/news/types';
 import { cn } from '@/lib/utils';
 
@@ -630,6 +636,80 @@ function toParagraph(items: string[], maxSentences = 3): string | null {
   return sentences.length > 0 ? sentences.join(' ') : null;
 }
 
+function buildHeadlineModelImpactPreview(item: NewsItem, enrichment?: HeadlineEnrichment | null) {
+  const eventText = [
+    item.title,
+    item.description ?? '',
+    enrichment?.why_it_matters ?? '',
+    enrichment?.ai_summary ?? '',
+  ]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join(' ');
+
+  const transcription = transcribeEventForModeling({
+    event: {
+      sourceType: 'feed_item',
+      eventId: item.id,
+      title: item.title,
+      rawEventText: eventText,
+      publishedAt: item.publishedAt,
+      sourceUrl: item.url,
+      sourceLabel: item.source,
+      impactedTickers: enrichment?.impacted_tickers?.map((ticker) => ticker.ticker) ?? [],
+      impactedSectors: enrichment?.impacted_sectors?.map((sector) => sector.sector) ?? [],
+    },
+  }).transcription;
+
+  return buildCompactModelImpactPreview(transcription);
+}
+
+function CompactModelImpactPreview(props: {
+  summary: string;
+  suggestions: string[];
+  confidence?: string | null;
+  impacts?: string[];
+  className?: string;
+}) {
+  return (
+    <div className={cn('rounded-xl border border-cyan-500/15 bg-cyan-500/[0.06] p-3', props.className)}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-300">AI model impact</span>
+        {props.confidence ? (
+          <span className="rounded-full border border-cyan-500/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-cyan-200/90">
+            {props.confidence}
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-2 text-[12px] leading-6 text-zinc-200">{props.summary}</p>
+      {props.impacts?.length ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {props.impacts.slice(0, 3).map((impact) => (
+            <span
+              key={impact}
+              className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] uppercase tracking-wide text-zinc-300"
+            >
+              {impact}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {props.suggestions.length ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {props.suggestions.slice(0, 3).map((suggestion) => (
+            <span
+              key={suggestion}
+              className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-emerald-200"
+            >
+              {suggestion}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /* ---------- sub-components ---------- */
 
 function NewsImage({ src, alt, fallbackSrc, className }: { src?: string; alt: string; fallbackSrc: string; className?: string }) {
@@ -1182,6 +1262,7 @@ export default function HeadlinesPanel({
               const fallbackImg = getMacroEventFallbackImage(inferHeadlineImageCategory(item), 'thumb');
               const isSelected = selectedItem?.id === item.id;
               const enrichment = enrichMap[item.id];
+              const modelImpactPreview = buildHeadlineModelImpactPreview(item, enrichment);
 
               return (
                 <div
@@ -1234,8 +1315,33 @@ export default function HeadlinesPanel({
                             {buildAnalysisLead(enrichment)}
                           </p>
                         )}
+                        <CompactModelImpactPreview
+                          className="mt-3"
+                          summary={modelImpactPreview.summary}
+                          confidence={enrichment?.confidence ?? null}
+                          impacts={modelImpactPreview.impacts.map((impact) => impact.label)}
+                          suggestions={modelImpactPreview.suggestions.map((suggestion) => formatSuggestionChip(suggestion))}
+                        />
                       </div>
                       <div className="flex shrink-0 items-center gap-1.5">
+                        <Link
+                          href={{
+                            pathname: '/models/create',
+                            query: {
+                              eventSourceType: 'feed_item',
+                              eventId: item.id,
+                              eventTitle: item.title,
+                              eventText: item.description ? `${item.title}. ${item.description}` : item.title,
+                              eventUrl: item.url,
+                              eventSource: item.source,
+                              eventPublishedAt: item.publishedAt,
+                            },
+                          }}
+                          className="rounded-md px-2 py-1 text-[11px] font-medium text-zinc-400 transition-colors hover:bg-zinc-800/60 hover:text-zinc-100"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Apply to model
+                        </Link>
                         <a
                           href={item.url}
                           target="_blank"
@@ -1258,6 +1364,12 @@ export default function HeadlinesPanel({
                         </div>
                       ) : enrichment ? (
                         <div className="space-y-4">
+                          <CompactModelImpactPreview
+                            summary={modelImpactPreview.summary}
+                            confidence={enrichment?.confidence ?? null}
+                            impacts={modelImpactPreview.impacts.map((impact) => impact.label)}
+                            suggestions={modelImpactPreview.suggestions.map((suggestion) => formatSuggestionChip(suggestion))}
+                          />
                           <div className="rounded-2xl border border-white/8 bg-[rgba(255,255,255,0.03)] p-4">
                             <div className="mb-3 flex items-center justify-between gap-3">
                               <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">

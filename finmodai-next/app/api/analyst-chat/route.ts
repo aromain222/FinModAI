@@ -41,6 +41,8 @@ import {
   type AnalystDcfDemoPayload,
 } from '@/lib/analyst/dcfDemo';
 import {
+  buildAnalystGeneratedModelExportSeed,
+  buildAnalystGeneratedModelRecentRun,
   generateAnalystStructuredModel,
   reviseAnalystStructuredModelFromOverrides,
   isModelAdjustmentPrompt,
@@ -81,6 +83,14 @@ import {
   revenueDriverSummary,
 } from '@/lib/analyst/visualization';
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
+import {
+  buildPersistentDriverContext,
+  buildReasoningReply,
+  translateFinancialReasoningToOverrides,
+  type FinancialReasoningResponse,
+} from '@/lib/analyst/revision/persistentModelReasoning';
+import { deriveEventLinkedModelAdjustment } from '@/lib/model-events/deriveEventLinkedModelAdjustment';
+import type { EventLinkedModelAdjustmentResult } from '@/lib/model-events/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -154,6 +164,34 @@ function hasPlaceholderNumbers(text: string): boolean {
 function fmtMillions(value: number | null | undefined): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
   return `$${value.toLocaleString('en-US')}`;
+}
+
+function buildEventAdjustmentSummary(adjustment: EventLinkedModelAdjustmentResult) {
+  return {
+    normalizedEventSummary: adjustment.normalizedEventSummary,
+    eventCategory: adjustment.eventCategory,
+    confidence: adjustment.confidence,
+    scenarioBias: adjustment.scenarioBias,
+    warnings: adjustment.warnings,
+    blockingErrors: adjustment.blockingErrors,
+    hasMaterialChanges: adjustment.hasMaterialChanges,
+    transcription: adjustment.transcription,
+  } as const;
+}
+
+function buildReasoningResponseFromEventAdjustment(
+  adjustment: EventLinkedModelAdjustmentResult,
+): FinancialReasoningResponse {
+  return {
+    intent: 'event_update',
+    changes: adjustment.changes,
+    updated_outputs: {
+      valuation_change: null,
+      key_driver_impact: adjustment.changedDrivers.map((change) => change.label).join(', '),
+    },
+    summary: adjustment.summary,
+    detailed_reasoning: adjustment.detailedReasoning,
+  };
 }
 
 function explicitQuarterRequestUnresolved(
@@ -909,6 +947,66 @@ export async function POST(req: NextRequest) {
     if (currentModel && modelAdjustment) {
       let baseModel = currentModel;
       let promptAdjustedModelResult: Awaited<ReturnType<typeof reviseAnalystStructuredModel>> | null = null;
+      let eventAdjustment: EventLinkedModelAdjustmentResult | null = null;
+      let eventOverrides: Record<string, unknown> = {};
+      if (modelAdjustment.eventContext?.rawEventText?.trim()) {
+        eventAdjustment = await deriveEventLinkedModelAdjustment({
+          event: modelAdjustment.eventContext,
+          company: {
+            companyName:
+              'companyName' in currentModel.extractedInputs
+                ? currentModel.extractedInputs.companyName
+                : currentModel.title,
+            ticker:
+              'ticker' in currentModel.extractedInputs
+                ? currentModel.extractedInputs.ticker ?? null
+                : null,
+            sector:
+              'companyType' in currentModel.extractedInputs &&
+              typeof currentModel.extractedInputs.companyType === 'string'
+                ? currentModel.extractedInputs.companyType
+                : null,
+            industry: null,
+          },
+          currentAssumptions: buildPersistentDriverContext(currentModel.extractedInputs),
+          modelType: currentModel.modelType,
+        });
+
+        if (eventAdjustment.blockingErrors.length > 0) {
+          return NextResponse.json(
+            withAttachmentStatus({
+              error: eventAdjustment.blockingErrors.join(' '),
+              warnings: eventAdjustment.warnings,
+            }),
+            { status: 400 },
+          );
+        }
+
+        const eventReasoning = buildReasoningResponseFromEventAdjustment(eventAdjustment);
+        eventOverrides = translateFinancialReasoningToOverrides(currentModel, eventReasoning);
+        if (
+          !eventAdjustment.hasMaterialChanges ||
+          Object.keys(eventOverrides).length === 0
+        ) {
+          return NextResponse.json(withAttachmentStatus({
+            reply: buildReasoningReply('active model', eventReasoning, false),
+            fallback: false,
+            mode: 'live',
+            route: 'financial_model',
+            generatedModel: {
+              ...currentModel,
+              eventContext: eventAdjustment.event,
+              eventAdjustmentSummary: buildEventAdjustmentSummary(eventAdjustment),
+              appliedEventDeltas: eventAdjustment.changedDrivers,
+            },
+            sources: [
+              ...currentModel.provenanceSummary.sources,
+              'Event-linked model review',
+            ],
+            factsCount: 0,
+          }));
+        }
+      }
       if (typeof modelAdjustment.prompt === 'string' && modelAdjustment.prompt.trim().length > 0) {
         const promptAdjustedModel = await reviseAnalystStructuredModel(
           modelAdjustment.prompt.trim(),
@@ -917,12 +1015,17 @@ export async function POST(req: NextRequest) {
         );
         if (promptAdjustedModel) {
           promptAdjustedModelResult = promptAdjustedModel;
-          baseModel = promptAdjustedModel.payload;
+          if (promptAdjustedModel.modelChanged) {
+            baseModel = promptAdjustedModel.payload;
+          }
         }
       }
 
       const revisedModel = await reviseAnalystStructuredModelFromOverrides(
-        modelAdjustment.changes,
+        {
+          ...eventOverrides,
+          ...modelAdjustment.changes,
+        },
         baseModel,
         sessionId,
       );
@@ -947,15 +1050,65 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const revisedPayload: AnalystGeneratedModelPayload = {
+        ...revisedModel.payload,
+        eventContext: eventAdjustment?.event ?? revisedModel.payload.eventContext ?? null,
+        eventAdjustmentSummary:
+          eventAdjustment ? buildEventAdjustmentSummary(eventAdjustment) : revisedModel.payload.eventAdjustmentSummary ?? null,
+        appliedEventDeltas: eventAdjustment?.changedDrivers ?? revisedModel.payload.appliedEventDeltas ?? null,
+      };
+
+      let persistedRecentRun = revisedPayload.recentRun;
+      try {
+        const persisted = await savePromptModelRunVersion({
+          surface: 'analyst_chat',
+          sessionId,
+          prompt: modelAdjustment.prompt?.trim() || eventAdjustment?.event.rawEventText || currentModel.prompt,
+          modelType: revisedPayload.modelType,
+          companyName:
+            'companyName' in revisedPayload.extractedInputs
+              ? revisedPayload.extractedInputs.companyName
+              : null,
+          ticker:
+            'ticker' in revisedPayload.extractedInputs
+              ? revisedPayload.extractedInputs.ticker ?? null
+              : null,
+          status: 'generated',
+          assumptions: revisedPayload.extractedInputs as Record<string, unknown>,
+          defaultsUsed: revisedPayload.defaultsUsed,
+          extractedInputs: revisedPayload.extractedInputs as Record<string, unknown>,
+          provenance: revisedPayload.provenanceSummary,
+          exportSeed: buildAnalystGeneratedModelExportSeed(revisedPayload),
+        });
+        persistedRecentRun = buildAnalystGeneratedModelRecentRun({
+          runId: persisted.runId,
+          versionNumber: persisted.version.versionNumber,
+          createdAt: persisted.version.createdAt,
+          status: persisted.version.status,
+        });
+      } catch (error) {
+        console.error('[analyst-chat] unable to persist direct model adjustment', error);
+      }
+
       return NextResponse.json(withAttachmentStatus({
-        reply: revisedModel.reply,
+        reply:
+          eventAdjustment
+            ? buildReasoningReply(
+                'active model',
+                buildReasoningResponseFromEventAdjustment(eventAdjustment),
+                true,
+              )
+            : revisedModel.reply,
         fallback: false,
         mode: 'live',
         route: 'financial_model',
-        generatedModel: revisedModel.payload,
+        generatedModel: {
+          ...revisedPayload,
+          recentRun: persistedRecentRun,
+        },
         sources: [
-          ...revisedModel.payload.provenanceSummary.sources,
-          'Analyst Chat model controls',
+          ...revisedPayload.provenanceSummary.sources,
+          eventAdjustment ? 'Event-linked model adjustment' : 'Analyst Chat model controls',
         ],
         factsCount: 0,
       }));
@@ -1262,8 +1415,24 @@ export async function POST(req: NextRequest) {
       if (shouldReviseCurrentModel && currentModel) {
         const revisedModel = await reviseAnalystStructuredModel(lastUserMessage, currentModel, sessionId);
         if (revisedModel) {
+          if (!revisedModel.modelChanged) {
+            return NextResponse.json(withAttachmentStatus({
+              reply: revisedModel.reply,
+              fallback: false,
+              mode: 'live',
+              route: 'financial_model',
+              generatedModel: revisedModel.payload,
+              sources: [
+                ...revisedModel.payload.provenanceSummary.sources,
+                'Conversation follow-up model explanation',
+              ],
+              factsCount: 0,
+              attachmentUsed: attachmentLabel,
+            }));
+          }
+          let persistedRecentRun = revisedModel.payload.recentRun;
           try {
-            await savePromptModelRunVersion({
+            const persisted = await savePromptModelRunVersion({
               surface: 'analyst_chat',
               sessionId,
               prompt: lastUserMessage,
@@ -1281,19 +1450,31 @@ export async function POST(req: NextRequest) {
               defaultsUsed: revisedModel.payload.defaultsUsed,
               extractedInputs: revisedModel.payload.extractedInputs as Record<string, unknown>,
               provenance: revisedModel.payload.provenanceSummary,
+              exportSeed: buildAnalystGeneratedModelExportSeed(revisedModel.payload),
+            });
+            persistedRecentRun = buildAnalystGeneratedModelRecentRun({
+              runId: persisted.runId,
+              versionNumber: persisted.version.versionNumber,
+              createdAt: persisted.version.createdAt,
+              status: persisted.version.status,
             });
           } catch (error) {
             console.error('[analyst-chat] unable to persist revised model run', error);
           }
+
+          const revisedPayload: AnalystGeneratedModelPayload = {
+            ...revisedModel.payload,
+            recentRun: persistedRecentRun,
+          };
 
           return NextResponse.json(withAttachmentStatus({
             reply: revisedModel.reply,
             fallback: false,
             mode: 'live',
             route: 'financial_model',
-            generatedModel: revisedModel.payload,
+            generatedModel: revisedPayload,
             sources: [
-              ...revisedModel.payload.provenanceSummary.sources,
+              ...revisedPayload.provenanceSummary.sources,
               'CapitalBase local model templates',
               'Conversation follow-up model adjustment',
             ],
@@ -1437,9 +1618,26 @@ export async function POST(req: NextRequest) {
           attachmentSummary: attachmentContext?.summary ?? null,
           attachmentExtractionContext,
         });
-        if (generatedModel) {
+        if (generatedModel?.validationFailed) {
+          return NextResponse.json(withAttachmentStatus({
+            reply: generatedModel.reply,
+            fallback: false,
+            mode: 'live',
+            route: 'financial_model',
+            unitValidationStatus: 'failed',
+            unitValidationMessage: generatedModel.unitValidation.message,
+            sources: [
+              'Attachment PDF statement package',
+              'Hard unit-scale validation',
+            ],
+            factsCount: 0,
+            attachmentUsed: attachmentLabel,
+          }));
+        }
+        if (generatedModel && 'payload' in generatedModel) {
+          let persistedRecentRun = generatedModel.payload.recentRun;
           try {
-            await savePromptModelRunVersion({
+            const persisted = await savePromptModelRunVersion({
               surface: 'analyst_chat',
               sessionId,
               prompt: activeModelPrompt,
@@ -1458,23 +1656,37 @@ export async function POST(req: NextRequest) {
               defaultsUsed: generatedModel.payload.defaultsUsed,
               extractedInputs: generatedModel.payload.extractedInputs as Record<string, unknown>,
               provenance: generatedModel.payload.provenanceSummary,
+              exportSeed: buildAnalystGeneratedModelExportSeed(generatedModel.payload),
+            });
+            persistedRecentRun = buildAnalystGeneratedModelRecentRun({
+              runId: persisted.runId,
+              versionNumber: persisted.version.versionNumber,
+              createdAt: persisted.version.createdAt,
+              status: persisted.version.status,
             });
           } catch (error) {
             console.error('[analyst-chat] unable to persist generated model run', error);
           }
+
+          const generatedPayload: AnalystGeneratedModelPayload = {
+            ...generatedModel.payload,
+            recentRun: persistedRecentRun,
+          };
 
           return NextResponse.json(withAttachmentStatus({
             reply: generatedModel.reply,
             fallback: false,
             mode: 'live',
             route: 'financial_model',
-            generatedModel: generatedModel.payload,
+            generatedModel: generatedPayload,
+            unitValidationStatus: generatedPayload.unitValidationStatus,
+            unitValidationMessage: generatedPayload.unitValidationMessage,
             sources: [
               ...(attachmentContext?.isFinancialModelSeedable === true &&
               attachmentContext?.statementPackage?.snapshot?.source === 'attachment_pdf_statement'
                 ? ['Attachment PDF statement package']
                 : []),
-              ...generatedModel.payload.provenanceSummary.sources,
+              ...generatedPayload.provenanceSummary.sources,
               'CapitalBase local model templates',
               'Deterministic prompt extraction and defaults',
             ],

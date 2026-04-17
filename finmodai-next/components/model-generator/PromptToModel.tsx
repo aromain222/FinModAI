@@ -15,7 +15,12 @@ import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplate
 import type { ModelGeneratorType } from '@/lib/model-generator/classifyPrompt';
 import { calculateDebtCapacityPreview } from '@/lib/model-generator/debtCapacitySummary';
 import { calculateMergerSummary } from '@/lib/model-generator/mergerSummary';
-import type { ComparisonSummary, ProvenanceSummary } from '@/lib/model-generator/runHistory';
+import type {
+  ComparisonSummary,
+  PromptRunEventAdjustmentSummary,
+  PromptRunEventContext,
+  ProvenanceSummary,
+} from '@/lib/model-generator/runHistory';
 import { cn } from '@/lib/utils';
 import {
   createGoogleSheetsPendingWindow,
@@ -49,6 +54,8 @@ type PreviewResponse = {
     status: string;
     createdAt: string;
     versionNumber: number | null;
+    eventContext?: PromptRunEventContext | null;
+    eventAdjustmentSummary?: PromptRunEventAdjustmentSummary | null;
   } | null;
   handoffOnly?: boolean;
   coreTemplateModel?: AnalystCoreTemplatePayload | null;
@@ -93,6 +100,8 @@ type RecentRun = {
     assumptions: Record<string, unknown>;
     workbookFilename: string | null;
     provenance: ProvenanceSummary | null;
+    eventContext?: PromptRunEventContext | null;
+    eventAdjustmentSummary?: PromptRunEventAdjustmentSummary | null;
   } | null;
 };
 
@@ -212,6 +221,87 @@ function formatCompactMetric(value: unknown, kind: 'currency' | 'percent' | 'mul
 function formatModelMoney(value: unknown): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
   return `$${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}M`;
+}
+
+function formatRunEventPublishedAt(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function summarizeEventDrivers(summary: PromptRunEventAdjustmentSummary | null | undefined): string {
+  if (!summary || summary.changedDrivers.length === 0) return 'No assumption changes recorded.';
+  return summary.changedDrivers.map((driver) => driver.label).join(', ');
+}
+
+function formatEventSuggestionDirection(direction: 'up' | 'down' | 'flat'): string {
+  if (direction === 'up') return '↑';
+  if (direction === 'down') return '↓';
+  return '→';
+}
+
+function EventSummaryCard(props: {
+  eventContext?: PromptRunEventContext | null;
+  eventAdjustmentSummary?: PromptRunEventAdjustmentSummary | null;
+  compact?: boolean;
+}) {
+  if (!props.eventContext && !props.eventAdjustmentSummary) return null;
+  const publishedAt = formatRunEventPublishedAt(props.eventContext?.publishedAt);
+  const summary = props.eventAdjustmentSummary;
+  const title = props.eventContext?.title || summary?.normalizedEventSummary || 'Applied event';
+
+  return (
+    <div className="rounded-2xl border border-[rgba(59,130,246,0.24)] bg-[rgba(30,41,59,0.4)] p-4">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <Badge variant="outline" className="border-[rgba(59,130,246,0.3)] text-[var(--cb-text-primary)]">
+          Event Applied
+        </Badge>
+        {summary?.eventCategory ? (
+          <Badge variant="outline" className="border-[rgba(118,138,161,0.22)] text-[var(--cb-text-secondary)]">
+            {summary.eventCategory.replace(/_/g, ' ')}
+          </Badge>
+        ) : null}
+        {summary?.scenarioBias ? (
+          <Badge variant="outline" className="border-[rgba(118,138,161,0.22)] text-[var(--cb-text-secondary)]">
+            {summary.scenarioBias}
+          </Badge>
+        ) : null}
+      </div>
+      <div className="text-sm font-medium text-[var(--cb-text-primary)]">{title}</div>
+      {(props.eventContext?.sourceLabel || publishedAt) ? (
+        <div className="mt-1 text-xs text-[var(--cb-text-muted)]">
+          {[props.eventContext?.sourceLabel, publishedAt].filter(Boolean).join(' · ')}
+        </div>
+      ) : null}
+      {summary?.normalizedEventSummary && summary.normalizedEventSummary !== title ? (
+        <p className="mt-2 text-sm text-[var(--cb-text-secondary)]">{summary.normalizedEventSummary}</p>
+      ) : null}
+      <p className={props.compact ? 'mt-2 text-xs text-[var(--cb-text-secondary)]' : 'mt-2 text-sm text-[var(--cb-text-secondary)]'}>
+        Changed drivers: {summarizeEventDrivers(summary)}
+      </p>
+      {summary?.transcription?.suggestedAssumptions?.length ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {summary.transcription.suggestedAssumptions.slice(0, 3).map((suggestion) => (
+            <Badge
+              key={suggestion.driver}
+              variant="outline"
+              className="border-[rgba(118,138,161,0.22)] text-[var(--cb-text-secondary)]"
+            >
+              {suggestion.label} {formatEventSuggestionDirection(suggestion.direction)}
+            </Badge>
+          ))}
+        </div>
+      ) : null}
+      {summary?.warnings?.length ? (
+        <p className="mt-2 text-xs text-[#fde68a]">{summary.warnings[0]}</p>
+      ) : null}
+    </div>
+  );
 }
 
 function renderModelSpecificReview(preview: PreviewResponse) {
@@ -1015,6 +1105,13 @@ export function PromptToModel() {
                 </div>
               </div>
 
+              {preview.recentRun?.eventContext || preview.recentRun?.eventAdjustmentSummary ? (
+                <EventSummaryCard
+                  eventContext={preview.recentRun.eventContext}
+                  eventAdjustmentSummary={preview.recentRun.eventAdjustmentSummary}
+                />
+              ) : null}
+
               {preview.needsClarification && preview.clarificationQuestion ? (
                 <div className="rounded-2xl border border-[rgba(245,158,11,0.36)] bg-[rgba(120,53,15,0.18)] p-4">
                   <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#fde68a]">Clarification</div>
@@ -1134,6 +1231,15 @@ export function PromptToModel() {
                       <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{run.latestVersion?.provenance?.asOfDate || 'n/a'}</div>
                     </div>
                   </div>
+                  {run.latestVersion?.eventContext || run.latestVersion?.eventAdjustmentSummary ? (
+                    <div className="mt-3">
+                      <EventSummaryCard
+                        eventContext={run.latestVersion?.eventContext}
+                        eventAdjustmentSummary={run.latestVersion?.eventAdjustmentSummary}
+                        compact
+                      />
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>

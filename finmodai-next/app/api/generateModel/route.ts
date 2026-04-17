@@ -61,7 +61,12 @@ import type { ModelDocument, TableBlock, Column, Row, Cell } from '@/lib/models/
 import { buildDocumentFromModelOutputs, buildLegacyPreviewFromDocument } from '@/lib/models/schema/fromModelOutputs';
 import { mapDocumentToExcel } from '@/lib/models/schema/mappings';
 import { checkModelComputability, assertModelComputable } from '@/lib/models/shared/computability';
-import { buildRequiredInputs } from '@/lib/models/shared/requiredInputs';
+import {
+  extractCatalogRefreshValues,
+  refreshCatalogCompanyProfile,
+  type DataRefreshStatus,
+} from '@/lib/models/shared/catalogRefresh';
+import { buildRequiredInputState, buildRequiredInputs, getAllRequiredInputKeysForModel } from '@/lib/models/shared/requiredInputs';
 import { estimateDCFInputs, applyAutoEstimates } from '@/lib/models/shared/autoEstimates';
 import { resolveFundamentals } from '@/lib/models/shared/resolveFundamentals';
 import { rescaleSeriesToCanonical, coerceToMillions } from '@/lib/models/shared/unitNormalization';
@@ -97,8 +102,14 @@ import {
   type DebtCapacityLiteSummary,
 } from '@/lib/models/debtCapacityLite';
 import type { ModelInputs } from '@/types/modelInputs';
-import { fromManual, fromTicker, manualPayloadFromRequest } from '@/lib/modelInputs/adapters';
+import {
+  fromFinancialExtractionMappedInputs,
+  fromManual,
+  fromTicker,
+  manualPayloadFromRequest,
+} from '@/lib/modelInputs/adapters';
 import { LIVE_DATA_FALLBACK_NOTICE, normalizeModelInputs } from '@/lib/modelInputs/defensive';
+import { financialExtractionRouteDeps } from '@/lib/data/financial-extraction/routeDeps';
 
 const deepClone = <T,>(value: T): T => {
   if (typeof globalThis.structuredClone === 'function') {
@@ -170,6 +181,7 @@ const fmtPct = (val: number | null | undefined, decimals: number = 1): string =>
 function isPrivateManualMode(body: any): boolean {
   if (!body || typeof body !== 'object') return false;
   const requestedDataSource = String(body.dataSource || body.source || '').toLowerCase();
+  if (requestedDataSource === 'financial_extraction') return false;
   if (requestedDataSource === 'manual') return true;
   const companyMode = String(body.companyMode || body.mode || '').toLowerCase();
   if (companyMode === 'private') return true;
@@ -208,7 +220,9 @@ function validateRequestBody(body: any): { ticker: string; modelType: RequestMod
   }
 
   const privateManualMode = isPrivateManualMode(body);
-  if ((!ticker || typeof ticker !== 'string' || ticker.trim().length === 0) && !privateManualMode) {
+  const hasFinancialExtractionJob =
+    typeof body?.financialExtractionJobId === 'string' && body.financialExtractionJobId.trim().length > 0;
+  if ((!ticker || typeof ticker !== 'string' || ticker.trim().length === 0) && !privateManualMode && !hasFinancialExtractionJob) {
     throw new Error('Ticker is required and must be a non-empty string');
   }
   const normalizedTicker =
@@ -222,6 +236,143 @@ function validateRequestBody(body: any): { ticker: string; modelType: RequestMod
     ticker: normalizedTicker,
     modelType,
     rest,
+  };
+}
+
+function applyCatalogRefreshValues(params: {
+  refreshedValues: ReturnType<typeof extractCatalogRefreshValues>;
+  body: any;
+  sanitizedAssumptions: any;
+  ltmFinancials: any;
+  normalizedFinancials: any;
+  canonicalValues: any;
+  modelType: string;
+}) {
+  const {
+    refreshedValues,
+    body,
+    sanitizedAssumptions,
+    ltmFinancials,
+    normalizedFinancials,
+    canonicalValues,
+    modelType,
+  } = params;
+
+  const assignIfMissing = (container: any, key: string, value: unknown) => {
+    if (container == null || value == null) return;
+    if (container[key] === undefined || container[key] === null || container[key] === '') {
+      container[key] = value;
+    }
+  };
+
+  const assignCanonical = (key: string, value: unknown) => {
+    if (value == null) return;
+    if (canonicalValues?.[key] && (canonicalValues[key].value === undefined || canonicalValues[key].value === null)) {
+      canonicalValues[key].value = value;
+    }
+  };
+
+  assignIfMissing(body, 'companyName', refreshedValues.companyName);
+  assignIfMissing(body, 'marketCap', refreshedValues.marketCap);
+  assignIfMissing(body, 'market_cap', refreshedValues.marketCap);
+  assignIfMissing(body, 'price', refreshedValues.price);
+  assignIfMissing(body, 'sharePrice', refreshedValues.price);
+  assignIfMissing(body, 'sharesOutstanding', refreshedValues.sharesOutstanding);
+  assignIfMissing(body, 'shares_out_basic', refreshedValues.sharesOutstanding);
+  assignIfMissing(body, 'revenue', refreshedValues.revenue);
+  assignIfMissing(body, 'ebitda', refreshedValues.ebitda);
+  assignIfMissing(body, 'netIncome', refreshedValues.netIncome);
+  assignIfMissing(body, 'net_income', refreshedValues.netIncome);
+  assignIfMissing(body, 'cash', refreshedValues.cash);
+  assignIfMissing(body, 'totalDebt', refreshedValues.totalDebt);
+  assignIfMissing(body, 'total_debt', refreshedValues.totalDebt);
+  assignIfMissing(body, 'netDebt', refreshedValues.netDebt);
+  assignIfMissing(body, 'net_debt', refreshedValues.netDebt);
+
+  if (refreshedValues.revenue !== null) {
+    if (!Array.isArray(sanitizedAssumptions.revenue) || sanitizedAssumptions.revenue.length === 0) {
+      sanitizedAssumptions.revenue = [refreshedValues.revenue];
+    }
+    assignIfMissing(sanitizedAssumptions, 'baseRevenue', refreshedValues.revenue);
+    assignIfMissing(sanitizedAssumptions, 'revenueLtm', refreshedValues.revenue);
+  }
+  if (refreshedValues.ebitda !== null && (!Array.isArray(sanitizedAssumptions.ebitda) || sanitizedAssumptions.ebitda.length === 0)) {
+    sanitizedAssumptions.ebitda = [refreshedValues.ebitda];
+  }
+  if (refreshedValues.netIncome !== null && (!Array.isArray(sanitizedAssumptions.netIncome) || sanitizedAssumptions.netIncome.length === 0)) {
+    sanitizedAssumptions.netIncome = [refreshedValues.netIncome];
+  }
+  if (refreshedValues.cash !== null) {
+    assignIfMissing(sanitizedAssumptions, 'startingCash', refreshedValues.cash);
+  }
+  if (refreshedValues.totalDebt !== null) {
+    assignIfMissing(sanitizedAssumptions, 'debt', refreshedValues.totalDebt);
+  }
+  if (refreshedValues.sharesOutstanding !== null) {
+    assignIfMissing(sanitizedAssumptions, 'sharesOutstanding', refreshedValues.sharesOutstanding);
+  }
+
+  assignCanonical('revenue', refreshedValues.revenue);
+  assignCanonical('grossProfit', refreshedValues.grossProfit);
+  assignCanonical('ebitda', refreshedValues.ebitda);
+  assignCanonical('ebit', refreshedValues.ebit);
+  assignCanonical('netIncome', refreshedValues.netIncome);
+  assignCanonical('cash', refreshedValues.cash);
+  assignCanonical('totalDebt', refreshedValues.totalDebt);
+  assignCanonical('sharesOutstanding', refreshedValues.sharesOutstanding);
+  assignCanonical('marketCap', refreshedValues.marketCap);
+  assignCanonical('price', refreshedValues.price);
+  assignCanonical('netDebt', refreshedValues.netDebt);
+
+  const nextLtm = {
+    ...(ltmFinancials ?? {}),
+    revenue: refreshedValues.revenue ?? ltmFinancials?.revenue ?? null,
+    ebitda: refreshedValues.ebitda ?? ltmFinancials?.ebitda ?? null,
+    ebit: refreshedValues.ebit ?? ltmFinancials?.ebit ?? null,
+    netIncome: refreshedValues.netIncome ?? ltmFinancials?.netIncome ?? null,
+    cash: refreshedValues.cash ?? ltmFinancials?.cash ?? null,
+    totalDebt: refreshedValues.totalDebt ?? ltmFinancials?.totalDebt ?? null,
+    sharesOutstanding: refreshedValues.sharesOutstanding ?? ltmFinancials?.sharesOutstanding ?? null,
+    marketCap: refreshedValues.marketCap ?? ltmFinancials?.marketCap ?? null,
+    price: refreshedValues.price ?? ltmFinancials?.price ?? ltmFinancials?.currentPrice ?? null,
+    companyName: refreshedValues.companyName ?? ltmFinancials?.companyName ?? null,
+    dataSource: (ltmFinancials?.dataSource ?? 'catalog_snapshot') + '_refreshed',
+  };
+
+  const nextNormalized = {
+    ...(normalizedFinancials ?? {}),
+    revenue: refreshedValues.revenue ?? normalizedFinancials?.revenue ?? null,
+    revenueM: refreshedValues.revenue ?? normalizedFinancials?.revenueM ?? null,
+    grossProfit: refreshedValues.grossProfit ?? normalizedFinancials?.grossProfit ?? null,
+    grossProfitM: refreshedValues.grossProfit ?? normalizedFinancials?.grossProfitM ?? null,
+    ebitda: refreshedValues.ebitda ?? normalizedFinancials?.ebitda ?? null,
+    ebitdaM: refreshedValues.ebitda ?? normalizedFinancials?.ebitdaM ?? null,
+    ebit: refreshedValues.ebit ?? normalizedFinancials?.ebit ?? null,
+    ebitM: refreshedValues.ebit ?? normalizedFinancials?.ebitM ?? null,
+    netIncome: refreshedValues.netIncome ?? normalizedFinancials?.netIncome ?? null,
+    netIncomeM: refreshedValues.netIncome ?? normalizedFinancials?.netIncomeM ?? null,
+    cash: refreshedValues.cash ?? normalizedFinancials?.cash ?? null,
+    cashM: refreshedValues.cash ?? normalizedFinancials?.cashM ?? null,
+    totalDebt: refreshedValues.totalDebt ?? normalizedFinancials?.totalDebt ?? null,
+    totalDebtM: refreshedValues.totalDebt ?? normalizedFinancials?.totalDebtM ?? null,
+    netDebt: refreshedValues.netDebt ?? normalizedFinancials?.netDebt ?? null,
+    netDebtM: refreshedValues.netDebt ?? normalizedFinancials?.netDebtM ?? null,
+    sharesOutstanding: refreshedValues.sharesOutstanding ?? normalizedFinancials?.sharesOutstanding ?? null,
+    sharesOutstandingM: refreshedValues.sharesOutstanding ?? normalizedFinancials?.sharesOutstandingM ?? null,
+    marketCap: refreshedValues.marketCap ?? normalizedFinancials?.marketCap ?? null,
+    price: refreshedValues.price ?? normalizedFinancials?.price ?? null,
+    scale: 'millions',
+  };
+
+  if (modelType === 'three-statement' && refreshedValues.grossProfit !== null) {
+    assignIfMissing(sanitizedAssumptions, 'grossProfit', refreshedValues.grossProfit);
+  }
+
+  return {
+    body,
+    sanitizedAssumptions,
+    ltmFinancials: nextLtm,
+    normalizedFinancials: nextNormalized,
   };
 }
 
@@ -256,65 +407,16 @@ function normalizeSharesToMillions(value: number | null): number | null {
 }
 
 function buildModelAssumptionPrompts(modelType: RequestModelType) {
-  switch (modelType) {
-    case 'reverse-dcf':
-      return {
-        missing: [
-          'targetPrice',
-          'revenue',
-          'ebitda_margin',
-          'tax_rate_assumption',
-          'capex_pct_revenue',
-          'nwc_pct_revenue',
-          'wacc',
-          'terminal_growth',
-          'projectionYears',
-        ],
-        requiredInputs: [
-          { key: 'targetPrice', label: 'Target Price', type: 'number', unit: 'USD', scale: 'raw', hint: 'You can also anchor with market cap or share price plus shares outstanding.' },
-          { key: 'marketCap', label: 'Market Cap', type: 'number', unit: 'USD', scale: 'raw', hint: 'Optional alternative anchor to target price.' },
-          { key: 'sharePrice', label: 'Share Price', type: 'number', unit: 'USD', scale: 'raw', hint: 'Optional alternative anchor if you also provide shares outstanding.' },
-          { key: 'shares_out_basic', label: 'Shares Outstanding', type: 'number', unit: 'Shares', scale: 'raw' },
-          { key: 'revenue', label: 'Revenue (LTM)', type: 'number', unit: 'USD', scale: 'raw' },
-          { key: 'ebitda_margin', label: 'EBITDA Margin', type: 'percent', unit: '%' },
-          { key: 'tax_rate_assumption', label: 'Tax Rate', type: 'percent', unit: '%' },
-          { key: 'capex_pct_revenue', label: 'Capex % of Revenue', type: 'percent', unit: '%' },
-          { key: 'nwc_pct_revenue', label: 'NWC % of Revenue', type: 'percent', unit: '%' },
-          { key: 'wacc', label: 'WACC', type: 'percent', unit: '%' },
-          { key: 'terminal_growth', label: 'Terminal Growth', type: 'percent', unit: '%' },
-          { key: 'projectionYears', label: 'Projection Years', type: 'number' },
-        ],
-      };
-    case 'dcf':
-      return {
-        missing: ['revenue', 'ebitda', 'tax_rate_assumption', 'wacc', 'terminal_growth', 'net_debt', 'shares_out_basic'],
-        requiredInputs: [
-          ...buildRequiredInputs(['revenue', 'ebitda', 'tax_rate_assumption', 'terminal_growth']),
-          { key: 'wacc', label: 'WACC', type: 'percent', unit: '%' },
-          ...buildRequiredInputs(['net_debt', 'shares_out_basic']),
-        ],
-      };
-    case 'three-statement':
-      return {
-        missing: ['revenue', 'ebitda', 'net_income', 'cash', 'total_debt', 'tax_rate_assumption'],
-        requiredInputs: buildRequiredInputs(['revenue', 'ebitda', 'net_income', 'cash', 'total_debt', 'tax_rate_assumption']),
-      };
-    case 'lbo':
-      return {
-        missing: ['revenue', 'ebitda', 'entry_multiple', 'exit_multiple', 'debt_percent', 'interest_rate', 'holding_period_years'],
-        requiredInputs: buildRequiredInputs(['revenue', 'ebitda', 'entry_multiple', 'exit_multiple', 'debt_percent', 'interest_rate', 'holding_period_years']),
-      };
-    case 'comps':
-      return {
-        missing: ['revenue', 'ebitda', 'net_income', 'market_cap', 'shares_out_basic', 'customPeers'],
-        requiredInputs: buildRequiredInputs(['revenue', 'ebitda', 'net_income', 'market_cap', 'shares_out_basic', 'customPeers']),
-      };
-    default:
-      return {
-        missing: ['revenue'],
-        requiredInputs: buildRequiredInputs(['revenue'], 'Real company data is unavailable; provide manual inputs to continue.'),
-      };
-  }
+  const missing = getAllRequiredInputKeysForModel(modelType);
+  const requirementState = buildRequiredInputState(
+    modelType,
+    missing,
+    'Real company data is unavailable; provide the missing inputs to continue.'
+  );
+  return {
+    missing: requirementState.missing,
+    requiredInputs: requirementState.requiredInputs,
+  };
 }
 
 /**
@@ -3026,6 +3128,9 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       })
     | undefined;
   let normalizedModelInputs: ModelInputs | null = null;
+  let financialExtractionJob: Awaited<
+    ReturnType<typeof financialExtractionRouteDeps.getFinancialExtractionJob>
+  > | null = null;
   let debtCapacityLiteInputs:
     | {
         maxLeverage: number;
@@ -3039,6 +3144,39 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
   try {
     body = bodyOverride ?? (await req.json());
     privateManualMode = isPrivateManualMode(body);
+    const financialExtractionJobId =
+      typeof body?.financialExtractionJobId === 'string' && body.financialExtractionJobId.trim()
+        ? body.financialExtractionJobId.trim()
+        : '';
+    financialExtractionJob = financialExtractionJobId
+      ? await financialExtractionRouteDeps.getFinancialExtractionJob(financialExtractionJobId)
+      : null;
+    if (financialExtractionJobId && !financialExtractionJob) {
+      return NextResponse.json(
+        {
+          ok: false,
+          status: 'failed',
+          state: 'failed',
+          code: 'financial_extraction_job_not_found',
+          message: 'Financial extraction job not found.',
+        },
+        { status: 404 }
+      );
+    }
+    if (financialExtractionJob?.snapshot?.validationState === 'blocking_error') {
+      return NextResponse.json(
+        {
+          ok: false,
+          status: 'failed',
+          state: 'failed',
+          code: 'financial_extraction_blocked',
+          message:
+            financialExtractionJob.snapshot.blockingErrors.join(' ') ||
+            'Financial extraction snapshot is not model-ready.',
+        },
+        { status: 400 }
+      );
+    }
     requestSliderOverrides =
       body?.sliderOverrides && typeof body.sliderOverrides === 'object'
         ? body.sliderOverrides
@@ -3074,6 +3212,10 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
         Array.isArray(providedModelInputs.historicals.revenue)
       ) {
         normalizedModelInputs = providedModelInputs;
+      } else if (financialExtractionJob?.snapshot?.mappedModelInputs) {
+        normalizedModelInputs = fromFinancialExtractionMappedInputs(
+          financialExtractionJob.snapshot.mappedModelInputs
+        );
       } else if (privateManualMode) {
         const manualPayload = manualPayloadFromRequest({
           ...body,
@@ -4530,6 +4672,8 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
   currentStage = 'computability-check';
   let estimatedInputs: Array<{ key: string; value: number; source: string; confidence: 'low' | 'medium' | 'high' }> = [];
   let modelState: ModelStateInfo | null = null;
+  let dataRefreshStatus: DataRefreshStatus = 'cached';
+  let dataRefreshWarnings: string[] = [];
 
   try {
     // For DCF models, auto-estimate WACC components if missing
@@ -4570,7 +4714,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       (typeof wacc !== 'undefined' ? wacc : undefined) ||
       requestSliderOverrides?.wacc;
     
-    const resolvedFundamentals =
+    let resolvedFundamentals =
       modelType === 'three-statement'
         ? await resolveFundamentals({
             ticker: cleanTicker,
@@ -4617,221 +4761,216 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
     }
 
     // Build base inputs for computability check
-    const baseInputs: Record<string, any> = {
-      ...body,
-      ...sanitizedAssumptions,
-      revenue:
-        sanitizedAssumptions?.revenue?.[0] ||
-        canonicalValues.revenue.value ||
-        resolvedFundamentals?.revenue ||
-        ltmFinancials?.revenue ||
-        (normalizedFinancials as any)?.revenue ||
-        (normalizedFinancials as any)?.revenueM,
-      ebitda:
-        sanitizedAssumptions?.ebitda?.[0] ||
-        canonicalValues.ebitda.value ||
-        resolvedFundamentals?.ebitda ||
-        ltmFinancials?.ebitda ||
-        (normalizedFinancials as any)?.ebitda ||
-        (normalizedFinancials as any)?.ebitdaM,
-      ebit: sanitizedAssumptions?.ebit?.[0] || ltmFinancials?.ebit,
-      netIncome:
-        sanitizedAssumptions?.netIncome?.[0] ||
-        canonicalValues.netIncome.value ||
-        resolvedFundamentals?.netIncome ||
-        ltmFinancials?.netIncome ||
-        (normalizedFinancials as any)?.netIncome ||
-        (normalizedFinancials as any)?.netIncomeM,
-      rf_rate: body.rf_rate || body.wacc_inputs?.rf_rate,
-      equity_risk_premium: body.erp || body.wacc_inputs?.erp,
-      beta: body.beta || body.wacc_inputs?.beta,
-      cost_of_debt: body.cost_of_debt || body.wacc_inputs?.cost_of_debt,
-      tax_rate_assumption: body.tax_rate || body.taxRate || body.wacc_inputs?.tax_rate,
-      // Map camelCase scenario inputs to snake_case
-      terminal_growth: terminalGrowthValue,
-      wacc: waccValue,
+    const buildBaseInputs = () => {
+      const nextBaseInputs: Record<string, any> = {
+        ...body,
+        ...sanitizedAssumptions,
+        revenue:
+          sanitizedAssumptions?.revenue?.[0] ||
+          canonicalValues.revenue.value ||
+          resolvedFundamentals?.revenue ||
+          ltmFinancials?.revenue ||
+          (normalizedFinancials as any)?.revenue ||
+          (normalizedFinancials as any)?.revenueM,
+        ebitda:
+          sanitizedAssumptions?.ebitda?.[0] ||
+          canonicalValues.ebitda.value ||
+          resolvedFundamentals?.ebitda ||
+          ltmFinancials?.ebitda ||
+          (normalizedFinancials as any)?.ebitda ||
+          (normalizedFinancials as any)?.ebitdaM,
+        ebit: sanitizedAssumptions?.ebit?.[0] || ltmFinancials?.ebit,
+        netIncome:
+          sanitizedAssumptions?.netIncome?.[0] ||
+          canonicalValues.netIncome.value ||
+          resolvedFundamentals?.netIncome ||
+          ltmFinancials?.netIncome ||
+          (normalizedFinancials as any)?.netIncome ||
+          (normalizedFinancials as any)?.netIncomeM,
+        rf_rate: body.rf_rate || body.wacc_inputs?.rf_rate,
+        equity_risk_premium: body.erp || body.wacc_inputs?.erp,
+        beta: body.beta || body.wacc_inputs?.beta,
+        cost_of_debt: body.cost_of_debt || body.wacc_inputs?.cost_of_debt,
+        tax_rate_assumption: body.tax_rate || body.taxRate || body.wacc_inputs?.tax_rate,
+        terminal_growth: terminalGrowthValue,
+        wacc: waccValue,
+      };
+
+      if (modelType === 'comps') {
+        nextBaseInputs.net_income = nextBaseInputs.netIncome || nextBaseInputs.net_income;
+        nextBaseInputs.price = body.price || ltmFinancials?.price || ltmFinancials?.currentPrice || normalizedFinancials?.price;
+        nextBaseInputs.market_cap = body.market_cap || body.marketCap || ltmFinancials?.marketCap || normalizedFinancials?.marketCap;
+      }
+
+      nextBaseInputs.market_cap = nextBaseInputs.market_cap ?? nextBaseInputs.marketCap;
+      nextBaseInputs.shares_out_basic =
+        nextBaseInputs.shares_out_basic ??
+        nextBaseInputs.sharesOutstanding ??
+        nextBaseInputs.sharesOutBasic;
+      nextBaseInputs.total_debt = nextBaseInputs.total_debt ?? nextBaseInputs.totalDebt;
+      nextBaseInputs.net_debt = nextBaseInputs.net_debt ?? nextBaseInputs.netDebt;
+      nextBaseInputs.net_income = nextBaseInputs.net_income ?? nextBaseInputs.netIncome;
+      nextBaseInputs.interest_expense = nextBaseInputs.interest_expense ?? nextBaseInputs.interestExpense;
+      nextBaseInputs.tax_expense = nextBaseInputs.tax_expense ?? nextBaseInputs.taxExpense;
+
+      if (modelType === 'three-statement' && resolvedFundamentals) {
+        nextBaseInputs.revenue = nextBaseInputs.revenue ?? resolvedFundamentals.revenue;
+        nextBaseInputs.ebitda = nextBaseInputs.ebitda ?? resolvedFundamentals.ebitda;
+        nextBaseInputs.net_income = nextBaseInputs.net_income ?? resolvedFundamentals.netIncome;
+        nextBaseInputs.cash = nextBaseInputs.cash ?? resolvedFundamentals.cash ?? ltmFinancials?.cash ?? normalizedFinancials?.cash;
+        nextBaseInputs.total_debt =
+          nextBaseInputs.total_debt ??
+          resolvedFundamentals.totalDebt ??
+          ltmFinancials?.totalDebt ??
+          normalizedFinancials?.totalDebt;
+      }
+
+      if (modelType === 'lbo') {
+        const lboOverrides = body?.lboOverrides || {};
+        const deal = body?.lboDealAssumptions || {};
+        const entryMultiple =
+          lboOverrides.entryMultiple ??
+          deal?.entry?.entryMultiple ??
+          body.entry_multiple;
+        const exitMultiple =
+          lboOverrides.exitMultiple ??
+          deal?.exit?.exitMultiple ??
+          body.exit_multiple;
+        const transactionFeesPercent =
+          lboOverrides.transactionFeesPercent ??
+          deal?.entry?.transactionFeesPercent ??
+          body.transaction_fees_percent;
+        const exitFeesPercent =
+          lboOverrides.exitFeesPercent ??
+          deal?.exit?.exitFeesPercent ??
+          body.exit_fees_percent;
+        const debtPercent =
+          lboOverrides.debtPercent ??
+          deal?.financing?.debtPercent ??
+          body.debt_percent;
+        const equityPercent =
+          lboOverrides.equityPercent ??
+          deal?.financing?.equityPercent ??
+          body.equity_percent;
+        const interestRate =
+          lboOverrides.interestRate ??
+          deal?.financing?.interestRate ??
+          body.interest_rate ??
+          body.debt_rate;
+        const amortizationPercent =
+          lboOverrides.amortizationPercent ??
+          deal?.financing?.amortizationPercent ??
+          body.amortization_percent;
+        const cashSweepPercent =
+          lboOverrides.cashSweepPercent ??
+          deal?.financing?.cashSweepPercent ??
+          body.cash_sweep_percent;
+        const holdingPeriod =
+          lboOverrides.holdingPeriodYears ??
+          deal?.exit?.holdingPeriodYears ??
+          body.holding_period_years;
+        const revenueGrowth =
+          lboOverrides.revenueGrowth ??
+          deal?.operations?.revenueGrowth ??
+          body.revenue_growth;
+        const ebitdaMargin =
+          lboOverrides.ebitdaMargin ??
+          deal?.operations?.ebitdaMargin ??
+          body.ebitda_margin;
+        const capexPctRevenue =
+          lboOverrides.capexPercent ??
+          deal?.operations?.capexPctRevenue ??
+          body.capex_pct_revenue;
+        const deltaNwcPctRevenue =
+          lboOverrides.nwcPercent ??
+          deal?.operations?.deltaNwcPctRevenue ??
+          body.delta_nwc_pct_revenue;
+        const taxRate =
+          lboOverrides.taxRate ??
+          deal?.operations?.taxRate ??
+          body.tax_rate;
+
+        if (entryMultiple !== undefined) nextBaseInputs.entry_multiple = entryMultiple;
+        if (exitMultiple !== undefined) nextBaseInputs.exit_multiple = exitMultiple;
+        if (transactionFeesPercent !== undefined) nextBaseInputs.transaction_fees_percent = transactionFeesPercent;
+        if (exitFeesPercent !== undefined) nextBaseInputs.exit_fees_percent = exitFeesPercent;
+        if (debtPercent !== undefined) nextBaseInputs.debt_percent = debtPercent;
+        if (equityPercent !== undefined) nextBaseInputs.equity_percent = equityPercent;
+        if (interestRate !== undefined) nextBaseInputs.interest_rate = interestRate;
+        if (amortizationPercent !== undefined) nextBaseInputs.amortization_percent = amortizationPercent;
+        if (cashSweepPercent !== undefined) nextBaseInputs.cash_sweep_percent = cashSweepPercent;
+        if (holdingPeriod !== undefined) nextBaseInputs.holding_period_years = holdingPeriod;
+        if (revenueGrowth !== undefined) nextBaseInputs.revenue_growth = revenueGrowth;
+        if (ebitdaMargin !== undefined) nextBaseInputs.ebitda_margin = ebitdaMargin;
+        if (capexPctRevenue !== undefined) nextBaseInputs.capex_pct_revenue = capexPctRevenue;
+        if (deltaNwcPctRevenue !== undefined) nextBaseInputs.delta_nwc_pct_revenue = deltaNwcPctRevenue;
+        if (taxRate !== undefined) nextBaseInputs.tax_rate = taxRate;
+
+        if (
+          (nextBaseInputs.ebitda === undefined || nextBaseInputs.ebitda === null) &&
+          typeof nextBaseInputs.revenue === 'number' &&
+          Number.isFinite(nextBaseInputs.revenue) &&
+          typeof nextBaseInputs.ebitda_margin === 'number' &&
+          Number.isFinite(nextBaseInputs.ebitda_margin)
+        ) {
+          nextBaseInputs.ebitda = nextBaseInputs.revenue * nextBaseInputs.ebitda_margin;
+        }
+
+        if (
+          nextBaseInputs.enterprise_value === undefined &&
+          typeof entryMultiple === 'number' &&
+          typeof nextBaseInputs.ebitda === 'number'
+        ) {
+          nextBaseInputs.enterprise_value = entryMultiple * nextBaseInputs.ebitda;
+        }
+      }
+
+      if (modelType === 'reverse-dcf' && reverseDcfRawInputs) {
+        if (!nextBaseInputs.terminal_growth && reverseDcfRawInputs.terminalGrowthPct) {
+          nextBaseInputs.terminal_growth = reverseDcfRawInputs.terminalGrowthPct / 100;
+        }
+        if (!nextBaseInputs.wacc && reverseDcfRawInputs.waccPct) {
+          nextBaseInputs.wacc = reverseDcfRawInputs.waccPct / 100;
+        }
+      }
+
+      return nextBaseInputs;
     };
-    
-    // Add comps-specific input mapping (snake_case keys required by computability check)
-    if (modelType === 'comps') {
-      // Map camelCase to snake_case for comps requirements
-      baseInputs.net_income = baseInputs.netIncome || baseInputs.net_income;
-      
-      // Extract price and market_cap from various sources
-      baseInputs.price = body.price || ltmFinancials?.price || ltmFinancials?.currentPrice || normalizedFinancials?.price;
-      baseInputs.market_cap = body.market_cap || body.marketCap || ltmFinancials?.marketCap || normalizedFinancials?.marketCap;
-      
-      // Log inputs for debugging
-      console.log(`[generateModel] Comps computability inputs:`, {
-        price: baseInputs.price,
-        market_cap: baseInputs.market_cap,
-        revenue: baseInputs.revenue,
-        ebitda: baseInputs.ebitda,
-        net_income: baseInputs.net_income,
-        hasPrice: !!baseInputs.price,
-        hasMarketCap: !!baseInputs.market_cap,
-        hasPriceOrMarketCap: !!(baseInputs.price || baseInputs.market_cap),
-      });
-    }
 
-    // Map common camelCase aliases to the canonical snake_case keys used by the computability gate.
-    // This prevents "still missing" loops when the UI sends camelCase fields (e.g. netIncome/totalDebt).
-    baseInputs.market_cap = baseInputs.market_cap ?? baseInputs.marketCap;
-    baseInputs.shares_out_basic =
-      baseInputs.shares_out_basic ??
-      baseInputs.sharesOutstanding ??
-      baseInputs.sharesOutBasic;
-    baseInputs.total_debt = baseInputs.total_debt ?? baseInputs.totalDebt;
-    baseInputs.net_debt = baseInputs.net_debt ?? baseInputs.netDebt;
-    baseInputs.net_income = baseInputs.net_income ?? baseInputs.netIncome;
-    baseInputs.interest_expense = baseInputs.interest_expense ?? baseInputs.interestExpense;
-    baseInputs.tax_expense = baseInputs.tax_expense ?? baseInputs.taxExpense;
+    const buildReverseDcfMissing = (nextBaseInputs: Record<string, any>) => {
+      const missing: string[] = [];
+      if (modelType !== 'reverse-dcf') return missing;
 
-    if (modelType === 'three-statement' && resolvedFundamentals) {
-      baseInputs.revenue = baseInputs.revenue ?? resolvedFundamentals.revenue;
-      baseInputs.ebitda = baseInputs.ebitda ?? resolvedFundamentals.ebitda;
-      baseInputs.net_income = baseInputs.net_income ?? resolvedFundamentals.netIncome;
-      baseInputs.cash = baseInputs.cash ?? resolvedFundamentals.cash ?? ltmFinancials?.cash ?? normalizedFinancials?.cash;
-      baseInputs.total_debt = baseInputs.total_debt ?? resolvedFundamentals.totalDebt ?? ltmFinancials?.totalDebt ?? normalizedFinancials?.totalDebt;
-    }
-
-    if (modelType === 'lbo') {
-      const lboOverrides = body?.lboOverrides || {};
-      const deal = body?.lboDealAssumptions || {};
-      const entryMultiple =
-        lboOverrides.entryMultiple ??
-        deal?.entry?.entryMultiple ??
-        body.entry_multiple;
-      const exitMultiple =
-        lboOverrides.exitMultiple ??
-        deal?.exit?.exitMultiple ??
-        body.exit_multiple;
-      const transactionFeesPercent =
-        lboOverrides.transactionFeesPercent ??
-        deal?.entry?.transactionFeesPercent ??
-        body.transaction_fees_percent;
-      const exitFeesPercent =
-        lboOverrides.exitFeesPercent ??
-        deal?.exit?.exitFeesPercent ??
-        body.exit_fees_percent;
-      const debtPercent =
-        lboOverrides.debtPercent ??
-        deal?.financing?.debtPercent ??
-        body.debt_percent;
-      const equityPercent =
-        lboOverrides.equityPercent ??
-        deal?.financing?.equityPercent ??
-        body.equity_percent;
-      const interestRate =
-        lboOverrides.interestRate ??
-        deal?.financing?.interestRate ??
-        body.interest_rate ??
-        body.debt_rate;
-      const amortizationPercent =
-        lboOverrides.amortizationPercent ??
-        deal?.financing?.amortizationPercent ??
-        body.amortization_percent;
-      const cashSweepPercent =
-        lboOverrides.cashSweepPercent ??
-        deal?.financing?.cashSweepPercent ??
-        body.cash_sweep_percent;
-      const holdingPeriod =
-        lboOverrides.holdingPeriodYears ??
-        deal?.exit?.holdingPeriodYears ??
-        body.holding_period_years;
-      const revenueGrowth =
-        lboOverrides.revenueGrowth ??
-        deal?.operations?.revenueGrowth ??
-        body.revenue_growth;
-      const ebitdaMargin =
-        lboOverrides.ebitdaMargin ??
-        deal?.operations?.ebitdaMargin ??
-        body.ebitda_margin;
-      const capexPctRevenue =
-        lboOverrides.capexPercent ??
-        deal?.operations?.capexPctRevenue ??
-        body.capex_pct_revenue;
-      const deltaNwcPctRevenue =
-        lboOverrides.nwcPercent ??
-        deal?.operations?.deltaNwcPctRevenue ??
-        body.delta_nwc_pct_revenue;
-      const taxRate =
-        lboOverrides.taxRate ??
-        deal?.operations?.taxRate ??
-        body.tax_rate;
-
-      if (entryMultiple !== undefined) baseInputs.entry_multiple = entryMultiple;
-      if (exitMultiple !== undefined) baseInputs.exit_multiple = exitMultiple;
-      if (transactionFeesPercent !== undefined) baseInputs.transaction_fees_percent = transactionFeesPercent;
-      if (exitFeesPercent !== undefined) baseInputs.exit_fees_percent = exitFeesPercent;
-      if (debtPercent !== undefined) baseInputs.debt_percent = debtPercent;
-      if (equityPercent !== undefined) baseInputs.equity_percent = equityPercent;
-      if (interestRate !== undefined) baseInputs.interest_rate = interestRate;
-      if (amortizationPercent !== undefined) baseInputs.amortization_percent = amortizationPercent;
-      if (cashSweepPercent !== undefined) baseInputs.cash_sweep_percent = cashSweepPercent;
-      if (holdingPeriod !== undefined) baseInputs.holding_period_years = holdingPeriod;
-      if (revenueGrowth !== undefined) baseInputs.revenue_growth = revenueGrowth;
-      if (ebitdaMargin !== undefined) baseInputs.ebitda_margin = ebitdaMargin;
-      if (capexPctRevenue !== undefined) baseInputs.capex_pct_revenue = capexPctRevenue;
-      if (deltaNwcPctRevenue !== undefined) baseInputs.delta_nwc_pct_revenue = deltaNwcPctRevenue;
-      if (taxRate !== undefined) baseInputs.tax_rate = taxRate;
-
-      if (
-        (baseInputs.ebitda === undefined || baseInputs.ebitda === null) &&
-        typeof baseInputs.revenue === 'number' &&
-        Number.isFinite(baseInputs.revenue) &&
-        typeof baseInputs.ebitda_margin === 'number' &&
-        Number.isFinite(baseInputs.ebitda_margin)
-      ) {
-        baseInputs.ebitda = baseInputs.revenue * baseInputs.ebitda_margin;
-      }
-
-      if (
-        baseInputs.enterprise_value === undefined &&
-        typeof entryMultiple === 'number' &&
-        typeof baseInputs.ebitda === 'number'
-      ) {
-        baseInputs.enterprise_value = entryMultiple * baseInputs.ebitda;
-      }
-    }
-    
-    if (modelType === 'reverse-dcf' && reverseDcfRawInputs) {
-      if (!baseInputs.terminal_growth && reverseDcfRawInputs.terminalGrowthPct) {
-        baseInputs.terminal_growth = reverseDcfRawInputs.terminalGrowthPct / 100;
-      }
-      if (!baseInputs.wacc && reverseDcfRawInputs.waccPct) {
-        baseInputs.wacc = reverseDcfRawInputs.waccPct / 100;
-      }
-    }
-
-    const computabilityModelType =
-      modelType === 'reverse-dcf' ? 'dcf' : modelType;
-    const reverseDcfMissing: string[] = [];
-    if (modelType === 'reverse-dcf') {
-      const hasRevenue = typeof baseInputs.revenue === 'number' && Number.isFinite(baseInputs.revenue) && baseInputs.revenue > 0;
-      const hasTargetPrice = typeof reverseDcfRawInputs?.targetPrice === 'number' && Number.isFinite(reverseDcfRawInputs.targetPrice) && reverseDcfRawInputs.targetPrice > 0;
-      const hasMarketCap = typeof baseInputs.market_cap === 'number' && Number.isFinite(baseInputs.market_cap) && baseInputs.market_cap > 0;
+      const hasRevenue = typeof nextBaseInputs.revenue === 'number' && Number.isFinite(nextBaseInputs.revenue) && nextBaseInputs.revenue > 0;
+      const hasTargetPrice =
+        typeof reverseDcfRawInputs?.targetPrice === 'number' &&
+        Number.isFinite(reverseDcfRawInputs.targetPrice) &&
+        reverseDcfRawInputs.targetPrice > 0;
+      const hasMarketCap =
+        typeof nextBaseInputs.market_cap === 'number' &&
+        Number.isFinite(nextBaseInputs.market_cap) &&
+        nextBaseInputs.market_cap > 0;
       const hasSharePair =
-        typeof baseInputs.price === 'number' &&
-        Number.isFinite(baseInputs.price) &&
-        baseInputs.price > 0 &&
-        typeof baseInputs.shares_out_basic === 'number' &&
-        Number.isFinite(baseInputs.shares_out_basic) &&
-        baseInputs.shares_out_basic > 0;
+        typeof nextBaseInputs.price === 'number' &&
+        Number.isFinite(nextBaseInputs.price) &&
+        nextBaseInputs.price > 0 &&
+        typeof nextBaseInputs.shares_out_basic === 'number' &&
+        Number.isFinite(nextBaseInputs.shares_out_basic) &&
+        nextBaseInputs.shares_out_basic > 0;
       const hasMargin =
         (Array.isArray((sanitizedAssumptions as any)?.ebitdaMargin) &&
           typeof (sanitizedAssumptions as any).ebitdaMargin[0] === 'number' &&
           Number.isFinite((sanitizedAssumptions as any).ebitdaMargin[0])) ||
         (typeof (sanitizedAssumptions as any)?.ebitdaMargin === 'number' &&
           Number.isFinite((sanitizedAssumptions as any).ebitdaMargin)) ||
-        (typeof baseInputs.ebitda === 'number' &&
-          Number.isFinite(baseInputs.ebitda) &&
-          typeof baseInputs.revenue === 'number' &&
-          Number.isFinite(baseInputs.revenue) &&
-          baseInputs.revenue > 0);
+        (typeof nextBaseInputs.ebitda === 'number' &&
+          Number.isFinite(nextBaseInputs.ebitda) &&
+          typeof nextBaseInputs.revenue === 'number' &&
+          Number.isFinite(nextBaseInputs.revenue) &&
+          nextBaseInputs.revenue > 0);
       const hasTaxRate =
         typeof (sanitizedAssumptions as any)?.taxRate === 'number' ||
-        typeof baseInputs.tax_rate_assumption === 'number';
+        typeof nextBaseInputs.tax_rate_assumption === 'number';
       const hasCapexPct =
         (Array.isArray((sanitizedAssumptions as any)?.capexPctRevenue) &&
           typeof (sanitizedAssumptions as any).capexPctRevenue[0] === 'number') ||
@@ -4841,41 +4980,114 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
           typeof (sanitizedAssumptions as any).nwcPctRevenue[0] === 'number') ||
         typeof (sanitizedAssumptions as any)?.nwcPctRevenue === 'number';
 
-      if (!hasRevenue) reverseDcfMissing.push('revenue');
-      if (!hasTargetPrice && !hasMarketCap && !hasSharePair) reverseDcfMissing.push('targetPrice');
-      if (!hasMargin) reverseDcfMissing.push('ebitda_margin');
-      if (!hasTaxRate) reverseDcfMissing.push('tax_rate_assumption');
-      if (!hasCapexPct) reverseDcfMissing.push('capex_pct_revenue');
-      if (!hasNwcPct) reverseDcfMissing.push('nwc_pct_revenue');
-      if (!(typeof baseInputs.wacc === 'number' && Number.isFinite(baseInputs.wacc) && baseInputs.wacc > 0)) reverseDcfMissing.push('wacc');
-      if (!(typeof baseInputs.terminal_growth === 'number' && Number.isFinite(baseInputs.terminal_growth))) reverseDcfMissing.push('terminal_growth');
-      if (!(typeof reverseDcfRawInputs?.projectionYears === 'number' && Number.isFinite(reverseDcfRawInputs.projectionYears))) reverseDcfMissing.push('projectionYears');
-    }
-    const computabilityCheck =
-      modelType === 'scorecard' || modelType === 'debt-capacity-lite'
-        ? {
-            isComputable: true,
-            state: 'computable' as const,
-            missing: [] as string[],
-            estimated: estimatedInputs,
-            message: undefined,
-          }
-        : modelType === 'reverse-dcf'
+      if (!hasRevenue) missing.push('revenue');
+      if (!hasTargetPrice && !hasMarketCap && !hasSharePair) missing.push('targetPrice');
+      if (!hasMargin) missing.push('ebitda_margin');
+      if (!hasTaxRate) missing.push('tax_rate_assumption');
+      if (!hasCapexPct) missing.push('capex_pct_revenue');
+      if (!hasNwcPct) missing.push('nwc_pct_revenue');
+      if (!(typeof nextBaseInputs.wacc === 'number' && Number.isFinite(nextBaseInputs.wacc) && nextBaseInputs.wacc > 0)) missing.push('wacc');
+      if (!(typeof nextBaseInputs.terminal_growth === 'number' && Number.isFinite(nextBaseInputs.terminal_growth))) missing.push('terminal_growth');
+      if (!(typeof reverseDcfRawInputs?.projectionYears === 'number' && Number.isFinite(reverseDcfRawInputs.projectionYears))) missing.push('projectionYears');
+      return missing;
+    };
+
+    const runComputabilityCheck = async (nextBaseInputs: Record<string, any>) => {
+      const reverseMissing = buildReverseDcfMissing(nextBaseInputs);
+      const computabilityModelType = modelType === 'reverse-dcf' ? 'dcf' : modelType;
+      const result =
+        modelType === 'scorecard' || modelType === 'debt-capacity-lite'
           ? {
-              isComputable: reverseDcfMissing.length === 0,
-              state: (reverseDcfMissing.length === 0 ? 'computable' : 'assumptions_required') as const,
-              missing: reverseDcfMissing,
+              isComputable: true,
+              state: 'computable' as const,
+              missing: [] as string[],
               estimated: estimatedInputs,
-              message:
-                reverseDcfMissing.length > 0
-                  ? `Reverse DCF still needs explicit assumptions: ${reverseDcfMissing.join(', ')}`
-                  : undefined,
+              message: undefined,
             }
-          : await checkModelComputability(
-              computabilityModelType as 'comps' | 'dcf' | 'three-statement' | 'lbo' | 'merger',
-              baseInputs,
-              estimatedInputs
-            );
+          : modelType === 'reverse-dcf'
+            ? {
+                isComputable: reverseMissing.length === 0,
+                state: (reverseMissing.length === 0 ? 'computable' : 'assumptions_required') as const,
+                missing: reverseMissing,
+                estimated: estimatedInputs,
+                message:
+                  reverseMissing.length > 0
+                    ? `Reverse DCF still needs explicit assumptions: ${reverseMissing.join(', ')}`
+                    : undefined,
+              }
+            : await checkModelComputability(
+                computabilityModelType as 'comps' | 'dcf' | 'three-statement' | 'lbo' | 'merger',
+                nextBaseInputs,
+                estimatedInputs
+              );
+      return { reverseMissing, result };
+    };
+
+    let baseInputs = buildBaseInputs();
+    let { reverseMissing: reverseDcfMissing, result: computabilityCheck } = await runComputabilityCheck(baseInputs);
+
+    const canAutoRefreshCatalog =
+      !privateManualMode &&
+      Boolean(cleanTicker) &&
+      (modelType === 'reverse-dcf' || modelType === 'three-statement');
+
+    if (!computabilityCheck.isComputable && canAutoRefreshCatalog) {
+      const refreshResult = await refreshCatalogCompanyProfile(cleanTicker);
+      dataRefreshWarnings = refreshResult.warnings;
+
+      if (refreshResult.status === 'rerun_failed') {
+        dataRefreshStatus = 'rerun_failed';
+      } else {
+        const refreshedValues = extractCatalogRefreshValues(refreshResult.profile);
+        const patched = applyCatalogRefreshValues({
+          refreshedValues,
+          body,
+          sanitizedAssumptions,
+          ltmFinancials,
+          normalizedFinancials,
+          canonicalValues,
+          modelType,
+        });
+        body = patched.body;
+        sanitizedAssumptions = patched.sanitizedAssumptions;
+        ltmFinancials = patched.ltmFinancials;
+        normalizedFinancials = patched.normalizedFinancials;
+
+        resolvedFundamentals =
+          modelType === 'three-statement'
+            ? await resolveFundamentals({
+                ticker: cleanTicker,
+                body,
+                sanitizedAssumptions,
+                ltmFinancials,
+                normalizedFinancials,
+                canonicalFinancials,
+              })
+            : null;
+
+        if (modelType === 'three-statement' && resolvedFundamentals) {
+          if (resolvedFundamentals.revenue !== null && (!Array.isArray(sanitizedAssumptions.revenue) || sanitizedAssumptions.revenue.length === 0)) {
+            sanitizedAssumptions.revenue = [resolvedFundamentals.revenue];
+          }
+          if (resolvedFundamentals.ebitda !== null && (!Array.isArray(sanitizedAssumptions.ebitda) || sanitizedAssumptions.ebitda.length === 0)) {
+            sanitizedAssumptions.ebitda = [resolvedFundamentals.ebitda];
+          }
+          if (resolvedFundamentals.netIncome !== null && (!Array.isArray(sanitizedAssumptions.netIncome) || sanitizedAssumptions.netIncome.length === 0)) {
+            sanitizedAssumptions.netIncome = [resolvedFundamentals.netIncome];
+          }
+          if (resolvedFundamentals.cash !== null && (sanitizedAssumptions.startingCash === undefined || sanitizedAssumptions.startingCash === null)) {
+            sanitizedAssumptions.startingCash = resolvedFundamentals.cash;
+          }
+          if (resolvedFundamentals.totalDebt !== null && (sanitizedAssumptions.debt === undefined || sanitizedAssumptions.debt === null)) {
+            sanitizedAssumptions.debt = resolvedFundamentals.totalDebt;
+          }
+        }
+
+        baseInputs = buildBaseInputs();
+        ({ reverseMissing: reverseDcfMissing, result: computabilityCheck } = await runComputabilityCheck(baseInputs));
+        dataRefreshStatus = computabilityCheck.isComputable ? 'rerun_succeeded' : 'rerun_attempted';
+      }
+    }
 
     // Enhanced logging for comps model
     if (modelType === 'comps') {
@@ -4925,26 +5137,23 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
                         req.nextUrl.searchParams.get('format') === 'json';
       
       if (wantsJson) {
-        const requiredInputs =
-          modelType === 'reverse-dcf'
-            ? buildModelAssumptionPrompts('reverse-dcf').requiredInputs.filter((spec) =>
-                computabilityCheck.missing.includes(spec.key) ||
-                (spec.key === 'marketCap' && computabilityCheck.missing.includes('targetPrice')) ||
-                (spec.key === 'sharePrice' && computabilityCheck.missing.includes('targetPrice')) ||
-                (spec.key === 'shares_out_basic' && computabilityCheck.missing.includes('targetPrice'))
-              )
-            : buildRequiredInputs(
-                computabilityCheck.missing,
-                'Required to compute the model.'
-              );
+        const requirementState = buildRequiredInputState(
+          modelType,
+          computabilityCheck.missing,
+          'Required to compute the model.'
+        );
         return NextResponse.json(
           {
             state: 'assumptions_required',
-            missing: computabilityCheck.missing,
-            requiredInputs,
+            missing: requirementState.missing,
+            requiredInputs: requirementState.requiredInputs,
             estimated: estimatedInputs,
             message: computabilityCheck.message,
-            canGenerate: false,
+            canGenerate: requirementState.isComputable,
+            isComputable: requirementState.isComputable,
+            exportEligibility: requirementState.exportEligibility,
+            dataRefreshStatus,
+            warnings: dataRefreshWarnings,
           },
           { status: 200 } // 200 OK - this is a valid state, not an error
         );
@@ -4952,26 +5161,23 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
 
       // For non-JSON requests, still return 200 but with error message
       // (UI should handle this and show assumptions editor)
-      const requiredInputs =
-        modelType === 'reverse-dcf'
-          ? buildModelAssumptionPrompts('reverse-dcf').requiredInputs.filter((spec) =>
-              computabilityCheck.missing.includes(spec.key) ||
-              (spec.key === 'marketCap' && computabilityCheck.missing.includes('targetPrice')) ||
-              (spec.key === 'sharePrice' && computabilityCheck.missing.includes('targetPrice')) ||
-              (spec.key === 'shares_out_basic' && computabilityCheck.missing.includes('targetPrice'))
-            )
-          : buildRequiredInputs(
-              computabilityCheck.missing,
-              'Required to compute the model.'
-            );
+      const requirementState = buildRequiredInputState(
+        modelType,
+        computabilityCheck.missing,
+        'Required to compute the model.'
+      );
       return NextResponse.json(
         {
           error: 'ASSUMPTIONS_REQUIRED',
           state: 'assumptions_required',
-          missing: computabilityCheck.missing,
-          requiredInputs,
+          missing: requirementState.missing,
+          requiredInputs: requirementState.requiredInputs,
           estimated: estimatedInputs,
           message: computabilityCheck.message,
+          isComputable: requirementState.isComputable,
+          exportEligibility: requirementState.exportEligibility,
+          dataRefreshStatus,
+          warnings: dataRefreshWarnings,
         },
         { status: 200 }
       );
@@ -5671,8 +5877,10 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
           ...guardrailResult.warnings,
           ...canonicalFinancials.warnings,
           ...consistencyResult.warnings,
+          ...dataRefreshWarnings,
         ])
       ),
+      dataRefreshStatus,
       liveDataFallback:
         runtimeFallbackWarnings.includes(LIVE_DATA_FALLBACK_NOTICE) ||
         normalizedModelInputs?.metadata?.liveDataFallback === true,

@@ -1,9 +1,16 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ExpandableCard from '@/components/news/ExpandableCard';
+import { buildMarketEventModelCreateHref } from '@/lib/model-events/marketEventPrefill';
+import {
+  buildCompactModelImpactPreview,
+  formatSuggestionChip,
+  transcribeEventForModeling,
+} from '@/lib/model-events/transcribeEventForModeling';
 import {
   marketEventsApiResponseSchema,
   type MarketEventsApiResponse,
@@ -93,6 +100,68 @@ function formatImpactLabel(key: keyof MarketEvent['marketImpact']): string {
     default:
       return key.charAt(0).toUpperCase() + key.slice(1);
   }
+}
+
+function buildEventModelImpactPreview(event: MarketEvent) {
+  const leadSource = event.sources[0];
+  const rawEventText = [
+    event.title,
+    ...event.drivers,
+    ...event.transmissionPath,
+    ...MARKET_IMPACT_ORDER.map((key) => String(event.marketImpact[key] ?? '')).filter(Boolean),
+  ]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join(' ');
+
+  const transcription = transcribeEventForModeling({
+    event: {
+      sourceType: 'feed_item',
+      eventId: event.id,
+      title: event.title,
+      rawEventText,
+      publishedAt: leadSource?.publishedAt ?? event.lastUpdatedAt,
+      sourceUrl: leadSource?.url ?? null,
+      sourceLabel: leadSource?.name ?? leadSource?.title ?? null,
+      impactedTickers: [],
+      impactedSectors: event.marketImpact.sectors ? [event.marketImpact.sectors] : [],
+      horizon: event.horizon,
+      severity: event.severity,
+    },
+  }).transcription;
+
+  return buildCompactModelImpactPreview(transcription);
+}
+
+function CompactModelImpactPreview(props: {
+  summary: string;
+  suggestions: string[];
+  impacts: string[];
+}) {
+  return (
+    <div className="rounded-md border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-2">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-300">AI model impact</div>
+      <p className="mt-1 text-xs leading-5 text-zinc-200">{props.summary}</p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {props.impacts.slice(0, 3).map((impact) => (
+          <span
+            key={impact}
+            className="rounded-full border border-zinc-700/60 px-2 py-0.5 text-[10px] uppercase tracking-wide text-zinc-300"
+          >
+            {impact}
+          </span>
+        ))}
+        {props.suggestions.slice(0, 3).map((suggestion) => (
+          <span
+            key={suggestion}
+            className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-emerald-200"
+          >
+            {suggestion}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function EventsPanel() {
@@ -322,6 +391,7 @@ export default function EventsPanel() {
           !error &&
           filteredEvents.map((event) => {
             const score = finalScore(event);
+            const modelImpactPreview = buildEventModelImpactPreview(event);
             return (
               <ExpandableCard
                 key={event.id}
@@ -359,6 +429,12 @@ export default function EventsPanel() {
                     ))}
                   </ul>
                 </div>
+
+                <CompactModelImpactPreview
+                  summary={modelImpactPreview.summary}
+                  impacts={modelImpactPreview.impacts.map((impact) => impact.label)}
+                  suggestions={modelImpactPreview.suggestions.map((suggestion) => formatSuggestionChip(suggestion))}
+                />
 
                 <div>
                   <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-zinc-400/70">Market Impact</div>
@@ -418,14 +494,22 @@ export default function EventsPanel() {
                 </div>
 
                 {event.sources[0] && (
-                  <a
-                    href={event.sources[0].url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-sky-300 hover:text-sky-200"
-                  >
-                    Open lead source <ExternalLink className="h-3 w-3" />
-                  </a>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Link
+                      href={buildMarketEventModelCreateHref(event)}
+                      className="inline-flex items-center gap-1 text-xs text-emerald-300 hover:text-emerald-200"
+                    >
+                      Apply to model
+                    </Link>
+                    <a
+                      href={event.sources[0].url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-sky-300 hover:text-sky-200"
+                    >
+                      Open lead source <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
                 )}
               </ExpandableCard>
             );

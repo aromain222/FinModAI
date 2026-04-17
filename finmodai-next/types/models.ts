@@ -11,6 +11,7 @@ import type { ConsistencyWarning } from '@/lib/modelConsistency';
 import type { MissingInputSpec } from '@/lib/models/shared/missingInputSpecs';
 import type { MacroAssumptionContext, MacroAssumptionItem } from '@/lib/models/shared/macroAssumptions';
 import type { CompanyCatalystContext } from '@/lib/models/shared/companyCatalystContext';
+import type { ExportEligibility } from '@/lib/models/shared/requiredInputs';
 
 export type ModelType =
   | 'dcf'
@@ -80,6 +81,9 @@ export type GenerateModelResponse = {
   diagnostics?: DataDiagnostics[];  // Data quality diagnostics
   missingInputs?: string[];
   requiredInputs?: MissingInputSpec[];
+  isComputable?: boolean;
+  exportEligibility?: ExportEligibility;
+  dataRefreshStatus?: 'cached' | 'rerun_attempted' | 'rerun_succeeded' | 'rerun_failed';
   macroContext?: string;
   macroAssumptions?: MacroAssumptionItem[];
   macroAssumptionContext?: MacroAssumptionContext;

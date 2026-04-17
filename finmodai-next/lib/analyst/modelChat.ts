@@ -1,6 +1,30 @@
 import { classifyPrompt, type ModelGeneratorType } from '@/lib/model-generator/classifyPrompt';
 import type { AttachmentStatementSnapshot } from '@/lib/analyst/pdfFinancialStatements';
 import type { AttachmentModelExtractionContext } from '@/lib/analyst/claudeModelExtraction';
+import type {
+  AnalystFieldDisplayMap,
+  AttachmentScaleValidation,
+} from '@/lib/analyst/attachmentScaleValidation';
+import { analystModelChatDeps } from '@/lib/analyst/modelChatDeps';
+import {
+  buildAnalystGeneratedModelExportSeed,
+  buildAnalystGeneratedModelRecentRun,
+  isAnalystGeneratedModelExportSeed,
+  rebuildAnalystGeneratedModelPayloadFromSeed,
+} from '@/lib/analyst/export/exportSeed';
+import {
+  buildReasoningReply,
+  derivePersistentModelReasoningResponse,
+  translateFinancialReasoningToOverrides,
+} from '@/lib/analyst/revision/persistentModelReasoning';
+import type {
+  AnalystGeneratedModelExportSeed,
+  AnalystGeneratedModelPayload,
+  AnalystGeneratedModelRecentRun,
+  AnalystStructuredModelResult,
+  ModelNarrativeBlock,
+} from '@/lib/analyst/types';
+import type { EventLinkedModelEventSource } from '@/lib/model-events/types';
 import {
   extractInputs,
   type CompsPeerInputs,
@@ -8,7 +32,6 @@ import {
   type PrecedentTransactionInputs,
 } from '@/lib/model-generator/extractInputs';
 import type { ComparisonSummary, PromptRunRecord, ProvenanceSummary } from '@/lib/model-generator/runHistory';
-import { getLatestComparableRun } from '@/lib/model-generator/runHistory';
 import * as dcfTemplate from '@/lib/model-generator/templates/dcf';
 import * as compsTemplate from '@/lib/model-generator/templates/comps';
 import { calculateDebtCapacityPreview } from '@/lib/model-generator/debtCapacitySummary';
@@ -22,12 +45,23 @@ import * as threeStatementTemplate from '@/lib/model-generator/templates/threeSt
 import * as capTableTemplate from '@/lib/model-generator/templates/capTable';
 import * as saasOperatingTemplate from '@/lib/model-generator/templates/saasOperating';
 import { loadDemoSnapshots, type DemoCompanySnapshot } from '@/lib/demo/demoSnapshotStore';
-import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 
-type ModelNarrativeBlock = {
-  title: string;
-  body: string;
+export { analystModelChatDeps } from '@/lib/analyst/modelChatDeps';
+export {
+  buildAnalystGeneratedModelExportSeed,
+  buildAnalystGeneratedModelRecentRun,
+  isAnalystGeneratedModelExportSeed,
+  rebuildAnalystGeneratedModelPayloadFromSeed,
 };
+export type {
+  AnalystGeneratedModelExportSeed,
+  AnalystGeneratedModelRecentRun,
+};
+export type {
+  AnalystGeneratedModelPayload,
+  AnalystStructuredModelResult,
+  ModelNarrativeBlock,
+} from '@/lib/analyst/types';
 
 function extractJsonObject(text: string): string | null {
   const fenced = text.match(/```(?:json)?\s*([\s\S]+?)\s*```/i);
@@ -38,37 +72,16 @@ function extractJsonObject(text: string): string | null {
   return text.slice(firstBrace, lastBrace + 1);
 }
 
-export type AnalystGeneratedModelPayload = {
-  prompt: string;
-  modelType: ModelGeneratorType;
-  title: string;
-  tabs: string[];
-  keyOutputs: string[];
-  scenarioContext: string | null;
-  extractedInputs: ExtractedModelInputs;
-  defaultsUsed: Record<string, unknown>;
-  provenanceSummary: ProvenanceSummary;
-  comparisonSummary: ComparisonSummary | null;
-  recentRun: {
-    runId: string;
-    versionNumber: number | null;
-    createdAt: string;
-    status: string;
-  } | null;
-  narrativeBlocks: ModelNarrativeBlock[];
-  attachmentExtraction?: {
-    providerTrace: 'deterministic' | 'claude' | 'mixed';
-    fieldConflicts: Array<{
-      field: string;
-      resolution: 'deterministic' | 'claude' | 'user_override';
-      warning: string;
-    }>;
-  } | null;
+type AnalystModelRevisionResult = {
+  reply: string;
+  payload: AnalystGeneratedModelPayload;
+  modelChanged: boolean;
 };
 
 export type AnalystStructuredModelAdjustment = {
   changes: Record<string, unknown>;
   prompt?: string;
+  eventContext?: EventLinkedModelEventSource | null;
 };
 
 type StructuredModelType = ModelGeneratorType;
@@ -277,14 +290,28 @@ function removeOverriddenDefaults(
   return next;
 }
 
+function promptExplicitlySetsCompanyType(prompt: string): boolean {
+  return /\b(company type|sector|business type|classified as)\b/i.test(prompt);
+}
+
+function stripUngroundedAttachmentMetadata(
+  inputs: ExtractedModelInputs,
+  keepCompanyType: boolean,
+): ExtractedModelInputs {
+  if (keepCompanyType || !('companyType' in inputs)) return inputs;
+  const next = { ...(inputs as Record<string, unknown>) };
+  delete next.companyType;
+  return next as ExtractedModelInputs;
+}
+
 function buildRecentRunSummary(recentRun: PromptRunRecord | null) {
   if (!recentRun) return null;
-  return {
+  return buildAnalystGeneratedModelRecentRun({
     runId: recentRun.id,
     versionNumber: recentRun.latestVersion?.versionNumber ?? null,
     createdAt: recentRun.createdAt,
     status: recentRun.status,
-  };
+  });
 }
 
 function buildNarrativeBlocks(
@@ -1169,7 +1196,7 @@ async function buildClaudeNarrativeBlocks(params: {
   provenanceSummary: ProvenanceSummary;
 }): Promise<ModelNarrativeBlock[] | null> {
   try {
-    const result = await generateTextWithProviderFallback({
+    const result = await analystModelChatDeps.generateTextWithProviderFallback({
       preferredProvider: 'anthropic',
       clientType: 'service',
       temperature: 0.1,
@@ -1209,16 +1236,29 @@ async function buildStructuredModelPayload(params: {
   extractedInputs: ExtractedModelInputs;
   defaultsUsed: Record<string, unknown>;
   provenanceSummary: ProvenanceSummary;
+  fieldDisplayMap?: AnalystFieldDisplayMap;
+  unitValidation?: AttachmentScaleValidation;
   sessionId?: string | null;
   replyPrefix?: string;
   attachmentExtractionContext?: AttachmentModelExtractionContext | null;
 }): Promise<{ reply: string; payload: AnalystGeneratedModelPayload }> {
-  const { prompt, modelType, extractedInputs, defaultsUsed, provenanceSummary, sessionId, replyPrefix, attachmentExtractionContext } = params;
+  const {
+    prompt,
+    modelType,
+    extractedInputs,
+    defaultsUsed,
+    provenanceSummary,
+    fieldDisplayMap,
+    unitValidation,
+    sessionId,
+    replyPrefix,
+    attachmentExtractionContext,
+  } = params;
   const preview = TEMPLATE_MAP[modelType].getPreview(extractedInputs);
   const modelLabel = labelForModelType(modelType);
   const defaultsSummary = summarizeDefaults(defaultsUsed);
   const scenarioContext = extractScenarioContext(prompt);
-  const recentRun = await getLatestComparableRun({
+  const recentRun = await analystModelChatDeps.getLatestComparableRun({
     surface: 'analyst_chat',
     sessionId: sessionId ?? null,
     modelType,
@@ -1258,6 +1298,9 @@ async function buildStructuredModelPayload(params: {
       comparisonSummary,
       recentRun: buildRecentRunSummary(recentRun),
       narrativeBlocks,
+      fieldDisplayMap,
+      unitValidationStatus: unitValidation?.ok ? 'validated' : undefined,
+      unitValidationMessage: unitValidation?.ok ? unitValidation.message : null,
       attachmentExtraction: attachmentExtractionContext
         ? {
             providerTrace: attachmentExtractionContext.providerTrace,
@@ -1276,12 +1319,36 @@ export async function reviseAnalystStructuredModel(
   prompt: string,
   existingPayload: AnalystGeneratedModelPayload,
   sessionId?: string | null,
-): Promise<{ reply: string; payload: AnalystGeneratedModelPayload } | null> {
-  const eventShockOverrides = inferStructuredModelEventShock(prompt, existingPayload);
-  const overrides = extractFollowUpOverrides(prompt, existingPayload.extractedInputs);
-  const nestedOverrides = await applyNestedModelOverrides(prompt, existingPayload);
-  const mergedOverrides = { ...eventShockOverrides, ...overrides, ...nestedOverrides };
-  if (Object.keys(mergedOverrides).length === 0) return null;
+): Promise<AnalystModelRevisionResult | null> {
+  const structuredReasoning = await derivePersistentModelReasoningResponse(prompt, existingPayload);
+  const structuredOverrides = structuredReasoning
+    ? translateFinancialReasoningToOverrides(existingPayload, structuredReasoning)
+    : {};
+  const eventShockOverrides = Object.keys(structuredOverrides).length === 0
+    ? inferStructuredModelEventShock(prompt, existingPayload)
+    : {};
+  const overrides = Object.keys(structuredOverrides).length === 0
+    ? extractFollowUpOverrides(prompt, existingPayload.extractedInputs)
+    : {};
+  const nestedOverrides = Object.keys(structuredOverrides).length === 0
+    ? await applyNestedModelOverrides(prompt, existingPayload)
+    : {};
+  const mergedOverrides = { ...eventShockOverrides, ...overrides, ...nestedOverrides, ...structuredOverrides };
+  const modelChanged = Object.keys(mergedOverrides).length > 0;
+  if (!modelChanged) {
+    if (
+      structuredReasoning &&
+      (structuredReasoning.intent === 'explanation' || structuredReasoning.intent === 'other') &&
+      (structuredReasoning.summary || structuredReasoning.detailed_reasoning)
+    ) {
+      return {
+        reply: buildReasoningReply(labelForModelType(existingPayload.modelType), structuredReasoning, false),
+        payload: existingPayload,
+        modelChanged: false,
+      };
+    }
+    return null;
+  }
 
   const extractedInputs = {
     ...existingPayload.extractedInputs,
@@ -1314,7 +1381,9 @@ export async function reviseAnalystStructuredModel(
   });
 
   return {
-    reply: payloadResult.reply,
+    reply: structuredReasoning
+      ? buildReasoningReply(labelForModelType(existingPayload.modelType), structuredReasoning, true)
+      : payloadResult.reply,
     payload: {
       ...payloadResult.payload,
       comparisonSummary:
@@ -1326,6 +1395,7 @@ export async function reviseAnalystStructuredModel(
             }
           : payloadResult.payload.comparisonSummary,
     },
+    modelChanged: true,
   };
 }
 
@@ -1333,7 +1403,7 @@ export async function reviseAnalystStructuredModelFromOverrides(
   overrides: Record<string, unknown>,
   existingPayload: AnalystGeneratedModelPayload,
   sessionId?: string | null,
-): Promise<{ reply: string; payload: AnalystGeneratedModelPayload } | null> {
+): Promise<AnalystModelRevisionResult | null> {
   const safeOverrides = Object.fromEntries(
     Object.entries(overrides).filter(([key, value]) => key in existingPayload.extractedInputs && value !== undefined),
   );
@@ -1381,6 +1451,7 @@ export async function reviseAnalystStructuredModelFromOverrides(
             }
           : payloadResult.payload.comparisonSummary,
     },
+    modelChanged: true,
   };
 }
 
@@ -1396,10 +1467,7 @@ export async function generateAnalystStructuredModel(
     attachmentSummary?: string | null;
     attachmentExtractionContext?: AttachmentModelExtractionContext | null;
   } = {},
-): Promise<{
-  reply: string;
-  payload: AnalystGeneratedModelPayload;
-} | null> {
+): Promise<AnalystStructuredModelResult | null> {
   const modelType = classifyPrompt(prompt);
   if (!modelType) return null;
 
@@ -1412,12 +1480,31 @@ export async function generateAnalystStructuredModel(
     attachmentSummary: options.attachmentSummary,
     attachmentExtractionContext: options.attachmentExtractionContext ?? null,
   });
+
+  if (extraction.scaleValidation && !extraction.scaleValidation.ok) {
+    return {
+      reply: extraction.scaleValidation.message,
+      validationFailed: true,
+      unitValidation: extraction.scaleValidation,
+    };
+  }
+
+  const keepCompanyType =
+    promptExplicitlySetsCompanyType(prompt) ||
+    (typeof options.inputOverrides?.companyType === 'string' && options.inputOverrides.companyType.trim().length > 0);
+  const extractedInputs =
+    options.attachmentDriven === true
+      ? stripUngroundedAttachmentMetadata(extraction.extractedInputs, keepCompanyType)
+      : extraction.extractedInputs;
+
   return buildStructuredModelPayload({
     prompt,
     modelType,
-    extractedInputs: extraction.extractedInputs,
+    extractedInputs,
     defaultsUsed: extraction.defaultsUsed,
     provenanceSummary: extraction.provenanceSummary,
+    fieldDisplayMap: extraction.fieldDisplayMap,
+    unitValidation: extraction.scaleValidation,
     sessionId,
     attachmentExtractionContext: options.attachmentExtractionContext ?? null,
   });

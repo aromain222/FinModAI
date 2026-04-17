@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Home, ArrowLeft, TrendingUp, TrendingDown, Activity, Building2, FileSpreadsheet, SlidersHorizontal, CheckCircle2 } from 'lucide-react';
@@ -22,7 +23,8 @@ import type { GenerateModelResponse } from '@/types/models';
 import { cn } from '@/lib/utils';
 import { APP_NAME } from '@/lib/branding';
 import { MissingInputsModal } from '@/components/models/MissingInputsModal';
-import { buildMissingInputSpecs, type MissingInputSpec } from '@/lib/models/shared/missingInputSpecs';
+import { type MissingInputSpec } from '@/lib/models/shared/missingInputSpecs';
+import { buildRequiredInputsForModel } from '@/lib/models/shared/requiredInputs';
 import { validateModelInputs } from '@/lib/modelInputValidation';
 import { MergerInputsPanel } from '@/components/models/MergerInputsPanel';
 import { FootballFieldRangeChart } from '@/components/models/FootballFieldRangeChart';
@@ -60,6 +62,16 @@ import { useToast } from '@/hooks/use-toast';
 import { ToastEnhanced } from '@/components/ui/toast-enhanced';
 import { trackEvent } from '@/lib/trackEvent';
 import type { ModelDocument, TableBlock } from '@/lib/models/schema/ModelDocument';
+import type {
+  FinancialExtractionLane,
+  FinancialExtractionPeriodType,
+  FinancialValidationState,
+  ValidatedFinancialSnapshot,
+} from '@/lib/data/financial-extraction/types';
+import type {
+  EventLinkedModelAdjustmentResult,
+  EventLinkedModelEventSource,
+} from '@/lib/model-events/types';
 
 const MODEL_OPTIONS = [
   { value: 'three-statement', label: 'Three Statement Model', description: 'Full P&L, Balance Sheet, Cash Flow' },
@@ -126,6 +138,7 @@ const REPORTS_ENABLED = false;
 
 type ModelType = (typeof MODEL_OPTIONS)[number]['value'];
 type CompanyMode = 'public' | 'private';
+type PrivateInputSource = 'manual' | 'extraction';
 type ManualInputFieldKey =
   | 'companyName'
   | 'revenue'
@@ -207,6 +220,24 @@ type ModelData = {
 };
 
 type InsightCard = { title: string; body: string };
+
+type FinancialExtractionJobSummary = {
+  jobId: string;
+  lane: FinancialExtractionLane;
+  stage: string;
+  validationState: FinancialValidationState | null;
+  snapshot: ValidatedFinancialSnapshot | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type UploadedFinancialExtractionFile = {
+  fileId: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+};
 
 type AdvancedLboFormState = {
   managementRolloverPct: string;
@@ -476,6 +507,9 @@ type EnrichedModelResponse = GenerateModelResponse & {
   missingInputs?: string[];
   requiredInputs?: MissingInputSpec[];
   estimatedInputs?: Array<{ key: string; value: number; source: string; confidence: 'low' | 'medium' | 'high' }>;
+  isComputable?: boolean;
+  exportEligibility?: GenerateModelResponse['exportEligibility'];
+  dataRefreshStatus?: GenerateModelResponse['dataRefreshStatus'];
 };
 
 type BreakEvenResult = {
@@ -647,6 +681,34 @@ function formatResultMetric(
   return value.toLocaleString('en-US');
 }
 
+function extractionTargetPeriodForModel(modelType: ModelType): FinancialExtractionPeriodType {
+  return modelType === 'three-statement' ? 'annual' : 'ltm';
+}
+
+function formatExtractionValidationState(value: FinancialValidationState | null | undefined): string {
+  if (!value) return 'Not validated';
+  if (value === 'blocking_error') return 'Blocked';
+  if (value === 'warning') return 'Warnings';
+  return 'Ready';
+}
+
+function flattenEventTranscriptionImpacts(
+  transcription: EventLinkedModelAdjustmentResult['transcription'] | null | undefined
+) {
+  if (!transcription) return [];
+  return [
+    ...transcription.suggestedImpacts.business,
+    ...transcription.suggestedImpacts.market,
+    ...transcription.suggestedImpacts.model,
+  ];
+}
+
+function formatSuggestedAssumptionDirection(direction: 'up' | 'down' | 'flat'): string {
+  if (direction === 'up') return '↑';
+  if (direction === 'down') return '↓';
+  return '→';
+}
+
 
 function CreateModelPageInner() {
   const router = useRouter();
@@ -694,6 +756,8 @@ function CreateModelPageInner() {
   const [ticker, setTicker] = useState(initialTicker);
   const [companyMode, setCompanyMode] = useState<CompanyMode>('public');
   const isPrivateMode = companyMode === 'private';
+  const [usePublicFinancialExtraction, setUsePublicFinancialExtraction] = useState(false);
+  const [privateInputSource, setPrivateInputSource] = useState<PrivateInputSource>('manual');
   type DemoCompany = { ticker: string; company_name: string | null; sector: string | null };
   const [demoCompanies, setDemoCompanies] = useState<DemoCompany[]>([]);
   const [demoUniverseSource, setDemoUniverseSource] = useState<
@@ -715,6 +779,23 @@ function CreateModelPageInner() {
 
   const [demoFetched, setDemoFetched] = useState(false);
   const [demoLoadError, setDemoLoadError] = useState(false);
+  const [financialExtractionJobs, setFinancialExtractionJobs] = useState<FinancialExtractionJobSummary[]>([]);
+  const [selectedFinancialExtractionJobId, setSelectedFinancialExtractionJobId] = useState('');
+  const [financialExtractionLoading, setFinancialExtractionLoading] = useState(false);
+  const [financialExtractionBusy, setFinancialExtractionBusy] = useState(false);
+  const [financialExtractionError, setFinancialExtractionError] = useState<string | null>(null);
+  const [uploadedExtractionFiles, setUploadedExtractionFiles] = useState<UploadedFinancialExtractionFile[]>([]);
+  const [eventSourceType, setEventSourceType] = useState<EventLinkedModelEventSource['sourceType']>('pasted_text');
+  const [eventId, setEventId] = useState('');
+  const [eventTitle, setEventTitle] = useState('');
+  const [eventText, setEventText] = useState('');
+  const [eventSourceUrl, setEventSourceUrl] = useState('');
+  const [eventSourceLabel, setEventSourceLabel] = useState('');
+  const [eventPublishedAt, setEventPublishedAt] = useState('');
+  const [eventAdjustmentReview, setEventAdjustmentReview] = useState<EventLinkedModelAdjustmentResult | null>(null);
+  const [appliedEventAdjustment, setAppliedEventAdjustment] = useState<EventLinkedModelAdjustmentResult | null>(null);
+  const [eventAdjustmentLoading, setEventAdjustmentLoading] = useState(false);
+  const [eventAdjustmentError, setEventAdjustmentError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!demoDataActive) return;
@@ -884,7 +965,6 @@ function CreateModelPageInner() {
   const [operatingInputsValid, setOperatingInputsValid] = useState(false);
   
   // Manual financial inputs (for data that can't be fetched via API/AI/web scraping)
-  const [showManualInputs, setShowManualInputs] = useState(false);
   const [manualInputs, setManualInputs] = useState({
     companyName: '',
     currency: 'USD',
@@ -920,6 +1000,47 @@ function CreateModelPageInner() {
     () => privateRequiredFields.map((field) => PRIVATE_FIELD_LABELS[field]).join(', '),
     [privateRequiredFields]
   );
+  const extractionRequested = !isPrivateMode
+    ? usePublicFinancialExtraction
+    : privateInputSource === 'extraction';
+  const selectedFinancialExtractionJob = useMemo(
+    () => financialExtractionJobs.find((job) => job.jobId === selectedFinancialExtractionJobId) ?? null,
+    [financialExtractionJobs, selectedFinancialExtractionJobId]
+  );
+  const currentEventAssumptions = useMemo(() => {
+    const base = modelAssumptions.scenarios.base;
+    const parsePct = (value: string): number | null => {
+      const parsed = Number(String(value ?? '').trim());
+      return Number.isFinite(parsed) ? parsed / 100 : null;
+    };
+    const privateRevenueGrowth = parsePct(manualInputs.revenueGrowthPct);
+    const privateMargin = parsePct(manualInputs.ebitMarginPct);
+    return {
+      revenue_growth:
+        isPrivateMode && privateRevenueGrowth !== null
+          ? privateRevenueGrowth
+          : Number.isFinite(base.revenueGrowth)
+            ? base.revenueGrowth / 100
+            : null,
+      operating_margin:
+        isPrivateMode && privateMargin !== null
+          ? privateMargin
+          : Number.isFinite(base.ebitdaMargin)
+            ? base.ebitdaMargin / 100
+            : null,
+      wacc: Number.isFinite(base.wacc) ? base.wacc / 100 : null,
+      terminal_growth_rate: Number.isFinite(base.terminalGrowth) ? base.terminalGrowth / 100 : null,
+    };
+  }, [isPrivateMode, manualInputs.ebitMarginPct, manualInputs.revenueGrowthPct, modelAssumptions.scenarios.base]);
+  const currentEventCompanyContext = useMemo(
+    () => ({
+      companyName: isPrivateMode ? manualInputs.companyName.trim() || companyName || null : companyName || normalizedTicker || null,
+      ticker: isPrivateMode ? null : normalizedTicker || null,
+      sector: null,
+      industry: null,
+    }),
+    [companyName, isPrivateMode, manualInputs.companyName, normalizedTicker],
+  );
 
   const [missingInputOverrides, setMissingInputOverrides] = useState<Record<string, any>>({});
   // Keep a ref so "Apply & Re-run" can submit immediately with the latest patch
@@ -929,10 +1050,246 @@ function CreateModelPageInner() {
   useEffect(() => {
     missingInputOverridesRef.current = missingInputOverrides;
   }, [missingInputOverrides]);
-  
-  // Track which fields are missing (determined after data fetch attempt)
-  const [missingFields, setMissingFields] = useState<Set<string>>(new Set());
-  
+
+  useEffect(() => {
+    const prefilledEventText = searchParams.get('eventText');
+    if (!prefilledEventText) return;
+    setEventSourceType(searchParams.get('eventSourceType') === 'feed_item' ? 'feed_item' : 'pasted_text');
+    setEventId(searchParams.get('eventId') ?? '');
+    setEventTitle(searchParams.get('eventTitle') ?? '');
+    setEventText(prefilledEventText);
+    setEventSourceUrl(searchParams.get('eventUrl') ?? '');
+    setEventSourceLabel(searchParams.get('eventSource') ?? '');
+    setEventPublishedAt(searchParams.get('eventPublishedAt') ?? '');
+  }, [searchParams]);
+
+  useEffect(() => {
+    setFinancialExtractionError(null);
+    setSelectedFinancialExtractionJobId('');
+    setFinancialExtractionJobs([]);
+    if (!isPrivateMode) {
+      setPrivateInputSource('manual');
+      setUploadedExtractionFiles([]);
+    }
+  }, [companyMode, isPrivateMode]);
+
+  useEffect(() => {
+    if (!isPrivateMode) return;
+    if (privateInputSource !== 'extraction') {
+      setSelectedFinancialExtractionJobId('');
+      setFinancialExtractionJobs([]);
+    }
+  }, [isPrivateMode, privateInputSource]);
+
+  useEffect(() => {
+    setEventAdjustmentReview(null);
+    setAppliedEventAdjustment(null);
+    setEventAdjustmentError(null);
+  }, [companyMode, manualInputs.companyName, modelType, normalizedTicker]);
+
+  useEffect(() => {
+    if (!extractionRequested) {
+      setFinancialExtractionJobs([]);
+      setSelectedFinancialExtractionJobId('');
+      return;
+    }
+
+    const controller = new AbortController();
+    const params = new URLSearchParams();
+    params.set('lane', isPrivateMode ? 'private' : 'public');
+    params.set('limit', '8');
+    if (isPrivateMode) {
+      if (!manualInputs.companyName.trim()) return;
+      params.set('companyName', manualInputs.companyName.trim());
+    } else {
+      if (!normalizedTicker) return;
+      params.set('ticker', normalizedTicker);
+    }
+
+    const loadJobs = async () => {
+      try {
+        setFinancialExtractionLoading(true);
+        setFinancialExtractionError(null);
+        const response = await fetch(`/api/financial-extraction/jobs?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload.error || 'Failed to load extraction jobs.');
+        }
+        const payload = await response.json();
+        if (controller.signal.aborted) return;
+        const jobs = Array.isArray(payload?.jobs) ? (payload.jobs as FinancialExtractionJobSummary[]) : [];
+        setFinancialExtractionJobs(jobs);
+        setSelectedFinancialExtractionJobId((prev) => {
+          if (prev && jobs.some((job) => job.jobId === prev)) return prev;
+          return jobs[0]?.jobId ?? '';
+        });
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setFinancialExtractionError(error instanceof Error ? error.message : 'Failed to load extraction jobs.');
+        setFinancialExtractionJobs([]);
+      } finally {
+        if (!controller.signal.aborted) {
+          setFinancialExtractionLoading(false);
+        }
+      }
+    };
+
+    void loadJobs();
+    return () => controller.abort();
+  }, [extractionRequested, isPrivateMode, manualInputs.companyName, normalizedTicker]);
+
+  const fetchFinancialExtractionJob = useCallback(async (jobId: string): Promise<FinancialExtractionJobSummary> => {
+    const response = await fetch(`/api/financial-extraction/jobs/${encodeURIComponent(jobId)}`);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || 'Failed to load extraction job.');
+    }
+    return {
+      jobId: payload.jobId,
+      lane: payload.lane,
+      stage: payload.stage,
+      validationState: payload.validationState,
+      snapshot: payload.snapshot ?? null,
+      errorMessage: payload.errorMessage ?? null,
+      createdAt: payload.createdAt,
+      updatedAt: payload.updatedAt,
+    };
+  }, []);
+
+  const mergeFinancialExtractionJob = useCallback((job: FinancialExtractionJobSummary) => {
+    setFinancialExtractionJobs((prev) => {
+      const next = [job, ...prev.filter((item) => item.jobId !== job.jobId)];
+      return next.slice(0, 8);
+    });
+    setSelectedFinancialExtractionJobId(job.jobId);
+  }, []);
+
+  const uploadFinancialExtractionFiles = useCallback(async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setFinancialExtractionBusy(true);
+    setFinancialExtractionError(null);
+    try {
+      const formData = new FormData();
+      Array.from(files).forEach((file) => formData.append('files', file));
+      const response = await fetch('/api/financial-extraction/uploads', {
+        method: 'POST',
+        body: formData,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to upload private financial files.');
+      }
+      const uploaded = Array.isArray(payload?.files) ? (payload.files as UploadedFinancialExtractionFile[]) : [];
+      setUploadedExtractionFiles((prev) => {
+        const existing = new Set(prev.map((item) => item.fileId));
+        return [...prev, ...uploaded.filter((item) => !existing.has(item.fileId))];
+      });
+    } catch (error) {
+      setFinancialExtractionError(error instanceof Error ? error.message : 'Failed to upload files.');
+    } finally {
+      setFinancialExtractionBusy(false);
+    }
+  }, []);
+
+  const createFinancialExtractionJob = useCallback(async () => {
+    setFinancialExtractionBusy(true);
+    setFinancialExtractionError(null);
+    try {
+      const body = !isPrivateMode
+        ? {
+            lane: 'public',
+            ticker: normalizedTicker,
+            targetPeriodType: extractionTargetPeriodForModel(modelType),
+            targetModelType: modelType,
+          }
+        : {
+            lane: 'private',
+            companyName: manualInputs.companyName.trim(),
+            fileIds: uploadedExtractionFiles.map((file) => file.fileId),
+            targetPeriodType: extractionTargetPeriodForModel(modelType),
+            targetModelType: modelType,
+          };
+      const response = await fetch('/api/financial-extraction/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to create extraction job.');
+      }
+      if (!payload?.jobId) {
+        throw new Error('Extraction job creation did not return a job id.');
+      }
+      const fullJob = await fetchFinancialExtractionJob(payload.jobId);
+      mergeFinancialExtractionJob(fullJob);
+    } catch (error) {
+      setFinancialExtractionError(error instanceof Error ? error.message : 'Failed to create extraction job.');
+    } finally {
+      setFinancialExtractionBusy(false);
+    }
+  }, [
+    fetchFinancialExtractionJob,
+    isPrivateMode,
+    manualInputs.companyName,
+    mergeFinancialExtractionJob,
+    modelType,
+    normalizedTicker,
+    uploadedExtractionFiles,
+  ]);
+
+  const reviewEventAdjustment = useCallback(async () => {
+    if (!eventText.trim()) {
+      setEventAdjustmentError('Event text is required before reviewing the model impact.');
+      return;
+    }
+    setEventAdjustmentLoading(true);
+    setEventAdjustmentError(null);
+    try {
+      const response = await fetch('/api/model-events/derive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: {
+            sourceType: eventSourceType,
+            eventId: eventId.trim() || null,
+            title: eventTitle.trim() || null,
+            rawEventText: eventText.trim(),
+            publishedAt: eventPublishedAt.trim() || null,
+            sourceUrl: eventSourceUrl.trim() || null,
+            sourceLabel: eventSourceLabel.trim() || null,
+          },
+          company: currentEventCompanyContext,
+          currentAssumptions: currentEventAssumptions,
+          modelType,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to review event impact.');
+      }
+      setEventAdjustmentReview(payload as EventLinkedModelAdjustmentResult);
+    } catch (error) {
+      setEventAdjustmentError(error instanceof Error ? error.message : 'Failed to review event impact.');
+      setEventAdjustmentReview(null);
+    } finally {
+      setEventAdjustmentLoading(false);
+    }
+  }, [
+    currentEventAssumptions,
+    currentEventCompanyContext,
+    eventId,
+    eventPublishedAt,
+    eventSourceLabel,
+    eventSourceType,
+    eventSourceUrl,
+    eventText,
+    eventTitle,
+    modelType,
+  ]);
+
   // Applied defaults and warnings from API
   const [appliedDefaults, setAppliedDefaults] = useState<any[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -995,7 +1352,7 @@ function CreateModelPageInner() {
   const [missingInputSpecsOverride, setMissingInputSpecsOverride] = useState<MissingInputSpec[]>([]);
   const missingInputSpecs = useMemo(() => {
     if (missingInputSpecsOverride.length > 0) return missingInputSpecsOverride;
-    return buildMissingInputSpecs(modelType, missingInputs);
+    return buildRequiredInputsForModel(modelType, missingInputs);
   }, [modelType, missingInputs, missingInputSpecsOverride]);
   
   // LBO required inputs state
@@ -1084,7 +1441,6 @@ function CreateModelPageInner() {
     setMissingInputSpecsOverride([]);
     setEstimatedInputs([]);
     setMissingInputsModalOpen(false);
-    setMissingFields(new Set());
   }, [modelType, companyMode]);
 
   useEffect(() => {
@@ -1285,15 +1641,22 @@ function CreateModelPageInner() {
 
   const normalizeMissingOverrides = (overrides: Record<string, any>) => ({
     price: overrides.price,
+    sharePrice: overrides.sharePrice ?? overrides.share_price,
+    targetPrice: overrides.targetPrice ?? overrides.target_price,
+    companyName: overrides.companyName ?? overrides.company_name,
     marketCap: overrides.market_cap ?? overrides.marketCap,
     netIncome: overrides.net_income ?? overrides.netIncome,
     revenue: overrides.revenue,
     ebitda: overrides.ebitda,
     ebit: overrides.ebit,
+    grossProfit: overrides.gross_profit ?? overrides.grossProfit,
+    operatingIncome: overrides.operating_income ?? overrides.operatingIncome,
     cash: overrides.cash,
     totalDebt: overrides.total_debt ?? overrides.totalDebt,
     netDebt: overrides.net_debt ?? overrides.netDebt,
     sharesOutstanding: overrides.shares_out_basic ?? overrides.sharesOutstanding,
+    projectionYears: overrides.projectionYears ?? overrides.projection_years,
+    wacc: overrides.wacc,
     rf_rate: overrides.rf_rate,
     equity_risk_premium: overrides.equity_risk_premium,
     beta: overrides.beta,
@@ -1314,10 +1677,15 @@ function CreateModelPageInner() {
     cash_sweep_percent: overrides.cash_sweep_percent ?? overrides.cashSweepPercent,
     revenue_growth: overrides.revenue_growth ?? overrides.revenueGrowth,
     ebitda_margin: overrides.ebitda_margin ?? overrides.ebitdaMargin,
+    ebit_margin: overrides.ebit_margin ?? overrides.ebitMargin,
+    da_pct_revenue: overrides.da_pct_revenue ?? overrides.daPctRevenue,
     capex_pct_revenue: overrides.capex_pct_revenue ?? overrides.capexPctRevenue,
     delta_nwc_pct_revenue: overrides.delta_nwc_pct_revenue ?? overrides.deltaNwcPctRevenue,
     tax_rate: overrides.tax_rate ?? overrides.taxRate,
     minimum_cash_balance: overrides.minimum_cash_balance ?? overrides.minimumCashBalance,
+    maxLeverage: overrides.maxLeverage ?? overrides.max_leverage,
+    minInterestCoverage: overrides.minInterestCoverage ?? overrides.min_interest_coverage,
+    interestRatePct: overrides.interestRatePct ?? overrides.interest_rate_pct,
   });
 
   const handleMissingInputsApply = useCallback(
@@ -1332,18 +1700,95 @@ function CreateModelPageInner() {
       }
       setManualInputs((prev) => {
         const next = { ...prev };
+        if (normalized.companyName !== undefined) next.companyName = String(normalized.companyName);
+        if (normalized.sharePrice !== undefined) next.price = String(normalized.sharePrice);
         if (normalized.price !== undefined) next.price = String(normalized.price);
         if (normalized.revenue !== undefined) next.revenue = String(normalized.revenue);
         if (normalized.ebitda !== undefined) next.ebitda = String(normalized.ebitda);
         if (normalized.ebit !== undefined) next.ebit = String(normalized.ebit);
+        if (normalized.grossProfit !== undefined) next.grossProfit = String(normalized.grossProfit);
+        if (normalized.operatingIncome !== undefined) next.operatingIncome = String(normalized.operatingIncome);
         if (normalized.netIncome !== undefined) next.netIncome = String(normalized.netIncome);
         if (normalized.sharesOutstanding !== undefined) next.sharesOutstanding = String(normalized.sharesOutstanding);
         if (normalized.netDebt !== undefined) next.netDebt = String(normalized.netDebt);
         if (normalized.marketCap !== undefined) next.marketCap = String(normalized.marketCap);
         if (normalized.totalDebt !== undefined) next.totalDebt = String(normalized.totalDebt);
         if (normalized.cash !== undefined) next.cash = String(normalized.cash);
+        if (normalized.revenue_growth !== undefined) next.revenueGrowthPct = String(normalized.revenue_growth * 100);
+        if (normalized.ebitda_margin !== undefined) next.ebitMarginPct = String(normalized.ebitda_margin * 100);
+        if (normalized.ebit_margin !== undefined) next.ebitMarginPct = String(normalized.ebit_margin * 100);
+        if (normalized.tax_rate_assumption !== undefined) next.taxRatePct = String(normalized.tax_rate_assumption * 100);
+        if (normalized.tax_rate !== undefined) next.taxRatePct = String(normalized.tax_rate * 100);
+        if (normalized.da_pct_revenue !== undefined) next.daPctRevenue = String(normalized.da_pct_revenue * 100);
+        if (normalized.capex_pct_revenue !== undefined) next.capexPctRevenue = String(normalized.capex_pct_revenue * 100);
+        if (normalized.delta_nwc_pct_revenue !== undefined) next.nwcPctRevenue = String(normalized.delta_nwc_pct_revenue * 100);
         return next;
       });
+
+      if (normalized.revenue_growth !== undefined) {
+        updateScenarioValue('base', 'revenueGrowth', normalized.revenue_growth * 100);
+      }
+      if (normalized.ebitda_margin !== undefined) {
+        updateScenarioValue('base', 'ebitdaMargin', normalized.ebitda_margin * 100);
+      }
+      if (normalized.da_pct_revenue !== undefined) {
+        updateScenarioValue('base', 'daPctRevenue', normalized.da_pct_revenue * 100);
+      }
+      if (normalized.wacc !== undefined) {
+        updateScenarioValue('base', 'wacc', normalized.wacc * 100);
+      }
+      if (normalized.terminal_growth !== undefined) {
+        updateScenarioValue('base', 'terminalGrowth', normalized.terminal_growth * 100);
+      }
+      if (normalized.delta_nwc_pct_revenue !== undefined) {
+        updateScenarioValue('base', 'deltaNwcPct', normalized.delta_nwc_pct_revenue * 100);
+      }
+      if (normalized.capex_pct_revenue !== undefined) {
+        updateScenarioValue('base', 'capexPctRevenue', normalized.capex_pct_revenue * 100);
+      }
+      if (normalized.tax_rate_assumption !== undefined) {
+        updateScenarioValue('base', 'taxRate', normalized.tax_rate_assumption * 100);
+      } else if (normalized.tax_rate !== undefined) {
+        updateScenarioValue('base', 'taxRate', normalized.tax_rate * 100);
+      }
+
+      if (
+        normalized.wacc !== undefined ||
+        normalized.terminal_growth !== undefined ||
+        normalized.projectionYears !== undefined ||
+        normalized.targetPrice !== undefined
+      ) {
+        setReverseDcfInputs((prev) => ({
+          ...prev,
+          waccPct: normalized.wacc !== undefined ? String(normalized.wacc * 100) : prev.waccPct,
+          terminalGrowthPct:
+            normalized.terminal_growth !== undefined ? String(normalized.terminal_growth * 100) : prev.terminalGrowthPct,
+          projectionYears:
+            normalized.projectionYears !== undefined ? String(normalized.projectionYears) : prev.projectionYears,
+          targetPrice:
+            normalized.targetPrice !== undefined ? String(normalized.targetPrice) : prev.targetPrice,
+        }));
+      }
+
+      if (
+        normalized.maxLeverage !== undefined ||
+        normalized.minInterestCoverage !== undefined ||
+        normalized.interestRatePct !== undefined
+      ) {
+        setDebtCapacityLiteInputs((prev) => ({
+          ...prev,
+          maxLeverage:
+            normalized.maxLeverage !== undefined ? String(normalized.maxLeverage) : prev.maxLeverage,
+          minInterestCoverage:
+            normalized.minInterestCoverage !== undefined
+              ? String(normalized.minInterestCoverage)
+              : prev.minInterestCoverage,
+          interestRatePct:
+            normalized.interestRatePct !== undefined
+              ? String(normalized.interestRatePct * 100)
+              : prev.interestRatePct,
+        }));
+      }
 
       if (modelType === 'lbo') {
         setLboRequiredInputs((prev) => ({
@@ -1391,8 +1836,26 @@ function CreateModelPageInner() {
         }));
       }
     },
-    [modelType]
+    [modelType, updateScenarioValue]
   );
+
+  const applyReviewedEventAdjustment = useCallback(() => {
+    if (!eventAdjustmentReview) return;
+    if (eventAdjustmentReview.blockingErrors.length > 0) {
+      setEventAdjustmentError(eventAdjustmentReview.blockingErrors.join(' '));
+      return;
+    }
+    if (eventAdjustmentReview.hasMaterialChanges) {
+      handleMissingInputsApply(eventAdjustmentReview.normalizedOverrides);
+    }
+    setAppliedEventAdjustment(eventAdjustmentReview);
+  }, [eventAdjustmentReview, handleMissingInputsApply]);
+
+  const discardEventAdjustment = useCallback(() => {
+    setEventAdjustmentReview(null);
+    setAppliedEventAdjustment(null);
+    setEventAdjustmentError(null);
+  }, []);
 
   const handleMissingInputsRetry = useCallback(() => {
     requestAnimationFrame(() => {
@@ -1420,7 +1883,26 @@ function CreateModelPageInner() {
       }
     }
 
-    if (isPrivateMode) {
+    if (extractionRequested && !selectedFinancialExtractionJobId) {
+      setError('Create or select a validated extraction job before generating the model.');
+      return;
+    }
+
+    if (selectedFinancialExtractionJob?.stage && selectedFinancialExtractionJob.stage !== 'completed') {
+      setError('The selected extraction job is still processing.');
+      return;
+    }
+
+    if (selectedFinancialExtractionJob?.validationState === 'blocking_error') {
+      setError(
+        selectedFinancialExtractionJob.snapshot?.blockingErrors?.join(' ') ||
+          selectedFinancialExtractionJob.errorMessage ||
+          'The selected extraction job is blocked.',
+      );
+      return;
+    }
+
+    if (isPrivateMode && privateInputSource === 'manual') {
       const manualRevenue = parseManualNumber(manualInputs.revenue);
       const manualGrowthPct = parseAdvancedNumber(manualInputs.revenueGrowthPct);
       const manualMarginPct = parseAdvancedNumber(manualInputs.ebitMarginPct);
@@ -1449,6 +1931,17 @@ function CreateModelPageInner() {
 
       if (invalidField) {
         setError(`Private mode requires ${PRIVATE_FIELD_LABELS[invalidField]}.`);
+        return;
+      }
+    }
+
+    if (isPrivateMode && privateInputSource === 'extraction') {
+      if (!manualInputs.companyName.trim()) {
+        setError('Private extraction requires a company name.');
+        return;
+      }
+      if (uploadedExtractionFiles.length === 0 && financialExtractionJobs.length === 0) {
+        setError('Upload private financial files or select an existing extraction job first.');
         return;
       }
     }
@@ -1742,9 +2235,12 @@ function CreateModelPageInner() {
       };
 
       if (normalizedOverrides.price !== undefined) manualInputsPayload.price = normalizedOverrides.price;
+      if (normalizedOverrides.sharePrice !== undefined) manualInputsPayload.price = normalizedOverrides.sharePrice;
       if (normalizedOverrides.revenue !== undefined) manualInputsPayload.revenue = normalizedOverrides.revenue;
       if (normalizedOverrides.ebitda !== undefined) manualInputsPayload.ebitda = normalizedOverrides.ebitda;
       if (normalizedOverrides.ebit !== undefined) manualInputsPayload.ebit = normalizedOverrides.ebit;
+      if (normalizedOverrides.grossProfit !== undefined) manualInputsPayload.grossProfit = normalizedOverrides.grossProfit;
+      if (normalizedOverrides.operatingIncome !== undefined) manualInputsPayload.operatingIncome = normalizedOverrides.operatingIncome;
       if (normalizedOverrides.netIncome !== undefined) manualInputsPayload.netIncome = normalizedOverrides.netIncome;
       if (normalizedOverrides.sharesOutstanding !== undefined) manualInputsPayload.sharesOutstanding = normalizedOverrides.sharesOutstanding;
       if (normalizedOverrides.netDebt !== undefined) manualInputsPayload.netDebt = normalizedOverrides.netDebt;
@@ -1752,7 +2248,9 @@ function CreateModelPageInner() {
       if (normalizedOverrides.totalDebt !== undefined) manualInputsPayload.totalDebt = normalizedOverrides.totalDebt;
       if (normalizedOverrides.cash !== undefined) manualInputsPayload.cash = normalizedOverrides.cash;
 
-      const cleanedManualInputs = Object.fromEntries(
+      const cleanedManualInputs = extractionRequested && isPrivateMode && privateInputSource === 'extraction'
+        ? {}
+        : Object.fromEntries(
         Object.entries(manualInputsPayload).filter(([, value]) => value !== undefined && value !== null)
       );
 
@@ -1891,7 +2389,22 @@ function CreateModelPageInner() {
         companyMode,
         companyName: manualInputs.companyName.trim() || companyName || undefined,
         currency: manualInputs.currency.trim() || 'USD',
-        dataSource: isPrivateMode ? 'manual' : 'ticker',
+        dataSource: extractionRequested ? 'financial_extraction' : isPrivateMode ? 'manual' : 'ticker',
+        financialExtractionJobId: selectedFinancialExtractionJobId || undefined,
+        eventContext: appliedEventAdjustment?.event ?? undefined,
+        eventAdjustment:
+          appliedEventAdjustment
+            ? {
+                normalizedEventSummary: appliedEventAdjustment.normalizedEventSummary,
+                eventCategory: appliedEventAdjustment.eventCategory,
+                confidence: appliedEventAdjustment.confidence,
+                scenarioBias: appliedEventAdjustment.scenarioBias,
+                warnings: appliedEventAdjustment.warnings,
+                blockingErrors: appliedEventAdjustment.blockingErrors,
+                changedDrivers: appliedEventAdjustment.changedDrivers,
+                transcription: appliedEventAdjustment.transcription,
+              }
+            : undefined,
         includeScenarios: includeScenarioFlag || undefined,
         wacc:
           modelType === 'reverse-dcf'
@@ -2005,13 +2518,23 @@ function CreateModelPageInner() {
         manualInputs: Object.keys(cleanedManualInputs).length > 0 ? cleanedManualInputs : undefined,
       };
       if (isPrivateMode) {
-        requestBody.manualMode = true;
-        requestBody.sliderOverrides = {
-          ...(requestBody.sliderOverrides || {}),
-          ...privateSliderOverrides,
-        };
+        requestBody.manualMode = privateInputSource === 'manual';
+        if (privateInputSource === 'manual') {
+          requestBody.sliderOverrides = {
+            ...(requestBody.sliderOverrides || {}),
+            ...privateSliderOverrides,
+          };
+        } else if (!requestBody.manualInputs || Object.keys(requestBody.manualInputs).length === 0) {
+          delete requestBody.manualInputs;
+        }
       }
       if (normalizedOverrides.price !== undefined) requestBody.price = normalizedOverrides.price;
+      if (normalizedOverrides.sharePrice !== undefined) {
+        requestBody.sharePrice = normalizedOverrides.sharePrice;
+        requestBody.price = normalizedOverrides.sharePrice;
+      }
+      if (normalizedOverrides.targetPrice !== undefined) requestBody.targetPrice = normalizedOverrides.targetPrice;
+      if (normalizedOverrides.companyName !== undefined) requestBody.companyName = normalizedOverrides.companyName;
       if (normalizedOverrides.marketCap !== undefined) {
         requestBody.marketCap = normalizedOverrides.marketCap;
         requestBody.market_cap = normalizedOverrides.marketCap;
@@ -2023,6 +2546,14 @@ function CreateModelPageInner() {
       if (normalizedOverrides.revenue !== undefined) requestBody.revenue = normalizedOverrides.revenue;
       if (normalizedOverrides.ebitda !== undefined) requestBody.ebitda = normalizedOverrides.ebitda;
       if (normalizedOverrides.ebit !== undefined) requestBody.ebit = normalizedOverrides.ebit;
+      if (normalizedOverrides.grossProfit !== undefined) {
+        requestBody.grossProfit = normalizedOverrides.grossProfit;
+        requestBody.gross_profit = normalizedOverrides.grossProfit;
+      }
+      if (normalizedOverrides.operatingIncome !== undefined) {
+        requestBody.operatingIncome = normalizedOverrides.operatingIncome;
+        requestBody.operating_income = normalizedOverrides.operatingIncome;
+      }
       if (normalizedOverrides.cash !== undefined) requestBody.cash = normalizedOverrides.cash;
       if (normalizedOverrides.totalDebt !== undefined) {
         requestBody.totalDebt = normalizedOverrides.totalDebt;
@@ -2036,7 +2567,20 @@ function CreateModelPageInner() {
         requestBody.sharesOutstanding = normalizedOverrides.sharesOutstanding;
         requestBody.shares_out_basic = normalizedOverrides.sharesOutstanding;
       }
+      if (normalizedOverrides.projectionYears !== undefined) requestBody.projectionYears = normalizedOverrides.projectionYears;
+      if (normalizedOverrides.wacc !== undefined) requestBody.wacc = normalizedOverrides.wacc;
       if (normalizedOverrides.terminal_growth !== undefined) requestBody.terminal_growth = normalizedOverrides.terminal_growth;
+      if (normalizedOverrides.tax_rate_assumption !== undefined) requestBody.tax_rate_assumption = normalizedOverrides.tax_rate_assumption;
+      if (normalizedOverrides.tax_rate !== undefined) requestBody.tax_rate = normalizedOverrides.tax_rate;
+      if (normalizedOverrides.revenue_growth !== undefined) requestBody.revenue_growth = normalizedOverrides.revenue_growth;
+      if (normalizedOverrides.ebitda_margin !== undefined) requestBody.ebitda_margin = normalizedOverrides.ebitda_margin;
+      if (normalizedOverrides.ebit_margin !== undefined) requestBody.ebit_margin = normalizedOverrides.ebit_margin;
+      if (normalizedOverrides.da_pct_revenue !== undefined) requestBody.da_pct_revenue = normalizedOverrides.da_pct_revenue;
+      if (normalizedOverrides.capex_pct_revenue !== undefined) requestBody.capex_pct_revenue = normalizedOverrides.capex_pct_revenue;
+      if (normalizedOverrides.delta_nwc_pct_revenue !== undefined) {
+        requestBody.delta_nwc_pct_revenue = normalizedOverrides.delta_nwc_pct_revenue;
+        requestBody.nwc_pct_revenue = normalizedOverrides.delta_nwc_pct_revenue;
+      }
 
       const waccInputs: Record<string, number> = {};
       if (normalizedOverrides.rf_rate !== undefined) waccInputs.rf_rate = normalizedOverrides.rf_rate;
@@ -3186,6 +3730,87 @@ function CreateModelPageInner() {
                   Demo mode is not enabled for this session. Enable demo mode to load the public demo universe.
                 </p>
               )}
+
+              <div className="mt-4 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-subtle)] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium text-[var(--cb-text-primary)]">Use extracted financials</div>
+                    <p className="text-xs text-[var(--cb-text-muted)]">
+                      Create or select a validated public extraction job and feed it into generation before stored/demo defaults.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={usePublicFinancialExtraction}
+                    onCheckedChange={setUsePublicFinancialExtraction}
+                    disabled={!normalizedTicker || loading || financialExtractionBusy}
+                  />
+                </div>
+
+                {usePublicFinancialExtraction && (
+                  <div className="mt-4 space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void createFinancialExtractionJob()}
+                        disabled={!normalizedTicker || financialExtractionBusy || loading}
+                      >
+                        {financialExtractionBusy ? 'Creating extraction job…' : 'Create extraction job'}
+                      </Button>
+                      <Select
+                        value={selectedFinancialExtractionJobId || undefined}
+                        onValueChange={setSelectedFinancialExtractionJobId}
+                        disabled={financialExtractionLoading || financialExtractionJobs.length === 0}
+                      >
+                        <SelectTrigger className="w-full sm:w-[320px]">
+                          <SelectValue placeholder="Select a recent extraction job" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {financialExtractionJobs.map((job) => (
+                            <SelectItem key={job.jobId} value={job.jobId}>
+                              {formatExtractionValidationState(job.validationState)} • {job.snapshot?.companyName ?? normalizedTicker} •{' '}
+                              {new Date(job.updatedAt).toLocaleDateString('en-US')}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {financialExtractionLoading && (
+                      <p className="text-xs text-[var(--cb-text-muted)]">Loading recent extraction jobs…</p>
+                    )}
+                    {selectedFinancialExtractionJob && (
+                      <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-3 text-xs">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold text-[var(--cb-text-primary)]">
+                            {selectedFinancialExtractionJob.snapshot?.companyName ?? normalizedTicker}
+                          </span>
+                          <span className="rounded-full bg-[var(--cb-surface-alt)] px-2 py-0.5 text-[var(--cb-text-muted)]">
+                            {formatExtractionValidationState(selectedFinancialExtractionJob.validationState)}
+                          </span>
+                          <span className="text-[var(--cb-text-muted)]">Stage: {selectedFinancialExtractionJob.stage}</span>
+                        </div>
+                        {selectedFinancialExtractionJob.snapshot?.mappedModelInputs && (
+                          <div className="mt-2 grid gap-2 text-[var(--cb-text-secondary)] sm:grid-cols-3">
+                            <div>Revenue: {formatResultMetric(selectedFinancialExtractionJob.snapshot.mappedModelInputs.revenue ?? null, 'money')}</div>
+                            <div>EBITDA: {formatResultMetric(selectedFinancialExtractionJob.snapshot.mappedModelInputs.ebitda ?? null, 'money')}</div>
+                            <div>Cash: {formatResultMetric(selectedFinancialExtractionJob.snapshot.mappedModelInputs.cash ?? null, 'money')}</div>
+                          </div>
+                        )}
+                        {selectedFinancialExtractionJob.snapshot?.warnings?.length ? (
+                          <p className="mt-2 text-amber-600">{selectedFinancialExtractionJob.snapshot.warnings[0]}</p>
+                        ) : null}
+                        {selectedFinancialExtractionJob.snapshot?.blockingErrors?.length ? (
+                          <p className="mt-2 text-red-500">{selectedFinancialExtractionJob.snapshot.blockingErrors[0]}</p>
+                        ) : null}
+                      </div>
+                    )}
+                    {financialExtractionError && (
+                      <p className="text-xs text-red-500">{financialExtractionError}</p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             )}
               </CardContent>
@@ -3197,352 +3822,614 @@ function CreateModelPageInner() {
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">Step 2A</p>
                   <CardTitle className="text-base text-[var(--cb-text-primary)]">Private Company Inputs</CardTitle>
                   <CardDescription>
-                    Private mode uses manual inputs; market data auto-fetch is disabled.
+                    Stay fully manual or upload financial files and drive the model from a validated extraction job.
                   </CardDescription>
-                  <p className="text-xs text-[var(--cb-text-muted)]">
-                    Required for {modelType.toUpperCase()}: {privateRequirementsSummary}
-                  </p>
                 </CardHeader>
-                <CardContent className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label htmlFor="private-company-name">
-                      Company Name {isPrivateFieldRequired('companyName') && <span className="text-[var(--cb-danger)]">*</span>}
-                    </Label>
-                    <Input
-                      id="private-company-name"
-                      value={manualInputs.companyName}
-                      placeholder="Acme Holdings"
-                      onChange={(event) =>
-                        setManualInputs((prev) => ({ ...prev, companyName: event.target.value }))
-                      }
-                    />
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Private source</Label>
+                    <div className="inline-flex rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-subtle)] p-1">
+                      <Button
+                        type="button"
+                        variant={privateInputSource === 'manual' ? 'default' : 'ghost'}
+                        size="sm"
+                        className="h-8"
+                        onClick={() => setPrivateInputSource('manual')}
+                      >
+                        Manual inputs
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={privateInputSource === 'extraction' ? 'default' : 'ghost'}
+                        size="sm"
+                        className="h-8"
+                        onClick={() => setPrivateInputSource('extraction')}
+                      >
+                        Upload financial files
+                      </Button>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="private-currency">Currency</Label>
-                    <Input
-                      id="private-currency"
-                      value={manualInputs.currency}
-                      placeholder="USD"
-                      onChange={(event) =>
-                        setManualInputs((prev) => ({ ...prev, currency: event.target.value.toUpperCase() }))
-                      }
-                    />
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="private-company-name">
+                        Company Name <span className="text-[var(--cb-danger)]">*</span>
+                      </Label>
+                      <Input
+                        id="private-company-name"
+                        value={manualInputs.companyName}
+                        placeholder="Acme Holdings"
+                        onChange={(event) =>
+                          setManualInputs((prev) => ({ ...prev, companyName: event.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="private-currency">Currency</Label>
+                      <Input
+                        id="private-currency"
+                        value={manualInputs.currency}
+                        placeholder="USD"
+                        onChange={(event) =>
+                          setManualInputs((prev) => ({ ...prev, currency: event.target.value.toUpperCase() }))
+                        }
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="private-revenue-ltm">
-                      Revenue (LTM) {isPrivateFieldRequired('revenue') && <span className="text-[var(--cb-danger)]">*</span>}
-                    </Label>
-                    <Input
-                      id="private-revenue-ltm"
-                      value={manualInputs.revenue}
-                      placeholder="e.g., 450000000 or 450M"
-                      onChange={(event) =>
-                        setManualInputs((prev) => ({ ...prev, revenue: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="private-revenue-history">Revenue History (optional)</Label>
-                    <Input
-                      id="private-revenue-history"
-                      value={manualInputs.revenueHistory}
-                      placeholder="e.g., 320M,380M,450M"
-                      onChange={(event) =>
-                        setManualInputs((prev) => ({ ...prev, revenueHistory: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="private-revenue-growth">
-                      Revenue Growth (%) {isPrivateFieldRequired('revenueGrowthPct') && <span className="text-[var(--cb-danger)]">*</span>}
-                    </Label>
-                    <Input
-                      id="private-revenue-growth"
-                      type="number"
-                      step={0.1}
-                      value={manualInputs.revenueGrowthPct}
-                      onChange={(event) =>
-                        setManualInputs((prev) => ({ ...prev, revenueGrowthPct: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="private-ebit-margin">
-                      EBIT / EBITDA Margin (%) {isPrivateFieldRequired('ebitMarginPct') && <span className="text-[var(--cb-danger)]">*</span>}
-                    </Label>
-                    <Input
-                      id="private-ebit-margin"
-                      type="number"
-                      step={0.1}
-                      value={manualInputs.ebitMarginPct}
-                      onChange={(event) =>
-                        setManualInputs((prev) => ({ ...prev, ebitMarginPct: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="private-tax-rate">
-                      Tax Rate (%) {isPrivateFieldRequired('taxRatePct') && <span className="text-[var(--cb-danger)]">*</span>}
-                    </Label>
-                    <Input
-                      id="private-tax-rate"
-                      type="number"
-                      step={0.1}
-                      value={manualInputs.taxRatePct}
-                      onChange={(event) =>
-                        setManualInputs((prev) => ({ ...prev, taxRatePct: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="private-da">D&A % of Revenue (optional)</Label>
-                    <Input
-                      id="private-da"
-                      type="number"
-                      step={0.1}
-                      value={manualInputs.daPctRevenue}
-                      onChange={(event) =>
-                        setManualInputs((prev) => ({ ...prev, daPctRevenue: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="private-capex">
-                      Capex % of Revenue {isPrivateFieldRequired('capexPctRevenue') && <span className="text-[var(--cb-danger)]">*</span>}
-                    </Label>
-                    <Input
-                      id="private-capex"
-                      type="number"
-                      step={0.1}
-                      value={manualInputs.capexPctRevenue}
-                      onChange={(event) =>
-                        setManualInputs((prev) => ({ ...prev, capexPctRevenue: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="private-nwc">
-                      NWC % of Revenue {isPrivateFieldRequired('nwcPctRevenue') && <span className="text-[var(--cb-danger)]">*</span>}
-                    </Label>
-                    <Input
-                      id="private-nwc"
-                      type="number"
-                      step={0.1}
-                      value={manualInputs.nwcPctRevenue}
-                      onChange={(event) =>
-                        setManualInputs((prev) => ({ ...prev, nwcPctRevenue: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="private-net-debt">Net Debt / (Cash) (optional)</Label>
-                    <Input
-                      id="private-net-debt"
-                      value={manualInputs.netDebt}
-                      placeholder="e.g., 120000000 or -50000000"
-                      onChange={(event) =>
-                        setManualInputs((prev) => ({ ...prev, netDebt: event.target.value }))
-                      }
-                    />
-                  </div>
-                  {modelType !== 'reverse-dcf' ? (
+
+                  {privateInputSource === 'manual' ? (
                     <>
-                      <div className="space-y-1">
-                        <Label htmlFor="private-shares">Shares Outstanding (optional)</Label>
-                        <Input
-                          id="private-shares"
-                          value={manualInputs.sharesOutstanding}
-                          placeholder="e.g., 120000000"
-                          onChange={(event) =>
-                            setManualInputs((prev) => ({ ...prev, sharesOutstanding: event.target.value }))
-                          }
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="private-share-price">Share Price (optional)</Label>
-                        <Input
-                          id="private-share-price"
-                          value={manualInputs.price}
-                          placeholder="e.g., 25.50"
-                          onChange={(event) =>
-                            setManualInputs((prev) => ({ ...prev, price: event.target.value }))
-                          }
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="private-market-cap">Market Cap</Label>
-                        <Input
-                          id="private-market-cap"
-                          value={manualInputs.marketCap}
-                          placeholder="e.g., 2500000000 or 2.5B"
-                          onChange={(event) =>
-                            setManualInputs((prev) => ({ ...prev, marketCap: event.target.value }))
-                          }
-                        />
+                      <p className="text-xs text-[var(--cb-text-muted)]">
+                        Required for {modelType.toUpperCase()}: {privateRequirementsSummary}
+                      </p>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-1">
+                          <Label htmlFor="private-revenue-ltm">
+                            Revenue (LTM) {isPrivateFieldRequired('revenue') && <span className="text-[var(--cb-danger)]">*</span>}
+                          </Label>
+                          <Input
+                            id="private-revenue-ltm"
+                            value={manualInputs.revenue}
+                            placeholder="e.g., 450000000 or 450M"
+                            onChange={(event) =>
+                              setManualInputs((prev) => ({ ...prev, revenue: event.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="private-revenue-history">Revenue History (optional)</Label>
+                          <Input
+                            id="private-revenue-history"
+                            value={manualInputs.revenueHistory}
+                            placeholder="e.g., 320M,380M,450M"
+                            onChange={(event) =>
+                              setManualInputs((prev) => ({ ...prev, revenueHistory: event.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="private-revenue-growth">
+                            Revenue Growth (%) {isPrivateFieldRequired('revenueGrowthPct') && <span className="text-[var(--cb-danger)]">*</span>}
+                          </Label>
+                          <Input
+                            id="private-revenue-growth"
+                            type="number"
+                            step={0.1}
+                            value={manualInputs.revenueGrowthPct}
+                            onChange={(event) =>
+                              setManualInputs((prev) => ({ ...prev, revenueGrowthPct: event.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="private-ebit-margin">
+                            EBIT / EBITDA Margin (%) {isPrivateFieldRequired('ebitMarginPct') && <span className="text-[var(--cb-danger)]">*</span>}
+                          </Label>
+                          <Input
+                            id="private-ebit-margin"
+                            type="number"
+                            step={0.1}
+                            value={manualInputs.ebitMarginPct}
+                            onChange={(event) =>
+                              setManualInputs((prev) => ({ ...prev, ebitMarginPct: event.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="private-tax-rate">
+                            Tax Rate (%) {isPrivateFieldRequired('taxRatePct') && <span className="text-[var(--cb-danger)]">*</span>}
+                          </Label>
+                          <Input
+                            id="private-tax-rate"
+                            type="number"
+                            step={0.1}
+                            value={manualInputs.taxRatePct}
+                            onChange={(event) =>
+                              setManualInputs((prev) => ({ ...prev, taxRatePct: event.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="private-da">D&A % of Revenue (optional)</Label>
+                          <Input
+                            id="private-da"
+                            type="number"
+                            step={0.1}
+                            value={manualInputs.daPctRevenue}
+                            onChange={(event) =>
+                              setManualInputs((prev) => ({ ...prev, daPctRevenue: event.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="private-capex">
+                            Capex % of Revenue {isPrivateFieldRequired('capexPctRevenue') && <span className="text-[var(--cb-danger)]">*</span>}
+                          </Label>
+                          <Input
+                            id="private-capex"
+                            type="number"
+                            step={0.1}
+                            value={manualInputs.capexPctRevenue}
+                            onChange={(event) =>
+                              setManualInputs((prev) => ({ ...prev, capexPctRevenue: event.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="private-nwc">
+                            NWC % of Revenue {isPrivateFieldRequired('nwcPctRevenue') && <span className="text-[var(--cb-danger)]">*</span>}
+                          </Label>
+                          <Input
+                            id="private-nwc"
+                            type="number"
+                            step={0.1}
+                            value={manualInputs.nwcPctRevenue}
+                            onChange={(event) =>
+                              setManualInputs((prev) => ({ ...prev, nwcPctRevenue: event.target.value }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="private-net-debt">Net Debt / (Cash) (optional)</Label>
+                          <Input
+                            id="private-net-debt"
+                            value={manualInputs.netDebt}
+                            placeholder="e.g., 120000000 or -50000000"
+                            onChange={(event) =>
+                              setManualInputs((prev) => ({ ...prev, netDebt: event.target.value }))
+                            }
+                          />
+                        </div>
+                        {modelType !== 'reverse-dcf' ? (
+                          <>
+                            <div className="space-y-1">
+                              <Label htmlFor="private-shares">Shares Outstanding (optional)</Label>
+                              <Input
+                                id="private-shares"
+                                value={manualInputs.sharesOutstanding}
+                                placeholder="e.g., 120000000"
+                                onChange={(event) =>
+                                  setManualInputs((prev) => ({ ...prev, sharesOutstanding: event.target.value }))
+                                }
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="private-share-price">Share Price (optional)</Label>
+                              <Input
+                                id="private-share-price"
+                                value={manualInputs.price}
+                                placeholder="e.g., 25.50"
+                                onChange={(event) =>
+                                  setManualInputs((prev) => ({ ...prev, price: event.target.value }))
+                                }
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="private-market-cap">Market Cap</Label>
+                              <Input
+                                id="private-market-cap"
+                                value={manualInputs.marketCap}
+                                placeholder="e.g., 2500000000 or 2.5B"
+                                onChange={(event) =>
+                                  setManualInputs((prev) => ({ ...prev, marketCap: event.target.value }))
+                                }
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <div className="rounded-md border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] px-3 py-2 text-xs text-[var(--cb-text-secondary)] md:col-span-2">
+                            Reverse DCF valuation anchor is set in the Reverse DCF section below.
+                          </div>
+                        )}
                       </div>
                     </>
                   ) : (
-                    <div className="rounded-md border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] px-3 py-2 text-xs text-[var(--cb-text-secondary)] md:col-span-2">
-                      Reverse DCF valuation anchor is set in the Reverse DCF section below.
+                    <div className="space-y-4">
+                      <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-subtle)] p-4">
+                        <div className="text-sm font-medium text-[var(--cb-text-primary)]">Upload financial files</div>
+                        <p className="mt-1 text-xs text-[var(--cb-text-muted)]">
+                          Upload spreadsheets or PDFs. Text-layer PDFs use deterministic parsing first; scanned PDFs fall back to OCR when configured.
+                        </p>
+                        <div className="mt-3 flex flex-wrap items-center gap-3">
+                          <input
+                            type="file"
+                            multiple
+                            accept=".pdf,.xlsx,.xls,.csv,application/pdf,text/csv"
+                            onChange={(event) => void uploadFinancialExtractionFiles(event.target.files)}
+                            className="text-xs text-[var(--cb-text-muted)]"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void createFinancialExtractionJob()}
+                            disabled={financialExtractionBusy || uploadedExtractionFiles.length === 0 || !manualInputs.companyName.trim()}
+                          >
+                            {financialExtractionBusy ? 'Creating extraction job…' : 'Create extraction job'}
+                          </Button>
+                        </div>
+                        {uploadedExtractionFiles.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            {uploadedExtractionFiles.map((file) => (
+                              <div
+                                key={file.fileId}
+                                className="flex items-center justify-between rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] px-3 py-2 text-xs"
+                              >
+                                <span className="truncate text-[var(--cb-text-primary)]">{file.fileName}</span>
+                                <button
+                                  type="button"
+                                  className="text-[var(--cb-text-muted)] hover:text-[var(--cb-text-primary)]"
+                                  onClick={() =>
+                                    setUploadedExtractionFiles((prev) => prev.filter((item) => item.fileId !== file.fileId))
+                                  }
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Recent extraction jobs</Label>
+                        <Select
+                          value={selectedFinancialExtractionJobId || undefined}
+                          onValueChange={setSelectedFinancialExtractionJobId}
+                          disabled={financialExtractionLoading || financialExtractionJobs.length === 0}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a recent extraction job" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {financialExtractionJobs.map((job) => (
+                              <SelectItem key={job.jobId} value={job.jobId}>
+                                {formatExtractionValidationState(job.validationState)} • {job.snapshot?.companyName ?? manualInputs.companyName.trim()} •{' '}
+                                {new Date(job.updatedAt).toLocaleDateString('en-US')}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {selectedFinancialExtractionJob && (
+                        <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-3 text-xs">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold text-[var(--cb-text-primary)]">
+                              {selectedFinancialExtractionJob.snapshot?.companyName ?? manualInputs.companyName.trim()}
+                            </span>
+                            <span className="rounded-full bg-[var(--cb-surface-alt)] px-2 py-0.5 text-[var(--cb-text-muted)]">
+                              {formatExtractionValidationState(selectedFinancialExtractionJob.validationState)}
+                            </span>
+                            <span className="text-[var(--cb-text-muted)]">Stage: {selectedFinancialExtractionJob.stage}</span>
+                          </div>
+                          {selectedFinancialExtractionJob.snapshot?.mappedModelInputs && (
+                            <div className="mt-2 grid gap-2 text-[var(--cb-text-secondary)] sm:grid-cols-3">
+                              <div>Revenue: {formatResultMetric(selectedFinancialExtractionJob.snapshot.mappedModelInputs.revenue ?? null, 'money')}</div>
+                              <div>EBITDA: {formatResultMetric(selectedFinancialExtractionJob.snapshot.mappedModelInputs.ebitda ?? null, 'money')}</div>
+                              <div>Debt: {formatResultMetric(selectedFinancialExtractionJob.snapshot.mappedModelInputs.totalDebt ?? null, 'money')}</div>
+                            </div>
+                          )}
+                          {selectedFinancialExtractionJob.snapshot?.warnings?.length ? (
+                            <p className="mt-2 text-amber-600">{selectedFinancialExtractionJob.snapshot.warnings[0]}</p>
+                          ) : null}
+                          {selectedFinancialExtractionJob.snapshot?.blockingErrors?.length ? (
+                            <p className="mt-2 text-red-500">{selectedFinancialExtractionJob.snapshot.blockingErrors[0]}</p>
+                          ) : null}
+                        </div>
+                      )}
                     </div>
+                  )}
+
+                  {financialExtractionLoading && (
+                    <p className="text-xs text-[var(--cb-text-muted)]">Loading recent extraction jobs…</p>
+                  )}
+                  {financialExtractionError && (
+                    <p className="text-xs text-red-500">{financialExtractionError}</p>
                   )}
                 </CardContent>
               </Card>
             )}
 
-            {/* Manual Financial Inputs (only shown when data can't be fetched) */}
-            {missingFields.size > 0 && (
-            <Card className="border border-amber-400/30 bg-amber-400/5">
+            <Card className="border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-base text-[var(--cb-text-primary)] flex items-center gap-2">
-                      <span>⚠️</span>
-                      <span>Manual Inputs Required</span>
-                    </CardTitle>
-                    <CardDescription className="mt-1">
-                      We couldn&apos;t fetch some data automatically. Please enter the missing values below. These will take priority over all other sources.
-                    </CardDescription>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">
+                  {isPrivateMode ? 'Step 2B' : 'Step 2A'}
+                </p>
+                <CardTitle className="text-base text-[var(--cb-text-primary)]">Apply Event</CardTitle>
+                <CardDescription>
+                  Review a market event against the current base assumptions, then choose whether to apply the proposed deltas before generation.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Source type</Label>
+                    <Select
+                      value={eventSourceType}
+                      onValueChange={(value) =>
+                        setEventSourceType(value === 'feed_item' ? 'feed_item' : 'pasted_text')
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select event source" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pasted_text">Pasted event</SelectItem>
+                        <SelectItem value="feed_item">Feed item</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="event-title">Event title</Label>
+                    <Input
+                      id="event-title"
+                      value={eventTitle}
+                      placeholder="Tariffs increase on imported components"
+                      onChange={(event) => setEventTitle(event.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {eventSourceType === 'feed_item' ? (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="event-id">Feed event id</Label>
+                      <Input
+                        id="event-id"
+                        value={eventId}
+                        placeholder="event_123"
+                        onChange={(event) => setEventId(event.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="event-published-at">Published at</Label>
+                      <Input
+                        id="event-published-at"
+                        type="datetime-local"
+                        value={eventPublishedAt}
+                        onChange={(event) => setEventPublishedAt(event.target.value)}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="event-source-label">Source label</Label>
+                    <Input
+                      id="event-source-label"
+                      value={eventSourceLabel}
+                      placeholder="Reuters"
+                      onChange={(event) => setEventSourceLabel(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="event-source-url">Source URL</Label>
+                    <Input
+                      id="event-source-url"
+                      value={eventSourceUrl}
+                      placeholder="https://example.com/article"
+                      onChange={(event) => setEventSourceUrl(event.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="event-text">Event text</Label>
+                  <Textarea
+                    id="event-text"
+                    value={eventText}
+                    placeholder="Paste the headline, article excerpt, or short event description."
+                    onChange={(event) => setEventText(event.target.value)}
+                  />
+                </div>
+
+                <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3 text-xs text-[var(--cb-text-muted)]">
+                  Base assumptions in scope: revenue growth {formatResultMetric(currentEventAssumptions.revenue_growth, 'percent')},
+                  operating margin {formatResultMetric(currentEventAssumptions.operating_margin, 'percent')}, WACC{' '}
+                  {formatResultMetric(currentEventAssumptions.wacc, 'percent')}, terminal growth{' '}
+                  {formatResultMetric(currentEventAssumptions.terminal_growth_rate, 'percent')}.
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
-                    onClick={() => setShowManualInputs(!showManualInputs)}
-                    className="text-xs"
+                    onClick={() => void reviewEventAdjustment()}
+                    disabled={eventAdjustmentLoading || !eventText.trim()}
                   >
-                    {showManualInputs ? 'Hide' : 'Show'} Missing Fields
+                    {eventAdjustmentLoading ? 'Reviewing…' : 'Review Event Impact'}
                   </Button>
-                </div>
-              </CardHeader>
-              {showManualInputs && (
-                <CardContent className="space-y-4">
-                  <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-3 text-xs text-[var(--cb-text-secondary)]">
-                    <strong className="text-[var(--cb-text-primary)]">💡 Tip:</strong> Enter values in raw dollars (e.g., &quot;1000000000&quot; for $1B) or use notation like &quot;100M&quot; or &quot;1.5B&quot;.
-                  </div>
-                  
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {missingFields.has('revenue') && (
-                    <div className="space-y-2">
-                      <Label htmlFor="manual-revenue" className="text-[var(--cb-text-primary)]">
-                        Revenue (LTM) <span className="text-amber-500">*</span>
-                      </Label>
-                      <Input
-                        id="manual-revenue"
-                        type="text"
-                        placeholder="e.g., 1000000000 or 1.5B"
-                        value={manualInputs.revenue}
-                        onChange={(e) => setManualInputs(prev => ({ ...prev, revenue: e.target.value }))}
-                        className="bg-[var(--cb-surface-alt)] border-amber-400/30 text-[var(--cb-text-primary)] focus:border-amber-500"
-                      />
-                    </div>
-                    )}
-                    
-                    {missingFields.has('ebitda') && (
-                    <div className="space-y-2">
-                      <Label htmlFor="manual-ebitda" className="text-[var(--cb-text-primary)]">
-                        EBITDA (LTM) <span className="text-amber-500">*</span>
-                      </Label>
-                      <Input
-                        id="manual-ebitda"
-                        type="text"
-                        placeholder="e.g., 250000000 or 250M"
-                        value={manualInputs.ebitda}
-                        onChange={(e) => setManualInputs(prev => ({ ...prev, ebitda: e.target.value }))}
-                        className="bg-[var(--cb-surface-alt)] border-amber-400/30 text-[var(--cb-text-primary)] focus:border-amber-500"
-                      />
-                    </div>
-                    )}
-                    
-                    {missingFields.has('sharesOutstanding') && (
-                    <div className="space-y-2">
-                      <Label htmlFor="manual-sharesOutstanding" className="text-[var(--cb-text-primary)]">
-                        Shares Outstanding <span className="text-amber-500">*</span>
-                      </Label>
-                      <Input
-                        id="manual-sharesOutstanding"
-                        type="text"
-                        placeholder="e.g., 1000000000 or 1B"
-                        value={manualInputs.sharesOutstanding}
-                        onChange={(e) => setManualInputs(prev => ({ ...prev, sharesOutstanding: e.target.value }))}
-                        className="bg-[var(--cb-surface-alt)] border-amber-400/30 text-[var(--cb-text-primary)] focus:border-amber-500"
-                      />
-                      <p className="text-xs text-[var(--cb-text-muted)]">In raw shares (not millions)</p>
-                    </div>
-                    )}
-                    
-                    {missingFields.has('netDebt') && (
-                    <div className="space-y-2">
-                      <Label htmlFor="manual-netDebt" className="text-[var(--cb-text-primary)]">
-                        Net Debt <span className="text-amber-500">*</span>
-                      </Label>
-                      <Input
-                        id="manual-netDebt"
-                        type="text"
-                        placeholder="e.g., 500000000 or 500M"
-                        value={manualInputs.netDebt}
-                        onChange={(e) => setManualInputs(prev => ({ ...prev, netDebt: e.target.value }))}
-                        className="bg-[var(--cb-surface-alt)] border-amber-400/30 text-[var(--cb-text-primary)] focus:border-amber-500"
-                      />
-                    </div>
-                    )}
-                    
-                    {missingFields.has('marketCap') && (
-                    <div className="space-y-2">
-                      <Label htmlFor="manual-marketCap" className="text-[var(--cb-text-primary)]">
-                        Market Cap <span className="text-amber-500">*</span>
-                      </Label>
-                      <Input
-                        id="manual-marketCap"
-                        type="text"
-                        placeholder="e.g., 5000000000 or 5B"
-                        value={manualInputs.marketCap}
-                        onChange={(e) => setManualInputs(prev => ({ ...prev, marketCap: e.target.value }))}
-                        className="bg-[var(--cb-surface-alt)] border-amber-400/30 text-[var(--cb-text-primary)] focus:border-amber-500"
-                      />
-                    </div>
-                    )}
-                  </div>
-                  
-                  <div className="flex justify-end">
+                  {eventAdjustmentReview ? (
                     <Button
                       type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setManualInputs({
-                          companyName: '',
-                          currency: 'USD',
-                          revenueHistory: '',
-                          revenueGrowthPct: '8.0',
-                          ebitMarginPct: '20.0',
-                          taxRatePct: '25.0',
-                          daPctRevenue: '4.0',
-                          capexPctRevenue: '4.0',
-                          nwcPctRevenue: '2.0',
-                          price: '',
-                          revenue: '',
-                          ebitda: '',
-                          ebit: '',
-                          netIncome: '',
-                          sharesOutstanding: '',
-                          netDebt: '',
-                          marketCap: '',
-                          grossProfit: '',
-                          operatingIncome: '',
-                          totalDebt: '',
-                          cash: '',
-                        });
-                      }}
-                      className="text-xs"
+                      onClick={applyReviewedEventAdjustment}
+                      disabled={eventAdjustmentReview.blockingErrors.length > 0}
                     >
-                      Clear All
+                      Apply and Continue
                     </Button>
+                  ) : null}
+                  {(eventAdjustmentReview || appliedEventAdjustment) ? (
+                    <Button type="button" variant="ghost" onClick={discardEventAdjustment}>
+                      Discard
+                    </Button>
+                  ) : null}
+                </div>
+
+                {eventAdjustmentError ? (
+                  <p className="text-xs text-red-500">{eventAdjustmentError}</p>
+                ) : null}
+
+                {eventAdjustmentReview ? (
+                  <div className="space-y-3 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="rounded-full bg-[var(--cb-surface)] px-2 py-1 text-[var(--cb-text-primary)]">
+                        {eventAdjustmentReview.eventCategory.replace(/_/g, ' ')}
+                      </span>
+                      <span className="rounded-full bg-[var(--cb-surface)] px-2 py-1 text-[var(--cb-text-primary)]">
+                        {eventAdjustmentReview.confidence}
+                      </span>
+                      <span className="rounded-full bg-[var(--cb-surface)] px-2 py-1 text-[var(--cb-text-primary)]">
+                        {eventAdjustmentReview.scenarioBias}
+                      </span>
+                      <span className="text-[var(--cb-text-muted)]">
+                        {eventAdjustmentReview.applicability.relevanceSummary}
+                      </span>
+                    </div>
+                    <p className="text-sm text-[var(--cb-text-primary)]">{eventAdjustmentReview.normalizedEventSummary}</p>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-3">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">
+                          What changed
+                        </div>
+                        <p className="mt-2 text-xs leading-6 text-[var(--cb-text-secondary)]">
+                          {eventAdjustmentReview.transcription.whatChanged}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-3">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">
+                          Why it matters
+                        </div>
+                        <p className="mt-2 text-xs leading-6 text-[var(--cb-text-secondary)]">
+                          {eventAdjustmentReview.transcription.whyItMatters}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">
+                        Transmission path
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {eventAdjustmentReview.transcription.transmissionChannels.map((channel) => (
+                          <span
+                            key={channel}
+                            className="rounded-full bg-[var(--cb-surface-alt)] px-2 py-1 text-[11px] text-[var(--cb-text-primary)]"
+                          >
+                            {channel.replace(/_/g, ' ')}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="mt-3 text-xs leading-6 text-[var(--cb-text-secondary)]">
+                        {eventAdjustmentReview.transcription.companyExposure}
+                      </p>
+                    </div>
+                    {flattenEventTranscriptionImpacts(eventAdjustmentReview.transcription).length > 0 ? (
+                      <div className="space-y-2">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">
+                          Suggested impacts
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {flattenEventTranscriptionImpacts(eventAdjustmentReview.transcription)
+                            .slice(0, 4)
+                            .map((impact) => (
+                              <div
+                                key={impact.key}
+                                className="rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-3"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="text-sm text-[var(--cb-text-primary)]">{impact.label}</div>
+                                  <span className="rounded-full bg-[var(--cb-surface-alt)] px-2 py-1 text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
+                                    {impact.severity}
+                                  </span>
+                                </div>
+                                <p className="mt-2 text-xs leading-6 text-[var(--cb-text-secondary)]">
+                                  {impact.summary}
+                                </p>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    ) : null}
+                    {eventAdjustmentReview.transcription.suggestedAssumptions.length > 0 ? (
+                      <div className="space-y-2">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">
+                          Suggested assumption moves
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {eventAdjustmentReview.transcription.suggestedAssumptions.map((suggestion) => (
+                            <div
+                              key={suggestion.driver}
+                              className="rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-3"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="text-sm text-[var(--cb-text-primary)]">
+                                  {suggestion.label} {formatSuggestedAssumptionDirection(suggestion.direction)}
+                                </div>
+                                <span className="rounded-full bg-[var(--cb-surface-alt)] px-2 py-1 text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
+                                  {suggestion.magnitude}
+                                </span>
+                              </div>
+                              <p className="mt-2 text-xs leading-6 text-[var(--cb-text-secondary)]">
+                                {suggestion.rationale}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                    {eventAdjustmentReview.changedDrivers.length > 0 ? (
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {eventAdjustmentReview.changedDrivers.map((change) => (
+                          <div
+                            key={change.driver}
+                            className="rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-3"
+                          >
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--cb-text-muted)]">
+                              {change.label}
+                            </div>
+                            <div className="mt-1 text-sm text-[var(--cb-text-primary)]">
+                              {formatResultMetric(change.old, 'percent')} → {formatResultMetric(change.new, 'percent')}
+                            </div>
+                            <p className="mt-2 text-xs text-[var(--cb-text-secondary)]">{change.rationale}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-[var(--cb-text-muted)]">
+                        No material assumption changes were proposed for the current model state.
+                      </p>
+                    )}
+                    {eventAdjustmentReview.warnings.length > 0 ? (
+                      <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
+                        {eventAdjustmentReview.warnings[0]}
+                      </div>
+                    ) : null}
+                    {eventAdjustmentReview.blockingErrors.length > 0 ? (
+                      <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600">
+                        {eventAdjustmentReview.blockingErrors[0]}
+                      </div>
+                    ) : null}
                   </div>
-                </CardContent>
-              )}
+                ) : null}
+
+                {appliedEventAdjustment && !eventAdjustmentReview ? (
+                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">
+                    Event adjustment applied. The reviewed deltas are now layered into the current form state and will be included in the next generation request.
+                  </div>
+                ) : null}
+              </CardContent>
             </Card>
-            )}
 
             {/* Custom Comps Input (only for Comps model) */}
             {modelType === 'comps' && (

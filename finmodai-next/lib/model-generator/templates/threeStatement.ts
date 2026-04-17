@@ -24,14 +24,14 @@ import {
   styleTitle,
   styleTotal,
 } from '@/lib/model-generator/excel/formatting';
-import { defineNamedCell, defineNamedCells } from '@/lib/model-generator/excel/namedRanges';
+import { validateWorkbookFormulaTokens } from '@/lib/model-generator/excel/formulaValidation';
 
 function formatDate(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
-function yearName(prefix: string, year: string) {
-  return `${prefix}_${year.replace(/[^A-Za-z0-9]/g, '')}`;
+function absoluteSheetRef(sheetName: string, column: string, row: number): string {
+  return `'${sheetName}'!$${column}$${row}`;
 }
 
 export function getPreview(inputs: ThreeStatementModelInputs) {
@@ -126,31 +126,30 @@ export async function buildWorkbook(inputs: ThreeStatementModelInputs): Promise<
     styleLabel(controlSheet.getCell(`A${row}`));
     styleInput(controlSheet.getCell(`B${row}`), kind as 'number' | 'currency' | 'percent');
   });
-
-  defineNamedCells(workbook, controlSheet, [
-    { name: 'ForecastYears', cellRef: 'B11' },
-    { name: 'BaseRevenue', cellRef: 'B12' },
-    { name: 'OpeningCash', cellRef: 'B13' },
-    { name: 'OpeningDebt', cellRef: 'B14' },
-    { name: 'GrossMargin', cellRef: 'B15' },
-    { name: 'OpexPct', cellRef: 'B16' },
-    { name: 'TaxRate', cellRef: 'B17' },
-    { name: 'CapexPct', cellRef: 'B18' },
-    { name: 'DAPct', cellRef: 'B19' },
-    { name: 'DSO', cellRef: 'B20' },
-    { name: 'DIO', cellRef: 'B21' },
-    { name: 'DPO', cellRef: 'B22' },
-    { name: 'OtherCurrentAssetsPct', cellRef: 'B23' },
-    { name: 'OtherCurrentLiabilitiesPct', cellRef: 'B24' },
-    { name: 'OtherAssetsBase', cellRef: 'B25' },
-    { name: 'OtherLiabilitiesBase', cellRef: 'B26' },
-    { name: 'BeginningPPE', cellRef: 'B27' },
-    { name: 'BeginningRetainedEarnings', cellRef: 'B28' },
-    { name: 'CommonStock', cellRef: 'B29' },
-    { name: 'InterestRate', cellRef: 'B30' },
-    { name: 'NewDebt', cellRef: 'B31' },
-    { name: 'DebtRepaymentInput', cellRef: 'B32' },
-  ]);
+  const controlRefs = {
+    baseRevenue: absoluteSheetRef('Control Panel', 'B', 12),
+    openingCash: absoluteSheetRef('Control Panel', 'B', 13),
+    openingDebt: absoluteSheetRef('Control Panel', 'B', 14),
+    grossMargin: absoluteSheetRef('Control Panel', 'B', 15),
+    opexPct: absoluteSheetRef('Control Panel', 'B', 16),
+    taxRate: absoluteSheetRef('Control Panel', 'B', 17),
+    capexPct: absoluteSheetRef('Control Panel', 'B', 18),
+    daPct: absoluteSheetRef('Control Panel', 'B', 19),
+    dso: absoluteSheetRef('Control Panel', 'B', 20),
+    dio: absoluteSheetRef('Control Panel', 'B', 21),
+    dpo: absoluteSheetRef('Control Panel', 'B', 22),
+    otherCurrentAssetsPct: absoluteSheetRef('Control Panel', 'B', 23),
+    otherCurrentLiabilitiesPct: absoluteSheetRef('Control Panel', 'B', 24),
+    otherAssetsBase: absoluteSheetRef('Control Panel', 'B', 25),
+    otherLiabilitiesBase: absoluteSheetRef('Control Panel', 'B', 26),
+    beginningPpe: absoluteSheetRef('Control Panel', 'B', 27),
+    beginningRetainedEarnings: absoluteSheetRef('Control Panel', 'B', 28),
+    commonStock: absoluteSheetRef('Control Panel', 'B', 29),
+    interestRate: absoluteSheetRef('Control Panel', 'B', 30),
+    newDebt: absoluteSheetRef('Control Panel', 'B', 31),
+    debtRepaymentInput: absoluteSheetRef('Control Panel', 'B', 32),
+  } as const;
+  const revenueGrowthRef = (columnIndex: number) => absoluteSheetRef('Control Panel', col(columnIndex), 37);
 
   styleSectionHeader(controlSheet, 10, 'Summary Metrics', 7);
   controlSheet.getCell('E11').value = 'Revenue CAGR';
@@ -179,7 +178,6 @@ export async function buildWorkbook(inputs: ThreeStatementModelInputs): Promise<
     controlSheet.getCell(cell).value = inputs.revenueGrowth[index];
     styleInput(controlSheet.getCell(cell), 'percent');
     controlSheet.getCell(36, 3 + index).value = year;
-    defineNamedCell(workbook, yearName('RevenueGrowth', year), controlSheet, cell);
   });
 
   styleSectionHeader(controlSheet, 40, 'Margin Snapshot', 2 + inputs.years);
@@ -264,46 +262,39 @@ export async function buildWorkbook(inputs: ThreeStatementModelInputs): Promise<
     styleLabel(wcSheet.getCell(`A${row}`));
   });
 
-  let previousRevenueName = 'BaseRevenue';
-  let previousNwcRef = `B${wcRows.nwc}`;
+  let previousRevenueRef = controlRefs.baseRevenue;
+  let previousNwcRef = `${col(2)}${wcRows.nwc}`;
   columns.forEach((year, index) => {
     const letter = col(2 + index);
-    const revenueName = yearName('Revenue', year);
-    const cogsName = yearName('COGS', year);
-    const arName = yearName('AR', year);
-    const inventoryName = yearName('Inventory', year);
-    const apName = yearName('AP', year);
-    const nwcName = yearName('NWC', year);
-    const deltaNwcName = yearName('DeltaNWC', year);
-
     if (index === 0) {
-      wcSheet.getCell(`${letter}${wcRows.revenue}`).value = { formula: '=BaseRevenue' };
+      wcSheet.getCell(`${letter}${wcRows.revenue}`).value = { formula: `=${controlRefs.baseRevenue}` };
     } else {
-      wcSheet.getCell(`${letter}${wcRows.revenue}`).value = { formula: `=${previousRevenueName}*(1+${yearName('RevenueGrowth', year)})` };
+      const growthRef = revenueGrowthRef(2 + index);
+      wcSheet.getCell(`${letter}${wcRows.revenue}`).value = { formula: `=${previousRevenueRef}*(1+${growthRef})` };
       equations.push({
         metric: `Revenue ${year}`,
         description: 'Prior year revenue multiplied by one plus the growth assumption.',
-        excelFormula: `=${previousRevenueName}*(1+${yearName('RevenueGrowth', year)})`,
-        dependencies: `${previousRevenueName}, ${yearName('RevenueGrowth', year)}`,
+        excelFormula: `=${previousRevenueRef}*(1+${growthRef})`,
+        dependencies: `${previousRevenueRef}, ${growthRef}`,
         location: `'Working Capital Schedule'!${letter}${wcRows.revenue}`,
       });
     }
-    wcSheet.getCell(`${letter}${wcRows.cogs}`).value = { formula: `=-${revenueName}*(1-GrossMargin)` };
-    wcSheet.getCell(`${letter}${wcRows.dso}`).value = { formula: '=DSO' };
-    wcSheet.getCell(`${letter}${wcRows.dio}`).value = { formula: '=DIO' };
-    wcSheet.getCell(`${letter}${wcRows.dpo}`).value = { formula: '=DPO' };
-    wcSheet.getCell(`${letter}${wcRows.ar}`).value = { formula: `=${revenueName}*${letter}${wcRows.dso}/365` };
-    wcSheet.getCell(`${letter}${wcRows.inventory}`).value = { formula: `=ABS(${cogsName})*${letter}${wcRows.dio}/365` };
-    wcSheet.getCell(`${letter}${wcRows.ap}`).value = { formula: `=ABS(${cogsName})*${letter}${wcRows.dpo}/365` };
-    wcSheet.getCell(`${letter}${wcRows.otherCa}`).value = { formula: `=${revenueName}*OtherCurrentAssetsPct` };
-    wcSheet.getCell(`${letter}${wcRows.otherCl}`).value = { formula: `=${revenueName}*OtherCurrentLiabilitiesPct` };
+    wcSheet.getCell(`${letter}${wcRows.cogs}`).value = { formula: `=-${letter}${wcRows.revenue}*(1-${controlRefs.grossMargin})` };
+    wcSheet.getCell(`${letter}${wcRows.dso}`).value = { formula: `=${controlRefs.dso}` };
+    wcSheet.getCell(`${letter}${wcRows.dio}`).value = { formula: `=${controlRefs.dio}` };
+    wcSheet.getCell(`${letter}${wcRows.dpo}`).value = { formula: `=${controlRefs.dpo}` };
+    wcSheet.getCell(`${letter}${wcRows.ar}`).value = { formula: `=${letter}${wcRows.revenue}*${letter}${wcRows.dso}/365` };
+    wcSheet.getCell(`${letter}${wcRows.inventory}`).value = { formula: `=ABS(${letter}${wcRows.cogs})*${letter}${wcRows.dio}/365` };
+    wcSheet.getCell(`${letter}${wcRows.ap}`).value = { formula: `=ABS(${letter}${wcRows.cogs})*${letter}${wcRows.dpo}/365` };
+    wcSheet.getCell(`${letter}${wcRows.otherCa}`).value = { formula: `=${letter}${wcRows.revenue}*${controlRefs.otherCurrentAssetsPct}` };
+    wcSheet.getCell(`${letter}${wcRows.otherCl}`).value = { formula: `=${letter}${wcRows.revenue}*${controlRefs.otherCurrentLiabilitiesPct}` };
     wcSheet.getCell(`${letter}${wcRows.nwc}`).value = {
-      formula: `=${arName}+${inventoryName}+${letter}${wcRows.otherCa}-${apName}-${letter}${wcRows.otherCl}`,
+      formula: `=${letter}${wcRows.ar}+${letter}${wcRows.inventory}+${letter}${wcRows.otherCa}-${letter}${wcRows.ap}-${letter}${wcRows.otherCl}`,
     };
     wcSheet.getCell(`${letter}${wcRows.deltaNwc}`).value =
       index === 0
         ? 0
-        : { formula: `=${nwcName}-${previousNwcRef}` };
+        : { formula: `=${letter}${wcRows.nwc}-${previousNwcRef}` };
     styleFormula(wcSheet.getCell(`${letter}${wcRows.revenue}`), 'currency');
     styleFormula(wcSheet.getCell(`${letter}${wcRows.cogs}`), 'currency');
     [wcRows.dso, wcRows.dio, wcRows.dpo].forEach((row) => styleInput(wcSheet.getCell(`${letter}${row}`), 'number'));
@@ -311,16 +302,8 @@ export async function buildWorkbook(inputs: ThreeStatementModelInputs): Promise<
       styleFormula(wcSheet.getCell(`${letter}${row}`), 'currency')
     );
 
-    defineNamedCell(workbook, revenueName, wcSheet, `${letter}${wcRows.revenue}`);
-    defineNamedCell(workbook, cogsName, wcSheet, `${letter}${wcRows.cogs}`);
-    defineNamedCell(workbook, arName, wcSheet, `${letter}${wcRows.ar}`);
-    defineNamedCell(workbook, inventoryName, wcSheet, `${letter}${wcRows.inventory}`);
-    defineNamedCell(workbook, apName, wcSheet, `${letter}${wcRows.ap}`);
-    defineNamedCell(workbook, nwcName, wcSheet, `${letter}${wcRows.nwc}`);
-    defineNamedCell(workbook, deltaNwcName, wcSheet, `${letter}${wcRows.deltaNwc}`);
-
-    previousRevenueName = revenueName;
-    previousNwcRef = nwcName;
+    previousRevenueRef = absoluteSheetRef('Working Capital Schedule', letter, wcRows.revenue);
+    previousNwcRef = `${letter}${wcRows.nwc}`;
   });
   styleSubTotal(wcSheet, wcRows.nwc, 1, 2 + inputs.years);
   styleTotal(wcSheet, wcRows.deltaNwc, 1, 2 + inputs.years);
@@ -349,22 +332,17 @@ export async function buildWorkbook(inputs: ThreeStatementModelInputs): Promise<
     ppeSheet.getCell(`A${row}`).value = label;
     styleLabel(ppeSheet.getCell(`A${row}`));
   });
-  let previousPpeName = 'BeginningPPE';
+  let previousPpeRef = controlRefs.beginningPpe;
   columns.forEach((year, index) => {
     const letter = col(2 + index);
-    const revenueName = yearName('Revenue', year);
-    const endingPpeName = yearName('EndingPPE', year);
-    const depName = yearName('Depreciation', year);
-    ppeSheet.getCell(`${letter}${ppeRows.beginningPpe}`).value = { formula: `=${previousPpeName}` };
-    ppeSheet.getCell(`${letter}${ppeRows.capex}`).value = { formula: `=${revenueName}*CapexPct` };
-    ppeSheet.getCell(`${letter}${ppeRows.depreciation}`).value = { formula: `=${revenueName}*DAPct` };
+    ppeSheet.getCell(`${letter}${ppeRows.beginningPpe}`).value = { formula: `=${previousPpeRef}` };
+    ppeSheet.getCell(`${letter}${ppeRows.capex}`).value = { formula: `='Working Capital Schedule'!$${letter}$5*${controlRefs.capexPct}` };
+    ppeSheet.getCell(`${letter}${ppeRows.depreciation}`).value = { formula: `='Working Capital Schedule'!$${letter}$5*${controlRefs.daPct}` };
     ppeSheet.getCell(`${letter}${ppeRows.endingPpe}`).value = { formula: `=${letter}${ppeRows.beginningPpe}+${letter}${ppeRows.capex}-${letter}${ppeRows.depreciation}` };
     [ppeRows.beginningPpe, ppeRows.capex, ppeRows.depreciation, ppeRows.endingPpe].forEach((row) =>
       styleFormula(ppeSheet.getCell(`${letter}${row}`), 'currency')
     );
-    defineNamedCell(workbook, endingPpeName, ppeSheet, `${letter}${ppeRows.endingPpe}`);
-    defineNamedCell(workbook, depName, ppeSheet, `${letter}${ppeRows.depreciation}`);
-    previousPpeName = endingPpeName;
+    previousPpeRef = absoluteSheetRef('PP&E & Depreciation', letter, ppeRows.endingPpe);
   });
   styleTotal(ppeSheet, ppeRows.endingPpe, 1, 2 + inputs.years);
 
@@ -394,26 +372,22 @@ export async function buildWorkbook(inputs: ThreeStatementModelInputs): Promise<
     debtSheet.getCell(`A${row}`).value = label;
     styleLabel(debtSheet.getCell(`A${row}`));
   });
-  let previousDebtName = 'OpeningDebt';
+  let previousDebtRef = controlRefs.openingDebt;
   columns.forEach((year, index) => {
     const letter = col(2 + index);
-    const endingDebtName = yearName('Debt', year);
-    const interestExpenseName = yearName('InterestExpense', year);
-    debtSheet.getCell(`${letter}${debtRows.beginningDebt}`).value = { formula: `=${previousDebtName}` };
-    debtSheet.getCell(`${letter}${debtRows.newDebt}`).value = { formula: '=NewDebt' };
-    debtSheet.getCell(`${letter}${debtRows.repayment}`).value = { formula: '=DebtRepaymentInput' };
+    debtSheet.getCell(`${letter}${debtRows.beginningDebt}`).value = { formula: `=${previousDebtRef}` };
+    debtSheet.getCell(`${letter}${debtRows.newDebt}`).value = { formula: `=${controlRefs.newDebt}` };
+    debtSheet.getCell(`${letter}${debtRows.repayment}`).value = { formula: `=${controlRefs.debtRepaymentInput}` };
     debtSheet.getCell(`${letter}${debtRows.endingDebt}`).value = {
       formula: `=${letter}${debtRows.beginningDebt}+${letter}${debtRows.newDebt}-${letter}${debtRows.repayment}`,
     };
     debtSheet.getCell(`${letter}${debtRows.interestExpense}`).value = {
-      formula: `=((${letter}${debtRows.beginningDebt}+${letter}${debtRows.endingDebt})/2)*InterestRate`,
+      formula: `=((${letter}${debtRows.beginningDebt}+${letter}${debtRows.endingDebt})/2)*${controlRefs.interestRate}`,
     };
     [debtRows.beginningDebt, debtRows.newDebt, debtRows.repayment, debtRows.endingDebt, debtRows.interestExpense].forEach((row) =>
       styleFormula(debtSheet.getCell(`${letter}${row}`), 'currency')
     );
-    defineNamedCell(workbook, endingDebtName, debtSheet, `${letter}${debtRows.endingDebt}`);
-    defineNamedCell(workbook, interestExpenseName, debtSheet, `${letter}${debtRows.interestExpense}`);
-    previousDebtName = endingDebtName;
+    previousDebtRef = absoluteSheetRef('Debt Schedule', letter, debtRows.endingDebt);
   });
   styleTotal(debtSheet, debtRows.endingDebt, 1, 2 + inputs.years);
 
@@ -459,31 +433,23 @@ export async function buildWorkbook(inputs: ThreeStatementModelInputs): Promise<
   });
   columns.forEach((year, index) => {
     const letter = col(2 + index);
-    const revenueName = yearName('Revenue', year);
-    const cogsName = yearName('COGS', year);
-    const grossProfitName = yearName('GrossProfit', year);
-    const ebitName = yearName('EBIT', year);
-    const netIncomeName = yearName('NetIncome', year);
-    isSheet.getCell(`${letter}${isRows.revenue}`).value = { formula: `=${revenueName}` };
-    isSheet.getCell(`${letter}${isRows.cogs}`).value = { formula: `=${cogsName}` };
-    isSheet.getCell(`${letter}${isRows.grossProfit}`).value = { formula: `=${revenueName}+${cogsName}` };
-    isSheet.getCell(`${letter}${isRows.grossMargin}`).value = { formula: `=IF(${revenueName}<>0,${grossProfitName}/${revenueName},0)` };
-    isSheet.getCell(`${letter}${isRows.opex}`).value = { formula: `=-${revenueName}*OpexPct` };
-    isSheet.getCell(`${letter}${isRows.ebitda}`).value = { formula: `=${grossProfitName}+${letter}${isRows.opex}` };
-    isSheet.getCell(`${letter}${isRows.da}`).value = { formula: `=-${yearName('Depreciation', year)}` };
+    isSheet.getCell(`${letter}${isRows.revenue}`).value = { formula: `='Working Capital Schedule'!$${letter}$5` };
+    isSheet.getCell(`${letter}${isRows.cogs}`).value = { formula: `='Working Capital Schedule'!$${letter}$6` };
+    isSheet.getCell(`${letter}${isRows.grossProfit}`).value = { formula: `=${letter}${isRows.revenue}+${letter}${isRows.cogs}` };
+    isSheet.getCell(`${letter}${isRows.grossMargin}`).value = { formula: `=IF(${letter}${isRows.revenue}<>0,${letter}${isRows.grossProfit}/${letter}${isRows.revenue},0)` };
+    isSheet.getCell(`${letter}${isRows.opex}`).value = { formula: `=-${letter}${isRows.revenue}*${controlRefs.opexPct}` };
+    isSheet.getCell(`${letter}${isRows.ebitda}`).value = { formula: `=${letter}${isRows.grossProfit}+${letter}${isRows.opex}` };
+    isSheet.getCell(`${letter}${isRows.da}`).value = { formula: `=-'PP&E & Depreciation'!$${letter}$7` };
     isSheet.getCell(`${letter}${isRows.ebit}`).value = { formula: `=${letter}${isRows.ebitda}+${letter}${isRows.da}` };
-    isSheet.getCell(`${letter}${isRows.interest}`).value = { formula: `=-${yearName('InterestExpense', year)}` };
-    isSheet.getCell(`${letter}${isRows.ebt}`).value = { formula: `=${ebitName}+${letter}${isRows.interest}` };
-    isSheet.getCell(`${letter}${isRows.taxes}`).value = { formula: `=-MAX(${letter}${isRows.ebt},0)*TaxRate` };
+    isSheet.getCell(`${letter}${isRows.interest}`).value = { formula: `=-'Debt Schedule'!$${letter}$9` };
+    isSheet.getCell(`${letter}${isRows.ebt}`).value = { formula: `=${letter}${isRows.ebit}+${letter}${isRows.interest}` };
+    isSheet.getCell(`${letter}${isRows.taxes}`).value = { formula: `=-MAX(${letter}${isRows.ebt},0)*${controlRefs.taxRate}` };
     isSheet.getCell(`${letter}${isRows.netIncome}`).value = { formula: `=${letter}${isRows.ebt}+${letter}${isRows.taxes}` };
     [isRows.revenue, isRows.cogs, isRows.grossProfit, isRows.opex, isRows.ebitda, isRows.da, isRows.ebit, isRows.interest, isRows.ebt, isRows.taxes].forEach((row) =>
       styleFormula(isSheet.getCell(`${letter}${row}`), 'currency')
     );
     styleFormula(isSheet.getCell(`${letter}${isRows.grossMargin}`), 'percent');
     styleOutput(isSheet.getCell(`${letter}${isRows.netIncome}`), 'currency');
-    defineNamedCell(workbook, grossProfitName, isSheet, `${letter}${isRows.grossProfit}`);
-    defineNamedCell(workbook, ebitName, isSheet, `${letter}${isRows.ebit}`);
-    defineNamedCell(workbook, netIncomeName, isSheet, `${letter}${isRows.netIncome}`);
     equations.push({
       metric: `Net income ${year}`,
       description: 'EBT plus taxes.',
@@ -543,30 +509,27 @@ export async function buildWorkbook(inputs: ThreeStatementModelInputs): Promise<
     bsSheet.getCell(`A${row}`).value = label;
     styleLabel(bsSheet.getCell(`A${row}`));
   });
-  let previousReName = 'BeginningRetainedEarnings';
+  let previousRetainedEarningsRef = controlRefs.beginningRetainedEarnings;
   columns.forEach((year, index) => {
     const letter = col(2 + index);
-    const endingCashName = yearName('EndingCash', year);
-    const netIncomeName = yearName('NetIncome', year);
-    const retainedEarningsName = yearName('RetainedEarnings', year);
-    bsSheet.getCell(`${letter}${bsRows.cash}`).value = { formula: `=${endingCashName}` };
-    bsSheet.getCell(`${letter}${bsRows.ar}`).value = { formula: `=${yearName('AR', year)}` };
-    bsSheet.getCell(`${letter}${bsRows.inventory}`).value = { formula: `=${yearName('Inventory', year)}` };
-    bsSheet.getCell(`${letter}${bsRows.otherCa}`).value = { formula: `=${yearName('Revenue', year)}*OtherCurrentAssetsPct` };
-    bsSheet.getCell(`${letter}${bsRows.ppe}`).value = { formula: `=${yearName('EndingPPE', year)}` };
-    bsSheet.getCell(`${letter}${bsRows.otherAssets}`).value = { formula: '=OtherAssetsBase' };
+    bsSheet.getCell(`${letter}${bsRows.cash}`).value = { formula: `='Cash Flow'!$${letter}$13` };
+    bsSheet.getCell(`${letter}${bsRows.ar}`).value = { formula: `='Working Capital Schedule'!$${letter}$10` };
+    bsSheet.getCell(`${letter}${bsRows.inventory}`).value = { formula: `='Working Capital Schedule'!$${letter}$11` };
+    bsSheet.getCell(`${letter}${bsRows.otherCa}`).value = { formula: `='Working Capital Schedule'!$${letter}$13` };
+    bsSheet.getCell(`${letter}${bsRows.ppe}`).value = { formula: `='PP&E & Depreciation'!$${letter}$8` };
+    bsSheet.getCell(`${letter}${bsRows.otherAssets}`).value = { formula: `=${controlRefs.otherAssetsBase}` };
     bsSheet.getCell(`${letter}${bsRows.totalAssets}`).value = {
       formula: `=${letter}${bsRows.cash}+${letter}${bsRows.ar}+${letter}${bsRows.inventory}+${letter}${bsRows.otherCa}+${letter}${bsRows.ppe}+${letter}${bsRows.otherAssets}`,
     };
-    bsSheet.getCell(`${letter}${bsRows.ap}`).value = { formula: `=${yearName('AP', year)}` };
-    bsSheet.getCell(`${letter}${bsRows.otherCl}`).value = { formula: `=${yearName('Revenue', year)}*OtherCurrentLiabilitiesPct` };
-    bsSheet.getCell(`${letter}${bsRows.debt}`).value = { formula: `=${yearName('Debt', year)}` };
-    bsSheet.getCell(`${letter}${bsRows.otherLiabilities}`).value = { formula: '=OtherLiabilitiesBase' };
-    bsSheet.getCell(`${letter}${bsRows.commonStock}`).value = { formula: '=CommonStock' };
+    bsSheet.getCell(`${letter}${bsRows.ap}`).value = { formula: `='Working Capital Schedule'!$${letter}$12` };
+    bsSheet.getCell(`${letter}${bsRows.otherCl}`).value = { formula: `='Working Capital Schedule'!$${letter}$14` };
+    bsSheet.getCell(`${letter}${bsRows.debt}`).value = { formula: `='Debt Schedule'!$${letter}$8` };
+    bsSheet.getCell(`${letter}${bsRows.otherLiabilities}`).value = { formula: `=${controlRefs.otherLiabilitiesBase}` };
+    bsSheet.getCell(`${letter}${bsRows.commonStock}`).value = { formula: `=${controlRefs.commonStock}` };
     bsSheet.getCell(`${letter}${bsRows.retainedEarnings}`).value =
       index === 0
-        ? { formula: `=BeginningRetainedEarnings+${yearName('NetIncome', actualYear)}` }
-        : { formula: `=${previousReName}+${netIncomeName}` };
+        ? { formula: `=${controlRefs.beginningRetainedEarnings}+'Income Statement'!$${letter}$16` }
+        : { formula: `=${previousRetainedEarningsRef}+'Income Statement'!$${letter}$16` };
     bsSheet.getCell(`${letter}${bsRows.totalLiabilitiesEquity}`).value = {
       formula: `=${letter}${bsRows.ap}+${letter}${bsRows.otherCl}+${letter}${bsRows.debt}+${letter}${bsRows.otherLiabilities}+${letter}${bsRows.commonStock}+${letter}${bsRows.retainedEarnings}`,
     };
@@ -575,8 +538,7 @@ export async function buildWorkbook(inputs: ThreeStatementModelInputs): Promise<
       styleFormula(bsSheet.getCell(`${letter}${row}`), 'currency')
     );
     styleOutput(bsSheet.getCell(`${letter}${bsRows.totalLiabilitiesEquity}`), 'currency');
-    defineNamedCell(workbook, retainedEarningsName, bsSheet, `${letter}${bsRows.retainedEarnings}`);
-    previousReName = retainedEarningsName;
+    previousRetainedEarningsRef = absoluteSheetRef('Balance Sheet', letter, bsRows.retainedEarnings);
   });
   styleSubTotal(bsSheet, bsRows.totalAssets, 1, 2 + inputs.years);
   styleTotal(bsSheet, bsRows.totalLiabilitiesEquity, 1, 2 + inputs.years);
@@ -617,29 +579,27 @@ export async function buildWorkbook(inputs: ThreeStatementModelInputs): Promise<
   });
   columns.forEach((year, index) => {
     const letter = col(2 + index);
-    const endingCashName = yearName('EndingCash', year);
-    cfSheet.getCell(`${letter}${cfRows.netIncome}`).value = { formula: `=${yearName('NetIncome', year)}` };
-    cfSheet.getCell(`${letter}${cfRows.da}`).value = { formula: `=${yearName('Depreciation', year)}` };
-    cfSheet.getCell(`${letter}${cfRows.deltaNwc}`).value = { formula: `=-${yearName('DeltaNWC', year)}` };
+    cfSheet.getCell(`${letter}${cfRows.netIncome}`).value = { formula: `='Income Statement'!$${letter}$16` };
+    cfSheet.getCell(`${letter}${cfRows.da}`).value = { formula: `='PP&E & Depreciation'!$${letter}$7` };
+    cfSheet.getCell(`${letter}${cfRows.deltaNwc}`).value = { formula: `=-'Working Capital Schedule'!$${letter}$16` };
     cfSheet.getCell(`${letter}${cfRows.cfo}`).value = { formula: `=${letter}${cfRows.netIncome}+${letter}${cfRows.da}+${letter}${cfRows.deltaNwc}` };
-    cfSheet.getCell(`${letter}${cfRows.capex}`).value = { formula: `=-${yearName('Revenue', year)}*CapexPct` };
-    cfSheet.getCell(`${letter}${cfRows.debtFlows}`).value = { formula: '=NewDebt-DebtRepaymentInput' };
+    cfSheet.getCell(`${letter}${cfRows.capex}`).value = { formula: `=-'PP&E & Depreciation'!$${letter}$6` };
+    cfSheet.getCell(`${letter}${cfRows.debtFlows}`).value = { formula: `=${controlRefs.newDebt}-${controlRefs.debtRepaymentInput}` };
     cfSheet.getCell(`${letter}${cfRows.equityFlows}`).value = 0;
     cfSheet.getCell(`${letter}${cfRows.netChangeCash}`).value = { formula: `=${letter}${cfRows.cfo}+${letter}${cfRows.capex}+${letter}${cfRows.debtFlows}+${letter}${cfRows.equityFlows}` };
     cfSheet.getCell(`${letter}${cfRows.endingCash}`).value =
       index === 0
-        ? { formula: '=OpeningCash+' + `${letter}${cfRows.netChangeCash}` }
+        ? { formula: `=${controlRefs.openingCash}+${letter}${cfRows.netChangeCash}` }
         : { formula: `=${col(1 + index)}${cfRows.endingCash}+${letter}${cfRows.netChangeCash}` };
     [cfRows.netIncome, cfRows.da, cfRows.deltaNwc, cfRows.cfo, cfRows.capex, cfRows.debtFlows, cfRows.equityFlows, cfRows.netChangeCash].forEach((row) =>
       styleFormula(cfSheet.getCell(`${letter}${row}`), 'currency')
     );
     styleOutput(cfSheet.getCell(`${letter}${cfRows.endingCash}`), 'currency');
-    defineNamedCell(workbook, endingCashName, cfSheet, `${letter}${cfRows.endingCash}`);
     equations.push({
       metric: `Ending cash ${year}`,
       description: 'Prior-period ending cash plus current-period net change in cash.',
-      excelFormula: index === 0 ? `=OpeningCash+${letter}${cfRows.netChangeCash}` : `=${col(1 + index)}${cfRows.endingCash}+${letter}${cfRows.netChangeCash}`,
-      dependencies: index === 0 ? `OpeningCash, ${letter}${cfRows.netChangeCash}` : `${col(1 + index)}${cfRows.endingCash}, ${letter}${cfRows.netChangeCash}`,
+      excelFormula: index === 0 ? `=${controlRefs.openingCash}+${letter}${cfRows.netChangeCash}` : `=${col(1 + index)}${cfRows.endingCash}+${letter}${cfRows.netChangeCash}`,
+      dependencies: index === 0 ? `${controlRefs.openingCash}, ${letter}${cfRows.netChangeCash}` : `${col(1 + index)}${cfRows.endingCash}, ${letter}${cfRows.netChangeCash}`,
       location: `'Cash Flow'!${letter}${cfRows.endingCash}`,
     });
   });
@@ -670,15 +630,15 @@ export async function buildWorkbook(inputs: ThreeStatementModelInputs): Promise<
     {
       metric: 'Retained earnings',
       description: 'Prior retained earnings plus current net income.',
-      excelFormula: '=PriorRetainedEarnings + NetIncome',
-      dependencies: 'PriorRetainedEarnings, NetIncome',
+      excelFormula: `=${controlRefs.beginningRetainedEarnings}+'Income Statement'!$B$16`,
+      dependencies: `${controlRefs.beginningRetainedEarnings}, 'Income Statement'!$B$16`,
       location: `'Balance Sheet'!C19:${lastForecastLetter}19`,
     },
     {
       metric: 'Balance sheet check',
       description: 'Total assets less total liabilities and equity.',
-      excelFormula: '=TotalAssets-TotalLiabilitiesAndEquity',
-      dependencies: 'TotalAssets, TotalLiabilitiesAndEquity',
+      excelFormula: `='Balance Sheet'!$C$11-'Balance Sheet'!$C$20`,
+      dependencies: `'Balance Sheet'!$C$11, 'Balance Sheet'!$C$20`,
       location: `'Balance Sheet'!C21:${lastForecastLetter}21`,
     }
   );
@@ -693,10 +653,10 @@ export async function buildWorkbook(inputs: ThreeStatementModelInputs): Promise<
     .map((year, index) => {
       const currentCol = col(2 + index);
       if (index === 0) {
-        return `ABS('Balance Sheet'!$${currentCol}$19-(BeginningRetainedEarnings+${yearName('NetIncome', year)}))`;
+        return `ABS('Balance Sheet'!$${currentCol}$19-(${controlRefs.beginningRetainedEarnings}+'Income Statement'!$${currentCol}$16))`;
       }
       const previousCol = col(1 + index);
-      return `ABS('Balance Sheet'!$${currentCol}$19-('Balance Sheet'!$${previousCol}$19+${yearName('NetIncome', year)}))`;
+      return `ABS('Balance Sheet'!$${currentCol}$19-('Balance Sheet'!$${previousCol}$19+'Income Statement'!$${currentCol}$16))`;
     })
     .join(',');
   const debtPopulatedFormula = `COUNTA('Debt Schedule'!C8:${lastForecastLetter}8)=${inputs.years}`;
@@ -716,6 +676,9 @@ export async function buildWorkbook(inputs: ThreeStatementModelInputs): Promise<
   finalizeChecksSheet(checksSheet, 4, 7);
 
   addEquationsSheet(workbook, `${inputs.companyName} Three-Statement`, equations);
+  validateWorkbookFormulaTokens(workbook, {
+    allowedFunctions: ['IF', 'ABS', 'MAX', 'COUNTA'],
+  });
 
   return finalizeWorkbookCompatibility(workbook);
 }
