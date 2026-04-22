@@ -526,10 +526,7 @@ type DemoSeedImageKind =
   | 'oil'
   | 'fed'
   | 'trade'
-  | 'growth'
-  | 'nvidia'
-  | 'software'
-  | 'memory';
+  | 'growth';
 
 function buildSeedIllustration(kind: DemoSeedImageKind, accent: string): string {
   switch (kind) {
@@ -580,40 +577,6 @@ function buildSeedIllustration(kind: DemoSeedImageKind, accent: string): string 
         <path d="M988 490L955 444" stroke="${accent}" stroke-width="16" stroke-linecap="round" />
         <path d="M988 490L930 500" stroke="${accent}" stroke-width="16" stroke-linecap="round" />
       `;
-    case 'nvidia':
-      return `
-        <rect x="226" y="238" width="250" height="184" rx="28" fill="rgba(16,185,129,0.14)" stroke="rgba(16,185,129,0.34)" />
-        <rect x="268" y="280" width="166" height="100" rx="18" fill="rgba(248,250,252,0.10)" stroke="rgba(248,250,252,0.14)" />
-        <path d="M516 270H975" stroke="rgba(248,250,252,0.16)" stroke-width="10" stroke-linecap="round" />
-        <path d="M516 332H1012" stroke="rgba(248,250,252,0.12)" stroke-width="10" stroke-linecap="round" />
-        <path d="M516 394H960" stroke="rgba(248,250,252,0.10)" stroke-width="10" stroke-linecap="round" />
-        <circle cx="902" cy="236" r="58" fill="${accent}" opacity="0.16" />
-        <circle cx="324" cy="331" r="18" fill="${accent}" opacity="0.72" />
-        <circle cx="382" cy="331" r="18" fill="rgba(248,250,252,0.55)" />
-        <circle cx="350" cy="365" r="18" fill="rgba(248,250,252,0.35)" />
-      `;
-    case 'software':
-      return `
-        <rect x="235" y="230" width="310" height="226" rx="24" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.10)" />
-        <rect x="580" y="265" width="165" height="104" rx="18" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.10)" />
-        <rect x="784" y="265" width="165" height="104" rx="18" fill="rgba(6,182,212,0.14)" stroke="rgba(6,182,212,0.28)" />
-        <rect x="580" y="392" width="369" height="64" rx="18" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.08)" />
-        <circle cx="315" cy="312" r="22" fill="${accent}" opacity="0.72" />
-        <circle cx="436" cy="288" r="18" fill="rgba(248,250,252,0.62)" />
-        <circle cx="470" cy="376" r="20" fill="rgba(248,250,252,0.42)" />
-        <path d="M315 312L436 288L470 376L662 318L866 318" stroke="${accent}" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-      `;
-    case 'memory':
-      return `
-        <rect x="250" y="240" width="300" height="196" rx="28" fill="rgba(20,184,166,0.14)" stroke="rgba(20,184,166,0.32)" />
-        <rect x="306" y="290" width="188" height="96" rx="16" fill="rgba(248,250,252,0.12)" stroke="rgba(248,250,252,0.14)" />
-        <path d="M575 268H985" stroke="rgba(248,250,252,0.12)" stroke-width="12" stroke-linecap="round" />
-        <path d="M575 324H944" stroke="rgba(248,250,252,0.10)" stroke-width="12" stroke-linecap="round" />
-        <path d="M575 380H1018" stroke="rgba(248,250,252,0.08)" stroke-width="12" stroke-linecap="round" />
-        <path d="M575 436H932" stroke="${accent}" stroke-width="12" stroke-linecap="round" />
-        <rect x="842" y="214" width="112" height="112" rx="20" fill="${accent}" opacity="0.18" />
-        <rect x="878" y="250" width="40" height="40" rx="8" fill="${accent}" opacity="0.7" />
-      `;
   }
 }
 
@@ -657,18 +620,16 @@ function buildDemoSeedEvents(): MarketEvent[] {
   const now = Date.now();
   const isoOffset = (hours: number) => new Date(now - hours * 60 * 60 * 1000).toISOString();
   const demoImageBySeed: Record<string, string> = {
-    'hormuz-oil-risk': 'https://commons.wikimedia.org/wiki/Special:Redirect/file/Strait%20of%20hormuz.jpg',
-    'tariff-trade-reset':
-      'https://commons.wikimedia.org/wiki/Special:Redirect/file/Port%20of%20Savannah%20Non-Intrusive%20Inspections%20%28NII%29%20and%20Cargo%20Operations%20%2853068224657%29.jpg',
-    'fed-boxed-in':
-      'https://commons.wikimedia.org/wiki/Special:Redirect/file/Federal%20Reserve%20Bank%20of%20New%20York%20Building.jpg',
-    'growth-confidence-cracks':
-      'https://commons.wikimedia.org/wiki/Special:Redirect/file/Kai%20Wei%20Supermarket%20shoppers,%20December%202018.jpg',
-    'nvidia-gtc-checkpoint':
-      'https://commons.wikimedia.org/wiki/Special:Redirect/file/Jensen%20Huang%20at%20GTC%20Japan%2020161005.jpg',
-    'software-ai-reset':
-      'https://commons.wikimedia.org/wiki/Special:Redirect/file/Facebook%20Data%20Center%20Server%20Board.jpg',
-    'memory-hbm-checkpoint': 'https://commons.wikimedia.org/wiki/Special:Redirect/file/Clean%20room.jpg',
+    'hormuz-oil-shock': buildSeedEventImage('Hormuz Oil Shock', '#fb923c', 'oil'),
+    'us-tariff-broadening': buildSeedEventImage('Tariff Broadening', '#f97316', 'trade'),
+    'fed-higher-for-longer': buildSeedEventImage('Fed Restrictive Bias', '#22c55e', 'fed'),
+    'ecb-energy-inflation-pause': buildSeedEventImage('ECB Inflation Pause', '#38bdf8', 'fed'),
+    'boj-normalization-volatility': buildSeedEventImage('BOJ Yield Volatility', '#a78bfa', 'fed'),
+    'china-policy-support': buildSeedEventImage('China Policy Support', '#14b8a6', 'growth'),
+    'imf-shadow-of-war': buildSeedEventImage('IMF Shadow of War', '#f59e0b', 'growth'),
+    'iea-oil-buffer-release': buildSeedEventImage('Oil Buffer Release', '#f97316', 'oil'),
+    'fiscal-term-premia': buildSeedEventImage('Fiscal Term Premia', '#ef4444', 'growth'),
+    'china-reflation-turn': buildSeedEventImage('China Reflation Turn', '#06b6d4', 'growth'),
   };
   const source = (
     seed: string,
@@ -712,241 +673,353 @@ function buildDemoSeedEvents(): MarketEvent[] {
   };
 
   return [
-    mk('hormuz-oil-risk', {
-      title: 'Hormuz oil-shock risk puts energy, inflation, and defense back on top of the tape',
+    mk('hormuz-oil-shock', {
+      title: 'Hormuz supply shock puts oil, inflation, and shipping risk back at the center of the macro tape',
       eventType: 'Conflict',
-      severity: 93,
+      severity: 96,
       horizon: 'Immediate',
       drivers: [
-        'Markets are repricing the risk that a wider Middle East conflict disrupts energy flows and shipping insurance before any physical outage is confirmed.',
-        'Brent pushing toward the psychological $100 zone would tighten financial conditions by lifting fuel costs, inflation expectations, and risk aversion together.',
-        'Energy, defense, and safe-haven exposures are leading while airlines, transports, and other fuel-sensitive cyclicals lose sponsorship.',
+        'The dominant macro shock of the last quarter has been the widening Middle East conflict and the risk that Strait of Hormuz disruption turns into a true energy supply event.',
+        'The inflation impulse matters as much as the commodity move because higher fuel and shipping costs tighten financial conditions before central banks are ready to ease.',
+        'Cross-asset leadership shifts toward energy, defense, and safe havens while airlines, importers, and fuel-sensitive cyclicals take the first hit.',
       ],
       marketImpact: {
-        equities: 'Energy, defense, and commodity-linked equities should keep outperforming if crude volatility stays elevated, while transports and discretionary exposure remain vulnerable.',
-        rates: 'An oil-led inflation shock can keep breakevens firm and make duration harder to own even if growth expectations soften.',
-        fx: 'Safe-haven dollar demand can strengthen if cross-border shipping and commodity flows become less predictable.',
-        oil: 'Crude risk premium rises first through freight, insurance, and inventory hedging before any confirmed supply loss.',
-        sectors: 'Integrated oil, refiners, and defense contractors screen best; airlines, chemicals, and consumer cyclicals carry the cleanest downside read-through.',
+        equities: 'Energy, defense, and commodity-linked equities should keep leading if the conflict remains unresolved, while transports, airlines, and discretionary cyclicals remain vulnerable.',
+        rates: 'Oil-led inflation pressure can hold breakevens and real rates up even as growth expectations soften.',
+        fx: 'Safe-haven dollar demand and importer-currency pressure both strengthen if commodity and shipping volatility stay elevated.',
+        oil: 'Crude risk premium should move first through freight, insurance, and inventory hedging before any confirmed physical outage.',
+        sectors: 'Integrated oils, refiners, shipping insurers, and defense names screen best; airlines, chemicals, and import-heavy cyclicals screen worst.',
       },
       transmissionPath: [
-        'Conflict escalation -> shipping and supply risk rise -> crude and inflation expectations move higher -> energy and defense outperform while cyclicals de-rate',
+        'Conflict escalation -> shipping and energy supply risk rise -> oil and inflation expectations move higher -> policy easing gets harder -> cyclicals and duration de-rate',
       ],
       watchNext: [
-        'Watch Hormuz and Red Sea shipping updates plus tanker insurance pricing.',
-        'Watch Brent term structure and whether spot crude breaks and holds above recent highs.',
-        'Watch airline and transport management commentary for demand or margin revisions.',
+        'Watch Strait of Hormuz and Red Sea shipping updates plus tanker insurance pricing.',
+        'Watch Brent term structure, diesel cracks, and whether the spot risk premium stays elevated.',
+        'Watch whether central banks start treating the oil shock as persistent rather than temporary.',
       ],
-      status: 'developing',
-      ageHours: 2,
-      firstSeenHours: 18,
+      status: 'confirmed',
+      ageHours: 720,
+      firstSeenHours: 840,
       source: {
-        name: 'AP News',
-        url: 'https://apnews.com/article/66806b02a000235f1979e591279b6554',
-        title: 'Stocks sink worldwide as Iran attacks create a dilemma for central banks: how to cut rates and fight inflation?',
-        snippet: 'AP coverage tied the Middle East escalation directly to oil, inflation, and central-bank constraints.',
+        name: 'IEA',
+        url: 'https://www.iea.org/reports/oil-market-report-march-2026',
+        title: 'Oil Market Report - March 2026',
+        snippet: 'The IEA described the Middle East war disruption as the largest supply disruption in the history of the global oil market.',
       },
     }),
-    mk('tariff-trade-reset', {
-      title: 'Tariff and trade-policy uncertainty keeps cyclicals and multinationals under pressure',
+    mk('us-tariff-broadening', {
+      title: 'U.S. tariff broadening resets the trade regime and reintroduces goods-inflation risk',
       eventType: 'RegulatoryShock',
-      severity: 89,
+      severity: 94,
       horizon: 'NearTerm',
       drivers: [
-        'Markets are still treating tariff headlines as a live earnings risk because policy scope, legal durability, and retaliation paths remain unsettled.',
-        'Trade-sensitive industrials, retailers, and hardware names face renewed margin and inventory planning pressure when import assumptions keep changing.',
-        'The market is rewarding domestically insulated cash flows over globally exposed operating leverage until policy clarity improves.',
+        'The February import surcharge and subsequent tariff broadening across semis, pharmaceuticals, and metals turned trade policy into a primary macro variable again.',
+        'That matters through landed costs, supply-chain rerouting, and weaker capex confidence rather than through headlines alone.',
+        'Markets are paying up for domestic cash-flow visibility and punishing globally exposed operating leverage until pass-through and retaliation risk look contained.',
       ],
       marketImpact: {
-        equities: 'Multinationals, import-heavy retailers, and trade-sensitive industrials stay under pressure while domestic defensives hold up better.',
-        fx: 'Trade uncertainty tends to support the dollar against export-sensitive and emerging-market currencies when growth expectations are marked down.',
-        credit: 'Lower-visibility cyclicals can see spread pressure if tariffs begin to hit inventory turns and pricing power unevenly.',
-        sectors: 'Industrials, autos, retail, and hardware remain the cleanest downside buckets while domestically oriented utilities and staples look relatively safer.',
+        equities: 'Multinationals, import-heavy retailers, autos, and trade-sensitive industrials stay under pressure while domestic defensives hold up better.',
+        fx: 'Trade uncertainty and stickier U.S. inflation risk tend to support the dollar against export-sensitive and emerging-market currencies.',
+        credit: 'Lower-visibility cyclicals and margin-sensitive importers can see spread pressure if pass-through hits demand unevenly.',
+        sectors: 'Industrials, autos, retail, semis, and hardware remain the cleanest downside buckets while domestic defensives and utilities look safer.',
       },
       transmissionPath: [
-        'Tariff uncertainty -> margin and sourcing assumptions worsen -> earnings visibility falls -> cyclicals and globally exposed names underperform',
+        'Tariffs broaden -> landed costs and sourcing uncertainty rise -> pass-through and inflation risk increase -> earnings visibility and trade volumes weaken',
       ],
       watchNext: [
-        'Watch legal and policy clarification on which tariffs survive and when they take effect.',
-        'Watch retaliation headlines and sourcing commentary from large import-dependent companies.',
-        'Watch whether management teams begin cutting full-year margin or demand guidance.',
+        'Watch whether the current tariff framework broadens beyond current sectors or survives legal challenge intact.',
+        'Watch CPI, PPI, and retailer or industrial commentary for signs of tariff pass-through reaching end demand.',
+        'Watch retaliation, inventory rerouting, and capex delays across trade-sensitive sectors.',
       ],
-      status: 'developing',
-      ageHours: 4,
-      firstSeenHours: 28,
+      status: 'confirmed',
+      ageHours: 1248,
+      firstSeenHours: 1320,
       source: {
-        name: 'Reuters',
-        url: 'https://www.reuters.com/markets/us/',
-        title: 'Tariffs and AI concerns dominate U.S. equity tape',
-        snippet: 'Reuters market coverage highlighted tariffs as a direct drag on cyclicals and multinational sentiment.',
+        name: 'The White House',
+        url: 'https://www.whitehouse.gov/presidential-actions/2026/02/imposing-a-temporary-import-surcharge-to-address-fundamental-international-payments-problems/',
+        title: 'Imposing a Temporary Import Surcharge to Address Fundamental International Payments Problems',
+        snippet: 'The White House imposed a 10 percent temporary import surcharge, marking a clear broadening of U.S. trade-policy tightening.',
       },
     }),
-    mk('fed-boxed-in', {
-      title: 'Fed is boxed in as oil risk revives inflation just as growth momentum cools',
+    mk('fed-higher-for-longer', {
+      title: 'Fed stays restrictive as oil and geopolitical uncertainty make a clean easing pivot harder',
       eventType: 'CentralBank',
       severity: 90,
       horizon: 'Immediate',
       drivers: [
-        'Energy-led inflation risk has returned at the same time the economy is showing more visible cracks in hiring, confidence, and consumer durability.',
-        'That combination makes a clean easing pivot harder because the Fed cannot ignore higher inflation expectations even if growth is slowing.',
-        'Markets are moving toward a slower and more conditional cutting path rather than a straightforward rescue-easing setup.',
+        'The March FOMC outcome reinforced higher-for-longer by holding policy restrictive while explicitly flagging Middle East uncertainty.',
+        'Oil risk, tariff pass-through, and uneven disinflation make it harder for the Fed to deliver a simple growth-supportive easing cycle.',
+        'Markets are repricing toward fewer or later cuts rather than a straightforward rescue-easing path.',
       ],
       marketImpact: {
-        equities: 'Long-duration growth and lower-quality cyclicals both struggle because the market loses the simple lower-rates offset.',
+        equities: 'Long-duration growth and lower-quality cyclicals both struggle when the market loses the simple lower-rates offset.',
         rates: 'Front-end yields can stay sticky while the long end trades the stagflation mix of softer growth but worse inflation optics.',
-        fx: 'The dollar tends to stay supported when the U.S. still offers relative rate support despite weaker growth headlines.',
+        fx: 'The dollar remains supported when U.S. rates stay relatively firm despite weaker growth headlines.',
         credit: 'Refinancing-sensitive borrowers face pressure if policy relief is delayed while top-line momentum softens.',
         sectors: 'Financials, energy, and selective defensives hold up better than speculative growth and rate-sensitive balance-sheet stories.',
       },
       transmissionPath: [
-        'Oil and inflation risk rise -> Fed stays cautious -> real rates and financial conditions stay restrictive -> valuation and refinancing pressure spreads',
+        'Oil and geopolitical uncertainty persist -> Fed remains cautious -> real rates and financial conditions stay restrictive -> valuation and refinancing pressure spread',
       ],
       watchNext: [
-        'Watch breakevens, gasoline passthrough, and inflation expectation surveys.',
-        'Watch FOMC language for whether energy-driven inflation alters the expected easing path.',
-        'Watch front-end futures to see if cuts are merely delayed or meaningfully repriced out.',
-      ],
-      status: 'developing',
-      ageHours: 3,
-      firstSeenHours: 24,
-      source: {
-        name: 'AP News',
-        url: 'https://apnews.com/article/66806b02a000235f1979e591279b6554',
-        title: 'Iran attacks create a dilemma for central banks: how to cut rates and fight inflation?',
-        snippet: 'AP framed the current macro bind as a simultaneous inflation and policy problem, not just a geopolitical headline.',
-      },
-    }),
-    mk('growth-confidence-cracks', {
-      title: 'Softening U.S. jobs and confidence data deepen stagflation worries',
-      eventType: 'Macro',
-      severity: 85,
-      horizon: 'NearTerm',
-      drivers: [
-        'Recent labor and consumer data are pointing to slower underlying demand before the full energy shock has even hit household budgets.',
-        'That weakens the case for broad cyclical exposure because revenue expectations can roll over while the cost backdrop stays difficult.',
-        'The setup raises the probability of a more selective market led by balance-sheet quality and pricing power rather than beta.',
-      ],
-      marketImpact: {
-        equities: 'Consumer discretionary, travel, and lower-quality cyclicals look most exposed if demand fades while costs remain sticky.',
-        rates: 'Long-end yields can struggle to fall cleanly if slower growth is offset by worse inflation optics.',
-        credit: 'Lower-tier consumer and cyclical credit can widen as volume risk and margin pressure begin to overlap.',
-        sectors: 'Staples, utilities, and quality software hold up better than travel, retail, and economically sensitive cyclicals.',
-      },
-      transmissionPath: [
-        'Jobs and confidence soften -> revenue expectations weaken -> investors crowd into quality and defensives -> cyclical breadth deteriorates',
-      ],
-      watchNext: [
-        'Watch payroll revisions, weekly claims, and any broadening in unemployment.',
-        'Watch consumer confidence and spending data for signs that softness is moving beyond surveys.',
-        'Watch discretionary and travel management teams for demand language changes.',
+        'Watch breakevens, gasoline passthrough, and inflation-expectation surveys.',
+        'Watch whether FOMC language shifts from uncertainty management to renewed inflation concern.',
+        'Watch front-end futures to see whether cuts are merely delayed or meaningfully repriced out.',
       ],
       status: 'confirmed',
-      ageHours: 5,
-      firstSeenHours: 30,
+      ageHours: 720,
+      firstSeenHours: 744,
       source: {
-        name: 'AP News',
-        url: 'https://apnews.com/article/3172b6d0023717644c173cee94d44a79',
-        title: 'Cracks are showing in the U.S. economy and could spell trouble for the labor market',
-        snippet: 'AP highlighted slower hiring and softer demand as a separate macro issue that predates the latest oil shock.',
+        name: 'Federal Reserve',
+        url: 'https://www.federalreserve.gov/newsevents/pressreleases/monetary20260318a.htm',
+        title: 'Federal Reserve issues FOMC statement',
+        snippet: 'The Fed held rates at 3.50% to 3.75% and flagged uncertainty tied to the Middle East conflict and inflation risk.',
       },
     }),
-    mk('nvidia-gtc-checkpoint', {
-      title: 'Nvidia GTC becomes the next test of AI infrastructure durability',
-      eventType: 'EarningsMegaCap',
+    mk('ecb-energy-inflation-pause', {
+      title: 'ECB pauses but turns more hawkish on near-term inflation risk from energy',
+      eventType: 'CentralBank',
+      severity: 84,
+      horizon: 'Immediate',
+      drivers: [
+        'The ECB held rates steady in March but explicitly acknowledged that the conflict would have a material near-term inflation impact through higher energy prices.',
+        'That creates a tougher European policy mix because growth is already soft while inflation optics are worsening.',
+        'European rate-sensitive equities and credit lose the clean lower-rates relief case when energy and geopolitics dominate the policy reaction function.',
+      ],
+      marketImpact: {
+        equities: 'European cyclicals and rate-sensitive sectors remain exposed if the ECB cannot lean dovish into a softer growth backdrop.',
+        rates: 'Short-end euro rates remain firmer than a pure growth slowdown would imply.',
+        fx: 'The euro gets support from firmer rates but remains vulnerable if growth slows faster than inflation cools.',
+        credit: 'European credit can widen if policy stays cautious while demand weakens.',
+        sectors: 'Utilities and defensives hold up better than consumer cyclicals, housing-linked exposure, and lower-quality industrials.',
+      },
+      transmissionPath: [
+        'Energy shock lifts near-term inflation -> ECB stays cautious -> European demand sentiment weakens -> cyclicals and lower-quality credit underperform',
+      ],
+      watchNext: [
+        'Watch euro-area inflation prints and whether energy pressure broadens into core pricing.',
+        'Watch ECB communication for any move from pause to renewed tightening bias.',
+        'Watch European credit spreads and consumer-demand indicators for policy-stress confirmation.',
+      ],
+      status: 'confirmed',
+      ageHours: 696,
+      firstSeenHours: 720,
+      source: {
+        name: 'ECB',
+        url: 'https://www.ecb.europa.eu/press/press_conference/monetary-policy-statement/2026/html/ecb.is260319~93b1cbad97.en.html',
+        title: 'Monetary policy statement, March 19 2026',
+        snippet: 'The ECB said the conflict would have a material impact on near-term inflation through higher energy prices while weighing on growth.',
+      },
+    }),
+    mk('boj-normalization-volatility', {
+      title: 'BOJ normalization keeps global bond volatility alive even as oil risk rises',
+      eventType: 'CentralBank',
+      severity: 79,
+      horizon: 'NearTerm',
+      drivers: [
+        'The BOJ kept moving its normalization process forward while still flagging crude oil and Middle East risks to underlying inflation.',
+        'That matters globally because higher JGB yields can disturb carry trades, global duration positioning, and FX funding assumptions.',
+        'The result is another source of bond volatility layered on top of the oil and tariff shock already hitting global markets.',
+      ],
+      marketImpact: {
+        equities: 'Global risk assets can wobble when yen-funded carry and duration positioning are forced to adjust together.',
+        rates: 'JGB yield pressure can spill into global bond markets and complicate the bullish-duration case elsewhere.',
+        fx: 'Yen sensitivity rises when BOJ normalization narrows the gap with other developed-market policy paths.',
+        credit: 'Credit sentiment weakens if bond volatility feeds a broader de-risking move across global portfolios.',
+        sectors: 'Duration-heavy equities and balance-sheet-sensitive risk assets are the cleanest downstream victims.',
+      },
+      transmissionPath: [
+        'BOJ normalization continues -> JGB yields and yen sensitivity rise -> carry trade and bond volatility increase -> duration-heavy assets de-rate',
+      ],
+      watchNext: [
+        'Watch JGB yields, cross-currency basis, and yen moves for signs of broader funding stress.',
+        'Watch whether BOJ communication leans more hawkish if oil keeps underlying CPI firm.',
+        'Watch spillover into global duration and carry-trade proxies.',
+      ],
+      status: 'confirmed',
+      ageHours: 696,
+      firstSeenHours: 720,
+      source: {
+        name: 'Bank of Japan',
+        url: 'https://www.boj.or.jp/en/mopo/mpmdeci/mpr_2026/k260319a.pdf',
+        title: 'Statement on Monetary Policy',
+        snippet: 'The BOJ kept the overnight call rate around 0.75% and explicitly cited crude oil and Middle East risks to inflation dynamics.',
+      },
+    }),
+    mk('china-policy-support', {
+      title: 'China shifts to stronger policy support to stabilize growth and credit confidence',
+      eventType: 'Macro',
+      severity: 82,
+      horizon: 'NearTerm',
+      drivers: [
+        'March policy signaling from Beijing turned more openly supportive through proactive fiscal policy, larger bond issuance, and a moderately loose monetary stance.',
+        'That puts a floor under commodities and Asian trade cyclicals even if the global backdrop remains difficult.',
+        'The macro read-through is less about a clean recovery than about preventing a harder China-led demand downdraft.',
+      ],
+      marketImpact: {
+        equities: 'Materials, industrial exporters, and China-sensitive cyclicals get a relative bid when Beijing leans more aggressively into support.',
+        rates: 'China stimulus can soften the global growth scare and steepen commodity-linked inflation expectations at the margin.',
+        fx: 'China-sensitive Asian currencies and commodity FX get relief if policy support looks credible.',
+        credit: 'China and Asia credit sentiment improves if policy support reduces fears of a deeper domestic slowdown.',
+        sectors: 'Metals, machinery, transport, and luxury-adjacent cyclicals benefit most from incremental China support.',
+      },
+      transmissionPath: [
+        'China policy support rises -> demand floor improves for Asia and commodity chains -> global cyclical downside is partly cushioned',
+      ],
+      watchNext: [
+        'Watch fiscal implementation, local-government funding, and issuance follow-through.',
+        'Watch commodity demand, credit creation, and property stabilization indicators.',
+        'Watch whether policy support improves external demand confidence or merely slows deterioration.',
+      ],
+      status: 'confirmed',
+      ageHours: 1032,
+      firstSeenHours: 1080,
+      source: {
+        name: 'The State Council Information Office of China',
+        url: 'https://english.scio.gov.cn/pressroom/2026-03/06/content_118366257.html',
+        title: 'Officials discuss more proactive fiscal policy and stronger support measures',
+        snippet: 'Chinese officials outlined more proactive fiscal policy and stronger macro support following the March policy meetings.',
+      },
+    }),
+    mk('imf-shadow-of-war', {
+      title: 'IMF downgrade hardens the stagflation regime by pairing weaker growth with higher inflation risk',
+      eventType: 'Macro',
       severity: 88,
       horizon: 'NearTerm',
       drivers: [
-        'Investors want confirmation that hyperscaler and enterprise AI budgets are still broadening rather than narrowing to a smaller set of projects.',
-        'The conference matters because guidance around Blackwell, networking, and inference adoption shapes the entire AI infrastructure stack.',
-        'A strong message can re-anchor semiconductor leadership while any signs of digestion would hit the most crowded names quickly.',
+        'The IMF framed the world economy as operating in the shadow of war, with weaker global growth and renewed inflation pressure.',
+        'That is a harder backdrop for risk assets because slower growth no longer guarantees easier central-bank policy.',
+        'Markets respond by paying up for quality balance sheets, pricing power, and defensiveness rather than broad cyclical beta.',
       ],
       marketImpact: {
-        equities: 'Semis, networking, foundry, and power-exposed infrastructure names should move first because the market is still trading AI as a capex chain.',
-        credit: 'Supplier spread tone stays constructive if the event supports another leg of durable capex visibility.',
-        sectors: 'GPU, memory, networking, and data-center power beneficiaries all remain directly tied to this checkpoint.',
+        equities: 'Broad cyclicals and small caps come under pressure when slower growth is paired with renewed inflation risk rather than clean disinflation.',
+        rates: 'Duration gets a mixed signal because weaker growth is offset by inflation and supply-shock uncertainty.',
+        fx: 'Trade-linked and imported-energy currencies remain vulnerable if the downgrade broadens risk aversion.',
+        credit: 'Lower-quality credit can widen as slower growth and tighter financing conditions begin to overlap.',
+        sectors: 'Defensives, quality compounders, and energy cash-flow beneficiaries screen better than cyclical beta and balance-sheet-sensitive growth.',
       },
       transmissionPath: [
-        'Management tone on AI demand -> hyperscaler capex confidence adjusts -> semiconductor earnings expectations reset -> AI infrastructure leadership strengthens or fades',
+        'Global growth is downgraded while inflation risk rises -> policy relief looks less certain -> cyclicals and lower-quality risk assets underperform',
       ],
       watchNext: [
-        'Watch Blackwell shipment commentary and any bottleneck language around networking or power.',
-        'Watch hyperscaler references for whether inference demand is broadening beyond training clusters.',
-        'Watch whether management reinforces 2026 demand durability instead of just near-term backlog strength.',
+        'Watch whether major developed-market forecasts follow the IMF lower over coming weeks.',
+        'Watch cross-asset confirmation from small caps, cyclicals, breakevens, and credit spreads.',
+        'Watch whether management commentary shifts from resilience to explicit caution on demand and inventory.',
       ],
-      status: 'developing',
-      ageHours: 6,
-      firstSeenHours: 36,
+      status: 'confirmed',
+      ageHours: 72,
+      firstSeenHours: 96,
       source: {
-        name: 'NVIDIA Newsroom',
-        url: 'https://nvidianews.nvidia.com/news/nvidia-ceo-jensen-huang-and-global-technology-leaders-to-showcase-age-of-ai-at-gtc-2026',
-        title: 'NVIDIA CEO Jensen Huang and global technology leaders to showcase the age of AI at GTC 2026',
-        snippet: 'NVIDIA framed GTC 2026 as the next major checkpoint for AI compute, networking, and enterprise deployment commentary.',
+        name: 'IMF',
+        url: 'https://www.imf.org/en/publications/weo/issues/2026/04/14/world-economic-outlook-april-2026',
+        title: 'World Economic Outlook, April 2026',
+        snippet: 'The IMF cut its 2026 global growth view and warned that the conflict backdrop would also raise inflation pressure.',
       },
     }),
-    mk('software-ai-reset', {
-      title: 'AI disruption fears keep software and services multiples under pressure',
+    mk('iea-oil-buffer-release', {
+      title: 'Emergency oil-buffer release becomes the policy response to a genuine supply shock',
       eventType: 'Macro',
-      severity: 83,
-      horizon: 'Structural',
-      drivers: [
-        'The market is becoming less willing to pay peak multiples for application software if AI compresses pricing, feature differentiation, or seat-based expansion.',
-        'Services and software names without clear AI monetization are facing a valuation reset even before headline revenue erosion is fully visible.',
-        'This is creating a split tape between infrastructure beneficiaries and companies viewed as AI takers rather than AI sellers.',
-      ],
-      marketImpact: {
-        equities: 'Application software and IT services can stay under relative pressure while infrastructure and monetization leaders retain premium support.',
-        credit: 'High-multiple software remains an equity story first, but weaker sentiment can widen the gap between premium and average issuers.',
-        sectors: 'Software, consulting, and recurring-revenue names with weak AI differentiation are screening worse than semiconductor and cloud-enabler cohorts.',
-      },
-      transmissionPath: [
-        'AI disruption fear rises -> software pricing-power assumptions weaken -> multiples compress -> capital rotates toward infrastructure and proven monetizers',
-      ],
-      watchNext: [
-        'Watch software management teams for AI-driven upsell versus substitution commentary.',
-        'Watch whether enterprise customers delay seat expansion or compress renewal pricing.',
-        'Watch relative performance between software indices and semiconductor leaders for confirmation.',
-      ],
-      status: 'developing',
-      ageHours: 7,
-      firstSeenHours: 40,
-      source: {
-        name: 'Reuters',
-        url: 'https://www.reuters.com/markets/us/',
-        title: 'Tech worries dominate as AI disruption fears spread beyond semiconductors',
-        snippet: 'Reuters market coverage described a broader tech selloff driven by AI disruption and valuation reset concerns.',
-      },
-    }),
-    mk('memory-hbm-checkpoint', {
-      title: 'Memory and HBM pricing are emerging as the next checkpoint for the AI trade',
-      eventType: 'EarningsMegaCap',
       severity: 81,
       horizon: 'NearTerm',
       drivers: [
-        'After GPUs and networking, the market is rotating toward memory pricing and HBM supply as the next bottleneck in the AI value chain.',
-        'Supplier commentary now matters because sustained HBM tightness would support another leg of AI hardware earnings revisions.',
-        'Any sign of pricing normalization or inventory digestion would pressure the second tier of AI beneficiaries first.',
+        'The IEA announced the largest coordinated oil stock release in its history while OPEC+ resumed gradual output increases for April.',
+        'That is a policy acknowledgment that the energy shock is systemically important, not just a transient market scare.',
+        'The release caps some extreme upside tail risk in crude but does not eliminate the inflation impulse if conflict risk persists.',
       ],
       marketImpact: {
-        equities: 'Memory and equipment names can outperform if HBM tightness persists, while broader AI beneficiaries may fade if pricing power rolls over.',
-        credit: 'Improving visibility around memory margins supports spread stability for the best-positioned semiconductor suppliers.',
-        sectors: 'Memory, foundry equipment, and packaging beneficiaries remain the highest-beta read-through from this checkpoint.',
+        equities: 'The release tempers the most extreme tail-risk pricing in oil while still leaving energy and defense leadership intact.',
+        rates: 'Inflation breakevens can cool at the margin if markets believe the stock release will smooth physical shortages.',
+        fx: 'Importer currencies get some relief if the release limits the near-term spike in crude and freight stress.',
+        oil: 'The release caps upside oil panic but cannot erase the risk premium if the underlying conflict remains unresolved.',
+        sectors: 'Airlines and importers get tactical relief, but energy cash-flow beneficiaries still hold a structural edge if conflict risk persists.',
       },
       transmissionPath: [
-        'HBM pricing and supply commentary -> memory margin expectations reset -> second-order AI trade breadth expands or contracts',
+        'Supply shock triggers emergency buffer release -> oil tail risk is capped at the margin -> panic pricing eases but inflation pressure remains elevated',
       ],
       watchNext: [
-        'Watch Micron and other memory suppliers for HBM pricing, mix, and capacity language.',
-        'Watch packaging and advanced-memory bottleneck commentary across the semiconductor chain.',
-        'Watch whether AI customers prioritize capacity security over near-term cost discipline.',
+        'Watch whether the release meaningfully changes inventory draws and front-end crude tightness.',
+        'Watch OPEC+ supply follow-through and whether geopolitical disruption offsets the added barrels.',
+        'Watch inflation breakevens and transport margins for signs that the policy response is buying time.',
       ],
-      status: 'developing',
-      ageHours: 8,
-      firstSeenHours: 42,
+      status: 'confirmed',
+      ageHours: 888,
+      firstSeenHours: 912,
       source: {
-        name: 'Micron Investor Relations',
-        url: 'https://investors.micron.com/',
-        title: 'Micron investor updates remain a key checkpoint for HBM and memory pricing',
-        snippet: 'Micron disclosures are a direct read-through for the memory leg of the AI infrastructure trade.',
+        name: 'IEA',
+        url: 'https://www.iea.org/news/iea-member-countries-to-carry-out-largest-ever-oil-stock-release-amid-market-disruptions-from-middle-east-conflict',
+        title: 'IEA member countries to carry out largest-ever oil stock release',
+        snippet: 'The IEA announced a 400 million barrel coordinated stock release in response to the Middle East conflict disruption.',
+      },
+    }),
+    mk('fiscal-term-premia', {
+      title: 'Rising global debt and defense spending keep term premia and sovereign-risk concerns alive',
+      eventType: 'Macro',
+      severity: 76,
+      horizon: 'Structural',
+      drivers: [
+        'The IMF warned that global public debt is rising toward 100 percent of GDP, with interest burdens and defense spending amplifying refinancing risk.',
+        'That matters for equities through higher term premia and more persistent multiple pressure rather than through a single growth print.',
+        'A more fragile sovereign backdrop raises the cost of policy mistakes and leaves less room for clean stimulus responses to future shocks.',
+      ],
+      marketImpact: {
+        equities: 'Higher term premia weigh on market multiples, especially for long-duration equities and heavily levered cyclicals.',
+        rates: 'Sovereign term premia stay elevated as debt supply and inflation risk complicate the lower-yield case.',
+        fx: 'Currencies with weaker fiscal credibility remain more exposed when sovereign-risk pricing becomes more discriminating.',
+        credit: 'Credit spreads widen more easily when sovereign funding conditions deteriorate and risk-free rates stay high.',
+        sectors: 'Lower-duration cash generators and balance-sheet strength screen better than leveraged, rate-sensitive sectors.',
+      },
+      transmissionPath: [
+        'Public debt and fiscal stress rise -> sovereign term premia stay elevated -> risk-free rates and discount rates remain higher -> equity multiples compress',
+      ],
+      watchNext: [
+        'Watch sovereign issuance calendars, auction tails, and fiscal commentary from major developed markets.',
+        'Watch whether higher defense spending is paired with weaker fiscal anchors.',
+        'Watch whether term premia remain elevated even if growth data weaken.',
+      ],
+      status: 'confirmed',
+      ageHours: 48,
+      firstSeenHours: 72,
+      source: {
+        name: 'IMF',
+        url: 'https://www.imf.org/en/publications/fm/issues/2026/04/15/fiscal-monitor-april-2026',
+        title: 'Fiscal Monitor, April 2026',
+        snippet: 'The IMF said global public debt reached just under 94 percent of GDP in 2025 and is on track to approach 100 percent by 2029.',
+      },
+    }),
+    mk('china-reflation-turn', {
+      title: 'China reflation signals reduce the global disinflation impulse and support commodity demand',
+      eventType: 'Macro',
+      severity: 73,
+      horizon: 'NearTerm',
+      drivers: [
+        'March China CPI and PPI data pointed to a modest reflation turn after a long period of weak pricing power.',
+        'That matters globally because stronger China nominal demand supports commodities and industrial exporters while reducing a prior disinflation tailwind for importers.',
+        'The signal is not a full recovery call, but it is relevant for the global inflation-growth mix and commodity-linked equity leadership.',
+      ],
+      marketImpact: {
+        equities: 'Commodity producers, machinery, and industrial exporters benefit if China nominal demand keeps improving.',
+        rates: 'A China reflation turn weakens the global disinflation case at the margin and supports commodity-linked inflation expectations.',
+        fx: 'Commodity FX and Asia-sensitive currencies improve if China demand expectations stabilize.',
+        credit: 'China and Asia cyclical credit sentiment improves if the reflation turn proves durable.',
+        sectors: 'Metals, mining, industrials, and capital-goods exposure benefit most from stronger China pricing power.',
+      },
+      transmissionPath: [
+        'China CPI and PPI turn firmer -> nominal demand outlook improves -> commodity and industrial demand expectations stabilize -> global disinflation impulse weakens',
+      ],
+      watchNext: [
+        'Watch whether China PPI stays positive and broadens beyond base effects.',
+        'Watch iron ore, copper, and industrial export order data for confirmation.',
+        'Watch whether stronger pricing power feeds through to a firmer global commodity tape.',
+      ],
+      status: 'confirmed',
+      ageHours: 96,
+      firstSeenHours: 120,
+      source: {
+        name: 'National Bureau of Statistics of China',
+        url: 'https://www.stats.gov.cn/english/PressRelease/202604/t20260413_1963289.html',
+        title: 'Producer price index for industrial products, March 2026',
+        snippet: 'China PPI turned positive in March, reinforcing the view that the economy is moving away from persistent producer-price deflation.',
       },
     }),
   ];

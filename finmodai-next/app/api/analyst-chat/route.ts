@@ -58,6 +58,8 @@ import {
 } from '@/lib/analyst/modelReadiness';
 import { resolveAttachmentModelExtraction } from '@/lib/analyst/claudeModelExtraction';
 import { savePromptModelRunVersion } from '@/lib/model-generator/runHistory';
+import { toPromptRunSmartAssumptionSummary } from '@/lib/model-generator/runHistory';
+import { toPromptRunCustomAssumptionSummary } from '@/lib/model-generator/runHistory';
 import { classifyPrompt } from '@/lib/model-generator/classifyPrompt';
 import { ANALYST_SYSTEM_PROMPT, getIntentPrompt } from '@/lib/analyst/prompts';
 import {
@@ -66,6 +68,12 @@ import {
   type EarningsRetrievalAgentResult,
   type EarningsRetrievalRuntimeMeta,
 } from '@/lib/analyst/earningsRetrievalAgent';
+import {
+  buildDeterministicEarningsSummaryReply,
+  buildDeterministicEarningsSummaryCard,
+  isGenericEarningsSummaryPrompt,
+} from '@/lib/analyst/earningsSummary';
+import { extractCompanyQuery } from '@/lib/data/company/extractCompanyQuery';
 import { getAnthropicKeyCandidates } from '@/lib/anthropicKey';
 import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKey';
 import { lookupStock } from '@/lib/data/company/lookupStock';
@@ -91,6 +99,25 @@ import {
 } from '@/lib/analyst/revision/persistentModelReasoning';
 import { deriveEventLinkedModelAdjustment } from '@/lib/model-events/deriveEventLinkedModelAdjustment';
 import type { EventLinkedModelAdjustmentResult } from '@/lib/model-events/types';
+import { runPublicFinancialSearch } from '@/lib/analyst/financialSearch';
+import { buildEventContextFromPrompt, looksLikeEventLinkedModelFollowUp } from '@/lib/analyst/eventFollowUp';
+import { getCompanyCatalystContext } from '@/lib/models/shared/companyCatalystContext';
+import { buildSmartAssumptionReply } from '@/lib/smart-assumptions/shared';
+import type { SmartAssumptionResult } from '@/lib/smart-assumptions/types';
+import {
+  addExecutionTraceNote,
+  addExecutionTraceService,
+  createExecutionTrace,
+  withExecutionTrace,
+} from '@/lib/debug/executionTrace';
+import {
+  buildAnalystCustomAssumptionOverrides,
+  buildCurrentAssumptionsFromExtractedInputs,
+  buildCustomAssumptionReply,
+  looksLikeCustomAssumptionPrompt,
+  parseCustomAssumptionPrompt,
+  type CustomAssumptionResult,
+} from '@/lib/analyst/customAssumptions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -835,11 +862,28 @@ export async function POST(req: NextRequest) {
       };
     };
     const sessionId = typeof body?.sessionId === 'string' && body.sessionId.trim().length > 0 ? body.sessionId.trim() : null;
+    const safeMessages = Array.isArray(body?.messages)
+      ? body.messages
+          .filter(
+            (m: unknown): m is { role: 'user' | 'assistant' | 'system'; content: string } =>
+              Boolean(m) &&
+              typeof m === 'object' &&
+              (m as { role?: unknown }).role !== undefined &&
+              typeof (m as { content?: unknown }).content === 'string',
+          )
+          .map((m: { role: 'user' | 'assistant' | 'system'; content: string }) => ({
+            role: m.role,
+            content: m.content,
+          }))
+          .slice(-12)
+      : [];
+    type SafeMessage = { role: 'user' | 'assistant' | 'system'; content: string };
+    const lastUserMessage = safeMessages.filter((m: SafeMessage) => m.role === 'user').slice(-1)[0]?.content || '';
     const currentModel =
       body?.currentModel && typeof body.currentModel === 'object'
         ? (body.currentModel as AnalystGeneratedModelPayload)
         : null;
-    const modelAdjustment =
+    const requestModelAdjustment =
       body?.modelAdjustment && typeof body.modelAdjustment === 'object'
         ? (body.modelAdjustment as AnalystStructuredModelAdjustment)
         : null;
@@ -875,9 +919,49 @@ export async function POST(req: NextRequest) {
             typeof body.pendingModelRequest.inputOverrides === 'object' &&
             !Array.isArray(body.pendingModelRequest.inputOverrides)
               ? (body.pendingModelRequest.inputOverrides as Record<string, unknown>)
-              : undefined,
+            : undefined,
         } satisfies PendingModelRequest)
       : null;
+    const currentModelCompanyName =
+      currentModel && 'companyName' in currentModel.extractedInputs
+        ? currentModel.extractedInputs.companyName
+        : currentModel?.title ?? null;
+    const currentModelTicker =
+      currentModel && 'ticker' in currentModel.extractedInputs
+        ? currentModel.extractedInputs.ticker ?? null
+        : null;
+    const executionTrace = createExecutionTrace({
+      surface: 'analyst_chat',
+      prompt: lastUserMessage,
+    });
+    const parsedCustomAssumptionPrompt =
+      currentModel && !requestModelAdjustment && looksLikeCustomAssumptionPrompt(lastUserMessage)
+        ? parseCustomAssumptionPrompt({
+            prompt: lastUserMessage,
+            companyName: typeof currentModelCompanyName === 'string' ? currentModelCompanyName : null,
+            ticker: typeof currentModelTicker === 'string' ? currentModelTicker : null,
+            currentAssumptions: buildCurrentAssumptionsFromExtractedInputs(currentModel.extractedInputs),
+          })
+        : null;
+    const syntheticModelAdjustment: AnalystStructuredModelAdjustment | null =
+      currentModel && !requestModelAdjustment && parsedCustomAssumptionPrompt?.summary
+        ? ({
+            changes: buildAnalystCustomAssumptionOverrides(
+              currentModel.extractedInputs as Record<string, unknown>,
+              Object.fromEntries(
+                parsedCustomAssumptionPrompt.summary.changedDrivers.map((driver) => [driver.driver, driver.new]),
+              ),
+            ),
+            customAssumptionSummary: parsedCustomAssumptionPrompt.summary,
+          } satisfies AnalystStructuredModelAdjustment)
+        : currentModel && !requestModelAdjustment && looksLikeEventLinkedModelFollowUp(lastUserMessage)
+          ? ({
+              changes: {},
+              prompt: undefined,
+              eventContext: await buildEventContextFromPrompt(lastUserMessage),
+            } satisfies AnalystStructuredModelAdjustment)
+          : null;
+    const modelAdjustment = requestModelAdjustment ?? syntheticModelAdjustment;
     const messages = Array.isArray(body?.messages) ? body.messages : [];
 
     if (currentDcf && dcfAdjustment) {
@@ -944,12 +1028,54 @@ export async function POST(req: NextRequest) {
       }));
     }
 
+    if (
+      currentModel &&
+      !requestModelAdjustment &&
+      looksLikeCustomAssumptionPrompt(lastUserMessage) &&
+      parsedCustomAssumptionPrompt &&
+      !parsedCustomAssumptionPrompt.summary
+    ) {
+      addExecutionTraceService(executionTrace, 'custom_assumption_input');
+      addExecutionTraceNote(executionTrace, 'Custom assumption prompt detected but no explicit supported driver values were parsed.');
+      return NextResponse.json(withAttachmentStatus(withExecutionTrace({
+        reply:
+          parsedCustomAssumptionPrompt.reply ??
+          'Use explicit custom assumptions like “set WACC to 10% and terminal growth to 2.5%”.',
+        fallback: false,
+        mode: 'live',
+        route: 'financial_model',
+        generatedModel: currentModel,
+        factsCount: 0,
+      }, executionTrace)));
+    }
+
     if (currentModel && modelAdjustment) {
+      addExecutionTraceService(
+        executionTrace,
+        'revise_analyst_structured_model_from_overrides',
+        modelAdjustment.smartAssumptionSummary ? 'smart_assumption_agent' : null,
+        modelAdjustment.customAssumptionSummary ? 'custom_assumption_input' : null,
+      );
       let baseModel = currentModel;
       let promptAdjustedModelResult: Awaited<ReturnType<typeof reviseAnalystStructuredModel>> | null = null;
       let eventAdjustment: EventLinkedModelAdjustmentResult | null = null;
       let eventOverrides: Record<string, unknown> = {};
+      const smartAssumptionResult: SmartAssumptionResult | null =
+        modelAdjustment.smartAssumptionSummary &&
+        typeof modelAdjustment.smartAssumptionSummary === 'object' &&
+        modelAdjustment.smartAssumptionSummary.sourceType === 'smart_assumption_agent' &&
+        'subject' in modelAdjustment.smartAssumptionSummary &&
+        'suggestions' in modelAdjustment.smartAssumptionSummary
+          ? modelAdjustment.smartAssumptionSummary
+          : null;
+      const customAssumptionResult: CustomAssumptionResult | null =
+        modelAdjustment.customAssumptionSummary &&
+        typeof modelAdjustment.customAssumptionSummary === 'object' &&
+        modelAdjustment.customAssumptionSummary.sourceType === 'custom_assumption_input'
+          ? modelAdjustment.customAssumptionSummary
+          : null;
       if (modelAdjustment.eventContext?.rawEventText?.trim()) {
+        addExecutionTraceService(executionTrace, 'derive_event_linked_model_adjustment');
         eventAdjustment = await deriveEventLinkedModelAdjustment({
           event: modelAdjustment.eventContext,
           company: {
@@ -974,10 +1100,10 @@ export async function POST(req: NextRequest) {
 
         if (eventAdjustment.blockingErrors.length > 0) {
           return NextResponse.json(
-            withAttachmentStatus({
+            withAttachmentStatus(withExecutionTrace({
               error: eventAdjustment.blockingErrors.join(' '),
               warnings: eventAdjustment.warnings,
-            }),
+            }, executionTrace)),
             { status: 400 },
           );
         }
@@ -988,7 +1114,8 @@ export async function POST(req: NextRequest) {
           !eventAdjustment.hasMaterialChanges ||
           Object.keys(eventOverrides).length === 0
         ) {
-          return NextResponse.json(withAttachmentStatus({
+          addExecutionTraceNote(executionTrace, 'Event review ran but did not produce material model changes.');
+          return NextResponse.json(withAttachmentStatus(withExecutionTrace({
             reply: buildReasoningReply('active model', eventReasoning, false),
             fallback: false,
             mode: 'live',
@@ -1004,10 +1131,11 @@ export async function POST(req: NextRequest) {
               'Event-linked model review',
             ],
             factsCount: 0,
-          }));
+          }, executionTrace)));
         }
       }
       if (typeof modelAdjustment.prompt === 'string' && modelAdjustment.prompt.trim().length > 0) {
+        addExecutionTraceService(executionTrace, 'revise_analyst_structured_model');
         const promptAdjustedModel = await reviseAnalystStructuredModel(
           modelAdjustment.prompt.trim(),
           baseModel,
@@ -1030,7 +1158,7 @@ export async function POST(req: NextRequest) {
         sessionId,
       );
       if (!revisedModel && promptAdjustedModelResult) {
-        return NextResponse.json(withAttachmentStatus({
+        return NextResponse.json(withAttachmentStatus(withExecutionTrace({
           reply: promptAdjustedModelResult.reply,
           fallback: false,
           mode: 'live',
@@ -1041,11 +1169,11 @@ export async function POST(req: NextRequest) {
             'Analyst Chat model controls',
           ],
           factsCount: 0,
-        }));
+        }, executionTrace)));
       }
       if (!revisedModel) {
         return NextResponse.json(
-          withAttachmentStatus({ error: 'No valid structured model control adjustments were provided.' }),
+          withAttachmentStatus(withExecutionTrace({ error: 'No valid structured model control adjustments were provided.' }, executionTrace)),
           { status: 400 },
         );
       }
@@ -1056,6 +1184,14 @@ export async function POST(req: NextRequest) {
         eventAdjustmentSummary:
           eventAdjustment ? buildEventAdjustmentSummary(eventAdjustment) : revisedModel.payload.eventAdjustmentSummary ?? null,
         appliedEventDeltas: eventAdjustment?.changedDrivers ?? revisedModel.payload.appliedEventDeltas ?? null,
+        smartAssumptionSummary:
+          toPromptRunSmartAssumptionSummary(modelAdjustment.smartAssumptionSummary) ??
+          revisedModel.payload.smartAssumptionSummary ??
+          null,
+        customAssumptionSummary:
+          toPromptRunCustomAssumptionSummary(modelAdjustment.customAssumptionSummary) ??
+          revisedModel.payload.customAssumptionSummary ??
+          null,
       };
 
       let persistedRecentRun = revisedPayload.recentRun;
@@ -1079,6 +1215,10 @@ export async function POST(req: NextRequest) {
           extractedInputs: revisedPayload.extractedInputs as Record<string, unknown>,
           provenance: revisedPayload.provenanceSummary,
           exportSeed: buildAnalystGeneratedModelExportSeed(revisedPayload),
+          eventContext: revisedPayload.eventContext,
+          eventAdjustmentSummary: revisedPayload.eventAdjustmentSummary,
+          smartAssumptionSummary: revisedPayload.smartAssumptionSummary,
+          customAssumptionSummary: revisedPayload.customAssumptionSummary,
         });
         persistedRecentRun = buildAnalystGeneratedModelRecentRun({
           runId: persisted.runId,
@@ -1090,7 +1230,7 @@ export async function POST(req: NextRequest) {
         console.error('[analyst-chat] unable to persist direct model adjustment', error);
       }
 
-      return NextResponse.json(withAttachmentStatus({
+      return NextResponse.json(withAttachmentStatus(withExecutionTrace({
         reply:
           eventAdjustment
             ? buildReasoningReply(
@@ -1098,7 +1238,11 @@ export async function POST(req: NextRequest) {
                 buildReasoningResponseFromEventAdjustment(eventAdjustment),
                 true,
               )
-            : revisedModel.reply,
+            : smartAssumptionResult
+              ? buildSmartAssumptionReply(smartAssumptionResult)
+              : customAssumptionResult
+                ? buildCustomAssumptionReply(customAssumptionResult)
+              : revisedModel.reply,
         fallback: false,
         mode: 'live',
         route: 'financial_model',
@@ -1108,30 +1252,18 @@ export async function POST(req: NextRequest) {
         },
         sources: [
           ...revisedPayload.provenanceSummary.sources,
-          eventAdjustment ? 'Event-linked model adjustment' : 'Analyst Chat model controls',
+          eventAdjustment
+            ? 'Event-linked model adjustment'
+            : revisedPayload.smartAssumptionSummary
+              ? 'Smart assumption agent'
+              : revisedPayload.customAssumptionSummary
+                ? 'Custom assumption input'
+              : 'Analyst Chat model controls',
         ],
         factsCount: 0,
-      }));
+      }, executionTrace)));
     }
 
-    const safeMessages = messages
-      .filter((m: unknown): m is { role: 'user' | 'assistant' | 'system'; content: string } => {
-        if (!m || typeof m !== 'object') return false;
-        const row = m as Record<string, unknown>;
-        return (
-          (row.role === 'user' || row.role === 'assistant' || row.role === 'system') &&
-          typeof row.content === 'string' &&
-          row.content.trim().length > 0
-        );
-      })
-      .map((m: { role: 'user' | 'assistant' | 'system'; content: string }) => ({
-        role: m.role,
-        content: m.content,
-      }))
-      .slice(-12);
-
-    type SafeMessage = { role: 'user' | 'assistant' | 'system'; content: string };
-    const lastUserMessage = safeMessages.filter((m: SafeMessage) => m.role === 'user').slice(-1)[0]?.content || '';
     const effectiveUserMessage = attachmentContext
       ? `${lastUserMessage}\n\n${attachmentContextBlock(attachmentContext)}`
       : lastUserMessage;
@@ -1139,7 +1271,8 @@ export async function POST(req: NextRequest) {
       ? `Uploaded context: ${attachmentContext.name} (${attachmentContext.kind.replace(/_/g, ' ')})`
       : null;
     const tickerFromAttachment = attachmentContext?.signals?.ticker?.toUpperCase();
-    const tickerFromMessage = inferTickerFromPrompt(effectiveUserMessage);
+    const extractedCompanyQuery = extractCompanyQuery({ prompt: effectiveUserMessage });
+    const tickerFromMessage = extractedCompanyQuery.ticker ?? inferTickerFromPrompt(effectiveUserMessage);
     const tickerFromCurrentArtifact = artifactTickerFromContext({ currentModel, currentDcf, currentStock });
     const artifactLabel = artifactLabelFromContext({ currentModel, currentDcf, currentStock });
     const explicitRequestedTicker = tickerRaw ?? tickerFromMessage ?? tickerFromAttachment;
@@ -1179,6 +1312,8 @@ export async function POST(req: NextRequest) {
           requiresLiveData: false,
         }
       : overrideRouteFromAttachment(baseRoute, lastUserMessage, attachmentContext);
+    executionTrace.routeIntent = route.intent;
+    addExecutionTraceService(executionTrace, 'route_analyst_query');
     const shouldRunEarningsAgent =
       featureFlags.ENABLE_EARNINGS_PACKAGE_CACHE &&
       Boolean(resolvedTicker) &&
@@ -1241,6 +1376,7 @@ export async function POST(req: NextRequest) {
 
     if (shouldRunEarningsAgent && resolvedTicker) {
       try {
+        addExecutionTraceService(executionTrace, 'run_earnings_retrieval_agent');
         const earningsEnvelope = await runEarningsRetrievalAgent({
           ticker: resolvedTicker,
           prompt: lastUserMessage,
@@ -1263,6 +1399,67 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const shouldUseDeterministicEarningsSummary =
+      Boolean(resolvedTicker) &&
+      route.intent === 'company_question' &&
+      isGenericEarningsSummaryPrompt(lastUserMessage) &&
+      earningsAgentResult !== null;
+
+    if (shouldUseDeterministicEarningsSummary && resolvedTicker && earningsAgentResult) {
+      const catalystContext = await getCompanyCatalystContext(resolvedTicker, 'dcf').catch(() => null);
+      const nextEarningsItem =
+        catalystContext?.calendarItems.find((item) => item.kind === 'earnings' && item.date) ?? null;
+      addExecutionTraceNote(
+        executionTrace,
+        'Deterministic earnings summary branch used for a generic company earnings prompt.',
+      );
+      return NextResponse.json(withAttachmentStatus(withExecutionTrace({
+        reply: buildDeterministicEarningsSummaryReply({
+          result: earningsAgentResult,
+          nextEarnings: nextEarningsItem
+            ? {
+                displayDate: nextEarningsItem.displayDate,
+                source: nextEarningsItem.source,
+                note: nextEarningsItem.note,
+              }
+            : null,
+        }),
+        earningsSummary: buildDeterministicEarningsSummaryCard({
+          result: earningsAgentResult,
+          nextEarnings: nextEarningsItem
+            ? {
+                displayDate: nextEarningsItem.displayDate,
+                source: nextEarningsItem.source,
+                note: nextEarningsItem.note,
+              }
+            : null,
+        }),
+        fallback: false,
+        mode: 'live',
+        route: route.intent,
+        sources: [
+          ...(earningsAgentResult.quarter.reportUrl
+            ? [`Quarter report — ${earningsAgentResult.quarter.reportUrl}`]
+            : []),
+          ...earningsAgentResult.commentary.sourceNotes.slice(0, 3),
+          ...(nextEarningsItem
+            ? [
+                `Next earnings date — ${nextEarningsItem.source}${nextEarningsItem.displayDate ? ` (${nextEarningsItem.displayDate})` : ''}`,
+              ]
+            : []),
+        ],
+        factsCount: 0,
+        retrievalWarnings:
+          earningsAgentResult.dataQuality.gaps.length > 0
+            ? earningsAgentResult.dataQuality.gaps
+            : undefined,
+        stockLookup: stockLookupPayload,
+        earningsRetrieval: earningsAgentResult,
+        earningsPackageMeta: earningsRuntimeMeta,
+        attachmentUsed: attachmentLabel,
+      }, executionTrace)));
+    }
+
     const macroEventsContext = shouldInjectMacroEventsContext(route, effectiveUserMessage, attachmentContext)
       ? await getMarketEvents({
           origin: req.nextUrl.origin,
@@ -1281,7 +1478,8 @@ export async function POST(req: NextRequest) {
     if (isVisualizationPrompt(lastUserMessage)) {
       const comparisonVisualization = await buildComparisonVisualizationFromPrompt(lastUserMessage);
       if (comparisonVisualization) {
-        return NextResponse.json(withAttachmentStatus({
+        addExecutionTraceService(executionTrace, 'build_visualization');
+        return NextResponse.json(withAttachmentStatus(withExecutionTrace({
           reply: `Here is a standalone comparison chart for ${comparisonVisualization.visualization.contextLabel}. ${comparisonVisualization.explanation}`,
           fallback: false,
           mode: 'live',
@@ -1290,7 +1488,7 @@ export async function POST(req: NextRequest) {
           sources: comparisonVisualization.visualization.notes,
           factsCount: 0,
           attachmentUsed: attachmentLabel,
-        }));
+        }, executionTrace)));
       }
 
       const singleCompanyRevenueGrowthVisualization = await buildSingleCompanyRevenueGrowthVisualization({
@@ -1298,7 +1496,8 @@ export async function POST(req: NextRequest) {
         ticker: resolvedTicker,
       });
       if (singleCompanyRevenueGrowthVisualization) {
-        return NextResponse.json(withAttachmentStatus({
+        addExecutionTraceService(executionTrace, 'build_visualization');
+        return NextResponse.json(withAttachmentStatus(withExecutionTrace({
           reply: `Here is a standalone revenue growth chart for ${singleCompanyRevenueGrowthVisualization.visualization.contextLabel}. ${singleCompanyRevenueGrowthVisualization.explanation}`,
           fallback: false,
           mode: 'live',
@@ -1307,17 +1506,18 @@ export async function POST(req: NextRequest) {
           sources: singleCompanyRevenueGrowthVisualization.sources,
           factsCount: 0,
           attachmentUsed: attachmentLabel,
-        }));
+        }, executionTrace)));
       }
 
       if (!currentModel && !currentDcf && !currentStock && isRevenueForecastVisualizationPrompt(lastUserMessage) && resolvedTicker) {
+        addExecutionTraceService(executionTrace, 'generate_analyst_dcf_demo', 'build_visualization');
         const demo = await generateAnalystDcfDemo({
           prompt: effectiveUserMessage,
           explicitTicker: resolvedTicker,
           attachmentStatementSnapshot: attachmentContext?.statementPackage?.snapshot ?? null,
         });
         const visualization = buildRevenueForecastVisualizationFromDcf(demo.payload);
-        return NextResponse.json(withAttachmentStatus({
+        return NextResponse.json(withAttachmentStatus(withExecutionTrace({
           reply: `Here is a standalone ${demo.payload.years}-year revenue forecast chart for ${demo.payload.companyName} (${demo.payload.ticker}). ${revenueDriverSummary(demo.payload.ticker)}`,
           fallback: false,
           mode: 'live',
@@ -1330,7 +1530,7 @@ export async function POST(req: NextRequest) {
           ],
           factsCount: 0,
           attachmentUsed: attachmentLabel,
-        }));
+        }, executionTrace)));
       }
     }
 
@@ -1378,8 +1578,9 @@ export async function POST(req: NextRequest) {
       }
 
       if (shouldVisualizeCurrentDcf && currentDcf) {
+        addExecutionTraceService(executionTrace, 'build_visualization');
         const visualization = buildVisualizationFromCurrentArtifact({ currentDcf });
-        return NextResponse.json(withAttachmentStatus({
+        return NextResponse.json(withAttachmentStatus(withExecutionTrace({
           reply: `Here is a standalone chart package for ${currentDcf.companyName} (${currentDcf.ticker}). This is separate from the DCF model card and is meant purely for visualization.`,
           fallback: false,
           mode: 'live',
@@ -1392,12 +1593,13 @@ export async function POST(req: NextRequest) {
           ],
           factsCount: 0,
           attachmentUsed: attachmentLabel,
-        }));
+        }, executionTrace)));
       }
 
       if (shouldVisualizeCurrentModel && currentModel) {
+        addExecutionTraceService(executionTrace, 'build_visualization');
         const visualization = buildVisualizationFromCurrentArtifact({ currentModel });
-        return NextResponse.json(withAttachmentStatus({
+        return NextResponse.json(withAttachmentStatus(withExecutionTrace({
           reply: `Here is a standalone visualization for the current ${currentModel.modelType.replace(/_/g, ' ')} output. This is separate from the model card so the chart can stand on its own.`,
           fallback: false,
           mode: 'live',
@@ -1409,14 +1611,16 @@ export async function POST(req: NextRequest) {
           ],
           factsCount: 0,
           attachmentUsed: attachmentLabel,
-        }));
+        }, executionTrace)));
       }
 
       if (shouldReviseCurrentModel && currentModel) {
+        addExecutionTraceService(executionTrace, 'revise_analyst_structured_model');
         const revisedModel = await reviseAnalystStructuredModel(lastUserMessage, currentModel, sessionId);
         if (revisedModel) {
           if (!revisedModel.modelChanged) {
-            return NextResponse.json(withAttachmentStatus({
+            addExecutionTraceNote(executionTrace, 'Revision request resolved to explanation only; no model values changed.');
+            return NextResponse.json(withAttachmentStatus(withExecutionTrace({
               reply: revisedModel.reply,
               fallback: false,
               mode: 'live',
@@ -1428,7 +1632,7 @@ export async function POST(req: NextRequest) {
               ],
               factsCount: 0,
               attachmentUsed: attachmentLabel,
-            }));
+            }, executionTrace)));
           }
           let persistedRecentRun = revisedModel.payload.recentRun;
           try {
@@ -1467,7 +1671,7 @@ export async function POST(req: NextRequest) {
             recentRun: persistedRecentRun,
           };
 
-          return NextResponse.json(withAttachmentStatus({
+          return NextResponse.json(withAttachmentStatus(withExecutionTrace({
             reply: revisedModel.reply,
             fallback: false,
             mode: 'live',
@@ -1480,14 +1684,15 @@ export async function POST(req: NextRequest) {
             ],
             factsCount: 0,
             attachmentUsed: attachmentLabel,
-          }));
+          }, executionTrace)));
         }
       }
 
       if (shouldApplyCurrentDcfEventShock && currentDcf) {
+        addExecutionTraceService(executionTrace, 'revise_analyst_dcf_demo_from_event_shock');
         const shockedDcf = await reviseAnalystDcfDemoFromEventShock(lastUserMessage, currentDcf);
         if (shockedDcf) {
-          return NextResponse.json(withAttachmentStatus({
+          return NextResponse.json(withAttachmentStatus(withExecutionTrace({
             reply: shockedDcf.reply,
             fallback: false,
             mode: 'live',
@@ -1500,14 +1705,15 @@ export async function POST(req: NextRequest) {
             ],
             factsCount: 0,
             attachmentUsed: attachmentLabel,
-          }));
+          }, executionTrace)));
         }
       }
 
       if (shouldReviseCurrentDcf && currentDcf) {
+        addExecutionTraceService(executionTrace, 'revise_analyst_dcf_demo');
         const revisedDcf = await reviseAnalystDcfDemo(lastUserMessage, currentDcf);
         if (revisedDcf) {
-          return NextResponse.json(withAttachmentStatus({
+          return NextResponse.json(withAttachmentStatus(withExecutionTrace({
             reply: revisedDcf.reply,
             fallback: false,
             mode: 'live',
@@ -1520,7 +1726,7 @@ export async function POST(req: NextRequest) {
             ],
             factsCount: 0,
             attachmentUsed: attachmentLabel,
-          }));
+          }, executionTrace)));
         }
       }
 
@@ -1602,6 +1808,7 @@ export async function POST(req: NextRequest) {
       }
 
       if (modelType) {
+        addExecutionTraceService(executionTrace, 'generate_analyst_structured_model');
         const normalizedModelPrompt =
           classifyPrompt(activeModelPrompt) === null && attachmentContext?.signals?.modelTypeHint === modelType
             ? `Build a ${modelType.replace(/_/g, ' ')} model using the uploaded context.\n\n${activeEffectiveUserMessage}`
@@ -1619,7 +1826,7 @@ export async function POST(req: NextRequest) {
           attachmentExtractionContext,
         });
         if (generatedModel?.validationFailed) {
-          return NextResponse.json(withAttachmentStatus({
+          return NextResponse.json(withAttachmentStatus(withExecutionTrace({
             reply: generatedModel.reply,
             fallback: false,
             mode: 'live',
@@ -1632,7 +1839,7 @@ export async function POST(req: NextRequest) {
             ],
             factsCount: 0,
             attachmentUsed: attachmentLabel,
-          }));
+          }, executionTrace)));
         }
         if (generatedModel && 'payload' in generatedModel) {
           let persistedRecentRun = generatedModel.payload.recentRun;
@@ -1673,7 +1880,7 @@ export async function POST(req: NextRequest) {
             recentRun: persistedRecentRun,
           };
 
-          return NextResponse.json(withAttachmentStatus({
+          return NextResponse.json(withAttachmentStatus(withExecutionTrace({
             reply: generatedModel.reply,
             fallback: false,
             mode: 'live',
@@ -1692,7 +1899,7 @@ export async function POST(req: NextRequest) {
             ],
             factsCount: 0,
             attachmentUsed: attachmentLabel,
-          }));
+          }, executionTrace)));
         }
       }
 
@@ -1716,6 +1923,7 @@ export async function POST(req: NextRequest) {
       }
 
       const demo = await generateAnalystDcfDemo({
+        // no-op comment anchor
         prompt:
           attachmentContext?.signals?.modelTypeHint === 'DCF' || attachmentContext?.kind === 'earnings_report'
             ? `Build a DCF using the uploaded context.\n\n${effectiveUserMessage}`
@@ -1726,8 +1934,9 @@ export async function POST(req: NextRequest) {
             ? attachmentContext?.statementPackage?.snapshot ?? null
             : null,
       });
+      addExecutionTraceService(executionTrace, 'generate_analyst_dcf_demo');
 
-      return NextResponse.json(withAttachmentStatus({
+      return NextResponse.json(withAttachmentStatus(withExecutionTrace({
         reply: demo.reply,
         fallback: false,
         mode: 'live',
@@ -1739,7 +1948,7 @@ export async function POST(req: NextRequest) {
         ],
         factsCount: 0,
         attachmentUsed: attachmentLabel,
-      }));
+      }, executionTrace)));
     }
 
     if (shouldVisualizeCurrentStock && currentStock) {
@@ -1759,6 +1968,33 @@ export async function POST(req: NextRequest) {
         stockLookup: currentStock,
         attachmentUsed: attachmentLabel,
       }));
+    }
+
+    const financialSearchResult = await runPublicFinancialSearch({
+      
+      route,
+      userMessage: lastUserMessage,
+      explicitTicker: resolvedTicker,
+      preloadedStockLookup: stockLookupPayload,
+      hasAttachment: Boolean(attachmentContext),
+    });
+
+    if (financialSearchResult) {
+      addExecutionTraceService(executionTrace, 'run_public_financial_search');
+      responseStockLookup = financialSearchResult.stockLookup ?? responseStockLookup;
+      return NextResponse.json(withAttachmentStatus(withExecutionTrace({
+        reply: financialSearchResult.reply,
+        fallback: false,
+        mode: 'live',
+        route: route.intent,
+        sources: financialSearchResult.rankedSources
+          .slice(0, 5)
+          .map((source) => (source.url ? `${source.label} — ${source.url}` : source.label)),
+        factsCount: financialSearchResult.rankedFacts.length,
+        retrievalWarnings: financialSearchResult.warnings.length > 0 ? financialSearchResult.warnings : undefined,
+        stockLookup: responseStockLookup,
+        attachmentUsed: attachmentLabel,
+      }, executionTrace)));
     }
 
     /* ── Step 2: Retrieve data based on route ── */
@@ -1807,7 +2043,7 @@ export async function POST(req: NextRequest) {
         : stockLookupPayload;
 
     if (explicitQuarterRequestUnresolved(earningsAgentResult, earningsRuntimeMeta) && resolvedTicker && earningsRuntimeMeta) {
-      return NextResponse.json(withAttachmentStatus({
+      return NextResponse.json(withAttachmentStatus(withExecutionTrace({
         reply: buildExplicitQuarterUnresolvedReply({
           ticker: resolvedTicker,
           runtimeMeta: earningsRuntimeMeta,
@@ -1823,7 +2059,7 @@ export async function POST(req: NextRequest) {
         earningsRetrieval: earningsAgentResult,
         earningsPackageMeta: earningsRuntimeMeta,
         attachmentUsed: attachmentLabel,
-      }));
+      }, executionTrace)));
     }
 
     /* ── Step 3: Extract verified facts ── */
@@ -1920,7 +2156,7 @@ export async function POST(req: NextRequest) {
         facts,
         userMessage: lastUserMessage,
         reason: 'missing_key',
-        preferSilent: Boolean(stockLookupPayload),
+        preferSilent: Boolean(stockLookupPayload) && !isGenericEarningsSummaryPrompt(lastUserMessage),
       });
       return NextResponse.json(withAttachmentStatus({
         reply: fallback,
@@ -2180,7 +2416,7 @@ export async function POST(req: NextRequest) {
         facts: verifiedFacts,
         userMessage: fallbackUserMessage,
         reason: failureReason,
-        preferSilent: Boolean(stockLookupPayload),
+        preferSilent: Boolean(stockLookupPayload) && !isGenericEarningsSummaryPrompt(fallbackUserMessage),
       });
     } catch {
       // keep generic fallback

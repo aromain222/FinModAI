@@ -1,25 +1,24 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AnalystDcfCard } from '@/components/analyst/AnalystDcfCard';
-import { AnalystCoreTemplateCard } from '@/components/analyst/AnalystCoreTemplateCard';
-import { AnalystModelCard } from '@/components/analyst/AnalystModelCard';
-import { AnalystStockCard } from '@/components/analyst/AnalystStockCard';
-import { AnalystVisualizationCard } from '@/components/analyst/AnalystVisualizationCard';
-import { FormattedTextBlock } from '@/components/ui/formatted-text-block';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
+import { useSearchParams } from 'next/navigation';
+import { AnalystChatSurface } from '@/components/analyst/AnalystChatAppParts';
 import { parseUploadedAttachment, type UploadedAttachmentContext } from '@/lib/analyst/attachmentContext';
 import type { AttachmentStatusPayload as AnalystAttachmentStatus } from '@/lib/analyst/attachmentStatus';
 import { buildClientVisibleBackendError } from '@/lib/analyst/clientErrorResponse';
 import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplates';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 import type { PendingModelRequest } from '@/lib/analyst/modelReadiness';
-import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } from '@/lib/analyst/modelChat';
+import { routeAnalystQuery } from '@/lib/analyst/router';
+import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } from '@/lib/analyst/types';
+import type { AnalystEarningsSummaryCard } from '@/lib/analyst/earningsSummary';
 import type { AnalystVisualizationPayload } from '@/lib/analyst/visualization';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
+import type { AppExecutionTrace } from '@/lib/debug/executionTrace';
+import {
+  buildAnalystSmartAssumptionOverrides,
+} from '@/lib/smart-assumptions/shared';
+import type { SmartAssumptionResult } from '@/lib/smart-assumptions/types';
 
 type Message = {
   id: string;
@@ -38,6 +37,8 @@ type Message = {
     stockLookup?: StockLookupResult;
     visualization?: AnalystVisualizationPayload;
     attachmentStatus?: AnalystAttachmentStatus;
+    executionTrace?: AppExecutionTrace;
+    earningsSummary?: AnalystEarningsSummaryCard;
     needsClarification?: boolean;
     clarificationQuestion?: string;
     clarificationField?: string;
@@ -75,25 +76,6 @@ function stripInlineCitations(content: string): string {
     .trim();
 }
 
-function getSourceHref(source: string): string | null {
-  const trimmed = source.trim();
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  const match = trimmed.match(/https?:\/\/\S+/i);
-  return match ? match[0] : null;
-}
-
-function getSourceLabel(source: string): string {
-  const href = getSourceHref(source);
-  if (!href) return source;
-
-  try {
-    const url = new URL(href);
-    return url.hostname.replace(/^www\./, '');
-  } catch {
-    return source;
-  }
-}
-
 function cleanAssistantText(content: string, preserveStructure = false): string {
   const normalized = content
     .replace(/\r\n/g, '\n')
@@ -126,61 +108,115 @@ function parseAttachmentStatus(payload: Record<string, unknown> | null): Analyst
   return payload.attachmentStatus as AnalystAttachmentStatus;
 }
 
-function attachmentReadStatusLabel(readStatus: AnalystAttachmentStatus['readStatus']): string {
-  if (readStatus === 'read_success') return 'Server PDF read: succeeded';
-  if (readStatus === 'read_failed') return 'Server PDF read: failed';
-  return 'Server PDF read: partial';
-}
+type AgentLoadingState = {
+  title: string;
+  detail: string;
+  routeLabel: string;
+  steps: string[];
+  activeStep: number;
+};
 
-function getLoadingMessage(prompt: string): { title: string; detail: string } {
+function getLoadingPlan(prompt: string, ticker?: string): AgentLoadingState {
   const text = prompt.toLowerCase();
+  const route = routeAnalystQuery(prompt, ticker);
 
-  if (
-    /\bdcf\b|\bthree[-\s]?statement\b|\b3[-\s]?statement\b|\bcap\s?table\b|\bsaas\b|\barr\b|\boperating model\b|\bforecast model\b|\boperating forecast\b|\bbuild projections?\b|\bprojection model\b/.test(text)
-  ) {
+  if (route.intent === 'financial_model') {
     return {
       title: /\bforecast|projection|operating forecast|operating model\b/.test(text)
         ? 'Building forecast model'
         : 'Building model',
-      detail: /\bforecast|projection|operating forecast|operating model\b/.test(text)
-        ? 'Resolving company data, building the forecast assumptions, and preparing the structured model output.'
-        : 'Parsing assumptions, applying defaults, and preparing the workbook output.',
+      detail: 'Routing the request, resolving company inputs, then preparing the model artifact.',
+      routeLabel: 'Financial model',
+      steps: [
+        'Routing request',
+        'Resolving company inputs',
+        'Applying assumptions and defaults',
+        'Preparing model output',
+      ],
+      activeStep: 0,
     };
   }
 
-  if (/\bearnings?\b|\bguidance\b|\bmargin\b|\brevenue\b|\bvaluation\b|\bticker\b/.test(text)) {
+  if (route.intent === 'company_question') {
+    const earningsHeavy = route.prefersEarningsContext || route.requiresQuarterReportContext || /\bearnings|quarter|guidance|results\b/.test(text);
     return {
-      title: 'Analyzing company',
-      detail: 'Pulling company context and structuring the analyst response.',
+      title: earningsHeavy ? 'Reviewing company and earnings context' : 'Analyzing company',
+      detail: earningsHeavy
+        ? 'Routing the request, checking earnings context, then grounding the response in company evidence.'
+        : 'Routing the request, gathering company facts, then writing the answer.',
+      routeLabel: earningsHeavy ? 'Company / earnings' : 'Company research',
+      steps: earningsHeavy
+        ? ['Routing request', 'Checking earnings context', 'Gathering company evidence', 'Drafting answer']
+        : ['Routing request', 'Gathering company facts', 'Ranking sources', 'Drafting answer'],
+      activeStep: 0,
     };
   }
 
-  if (/\bmarket\b|\brates?\b|\byield\b|\bcpi\b|\bpce\b|\bgdp\b|\bpayrolls\b|\binflation\b|\boil\b|\bfx\b/.test(text)) {
+  if (route.intent === 'market_question' || route.intent === 'event_intelligence') {
     return {
-      title: 'Analyzing market',
-      detail: 'Gathering market context and organizing the key transmission paths.',
+      title: route.intent === 'event_intelligence' ? 'Reviewing market events' : 'Analyzing market',
+      detail: 'Routing the request, collecting market context, then writing the transmission path.',
+      routeLabel: route.intent === 'event_intelligence' ? 'Event intelligence' : 'Market research',
+      steps: ['Routing request', 'Collecting market context', 'Ranking signals', 'Drafting answer'],
+      activeStep: 0,
     };
   }
 
   return {
     title: 'Working',
     detail: 'Routing the request and preparing the response.',
+    routeLabel: 'General finance',
+    steps: ['Routing request', 'Gathering context', 'Drafting answer'],
+    activeStep: 0,
   };
 }
 
 export function AnalystChatApp() {
+  const searchParams = useSearchParams();
+  const showExecutionTrace = searchParams.get('trace') === '1';
   const [ticker, setTicker] = useState('');
   const [attachment, setAttachment] = useState<UploadedAttachmentContext | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [loadingState, setLoadingState] = useState<{ title: string; detail: string } | null>(null);
+  const [loadingState, setLoadingState] = useState<AgentLoadingState | null>(null);
   const [memoPdfLoadingId, setMemoPdfLoadingId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string>('');
   const [pendingModelRequest, setPendingModelRequest] = useState<PendingModelRequest | null>(null);
+  const [quickEventTitle, setQuickEventTitle] = useState('');
+  const [quickEventText, setQuickEventText] = useState('');
+  const [quickEventSource, setQuickEventSource] = useState('');
+  const [quickEventError, setQuickEventError] = useState<string | null>(null);
+  const [quickEventNotice, setQuickEventNotice] = useState<string | null>(null);
+  const [quickEventApplying, setQuickEventApplying] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
+  const quickEventTextRef = useRef<HTMLTextAreaElement>(null);
+
+  function buildCurrentAssumptionsFromModel(payload: AnalystGeneratedModelPayload) {
+    const extracted = payload.extractedInputs as Record<string, unknown>;
+    const revenueGrowth = extracted.revenueGrowth;
+    const ebitMargin = extracted.ebitMargin ?? extracted.ebitdaMargin;
+    const terminalGrowth = extracted.terminalGrowth;
+
+    return {
+      revenue_growth:
+        Array.isArray(revenueGrowth) && typeof revenueGrowth[0] === 'number'
+          ? (revenueGrowth[0] as number)
+          : typeof revenueGrowth === 'number'
+            ? revenueGrowth
+            : null,
+      operating_margin:
+        Array.isArray(ebitMargin) && typeof ebitMargin[0] === 'number'
+          ? (ebitMargin[0] as number)
+          : typeof ebitMargin === 'number'
+            ? ebitMargin
+            : null,
+      wacc: typeof extracted.wacc === 'number' ? extracted.wacc : null,
+      terminal_growth_rate: typeof terminalGrowth === 'number' ? terminalGrowth : null,
+    };
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -202,6 +238,13 @@ export function AnalystChatApp() {
     promptRef.current?.focus();
   }, []);
 
+  const focusQuickEventComposer = () => {
+    quickEventTextRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    requestAnimationFrame(() => {
+      quickEventTextRef.current?.focus();
+    });
+  };
+
   function getLatestGeneratedArtifact() {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const candidate = messages[index];
@@ -215,6 +258,18 @@ export function AnalystChatApp() {
       }
     }
     return { generatedModel: null, dcfDemo: null, stockLookup: null };
+  }
+
+  function getLatestGeneratedModelMessage() {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const candidate = messages[index];
+      if (candidate.role !== 'assistant' || !candidate.meta?.generatedModel) continue;
+      return {
+        messageId: candidate.id,
+        payload: candidate.meta.generatedModel,
+      };
+    }
+    return null;
   }
 
   function getPromptForAssistantMessage(index: number): string | undefined {
@@ -288,10 +343,20 @@ export function AnalystChatApp() {
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
-    setLoadingState(getLoadingMessage(prompt));
+    const loadingPlan = getLoadingPlan(prompt, ticker.trim().length > 0 ? ticker.trim().toUpperCase() : undefined);
+    setLoadingState(loadingPlan);
     const preserveStructure = userExplicitlyWantsStructuredOutput(prompt);
     const latestArtifact = getLatestGeneratedArtifact();
     const isClarificationTurn = Boolean(pendingModelRequest);
+    const loadingInterval = window.setInterval(() => {
+      setLoadingState((prev) => {
+        if (!prev || prev.activeStep >= prev.steps.length - 1) return prev;
+        return {
+          ...prev,
+          activeStep: prev.activeStep + 1,
+        };
+      });
+    }, 1400);
 
     try {
       const response = await fetch('/api/analyst-chat', {
@@ -378,6 +443,14 @@ export function AnalystChatApp() {
               ? (payload.visualization as AnalystVisualizationPayload)
               : undefined,
           attachmentStatus: parseAttachmentStatus(payload),
+          executionTrace:
+            payload?.executionTrace && typeof payload.executionTrace === 'object'
+              ? (payload.executionTrace as AppExecutionTrace)
+              : undefined,
+          earningsSummary:
+            payload?.earningsSummary && typeof payload.earningsSummary === 'object'
+              ? (payload.earningsSummary as AnalystEarningsSummaryCard)
+              : undefined,
           needsClarification: payload?.needsClarification === true,
           clarificationQuestion:
             typeof payload?.clarificationQuestion === 'string' ? payload.clarificationQuestion : undefined,
@@ -394,6 +467,9 @@ export function AnalystChatApp() {
               : undefined,
         },
       };
+      if (process.env.NODE_ENV !== 'production' && payload?.executionTrace) {
+        console.debug('[analyst-chat] execution trace', payload.executionTrace);
+      }
       setMessages((prev) => [...prev, reply]);
       setPendingModelRequest(reply.meta?.needsClarification ? reply.meta?.pendingModelRequest ?? null : null);
     } catch (error) {
@@ -412,6 +488,7 @@ export function AnalystChatApp() {
       };
       setMessages((prev) => [...prev, reply]);
     } finally {
+      window.clearInterval(loadingInterval);
       setIsLoading(false);
       setLoadingState(null);
       requestAnimationFrame(() => {
@@ -596,309 +673,127 @@ export function AnalystChatApp() {
     );
   };
 
+  const handleQuickEventApply = async () => {
+    const latestModelMessage = getLatestGeneratedModelMessage();
+    if (!latestModelMessage || !quickEventText.trim() || quickEventApplying) return;
+
+    setQuickEventApplying(true);
+    setQuickEventError(null);
+    setQuickEventNotice(null);
+    try {
+      await handleModelAdjustment(latestModelMessage.messageId, latestModelMessage.payload, {
+        changes: {},
+        eventContext: {
+          sourceType: 'pasted_text',
+          title: quickEventTitle.trim() || null,
+          rawEventText: quickEventText.trim(),
+          sourceLabel: quickEventSource.trim() || null,
+        },
+      });
+      setQuickEventTitle('');
+      setQuickEventText('');
+      setQuickEventSource('');
+      setQuickEventNotice('Applied the reviewed event adjustment to the active model assumptions.');
+    } catch (error) {
+      setQuickEventError(error instanceof Error ? error.message : 'Unable to apply event update.');
+    } finally {
+      setQuickEventApplying(false);
+    }
+  };
+
+  const handleSuggestSmartAssumptions = async () => {
+    const latestModelMessage = getLatestGeneratedModelMessage();
+    if (!latestModelMessage) return;
+
+    const companyName =
+      'companyName' in latestModelMessage.payload.extractedInputs
+        ? latestModelMessage.payload.extractedInputs.companyName
+        : latestModelMessage.payload.title;
+    const ticker =
+      'ticker' in latestModelMessage.payload.extractedInputs
+        ? latestModelMessage.payload.extractedInputs.ticker ?? null
+        : null;
+    const response = await fetch('/api/smart-assumptions/derive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        company: {
+          companyName,
+          ticker,
+        },
+        currentAssumptions: buildCurrentAssumptionsFromModel(latestModelMessage.payload),
+        modelType: latestModelMessage.payload.modelType,
+      }),
+    });
+
+    const rawBody = await response.text();
+    const parsed = rawBody ? tryParseJson<Record<string, unknown>>(rawBody) : null;
+    if (!response.ok) {
+      const backendMessage =
+        (parsed && typeof parsed.error === 'string' && parsed.error.trim().length > 0
+          ? parsed.error
+          : rawBody.trim()) || `Smart assumption derivation failed (${response.status}).`;
+      throw new Error(backendMessage);
+    }
+    if (!parsed) {
+      throw new Error(rawBody.trim() || 'Smart assumption derivation returned an invalid response.');
+    }
+
+    const smartAssumptionSummary = parsed as SmartAssumptionResult;
+    if (smartAssumptionSummary.changedDrivers.length === 0) {
+      throw new Error('Smart assumptions did not produce a material change for the active model.');
+    }
+    const changes = buildAnalystSmartAssumptionOverrides(
+      latestModelMessage.payload.extractedInputs as Record<string, unknown>,
+      smartAssumptionSummary,
+    );
+    if (Object.keys(changes).length === 0) {
+      throw new Error('The current model does not expose compatible assumption fields for smart assumptions.');
+    }
+
+    await handleModelAdjustment(latestModelMessage.messageId, latestModelMessage.payload, {
+      changes,
+      smartAssumptionSummary,
+    });
+  };
+
   return (
-    <Card className="flex h-full flex-col shadow-lg">
-      <CardHeader className="border-b border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)]">
-        <CardTitle className="text-xl font-semibold text-[var(--cb-text-primary)]">Analyst Chat</CardTitle>
-        <div className="flex flex-col gap-3 text-sm text-[var(--cb-text-muted)] md:flex-row md:items-center">
-          <div className="flex flex-1 flex-col gap-2 md:flex-row md:items-center">
-            <label htmlFor="ticker-input" className="sr-only">Ticker</label>
-            <Input
-              id="ticker-input"
-              name="ticker-input"
-              value={ticker}
-              onChange={(event) => setTicker(event.target.value.toUpperCase())}
-              placeholder="Ticker (optional)"
-            />
-          </div>
-          <label htmlFor="pdf-upload-analyst" className="sr-only">Upload PDF</label>
-          <input
-            type="file"
-            id="pdf-upload-analyst"
-            name="pdf-upload-analyst"
-            accept=".pdf,.xlsx,.xls,.csv,.txt,.md,application/pdf,text/csv,text/plain"
-            onChange={(event) => void handleAttachment(event.target.files?.[0] ?? null)}
-            className="text-xs text-[var(--cb-text-muted)]"
-          />
-        </div>
-        {attachment && (
-          <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] px-3 py-2 text-xs text-[var(--cb-text-muted)]">
-            <div className="font-medium text-[var(--cb-text-primary)]">
-              Attached: {attachment.name} • {attachment.kind.replace(/_/g, ' ')}
-            </div>
-            <div>{attachment.sizeKb}kb • Client preview ready</div>
-            <div>Waiting for server parse on submit</div>
-            {(attachment.filingClassification?.familiarCategory || attachment.filingClassification?.rawFilingType || attachment.filingPacket?.label) && (
-              <div className="mt-1">
-                {[
-                  attachment.filingClassification?.familiarCategory,
-                  attachment.filingClassification?.rawFilingType,
-                  attachment.filingPacket?.label,
-                ]
-                  .filter((item): item is string => Boolean(item))
-                  .join(' • ')}
-              </div>
-            )}
-            {(attachment.signals?.ticker || attachment.signals?.companyName || attachment.signals?.modelTypeHint || attachment.signals?.fiscalPeriod) && (
-              <div className="mt-1">
-                {[
-                  attachment.signals?.companyName,
-                  attachment.signals?.ticker,
-                  attachment.signals?.modelTypeHint?.replace(/_/g, ' '),
-                  attachment.signals?.fiscalPeriod,
-                ]
-                  .filter((item): item is string => Boolean(item))
-                  .join(' • ')}
-              </div>
-            )}
-            {attachment.signals?.extractedMetrics && attachment.signals.extractedMetrics.length > 0 && (
-              <div className="mt-1 truncate">
-                {attachment.signals.extractedMetrics
-                  .slice(0, 3)
-                  .map((metric) => `${metric.label}: ${metric.value}`)
-                  .join(' • ')}
-              </div>
-            )}
-            {attachment.warnings.length > 0 && (
-              <div className="mt-1 text-amber-300/90">{attachment.warnings[0]}</div>
-            )}
-          </div>
-        )}
-        {attachmentError && (
-          <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
-            {attachmentError}
-          </div>
-        )}
-      </CardHeader>
-      <CardContent className="flex flex-1 flex-col gap-4 bg-[var(--cb-surface-subtle)] p-0">
-        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-6 text-sm">
-          {messages.map((message, index) => (
-            <div key={message.id} className={message.role === 'user' ? 'text-right' : 'text-left'}>
-              {(() => {
-                const prompt = getPromptForAssistantMessage(index);
-                return (
-              <div
-                className={`inline-block rounded-2xl px-4 py-3 ${
-                  message.role === 'user'
-                    ? 'bg-[var(--cb-green)] text-[#041007]'
-                    : 'block max-w-full border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] text-[var(--cb-text-primary)] whitespace-pre-wrap leading-7'
-                }`}
-              >
-                {message.role === 'assistant' ? (
-                  <FormattedTextBlock
-                    content={message.content}
-                    className="space-y-4"
-                    paragraphClassName="text-[var(--cb-text-primary)] leading-7"
-                  />
-                ) : (
-                  message.content
-                )}
-                {message.role === 'assistant' && message.meta?.attachmentUsed && (
-                  <div className="mt-2 text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
-                    {message.meta.attachmentUsed}
-                  </div>
-                )}
-                {message.role === 'assistant' && message.meta?.attachmentStatus && (
-                  <div className="mt-3 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3 text-[11px] text-[var(--cb-text-muted)]">
-                    <div className="mb-1 uppercase tracking-wide">Server Read Status</div>
-                    <div className="text-[var(--cb-text-primary)]">
-                      {attachmentReadStatusLabel(message.meta.attachmentStatus.readStatus)}
-                    </div>
-                    <div className="mt-1">
-                      Seedable: {message.meta.attachmentStatus.isFinancialModelSeedable ? 'yes' : 'no'} • Package: {message.meta.attachmentStatus.hasStatementPackage ? 'present' : 'missing'}
-                    </div>
-                    <div className="mt-1">
-                      Coverage: {message.meta.attachmentStatus.statementCoverage.incomeStatement ? 'IS' : '-'} / {message.meta.attachmentStatus.statementCoverage.balanceSheet ? 'BS' : '-'} / {message.meta.attachmentStatus.statementCoverage.cashFlowStatement ? 'CF' : '-'}
-                    </div>
-                    {(message.meta.attachmentStatus.extractedIdentity.companyName ||
-                      message.meta.attachmentStatus.extractedIdentity.ticker ||
-                      message.meta.attachmentStatus.extractedIdentity.fiscalPeriod) && (
-                      <div className="mt-1">
-                        {[message.meta.attachmentStatus.extractedIdentity.companyName, message.meta.attachmentStatus.extractedIdentity.ticker, message.meta.attachmentStatus.extractedIdentity.fiscalPeriod]
-                          .filter((item): item is string => Boolean(item))
-                          .join(' • ')}
-                      </div>
-                    )}
-                    {(message.meta.attachmentStatus.filingView.familiarCategory ||
-                      message.meta.attachmentStatus.filingView.rawFilingType ||
-                      message.meta.attachmentStatus.packetView?.label) && (
-                      <div className="mt-1">
-                        {[
-                          message.meta.attachmentStatus.filingView.familiarCategory,
-                          message.meta.attachmentStatus.filingView.rawFilingType,
-                          message.meta.attachmentStatus.packetView?.label,
-                        ]
-                          .filter((item): item is string => Boolean(item))
-                          .join(' • ')}
-                      </div>
-                    )}
-                    {message.meta.attachmentStatus.packetView?.rawFilingTypes.length ? (
-                      <div className="mt-1">
-                        Packet filings: {message.meta.attachmentStatus.packetView.rawFilingTypes.join(', ')}
-                      </div>
-                    ) : null}
-                    {message.meta.attachmentStatus.warnings.length > 0 && (
-                      <details className="mt-2">
-                        <summary className="cursor-pointer text-amber-300/90">Warnings</summary>
-                        <div className="mt-1 text-amber-300/90">
-                          {message.meta.attachmentStatus.warnings[0]}
-                        </div>
-                      </details>
-                    )}
-                  </div>
-                )}
-                {message.role === 'assistant' &&
-                  !message.meta?.dcfDemo &&
-                  !message.meta?.generatedModel &&
-                  !message.meta?.coreTemplateModel &&
-                  !message.meta?.stockLookup &&
-                  !message.meta?.visualization && (
-                    <div className="mt-3 flex justify-end">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          void handleDownloadMemoPdf(
-                            message.id,
-                            message.content,
-                            prompt,
-                            message.meta?.sources,
-                          )
-                        }
-                        disabled={memoPdfLoadingId === message.id}
-                      >
-                        {memoPdfLoadingId === message.id ? 'Generating Memo PDF…' : 'Download Memo PDF'}
-                      </Button>
-                    </div>
-                  )}
-                {message.role === 'assistant' && message.meta?.sources && message.meta.sources.length > 0 && (
-                  <div className="mt-3 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3 text-[11px] text-[var(--cb-text-muted)]">
-                    <div className="mb-2 uppercase tracking-wide">Sources</div>
-                    <div className="space-y-2">
-                      {message.meta.sources.map((source) => {
-                        const href = getSourceHref(source);
-                        const label = getSourceLabel(source);
-                        return (
-                          <div key={source} className="min-w-0">
-                            {href ? (
-                              <a
-                                href={href}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="block truncate text-[var(--cb-text-primary)] underline decoration-[var(--cb-border-strong)] underline-offset-4 hover:text-[var(--cb-green)]"
-                                title={source}
-                              >
-                                {label}
-                              </a>
-                            ) : (
-                              <div className="truncate text-[var(--cb-text-primary)]" title={source}>
-                                {source}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-                {message.role === 'assistant' &&
-                  message.meta?.retrievalWarnings &&
-                  message.meta.retrievalWarnings.length > 0 && (
-                    <div className="mt-2 text-[11px] text-amber-300/90">
-                      {message.meta.retrievalWarnings.join(' • ')}
-                    </div>
-                  )}
-                {message.role === 'assistant' && message.meta?.dcfDemo && (
-                  <AnalystDcfCard
-                    payload={message.meta.dcfDemo}
-                    onAdjust={(adjustment) => handleDcfAdjustment(message.id, message.meta!.dcfDemo!, adjustment)}
-                    onRunEventShock={(prompt) => handleDcfEventShock(message.id, message.meta!.dcfDemo!, prompt)}
-                  />
-                )}
-                {message.role === 'assistant' && message.meta?.generatedModel && (
-                  <AnalystModelCard
-                    payload={message.meta.generatedModel}
-                    onAdjust={(adjustment) =>
-                      handleModelAdjustment(message.id, message.meta!.generatedModel!, adjustment)
-                    }
-                  />
-                )}
-                {message.role === 'assistant' && message.meta?.coreTemplateModel && (
-                  <AnalystCoreTemplateCard payload={message.meta.coreTemplateModel} />
-                )}
-                {message.role === 'assistant' && message.meta?.stockLookup && (
-                  <AnalystStockCard payload={message.meta.stockLookup} />
-                )}
-                {message.role === 'assistant' && message.meta?.visualization && (
-                  <AnalystVisualizationCard payload={message.meta.visualization} />
-                )}
-              </div>
-                );
-              })()}
-            </div>
-          ))}
-          {isLoading && loadingState && (
-            <div className="text-left">
-              <div className="block max-w-full rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] px-4 py-3 text-[var(--cb-text-primary)]">
-                <div className="flex items-center gap-3">
-                  <div className="flex gap-1">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--cb-green)] [animation-delay:0ms]" />
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--cb-green)] [animation-delay:150ms]" />
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--cb-green)] [animation-delay:300ms]" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium">{loadingState.title}</div>
-                    <div className="text-xs text-[var(--cb-text-muted)]">{loadingState.detail}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          <div ref={bottomRef} />
-        </div>
-        <form onSubmit={handleSubmit} className="border-t border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-4">
-          <label htmlFor="analyst-prompt" className="sr-only">Ask a question</label>
-          <Textarea
-            ref={promptRef}
-            id="analyst-prompt"
-            name="analyst-prompt"
-            placeholder={
-              pendingModelRequest?.clarificationField
-                ? 'Answer the missing-input question so the model can continue...'
-                : 'Ask about valuations, KPIs, diligence follow-ups...'
-            }
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDownCapture={(event) => {
-              event.stopPropagation();
-            }}
-            onKeyUpCapture={(event) => {
-              event.stopPropagation();
-            }}
-            disabled={isLoading}
-            autoFocus
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="sentences"
-            spellCheck={false}
-          />
-          <div className="mt-3 flex items-center justify-between text-xs text-[var(--cb-text-muted)]">
-            {pendingModelRequest ? (
-              <span>
-                Waiting for {pendingModelRequest.clarificationField?.replace(/([A-Z])/g, ' $1').toLowerCase() || 'the next required input'} to continue the model build.
-              </span>
-            ) : attachment ? (
-              <span>Using {attachment.kind.replace(/_/g, ' ')} context from {attachment.name}.</span>
-            ) : (
-              <span>Attach earnings reports, model files, or notes for additional context.</span>
-            )}
-            <Button type="submit" disabled={isLoading || !input.trim()}>
-              {isLoading ? 'Thinking…' : pendingModelRequest ? 'Continue Model' : 'Ask'}
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+    <AnalystChatSurface
+      ticker={ticker}
+      attachment={attachment}
+      attachmentError={attachmentError}
+      messages={messages}
+      isLoading={isLoading}
+      loadingState={loadingState}
+      memoPdfLoadingId={memoPdfLoadingId}
+      pendingModelRequest={pendingModelRequest}
+      quickEventTitle={quickEventTitle}
+      quickEventText={quickEventText}
+      quickEventSource={quickEventSource}
+      quickEventError={quickEventError}
+      quickEventNotice={quickEventNotice}
+      quickEventApplying={quickEventApplying}
+      input={input}
+      bottomRef={bottomRef}
+      promptRef={promptRef}
+      quickEventTextRef={quickEventTextRef}
+      onTickerChange={setTicker}
+      onAttachmentSelect={handleAttachment}
+      getPromptForAssistantMessage={getPromptForAssistantMessage}
+      onDownloadMemoPdf={handleDownloadMemoPdf}
+      onDcfAdjustment={handleDcfAdjustment}
+      onDcfEventShock={handleDcfEventShock}
+      onModelAdjustment={handleModelAdjustment}
+      onAdjustFromEvent={focusQuickEventComposer}
+      onSuggestSmartAssumptions={handleSuggestSmartAssumptions}
+      getLatestGeneratedModelMessage={getLatestGeneratedModelMessage}
+      onQuickEventTitleChange={setQuickEventTitle}
+      onQuickEventTextChange={setQuickEventText}
+      onQuickEventSourceChange={setQuickEventSource}
+      onQuickEventApply={handleQuickEventApply}
+      onSubmit={handleSubmit}
+      onInputChange={setInput}
+      showExecutionTrace={showExecutionTrace}
+    />
   );
 }

@@ -1,10 +1,17 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { AnalystCoreTemplateCard } from '@/components/analyst/AnalystCoreTemplateCard';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { CheckCircle2, FileSpreadsheet, Search, SlidersHorizontal } from 'lucide-react';
+import {
+  EventSummaryCard,
+  ObjectGrid,
+  SmartAssumptionSummaryCard,
+  StringListCard,
+  renderModelSpecificReview,
+} from '@/components/model-generator/PromptToModelParts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,12 +20,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplates';
 import type { ModelGeneratorType } from '@/lib/model-generator/classifyPrompt';
-import { calculateDebtCapacityPreview } from '@/lib/model-generator/debtCapacitySummary';
-import { calculateMergerSummary } from '@/lib/model-generator/mergerSummary';
 import type {
   ComparisonSummary,
   PromptRunEventAdjustmentSummary,
   PromptRunEventContext,
+  PromptRunSmartAssumptionSummary,
   ProvenanceSummary,
 } from '@/lib/model-generator/runHistory';
 import { cn } from '@/lib/utils';
@@ -28,6 +34,10 @@ import {
   fetchWorkbookArtifact,
   openWorkbookInGoogleSheets,
 } from '@/lib/workbookOpen';
+
+const AnalystCoreTemplateCard = dynamic(
+  () => import('@/components/analyst/AnalystCoreTemplateCard').then((mod) => mod.AnalystCoreTemplateCard)
+);
 
 type PreviewSummary = {
   modelName: string;
@@ -56,6 +66,7 @@ type PreviewResponse = {
     versionNumber: number | null;
     eventContext?: PromptRunEventContext | null;
     eventAdjustmentSummary?: PromptRunEventAdjustmentSummary | null;
+    smartAssumptionSummary?: PromptRunSmartAssumptionSummary | null;
   } | null;
   handoffOnly?: boolean;
   coreTemplateModel?: AnalystCoreTemplatePayload | null;
@@ -102,6 +113,7 @@ type RecentRun = {
     provenance: ProvenanceSummary | null;
     eventContext?: PromptRunEventContext | null;
     eventAdjustmentSummary?: PromptRunEventAdjustmentSummary | null;
+    smartAssumptionSummary?: PromptRunSmartAssumptionSummary | null;
   } | null;
 };
 
@@ -121,389 +133,6 @@ const WIZARD_STEPS = [
   { title: 'Review Extracted Workstream', description: 'Check the subject, valuation anchors, provenance, and missing items.', icon: SlidersHorizontal },
   { title: 'Generate Banker Output', description: 'Export the workbook and memo-ready package once the extracted setup is right.', icon: CheckCircle2 },
 ] as const;
-
-function isCurrencyKey(key?: string): boolean {
-  if (!key) return false;
-  return /(revenue|income|cash|debt|price|value|equity|ebitda|ebit|ev|capex|nwc|inventory|dividend|book|ppe|burn|fundraise|purchase|goodwill|assets|liab|sales|cogs|arr|arpu|cac|marketcap|valuation|proceeds|amount|principal|interest|expense|balance|amortization|buyback|repurchase|cashflow|fcf)/i.test(
-    key
-  );
-}
-
-function isPercentKey(key?: string): boolean {
-  if (!key) return false;
-  return /(margin|growth|rate|yield|pct|percent|ownership|churn|tax|wacc|discount|terminal|payout|roe|irr|probability)/i.test(
-    key
-  );
-}
-
-function isMultipleKey(key?: string): boolean {
-  if (!key) return false;
-  return /(multiple|coverage|leverage|moic|ltv|turnover)/i.test(key);
-}
-
-function renderValue(value: unknown, key?: string): string {
-  if (Array.isArray(value)) return value.map((item) => renderValue(item, key)).join(', ');
-  if (typeof value === 'number') {
-    if (isPercentKey(key)) {
-      const percentValue = Math.abs(value) <= 1 ? value * 100 : value;
-      return `${percentValue.toLocaleString('en-US', { maximumFractionDigits: 1 })}%`;
-    }
-    if (isMultipleKey(key)) return `${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}x`;
-    if (isCurrencyKey(key)) {
-      return `$${value.toLocaleString('en-US', {
-        maximumFractionDigits: Math.abs(value) >= 1000 ? 0 : 2,
-      })}`;
-    }
-    if (Math.abs(value) >= 1000) return value.toLocaleString('en-US');
-    if (value > 0 && value < 1) return `${(value * 100).toFixed(1)}%`;
-    return Number.isInteger(value) ? String(value) : value.toFixed(2);
-  }
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  if (value === null || value === undefined || value === '') return 'n/a';
-  return String(value);
-}
-
-function ObjectGrid(props: { title: string; values: Record<string, unknown>; emptyMessage: string }) {
-  const entries = Object.entries(props.values);
-  return (
-    <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
-      <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">{props.title}</div>
-      {entries.length === 0 ? (
-        <p className="text-sm text-[var(--cb-text-muted)]">{props.emptyMessage}</p>
-      ) : (
-        <div className="grid gap-3 md:grid-cols-2">
-          {entries.map(([key, value]) => (
-            <div key={key} className="rounded-xl border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
-              <div className="text-[11px] uppercase tracking-wide text-[var(--cb-text-muted)]">{key}</div>
-              <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{renderValue(value, key)}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function StringListCard(props: { title: string; values: string[]; emptyMessage: string }) {
-  return (
-    <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
-      <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">{props.title}</div>
-      {props.values.length === 0 ? (
-        <p className="text-sm text-[var(--cb-text-muted)]">{props.emptyMessage}</p>
-      ) : (
-        <div className="flex flex-wrap gap-2">
-          {props.values.map((value) => (
-            <Badge key={value} variant="outline" className="border-[rgba(118,138,161,0.22)] text-[var(--cb-text-secondary)]">
-              {value}
-            </Badge>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function formatCompactMetric(value: unknown, kind: 'currency' | 'percent' | 'multiple' | 'number' = 'number'): string {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
-  if (kind === 'currency') {
-    return `$${value.toLocaleString('en-US', { maximumFractionDigits: Math.abs(value) >= 1000 ? 0 : 1 })}`;
-  }
-  if (kind === 'percent') {
-    const percentValue = Math.abs(value) <= 1 ? value * 100 : value;
-    return `${percentValue.toLocaleString('en-US', { maximumFractionDigits: 1 })}%`;
-  }
-  if (kind === 'multiple') {
-    return `${value.toLocaleString('en-US', { maximumFractionDigits: 1 })}x`;
-  }
-  return value.toLocaleString('en-US', { maximumFractionDigits: 1 });
-}
-
-function formatModelMoney(value: unknown): string {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
-  return `$${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}M`;
-}
-
-function formatRunEventPublishedAt(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
-
-function summarizeEventDrivers(summary: PromptRunEventAdjustmentSummary | null | undefined): string {
-  if (!summary || summary.changedDrivers.length === 0) return 'No assumption changes recorded.';
-  return summary.changedDrivers.map((driver) => driver.label).join(', ');
-}
-
-function formatEventSuggestionDirection(direction: 'up' | 'down' | 'flat'): string {
-  if (direction === 'up') return '↑';
-  if (direction === 'down') return '↓';
-  return '→';
-}
-
-function EventSummaryCard(props: {
-  eventContext?: PromptRunEventContext | null;
-  eventAdjustmentSummary?: PromptRunEventAdjustmentSummary | null;
-  compact?: boolean;
-}) {
-  if (!props.eventContext && !props.eventAdjustmentSummary) return null;
-  const publishedAt = formatRunEventPublishedAt(props.eventContext?.publishedAt);
-  const summary = props.eventAdjustmentSummary;
-  const title = props.eventContext?.title || summary?.normalizedEventSummary || 'Applied event';
-
-  return (
-    <div className="rounded-2xl border border-[rgba(59,130,246,0.24)] bg-[rgba(30,41,59,0.4)] p-4">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <Badge variant="outline" className="border-[rgba(59,130,246,0.3)] text-[var(--cb-text-primary)]">
-          Event Applied
-        </Badge>
-        {summary?.eventCategory ? (
-          <Badge variant="outline" className="border-[rgba(118,138,161,0.22)] text-[var(--cb-text-secondary)]">
-            {summary.eventCategory.replace(/_/g, ' ')}
-          </Badge>
-        ) : null}
-        {summary?.scenarioBias ? (
-          <Badge variant="outline" className="border-[rgba(118,138,161,0.22)] text-[var(--cb-text-secondary)]">
-            {summary.scenarioBias}
-          </Badge>
-        ) : null}
-      </div>
-      <div className="text-sm font-medium text-[var(--cb-text-primary)]">{title}</div>
-      {(props.eventContext?.sourceLabel || publishedAt) ? (
-        <div className="mt-1 text-xs text-[var(--cb-text-muted)]">
-          {[props.eventContext?.sourceLabel, publishedAt].filter(Boolean).join(' · ')}
-        </div>
-      ) : null}
-      {summary?.normalizedEventSummary && summary.normalizedEventSummary !== title ? (
-        <p className="mt-2 text-sm text-[var(--cb-text-secondary)]">{summary.normalizedEventSummary}</p>
-      ) : null}
-      <p className={props.compact ? 'mt-2 text-xs text-[var(--cb-text-secondary)]' : 'mt-2 text-sm text-[var(--cb-text-secondary)]'}>
-        Changed drivers: {summarizeEventDrivers(summary)}
-      </p>
-      {summary?.transcription?.suggestedAssumptions?.length ? (
-        <div className="mt-2 flex flex-wrap gap-2">
-          {summary.transcription.suggestedAssumptions.slice(0, 3).map((suggestion) => (
-            <Badge
-              key={suggestion.driver}
-              variant="outline"
-              className="border-[rgba(118,138,161,0.22)] text-[var(--cb-text-secondary)]"
-            >
-              {suggestion.label} {formatEventSuggestionDirection(suggestion.direction)}
-            </Badge>
-          ))}
-        </div>
-      ) : null}
-      {summary?.warnings?.length ? (
-        <p className="mt-2 text-xs text-[#fde68a]">{summary.warnings[0]}</p>
-      ) : null}
-    </div>
-  );
-}
-
-function renderModelSpecificReview(preview: PreviewResponse) {
-  if (!preview.modelType) return null;
-
-  if (preview.modelType === 'COMPS') {
-    const extracted = preview.extractedInputs as Record<string, unknown>;
-    const subject = (extracted.subject ?? {}) as Record<string, unknown>;
-    const peers = Array.isArray(extracted.peers) ? (extracted.peers as Array<Record<string, unknown>>) : [];
-    const selectedMultiples = (extracted.selectedMultiples ?? {}) as Record<string, unknown>;
-    return (
-      <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr_1fr]">
-        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Subject Snapshot</div>
-          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
-            <div><span className="font-medium text-[var(--cb-text-primary)]">{String(subject.name ?? extracted.companyName ?? 'Subject')}</span>{subject.ticker ? ` (${String(subject.ticker)})` : ''}</div>
-            <div>Revenue: {formatCompactMetric(subject.revenue, 'currency')}</div>
-            <div>EBITDA: {formatCompactMetric(subject.ebitda, 'currency')}</div>
-            <div>Price: {formatCompactMetric(subject.price, 'currency')}</div>
-          </div>
-        </div>
-        <StringListCard
-          title="Peer Set"
-          values={peers.map((peer) => `${String(peer.ticker ?? '')}${peer.name ? ` — ${String(peer.name)}` : ''}`).filter((value) => value.trim().length > 0)}
-          emptyMessage="No peers resolved yet."
-        />
-        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Selected Multiples</div>
-          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
-            <div>EV / Revenue: {formatCompactMetric(selectedMultiples.evToRevenue, 'multiple')}</div>
-            <div>EV / EBITDA: {formatCompactMetric(selectedMultiples.evToEbitda, 'multiple')}</div>
-            <div>P / E: {formatCompactMetric(selectedMultiples.peRatio, 'multiple')}</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (preview.modelType === 'PRECEDENTS') {
-    const extracted = preview.extractedInputs as Record<string, unknown>;
-    const transactions = Array.isArray(extracted.transactions) ? (extracted.transactions as Array<Record<string, unknown>>) : [];
-    const previewDeals = transactions.slice(0, 4).map((transaction) => {
-      const revenueMultiple = formatCompactMetric(transaction.revenueMultiple, 'multiple');
-      const ebitdaMultiple = formatCompactMetric(transaction.ebitdaMultiple, 'multiple');
-      const premium = formatCompactMetric(transaction.premium, 'percent');
-      return `${String(transaction.target ?? 'Target')} / ${String(transaction.acquirer ?? 'Buyer')} — ${revenueMultiple} EV/Rev, ${ebitdaMultiple} EV/EBITDA, ${premium} premium`;
-    });
-    return (
-      <div className="grid gap-4 lg:grid-cols-[1fr_1.35fr]">
-        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Transaction Set</div>
-          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
-            <div>Subject Revenue: {formatCompactMetric(extracted.subjectRevenue, 'currency')}</div>
-            <div>Subject EBITDA: {formatCompactMetric(extracted.subjectEbitda, 'currency')}</div>
-            <div>Transaction Count: {formatCompactMetric(extracted.transactionCount, 'number')}</div>
-            <div>Anchor Revenue Multiple: {formatCompactMetric(extracted.revenueMultiple, 'multiple')}</div>
-            <div>Anchor EBITDA Multiple: {formatCompactMetric(extracted.ebitdaMultiple, 'multiple')}</div>
-          </div>
-        </div>
-        <StringListCard
-          title="Selected Transactions"
-          values={previewDeals}
-          emptyMessage="No precedent transactions resolved yet."
-        />
-      </div>
-    );
-  }
-
-  if (preview.modelType === 'DEBT_CAPACITY_LITE') {
-    const extracted = preview.extractedInputs as Record<string, unknown>;
-    const summary = calculateDebtCapacityPreview(extracted as any);
-    return (
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Credit Anchor</div>
-          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
-            <div>EBITDA: {formatModelMoney(extracted.ebitda)}</div>
-            <div>Current Net Debt: {formatModelMoney(extracted.currentNetDebt)}</div>
-            <div>Company: {String(extracted.companyName ?? 'n/a')}</div>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Underwriting Assumptions</div>
-          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
-            <div>Max Leverage: {formatCompactMetric(extracted.maxLeverage, 'multiple')}</div>
-            <div>Min Interest Coverage: {formatCompactMetric(extracted.minInterestCoverage, 'multiple')}</div>
-            <div>Interest Rate: {formatCompactMetric(extracted.interestRate, 'percent')}</div>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Capacity Read</div>
-          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
-            <div>Selected Max Debt: {summary ? formatModelMoney(summary.maxDebt) : 'n/a'}</div>
-            <div>Binding Constraint: {summary ? String(summary.bindingConstraint) : 'n/a'}</div>
-            <div>Headroom vs Net Debt: {summary ? formatModelMoney(summary.headroomVsNetDebt) : 'n/a'}</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (preview.modelType === 'FOOTBALL_FIELD') {
-    const extracted = preview.extractedInputs as Record<string, unknown>;
-    const ranges = Array.isArray(extracted.ranges) ? (extracted.ranges as Array<Record<string, unknown>>) : [];
-    const previewRanges = ranges.map((range) => {
-      const midValue = formatCompactMetric(range.midValue, 'currency');
-      const midPrice = formatCompactMetric(range.midPrice, 'currency');
-      return `${String(range.label ?? 'Method')} — mid EV ${midValue}${midPrice !== 'n/a' ? `, mid price ${midPrice}` : ''}`;
-    });
-    return (
-      <div className="grid gap-4 lg:grid-cols-[1fr_1.4fr]">
-        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Subject Anchor</div>
-          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
-            <div>Revenue: {formatCompactMetric(extracted.revenue, 'currency')}</div>
-            <div>EBITDA: {formatCompactMetric(extracted.ebitda, 'currency')}</div>
-            <div>Net Debt: {formatCompactMetric(extracted.netDebt, 'currency')}</div>
-            <div>Current Price: {formatCompactMetric(extracted.sharePrice, 'currency')}</div>
-          </div>
-        </div>
-        <StringListCard
-          title="Valuation Methods"
-          values={previewRanges}
-          emptyMessage="No valuation methods resolved yet."
-        />
-      </div>
-    );
-  }
-
-  if (preview.modelType === 'MERGER') {
-    const extracted = preview.extractedInputs as Record<string, unknown>;
-    const mergerSummary = calculateMergerSummary(extracted as any);
-    return (
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Deal Terms</div>
-          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
-            <div>Acquirer: {String(extracted.acquirerName ?? 'n/a')}{extracted.acquirerTicker ? ` (${String(extracted.acquirerTicker)})` : ''}</div>
-            <div>Target: {String(extracted.targetName ?? 'n/a')}{extracted.targetTicker ? ` (${String(extracted.targetTicker)})` : ''}</div>
-            <div>Purchase Price: {formatModelMoney(extracted.purchasePrice)}</div>
-            <div>Structure: {String(extracted.dealStructure ?? 'n/a')}</div>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Financing Mix</div>
-          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
-            <div>Cash: {formatCompactMetric(extracted.cashPct, 'percent')}</div>
-            <div>Stock: {formatCompactMetric(extracted.stockPct, 'percent')}</div>
-            <div>Debt: {formatCompactMetric(extracted.debtPct, 'percent')}</div>
-            <div>New Debt Rate: {formatCompactMetric(extracted.newDebtRate, 'percent')}</div>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">EPS Bridge</div>
-          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
-            <div>Standalone EPS: {formatCompactMetric(mergerSummary.standaloneEps, 'number')}</div>
-            <div>Pro Forma EPS: {formatCompactMetric(mergerSummary.proFormaEps, 'number')}</div>
-            <div>Accretion / Dilution: {formatCompactMetric(mergerSummary.epsAccretionPct, 'percent')}</div>
-            <div>Pro Forma EBITDA: {formatModelMoney(mergerSummary.proFormaEbitda)}</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (preview.modelType === 'LBO') {
-    const extracted = preview.extractedInputs as Record<string, unknown>;
-    return (
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Entry Case</div>
-          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
-            <div>Revenue: {formatCompactMetric(extracted.revenue, 'currency')}</div>
-            <div>EBITDA: {formatCompactMetric(extracted.ebitda, 'currency')}</div>
-            <div>Entry Multiple: {formatCompactMetric(extracted.entryMultiple, 'multiple')}</div>
-            <div>Net Debt: {formatCompactMetric(extracted.netDebt, 'currency')}</div>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Financing Mix</div>
-          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
-            <div>Debt: {formatCompactMetric(extracted.debtPercent, 'percent')}</div>
-            <div>Equity: {formatCompactMetric(extracted.equityPercent, 'percent')}</div>
-            <div>Interest Rate: {formatCompactMetric(extracted.interestRate, 'percent')}</div>
-            <div>Cash Sweep: {formatCompactMetric(extracted.cashSweepPercent, 'percent')}</div>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[rgba(10,14,20,0.75)] p-4">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--cb-text-muted)]">Exit Underwrite</div>
-          <div className="space-y-2 text-sm text-[var(--cb-text-secondary)]">
-            <div>Exit Multiple: {formatCompactMetric(extracted.exitMultiple, 'multiple')}</div>
-            <div>Hold Period: {formatCompactMetric(extracted.holdingPeriodYears, 'number')} years</div>
-            <div>Revenue Growth: {Array.isArray(extracted.revenueGrowth) ? (extracted.revenueGrowth as number[]).map((value) => formatCompactMetric(value, 'percent')).join(', ') : 'n/a'}</div>
-            <div>EBITDA Margin: {formatCompactMetric(extracted.ebitdaMargin, 'percent')}</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
-}
 
 export function PromptToModel() {
   const searchParams = useSearchParams();
@@ -1111,6 +740,9 @@ export function PromptToModel() {
                   eventAdjustmentSummary={preview.recentRun.eventAdjustmentSummary}
                 />
               ) : null}
+              {preview.recentRun?.smartAssumptionSummary ? (
+                <SmartAssumptionSummaryCard smartAssumptionSummary={preview.recentRun.smartAssumptionSummary} />
+              ) : null}
 
               {preview.needsClarification && preview.clarificationQuestion ? (
                 <div className="rounded-2xl border border-[rgba(245,158,11,0.36)] bg-[rgba(120,53,15,0.18)] p-4">
@@ -1238,6 +870,11 @@ export function PromptToModel() {
                         eventAdjustmentSummary={run.latestVersion?.eventAdjustmentSummary}
                         compact
                       />
+                    </div>
+                  ) : null}
+                  {run.latestVersion?.smartAssumptionSummary ? (
+                    <div className="mt-3">
+                      <SmartAssumptionSummaryCard smartAssumptionSummary={run.latestVersion.smartAssumptionSummary} />
                     </div>
                   ) : null}
                 </div>

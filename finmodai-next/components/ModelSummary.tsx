@@ -1,4 +1,5 @@
 import { APP_NAME } from '@/lib/branding';
+import { getModelDisplayLabel } from '@/lib/modelDisplay';
 
 type SummaryTable = {
   title: string;
@@ -21,8 +22,8 @@ type ModelSummaryProps = {
 
 const MODEL_CONTENT: Record<string, ModelContent> = {
   'three-statement': {
-    title: 'Integrated Three-Statement Model',
-    description: 'Linked income statement, balance sheet, and cash flow statement with consistent drivers.',
+    title: 'Integrated Forecast Model',
+    description: 'Linked income statement, balance sheet, and cash flow forecast with consistent drivers.',
     highlights: [
       'EBITDA expanding 60 bps annually with disciplined opex control.',
       'Working capital absorbs near-term cash before reverting to historical levels.',
@@ -162,17 +163,10 @@ const MODEL_CONTENT: Record<string, ModelContent> = {
   }
 };
 
-const MODEL_LABELS: Record<string, string> = {
-  'three-statement': 'Three-Statement Model',
-  dcf: 'DCF Model',
-  lbo: 'LBO Model',
-  comps: 'Trading Comps Model'
-};
-
 export function ModelSummary({ modelType = 'three-statement', ticker }: ModelSummaryProps) {
   const normalizedType = MODEL_CONTENT[modelType] ? modelType : 'three-statement';
   const content = MODEL_CONTENT[normalizedType];
-  const friendlyName = MODEL_LABELS[normalizedType] ?? 'Model';
+  const friendlyName = getModelDisplayLabel(normalizedType) ?? 'Model';
   const formattedTicker = ticker ? ticker.toUpperCase() : 'Sample';
 
   return (

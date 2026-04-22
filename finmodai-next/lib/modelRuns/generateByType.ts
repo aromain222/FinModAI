@@ -21,6 +21,12 @@ import {
   refreshCatalogCompanyProfile,
   type DataRefreshStatus,
 } from '@/lib/models/shared/catalogRefresh';
+import {
+  addExecutionTraceNote,
+  addExecutionTraceService,
+  createExecutionTrace,
+  withExecutionTrace,
+} from '@/lib/debug/executionTrace';
 
 type GeneratedPayload = {
   preview?: unknown;
@@ -409,6 +415,21 @@ export async function generateRunForModelType({
   return runWithDemoMode(true, async () => {
     try {
   const modelType = String(modelTypeRaw || '').toLowerCase();
+  const executionTrace = createExecutionTrace({
+    surface: 'models_create',
+    prompt: typeof body?.prompt === 'string' ? body.prompt : `Generate ${modelType} model`,
+    modelType,
+  });
+  addExecutionTraceService(
+    executionTrace,
+    'generate_run_for_model_type',
+    'macro_assumption_context',
+    'company_catalyst_context',
+    isPrivateManualMode(body) ? 'manual_inputs_adapter' : 'catalog_ticker_adapter',
+    body?.smartAssumptionSummary ? 'smart_assumption_agent' : null,
+    body?.eventContext || body?.eventAdjustment ? 'derive_event_linked_model_adjustment' : null,
+    body?.financialExtractionJobId ? 'financial_extraction_snapshot' : null,
+  );
   if (!SUPPORTED_MODEL_TYPES.has(modelType)) {
     return errorResponse(400, 'unsupported_model_type', `Unsupported model type: ${modelType}`, 'validate');
   }
@@ -546,7 +567,8 @@ export async function generateRunForModelType({
   const existing = findRunByHash(inputsHash);
   if (existing?.status === 'generated' && (existing.storageKey || existing.dataUrl)) {
     const generatedResult = (existing.result || {}) as GeneratedPayload;
-    return NextResponse.json({
+    addExecutionTraceNote(executionTrace, 'Returned cached generated run for identical normalized inputs.');
+    return NextResponse.json(withExecutionTrace({
       ok: true,
       status: 'generated',
       state: 'generated',
@@ -554,10 +576,11 @@ export async function generateRunForModelType({
       storageKey: existing.storageKey,
       downloadUrl: null,
       ...generatedResult,
-    });
+    }, executionTrace));
   }
   if (existing?.status === 'generating') {
-    return NextResponse.json({ ok: true, status: 'generating', state: 'generating', runId: existing.id });
+    addExecutionTraceNote(executionTrace, 'Matched an in-flight generation run for identical normalized inputs.');
+    return NextResponse.json(withExecutionTrace({ ok: true, status: 'generating', state: 'generating', runId: existing.id }, executionTrace));
   }
 
   const run = createRun({
@@ -671,7 +694,8 @@ export async function generateRunForModelType({
         engine: 'football-field',
       });
 
-      return NextResponse.json({
+      addExecutionTraceService(executionTrace, 'core_engine_run_model');
+      return NextResponse.json(withExecutionTrace({
         ok: true,
         status: 'generated',
         state: 'generated',
@@ -679,7 +703,7 @@ export async function generateRunForModelType({
         storageKey,
         downloadUrl: null,
         ...generatedResult,
-      });
+      }, executionTrace));
     }
 
     if (modelType === 'precedents') {
@@ -1325,6 +1349,7 @@ export async function generateRunForModelType({
       }),
     });
 
+    addExecutionTraceService(executionTrace, 'generate_model_route');
     const generationResponse = await generateModelPost(internalReq);
     const generationJson = await generationResponse.json();
 
@@ -1359,12 +1384,12 @@ export async function generateRunForModelType({
         },
       });
       console.log('[model-run] status transition', { runId: run.id, from: 'generating', to: 'assumptions_required' });
-      return NextResponse.json({
+      return NextResponse.json(withExecutionTrace({
         ok: true,
         runId: run.id,
         estimatedInputs: generationJson?.estimated || [],
         ...assumptionsRequired,
-      });
+      }, executionTrace));
     }
 
     const dataUri = generationJson?.downloadUrl;
@@ -1413,6 +1438,7 @@ export async function generateRunForModelType({
       catalystContext: generationJson?.catalystContext ?? companyCatalystContext?.summary,
       companyCatalystContext: generationJson?.companyCatalystContext ?? companyCatalystContext,
     };
+    addExecutionTraceService(executionTrace, 'core_engine_run_model');
 
     updateRun(run.id, {
       status: 'generated',
@@ -1428,7 +1454,7 @@ export async function generateRunForModelType({
       storageKey: storageKey || null,
     });
 
-    return NextResponse.json({
+    return NextResponse.json(withExecutionTrace({
       ok: true,
       status: 'generated',
       state: 'generated',
@@ -1436,7 +1462,7 @@ export async function generateRunForModelType({
       storageKey,
       downloadUrl: null,
       ...generatedResult,
-    });
+    }, executionTrace));
   } catch (error: any) {
     updateRun(run.id, {
       status: 'failed',

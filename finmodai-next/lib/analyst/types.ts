@@ -4,12 +4,16 @@ import type {
   AttachmentScaleValidation,
 } from '@/lib/analyst/attachmentScaleValidation';
 import type { ComparisonSummary, ProvenanceSummary } from '@/lib/model-generator/runHistory';
+import type { PromptRunSmartAssumptionSummary } from '@/lib/model-generator/runHistory';
 import type { ExtractedModelInputs } from '@/lib/model-generator/extractInputs';
 import type {
   EventLinkedModelAdjustmentResult,
   EventLinkedModelEventSource,
   EventLinkedModelTranscription,
 } from '@/lib/model-events/types';
+import type { SmartAssumptionResult } from '@/lib/smart-assumptions/types';
+import type { PromptRunCustomAssumptionSummary } from '@/lib/model-generator/runHistory';
+import type { CustomAssumptionResult } from '@/lib/analyst/customAssumptions';
 
 export type ModelNarrativeBlock = {
   title: string;
@@ -57,10 +61,20 @@ export type AnalystGeneratedModelPayload = {
     transcription?: EventLinkedModelTranscription | null;
   } | null;
   appliedEventDeltas?: EventLinkedModelAdjustmentResult['changedDrivers'] | null;
+  smartAssumptionSummary?: PromptRunSmartAssumptionSummary | null;
+  customAssumptionSummary?: PromptRunCustomAssumptionSummary | null;
 };
 
 export type AnalystGeneratedModelRecentRun = NonNullable<AnalystGeneratedModelPayload['recentRun']>;
 export type AnalystGeneratedModelExportSeed = Omit<AnalystGeneratedModelPayload, 'recentRun'>;
+
+export type AnalystStructuredModelAdjustment = {
+  changes: Record<string, unknown>;
+  prompt?: string;
+  eventContext?: EventLinkedModelEventSource | null;
+  smartAssumptionSummary?: SmartAssumptionResult | PromptRunSmartAssumptionSummary | null;
+  customAssumptionSummary?: CustomAssumptionResult | PromptRunCustomAssumptionSummary | null;
+};
 
 export type AnalystStructuredModelResult =
   | {

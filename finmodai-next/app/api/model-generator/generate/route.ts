@@ -18,6 +18,7 @@ import { savePromptModelRunVersion } from '@/lib/model-generator/runHistory';
 import {
   toPromptRunEventAdjustmentSummary,
   toPromptRunEventContext,
+  toPromptRunSmartAssumptionSummary,
 } from '@/lib/model-generator/runHistory';
 import * as dcfTemplate from '@/lib/model-generator/templates/dcf';
 import * as threeStatementTemplate from '@/lib/model-generator/templates/threeStatement';
@@ -125,6 +126,7 @@ export async function POST(req: NextRequest) {
         : '';
     const eventContext = toPromptRunEventContext(body?.eventContext);
     const eventAdjustmentSummary = toPromptRunEventAdjustmentSummary(body?.eventAdjustment);
+    const smartAssumptionSummary = toPromptRunSmartAssumptionSummary(body?.smartAssumptionSummary);
 
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required.' }, { status: 400 });
@@ -198,6 +200,7 @@ export async function POST(req: NextRequest) {
         workbookFilename: filename,
         eventContext,
         eventAdjustmentSummary,
+        smartAssumptionSummary,
       });
     } catch {
       persisted = null;

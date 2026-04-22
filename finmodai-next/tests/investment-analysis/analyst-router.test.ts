@@ -24,3 +24,25 @@ test('forecast-model prompts route into deterministic model generation', () => {
     'expected NVDA to be resolved for the forecast-model request',
   );
 });
+
+test('generic company earnings prompts prefer earnings-context retrieval', () => {
+  const earningsRoute = routeAnalystQuery("Tell me about Amazon's earnings");
+
+  assert.equal(earningsRoute.intent, 'company_question');
+  assert.ok(
+    earningsRoute.tickers.includes('AMZN'),
+    'expected AMZN to be resolved for a generic earnings-summary request',
+  );
+  assert.equal(earningsRoute.prefersEarningsContext, true);
+});
+
+test('generic possessive company earnings prompts still resolve ticker and earnings context', () => {
+  const earningsRoute = routeAnalystQuery('tell me about amazons earnings');
+
+  assert.equal(earningsRoute.intent, 'company_question');
+  assert.ok(
+    earningsRoute.tickers.includes('AMZN'),
+    'expected AMZN to be resolved for possessive earnings-summary wording',
+  );
+  assert.equal(earningsRoute.prefersEarningsContext, true);
+});

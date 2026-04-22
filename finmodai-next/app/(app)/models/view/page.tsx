@@ -1,6 +1,7 @@
 import { BackButton } from '@/components/BackButton';
 import { ModelSummary } from '@/components/ModelSummary';
 import { APP_NAME } from '@/lib/branding';
+import { getModelDisplayLabel } from '@/lib/modelDisplay';
 
 type ModelViewPageProps = {
   searchParams?: {
@@ -9,17 +10,10 @@ type ModelViewPageProps = {
   };
 };
 
-const MODEL_NAME: Record<string, string> = {
-  'three-statement': 'Three-Statement Model',
-  dcf: 'Discounted Cash Flow',
-  lbo: 'Leveraged Buyout',
-  comps: 'Trading Comps'
-};
-
 export default function ModelViewPage({ searchParams }: ModelViewPageProps) {
   const modelType = typeof searchParams?.type === 'string' ? searchParams?.type : 'three-statement';
   const ticker = typeof searchParams?.ticker === 'string' ? searchParams?.ticker : undefined;
-  const title = MODEL_NAME[modelType] ?? 'Financial Model';
+  const title = getModelDisplayLabel(modelType) || 'Financial Model';
 
   return (
     <main className="min-h-screen bg-background px-6 py-10">

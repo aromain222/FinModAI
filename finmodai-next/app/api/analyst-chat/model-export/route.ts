@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
+  buildAnalystGeneratedModelExportSeed,
   buildAnalystGeneratedModelRecentRun,
   isAnalystGeneratedModelExportSeed,
   rebuildAnalystGeneratedModelPayloadFromSeed,
@@ -46,44 +47,50 @@ function requireAttachmentValidation(payload: AnalystGeneratedModelPayload): voi
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as ExportRequest;
-
-    if (body.payload && !body.runId) {
-      throw new ExportRouteError(
-        'Legacy Analyst Chat exports are no longer supported. Rerun the model to create a server-backed export artifact.',
-        400,
-      );
-    }
-
     const runId = String(body.runId ?? '').trim();
-    if (!runId) {
-      throw new ExportRouteError('A saved Analyst Chat runId is required for workbook export.', 400);
-    }
+    let payload: AnalystGeneratedModelPayload;
 
-    const persisted = await analystModelExportDeps.getPromptModelRunVersion({
-      runId,
-      versionNumber: typeof body.versionNumber === 'number' ? body.versionNumber : null,
-      surface: 'analyst_chat',
-    });
-    if (!persisted) {
-      throw new ExportRouteError('Saved Analyst Chat run was not found. Rerun the model before exporting.', 404);
-    }
+    if (runId) {
+      const persisted = await analystModelExportDeps.getPromptModelRunVersion({
+        runId,
+        versionNumber: typeof body.versionNumber === 'number' ? body.versionNumber : null,
+        surface: 'analyst_chat',
+      });
+      if (!persisted) {
+        throw new ExportRouteError('Saved Analyst Chat run was not found. Rerun the model before exporting.', 404);
+      }
 
-    if (!isAnalystGeneratedModelExportSeed(persisted.version.exportSeed)) {
-      throw new ExportRouteError(
-        'This saved Analyst Chat model does not have an exportable workbook seed. Rerun the model before exporting.',
-        400,
+      if (!isAnalystGeneratedModelExportSeed(persisted.version.exportSeed)) {
+        throw new ExportRouteError(
+          'This saved Analyst Chat model does not have an exportable workbook seed. Rerun the model before exporting.',
+          400,
+        );
+      }
+
+      payload = rebuildAnalystGeneratedModelPayloadFromSeed(
+        persisted.version.exportSeed,
+        buildAnalystGeneratedModelRecentRun({
+          runId: persisted.run.id,
+          versionNumber: persisted.version.versionNumber,
+          createdAt: persisted.version.createdAt,
+          status: persisted.version.status,
+        }),
       );
+    } else if (body.payload) {
+      const exportSeed = buildAnalystGeneratedModelExportSeed(body.payload);
+      if (!isAnalystGeneratedModelExportSeed(exportSeed)) {
+        throw new ExportRouteError(
+          'This Analyst Chat model payload is not exportable. Regenerate the model before exporting.',
+          400,
+        );
+      }
+      payload = {
+        ...body.payload,
+        recentRun: body.payload.recentRun ?? null,
+      };
+    } else {
+      throw new ExportRouteError('A saved Analyst Chat run or generated model payload is required for workbook export.', 400);
     }
-
-    const payload = rebuildAnalystGeneratedModelPayloadFromSeed(
-      persisted.version.exportSeed,
-      buildAnalystGeneratedModelRecentRun({
-        runId: persisted.run.id,
-        versionNumber: persisted.version.versionNumber,
-        createdAt: persisted.version.createdAt,
-        status: persisted.version.status,
-      }),
-    );
 
     requireAttachmentValidation(payload);
 

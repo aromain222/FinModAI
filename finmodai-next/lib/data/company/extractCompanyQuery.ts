@@ -3,7 +3,7 @@ import type { CompanyQuery } from '@/lib/data/company/types';
 
 const COMPANY_ALIASES: Array<{ pattern: RegExp; ticker: string; companyName: string }> = [
   { pattern: /\balphabet\b|\bgoogle\b|\bgoogl\b/i, ticker: 'GOOGL', companyName: 'Alphabet Inc.' },
-  { pattern: /\bamazon\b|\bamzn\b/i, ticker: 'AMZN', companyName: 'Amazon.com, Inc.' },
+  { pattern: /\bamazon(?:'s|s)?\b|\bamzn\b/i, ticker: 'AMZN', companyName: 'Amazon.com, Inc.' },
   { pattern: /\badvanced micro devices\b|\bamd\b/i, ticker: 'AMD', companyName: 'Advanced Micro Devices, Inc.' },
   { pattern: /\bautodesk\b|\badsk\b/i, ticker: 'ADSK', companyName: 'Autodesk, Inc.' },
   { pattern: /\boracle\b|\borcl\b/i, ticker: 'ORCL', companyName: 'Oracle Corporation' },

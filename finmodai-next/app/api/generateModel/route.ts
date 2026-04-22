@@ -15,7 +15,6 @@
  */
 
 import { NextResponse, NextRequest } from 'next/server';
-import ExcelJS from 'exceljs';
 import crypto from 'crypto';
 import { APP_NAME } from '@/lib/branding';
 import { isDemoOrQualityTickerAvailable } from '@/lib/data/providers/demoProvider';
@@ -37,7 +36,6 @@ import type { DCFInputs } from '@/lib/dcfGenerator';
 import { ensureMillions, formatMillions } from '@/lib/unitConversion';
 import { cleanAndScaleFinancials, normalizeToMillions, type RawFinancials, type ScaledFinancials } from '@/lib/financials';
 import type { APIAttempt } from '@/lib/data/dcfValidation';
-import { buildLboWorkbook, runLboModel, type LboEngineOutput } from '@/lib/lboEngine';
 import { logModelRun, mapModelTypeToMetrics, type ModelType as MetricsModelType } from '@/lib/modelMetrics';
 import { createModelRun, updateModelRunSuccess, updateModelRunFailed } from '@/lib/modelRuns';
 import { copyWorksheet } from '@/lib/excel/copyWorksheet';
@@ -55,11 +53,9 @@ import { ModelRequestContext } from '@/lib/modelContext';
 import { assertString } from '@/lib/assertions';
 import { logKeyStatus } from '@/lib/keyStatus';
 import type { CompsResult } from '@/lib/compsCalculator';
-import { isObjectStoreConfigured, uploadBufferAndSign } from '@/lib/storage/objectStore';
+import { isObjectStoreConfigured } from '@/lib/storage/objectStore';
 import { DEFAULT_STYLE_TOKENS } from '@/lib/models/schema/StyleTokens';
 import type { ModelDocument, TableBlock, Column, Row, Cell } from '@/lib/models/schema';
-import { buildDocumentFromModelOutputs, buildLegacyPreviewFromDocument } from '@/lib/models/schema/fromModelOutputs';
-import { mapDocumentToExcel } from '@/lib/models/schema/mappings';
 import { checkModelComputability, assertModelComputable } from '@/lib/models/shared/computability';
 import {
   extractCatalogRefreshValues,
@@ -83,22 +79,15 @@ import {
 } from '@/lib/models/lbo/quick';
 import {
   assessReverseDcfDemoReadiness,
-  parseReverseDcfInputs,
-  solveReverseDcfImpliedGrowth,
   type ReverseDcfInputs as ReverseDcfSolverInputs,
 } from '@/lib/models/dcf/reverse';
 import {
   DEFAULT_DCF_SENSITIVITY_CONFIG,
   DEFAULT_LBO_SENSITIVITY_CONFIG,
-  buildDcfSensitivityTable,
-  buildLboSensitivityTable,
   parseDcfSensitivityConfig,
   parseLboSensitivityConfig,
 } from '@/lib/models/sensitivity';
 import {
-  buildDebtCapacityLiteSummary,
-  parseDebtCapacityLiteInputs,
-  validateDebtCapacityLiteInputs,
   type DebtCapacityLiteSummary,
 } from '@/lib/models/debtCapacityLite';
 import type { ModelInputs } from '@/types/modelInputs';
@@ -117,6 +106,35 @@ const deepClone = <T,>(value: T): T => {
   }
   return JSON.parse(JSON.stringify(value));
 };
+
+async function loadExcelJs() {
+  return (await import('exceljs')).default;
+}
+
+async function loadLboEngine() {
+  return import('@/lib/lboEngine');
+}
+
+async function loadReverseDcfModule() {
+  return import('@/lib/models/dcf/reverse');
+}
+
+async function loadSensitivityModule() {
+  return import('@/lib/models/sensitivity');
+}
+
+async function loadDebtCapacityLiteModule() {
+  return import('@/lib/models/debtCapacityLite');
+}
+
+async function loadModelDocumentModules() {
+  const [{ buildDocumentFromModelOutputs, buildLegacyPreviewFromDocument }, { mapDocumentToExcel }] =
+    await Promise.all([
+      import('@/lib/models/schema/fromModelOutputs'),
+      import('@/lib/models/schema/mappings'),
+    ]);
+  return { buildDocumentFromModelOutputs, buildLegacyPreviewFromDocument, mapDocumentToExcel };
+}
 
 export const runtime = 'nodejs';
 
@@ -1294,6 +1312,7 @@ async function buildDcfModelWithAssumptions(
   const daProj = projections.map(p => p.depreciation);
   const ebitdaProj = projections.map(p => p.ebitda);
   const fcfProj = projections.map(p => p.freeCashFlow);
+  const { buildDcfSensitivityTable } = await loadSensitivityModule();
   
   // Generate years array
   const currentYear = new Date().getFullYear();
@@ -1371,6 +1390,7 @@ async function buildReverseDcfModelWithAssumptions(
   normalizedFinancials?: ScaledFinancials | null
 ): Promise<{ dcfSummary: any; dcfWorkbook: ExcelJS.Workbook }> {
   const { generateBankerDCF, buildDcfWorkbook } = await import('@/lib/dcfGenerator');
+  const { solveReverseDcfImpliedGrowth } = await loadReverseDcfModule();
 
   const pickFinite = (...values: Array<unknown>): number | null => {
     for (const value of values) {
@@ -1792,7 +1812,7 @@ async function buildLboModelWithAssumptions(
   normalizedFinancials?: ScaledFinancials | null,
   requestBody?: any,
   options?: { workbookNotes?: string[] }
-): Promise<LboEngineOutput> {
+): Promise<any> {
   console.log(`[generateModel] Building LBO for ${ticker}`);
 
   const sliderOverrides = requestBody?.sliderOverrides && typeof requestBody.sliderOverrides === 'object'
@@ -1925,6 +1945,8 @@ async function buildLboModelWithAssumptions(
     holdingPeriodYears,
     minimumCashBalance: minimumCash,
   };
+  const { runLboModel, buildLboWorkbook } = await loadLboEngine();
+  const { buildLboSensitivityTable } = await loadSensitivityModule();
 
   const lboSummary = runLboModel(lboInputs);
   const lboSensitivity = buildLboSensitivityTable(
@@ -3483,6 +3505,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
     }
 
     if (modelType === 'reverse-dcf') {
+      const { parseReverseDcfInputs } = await loadReverseDcfModule();
       const parsedReverse = parseReverseDcfInputs(body?.reverseDcfInputs ?? body);
       if (!parsedReverse) {
         return NextResponse.json(
@@ -3605,6 +3628,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
     }
 
     if (modelType === 'debt-capacity-lite') {
+      const { parseDebtCapacityLiteInputs, validateDebtCapacityLiteInputs } = await loadDebtCapacityLiteModule();
       const parsedDebtCapacityLite = parseDebtCapacityLiteInputs(
         body?.debtCapacityLiteInputs ?? body
       );
@@ -5191,14 +5215,15 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
 
   // STEP 7: Generate Excel model
   currentStage = 'excel-generation';
+  const ExcelJS = await loadExcelJs();
   const workbook = new ExcelJS.Workbook();
   workbook.creator = APP_NAME;
   workbook.calcProperties.fullCalcOnLoad = true;
 
   let dcfSummary: any = undefined;
-  let dcfWorkbook: ExcelJS.Workbook | undefined;
+  let dcfWorkbook: any = undefined;
   let threeStatementSummary: import('@/lib/models/threeStatement/excel').ThreeStatementOutput | null = null;
-  let lboSummary: LboEngineOutput | undefined;
+  let lboSummary: any = undefined;
   let debtCapacitySummary: DebtCapacityLiteSummary | undefined;
   let compsSummary: CompsResult | null = null;
   let scorecardSummary: import('@/lib/models/scorecard/buildScorecardSummary').ScorecardSummary | null = null;
@@ -5542,6 +5567,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
           (typeof ltmFinancials?.totalDebt === 'number' && typeof ltmFinancials?.cash === 'number'
             ? ltmFinancials.totalDebt - ltmFinancials.cash
             : null);
+        const { buildDebtCapacityLiteSummary } = await loadDebtCapacityLiteModule();
 
         debtCapacitySummary = buildDebtCapacityLiteSummary({
           ebitda,
@@ -5687,6 +5713,8 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
   const macroAssumptionContext = await getMacroAssumptionContext(modelType as any);
   const { getCompanyCatalystContext } = await import('@/lib/models/shared/companyCatalystContext');
   const companyCatalystContext = await getCompanyCatalystContext(cleanTicker, modelType as any);
+  const { buildDocumentFromModelOutputs, buildLegacyPreviewFromDocument, mapDocumentToExcel } =
+    await loadModelDocumentModules();
 
   // Build canonical ModelDocument from model outputs (single source of truth for preview + excel mapping)
   modelDocument = buildDocumentFromModelOutputs({
@@ -5717,7 +5745,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
   // - DCF: use the full banker-style DCF workbook generator (multi-tab, audit-friendly).
   // - Three-statement: use the full three-statement workbook (IS, BS, CF, etc.).
   // - Everything else: use ModelDocument mapping for consistent preview/export.
-  let exportWorkbook: ExcelJS.Workbook;
+  let exportWorkbook: any;
   if ((modelType === 'dcf' || modelType === 'reverse-dcf') && dcfWorkbook && dcfWorkbook.worksheets.length > 0) {
     exportWorkbook = dcfWorkbook;
   } else if (modelType === 'three-statement' && workbook.worksheets.length > 0) {
@@ -5824,6 +5852,7 @@ async function handleGenerateModel(req: NextRequest, bodyOverride?: any) {
       if (key.endsWith('/')) {
         throw new Error(`Invalid storage key: ${key} (ends with /)`);
       }
+      const { uploadBufferAndSign } = await import('@/lib/storage/objectStore');
       
       signedDownloadUrl = await uploadBufferAndSign({
         key,

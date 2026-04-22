@@ -304,6 +304,7 @@ export async function POST(req: NextRequest) {
             versionNumber: latestRun.latestVersion?.versionNumber ?? null,
             eventContext: latestRun.latestVersion?.eventContext ?? null,
             eventAdjustmentSummary: latestRun.latestVersion?.eventAdjustmentSummary ?? null,
+            smartAssumptionSummary: latestRun.latestVersion?.smartAssumptionSummary ?? null,
           }
         : null,
       financialExtractionJobId: financialExtractionJob?.id ?? null,

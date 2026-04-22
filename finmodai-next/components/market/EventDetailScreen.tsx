@@ -6,12 +6,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ExternalLink, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getSpecificEventFallbackImage } from '@/lib/macroEventImageQueries';
-import { buildMarketEventModelCreateHref } from '@/lib/model-events/marketEventPrefill';
-import {
-  buildCompactModelImpactPreview,
-  formatSuggestionChip,
-  transcribeEventForModeling,
-} from '@/lib/model-events/transcribeEventForModeling';
 import { proxiedEventImageUrl } from '@/lib/news/eventImageProxy';
 import {
   marketEventsApiResponseSchema,
@@ -189,37 +183,6 @@ function buildImpactedSectorsParagraph(event: MarketEvent): string {
     : 'Sector exposure is mixed and depends on follow-through in the underlying catalyst. The market is more likely to separate direct beneficiaries from second-order losers than to reprice every sector evenly.';
 }
 
-function buildEventModelImpactPreview(event: MarketEvent) {
-  const leadSource = event.sources[0];
-  const rawEventText = [
-    event.title,
-    ...event.drivers,
-    ...event.transmissionPath,
-    ...MARKET_IMPACT_ORDER.map((key) => String(event.marketImpact[key] ?? '')).filter(Boolean),
-  ]
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .join(' ');
-
-  const transcription = transcribeEventForModeling({
-    event: {
-      sourceType: 'feed_item',
-      eventId: event.id,
-      title: event.title,
-      rawEventText,
-      publishedAt: leadSource?.publishedAt ?? event.lastUpdatedAt,
-      sourceUrl: leadSource?.url ?? null,
-      sourceLabel: leadSource?.name ?? leadSource?.title ?? null,
-      impactedTickers: [],
-      impactedSectors: event.marketImpact.sectors ? [event.marketImpact.sectors] : [],
-      horizon: event.horizon,
-      severity: event.severity,
-    },
-  }).transcription;
-
-  return buildCompactModelImpactPreview(transcription);
-}
-
 function InfoChip({
   children,
   className,
@@ -353,7 +316,6 @@ export default function EventDetailScreen({
   const whyItMattersParagraph = event ? buildWhyItMattersParagraph(event) : '';
   const marketImpactParagraph = event ? buildMarketImpactParagraph(event) : '';
   const impactedSectorsParagraph = event ? buildImpactedSectorsParagraph(event) : '';
-  const modelImpactPreview = event ? buildEventModelImpactPreview(event) : null;
 
   useEffect(() => {
     containerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
@@ -372,15 +334,6 @@ export default function EventDetailScreen({
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Link href={buildMarketEventModelCreateHref(event!)}>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-10 rounded-xl border-emerald-700/60 bg-emerald-950/30 px-4 text-sm text-emerald-200 hover:bg-emerald-950/50"
-                >
-                  Apply to model
-                </Button>
-              </Link>
               <Link href={backHref}>
                 <Button
                   size="sm"
@@ -457,33 +410,6 @@ export default function EventDetailScreen({
               <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Summary</div>
               <p className="mt-2 text-base leading-8 text-zinc-200">{shortSummary(event)}</p>
             </div>
-
-            {modelImpactPreview ? (
-              <div className="mt-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] px-4 py-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-300">AI model impact</div>
-                  {modelImpactPreview.suggestions.slice(0, 3).map((suggestion) => (
-                    <span
-                      key={suggestion.driver}
-                      className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] uppercase tracking-wide text-emerald-200"
-                    >
-                      {formatSuggestionChip(suggestion)}
-                    </span>
-                  ))}
-                </div>
-                <p className="mt-2 text-sm leading-7 text-zinc-200">{modelImpactPreview.summary}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {modelImpactPreview.impacts.slice(0, 4).map((impact) => (
-                    <span
-                      key={impact.key}
-                      className="rounded-full border border-zinc-700/60 px-2 py-1 text-[10px] uppercase tracking-wide text-zinc-300"
-                    >
-                      {impact.label}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
 
             <div className="mt-6 space-y-5">
               <div className="rounded-2xl border border-zinc-800/70 bg-zinc-900/40 px-4 py-4">

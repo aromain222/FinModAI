@@ -5,8 +5,6 @@
  * Requires authentication or guest mode - redirects to /login if neither exists.
  */
 
-export const dynamic = 'force-dynamic';
-
 import { ConsoleShell } from '@/components/ConsoleShell';
 import { GuestModeGate } from '@/components/auth/GuestModeGate';
 

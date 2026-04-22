@@ -7,24 +7,26 @@ function toSentence(value: string): string {
 }
 
 export function buildMarketEventPrefillText(event: MarketEvent): string {
-  const summary = event.drivers[0] ? toSentence(event.drivers[0]) : toSentence(event.title);
-  const secondaryDrivers = event.drivers.slice(1).map((driver) => driver.trim()).filter(Boolean);
+  const drivers = Array.isArray(event?.drivers) ? event.drivers : [];
+  const transmissionPath = Array.isArray(event?.transmissionPath) ? event.transmissionPath : [];
+  const summary = drivers[0] ? toSentence(drivers[0]) : toSentence(event?.title ?? 'Market event');
+  const secondaryDrivers = drivers.slice(1).map((driver) => driver.trim()).filter(Boolean);
   const driverSentence = secondaryDrivers.length
     ? toSentence(`Key drivers: ${secondaryDrivers.join('; ')}`)
     : '';
-  const transmissionSentence = event.transmissionPath.length
-    ? toSentence(`Transmission path: ${event.transmissionPath.join(' -> ')}`)
+  const transmissionSentence = transmissionPath.length
+    ? toSentence(`Transmission path: ${transmissionPath.join(' -> ')}`)
     : '';
 
   return [summary, driverSentence, transmissionSentence].filter(Boolean).join(' ');
 }
 
 export function buildMarketEventModelCreateHref(event: MarketEvent): string {
-  const leadSource = event.sources[0];
+  const leadSource = Array.isArray(event?.sources) ? event.sources[0] : undefined;
   const params = new URLSearchParams({
     eventSourceType: 'feed_item',
-    eventId: event.id,
-    eventTitle: event.title,
+    eventId: event?.id ?? 'event',
+    eventTitle: event?.title ?? 'Market event',
     eventText: buildMarketEventPrefillText(event),
   });
 

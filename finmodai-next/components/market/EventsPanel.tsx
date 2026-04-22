@@ -5,12 +5,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ExpandableCard from '@/components/news/ExpandableCard';
-import { buildMarketEventModelCreateHref } from '@/lib/model-events/marketEventPrefill';
-import {
-  buildCompactModelImpactPreview,
-  formatSuggestionChip,
-  transcribeEventForModeling,
-} from '@/lib/model-events/transcribeEventForModeling';
 import {
   marketEventsApiResponseSchema,
   type MarketEventsApiResponse,
@@ -47,6 +41,15 @@ const EVENT_TYPE_STYLES: Record<MarketEvent['eventType'], string> = {
   RegulatoryShock: 'border-orange-500/30 bg-orange-500/10 text-orange-200',
 };
 
+const MARKET_IMPACT_ORDER: Array<keyof MarketEvent['marketImpact']> = [
+  'equities',
+  'rates',
+  'fx',
+  'oil',
+  'credit',
+  'sectors',
+];
+
 function formatTime(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return 'Unknown';
@@ -82,15 +85,6 @@ function tabButtonClass(active: boolean): string {
     : 'h-7 border-zinc-700 bg-transparent text-zinc-300 hover:bg-zinc-800/60 px-2 text-xs';
 }
 
-const MARKET_IMPACT_ORDER: Array<keyof MarketEvent['marketImpact']> = [
-  'equities',
-  'rates',
-  'fx',
-  'oil',
-  'credit',
-  'sectors',
-];
-
 function formatImpactLabel(key: keyof MarketEvent['marketImpact']): string {
   switch (key) {
     case 'fx':
@@ -100,68 +94,6 @@ function formatImpactLabel(key: keyof MarketEvent['marketImpact']): string {
     default:
       return key.charAt(0).toUpperCase() + key.slice(1);
   }
-}
-
-function buildEventModelImpactPreview(event: MarketEvent) {
-  const leadSource = event.sources[0];
-  const rawEventText = [
-    event.title,
-    ...event.drivers,
-    ...event.transmissionPath,
-    ...MARKET_IMPACT_ORDER.map((key) => String(event.marketImpact[key] ?? '')).filter(Boolean),
-  ]
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .join(' ');
-
-  const transcription = transcribeEventForModeling({
-    event: {
-      sourceType: 'feed_item',
-      eventId: event.id,
-      title: event.title,
-      rawEventText,
-      publishedAt: leadSource?.publishedAt ?? event.lastUpdatedAt,
-      sourceUrl: leadSource?.url ?? null,
-      sourceLabel: leadSource?.name ?? leadSource?.title ?? null,
-      impactedTickers: [],
-      impactedSectors: event.marketImpact.sectors ? [event.marketImpact.sectors] : [],
-      horizon: event.horizon,
-      severity: event.severity,
-    },
-  }).transcription;
-
-  return buildCompactModelImpactPreview(transcription);
-}
-
-function CompactModelImpactPreview(props: {
-  summary: string;
-  suggestions: string[];
-  impacts: string[];
-}) {
-  return (
-    <div className="rounded-md border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-2">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-300">AI model impact</div>
-      <p className="mt-1 text-xs leading-5 text-zinc-200">{props.summary}</p>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {props.impacts.slice(0, 3).map((impact) => (
-          <span
-            key={impact}
-            className="rounded-full border border-zinc-700/60 px-2 py-0.5 text-[10px] uppercase tracking-wide text-zinc-300"
-          >
-            {impact}
-          </span>
-        ))}
-        {props.suggestions.slice(0, 3).map((suggestion) => (
-          <span
-            key={suggestion}
-            className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-emerald-200"
-          >
-            {suggestion}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 export default function EventsPanel() {
@@ -249,15 +181,10 @@ export default function EventsPanel() {
           <div>
             <h2 className="text-base font-semibold text-zinc-100">Market-Moving Events</h2>
             <div className="mt-0.5 flex items-center gap-2 text-[11px] text-zinc-400">
-              <span>Provider: {provider}</span>
+              <span>Source: {provider === 'demo-seed' ? 'CapitalBase' : provider}</span>
               <span>•</span>
               <span>{filteredEvents.length} events</span>
-              {fallback && (
-                <>
-                  <span>•</span>
-                  <span className="text-amber-300">Demo Seed Mode</span>
-                </>
-              )}
+              {fallback && <><span>•</span><span className="text-amber-300">Curated fallback</span></>}
             </div>
           </div>
           <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => void fetchEvents({ force: true })}>
@@ -267,7 +194,7 @@ export default function EventsPanel() {
 
         {provider === 'demo-seed' && (
           <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-            Demo Seed Mode — not live intelligence.
+            Curated market-event set while live coverage is unavailable.
           </div>
         )}
 
@@ -286,7 +213,7 @@ export default function EventsPanel() {
             className={tabButtonClass(providerMode === 'demo-seed')}
             onClick={() => setProviderMode('demo-seed')}
           >
-            Demo Seed
+            Curated
           </Button>
           <Button
             size="sm"
@@ -347,7 +274,7 @@ export default function EventsPanel() {
             <div className="font-medium text-zinc-200">No market-moving events detected</div>
             <div className="mt-1 text-zinc-400">{message || warning || 'No events passed filters.'}</div>
             <div className="mt-2 text-zinc-500">
-              The 8 structured example events you asked for are available under <span className="text-zinc-300">Demo Seed</span>, not Live mode.
+              A curated event set is available while live mode is empty.
             </div>
             <div className="mt-3">
               <Button
@@ -356,7 +283,7 @@ export default function EventsPanel() {
                 className="h-7 px-2 text-xs"
                 onClick={() => setProviderMode('demo-seed')}
               >
-                Show Demo Seed Events
+                Show Curated Events
               </Button>
             </div>
           </div>
@@ -364,7 +291,7 @@ export default function EventsPanel() {
 
         {!loading && !error && provider === 'demo-seed' && filteredEvents.length === 0 && (
           <div className="rounded-md border border-zinc-800/40 px-3 py-2 text-xs text-zinc-400">
-            Demo seed returned 0 events for current filters.
+            Curated fallback returned 0 events for current filters.
           </div>
         )}
 
@@ -391,7 +318,6 @@ export default function EventsPanel() {
           !error &&
           filteredEvents.map((event) => {
             const score = finalScore(event);
-            const modelImpactPreview = buildEventModelImpactPreview(event);
             return (
               <ExpandableCard
                 key={event.id}
@@ -429,12 +355,6 @@ export default function EventsPanel() {
                     ))}
                   </ul>
                 </div>
-
-                <CompactModelImpactPreview
-                  summary={modelImpactPreview.summary}
-                  impacts={modelImpactPreview.impacts.map((impact) => impact.label)}
-                  suggestions={modelImpactPreview.suggestions.map((suggestion) => formatSuggestionChip(suggestion))}
-                />
 
                 <div>
                   <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-zinc-400/70">Market Impact</div>
@@ -495,12 +415,6 @@ export default function EventsPanel() {
 
                 {event.sources[0] && (
                   <div className="flex flex-wrap items-center gap-3">
-                    <Link
-                      href={buildMarketEventModelCreateHref(event)}
-                      className="inline-flex items-center gap-1 text-xs text-emerald-300 hover:text-emerald-200"
-                    >
-                      Apply to model
-                    </Link>
                     <a
                       href={event.sources[0].url}
                       target="_blank"

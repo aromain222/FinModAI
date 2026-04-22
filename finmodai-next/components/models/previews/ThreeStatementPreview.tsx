@@ -39,7 +39,7 @@ export function ThreeStatementPreview({ output, ticker, sourceLabel = DEFAULT_SO
     return (
       <Card className="border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
         <CardHeader>
-          <CardTitle>{ticker} — Three-Statement Model Preview</CardTitle>
+          <CardTitle>{ticker} — Forecast Model Preview</CardTitle>
           <p className="text-sm font-medium text-[var(--cb-text-muted)] mt-1">
             All figures in USD millions. Same structure as Excel. Source: {sourceLabel}.
           </p>
@@ -78,7 +78,7 @@ export function ThreeStatementPreview({ output, ticker, sourceLabel = DEFAULT_SO
     return (
       <Card className="border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
         <CardHeader>
-          <CardTitle>{ticker} — Three-Statement Model Preview</CardTitle>
+          <CardTitle>{ticker} — Forecast Model Preview</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-[var(--cb-text-muted)]">
@@ -93,7 +93,7 @@ export function ThreeStatementPreview({ output, ticker, sourceLabel = DEFAULT_SO
   return (
     <Card className="border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
       <CardHeader>
-        <CardTitle>{ticker} — Three-Statement Model Preview</CardTitle>
+        <CardTitle>{ticker} — Forecast Model Preview</CardTitle>
         <p className="text-sm text-[var(--cb-text-muted)]">This is a preview of what the Excel model will look like</p>
       </CardHeader>
       <CardContent>

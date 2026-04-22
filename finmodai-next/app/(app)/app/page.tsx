@@ -123,7 +123,7 @@ export default async function AppHomePage() {
           <div className="rounded-2xl border border-cb-line bg-white p-6 shadow-sm">
             <h2 className="text-xl font-semibold text-cb-ink">Start a new model</h2>
             <p className="mt-2 text-sm text-cb-slate">
-              Spin up a new DCF, comps, scorecard, debt capacity, or three-statement model in seconds.
+              Spin up a new DCF, forecast model, comps, scorecard, or debt capacity model in seconds.
             </p>
             <Button asChild className="mt-4 w-full bg-cb-blue text-white hover:bg-blue-500">
               <Link href="/models/create">Create model</Link>
