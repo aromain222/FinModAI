@@ -1541,7 +1541,7 @@ export async function POST(req: NextRequest) {
         withAttachmentStatus(
           withExecutionTrace(
             {
-              reply: `Applied the Tesla rates-down scenario to the active DCF model workflow. ${revisedModel.reply}`,
+              reply: 'Applied the Tesla rates-down scenario to the active DCF model workflow.',
               fallback: false,
               mode: 'live',
               route: 'financial_model',
@@ -2122,7 +2122,7 @@ export async function POST(req: NextRequest) {
             };
 
             return NextResponse.json(withAttachmentStatus(withExecutionTrace({
-              reply: `Applied the Tesla rates-down scenario to the DCF model workflow. ${revisedModel.reply}`,
+              reply: 'Applied the Tesla rates-down scenario to the DCF model workflow.',
               fallback: false,
               mode: 'live',
               route: 'financial_model',

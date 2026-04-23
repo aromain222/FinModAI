@@ -372,7 +372,7 @@ export function AnalystModelCard({
   payload: AnalystGeneratedModelPayload;
   onAdjust?: (adjustment: AnalystStructuredModelAdjustment) => Promise<void>;
   onAdjustFromEvent?: () => void;
-  onSuggestSmartAssumptions?: () => void;
+  onSuggestSmartAssumptions?: () => Promise<void>;
 }) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -387,6 +387,9 @@ export function AnalystModelCard({
   const [isApplyingEventShock, setIsApplyingEventShock] = useState(false);
   const [isApplyingCustomAssumptions, setIsApplyingCustomAssumptions] = useState(false);
   const [customAssumptionError, setCustomAssumptionError] = useState<string | null>(null);
+  const [isApplyingSmartAssumptions, setIsApplyingSmartAssumptions] = useState(false);
+  const [smartAssumptionError, setSmartAssumptionError] = useState<string | null>(null);
+  const [smartAssumptionNotice, setSmartAssumptionNotice] = useState<string | null>(null);
   const exportRunId = payload.recentRun?.runId?.trim() ?? '';
   const exportVersionNumber = payload.recentRun?.versionNumber ?? undefined;
   const canExportWorkbook =
@@ -906,6 +909,22 @@ export function AnalystModelCard({
     }
   }
 
+  async function handleSuggestSmartAssumptionsClick() {
+    if (!onSuggestSmartAssumptions || isApplyingSmartAssumptions) return;
+
+    setIsApplyingSmartAssumptions(true);
+    setSmartAssumptionError(null);
+    setSmartAssumptionNotice(null);
+    try {
+      await onSuggestSmartAssumptions();
+      setSmartAssumptionNotice('Applied smart assumptions to the active model.');
+    } catch (error) {
+      setSmartAssumptionError(error instanceof Error ? error.message : 'Unable to derive smart assumptions.');
+    } finally {
+      setIsApplyingSmartAssumptions(false);
+    }
+  }
+
   return (
     <Card className="mt-4 overflow-hidden border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
       <CardHeader className="border-b border-[var(--cb-border-subtle)] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))]">
@@ -939,8 +958,14 @@ export function AnalystModelCard({
             <Button type="button" variant="outline" size="sm" onClick={() => void handleDownload()} disabled={isDownloading || !canExportWorkbook}>
               {isDownloading ? 'Preparing Excel…' : excelActionLabel(payload.modelType)}
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={onSuggestSmartAssumptions} disabled={!onSuggestSmartAssumptions}>
-              Suggest smart assumptions
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void handleSuggestSmartAssumptionsClick()}
+              disabled={!onSuggestSmartAssumptions || isApplyingSmartAssumptions}
+            >
+              {isApplyingSmartAssumptions ? 'Applying smart assumptions…' : 'Suggest smart assumptions'}
             </Button>
           </div>
         </div>
@@ -959,6 +984,16 @@ export function AnalystModelCard({
         {reportError ? (
           <div className="rounded-xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.16)] px-3 py-2 text-sm text-[#fecaca]">
             {reportError}
+          </div>
+        ) : null}
+        {smartAssumptionError ? (
+          <div className="rounded-xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.16)] px-3 py-2 text-sm text-[#fecaca]">
+            {smartAssumptionError}
+          </div>
+        ) : null}
+        {smartAssumptionNotice ? (
+          <div className="rounded-xl border border-[rgba(16,185,129,0.35)] bg-[rgba(16,185,129,0.08)] px-3 py-2 text-sm text-[#bbf7d0]">
+            {smartAssumptionNotice}
           </div>
         ) : null}
 

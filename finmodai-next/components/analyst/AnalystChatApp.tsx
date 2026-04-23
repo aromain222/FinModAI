@@ -14,6 +14,9 @@ import type { AnalystScenarioCardPayload } from '@/lib/analyst/scenarioCard';
 import { looksLikeTeslaMacroScenarioPrompt } from '@/lib/analyst/scenarioCard';
 import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } from '@/lib/analyst/types';
 import type { AnalystEarningsSummaryCard } from '@/lib/analyst/earningsSummary';
+import {
+  buildSmartAssumptionRequestFromGeneratedModel,
+} from '@/lib/analyst/modelAdjustmentHelpers';
 import type { AnalystVisualizationPayload } from '@/lib/analyst/visualization';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
 import type { AppExecutionTrace } from '@/lib/debug/executionTrace';
@@ -206,30 +209,6 @@ export function AnalystChatApp() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const quickEventTextRef = useRef<HTMLTextAreaElement>(null);
-
-  function buildCurrentAssumptionsFromModel(payload: AnalystGeneratedModelPayload) {
-    const extracted = payload.extractedInputs as Record<string, unknown>;
-    const revenueGrowth = extracted.revenueGrowth;
-    const ebitMargin = extracted.ebitMargin ?? extracted.ebitdaMargin;
-    const terminalGrowth = extracted.terminalGrowth;
-
-    return {
-      revenue_growth:
-        Array.isArray(revenueGrowth) && typeof revenueGrowth[0] === 'number'
-          ? (revenueGrowth[0] as number)
-          : typeof revenueGrowth === 'number'
-            ? revenueGrowth
-            : null,
-      operating_margin:
-        Array.isArray(ebitMargin) && typeof ebitMargin[0] === 'number'
-          ? (ebitMargin[0] as number)
-          : typeof ebitMargin === 'number'
-            ? ebitMargin
-            : null,
-      wacc: typeof extracted.wacc === 'number' ? extracted.wacc : null,
-      terminal_growth_rate: typeof terminalGrowth === 'number' ? terminalGrowth : null,
-    };
-  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -745,29 +724,15 @@ export function AnalystChatApp() {
     }
   };
 
-  const handleSuggestSmartAssumptions = async () => {
-    const latestModelMessage = getLatestGeneratedModelMessage();
-    if (!latestModelMessage) return;
-
-    const companyName =
-      'companyName' in latestModelMessage.payload.extractedInputs
-        ? latestModelMessage.payload.extractedInputs.companyName
-        : latestModelMessage.payload.title;
-    const ticker =
-      'ticker' in latestModelMessage.payload.extractedInputs
-        ? latestModelMessage.payload.extractedInputs.ticker ?? null
-        : null;
+  const handleSuggestSmartAssumptions = async (
+    messageId: string,
+    payload: AnalystGeneratedModelPayload,
+  ) => {
+    const requestPayload = buildSmartAssumptionRequestFromGeneratedModel(payload);
     const response = await fetch('/api/smart-assumptions/derive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        company: {
-          companyName,
-          ticker,
-        },
-        currentAssumptions: buildCurrentAssumptionsFromModel(latestModelMessage.payload),
-        modelType: latestModelMessage.payload.modelType,
-      }),
+      body: JSON.stringify(requestPayload),
     });
 
     const rawBody = await response.text();
@@ -788,14 +753,14 @@ export function AnalystChatApp() {
       throw new Error('Smart assumptions did not produce a material change for the active model.');
     }
     const changes = buildAnalystSmartAssumptionOverrides(
-      latestModelMessage.payload.extractedInputs as Record<string, unknown>,
+      payload.extractedInputs as Record<string, unknown>,
       smartAssumptionSummary,
     );
     if (Object.keys(changes).length === 0) {
       throw new Error('The current model does not expose compatible assumption fields for smart assumptions.');
     }
 
-    await handleModelAdjustment(latestModelMessage.messageId, latestModelMessage.payload, {
+    await handleModelAdjustment(messageId, payload, {
       changes,
       smartAssumptionSummary,
     });

@@ -11,6 +11,7 @@ import type { UploadedAttachmentContext } from '@/lib/analyst/attachmentContext'
 import type { AttachmentStatusPayload as AnalystAttachmentStatus } from '@/lib/analyst/attachmentStatus';
 import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplates';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
+import { supportsSmartAssumptionAdjustment } from '@/lib/analyst/modelAdjustmentHelpers';
 import type { PendingModelRequest } from '@/lib/analyst/modelReadiness';
 import { buildScenarioDcfAdjustmentFromPayload, type AnalystScenarioCardPayload } from '@/lib/analyst/scenarioCard';
 import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } from '@/lib/analyst/types';
@@ -192,7 +193,7 @@ type AnalystChatSurfaceProps = {
     adjustment: AnalystStructuredModelAdjustment,
   ) => Promise<void>;
   onAdjustFromEvent: () => void;
-  onSuggestSmartAssumptions: () => Promise<void>;
+  onSuggestSmartAssumptions: (messageId: string, payload: AnalystGeneratedModelPayload) => Promise<void>;
   getLatestGeneratedModelMessage: () => LatestGeneratedModelMessage;
   onQuickEventTitleChange: (value: string) => void;
   onQuickEventTextChange: (value: string) => void;
@@ -545,7 +546,11 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
                         props.onModelAdjustment(message.id, message.meta!.generatedModel!, adjustment)
                       }
                       onAdjustFromEvent={props.onAdjustFromEvent}
-                      onSuggestSmartAssumptions={() => void props.onSuggestSmartAssumptions()}
+                      onSuggestSmartAssumptions={
+                        supportsSmartAssumptionAdjustment(message.meta.generatedModel)
+                          ? () => props.onSuggestSmartAssumptions(message.id, message.meta!.generatedModel!)
+                          : undefined
+                      }
                     />
                   )}
                   {message.role === 'assistant' && message.meta?.coreTemplateModel && (
