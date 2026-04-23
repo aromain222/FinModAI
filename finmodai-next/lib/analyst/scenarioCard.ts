@@ -1,4 +1,5 @@
 import type { SmartScenarioDcfReport } from '@/lib/scenarios/aiSmartDcf';
+import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 
 export type AnalystScenarioCardAssumptionRow = {
   metric: 'Growth' | 'Margin' | 'Discount Rate';
@@ -29,6 +30,20 @@ const MACRO_SCENARIO_CUES = [
   /\bscenario\b/i,
   /\bimpact on\b/i,
 ];
+const DCF_WORKFLOW_CUES = [
+  /\bhow does (?:this|that|it) affect\b/i,
+  /\bapply (?:this|that|it|scenario)\b/i,
+  /\bimpact on\b/i,
+  /\bupdate\b/i,
+  /\brevise\b/i,
+  /\breflect\b/i,
+];
+const DCF_TARGET_CUES = [
+  /\bdcf\b/i,
+  /\bvaluation model\b/i,
+  /\bmodel\b/i,
+  /\bworkbook\b/i,
+];
 
 function includesTeslaContext(message: string, explicitTicker?: string | null): boolean {
   if (TESLA_PATTERN.test(message)) return true;
@@ -41,8 +56,27 @@ function includesMacroCue(message: string): boolean {
   return MACRO_SCENARIO_CUES.some((pattern) => pattern.test(message));
 }
 
+function includesDcfWorkflowCue(message: string): boolean {
+  return DCF_WORKFLOW_CUES.some((pattern) => pattern.test(message));
+}
+
+function includesDcfTargetCue(message: string): boolean {
+  return DCF_TARGET_CUES.some((pattern) => pattern.test(message));
+}
+
+function getAssumptionRow(
+  payload: AnalystScenarioCardPayload,
+  metric: AnalystScenarioCardAssumptionRow['metric'],
+): AnalystScenarioCardAssumptionRow | undefined {
+  return payload.assumptions.find((row) => row.metric === metric);
+}
+
 export function looksLikeTeslaMacroScenarioPrompt(message: string, explicitTicker?: string | null): boolean {
   return includesTeslaContext(message, explicitTicker) && includesMacroCue(message);
+}
+
+export function looksLikeScenarioDcfWorkflowPrompt(message: string): boolean {
+  return includesDcfWorkflowCue(message) && includesDcfTargetCue(message);
 }
 
 export function buildAnalystScenarioCardPayload(report: SmartScenarioDcfReport): AnalystScenarioCardPayload {
@@ -90,5 +124,23 @@ export function buildAnalystScenarioCardPayload(report: SmartScenarioDcfReport):
     assumptions,
     interpretation,
     risks: sectionByTitle.get('SECTION 6: Risks') ?? [],
+  };
+}
+
+export function buildScenarioDcfAdjustmentFromPayload(
+  payload: AnalystScenarioCardPayload,
+  currentDcf: AnalystDcfDemoPayload,
+): AnalystDcfAdjustment {
+  const growthRow = getAssumptionRow(payload, 'Growth');
+  const marginRow = getAssumptionRow(payload, 'Margin');
+  const discountRateRow = getAssumptionRow(payload, 'Discount Rate');
+  const growthDelta = (growthRow?.scenario ?? 0) - (growthRow?.base ?? 0);
+  const marginDelta = (marginRow?.scenario ?? 0) - (marginRow?.base ?? 0);
+  const discountRateDelta = (discountRateRow?.scenario ?? 0) - (discountRateRow?.base ?? 0);
+
+  return {
+    revenueGrowth: currentDcf.assumptions.revenueGrowth.map((value) => Number((value + growthDelta).toFixed(4))),
+    ebitMargin: currentDcf.assumptions.ebitMargin.map((value) => Number((value + marginDelta).toFixed(4))),
+    wacc: Number((currentDcf.assumptions.wacc + discountRateDelta).toFixed(4)),
   };
 }

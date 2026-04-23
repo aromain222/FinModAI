@@ -11,6 +11,8 @@ export type ExecutionTraceService =
   | 'revise_analyst_dcf_demo_from_event_shock'
   | 'smart_assumption_agent'
   | 'run_ai_smart_dcf_scenario'
+  | 'apply_ai_smart_dcf_to_active_dcf'
+  | 'apply_ai_smart_dcf_to_new_dcf'
   | 'custom_assumption_input'
   | 'build_visualization'
   | 'generate_run_for_model_type'

@@ -74,8 +74,11 @@ import {
   isGenericEarningsSummaryPrompt,
 } from '@/lib/analyst/earningsSummary';
 import {
+  buildScenarioDcfAdjustmentFromPayload,
   buildAnalystScenarioCardPayload,
   looksLikeTeslaMacroScenarioPrompt,
+  looksLikeScenarioDcfWorkflowPrompt,
+  type AnalystScenarioCardPayload,
 } from '@/lib/analyst/scenarioCard';
 import { extractCompanyQuery } from '@/lib/data/company/extractCompanyQuery';
 import { getAnthropicKeyCandidates } from '@/lib/anthropicKey';
@@ -769,6 +772,33 @@ async function fetchDeterministicScenarioReport(origin: string): Promise<SmartSc
   return payload as SmartScenarioDcfReport;
 }
 
+function isScenarioCardPayload(value: unknown): value is AnalystScenarioCardPayload {
+  if (!value || typeof value !== 'object') return false;
+  const payload = value as Record<string, unknown>;
+  return (
+    typeof payload.company === 'string' &&
+    typeof payload.title === 'string' &&
+    Array.isArray(payload.assumptions) &&
+    Array.isArray(payload.drivers) &&
+    Array.isArray(payload.interpretation) &&
+    Array.isArray(payload.risks)
+  );
+}
+
+function extractLatestScenarioCardFromMessages(messages: unknown[]): AnalystScenarioCardPayload | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (!message || typeof message !== 'object') continue;
+    const record = message as Record<string, unknown>;
+    if (record.role !== 'assistant') continue;
+    const meta = record.meta;
+    if (!meta || typeof meta !== 'object') continue;
+    const scenarioCard = (meta as Record<string, unknown>).scenarioCard;
+    if (isScenarioCardPayload(scenarioCard)) return scenarioCard;
+  }
+  return null;
+}
+
 /* ────────── Fallback Reply Builder ────────── */
 
 async function buildFallbackReply(params: {
@@ -987,6 +1017,7 @@ export async function POST(req: NextRequest) {
           : null;
     const modelAdjustment = requestModelAdjustment ?? syntheticModelAdjustment;
     const messages = Array.isArray(body?.messages) ? body.messages : [];
+    const latestScenarioCard = extractLatestScenarioCardFromMessages(messages);
 
     if (currentDcf && dcfAdjustment) {
       const revisedDcf = await reviseAnalystDcfDemoFromAdjustment(dcfAdjustment, currentDcf);
@@ -1341,6 +1372,22 @@ export async function POST(req: NextRequest) {
     const shouldRunTeslaScenarioCard =
       !pendingModelRequest &&
       looksLikeTeslaMacroScenarioPrompt(lastUserMessage, explicitRequestedTicker ?? tickerFromCurrentArtifact);
+    const shouldApplyLatestScenarioToCurrentDcf =
+      Boolean(
+        currentDcf &&
+        latestScenarioCard &&
+        currentDcf.ticker?.trim().toUpperCase() === 'TSLA' &&
+        !artifactTickerMismatch &&
+        looksLikeScenarioDcfWorkflowPrompt(lastUserMessage),
+      );
+    const shouldGenerateScenarioAdjustedTeslaDcf =
+      Boolean(
+        !currentDcf &&
+        latestScenarioCard &&
+        latestScenarioCard.company.trim().toLowerCase() === 'tesla' &&
+        looksLikeScenarioDcfWorkflowPrompt(lastUserMessage) &&
+        (!resolvedTicker || resolvedTicker === 'TSLA'),
+      );
 
     if (shouldRunTeslaScenarioCard) {
       addExecutionTraceService(executionTrace, 'run_ai_smart_dcf_scenario');
@@ -1388,6 +1435,46 @@ export async function POST(req: NextRequest) {
           ),
         );
       }
+    }
+
+    if (shouldApplyLatestScenarioToCurrentDcf && currentDcf && latestScenarioCard) {
+      addExecutionTraceService(executionTrace, 'apply_ai_smart_dcf_to_active_dcf');
+      addExecutionTraceNote(
+        executionTrace,
+        'Applied the latest Tesla scenario card deltas to the active DCF workflow.',
+      );
+      const revisedDcf = await reviseAnalystDcfDemoFromAdjustment(
+        buildScenarioDcfAdjustmentFromPayload(latestScenarioCard, currentDcf),
+        currentDcf,
+      );
+      if (!revisedDcf) {
+        return NextResponse.json(
+          withAttachmentStatus({ error: 'Unable to apply the scenario to the active DCF.' }),
+          { status: 400 },
+        );
+      }
+
+      return NextResponse.json(
+        withAttachmentStatus(
+          withExecutionTrace(
+            {
+              reply: `Applied the Tesla rates-down scenario to the active DCF workflow. ${revisedDcf.reply}`,
+              fallback: false,
+              mode: 'live',
+              route: 'financial_model',
+              dcfDemo: revisedDcf.payload,
+              sources: [
+                buildFinancialModelSourceLabel(revisedDcf.payload.source),
+                ...(revisedDcf.payload.asOfDate ? [`Snapshot updated ${revisedDcf.payload.asOfDate}`] : []),
+                'Deterministic Tesla macro scenario overlay',
+              ],
+              factsCount: 0,
+              attachmentUsed: attachmentLabel,
+            },
+            executionTrace,
+          ),
+        ),
+      );
     }
     const shouldRunEarningsAgent =
       featureFlags.ENABLE_EARNINGS_PACKAGE_CACHE &&
@@ -2003,13 +2090,46 @@ export async function POST(req: NextRequest) {
           attachmentContext?.signals?.modelTypeHint === 'DCF' || attachmentContext?.kind === 'earnings_report'
             ? `Build a DCF using the uploaded context.\n\n${effectiveUserMessage}`
             : effectiveUserMessage,
-        explicitTicker: resolvedTicker,
+        explicitTicker: shouldGenerateScenarioAdjustedTeslaDcf ? (resolvedTicker ?? 'TSLA') : resolvedTicker,
         attachmentStatementSnapshot:
           attachmentContext?.isFinancialModelSeedable === true
             ? attachmentContext?.statementPackage?.snapshot ?? null
             : null,
       });
       addExecutionTraceService(executionTrace, 'generate_analyst_dcf_demo');
+
+      if (shouldGenerateScenarioAdjustedTeslaDcf && latestScenarioCard) {
+        addExecutionTraceService(executionTrace, 'apply_ai_smart_dcf_to_new_dcf');
+        addExecutionTraceNote(
+          executionTrace,
+          'Generated the Tesla DCF workflow and applied the latest scenario card deltas before returning it.',
+        );
+        const revisedDcf = await reviseAnalystDcfDemoFromAdjustment(
+          buildScenarioDcfAdjustmentFromPayload(latestScenarioCard, demo.payload),
+          demo.payload,
+        );
+        if (!revisedDcf) {
+          return NextResponse.json(
+            withAttachmentStatus({ error: 'Unable to apply the scenario to the Tesla DCF workflow.' }),
+            { status: 400 },
+          );
+        }
+
+        return NextResponse.json(withAttachmentStatus(withExecutionTrace({
+          reply: `Applied the Tesla rates-down scenario to the DCF workflow. ${revisedDcf.reply}`,
+          fallback: false,
+          mode: 'live',
+          route: 'financial_model',
+          dcfDemo: revisedDcf.payload,
+          sources: [
+            buildFinancialModelSourceLabel(revisedDcf.payload.source),
+            ...(revisedDcf.payload.asOfDate ? [`Snapshot updated ${revisedDcf.payload.asOfDate}`] : []),
+            'Deterministic Tesla macro scenario overlay',
+          ],
+          factsCount: 0,
+          attachmentUsed: attachmentLabel,
+        }, executionTrace)));
+      }
 
       return NextResponse.json(withAttachmentStatus(withExecutionTrace({
         reply: demo.reply,

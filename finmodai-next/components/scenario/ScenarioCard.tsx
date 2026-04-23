@@ -2,10 +2,14 @@
 
 import React from 'react';
 import { Brain, TrendingUp, TriangleAlert } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { AnalystScenarioCardPayload } from '@/lib/analyst/scenarioCard';
 
-type ScenarioCardProps = AnalystScenarioCardPayload;
+type ScenarioCardProps = AnalystScenarioCardPayload & {
+  canApplyToActiveDcf?: boolean;
+  onApplyToDcf?: () => void;
+};
 
 function formatBillions(value: number): string {
   return `$${(value / 1_000_000_000).toFixed(1)}B`;
@@ -35,6 +39,11 @@ export function ScenarioCard(props: ScenarioCardProps) {
                   <div className="text-sm text-[var(--cb-text-muted)]">{props.company}</div>
                 </div>
               </div>
+              {props.canApplyToActiveDcf && props.onApplyToDcf ? (
+                <Button type="button" variant="outline" size="sm" onClick={props.onApplyToDcf}>
+                  Apply to Active DCF
+                </Button>
+              ) : null}
             </div>
           </CardHeader>
           <CardContent className="space-y-6 p-0">

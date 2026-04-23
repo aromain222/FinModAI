@@ -12,7 +12,7 @@ import type { AttachmentStatusPayload as AnalystAttachmentStatus } from '@/lib/a
 import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplates';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 import type { PendingModelRequest } from '@/lib/analyst/modelReadiness';
-import type { AnalystScenarioCardPayload } from '@/lib/analyst/scenarioCard';
+import { buildScenarioDcfAdjustmentFromPayload, type AnalystScenarioCardPayload } from '@/lib/analyst/scenarioCard';
 import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } from '@/lib/analyst/types';
 import type { AnalystVisualizationPayload } from '@/lib/analyst/visualization';
 import type { AnalystEarningsSummaryCard } from '@/lib/analyst/earningsSummary';
@@ -71,6 +71,23 @@ type LatestGeneratedModelMessage = {
   messageId: string;
   payload: AnalystGeneratedModelPayload;
 } | null;
+
+type LatestDcfMessage = {
+  messageId: string;
+  payload: AnalystDcfDemoPayload;
+} | null;
+
+function getLatestDcfMessage(messages: Message[]): LatestDcfMessage {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const candidate = messages[index];
+    if (candidate.role !== 'assistant' || !candidate.meta?.dcfDemo) continue;
+    return {
+      messageId: candidate.id,
+      payload: candidate.meta.dcfDemo,
+    };
+  }
+  return null;
+}
 
 function AnalystEarningsSummaryCardView({ summary }: { summary: AnalystEarningsSummaryCard }) {
   return (
@@ -188,6 +205,7 @@ type AnalystChatSurfaceProps = {
 
 export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
   const latestModelMessage = props.getLatestGeneratedModelMessage();
+  const latestDcfMessage = getLatestDcfMessage(props.messages);
 
   return (
     <Card className="flex h-full flex-col shadow-lg">
@@ -314,7 +332,23 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
                   <div className="my-6 w-full border-y border-[color:var(--cb-border-subtle)]/40 bg-muted/30 py-8">
                     <div className="flex w-full justify-center px-4 md:px-6">
                       <div className="w-full max-w-5xl">
-                        <ScenarioCard {...message.meta!.scenarioCard!} />
+                        <ScenarioCard
+                          {...message.meta!.scenarioCard!}
+                          canApplyToActiveDcf={latestDcfMessage?.payload.ticker === 'TSLA'}
+                          onApplyToDcf={
+                            latestDcfMessage?.payload.ticker === 'TSLA'
+                              ? () =>
+                                  void props.onDcfAdjustment(
+                                    latestDcfMessage.messageId,
+                                    latestDcfMessage.payload,
+                                    buildScenarioDcfAdjustmentFromPayload(
+                                      message.meta!.scenarioCard!,
+                                      latestDcfMessage.payload,
+                                    ),
+                                  )
+                              : undefined
+                          }
+                        />
                       </div>
                     </div>
                   </div>
