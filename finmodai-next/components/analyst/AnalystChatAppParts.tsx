@@ -12,6 +12,7 @@ import type { AttachmentStatusPayload as AnalystAttachmentStatus } from '@/lib/a
 import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplates';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 import type { PendingModelRequest } from '@/lib/analyst/modelReadiness';
+import type { AnalystScenarioCardPayload } from '@/lib/analyst/scenarioCard';
 import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } from '@/lib/analyst/types';
 import type { AnalystVisualizationPayload } from '@/lib/analyst/visualization';
 import type { AnalystEarningsSummaryCard } from '@/lib/analyst/earningsSummary';
@@ -33,13 +34,16 @@ const AnalystStockCard = dynamic(
 const AnalystVisualizationCard = dynamic(
   () => import('@/components/analyst/AnalystVisualizationCard').then((mod) => mod.AnalystVisualizationCard)
 );
+const ScenarioCard = dynamic(
+  () => import('@/components/scenario/ScenarioCard').then((mod) => mod.ScenarioCard)
+);
 
 type Message = {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   meta?: {
-    mode?: 'live' | 'fallback';
+    mode?: 'live' | 'fallback' | 'scenario';
     reason?: string;
     structuredRequested?: boolean;
     sources?: string[];
@@ -53,6 +57,7 @@ type Message = {
     attachmentStatus?: AnalystAttachmentStatus;
     executionTrace?: AppExecutionTrace;
     earningsSummary?: AnalystEarningsSummaryCard;
+    scenarioCard?: AnalystScenarioCardPayload;
     needsClarification?: boolean;
     clarificationQuestion?: string;
     clarificationField?: string;
@@ -301,9 +306,19 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
           ) : null}
           {props.messages.map((message, index) => {
             const prompt = props.getPromptForAssistantMessage(index);
+            const isScenarioMode = message.role === 'assistant' && message.meta?.mode === 'scenario' && message.meta?.scenarioCard;
 
             return (
               <div key={message.id} className={message.role === 'user' ? 'text-right' : 'text-left'}>
+                {isScenarioMode ? (
+                  <div className="my-6 w-full border-y border-[color:var(--cb-border-subtle)]/40 bg-muted/30 py-8">
+                    <div className="flex w-full justify-center px-4 md:px-6">
+                      <div className="w-full max-w-5xl">
+                        <ScenarioCard {...message.meta!.scenarioCard!} />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
                 <div
                   className={`inline-block rounded-2xl px-4 py-3 ${
                     message.role === 'user'
@@ -382,7 +397,8 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
                     !message.meta?.generatedModel &&
                     !message.meta?.coreTemplateModel &&
                     !message.meta?.stockLookup &&
-                    !message.meta?.visualization && (
+                    !message.meta?.visualization &&
+                    !message.meta?.scenarioCard && (
                       <div className="mt-3 flex justify-end">
                         <Button
                           type="button"
@@ -508,6 +524,7 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
                     <AnalystVisualizationCard payload={message.meta.visualization} />
                   )}
                 </div>
+                )}
               </div>
             );
           })}

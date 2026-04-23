@@ -73,6 +73,10 @@ import {
   buildDeterministicEarningsSummaryCard,
   isGenericEarningsSummaryPrompt,
 } from '@/lib/analyst/earningsSummary';
+import {
+  buildAnalystScenarioCardPayload,
+  looksLikeTeslaMacroScenarioPrompt,
+} from '@/lib/analyst/scenarioCard';
 import { extractCompanyQuery } from '@/lib/data/company/extractCompanyQuery';
 import { getAnthropicKeyCandidates } from '@/lib/anthropicKey';
 import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKey';
@@ -118,6 +122,7 @@ import {
   parseCustomAssumptionPrompt,
   type CustomAssumptionResult,
 } from '@/lib/analyst/customAssumptions';
+import type { SmartScenarioDcfReport } from '@/lib/scenarios/aiSmartDcf';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -745,6 +750,25 @@ function visualizationContextLabel(params: {
   return params.resolvedTicker ?? 'Requested chart';
 }
 
+async function fetchDeterministicScenarioReport(origin: string): Promise<SmartScenarioDcfReport> {
+  const response = await fetch(new URL('/api/scenarios/ai-smart-dcf', origin), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    cache: 'no-store',
+  });
+
+  const payload = (await response.json().catch(() => null)) as SmartScenarioDcfReport | { error?: string } | null;
+  if (!response.ok || !payload || typeof payload !== 'object' || !('formattedResponse' in payload)) {
+    const error =
+      payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string'
+        ? payload.error
+        : 'Unable to apply the macro scenario right now.';
+    throw new Error(error);
+  }
+
+  return payload as SmartScenarioDcfReport;
+}
+
 /* ────────── Fallback Reply Builder ────────── */
 
 async function buildFallbackReply(params: {
@@ -1314,6 +1338,57 @@ export async function POST(req: NextRequest) {
       : overrideRouteFromAttachment(baseRoute, lastUserMessage, attachmentContext);
     executionTrace.routeIntent = route.intent;
     addExecutionTraceService(executionTrace, 'route_analyst_query');
+    const shouldRunTeslaScenarioCard =
+      !pendingModelRequest &&
+      looksLikeTeslaMacroScenarioPrompt(lastUserMessage, explicitRequestedTicker ?? tickerFromCurrentArtifact);
+
+    if (shouldRunTeslaScenarioCard) {
+      addExecutionTraceService(executionTrace, 'run_ai_smart_dcf_scenario');
+      addExecutionTraceNote(
+        executionTrace,
+        'Deterministic Tesla macro scenario branch used for Analyst Chat.',
+      );
+      try {
+        const scenarioReport = await fetchDeterministicScenarioReport(req.nextUrl.origin);
+        return NextResponse.json(
+          withAttachmentStatus(
+            withExecutionTrace(
+              {
+                reply: '',
+                scenarioCard: buildAnalystScenarioCardPayload(scenarioReport),
+                fallback: false,
+                mode: 'scenario',
+                route: 'company_question',
+                sources: ['Provided base case dataset', 'Provided macro assumptions'],
+                factsCount: 0,
+                attachmentUsed: attachmentLabel,
+              },
+              executionTrace,
+            ),
+          ),
+        );
+      } catch (error) {
+        addExecutionTraceNote(
+          executionTrace,
+          error instanceof Error ? error.message : 'Scenario API call failed.',
+        );
+        return NextResponse.json(
+          withAttachmentStatus(
+            withExecutionTrace(
+              {
+                reply: 'Unable to apply the macro scenario right now.',
+                fallback: false,
+                mode: 'live',
+                route: 'company_question',
+                factsCount: 0,
+                attachmentUsed: attachmentLabel,
+              },
+              executionTrace,
+            ),
+          ),
+        );
+      }
+    }
     const shouldRunEarningsAgent =
       featureFlags.ENABLE_EARNINGS_PACKAGE_CACHE &&
       Boolean(resolvedTicker) &&

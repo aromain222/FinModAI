@@ -10,6 +10,7 @@ export type ExecutionTraceService =
   | 'revise_analyst_dcf_demo'
   | 'revise_analyst_dcf_demo_from_event_shock'
   | 'smart_assumption_agent'
+  | 'run_ai_smart_dcf_scenario'
   | 'custom_assumption_input'
   | 'build_visualization'
   | 'generate_run_for_model_type'

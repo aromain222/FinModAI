@@ -1,3 +1,5 @@
+import * as cheerio from 'cheerio';
+
 import type {
   StrictExtractedMetrics,
   StrictFinancialMetric,
@@ -102,11 +104,72 @@ function pickSecUsdValue(
   };
 }
 
+function parseExplicitUsdValue(text: string): number | null {
+  const cleaned = text.replace(/\s+/g, ' ').trim();
+  if (!cleaned) return null;
+  if (/\bmillions?\b|\bbillions?\b|\bthousands?\b/i.test(cleaned)) return null;
+
+  const moneyMatch = cleaned.match(/\(?\$?\s*(-?\d[\d,]*(?:\.\d+)?)\)?/);
+  if (!moneyMatch) return null;
+  const numeric = Number(moneyMatch[1].replace(/,/g, ''));
+  if (!Number.isFinite(numeric)) return null;
+  const negative = /\(\s*\$?\s*\d/.test(cleaned) || /^-/.test(cleaned);
+  return negative ? -numeric : numeric;
+}
+
+function extractHtmlMetricCandidates(
+  html: string,
+  labelPatterns: RegExp[],
+): { value: number | null; fieldPath: string } {
+  const $ = cheerio.load(html);
+
+  const rows = $('tr')
+    .map((index, row) => {
+      const cells = $(row)
+        .find('th,td')
+        .map((_, cell) => $(cell).text().replace(/\s+/g, ' ').trim())
+        .get()
+        .filter(Boolean);
+      return { cells, index };
+    })
+    .get();
+
+  for (const row of rows) {
+    const label = row.cells[0] ?? '';
+    if (!labelPatterns.some((pattern) => pattern.test(label))) continue;
+    for (let index = row.cells.length - 1; index >= 1; index -= 1) {
+      const value = parseExplicitUsdValue(row.cells[index] ?? '');
+      if (value !== null) {
+        return {
+          value,
+          fieldPath: `html.table.tr[${row.index}].cell[${index}]`,
+        };
+      }
+    }
+  }
+
+  const bodyText = $('body').text().replace(/\s+/g, ' ');
+  for (const pattern of labelPatterns) {
+    const match = bodyText.match(new RegExp(`${pattern.source}[^$\\d]{0,80}(\\(?\\$?\\s*-?\\d[\\d,]*(?:\\.\\d+)?\\)?)`, 'i'));
+    if (match) {
+      return {
+        value: parseExplicitUsdValue(match[1] ?? ''),
+        fieldPath: 'html.body.text',
+      };
+    }
+  }
+
+  return { value: null, fieldPath: 'html.not_found' };
+}
+
 function extractSecObservations(
   artifact: StrictPipelineArtifactBundle,
   periodType: StrictFinancialPeriodType,
 ): Array<{ metric: StrictFinancialMetric; observation: StrictMetricObservation }> {
-  const facts = (artifact.raw as any)?.facts?.['us-gaap'];
+  const facts =
+    artifact.raw && typeof artifact.raw === 'object'
+      ? (artifact.raw as any)?.facts?.['us-gaap']
+      : null;
   const picks: Record<StrictFinancialMetric, ReturnType<typeof pickSecUsdValue>> = {
     revenue: pickSecUsdValue(
       facts,
@@ -197,12 +260,41 @@ function extractFmpObservations(
   }));
 }
 
+function extractCompanyIrObservations(
+  artifact: StrictPipelineArtifactBundle,
+  periodType: StrictFinancialPeriodType,
+): Array<{ metric: StrictFinancialMetric; observation: StrictMetricObservation }> {
+  const html = typeof artifact.raw === 'string' ? artifact.raw : '';
+  const picks: Record<StrictFinancialMetric, { value: number | null; fieldPath: string }> = {
+    revenue: extractHtmlMetricCandidates(html, [/\brevenue\b/i, /\bnet sales\b/i]),
+    ebitda: extractHtmlMetricCandidates(html, [/\bebitda\b/i]),
+    net_income: extractHtmlMetricCandidates(html, [/\bnet income\b/i, /\bnet earnings\b/i]),
+    free_cash_flow: extractHtmlMetricCandidates(html, [/\bfree cash flow\b/i]),
+    debt: extractHtmlMetricCandidates(html, [/\btotal debt\b/i, /\bdebt\b/i]),
+    cash: extractHtmlMetricCandidates(html, [/\bcash and cash equivalents\b/i, /\bcash\b/i]),
+  };
+
+  return (Object.keys(picks) as StrictFinancialMetric[]).map((metric) => ({
+    metric,
+    observation: createObservation({
+      metric,
+      value: picks[metric].value,
+      artifact: artifact.artifact,
+      periodType,
+      fieldPath: picks[metric].fieldPath,
+    }),
+  }));
+}
+
 function extractArtifactObservations(
   artifact: StrictPipelineArtifactBundle,
   periodType: StrictFinancialPeriodType,
 ): Array<{ metric: StrictFinancialMetric; observation: StrictMetricObservation }> {
   if (artifact.artifact.provider === 'sec_edgar') {
     return extractSecObservations(artifact, periodType);
+  }
+  if (artifact.artifact.provider === 'company_ir') {
+    return extractCompanyIrObservations(artifact, periodType);
   }
   if (artifact.artifact.provider === 'fmp') {
     return extractFmpObservations(artifact, periodType);

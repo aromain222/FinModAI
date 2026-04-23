@@ -65,6 +65,14 @@ export async function runStrictFinancialPipeline(
       target_model_type: request.target_model_type,
     },
     steps: {
+      SOURCE_DISCOVERY_AGENT: {
+        status: 'SUCCESS',
+        requested_subject: sourceResult.discoveryPlan.requested_subject,
+        requested_period: sourceResult.discoveryPlan.requested_period,
+        candidate_sources: sourceResult.discoveryPlan.candidate_sources,
+        chosen_sources: sourceResult.discoveryPlan.chosen_sources,
+        warnings: sourceResult.discoveryPlan.warnings,
+      },
       SOURCE_FETCHER: {
         status: 'SUCCESS',
         artifacts: sourceResult.artifacts.map((artifact) => artifact.artifact),

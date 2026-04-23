@@ -10,6 +10,8 @@ import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplate
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 import type { PendingModelRequest } from '@/lib/analyst/modelReadiness';
 import { routeAnalystQuery } from '@/lib/analyst/router';
+import type { AnalystScenarioCardPayload } from '@/lib/analyst/scenarioCard';
+import { looksLikeTeslaMacroScenarioPrompt } from '@/lib/analyst/scenarioCard';
 import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } from '@/lib/analyst/types';
 import type { AnalystEarningsSummaryCard } from '@/lib/analyst/earningsSummary';
 import type { AnalystVisualizationPayload } from '@/lib/analyst/visualization';
@@ -25,7 +27,7 @@ type Message = {
   role: 'user' | 'assistant';
   content: string;
   meta?: {
-    mode?: 'live' | 'fallback';
+    mode?: 'live' | 'fallback' | 'scenario';
     reason?: string;
     structuredRequested?: boolean;
     sources?: string[];
@@ -39,6 +41,7 @@ type Message = {
     attachmentStatus?: AnalystAttachmentStatus;
     executionTrace?: AppExecutionTrace;
     earningsSummary?: AnalystEarningsSummaryCard;
+    scenarioCard?: AnalystScenarioCardPayload;
     needsClarification?: boolean;
     clarificationQuestion?: string;
     clarificationField?: string;
@@ -119,6 +122,16 @@ type AgentLoadingState = {
 function getLoadingPlan(prompt: string, ticker?: string): AgentLoadingState {
   const text = prompt.toLowerCase();
   const route = routeAnalystQuery(prompt, ticker);
+
+  if (looksLikeTeslaMacroScenarioPrompt(prompt, ticker)) {
+    return {
+      title: 'Applying macro scenario...',
+      detail: 'Recomputing valuation...',
+      routeLabel: 'AI scenario',
+      steps: ['Routing request', 'Applying macro scenario', 'Recomputing valuation'],
+      activeStep: 0,
+    };
+  }
 
   if (route.intent === 'financial_model') {
     return {
@@ -345,6 +358,11 @@ export function AnalystChatApp() {
     setIsLoading(true);
     const loadingPlan = getLoadingPlan(prompt, ticker.trim().length > 0 ? ticker.trim().toUpperCase() : undefined);
     setLoadingState(loadingPlan);
+    const isScenarioMode = looksLikeTeslaMacroScenarioPrompt(
+      prompt,
+      ticker.trim().length > 0 ? ticker.trim().toUpperCase() : undefined,
+    );
+    const requestStartedAt = Date.now();
     const preserveStructure = userExplicitlyWantsStructuredOutput(prompt);
     const latestArtifact = getLatestGeneratedArtifact();
     const isClarificationTurn = Boolean(pendingModelRequest);
@@ -398,8 +416,18 @@ export function AnalystChatApp() {
         throw new Error(rawBody.trim() || 'Analyst Chat returned an invalid response.');
       }
 
+      if (isScenarioMode) {
+        const minDelayMs = 1200;
+        const elapsed = Date.now() - requestStartedAt;
+        if (elapsed < minDelayMs) {
+          await new Promise((resolve) => window.setTimeout(resolve, minDelayMs - elapsed));
+        }
+      }
+
       const replyText =
-        (payload && typeof payload.reply === 'string' && payload.reply.trim().length > 0
+        (payload?.mode === 'scenario' && payload?.scenarioCard && typeof payload.reply === 'string'
+          ? payload.reply
+          : payload && typeof payload.reply === 'string' && payload.reply.trim().length > 0
           ? payload.reply
           : payload && typeof payload.error === 'string' && payload.error.trim().length > 0
             ? payload.error
@@ -409,7 +437,12 @@ export function AnalystChatApp() {
         role: 'assistant',
         content: cleanAssistantText(replyText, preserveStructure),
         meta: {
-          mode: payload?.mode === 'fallback' ? 'fallback' : 'live',
+          mode:
+            payload?.mode === 'fallback'
+              ? 'fallback'
+              : payload?.mode === 'scenario'
+                ? 'scenario'
+                : 'live',
           reason: typeof payload?.reason === 'string' ? payload.reason : undefined,
           structuredRequested: preserveStructure,
           sources: Array.isArray(payload?.sources)
@@ -451,6 +484,10 @@ export function AnalystChatApp() {
             payload?.earningsSummary && typeof payload.earningsSummary === 'object'
               ? (payload.earningsSummary as AnalystEarningsSummaryCard)
               : undefined,
+          scenarioCard:
+            payload?.scenarioCard && typeof payload.scenarioCard === 'object'
+              ? (payload.scenarioCard as AnalystScenarioCardPayload)
+              : undefined,
           needsClarification: payload?.needsClarification === true,
           clarificationQuestion:
             typeof payload?.clarificationQuestion === 'string' ? payload.clarificationQuestion : undefined,
@@ -474,6 +511,13 @@ export function AnalystChatApp() {
       setPendingModelRequest(reply.meta?.needsClarification ? reply.meta?.pendingModelRequest ?? null : null);
     } catch (error) {
       console.error('Chat error', error);
+      if (isScenarioMode) {
+        const minDelayMs = 1200;
+        const elapsed = Date.now() - requestStartedAt;
+        if (elapsed < minDelayMs) {
+          await new Promise((resolve) => window.setTimeout(resolve, minDelayMs - elapsed));
+        }
+      }
       const failureMessage =
         error instanceof Error && error.message.trim().length > 0
           ? error.message.trim()

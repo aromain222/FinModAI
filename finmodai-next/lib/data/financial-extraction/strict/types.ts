@@ -8,9 +8,12 @@ export type StrictFinancialMetric =
 
 export type StrictFinancialPeriodType = 'annual' | 'quarterly' | 'ltm';
 
-export type StrictSourceProvider = 'sec_edgar' | 'fmp' | 'polygon';
+export type StrictSourceProvider = 'sec_edgar' | 'company_ir' | 'fmp' | 'polygon';
+
+export type StrictSourceFamily = 'filing' | 'company_results';
 
 export type StrictPipelineStep =
+  | 'SOURCE_DISCOVERY_AGENT'
   | 'SOURCE_FETCHER'
   | 'EXTRACTOR'
   | 'VALIDATOR'
@@ -30,14 +33,40 @@ export type StrictPipelineRequest = {
   explicit_assumptions: StrictExplicitAssumptions;
 };
 
+export type StrictDiscoveredSource = {
+  source_id: string;
+  provider: StrictSourceProvider;
+  source_family: StrictSourceFamily;
+  source_url: string;
+  requires_robots_check: boolean;
+  rationale: string;
+};
+
+export type StrictSourceDiscoveryPlan = {
+  requested_subject: {
+    ticker: string;
+    company_name: string;
+  };
+  requested_period: StrictFinancialPeriodType;
+  candidate_sources: StrictDiscoveredSource[];
+  chosen_source_ids: string[];
+  chosen_sources: StrictDiscoveredSource[];
+  metric_preferences: Partial<Record<StrictFinancialMetric, string[]>>;
+  warnings: string[];
+  rationale: string;
+};
+
 export type StrictSourceArtifact = {
   source_id: string;
   provider: StrictSourceProvider;
-  artifact_type: 'filing' | 'api_response';
+  artifact_type: 'filing' | 'api_response' | 'html_page';
   source_url: string;
   fetched_at: string;
   as_of_date: string | null;
   period_type: StrictFinancialPeriodType | null;
+  robots_url: string | null;
+  robots_allowed: boolean | null;
+  terms_url: string | null;
 };
 
 export type StrictMetricObservation = {
@@ -103,6 +132,14 @@ export type StrictPipelineSuccess = {
     target_model_type: string;
   };
   steps: {
+    SOURCE_DISCOVERY_AGENT: {
+      status: 'SUCCESS';
+      requested_subject: StrictSourceDiscoveryPlan['requested_subject'];
+      requested_period: StrictFinancialPeriodType;
+      candidate_sources: StrictDiscoveredSource[];
+      chosen_sources: StrictDiscoveredSource[];
+      warnings: string[];
+    };
     SOURCE_FETCHER: {
       status: 'SUCCESS';
       artifacts: StrictSourceArtifact[];
@@ -131,3 +168,4 @@ export type StrictPipelineArtifactBundle = {
   artifact: StrictSourceArtifact;
   raw: unknown;
 };
+
