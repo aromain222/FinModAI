@@ -1,5 +1,6 @@
 import type { SmartScenarioDcfReport } from '@/lib/scenarios/aiSmartDcf';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
+import type { AnalystGeneratedModelPayload } from '@/lib/analyst/types';
 
 export type AnalystScenarioCardAssumptionRow = {
   metric: 'Growth' | 'Margin' | 'Discount Rate';
@@ -71,6 +72,17 @@ function getAssumptionRow(
   return payload.assumptions.find((row) => row.metric === metric);
 }
 
+function getScenarioDeltas(payload: AnalystScenarioCardPayload) {
+  const growthRow = getAssumptionRow(payload, 'Growth');
+  const marginRow = getAssumptionRow(payload, 'Margin');
+  const discountRateRow = getAssumptionRow(payload, 'Discount Rate');
+  return {
+    growthDelta: (growthRow?.scenario ?? 0) - (growthRow?.base ?? 0),
+    marginDelta: (marginRow?.scenario ?? 0) - (marginRow?.base ?? 0),
+    discountRateDelta: (discountRateRow?.scenario ?? 0) - (discountRateRow?.base ?? 0),
+  };
+}
+
 export function looksLikeTeslaMacroScenarioPrompt(message: string, explicitTicker?: string | null): boolean {
   return includesTeslaContext(message, explicitTicker) && includesMacroCue(message);
 }
@@ -131,16 +143,38 @@ export function buildScenarioDcfAdjustmentFromPayload(
   payload: AnalystScenarioCardPayload,
   currentDcf: AnalystDcfDemoPayload,
 ): AnalystDcfAdjustment {
-  const growthRow = getAssumptionRow(payload, 'Growth');
-  const marginRow = getAssumptionRow(payload, 'Margin');
-  const discountRateRow = getAssumptionRow(payload, 'Discount Rate');
-  const growthDelta = (growthRow?.scenario ?? 0) - (growthRow?.base ?? 0);
-  const marginDelta = (marginRow?.scenario ?? 0) - (marginRow?.base ?? 0);
-  const discountRateDelta = (discountRateRow?.scenario ?? 0) - (discountRateRow?.base ?? 0);
+  const { growthDelta, marginDelta, discountRateDelta } = getScenarioDeltas(payload);
 
   return {
     revenueGrowth: currentDcf.assumptions.revenueGrowth.map((value) => Number((value + growthDelta).toFixed(4))),
     ebitMargin: currentDcf.assumptions.ebitMargin.map((value) => Number((value + marginDelta).toFixed(4))),
     wacc: Number((currentDcf.assumptions.wacc + discountRateDelta).toFixed(4)),
   };
+}
+
+export function buildScenarioStructuredModelOverridesFromPayload(
+  payload: AnalystScenarioCardPayload,
+  currentModel: AnalystGeneratedModelPayload,
+): Record<string, unknown> {
+  const extractedInputs = currentModel.extractedInputs as Record<string, unknown>;
+  const { growthDelta, marginDelta, discountRateDelta } = getScenarioDeltas(payload);
+  const overrides: Record<string, unknown> = {};
+
+  if (Array.isArray(extractedInputs.revenueGrowth)) {
+    overrides.revenueGrowth = extractedInputs.revenueGrowth
+      .filter((value): value is number => typeof value === 'number')
+      .map((value) => Number((value + growthDelta).toFixed(4)));
+  }
+
+  if (Array.isArray(extractedInputs.ebitMargin)) {
+    overrides.ebitMargin = extractedInputs.ebitMargin
+      .filter((value): value is number => typeof value === 'number')
+      .map((value) => Number((value + marginDelta).toFixed(4)));
+  }
+
+  if (typeof extractedInputs.wacc === 'number') {
+    overrides.wacc = Number((extractedInputs.wacc + discountRateDelta).toFixed(4));
+  }
+
+  return overrides;
 }

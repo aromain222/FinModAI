@@ -76,6 +76,7 @@ import {
 import {
   buildScenarioDcfAdjustmentFromPayload,
   buildAnalystScenarioCardPayload,
+  buildScenarioStructuredModelOverridesFromPayload,
   looksLikeTeslaMacroScenarioPrompt,
   looksLikeScenarioDcfWorkflowPrompt,
   type AnalystScenarioCardPayload,
@@ -1380,9 +1381,19 @@ export async function POST(req: NextRequest) {
         !artifactTickerMismatch &&
         looksLikeScenarioDcfWorkflowPrompt(lastUserMessage),
       );
+    const shouldApplyLatestScenarioToCurrentModel =
+      Boolean(
+        currentModel &&
+        currentModel.modelType === 'DCF' &&
+        latestScenarioCard &&
+        currentModelTicker?.trim().toUpperCase() === 'TSLA' &&
+        !artifactTickerMismatch &&
+        looksLikeScenarioDcfWorkflowPrompt(lastUserMessage),
+      );
     const shouldGenerateScenarioAdjustedTeslaDcf =
       Boolean(
         !currentDcf &&
+        !currentModel &&
         latestScenarioCard &&
         latestScenarioCard.company.trim().toLowerCase() === 'tesla' &&
         looksLikeScenarioDcfWorkflowPrompt(lastUserMessage) &&
@@ -1466,6 +1477,80 @@ export async function POST(req: NextRequest) {
               sources: [
                 buildFinancialModelSourceLabel(revisedDcf.payload.source),
                 ...(revisedDcf.payload.asOfDate ? [`Snapshot updated ${revisedDcf.payload.asOfDate}`] : []),
+                'Deterministic Tesla macro scenario overlay',
+              ],
+              factsCount: 0,
+              attachmentUsed: attachmentLabel,
+            },
+            executionTrace,
+          ),
+        ),
+      );
+    }
+    if (shouldApplyLatestScenarioToCurrentModel && currentModel && latestScenarioCard) {
+      addExecutionTraceService(executionTrace, 'revise_analyst_structured_model_from_overrides');
+      addExecutionTraceNote(
+        executionTrace,
+        'Applied the latest Tesla scenario card deltas to the active DCF model workflow.',
+      );
+      const revisedModel = await reviseAnalystStructuredModelFromOverrides(
+        buildScenarioStructuredModelOverridesFromPayload(latestScenarioCard, currentModel),
+        currentModel,
+        sessionId,
+      );
+      if (!revisedModel) {
+        return NextResponse.json(
+          withAttachmentStatus({ error: 'Unable to apply the scenario to the active DCF model.' }),
+          { status: 400 },
+        );
+      }
+
+      let persistedRecentRun = revisedModel.payload.recentRun;
+      try {
+        const persisted = await savePromptModelRunVersion({
+          surface: 'analyst_chat',
+          sessionId,
+          prompt: lastUserMessage,
+          modelType: revisedModel.payload.modelType,
+          companyName:
+            'companyName' in revisedModel.payload.extractedInputs
+              ? revisedModel.payload.extractedInputs.companyName
+              : null,
+          ticker:
+            'ticker' in revisedModel.payload.extractedInputs
+              ? revisedModel.payload.extractedInputs.ticker ?? null
+              : null,
+          status: 'generated',
+          assumptions: revisedModel.payload.extractedInputs as Record<string, unknown>,
+          defaultsUsed: revisedModel.payload.defaultsUsed,
+          extractedInputs: revisedModel.payload.extractedInputs as Record<string, unknown>,
+          provenance: revisedModel.payload.provenanceSummary,
+          exportSeed: buildAnalystGeneratedModelExportSeed(revisedModel.payload),
+        });
+        persistedRecentRun = buildAnalystGeneratedModelRecentRun({
+          runId: persisted.runId,
+          versionNumber: persisted.version.versionNumber,
+          createdAt: persisted.version.createdAt,
+          status: persisted.version.status,
+        });
+      } catch (error) {
+        console.error('[analyst-chat] unable to persist scenario-adjusted model run', error);
+      }
+
+      return NextResponse.json(
+        withAttachmentStatus(
+          withExecutionTrace(
+            {
+              reply: `Applied the Tesla rates-down scenario to the active DCF model workflow. ${revisedModel.reply}`,
+              fallback: false,
+              mode: 'live',
+              route: 'financial_model',
+              generatedModel: {
+                ...revisedModel.payload,
+                recentRun: persistedRecentRun,
+              },
+              sources: [
+                ...revisedModel.payload.provenanceSummary.sources,
                 'Deterministic Tesla macro scenario overlay',
               ],
               factsCount: 0,
@@ -1987,6 +2072,73 @@ export async function POST(req: NextRequest) {
           attachmentSummary: attachmentContext?.summary ?? null,
           attachmentExtractionContext,
         });
+        if (generatedModel && !generatedModel.validationFailed && shouldGenerateScenarioAdjustedTeslaDcf && latestScenarioCard) {
+          addExecutionTraceService(executionTrace, 'apply_ai_smart_dcf_to_new_dcf');
+          addExecutionTraceNote(
+            executionTrace,
+            'Generated the Tesla DCF model workflow and applied the latest scenario card deltas before returning it.',
+          );
+          const revisedModel = await reviseAnalystStructuredModelFromOverrides(
+            buildScenarioStructuredModelOverridesFromPayload(latestScenarioCard, generatedModel.payload),
+            generatedModel.payload,
+            sessionId,
+          );
+          if (revisedModel) {
+            let persistedRecentRun = revisedModel.payload.recentRun;
+            try {
+              const persisted = await savePromptModelRunVersion({
+                surface: 'analyst_chat',
+                sessionId,
+                prompt: lastUserMessage,
+                modelType: revisedModel.payload.modelType,
+                companyName:
+                  'companyName' in revisedModel.payload.extractedInputs
+                    ? revisedModel.payload.extractedInputs.companyName
+                    : null,
+                ticker:
+                  'ticker' in revisedModel.payload.extractedInputs
+                    ? revisedModel.payload.extractedInputs.ticker ?? null
+                    : null,
+                status: 'generated',
+                assumptions: revisedModel.payload.extractedInputs as Record<string, unknown>,
+                defaultsUsed: revisedModel.payload.defaultsUsed,
+                extractedInputs: revisedModel.payload.extractedInputs as Record<string, unknown>,
+                provenance: revisedModel.payload.provenanceSummary,
+                exportSeed: buildAnalystGeneratedModelExportSeed(revisedModel.payload),
+              });
+              persistedRecentRun = buildAnalystGeneratedModelRecentRun({
+                runId: persisted.runId,
+                versionNumber: persisted.version.versionNumber,
+                createdAt: persisted.version.createdAt,
+                status: persisted.version.status,
+              });
+            } catch (error) {
+              console.error('[analyst-chat] unable to persist scenario-adjusted generated model run', error);
+            }
+
+            const revisedPayload: AnalystGeneratedModelPayload = {
+              ...revisedModel.payload,
+              recentRun: persistedRecentRun,
+            };
+
+            return NextResponse.json(withAttachmentStatus(withExecutionTrace({
+              reply: `Applied the Tesla rates-down scenario to the DCF model workflow. ${revisedModel.reply}`,
+              fallback: false,
+              mode: 'live',
+              route: 'financial_model',
+              generatedModel: revisedPayload,
+              unitValidationStatus: revisedPayload.unitValidationStatus,
+              unitValidationMessage: revisedPayload.unitValidationMessage,
+              sources: [
+                ...revisedPayload.provenanceSummary.sources,
+                'CapitalBase local model templates',
+                'Deterministic Tesla macro scenario overlay',
+              ],
+              factsCount: 0,
+              attachmentUsed: attachmentLabel,
+            }, executionTrace)));
+          }
+        }
         if (generatedModel?.validationFailed) {
           return NextResponse.json(withAttachmentStatus(withExecutionTrace({
             reply: generatedModel.reply,
@@ -2097,39 +2249,6 @@ export async function POST(req: NextRequest) {
             : null,
       });
       addExecutionTraceService(executionTrace, 'generate_analyst_dcf_demo');
-
-      if (shouldGenerateScenarioAdjustedTeslaDcf && latestScenarioCard) {
-        addExecutionTraceService(executionTrace, 'apply_ai_smart_dcf_to_new_dcf');
-        addExecutionTraceNote(
-          executionTrace,
-          'Generated the Tesla DCF workflow and applied the latest scenario card deltas before returning it.',
-        );
-        const revisedDcf = await reviseAnalystDcfDemoFromAdjustment(
-          buildScenarioDcfAdjustmentFromPayload(latestScenarioCard, demo.payload),
-          demo.payload,
-        );
-        if (!revisedDcf) {
-          return NextResponse.json(
-            withAttachmentStatus({ error: 'Unable to apply the scenario to the Tesla DCF workflow.' }),
-            { status: 400 },
-          );
-        }
-
-        return NextResponse.json(withAttachmentStatus(withExecutionTrace({
-          reply: `Applied the Tesla rates-down scenario to the DCF workflow. ${revisedDcf.reply}`,
-          fallback: false,
-          mode: 'live',
-          route: 'financial_model',
-          dcfDemo: revisedDcf.payload,
-          sources: [
-            buildFinancialModelSourceLabel(revisedDcf.payload.source),
-            ...(revisedDcf.payload.asOfDate ? [`Snapshot updated ${revisedDcf.payload.asOfDate}`] : []),
-            'Deterministic Tesla macro scenario overlay',
-          ],
-          factsCount: 0,
-          attachmentUsed: attachmentLabel,
-        }, executionTrace)));
-      }
 
       return NextResponse.json(withAttachmentStatus(withExecutionTrace({
         reply: demo.reply,
