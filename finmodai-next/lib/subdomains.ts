@@ -4,7 +4,7 @@ export const DEFAULT_SUBDOMAIN_ROUTES: Record<string, string> = {
   demo: '/demo',
   waitlist: '/waitlist',
   macro: '/macro',
-  market: '/market',
+  market: '/news',
   models: '/model-generator',
   news: '/news',
 };

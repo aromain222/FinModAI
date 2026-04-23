@@ -12,3 +12,15 @@ test('attachment-driven DCF values render in finance-native units', () => {
   assert.equal(formatAnalystModelValue(0.08, 'capexPctRevenue', 'DCF'), '8%');
   assert.equal(formatAnalystModelValue(0.02, 'nwcPctRevenue', 'DCF'), '2%');
 });
+
+test('explicit field display semantics override key-name heuristics for attachment-driven values', () => {
+  const fieldDisplayMap = {
+    baseRevenue: 'model_millions_currency',
+    sharesOutstanding: 'model_millions_shares',
+    ebitMargin: 'percent',
+  } as const;
+
+  assert.equal(formatAnalystModelValue(575_024, 'baseRevenue', 'DCF', fieldDisplayMap), '$575.0B');
+  assert.equal(formatAnalystModelValue(14_810.356, 'sharesOutstanding', 'DCF', fieldDisplayMap), '14.8B');
+  assert.equal(formatAnalystModelValue(0.354, 'ebitMargin', 'DCF', fieldDisplayMap), '35.4%');
+});

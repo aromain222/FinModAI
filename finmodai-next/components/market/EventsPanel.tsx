@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,15 @@ const EVENT_TYPE_STYLES: Record<MarketEvent['eventType'], string> = {
   RegulatoryShock: 'border-orange-500/30 bg-orange-500/10 text-orange-200',
 };
 
+const MARKET_IMPACT_ORDER: Array<keyof MarketEvent['marketImpact']> = [
+  'equities',
+  'rates',
+  'fx',
+  'oil',
+  'credit',
+  'sectors',
+];
+
 function formatTime(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return 'Unknown';
@@ -74,15 +84,6 @@ function tabButtonClass(active: boolean): string {
     ? 'h-7 border-zinc-600 bg-zinc-800 text-zinc-100 hover:bg-zinc-700 px-2 text-xs'
     : 'h-7 border-zinc-700 bg-transparent text-zinc-300 hover:bg-zinc-800/60 px-2 text-xs';
 }
-
-const MARKET_IMPACT_ORDER: Array<keyof MarketEvent['marketImpact']> = [
-  'equities',
-  'rates',
-  'fx',
-  'oil',
-  'credit',
-  'sectors',
-];
 
 function formatImpactLabel(key: keyof MarketEvent['marketImpact']): string {
   switch (key) {
@@ -180,15 +181,10 @@ export default function EventsPanel() {
           <div>
             <h2 className="text-base font-semibold text-zinc-100">Market-Moving Events</h2>
             <div className="mt-0.5 flex items-center gap-2 text-[11px] text-zinc-400">
-              <span>Provider: {provider}</span>
+              <span>Source: {provider === 'demo-seed' ? 'CapitalBase' : provider}</span>
               <span>•</span>
               <span>{filteredEvents.length} events</span>
-              {fallback && (
-                <>
-                  <span>•</span>
-                  <span className="text-amber-300">Demo Seed Mode</span>
-                </>
-              )}
+              {fallback && <><span>•</span><span className="text-amber-300">Curated fallback</span></>}
             </div>
           </div>
           <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => void fetchEvents({ force: true })}>
@@ -198,7 +194,7 @@ export default function EventsPanel() {
 
         {provider === 'demo-seed' && (
           <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-            Demo Seed Mode — not live intelligence.
+            Curated market-event set while live coverage is unavailable.
           </div>
         )}
 
@@ -217,7 +213,7 @@ export default function EventsPanel() {
             className={tabButtonClass(providerMode === 'demo-seed')}
             onClick={() => setProviderMode('demo-seed')}
           >
-            Demo Seed
+            Curated
           </Button>
           <Button
             size="sm"
@@ -278,7 +274,7 @@ export default function EventsPanel() {
             <div className="font-medium text-zinc-200">No market-moving events detected</div>
             <div className="mt-1 text-zinc-400">{message || warning || 'No events passed filters.'}</div>
             <div className="mt-2 text-zinc-500">
-              The 8 structured example events you asked for are available under <span className="text-zinc-300">Demo Seed</span>, not Live mode.
+              A curated event set is available while live mode is empty.
             </div>
             <div className="mt-3">
               <Button
@@ -287,7 +283,7 @@ export default function EventsPanel() {
                 className="h-7 px-2 text-xs"
                 onClick={() => setProviderMode('demo-seed')}
               >
-                Show Demo Seed Events
+                Show Curated Events
               </Button>
             </div>
           </div>
@@ -295,7 +291,7 @@ export default function EventsPanel() {
 
         {!loading && !error && provider === 'demo-seed' && filteredEvents.length === 0 && (
           <div className="rounded-md border border-zinc-800/40 px-3 py-2 text-xs text-zinc-400">
-            Demo seed returned 0 events for current filters.
+            Curated fallback returned 0 events for current filters.
           </div>
         )}
 
@@ -418,14 +414,16 @@ export default function EventsPanel() {
                 </div>
 
                 {event.sources[0] && (
-                  <a
-                    href={event.sources[0].url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-sky-300 hover:text-sky-200"
-                  >
-                    Open lead source <ExternalLink className="h-3 w-3" />
-                  </a>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <a
+                      href={event.sources[0].url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-sky-300 hover:text-sky-200"
+                    >
+                      Open lead source <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
                 )}
               </ExpandableCard>
             );

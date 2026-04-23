@@ -1,5 +1,17 @@
 import { getSupabaseServiceClient } from '@/lib/events/store';
 import type { ModelGeneratorType } from '@/lib/model-generator/classifyPrompt';
+import type {
+  EventLinkedModelAdjustmentResult,
+  EventLinkedModelChangedDriver,
+  EventLinkedModelEventSource,
+  EventLinkedModelTranscription,
+} from '@/lib/model-events/types';
+import type {
+  SmartAssumptionConfidence,
+  SmartAssumptionDriverKey,
+  SmartAssumptionResult,
+} from '@/lib/smart-assumptions/types';
+import type { CustomAssumptionResult } from '@/lib/analyst/customAssumptions';
 
 export type ProvenanceSummary = {
   sourceType: 'cached_real' | 'demo_fallback' | 'prompt_defaults' | 'inferred' | 'attachment_statement';
@@ -15,6 +27,60 @@ export type ComparisonSummary = {
   currentVersionNumber: number | null;
 };
 
+export type PromptRunEventContext = {
+  sourceType: EventLinkedModelEventSource['sourceType'];
+  eventId: string | null;
+  title: string | null;
+  publishedAt: string | null;
+  sourceUrl: string | null;
+  sourceLabel: string | null;
+};
+
+export type PromptRunEventAdjustmentSummary = {
+  normalizedEventSummary: string;
+  eventCategory: string;
+  confidence: EventLinkedModelAdjustmentResult['confidence'];
+  scenarioBias: EventLinkedModelAdjustmentResult['scenarioBias'];
+  changedDrivers: Array<
+    Pick<EventLinkedModelChangedDriver, 'driver' | 'label' | 'old' | 'new'>
+  >;
+  warnings: string[];
+  blockingErrors: string[];
+  transcription?: EventLinkedModelTranscription | null;
+};
+
+export type PromptRunSmartAssumptionSummary = {
+  sourceType: 'smart_assumption_agent';
+  companyName: string | null;
+  ticker: string | null;
+  sector: string | null;
+  industry: string | null;
+  regime: string;
+  changedDrivers: Array<{
+    driver: SmartAssumptionDriverKey;
+    label: string;
+    old: number | null;
+    new: number | null;
+    confidence: SmartAssumptionConfidence;
+  }>;
+  driverConfidence: Record<SmartAssumptionDriverKey, SmartAssumptionConfidence>;
+  provenanceSummary: SmartAssumptionResult['provenanceSummary'];
+  warnings: string[];
+};
+
+export type PromptRunCustomAssumptionSummary = {
+  sourceType: 'custom_assumption_input';
+  companyName: string | null;
+  ticker: string | null;
+  changedDrivers: Array<{
+    driver: SmartAssumptionDriverKey;
+    label: string;
+    old: number | null;
+    new: number | null;
+  }>;
+  warnings: string[];
+};
+
 export type PromptRunVersion = {
   id: string;
   runId: string;
@@ -26,6 +92,11 @@ export type PromptRunVersion = {
   provenance: ProvenanceSummary | null;
   comparison: ComparisonSummary | null;
   workbookFilename: string | null;
+  exportSeed: Record<string, unknown> | null;
+  eventContext?: PromptRunEventContext | null;
+  eventAdjustmentSummary?: PromptRunEventAdjustmentSummary | null;
+  smartAssumptionSummary?: PromptRunSmartAssumptionSummary | null;
+  customAssumptionSummary?: PromptRunCustomAssumptionSummary | null;
   createdAt: string;
 };
 
@@ -56,10 +127,194 @@ type SaveRunInput = {
   extractedInputs: Record<string, unknown>;
   provenance: ProvenanceSummary | null;
   workbookFilename?: string | null;
+  exportSeed?: Record<string, unknown> | null;
+  eventContext?: PromptRunEventContext | EventLinkedModelEventSource | null;
+  eventAdjustmentSummary?: PromptRunEventAdjustmentSummary | Record<string, unknown> | null;
+  smartAssumptionSummary?: PromptRunSmartAssumptionSummary | SmartAssumptionResult | Record<string, unknown> | null;
+  customAssumptionSummary?: PromptRunCustomAssumptionSummary | CustomAssumptionResult | Record<string, unknown> | null;
 };
 
 function toRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function toTrimmedString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function toStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value
+        .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        .map((item) => item.trim())
+    : [];
+}
+
+export function toPromptRunEventContext(value: unknown): PromptRunEventContext | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const sourceType = record.sourceType === 'feed_item' ? 'feed_item' : record.sourceType === 'pasted_text' ? 'pasted_text' : null;
+  if (!sourceType) return null;
+  return {
+    sourceType,
+    eventId: toTrimmedString(record.eventId),
+    title: toTrimmedString(record.title),
+    publishedAt: toTrimmedString(record.publishedAt),
+    sourceUrl: toTrimmedString(record.sourceUrl),
+    sourceLabel: toTrimmedString(record.sourceLabel),
+  };
+}
+
+export function toPromptRunEventAdjustmentSummary(value: unknown): PromptRunEventAdjustmentSummary | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const normalizedEventSummary = toTrimmedString(record.normalizedEventSummary);
+  const eventCategory = toTrimmedString(record.eventCategory);
+  const confidence =
+    record.confidence === 'low' || record.confidence === 'medium' || record.confidence === 'high'
+      ? record.confidence
+      : null;
+  const scenarioBias =
+    record.scenarioBias === 'bullish' ||
+    record.scenarioBias === 'base' ||
+    record.scenarioBias === 'bearish' ||
+    record.scenarioBias === 'mixed' ||
+    record.scenarioBias === 'neutral'
+      ? record.scenarioBias
+      : null;
+  if (!normalizedEventSummary || !eventCategory || !confidence || !scenarioBias) return null;
+
+  const changedDrivers = Array.isArray(record.changedDrivers)
+    ? record.changedDrivers
+        .map((item) => {
+          if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+          const row = item as Record<string, unknown>;
+          const driver = toTrimmedString(row.driver);
+          const label = toTrimmedString(row.label);
+          if (!driver || !label) return null;
+          return {
+            driver,
+            label,
+            old: typeof row.old === 'number' && Number.isFinite(row.old) ? row.old : null,
+            new: typeof row.new === 'number' && Number.isFinite(row.new) ? row.new : null,
+          };
+        })
+        .filter(
+          (
+            item,
+          ): item is PromptRunEventAdjustmentSummary['changedDrivers'][number] => item !== null,
+        )
+    : [];
+
+  return {
+    normalizedEventSummary,
+    eventCategory,
+    confidence,
+    scenarioBias,
+    changedDrivers,
+    warnings: toStringArray(record.warnings),
+    blockingErrors: toStringArray(record.blockingErrors),
+    transcription:
+      record.transcription && typeof record.transcription === 'object' && !Array.isArray(record.transcription)
+        ? (record.transcription as EventLinkedModelTranscription)
+        : null,
+  };
+}
+
+export function toPromptRunSmartAssumptionSummary(value: unknown): PromptRunSmartAssumptionSummary | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const sourceType = record.sourceType === 'smart_assumption_agent' ? 'smart_assumption_agent' : null;
+  const regime = toTrimmedString(record.regime);
+  if (!sourceType || !regime) return null;
+
+  const allowedConfidence = (value: unknown): SmartAssumptionConfidence | null =>
+    value === 'low' || value === 'medium' || value === 'high' ? value : null;
+  const changedDrivers = Array.isArray(record.changedDrivers)
+    ? record.changedDrivers
+        .map((item) => {
+          if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+          const row = item as Record<string, unknown>;
+          const driver = toTrimmedString(row.driver) as SmartAssumptionDriverKey | null;
+          const label = toTrimmedString(row.label);
+          const confidence = allowedConfidence(row.confidence);
+          if (!driver || !label || !confidence) return null;
+          return {
+            driver,
+            label,
+            old: typeof row.old === 'number' && Number.isFinite(row.old) ? row.old : null,
+            new: typeof row.new === 'number' && Number.isFinite(row.new) ? row.new : null,
+            confidence,
+          };
+        })
+        .filter(
+          (
+            item,
+          ): item is PromptRunSmartAssumptionSummary['changedDrivers'][number] => item !== null,
+        )
+    : [];
+
+  const driverConfidenceRecord = record.driverConfidence && typeof record.driverConfidence === 'object' && !Array.isArray(record.driverConfidence)
+    ? (record.driverConfidence as Record<string, unknown>)
+    : {};
+
+  return {
+    sourceType,
+    companyName: toTrimmedString(record.companyName),
+    ticker: toTrimmedString(record.ticker),
+    sector: toTrimmedString(record.sector),
+    industry: toTrimmedString(record.industry),
+    regime,
+    changedDrivers,
+    driverConfidence: {
+      revenue_growth: allowedConfidence(driverConfidenceRecord.revenue_growth) ?? 'low',
+      operating_margin: allowedConfidence(driverConfidenceRecord.operating_margin) ?? 'low',
+      wacc: allowedConfidence(driverConfidenceRecord.wacc) ?? 'low',
+      terminal_growth_rate: allowedConfidence(driverConfidenceRecord.terminal_growth_rate) ?? 'low',
+    },
+    provenanceSummary:
+      record.provenanceSummary && typeof record.provenanceSummary === 'object' && !Array.isArray(record.provenanceSummary)
+        ? (record.provenanceSummary as PromptRunSmartAssumptionSummary['provenanceSummary'])
+        : { companyProfile: '', peerContext: '', macroContext: '', sources: [] },
+    warnings: toStringArray(record.warnings),
+  };
+}
+
+export function toPromptRunCustomAssumptionSummary(value: unknown): PromptRunCustomAssumptionSummary | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const sourceType = record.sourceType === 'custom_assumption_input' ? 'custom_assumption_input' : null;
+  if (!sourceType) return null;
+
+  const changedDrivers = Array.isArray(record.changedDrivers)
+    ? record.changedDrivers
+        .map((item) => {
+          if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+          const row = item as Record<string, unknown>;
+          const driver = toTrimmedString(row.driver) as SmartAssumptionDriverKey | null;
+          const label = toTrimmedString(row.label);
+          if (!driver || !label) return null;
+          return {
+            driver,
+            label,
+            old: typeof row.old === 'number' && Number.isFinite(row.old) ? row.old : null,
+            new: typeof row.new === 'number' && Number.isFinite(row.new) ? row.new : null,
+          };
+        })
+        .filter(
+          (
+            item,
+          ): item is PromptRunCustomAssumptionSummary['changedDrivers'][number] => item !== null,
+        )
+    : [];
+
+  return {
+    sourceType,
+    companyName: toTrimmedString(record.companyName),
+    ticker: toTrimmedString(record.ticker),
+    changedDrivers,
+    warnings: toStringArray(record.warnings),
+  };
 }
 
 function mapVersion(row: any): PromptRunVersion {
@@ -74,6 +329,13 @@ function mapVersion(row: any): PromptRunVersion {
     provenance: row.provenance_json ? (row.provenance_json as ProvenanceSummary) : null,
     comparison: row.comparison_json ? (row.comparison_json as ComparisonSummary) : null,
     workbookFilename: typeof row.workbook_filename === 'string' ? row.workbook_filename : null,
+    exportSeed: row.export_seed_json && typeof row.export_seed_json === 'object'
+      ? (row.export_seed_json as Record<string, unknown>)
+      : null,
+    eventContext: toPromptRunEventContext(row.event_context_json),
+    eventAdjustmentSummary: toPromptRunEventAdjustmentSummary(row.event_adjustment_json),
+    smartAssumptionSummary: toPromptRunSmartAssumptionSummary(row.smart_assumption_json),
+    customAssumptionSummary: toPromptRunCustomAssumptionSummary(row.custom_assumption_json),
     createdAt: String(row.created_at),
   };
 }
@@ -197,6 +459,11 @@ export async function savePromptModelRunVersion(input: SaveRunInput): Promise<{ 
       provenance_json: input.provenance ?? {},
       comparison_json: comparison,
       workbook_filename: input.workbookFilename ?? null,
+      export_seed_json: input.exportSeed ?? {},
+      event_context_json: toPromptRunEventContext(input.eventContext),
+      event_adjustment_json: toPromptRunEventAdjustmentSummary(input.eventAdjustmentSummary),
+      smart_assumption_json: toPromptRunSmartAssumptionSummary(input.smartAssumptionSummary),
+      custom_assumption_json: toPromptRunCustomAssumptionSummary(input.customAssumptionSummary),
     })
     .select('*')
     .single();
@@ -207,6 +474,57 @@ export async function savePromptModelRunVersion(input: SaveRunInput): Promise<{ 
 
   await supabase.from('prompt_model_runs').update({ status: input.status }).eq('id', runId);
   return { runId, version: mapVersion(versionResult.data) };
+}
+
+export async function getPromptModelRunVersion(params: {
+  runId: string;
+  versionNumber?: number | null;
+  surface?: 'model_generator' | 'analyst_chat';
+}): Promise<{ run: PromptRunRecord; version: PromptRunVersion } | null> {
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) return null;
+
+  const normalizedRunId = String(params.runId || '').trim();
+  if (!normalizedRunId) return null;
+
+  let runQuery = supabase.from('prompt_model_runs').select('*').eq('id', normalizedRunId);
+  if (params.surface) {
+    runQuery = runQuery.eq('surface', params.surface);
+  }
+
+  const runResult = await runQuery.maybeSingle();
+  if (runResult.error || !runResult.data) return null;
+
+  let versionQuery = supabase
+    .from('prompt_model_run_versions')
+    .select('*')
+    .eq('run_id', normalizedRunId);
+
+  if (typeof params.versionNumber === 'number' && Number.isFinite(params.versionNumber)) {
+    versionQuery = versionQuery.eq('version_number', params.versionNumber);
+  } else {
+    versionQuery = versionQuery.order('version_number', { ascending: false }).limit(1);
+  }
+
+  const versionResult = await versionQuery.maybeSingle();
+  if (versionResult.error || !versionResult.data) return null;
+
+  const version = mapVersion(versionResult.data);
+  const run: PromptRunRecord = {
+    id: String(runResult.data.id),
+    surface: runResult.data.surface,
+    sessionId: runResult.data.session_id ?? null,
+    prompt: runResult.data.prompt,
+    modelType: runResult.data.model_type,
+    companyName: runResult.data.company_name ?? null,
+    ticker: runResult.data.ticker ?? null,
+    status: runResult.data.status,
+    createdAt: runResult.data.created_at,
+    updatedAt: runResult.data.updated_at,
+    latestVersion: version,
+  };
+
+  return { run, version };
 }
 
 export async function getRecentPromptModelRuns(params: {
@@ -252,3 +570,12 @@ export async function getLatestComparableRun(params: {
     }) ?? null
   );
 }
+
+const runHistory = {
+  getLatestComparableRun,
+  getPromptModelRunVersion,
+  getRecentPromptModelRuns,
+  savePromptModelRunVersion,
+};
+
+export default runHistory;

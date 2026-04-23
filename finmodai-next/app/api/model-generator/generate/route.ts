@@ -15,6 +15,11 @@ import {
   type ThreeStatementModelInputs,
 } from '@/lib/model-generator/extractInputs';
 import { savePromptModelRunVersion } from '@/lib/model-generator/runHistory';
+import {
+  toPromptRunEventAdjustmentSummary,
+  toPromptRunEventContext,
+  toPromptRunSmartAssumptionSummary,
+} from '@/lib/model-generator/runHistory';
 import * as dcfTemplate from '@/lib/model-generator/templates/dcf';
 import * as threeStatementTemplate from '@/lib/model-generator/templates/threeStatement';
 import * as capTableTemplate from '@/lib/model-generator/templates/capTable';
@@ -25,6 +30,7 @@ import * as footballFieldTemplate from '@/lib/model-generator/templates/football
 import * as mergerTemplate from '@/lib/model-generator/templates/merger';
 import * as precedentsTemplate from '@/lib/model-generator/templates/precedents';
 import * as lboTemplate from '@/lib/model-generator/templates/lbo';
+import { financialExtractionRouteDeps } from '@/lib/data/financial-extraction/routeDeps';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -114,6 +120,13 @@ export async function POST(req: NextRequest) {
       body?.inputOverrides && typeof body.inputOverrides === 'object' && !Array.isArray(body.inputOverrides)
         ? (body.inputOverrides as Record<string, unknown>)
         : undefined;
+    const financialExtractionJobId =
+      typeof body?.financialExtractionJobId === 'string' && body.financialExtractionJobId.trim()
+        ? body.financialExtractionJobId.trim()
+        : '';
+    const eventContext = toPromptRunEventContext(body?.eventContext);
+    const eventAdjustmentSummary = toPromptRunEventAdjustmentSummary(body?.eventAdjustment);
+    const smartAssumptionSummary = toPromptRunSmartAssumptionSummary(body?.smartAssumptionSummary);
 
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required.' }, { status: 400 });
@@ -127,7 +140,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const extraction = await extractInputs(prompt, modelType, { clarificationAnswer, inputOverrides });
+    const financialExtractionJob = financialExtractionJobId
+      ? await financialExtractionRouteDeps.getFinancialExtractionJob(financialExtractionJobId)
+      : null;
+    if (financialExtractionJobId && !financialExtractionJob) {
+      return NextResponse.json({ error: 'Financial extraction job not found.' }, { status: 404 });
+    }
+    if (financialExtractionJob?.snapshot?.validationState === 'blocking_error') {
+      return NextResponse.json(
+        {
+          error:
+            financialExtractionJob.snapshot.blockingErrors.join(' ') ||
+            'Financial extraction snapshot is not model-ready.',
+        },
+        { status: 400 },
+      );
+    }
+
+    const extraction = await extractInputs(prompt, modelType, {
+      clarificationAnswer,
+      inputOverrides,
+      financialExtractionSnapshot: financialExtractionJob?.snapshot ?? null,
+    });
     const clarification = getClarificationDecision(modelType, extraction.missingCriticalInputs);
     if (clarification.needsClarification) {
       return NextResponse.json(
@@ -164,6 +198,9 @@ export async function POST(req: NextRequest) {
         extractedInputs: extraction.extractedInputs as Record<string, unknown>,
         provenance: extraction.provenanceSummary,
         workbookFilename: filename,
+        eventContext,
+        eventAdjustmentSummary,
+        smartAssumptionSummary,
       });
     } catch {
       persisted = null;

@@ -1,27 +1,36 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
-import { EditableFinanceChart } from '@/components/charts/EditableFinanceChart';
-import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } from '@/lib/analyst/modelChat';
+import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } from '@/lib/analyst/types';
+import {
+  AnalystCompsControls,
+  AnalystCustomAssumptionControls,
+  AnalystCustomAssumptionSummaryCard,
+  AnalystEventSummaryCard,
+  AnalystModelVisualization,
+  AnalystSmartAssumptionSummaryCard,
+  AnalystThreeStatementControls,
+  applyCompsTickerAdjustment,
+  buildCompsTickerAdjustmentState,
+  defaultCompsTickerAdjustment,
+  type CompsTickerAdjustment,
+} from '@/components/analyst/AnalystModelCardParts';
 import {
   createGoogleSheetsPendingWindow,
   downloadWorkbookArtifact,
   fetchWorkbookArtifact,
   openWorkbookInGoogleSheets,
 } from '@/lib/workbookOpen';
-
-type CompsTickerAdjustment = {
-  revenueShiftPct: number;
-  ebitdaShiftPct: number;
-  priceShiftPct: number;
-  sharesShiftPct: number;
-};
+import { getModelBadgeLabel, replaceThreeStatementLabel } from '@/lib/modelDisplay';
+import {
+  buildAnalystCustomAssumptionOverrides,
+  buildCurrentAssumptionsFromExtractedInputs,
+  buildCustomAssumptionResult,
+} from '@/lib/analyst/customAssumptions';
 
 function isCurrencyKey(key?: string): boolean {
   if (!key) return false;
@@ -78,7 +87,9 @@ export function formatAnalystModelValue(
   value: unknown,
   key?: string,
   modelType?: AnalystGeneratedModelPayload['modelType'],
+  fieldDisplayMap?: AnalystGeneratedModelPayload['fieldDisplayMap'],
 ): string {
+  const semantic = key ? fieldDisplayMap?.[key] : undefined;
   if (Array.isArray(value)) {
     if (value.every((item) => item && typeof item === 'object' && !Array.isArray(item))) {
       return value
@@ -88,16 +99,34 @@ export function formatAnalystModelValue(
         })
         .join(', ');
     }
-    return value.map((item) => formatAnalystModelValue(item, key, modelType)).join(', ');
+    return value.map((item) => formatAnalystModelValue(item, key, modelType, fieldDisplayMap)).join(', ');
   }
   if (value && typeof value === 'object') {
     const entries = Object.entries(value as Record<string, unknown>)
       .filter(([, item]) => typeof item === 'string' || typeof item === 'number')
       .slice(0, 4)
-      .map(([entryKey, item]) => `${entryKey}: ${formatAnalystModelValue(item, entryKey, modelType)}`);
+      .map(([entryKey, item]) => `${entryKey}: ${formatAnalystModelValue(item, entryKey, modelType, fieldDisplayMap)}`);
     return entries.length > 0 ? entries.join(', ') : 'Structured object';
   }
   if (typeof value === 'number') {
+    if (semantic === 'percent') {
+      const percentValue = Math.abs(value) <= 1 ? value * 100 : value;
+      return `${percentValue.toLocaleString('en-US', { maximumFractionDigits: 1 })}%`;
+    }
+    if (semantic === 'model_millions_shares') {
+      return formatModelSharesMillions(value);
+    }
+    if (semantic === 'model_millions_currency') {
+      return formatAbsoluteCurrencyCompact(value * 1_000_000);
+    }
+    if (semantic === 'multiple') {
+      return `${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}x`;
+    }
+    if (semantic === 'currency') {
+      return `$${value.toLocaleString('en-US', {
+        maximumFractionDigits: Math.abs(value) >= 1000 ? 0 : 2,
+      })}`;
+    }
     if (isPercentKey(key)) {
       const percentValue = Math.abs(value) <= 1 ? value * 100 : value;
       return `${percentValue.toLocaleString('en-US', { maximumFractionDigits: 1 })}%`;
@@ -128,6 +157,7 @@ function ObjectGrid(props: {
   values: Record<string, unknown>;
   emptyMessage: string;
   modelType?: AnalystGeneratedModelPayload['modelType'];
+  fieldDisplayMap?: AnalystGeneratedModelPayload['fieldDisplayMap'];
 }) {
   const entries = Object.entries(props.values);
   return (
@@ -140,7 +170,7 @@ function ObjectGrid(props: {
           {entries.map(([key, value]) => (
               <div key={key} className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
               <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">{key}</div>
-              <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{formatAnalystModelValue(value, key, props.modelType)}</div>
+              <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{formatAnalystModelValue(value, key, props.modelType, props.fieldDisplayMap)}</div>
             </div>
           ))}
         </div>
@@ -165,77 +195,6 @@ type ChartSpec =
       yType?: 'currency' | 'percent' | 'number';
     };
 
-function formatAxisValue(value: number, type: 'currency' | 'percent' | 'number' = 'number'): string {
-  if (!Number.isFinite(value)) return '—';
-  if (type === 'currency') {
-    if (Math.abs(value) >= 1000) return `$${Math.round(value / 1000)}B`;
-    return `$${Math.round(value)}M`;
-  }
-  if (type === 'percent') return `${value.toFixed(0)}%`;
-  return value.toLocaleString('en-US', { maximumFractionDigits: 1 });
-}
-
-function defaultCompsTickerAdjustment(): CompsTickerAdjustment {
-  return {
-    revenueShiftPct: 0,
-    ebitdaShiftPct: 0,
-    priceShiftPct: 0,
-    sharesShiftPct: 0,
-  };
-}
-
-function buildCompsTickerAdjustmentState(
-  subject: Record<string, unknown> | null,
-  peers: Array<Record<string, unknown>>,
-): Record<string, CompsTickerAdjustment> {
-  const next: Record<string, CompsTickerAdjustment> = {};
-  const rows = [subject, ...peers].filter((row): row is Record<string, unknown> => Boolean(row));
-
-  for (const row of rows) {
-    const ticker = typeof row.ticker === 'string' ? row.ticker : null;
-    if (!ticker) continue;
-    next[ticker] = defaultCompsTickerAdjustment();
-  }
-
-  return next;
-}
-
-function applyCompsTickerAdjustment(
-  row: Record<string, unknown>,
-  adjustment: CompsTickerAdjustment | undefined,
-): Record<string, unknown> {
-  if (!adjustment) return row;
-
-  const revenue =
-    typeof row.revenue === 'number'
-      ? Number(row.revenue) * (1 + adjustment.revenueShiftPct / 100)
-      : row.revenue;
-  const ebitda =
-    typeof row.ebitda === 'number'
-      ? Number(row.ebitda) * (1 + adjustment.ebitdaShiftPct / 100)
-      : row.ebitda;
-  const price =
-    typeof row.price === 'number'
-      ? Number(row.price) * (1 + adjustment.priceShiftPct / 100)
-      : row.price;
-  const sharesOutstanding =
-    typeof row.sharesOutstanding === 'number'
-      ? Number(row.sharesOutstanding) * (1 + adjustment.sharesShiftPct / 100)
-      : row.sharesOutstanding;
-  const marketCap =
-    typeof price === 'number' && typeof sharesOutstanding === 'number'
-      ? (price * sharesOutstanding) / 1_000_000
-      : row.marketCap;
-
-  return {
-    ...row,
-    revenue,
-    ebitda,
-    price,
-    sharesOutstanding,
-    marketCap,
-  };
-}
 
 function normalizeModelTypeForReport(modelType: AnalystGeneratedModelPayload['modelType']): string {
   switch (modelType) {
@@ -280,7 +239,7 @@ function displayWorkspaceTitle(modelType: AnalystGeneratedModelPayload['modelTyp
 function displayModelBadge(modelType: AnalystGeneratedModelPayload['modelType']): string {
   switch (modelType) {
     case 'THREE_STATEMENT':
-      return 'FORECAST MODEL';
+      return getModelBadgeLabel(modelType);
     case 'COMPS':
       return 'TRADING COMPARABLES';
     case 'FOOTBALL_FIELD':
@@ -295,7 +254,7 @@ function displayModelBadge(modelType: AnalystGeneratedModelPayload['modelType'])
 function displayModelTitle(payload: AnalystGeneratedModelPayload): string {
   switch (payload.modelType) {
     case 'THREE_STATEMENT':
-      return payload.title.replace(/Three-Statement Model/gi, 'Forecast Model');
+      return replaceThreeStatementLabel(payload.title);
     case 'COMPS':
       return payload.title.replace(/Comparable Company Analysis/gi, 'Trading Comparables');
     case 'FOOTBALL_FIELD':
@@ -382,258 +341,38 @@ function excelActionLabel(modelType: AnalystGeneratedModelPayload['modelType']):
   }
 }
 
-function inferChartSpec(payload: AnalystGeneratedModelPayload): ChartSpec | null {
-  const inputs = payload.extractedInputs as Record<string, unknown>;
-
-  if (payload.modelType === 'THREE_STATEMENT') {
-    const revenueGrowth = Array.isArray(inputs.revenueGrowth) ? inputs.revenueGrowth : [];
-    const grossMargin = typeof inputs.grossMargin === 'number' ? Number(inputs.grossMargin) * 100 : null;
-    const opexPctRevenue = typeof inputs.opexPctRevenue === 'number' ? Number(inputs.opexPctRevenue) * 100 : null;
-    const years = Array.from({ length: revenueGrowth.length }, (_, idx) => `Y${idx + 1}`);
-    if (years.length > 0) {
-      return {
-        kind: 'line',
-        title: 'Forecast Assumption Paths',
-        data: years.map((year, index) => ({
-          year,
-          revenueGrowth: typeof revenueGrowth[index] === 'number' ? Number(revenueGrowth[index]) * 100 : 0,
-          grossMargin: grossMargin ?? 0,
-          opexPctRevenue: opexPctRevenue ?? 0,
-        })),
-        lines: [
-          { key: 'revenueGrowth', label: 'Revenue Growth', color: '#2563eb', valueType: 'percent' },
-          { key: 'grossMargin', label: 'Gross Margin', color: '#16a34a', valueType: 'percent' },
-          { key: 'opexPctRevenue', label: 'Opex % Revenue', color: '#f59e0b', valueType: 'percent' },
-        ],
-        yType: 'percent',
-      };
-    }
-  }
-
-  if (payload.modelType === 'COMPS') {
-    const subject = inputs.subject && typeof inputs.subject === 'object' ? (inputs.subject as Record<string, unknown>) : null;
-    const peers = Array.isArray(inputs.peers) ? (inputs.peers as Array<Record<string, unknown>>) : [];
-    const median = (values: number[]) => {
-      if (values.length === 0) return null;
-      const sorted = [...values].sort((left, right) => left - right);
-      const mid = Math.floor(sorted.length / 2);
-      return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
-    };
-    const peerMedianEvRevenue = median(
-      peers
-        .map((peer) =>
-          Number(
-            peer.evToRevenue ??
-              (peer.enterpriseValue && peer.revenue ? Number(peer.enterpriseValue) / Number(peer.revenue) : NaN),
-          ),
-        )
-        .filter(Number.isFinite),
-    );
-    const peerMedianEvEbitda = median(
-      peers
-        .map((peer) =>
-          Number(
-            peer.evToEbitda ??
-              (peer.enterpriseValue && peer.ebitda ? Number(peer.enterpriseValue) / Number(peer.ebitda) : NaN),
-          ),
-        )
-        .filter(Number.isFinite),
-    );
-    const peerMedianPe = median(
-      peers
-        .map((peer) =>
-          Number(
-            peer.peRatio ?? (peer.marketCap && peer.netIncome ? Number(peer.marketCap) / Number(peer.netIncome) : NaN),
-          ),
-        )
-        .filter(Number.isFinite),
-    );
-    const selectedMultiples =
-      inputs.selectedMultiples && typeof inputs.selectedMultiples === 'object'
-        ? (inputs.selectedMultiples as Record<string, unknown>)
-        : null;
-    const selectedEvRevenue =
-      typeof selectedMultiples?.evToRevenue === 'number' ? Number(selectedMultiples.evToRevenue) : peerMedianEvRevenue;
-    const selectedEvEbitda =
-      typeof selectedMultiples?.evToEbitda === 'number' ? Number(selectedMultiples.evToEbitda) : peerMedianEvEbitda;
-    const selectedPe = typeof selectedMultiples?.peRatio === 'number' ? Number(selectedMultiples.peRatio) : peerMedianPe;
-    if (subject && (selectedEvRevenue !== null || selectedEvEbitda !== null || selectedPe !== null)) {
-      const data = [
-        {
-          label: 'EV / Revenue',
-          selected: selectedEvRevenue ?? 0,
-          peerMedian: peerMedianEvRevenue ?? 0,
-        },
-        {
-          label: 'EV / EBITDA',
-          selected: selectedEvEbitda ?? 0,
-          peerMedian: peerMedianEvEbitda ?? 0,
-        },
-        {
-          label: 'P / E',
-          selected: selectedPe ?? 0,
-          peerMedian: peerMedianPe ?? 0,
-        },
-      ];
-      return {
-        kind: 'bar',
-        title: 'Selected vs Peer Median Multiples',
-        data,
-        bars: [
-          { key: 'selected', label: 'Selected', color: '#2563eb', valueType: 'number' },
-          { key: 'peerMedian', label: 'Peer Median', color: '#16a34a', valueType: 'number' },
-        ],
-        yType: 'number',
-      };
-    }
-  }
-
-  if (payload.modelType === 'PRECEDENTS') {
-    const transactions = Array.isArray(inputs.transactions) ? (inputs.transactions as Array<Record<string, unknown>>) : [];
-    if (transactions.length > 0) {
-      const data = transactions.slice(0, 8).map((transaction) => ({
-        label: String(transaction.target ?? transaction.transaction ?? 'Deal'),
-        revenueMultiple: typeof transaction.revenueMultiple === 'number' ? Number(transaction.revenueMultiple) : 0,
-        ebitdaMultiple: typeof transaction.ebitdaMultiple === 'number' ? Number(transaction.ebitdaMultiple) : 0,
-      }));
-      return {
-        kind: 'bar',
-        title: 'Transaction Multiples',
-        data,
-        bars: [
-          { key: 'revenueMultiple', label: 'EV / Revenue', color: '#2563eb', valueType: 'number' },
-          { key: 'ebitdaMultiple', label: 'EV / EBITDA', color: '#f59e0b', valueType: 'number' },
-        ],
-        yType: 'number',
-      };
-    }
-  }
-
-  if (payload.modelType === 'LBO') {
-    const revenueGrowth = Array.isArray(inputs.revenueGrowth) ? inputs.revenueGrowth : [];
-    if (revenueGrowth.length > 0) {
-      return {
-        kind: 'line',
-        title: 'Underwriting Growth Path',
-        data: revenueGrowth.map((value, index) => ({
-          year: `Y${index + 1}`,
-          revenueGrowth: typeof value === 'number' ? Number(value) * 100 : 0,
-        })),
-        lines: [{ key: 'revenueGrowth', label: 'Revenue Growth', color: '#2563eb', valueType: 'percent' }],
-        yType: 'percent',
-      };
-    }
-  }
-
-  if (payload.modelType === 'CAP_TABLE') {
-    const founderShares = typeof inputs.founderShares === 'number' ? Number(inputs.founderShares) : null;
-    const raiseAmount = typeof inputs.raiseAmount === 'number' ? Number(inputs.raiseAmount) : null;
-    const preMoney = typeof inputs.preMoney === 'number' ? Number(inputs.preMoney) : null;
-    if (founderShares !== null || raiseAmount !== null || preMoney !== null) {
-      return {
-        kind: 'bar',
-        title: 'Financing Structure Snapshot',
-        data: [
-          {
-            label: 'Round',
-            founderShares: founderShares ?? 0,
-            raiseAmount: raiseAmount ?? 0,
-            preMoney: preMoney ?? 0,
-          },
-        ],
-        bars: [
-          { key: 'founderShares', label: 'Founder Shares', color: '#2563eb', valueType: 'number' },
-          { key: 'raiseAmount', label: 'Raise Amount', color: '#16a34a', valueType: 'currency' },
-          { key: 'preMoney', label: 'Pre-Money', color: '#f59e0b', valueType: 'currency' },
-        ],
-        yType: 'number',
-      };
-    }
-  }
-
-  if (payload.modelType === 'SAAS_OPERATING_MODEL') {
-    const growthRate = typeof inputs.growthRate === 'number' ? Number(inputs.growthRate) * 100 : null;
-    const grossMargin = typeof inputs.grossMargin === 'number' ? Number(inputs.grossMargin) * 100 : null;
-    const churn = typeof inputs.churn === 'number' ? Number(inputs.churn) * 100 : null;
-    const cac = typeof inputs.cac === 'number' ? Number(inputs.cac) : null;
-    const arpu = typeof inputs.arpu === 'number' ? Number(inputs.arpu) : null;
-    const data = [
-      { label: 'Growth', value: growthRate ?? 0 },
-      { label: 'Gross Margin', value: grossMargin ?? 0 },
-      { label: 'Churn', value: churn ?? 0 },
-      { label: 'CAC', value: cac ?? 0 },
-      { label: 'ARPU', value: arpu ?? 0 },
-    ];
-    if (data.some((row) => row.value > 0)) {
-      return {
-        kind: 'bar',
-        title: 'Operating Driver Snapshot',
-        data,
-        bars: [{ key: 'value', label: 'Value', color: '#2563eb', valueType: 'number' }],
-        yType: 'number',
-      };
-    }
-  }
-
-  return null;
-}
-
-function ModelVisualization({ spec }: { spec: ChartSpec }) {
-  const plotData =
-    spec.kind === 'line'
-      ? spec.lines.map((line) => ({
-          type: 'scatter',
-          mode: 'lines+markers',
-          name: line.label,
-          x: spec.data.map((row) => String(row.year ?? row.label ?? '')),
-          y: spec.data.map((row) => Number(row[line.key] ?? 0)),
-          line: { color: line.color, width: 2.5, shape: 'spline' },
-          marker: { color: line.color, size: 6 },
-          hovertemplate: `%{x}<br>${line.label}: %{y}${line.valueType === 'percent' ? '%' : line.valueType === 'currency' ? 'M' : ''}<extra></extra>`,
-        }))
-      : spec.bars.map((bar) => ({
-          type: 'bar',
-          name: bar.label,
-          x: spec.data.map((row) => String(row.label ?? row.year ?? '')),
-          y: spec.data.map((row) => Number(row[bar.key] ?? 0)),
-          marker: { color: bar.color, opacity: 0.9 },
-          hovertemplate: `%{x}<br>${bar.label}: %{y}${bar.valueType === 'percent' ? '%' : bar.valueType === 'currency' ? 'M' : bar.valueType === 'number' ? 'x' : ''}<extra></extra>`,
-        }));
-
-  const yAxisLayout =
-    spec.yType === 'currency'
-      ? { tickprefix: '$', ticksuffix: 'M' }
-      : spec.yType === 'percent'
-        ? { ticksuffix: '%' }
-        : {};
-
-  return (
-    <EditableFinanceChart
-      title={spec.title}
-      subtitle="Editable chart: zoom, relabel, and annotate directly."
-      height={256}
-      data={plotData}
-      layout={{
-        barmode: spec.kind === 'bar' ? 'group' : undefined,
-        xaxis: {
-          title: '',
-          type: 'category',
-        },
-        yaxis: {
-          title: '',
-          ...yAxisLayout,
-        },
-      }}
-    />
-  );
-}
+const DynamicEventSummaryCard = dynamic(
+  () => import('@/components/analyst/AnalystModelCardParts').then((mod) => mod.AnalystEventSummaryCard),
+);
+const DynamicSmartAssumptionSummaryCard = dynamic(
+  () => import('@/components/analyst/AnalystModelCardParts').then((mod) => mod.AnalystSmartAssumptionSummaryCard),
+);
+const DynamicCustomAssumptionSummaryCard = dynamic(
+  () => import('@/components/analyst/AnalystModelCardParts').then((mod) => mod.AnalystCustomAssumptionSummaryCard),
+);
+const DynamicCustomAssumptionControls = dynamic(
+  () => import('@/components/analyst/AnalystModelCardParts').then((mod) => mod.AnalystCustomAssumptionControls),
+);
+const DynamicThreeStatementControls = dynamic(
+  () => import('@/components/analyst/AnalystModelCardParts').then((mod) => mod.AnalystThreeStatementControls),
+);
+const DynamicCompsControls = dynamic(
+  () => import('@/components/analyst/AnalystModelCardParts').then((mod) => mod.AnalystCompsControls),
+);
+const DynamicModelVisualization = dynamic(
+  () => import('@/components/analyst/AnalystModelCardParts').then((mod) => mod.AnalystModelVisualization),
+);
 
 export function AnalystModelCard({
   payload,
   onAdjust,
+  onAdjustFromEvent,
+  onSuggestSmartAssumptions,
 }: {
   payload: AnalystGeneratedModelPayload;
   onAdjust?: (adjustment: AnalystStructuredModelAdjustment) => Promise<void>;
+  onAdjustFromEvent?: () => void;
+  onSuggestSmartAssumptions?: () => void;
 }) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -641,11 +380,22 @@ export function AnalystModelCard({
   const [sheetsNotice, setSheetsNotice] = useState<string | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
-  const [showControls, setShowControls] = useState(payload.modelType !== 'COMPS');
+  const [showControls, setShowControls] = useState(false);
+  const [showCustomAssumptions, setShowCustomAssumptions] = useState(false);
   const [isApplyingControls, setIsApplyingControls] = useState(false);
   const [controlsError, setControlsError] = useState<string | null>(null);
   const [isApplyingEventShock, setIsApplyingEventShock] = useState(false);
-  const chartSpec = inferChartSpec(payload);
+  const [isApplyingCustomAssumptions, setIsApplyingCustomAssumptions] = useState(false);
+  const [customAssumptionError, setCustomAssumptionError] = useState<string | null>(null);
+  const exportRunId = payload.recentRun?.runId?.trim() ?? '';
+  const exportVersionNumber = payload.recentRun?.versionNumber ?? undefined;
+  const canExportWorkbook =
+    exportRunId.length > 0 ||
+    (typeof payload.title === 'string' &&
+      Array.isArray(payload.tabs) &&
+      Array.isArray(payload.keyOutputs) &&
+      payload.extractedInputs !== null &&
+      typeof payload.extractedInputs === 'object');
   const threeStatementInputs =
     payload.modelType === 'THREE_STATEMENT' ? (payload.extractedInputs as Record<string, unknown>) : null;
   const compsInputs =
@@ -683,13 +433,32 @@ export function AnalystModelCard({
   const [compsEvRevenueMultiple, setCompsEvRevenueMultiple] = useState(0);
   const [compsEvEbitdaMultiple, setCompsEvEbitdaMultiple] = useState(0);
   const [compsPeMultiple, setCompsPeMultiple] = useState(0);
-  const threeStatementEventPresets = [
-    { label: 'CEO Retires', prompt: 'If the CEO retires, stress this model' },
-    { label: 'Rates Stay Higher', prompt: 'What if rates stay higher for longer on this model' },
-    { label: 'Oil Shock', prompt: 'Show me the impact of an oil shock on this model' },
-    { label: 'Tariff Shock', prompt: 'Stress this model for tariffs going up' },
-  ] as const;
-
+  const currentAssumptions = useMemo(
+    () => buildCurrentAssumptionsFromExtractedInputs(payload.extractedInputs),
+    [payload.extractedInputs],
+  );
+  const companyContextLine = useMemo(() => {
+    const inputs = payload.extractedInputs as Record<string, unknown>;
+    const companyName = typeof inputs.companyName === 'string' ? inputs.companyName : null;
+    const ticker = typeof inputs.ticker === 'string' ? inputs.ticker : null;
+    const companyType = typeof inputs.companyType === 'string' ? inputs.companyType : null;
+    return [companyName, ticker, companyType].filter((value): value is string => Boolean(value)).join(' • ');
+  }, [payload.extractedInputs]);
+  const leadTakeaway = payload.narrativeBlocks[0]?.body?.trim() ?? null;
+  const [customRevenueGrowth, setCustomRevenueGrowth] = useState(
+    typeof currentAssumptions.revenue_growth === 'number' ? (currentAssumptions.revenue_growth * 100).toFixed(1) : '',
+  );
+  const [customOperatingMargin, setCustomOperatingMargin] = useState(
+    typeof currentAssumptions.operating_margin === 'number' ? (currentAssumptions.operating_margin * 100).toFixed(1) : '',
+  );
+  const [customWacc, setCustomWacc] = useState(
+    typeof currentAssumptions.wacc === 'number' ? (currentAssumptions.wacc * 100).toFixed(1) : '',
+  );
+  const [customTerminalGrowth, setCustomTerminalGrowth] = useState(
+    typeof currentAssumptions.terminal_growth_rate === 'number'
+      ? (currentAssumptions.terminal_growth_rate * 100).toFixed(1)
+      : '',
+  );
   useEffect(() => {
     if (payload.modelType !== 'THREE_STATEMENT') return;
     const inputs = payload.extractedInputs as Record<string, unknown>;
@@ -699,6 +468,22 @@ export function AnalystModelCard({
     setTaxRatePct(typeof inputs.taxRate === 'number' ? Number(inputs.taxRate) * 100 : 0);
     setControlsError(null);
   }, [payload]);
+
+  useEffect(() => {
+    setCustomRevenueGrowth(
+      typeof currentAssumptions.revenue_growth === 'number' ? (currentAssumptions.revenue_growth * 100).toFixed(1) : '',
+    );
+    setCustomOperatingMargin(
+      typeof currentAssumptions.operating_margin === 'number' ? (currentAssumptions.operating_margin * 100).toFixed(1) : '',
+    );
+    setCustomWacc(typeof currentAssumptions.wacc === 'number' ? (currentAssumptions.wacc * 100).toFixed(1) : '');
+    setCustomTerminalGrowth(
+      typeof currentAssumptions.terminal_growth_rate === 'number'
+        ? (currentAssumptions.terminal_growth_rate * 100).toFixed(1)
+        : '',
+    );
+    setCustomAssumptionError(null);
+  }, [currentAssumptions]);
 
   const adjustedThreeStatementRevenueGrowth = useMemo(() => {
     if (payload.modelType !== 'THREE_STATEMENT') return [];
@@ -827,12 +612,25 @@ export function AnalystModelCard({
 
   async function handleDownload() {
     if (isDownloading) return;
+    if (!canExportWorkbook) {
+      setDownloadError('This model needs to be rerun before workbook export is available.');
+      return;
+    }
 
     setIsDownloading(true);
     setDownloadError(null);
     setSheetsNotice(null);
 
     try {
+      const exportRequestBody =
+        exportRunId.length > 0
+          ? {
+              runId: exportRunId,
+              versionNumber: exportVersionNumber,
+            }
+          : {
+              payload,
+            };
       const workbook = await fetchWorkbookArtifact(
         '/api/analyst-chat/model-export',
         {
@@ -841,9 +639,7 @@ export function AnalystModelCard({
             'Content-Type': 'application/json',
             accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           },
-          body: JSON.stringify({
-            payload,
-          }),
+          body: JSON.stringify(exportRequestBody),
         },
         defaultWorkbookFilename(payload),
       );
@@ -858,6 +654,10 @@ export function AnalystModelCard({
 
   async function handleOpenInGoogleSheets() {
     if (isOpeningInSheets) return;
+    if (!canExportWorkbook) {
+      setDownloadError('This model needs to be rerun before workbook export is available.');
+      return;
+    }
 
     setIsOpeningInSheets(true);
     setDownloadError(null);
@@ -865,6 +665,15 @@ export function AnalystModelCard({
     const pendingWindow = typeof window !== 'undefined' ? createGoogleSheetsPendingWindow(window) : null;
 
     try {
+      const exportRequestBody =
+        exportRunId.length > 0
+          ? {
+              runId: exportRunId,
+              versionNumber: exportVersionNumber,
+            }
+          : {
+              payload,
+            };
       const workbook = await fetchWorkbookArtifact(
         '/api/analyst-chat/model-export',
         {
@@ -873,9 +682,7 @@ export function AnalystModelCard({
             'Content-Type': 'application/json',
             accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           },
-          body: JSON.stringify({
-            payload,
-          }),
+          body: JSON.stringify(exportRequestBody),
         },
         defaultWorkbookFilename(payload),
       );
@@ -1049,6 +856,56 @@ export function AnalystModelCard({
     setControlsError(null);
   }
 
+  async function handleApplyCustomAssumptions() {
+    if (!onAdjust || isApplyingCustomAssumptions) return;
+
+    const { summary, errors } = buildCustomAssumptionResult({
+      companyName:
+        'companyName' in payload.extractedInputs && typeof payload.extractedInputs.companyName === 'string'
+          ? payload.extractedInputs.companyName
+          : payload.title,
+      ticker:
+        'ticker' in payload.extractedInputs && typeof payload.extractedInputs.ticker === 'string'
+          ? payload.extractedInputs.ticker
+          : null,
+      currentAssumptions,
+      requestedValues: {
+        revenue_growth: customRevenueGrowth.trim().length > 0 ? Number(customRevenueGrowth) / 100 : undefined,
+        operating_margin: customOperatingMargin.trim().length > 0 ? Number(customOperatingMargin) / 100 : undefined,
+        wacc: customWacc.trim().length > 0 ? Number(customWacc) / 100 : undefined,
+        terminal_growth_rate: customTerminalGrowth.trim().length > 0 ? Number(customTerminalGrowth) / 100 : undefined,
+      },
+    });
+
+    if (!summary) {
+      setCustomAssumptionError(errors[0] ?? 'No valid custom assumptions were provided.');
+      return;
+    }
+
+    const changes = buildAnalystCustomAssumptionOverrides(
+      payload.extractedInputs as Record<string, unknown>,
+      Object.fromEntries(summary.changedDrivers.map((driver) => [driver.driver, driver.new])),
+    );
+
+    if (Object.keys(changes).length === 0) {
+      setCustomAssumptionError('The active model does not expose compatible assumption fields for those inputs.');
+      return;
+    }
+
+    setIsApplyingCustomAssumptions(true);
+    setCustomAssumptionError(null);
+    try {
+      await onAdjust({
+        changes,
+        customAssumptionSummary: summary,
+      });
+    } catch (error) {
+      setCustomAssumptionError(error instanceof Error ? error.message : 'Unable to apply custom assumptions.');
+    } finally {
+      setIsApplyingCustomAssumptions(false);
+    }
+  }
+
   return (
     <Card className="mt-4 overflow-hidden border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
       <CardHeader className="border-b border-[var(--cb-border-subtle)] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))]">
@@ -1059,6 +916,11 @@ export function AnalystModelCard({
             <div className="text-xs text-[var(--cb-text-muted)]">
               Use Google Sheets to bypass local `.xlsx` app associations like Apple Numbers.
             </div>
+            {!canExportWorkbook ? (
+              <div className="text-xs text-[#fca5a5]">
+                Workbook export is unavailable for this artifact until the model is rerun and saved server-side.
+              </div>
+            ) : null}
             {payload.modelType === 'COMPS' && payload.scenarioContext ? (
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <Badge variant="outline">Scenario</Badge>
@@ -1071,11 +933,14 @@ export function AnalystModelCard({
             <Button type="button" variant="outline" size="sm" onClick={() => void handleGenerateReport()} disabled={isGeneratingReport}>
               {isGeneratingReport ? 'Generating PDF…' : pdfActionLabel(payload.modelType)}
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => void handleOpenInGoogleSheets()} disabled={isOpeningInSheets}>
+            <Button type="button" variant="outline" size="sm" onClick={() => void handleOpenInGoogleSheets()} disabled={isOpeningInSheets || !canExportWorkbook}>
               {isOpeningInSheets ? 'Opening Google Sheets…' : 'Open in Google Sheets'}
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => void handleDownload()} disabled={isDownloading}>
+            <Button type="button" variant="outline" size="sm" onClick={() => void handleDownload()} disabled={isDownloading || !canExportWorkbook}>
               {isDownloading ? 'Preparing Excel…' : excelActionLabel(payload.modelType)}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={onSuggestSmartAssumptions} disabled={!onSuggestSmartAssumptions}>
+              Suggest smart assumptions
             </Button>
           </div>
         </div>
@@ -1097,382 +962,180 @@ export function AnalystModelCard({
           </div>
         ) : null}
 
-        <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
-          <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Template Layout</div>
-          <div className="flex flex-wrap gap-2">
-            {payload.tabs.map((tab) => (
-              <Badge key={tab} variant="outline" className="border-[var(--cb-border-subtle)] text-[var(--cb-text-secondary)]">
-                {tab}
-              </Badge>
-            ))}
+        {(companyContextLine || leadTakeaway) ? (
+          <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Model Summary</div>
+            {companyContextLine ? (
+              <div className="text-sm font-medium text-[var(--cb-text-primary)]">{companyContextLine}</div>
+            ) : null}
+            {leadTakeaway ? (
+              <p className="mt-2 text-sm leading-6 text-[var(--cb-text-primary)]">{leadTakeaway}</p>
+            ) : null}
           </div>
-        </div>
+        ) : null}
 
         <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
           <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Decision Outputs</div>
           <p className="text-sm leading-6 text-[var(--cb-text-primary)]">{payload.keyOutputs.join(', ')}</p>
         </div>
 
-        {payload.modelType === 'THREE_STATEMENT' ? (
-          <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Live Model Controls</div>
-                <div className="mt-1 text-sm text-[var(--cb-text-primary)]">
-                  Edit the operating assumptions here, then apply the changes to rerender the active three-statement model.
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => setShowControls((value) => !value)}>
-                  {showControls ? 'Hide Controls' : 'Show Controls'}
-                </Button>
-                {showControls ? (
-                  <Button type="button" variant="outline" size="sm" onClick={handleResetThreeStatementControls} disabled={isApplyingControls}>
-                    Reset
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-            {showControls ? (
-              <div className="mt-4 space-y-6">
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <Label>Event Presets</Label>
-                    <span className="text-xs text-[var(--cb-text-muted)]">Apply a deterministic operating shock</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {threeStatementEventPresets.map((preset) => (
-                      <Button
-                        key={preset.label}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => void handleApplyThreeStatementEventShock(preset.prompt)}
-                        disabled={!onAdjust || isApplyingControls || isApplyingEventShock}
-                      >
-                        {isApplyingEventShock ? 'Applying…' : preset.label}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
+        <DynamicSmartAssumptionSummaryCard payload={payload} />
+        <DynamicCustomAssumptionSummaryCard summary={payload.customAssumptionSummary} />
 
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <Label>Revenue Growth Shift</Label>
-                    <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
-                      {revenueGrowthShiftBps > 0 ? '+' : ''}{(revenueGrowthShiftBps / 100).toFixed(1)}%
-                    </span>
-                  </div>
-                  <Slider value={[revenueGrowthShiftBps]} onValueChange={([value]) => setRevenueGrowthShiftBps(value)} min={-500} max={500} step={25} className="mb-1" />
-                  <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
-                    <span>-5.0%</span>
-                    <span>{adjustedThreeStatementRevenueGrowth.map((value) => `${(value * 100).toFixed(1)}%`).join(' / ')}</span>
-                    <span>+5.0%</span>
-                  </div>
-                </div>
+        <DynamicModelVisualization payload={payload} />
 
-                <div className="grid gap-6 md:grid-cols-3">
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <Label>Gross Margin</Label>
-                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">{grossMarginPct.toFixed(1)}%</span>
-                    </div>
-                    <Slider value={[grossMarginPct]} onValueChange={([value]) => setGrossMarginPct(value)} min={20} max={90} step={0.5} className="mb-1" />
-                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
-                      <span>20.0%</span>
-                      <span>90.0%</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <Label>Opex % Revenue</Label>
-                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">{opexPct.toFixed(1)}%</span>
-                    </div>
-                    <Slider value={[opexPct]} onValueChange={([value]) => setOpexPct(value)} min={5} max={70} step={0.5} className="mb-1" />
-                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
-                      <span>5.0%</span>
-                      <span>70.0%</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <Label>Tax Rate</Label>
-                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">{taxRatePct.toFixed(1)}%</span>
-                    </div>
-                    <Slider value={[taxRatePct]} onValueChange={([value]) => setTaxRatePct(value)} min={5} max={35} step={0.5} className="mb-1" />
-                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
-                      <span>5.0%</span>
-                      <span>35.0%</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--cb-border-subtle)] pt-4">
-                  <div className="text-xs text-[var(--cb-text-muted)]">
-                    Changes are staged locally while you edit. Apply them to update the current operating assumptions and
-                    rerender the active model card.
-                  </div>
-                  <Button type="button" size="sm" onClick={() => void handleApplyThreeStatementControls()} disabled={!hasThreeStatementControlChanges || isApplyingControls}>
-                    {isApplyingControls ? 'Applying…' : 'Apply Changes'}
-                  </Button>
-                </div>
-                {controlsError ? (
-                  <div className="rounded-xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.16)] px-3 py-2 text-sm text-[#fecaca]">
-                    {controlsError}
-                  </div>
-                ) : null}
-              </div>
+        <details className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] px-3 py-2">
+          <summary className="cursor-pointer text-sm font-medium text-[var(--cb-text-primary)]">Adjust model</summary>
+          <div className="mt-3 space-y-4">
+            <DynamicEventSummaryCard payload={payload} onAdjustFromEvent={onAdjustFromEvent} />
+            <DynamicCustomAssumptionControls
+              visible={showCustomAssumptions}
+              onToggle={() => setShowCustomAssumptions((value) => !value)}
+              onApply={handleApplyCustomAssumptions}
+              revenueGrowth={customRevenueGrowth}
+              setRevenueGrowth={setCustomRevenueGrowth}
+              operatingMargin={customOperatingMargin}
+              setOperatingMargin={setCustomOperatingMargin}
+              wacc={customWacc}
+              setWacc={setCustomWacc}
+              terminalGrowth={customTerminalGrowth}
+              setTerminalGrowth={setCustomTerminalGrowth}
+              error={customAssumptionError}
+              isApplying={isApplyingCustomAssumptions}
+            />
+
+            {payload.modelType === 'THREE_STATEMENT' ? (
+              <DynamicThreeStatementControls
+                visible={showControls}
+                onToggle={() => setShowControls((value) => !value)}
+                onReset={handleResetThreeStatementControls}
+                onApply={handleApplyThreeStatementControls}
+                onShock={handleApplyThreeStatementEventShock}
+                grossMarginPct={grossMarginPct}
+                setGrossMarginPct={setGrossMarginPct}
+                opexPct={opexPct}
+                setOpexPct={setOpexPct}
+                taxRatePct={taxRatePct}
+                setTaxRatePct={setTaxRatePct}
+                revenueGrowthShiftBps={revenueGrowthShiftBps}
+                setRevenueGrowthShiftBps={setRevenueGrowthShiftBps}
+                adjustedRevenueGrowth={adjustedThreeStatementRevenueGrowth}
+                hasChanges={hasThreeStatementControlChanges}
+                isApplyingControls={isApplyingControls}
+                isApplyingEventShock={isApplyingEventShock}
+                controlsError={controlsError}
+                canAdjust={Boolean(onAdjust)}
+              />
+            ) : null}
+
+            {payload.modelType === 'COMPS' ? (
+              <DynamicCompsControls
+                visible={showControls}
+                onToggle={() => setShowControls((value) => !value)}
+                onReset={handleResetCompsControls}
+                onApply={handleApplyCompsControls}
+                rows={[adjustedCompsSubject, ...adjustedCompsPeers].filter((row): row is Record<string, unknown> => Boolean(row))}
+                adjustments={compsTickerAdjustments}
+                updateAdjustment={updateCompsTickerAdjustment}
+                addPeers={compsAddPeers}
+                setAddPeers={setCompsAddPeers}
+                removePeers={compsRemovePeers}
+                setRemovePeers={setCompsRemovePeers}
+                evRevenueMultiple={compsEvRevenueMultiple}
+                setEvRevenueMultiple={setCompsEvRevenueMultiple}
+                evEbitdaMultiple={compsEvEbitdaMultiple}
+                setEvEbitdaMultiple={setCompsEvEbitdaMultiple}
+                peMultiple={compsPeMultiple}
+                setPeMultiple={setCompsPeMultiple}
+                subjectTicker={typeof adjustedCompsSubject?.ticker === 'string' ? adjustedCompsSubject.ticker : null}
+                hasChanges={hasCompsControlChanges}
+                isApplyingControls={isApplyingControls}
+                controlsError={controlsError}
+              />
             ) : null}
           </div>
-        ) : null}
+        </details>
 
-        {payload.modelType === 'COMPS' ? (
-          <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Live Comps Controls</div>
-                <div className="mt-1 text-sm text-[var(--cb-text-primary)]">
-                  Controls start collapsed. Open them to adjust the subject and each peer directly, then apply the changes to rerender the active comps view.
-                </div>
-              </div>
+        <details className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] px-3 py-2">
+          <summary className="cursor-pointer text-sm font-medium text-[var(--cb-text-primary)]">Model details</summary>
+          <div className="mt-3 space-y-4">
+            <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
+              <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Template Layout</div>
               <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => setShowControls((value) => !value)}>
-                  {showControls ? 'Hide Controls' : 'Show Controls'}
-                </Button>
-                {showControls ? (
-                  <Button type="button" variant="outline" size="sm" onClick={handleResetCompsControls} disabled={isApplyingControls}>
-                    Reset
-                  </Button>
-                ) : null}
+                {payload.tabs.map((tab) => (
+                  <Badge key={tab} variant="outline" className="border-[var(--cb-border-subtle)] text-[var(--cb-text-secondary)]">
+                    {tab}
+                  </Badge>
+                ))}
               </div>
             </div>
-            {showControls ? (
-              <div className="mt-4 space-y-6">
-                <div className="space-y-4">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Per-Ticker Controls</div>
-                  <div className="grid gap-4">
-                    {[adjustedCompsSubject, ...adjustedCompsPeers]
-                      .filter((row): row is Record<string, unknown> => Boolean(row))
-                      .map((row) => {
-                        const ticker = typeof row.ticker === 'string' ? row.ticker : 'TICKER';
-                        const name = typeof row.name === 'string' ? row.name : ticker;
-                        const adjustment = compsTickerAdjustments[ticker] ?? defaultCompsTickerAdjustment();
-                        const isSubject = ticker === (typeof adjustedCompsSubject?.ticker === 'string' ? adjustedCompsSubject.ticker : null);
 
-                        return (
-                          <div key={ticker} className="rounded-xl border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-4">
-                            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                              <div>
-                                <div className="text-sm font-semibold text-[var(--cb-text-primary)]">{name}</div>
-                                <div className="text-xs text-[var(--cb-text-muted)]">
-                                  {ticker}{isSubject ? ' • Subject' : ' • Peer'}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="grid gap-6 md:grid-cols-2">
-                              <div>
-                                <div className="mb-2 flex items-center justify-between">
-                                  <Label>Revenue Shift</Label>
-                                  <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
-                                    {adjustment.revenueShiftPct > 0 ? '+' : ''}{adjustment.revenueShiftPct.toFixed(0)}%
-                                  </span>
-                                </div>
-                                <Slider value={[adjustment.revenueShiftPct]} onValueChange={([value]) => updateCompsTickerAdjustment(ticker, { revenueShiftPct: value })} min={-50} max={50} step={1} className="mb-1" />
-                                <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
-                                  <span>-50%</span>
-                                  <span>+50%</span>
-                                </div>
-                              </div>
-                              <div>
-                                <div className="mb-2 flex items-center justify-between">
-                                  <Label>EBITDA Shift</Label>
-                                  <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
-                                    {adjustment.ebitdaShiftPct > 0 ? '+' : ''}{adjustment.ebitdaShiftPct.toFixed(0)}%
-                                  </span>
-                                </div>
-                                <Slider value={[adjustment.ebitdaShiftPct]} onValueChange={([value]) => updateCompsTickerAdjustment(ticker, { ebitdaShiftPct: value })} min={-50} max={50} step={1} className="mb-1" />
-                                <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
-                                  <span>-50%</span>
-                                  <span>+50%</span>
-                                </div>
-                              </div>
-                              <div>
-                                <div className="mb-2 flex items-center justify-between">
-                                  <Label>Share Price Shift</Label>
-                                  <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
-                                    {adjustment.priceShiftPct > 0 ? '+' : ''}{adjustment.priceShiftPct.toFixed(0)}%
-                                  </span>
-                                </div>
-                                <Slider value={[adjustment.priceShiftPct]} onValueChange={([value]) => updateCompsTickerAdjustment(ticker, { priceShiftPct: value })} min={-40} max={40} step={1} className="mb-1" />
-                                <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
-                                  <span>-40%</span>
-                                  <span>+40%</span>
-                                </div>
-                              </div>
-                              <div>
-                                <div className="mb-2 flex items-center justify-between">
-                                  <Label>Shares Outstanding Shift</Label>
-                                  <span className="text-sm font-semibold text-[var(--cb-text-primary)]">
-                                    {adjustment.sharesShiftPct > 0 ? '+' : ''}{adjustment.sharesShiftPct.toFixed(0)}%
-                                  </span>
-                                </div>
-                                <Slider value={[adjustment.sharesShiftPct]} onValueChange={([value]) => updateCompsTickerAdjustment(ticker, { sharesShiftPct: value })} min={-20} max={20} step={1} className="mb-1" />
-                                <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
-                                  <span>-20%</span>
-                                  <span>+20%</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
+                <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Source Provenance</div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
+                    <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">Source Type</div>
+                    <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{prettifySourceType(payload.provenanceSummary.sourceType)}</div>
                   </div>
-                </div>
-                <div className="grid gap-6 md:grid-cols-3">
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <Label>EV / Revenue</Label>
-                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">{compsEvRevenueMultiple.toFixed(1)}x</span>
-                    </div>
-                    <Slider value={[compsEvRevenueMultiple]} onValueChange={([value]) => setCompsEvRevenueMultiple(value)} min={1} max={25} step={0.1} className="mb-1" />
-                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
-                      <span>1.0x</span>
-                      <span>25.0x</span>
+                  <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
+                    <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">As Of</div>
+                    <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{payload.provenanceSummary.asOfDate ?? 'n/a'}</div>
+                  </div>
+                  <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3 md:col-span-2">
+                    <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">Sources</div>
+                    <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">
+                      {payload.provenanceSummary.sources.join(', ') || 'n/a'}
                     </div>
                   </div>
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <Label>EV / EBITDA</Label>
-                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">{compsEvEbitdaMultiple.toFixed(1)}x</span>
-                    </div>
-                    <Slider value={[compsEvEbitdaMultiple]} onValueChange={([value]) => setCompsEvEbitdaMultiple(value)} min={1} max={50} step={0.1} className="mb-1" />
-                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
-                      <span>1.0x</span>
-                      <span>50.0x</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <Label>P / E</Label>
-                      <span className="text-sm font-semibold text-[var(--cb-text-primary)]">{compsPeMultiple.toFixed(1)}x</span>
-                    </div>
-                    <Slider value={[compsPeMultiple]} onValueChange={([value]) => setCompsPeMultiple(value)} min={1} max={80} step={0.1} className="mb-1" />
-                    <div className="flex justify-between text-xs text-[var(--cb-text-muted)]">
-                      <span>1.0x</span>
-                      <span>80.0x</span>
+                  <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3 md:col-span-2">
+                    <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">Fallback Used</div>
+                    <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">
+                      {payload.provenanceSummary.fallbackUsed.join(', ') || 'None'}
                     </div>
                   </div>
                 </div>
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <Label>Add Peers</Label>
-                      <span className="text-xs text-[var(--cb-text-muted)]">Tickers or company names</span>
-                    </div>
-                    <Input
-                      value={compsAddPeers}
-                      onChange={(event) => setCompsAddPeers(event.target.value)}
-                      placeholder="NOW, WDAY"
-                      className="h-10"
-                    />
-                  </div>
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <Label>Remove Peers</Label>
-                      <span className="text-xs text-[var(--cb-text-muted)]">Tickers or company names</span>
-                    </div>
-                    <Input
-                      value={compsRemovePeers}
-                      onChange={(event) => setCompsRemovePeers(event.target.value)}
-                      placeholder="SNOW"
-                      className="h-10"
-                    />
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--cb-border-subtle)] pt-4">
-                  <div className="text-xs text-[var(--cb-text-muted)]">
-                    Changes are staged locally while you edit. Apply them to update the subject snapshot, adjust the peer
-                    set, and rerender implied valuation on the active comps model.
-                  </div>
-                  <Button type="button" size="sm" onClick={() => void handleApplyCompsControls()} disabled={!hasCompsControlChanges || isApplyingControls}>
-                    {isApplyingControls ? 'Applying…' : 'Apply Changes'}
-                  </Button>
-                </div>
-                {controlsError ? (
-                  <div className="rounded-xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.16)] px-3 py-2 text-sm text-[#fecaca]">
-                    {controlsError}
-                  </div>
-                ) : null}
               </div>
-            ) : null}
-          </div>
-        ) : null}
 
-        {chartSpec ? <ModelVisualization spec={chartSpec} /> : null}
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
-            <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Source Provenance</div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
-                <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">Source Type</div>
-                <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{prettifySourceType(payload.provenanceSummary.sourceType)}</div>
-              </div>
-              <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
-                <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">As Of</div>
-                <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{payload.provenanceSummary.asOfDate ?? 'n/a'}</div>
-              </div>
-              <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3 md:col-span-2">
-                <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">Sources</div>
-                <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">
-                  {payload.provenanceSummary.sources.join(', ') || 'n/a'}
-                </div>
-              </div>
-              <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3 md:col-span-2">
-                <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">Fallback Used</div>
-                <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">
-                  {payload.provenanceSummary.fallbackUsed.join(', ') || 'None'}
+              <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
+                <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Version Context</div>
+                <div className="grid gap-3">
+                  <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
+                    <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">Saved Run</div>
+                    <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">
+                      {payload.recentRun ? `Version ${payload.recentRun.versionNumber ?? 'n/a'} • ${payload.recentRun.status}` : 'No saved analyst chat run'}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
+                    <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">Assumption Changes</div>
+                    <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">
+                      {payload.comparisonSummary?.changedKeys.length
+                        ? payload.comparisonSummary.changedKeys.join(', ')
+                        : 'No tracked changes versus prior saved version'}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
-            <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Version Context</div>
-            <div className="grid gap-3">
-              <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
-                <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">Previous Run</div>
-                <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">
-                  {payload.recentRun ? `Version ${payload.recentRun.versionNumber ?? 'n/a'} • ${payload.recentRun.status}` : 'No prior analyst chat run'}
-                </div>
-              </div>
-              <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
-                <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">Assumption Changes</div>
-                <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">
-                  {payload.comparisonSummary?.changedKeys.length
-                    ? payload.comparisonSummary.changedKeys.join(', ')
-                    : 'No tracked changes versus prior saved version'}
-                </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <ObjectGrid title="Extracted Inputs" values={payload.extractedInputs as Record<string, unknown>} emptyMessage="No structured inputs were extracted." modelType={payload.modelType} fieldDisplayMap={payload.fieldDisplayMap} />
+              <ObjectGrid title="Defaults Used" values={payload.defaultsUsed} emptyMessage="No defaults were required." modelType={payload.modelType} />
+            </div>
+
+            <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
+              <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Analyst Framing</div>
+              <div className="space-y-3">
+                {payload.narrativeBlocks.map((block) => (
+                  <div key={block.title} className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
+                    <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">{block.title}</div>
+                    <div className="mt-2 text-sm leading-6 text-[var(--cb-text-primary)]">{block.body}</div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          <ObjectGrid title="Extracted Inputs" values={payload.extractedInputs as Record<string, unknown>} emptyMessage="No structured inputs were extracted." modelType={payload.modelType} />
-          <ObjectGrid title="Defaults Used" values={payload.defaultsUsed} emptyMessage="No defaults were required." modelType={payload.modelType} />
-        </div>
-
-        <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3">
-          <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Analyst Framing</div>
-          <div className="space-y-3">
-            {payload.narrativeBlocks.map((block) => (
-              <div key={block.title} className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-3">
-                <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">{block.title}</div>
-                <div className="mt-2 text-sm leading-6 text-[var(--cb-text-primary)]">{block.body}</div>
-              </div>
-            ))}
-          </div>
-        </div>
+        </details>
       </CardContent>
     </Card>
   );

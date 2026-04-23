@@ -55,7 +55,7 @@ const MODEL_LABELS: Record<string, string> = {
   comps: 'COMPS',
   'football-field': 'FOOTBALL_FIELD',
   precedents: 'PRECEDENTS',
-  'three-statement': 'THREE_STATEMENT',
+  'three-statement': 'FORECAST_MODEL',
   scorecard: 'SCORECARD',
   lbo: 'LBO',
   merger: 'MERGER',

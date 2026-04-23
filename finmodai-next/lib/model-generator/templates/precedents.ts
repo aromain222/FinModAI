@@ -35,6 +35,9 @@ function maxValue(values: number[]): number | null {
 }
 
 export function getPreview(inputs: PrecedentsModelInputs) {
+  if (!inputs.companyName || inputs.companyName.trim().length === 0) {
+    throw new Error('Precedents export requires a resolved subject company name.');
+  }
   return {
     title: `${inputs.companyName} Precedent Transactions`,
     tabs: ['Summary', 'Transactions', 'Valuation', 'Equations', 'Checks'],
@@ -42,6 +45,12 @@ export function getPreview(inputs: PrecedentsModelInputs) {
 }
 
 export async function buildWorkbook(inputs: PrecedentsModelInputs): Promise<ExcelJS.Workbook> {
+  if (!inputs.companyName || inputs.companyName.trim().length === 0) {
+    throw new Error('Precedents export requires a resolved subject company name.');
+  }
+  if (typeof inputs.subjectRevenue !== 'number' && typeof inputs.subjectEbitda !== 'number') {
+    throw new Error('Precedents export requires subject revenue or EBITDA before workbook generation.');
+  }
   const workbook = new ExcelJS.Workbook();
   applyWorkbookMeta(workbook, `${inputs.companyName} Precedent Transactions`);
   enableWorkbookRecalculation(workbook);

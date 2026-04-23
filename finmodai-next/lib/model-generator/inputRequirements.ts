@@ -72,10 +72,10 @@ export const MODEL_INPUT_REQUIREMENTS: Record<ModelGeneratorType, ModelInputRequ
     defaults: getModelDefaults('MERGER') as Record<string, unknown>,
   },
   PRECEDENTS: {
-    requiredInputs: ['companyName', 'companyType'],
-    optionalInputs: ['transactionCount', 'revenueMultiple', 'ebitdaMultiple'],
-    criticalInputs: ['companyName', 'companyType'],
-    criticalRules: [{ anyOf: ['companyName', 'companyType'] }],
+    requiredInputs: ['companyName', 'revenue', 'ebitda'],
+    optionalInputs: ['companyType', 'transactionCount', 'revenueMultiple', 'ebitdaMultiple'],
+    criticalInputs: ['companyName', 'revenue', 'ebitda'],
+    criticalRules: [{ allOf: ['companyName'] }, { anyOf: ['revenue', 'ebitda'] }],
     defaults: getModelDefaults('PRECEDENTS') as Record<string, unknown>,
   },
   LBO: {

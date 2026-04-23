@@ -1,5 +1,7 @@
 type FootballFieldRange = {
   label: string;
+  basis?: string | null;
+  commentary?: string | null;
   lowPrice: number | null;
   midPrice: number | null;
   highPrice: number | null;
@@ -8,8 +10,11 @@ type FootballFieldRange = {
 type FootballFieldRangeChartProps = {
   ranges: FootballFieldRange[];
   currentPrice?: number | null;
-  highlightLabel?: string | null;
+  selectedLabel?: string | null;
+  hoveredLabel?: string | null;
   weightedMidpoint?: number | null;
+  onSelectLabel?: (label: string) => void;
+  onHoverLabelChange?: (label: string | null) => void;
 };
 
 function isFiniteNumber(value: unknown): value is number {
@@ -28,8 +33,11 @@ function formatMoney(value: number | null): string {
 export function FootballFieldRangeChart({
   ranges,
   currentPrice = null,
-  highlightLabel = null,
+  selectedLabel = null,
+  hoveredLabel = null,
   weightedMidpoint = null,
+  onSelectLabel,
+  onHoverLabelChange,
 }: FootballFieldRangeChartProps) {
   const populatedRanges = ranges.filter(
     (range) =>
@@ -97,29 +105,52 @@ export function FootballFieldRangeChart({
           const low = range.lowPrice as number;
           const mid = range.midPrice as number;
           const high = range.highPrice as number;
-          const highlighted = highlightLabel === range.label;
+          const activeLabel = hoveredLabel ?? selectedLabel;
+          const highlighted = activeLabel === range.label;
           const lowPct = toPercent(low);
           const highPct = toPercent(high);
           const midPct = toPercent(mid);
           const currentPct = isFiniteNumber(currentPrice) ? toPercent(currentPrice) : null;
           const weightedPct = isFiniteNumber(weightedMidpoint) ? toPercent(weightedMidpoint) : null;
+          const spread = high - low;
+          const spreadPct = mid !== 0 ? spread / Math.abs(mid) : null;
+          const currentDelta =
+            isFiniteNumber(currentPrice) && currentPrice !== 0
+              ? (mid - currentPrice) / Math.abs(currentPrice)
+              : null;
+          const weightedDelta =
+            isFiniteNumber(weightedMidpoint) && weightedMidpoint !== 0
+              ? (mid - weightedMidpoint) / Math.abs(weightedMidpoint)
+              : null;
 
           return (
-            <div key={range.label} className="grid grid-cols-[140px_minmax(0,1fr)_120px] items-center gap-3">
-              <div className={`text-sm font-medium ${highlighted ? 'text-[var(--cb-text-primary)]' : 'text-[var(--cb-text-secondary)]'}`}>
+            <div
+              key={range.label}
+              className="grid grid-cols-[140px_minmax(0,1fr)_120px] items-center gap-3"
+              onMouseEnter={() => onHoverLabelChange?.(range.label)}
+              onMouseLeave={() => onHoverLabelChange?.(null)}
+            >
+              <button
+                type="button"
+                onClick={() => onSelectLabel?.(range.label)}
+                className={`text-left text-sm font-medium ${highlighted ? 'text-[var(--cb-text-primary)]' : 'text-[var(--cb-text-secondary)]'}`}
+              >
                 {range.label}
-              </div>
-              <div className={`relative h-8 rounded-lg ${highlighted ? 'bg-[var(--cb-surface)] ring-1 ring-[var(--cb-accent)]/30' : 'bg-[var(--cb-surface)]'}`}>
+              </button>
+              <div
+                className={`relative h-8 rounded-lg transition ${highlighted ? 'bg-[var(--cb-surface)] ring-1 ring-[var(--cb-accent)]/30 shadow-[0_0_0_1px_rgba(56,189,248,0.06)]' : 'bg-[var(--cb-surface)]'}`}
+                onClick={() => onSelectLabel?.(range.label)}
+              >
                 <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-[var(--cb-border-subtle)]" />
                 {currentPct !== null ? (
                   <div
-                    className="absolute top-0 bottom-0 z-10 w-px bg-amber-500/90"
+                    className={`absolute top-0 bottom-0 z-10 w-px ${highlighted ? 'bg-amber-400' : 'bg-amber-500/90'}`}
                     style={{ left: `${currentPct}%` }}
                   />
                 ) : null}
                 {weightedPct !== null ? (
                   <div
-                    className="absolute top-0 bottom-0 z-10 w-px bg-fuchsia-500/90"
+                    className={`absolute top-0 bottom-0 z-10 w-px ${highlighted ? 'bg-fuchsia-400' : 'bg-fuchsia-500/90'}`}
                     style={{ left: `${weightedPct}%` }}
                   />
                 ) : null}
@@ -131,6 +162,39 @@ export function FootballFieldRangeChart({
                   className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[var(--cb-surface)] bg-[var(--cb-accent)] shadow-sm"
                   style={{ left: `${midPct}%` }}
                 />
+                {highlighted ? (
+                  <>
+                    <div
+                      className="absolute top-1/2 z-20 -translate-y-[150%] rounded-md border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] px-2 py-1 text-[11px] text-[var(--cb-text-primary)] shadow-lg"
+                      style={{ left: `${Math.min(Math.max(midPct, 10), 90)}%`, transform: 'translate(-50%, -140%)' }}
+                    >
+                      <div className="font-medium">{formatMoney(low)} / {formatMoney(mid)} / {formatMoney(high)}</div>
+                      <div className="text-[var(--cb-text-secondary)]">
+                        Spread {formatMoney(spread)}{spreadPct !== null ? ` · ${(spreadPct * 100).toFixed(1)}%` : ''}
+                      </div>
+                      <div className="text-[var(--cb-text-secondary)]">
+                        {currentDelta !== null ? `Vs current ${(currentDelta * 100).toFixed(1)}%` : 'Current unavailable'}
+                        {weightedDelta !== null ? ` · Vs weighted ${(weightedDelta * 100).toFixed(1)}%` : ''}
+                      </div>
+                    </div>
+                    {currentPct !== null ? (
+                      <div
+                        className="absolute bottom-full mb-1 -translate-x-1/2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-300"
+                        style={{ left: `${currentPct}%` }}
+                      >
+                        Current
+                      </div>
+                    ) : null}
+                    {weightedPct !== null ? (
+                      <div
+                        className="absolute bottom-full mb-1 -translate-x-1/2 rounded bg-fuchsia-500/15 px-1.5 py-0.5 text-[10px] font-medium text-fuchsia-300"
+                        style={{ left: `${weightedPct}%`, marginBottom: currentPct !== null ? '1.75rem' : '0.25rem' }}
+                      >
+                        Weighted
+                      </div>
+                    ) : null}
+                  </>
+                ) : null}
               </div>
               <div className="text-right font-mono text-xs text-[var(--cb-text-primary)]">
                 {formatMoney(low)} / {formatMoney(mid)} / {formatMoney(high)}

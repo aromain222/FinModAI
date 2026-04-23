@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Download, FileText, RotateCcw, Copy, Check } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { ToastEnhanced } from '@/components/ui/toast-enhanced';
 
@@ -15,6 +14,8 @@ export interface ModelResultsShellProps {
   modelName: string;
   generatedAt: string;
   status?: 'success' | 'failed' | 'pending';
+  companyContext?: string | null;
+  takeaway?: string | null;
   
   // Actions
   downloadUrl?: string;
@@ -45,6 +46,8 @@ export function ModelResultsShell({
   modelName,
   generatedAt,
   status = 'success',
+  companyContext,
+  takeaway,
   downloadUrl,
   onDownload,
   onDownloadPdfReport,
@@ -54,15 +57,14 @@ export function ModelResultsShell({
   pdfReportUrl,
   preview,
   assumptions,
-  diagnostics,
-  additionalAnalysis,
+  diagnostics: _diagnostics,
+  additionalAnalysis: _additionalAnalysis,
   state = 'generated',
   missingInputs = [],
   estimatedInputs = [],
   onCompleteAssumptions,
 }: ModelResultsShellProps) {
   const [linkCopied, setLinkCopied] = React.useState(false);
-  const [showAdditional, setShowAdditional] = React.useState(false);
   const [isDownloading, setIsDownloading] = React.useState(false);
   const { toasts, showToast, removeToast } = useToast();
 
@@ -180,32 +182,27 @@ export function ModelResultsShell({
 
   return (
     <div className="space-y-6">
-      {/* Units notice - visible at top of every model */}
-      <p className="text-sm font-medium text-[var(--cb-text-muted)] rounded-md bg-[var(--cb-surface)] border border-[var(--cb-border-subtle)] px-3 py-2">
-        All figures in USD millions (unless otherwise noted).
-      </p>
-
-      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[var(--cb-text-primary)]">
             {ticker} — {modelName}
           </h1>
+          {companyContext ? (
+            <p className="mt-2 max-w-2xl text-sm text-[var(--cb-text-secondary)]">{companyContext}</p>
+          ) : null}
           <div className="mt-2 flex items-center gap-3 text-sm text-[var(--cb-text-muted)]">
-            <span>Generated {formatDate(generatedAt)}</span>
             <Badge
               variant={status === 'success' ? 'default' : status === 'failed' ? 'destructive' : 'secondary'}
               className="text-xs"
             >
-              {status === 'success' ? 'Success' : status === 'failed' ? 'Failed' : 'Pending'}
+              {status === 'success' ? 'Ready' : status === 'failed' ? 'Failed' : 'Pending'}
             </Badge>
+            <span>{formatDate(generatedAt)}</span>
           </div>
         </div>
       </div>
 
-      {/* Action Row */}
       <div className="flex flex-wrap items-center gap-2">
-        {/* Only show download button when state is 'generated' */}
         {(downloadUrl || onDownload) && state === 'generated' && (
           <Button
             onClick={handleDownloadClick}
@@ -246,7 +243,6 @@ export function ModelResultsShell({
             Download PDF Report
           </Button>
         )}
-        {/* Show assumptions completion button when state is 'assumptions_required' */}
         {state === 'assumptions_required' && (
           <Button
             onClick={onCompleteAssumptions || (() => {})}
@@ -302,62 +298,36 @@ export function ModelResultsShell({
         )}
       </div>
 
-      {/* Main Content - Two Columns */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Left Column - Primary Preview (2/3 width) */}
-        <div className="lg:col-span-2">
+      {takeaway ? (
+        <Card className="border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base text-[var(--cb-text-primary)]">Takeaway</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 text-sm leading-6 text-[var(--cb-text-secondary)]">
+            {takeaway}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div>
           {preview}
         </div>
 
-        {/* Right Column - Secondary Info (1/3 width) */}
         <div className="space-y-4">
           {assumptions && (
             <Card className="border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
               <CardHeader>
-                <CardTitle className="text-base">Assumptions</CardTitle>
+                <CardTitle className="text-base">Key Assumptions</CardTitle>
               </CardHeader>
               <CardContent className="text-sm">
                 {assumptions}
               </CardContent>
             </Card>
           )}
-
-          {diagnostics && (
-            <Card className="border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
-              <CardHeader>
-                <CardTitle className="text-base">Diagnostics</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm">
-                {diagnostics}
-              </CardContent>
-            </Card>
-          )}
         </div>
       </div>
 
-      {/* Additional Analysis (Collapsed by Default) */}
-      {additionalAnalysis && (
-        <Card className="border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
-          <CardHeader>
-            <button
-              onClick={() => setShowAdditional(!showAdditional)}
-              className="flex w-full items-center justify-between text-left"
-            >
-              <CardTitle className="text-base">Additional Analysis</CardTitle>
-              <span className="text-sm text-[var(--cb-text-muted)]">
-                {showAdditional ? 'Hide' : 'Show'}
-              </span>
-            </button>
-          </CardHeader>
-          {showAdditional && (
-            <CardContent className="text-sm">
-              {additionalAnalysis}
-            </CardContent>
-          )}
-        </Card>
-      )}
-
-      {/* Local toasts for download failures */}
       <ToastEnhanced toasts={toasts} onRemove={removeToast} />
     </div>
   );

@@ -3,7 +3,7 @@ import { resolveCompanyProfile } from '@/lib/data/company/resolveCompanyProfile'
 import { getDemoSnapshot, type DemoCompanySnapshot } from '@/lib/demo/demoSnapshotStore';
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 import { applyEventAssumptionDeltas } from '@/lib/investment-analysis/eventAssumptionApplication';
-import { deriveEventAwareAssumptionDeltas } from '@/lib/investment-analysis/eventAssumptions';
+import { deriveEventAwareAssumptionDeltasWithAi } from '@/lib/investment-analysis/eventAssumptions';
 import { classifyInvestmentEvent } from '@/lib/investment-analysis/eventClassifier';
 import { mapEventToHistoricalPatterns } from '@/lib/investment-analysis/historicalPatterns';
 import {
@@ -490,7 +490,7 @@ export async function generateInvestmentAnalysisFromPrompt(prompt: string): Prom
     companyName: baseDocument.company.companyName,
     sector: baseDocument.company.sector,
   });
-  const deltaResult = deriveEventAwareAssumptionDeltas({
+  const deltaResult = await deriveEventAwareAssumptionDeltasWithAi({
     baseAssumptions: baseDocument.scenarios.base.assumptions,
     event: classification,
     company: {
@@ -498,6 +498,7 @@ export async function generateInvestmentAnalysisFromPrompt(prompt: string): Prom
       sector: baseDocument.company.sector,
       industry: baseDocument.company.industry,
     },
+    rawEventText: eventText,
   });
   const application = applyEventAssumptionDeltas(
     baseDocument.scenarios.base.assumptions,

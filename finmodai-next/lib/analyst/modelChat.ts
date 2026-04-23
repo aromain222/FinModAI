@@ -1,6 +1,31 @@
 import { classifyPrompt, type ModelGeneratorType } from '@/lib/model-generator/classifyPrompt';
 import type { AttachmentStatementSnapshot } from '@/lib/analyst/pdfFinancialStatements';
 import type { AttachmentModelExtractionContext } from '@/lib/analyst/claudeModelExtraction';
+import type {
+  AnalystFieldDisplayMap,
+  AttachmentScaleValidation,
+} from '@/lib/analyst/attachmentScaleValidation';
+import { analystModelChatDeps } from '@/lib/analyst/modelChatDeps';
+import {
+  buildAnalystGeneratedModelExportSeed,
+  buildAnalystGeneratedModelRecentRun,
+  isAnalystGeneratedModelExportSeed,
+  rebuildAnalystGeneratedModelPayloadFromSeed,
+} from '@/lib/analyst/export/exportSeed';
+import {
+  buildReasoningReply,
+  derivePersistentModelReasoningResponse,
+  translateFinancialReasoningToOverrides,
+} from '@/lib/analyst/revision/persistentModelReasoning';
+import type {
+  AnalystGeneratedModelExportSeed,
+  AnalystGeneratedModelPayload,
+  AnalystGeneratedModelRecentRun,
+  AnalystStructuredModelAdjustment,
+  AnalystStructuredModelResult,
+  ModelNarrativeBlock,
+} from '@/lib/analyst/types';
+import type { EventLinkedModelEventSource } from '@/lib/model-events/types';
 import {
   extractInputs,
   type CompsPeerInputs,
@@ -8,7 +33,6 @@ import {
   type PrecedentTransactionInputs,
 } from '@/lib/model-generator/extractInputs';
 import type { ComparisonSummary, PromptRunRecord, ProvenanceSummary } from '@/lib/model-generator/runHistory';
-import { getLatestComparableRun } from '@/lib/model-generator/runHistory';
 import * as dcfTemplate from '@/lib/model-generator/templates/dcf';
 import * as compsTemplate from '@/lib/model-generator/templates/comps';
 import { calculateDebtCapacityPreview } from '@/lib/model-generator/debtCapacitySummary';
@@ -21,13 +45,26 @@ import * as lboTemplate from '@/lib/model-generator/templates/lbo';
 import * as threeStatementTemplate from '@/lib/model-generator/templates/threeStatement';
 import * as capTableTemplate from '@/lib/model-generator/templates/capTable';
 import * as saasOperatingTemplate from '@/lib/model-generator/templates/saasOperating';
+import { DEMO_COMPANY_META } from '@/lib/demo/demoUniverse';
 import { loadDemoSnapshots, type DemoCompanySnapshot } from '@/lib/demo/demoSnapshotStore';
-import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 
-type ModelNarrativeBlock = {
-  title: string;
-  body: string;
+export { analystModelChatDeps } from '@/lib/analyst/modelChatDeps';
+export {
+  buildAnalystGeneratedModelExportSeed,
+  buildAnalystGeneratedModelRecentRun,
+  isAnalystGeneratedModelExportSeed,
+  rebuildAnalystGeneratedModelPayloadFromSeed,
 };
+export type {
+  AnalystGeneratedModelExportSeed,
+  AnalystGeneratedModelRecentRun,
+};
+export type {
+  AnalystGeneratedModelPayload,
+  AnalystStructuredModelAdjustment,
+  AnalystStructuredModelResult,
+  ModelNarrativeBlock,
+} from '@/lib/analyst/types';
 
 function extractJsonObject(text: string): string | null {
   const fenced = text.match(/```(?:json)?\s*([\s\S]+?)\s*```/i);
@@ -38,37 +75,10 @@ function extractJsonObject(text: string): string | null {
   return text.slice(firstBrace, lastBrace + 1);
 }
 
-export type AnalystGeneratedModelPayload = {
-  prompt: string;
-  modelType: ModelGeneratorType;
-  title: string;
-  tabs: string[];
-  keyOutputs: string[];
-  scenarioContext: string | null;
-  extractedInputs: ExtractedModelInputs;
-  defaultsUsed: Record<string, unknown>;
-  provenanceSummary: ProvenanceSummary;
-  comparisonSummary: ComparisonSummary | null;
-  recentRun: {
-    runId: string;
-    versionNumber: number | null;
-    createdAt: string;
-    status: string;
-  } | null;
-  narrativeBlocks: ModelNarrativeBlock[];
-  attachmentExtraction?: {
-    providerTrace: 'deterministic' | 'claude' | 'mixed';
-    fieldConflicts: Array<{
-      field: string;
-      resolution: 'deterministic' | 'claude' | 'user_override';
-      warning: string;
-    }>;
-  } | null;
-};
-
-export type AnalystStructuredModelAdjustment = {
-  changes: Record<string, unknown>;
-  prompt?: string;
+type AnalystModelRevisionResult = {
+  reply: string;
+  payload: AnalystGeneratedModelPayload;
+  modelChanged: boolean;
 };
 
 type StructuredModelType = ModelGeneratorType;
@@ -277,14 +287,28 @@ function removeOverriddenDefaults(
   return next;
 }
 
+function promptExplicitlySetsCompanyType(prompt: string): boolean {
+  return /\b(company type|sector|business type|classified as)\b/i.test(prompt);
+}
+
+function stripUngroundedAttachmentMetadata(
+  inputs: ExtractedModelInputs,
+  keepCompanyType: boolean,
+): ExtractedModelInputs {
+  if (keepCompanyType || !('companyType' in inputs)) return inputs;
+  const next = { ...(inputs as Record<string, unknown>) };
+  delete next.companyType;
+  return next as ExtractedModelInputs;
+}
+
 function buildRecentRunSummary(recentRun: PromptRunRecord | null) {
   if (!recentRun) return null;
-  return {
+  return buildAnalystGeneratedModelRecentRun({
     runId: recentRun.id,
     versionNumber: recentRun.latestVersion?.versionNumber ?? null,
     createdAt: recentRun.createdAt,
     status: recentRun.status,
-  };
+  });
 }
 
 function buildNarrativeBlocks(
@@ -585,6 +609,167 @@ function resolveDemoTickersFromList(raw: string, snapshots: Record<string, DemoC
   }
 
   return Array.from(resolved);
+}
+
+const MODEL_COMPANY_RESOLUTION_NOISE = new Set([
+  'a',
+  'an',
+  'the',
+  'build',
+  'create',
+  'generate',
+  'make',
+  'for',
+  'using',
+  'with',
+  'forecast',
+  'model',
+  'three',
+  'statement',
+  'three-statement',
+  'dcf',
+  'lbo',
+  'comps',
+  'precedents',
+  'precedent',
+  'transactions',
+  'football',
+  'field',
+  'merger',
+  'debt',
+  'capacity',
+  'cap',
+  'table',
+  'saas',
+  'operating',
+  'output',
+  'structured',
+  'include',
+  'yearly',
+  'not',
+  'narrative',
+  'prose',
+]);
+
+function cleanCompanyResolutionCandidate(value: string): string {
+  return normalizeEntityLabel(value)
+    .split(' ')
+    .map((token) => {
+      if (token.endsWith('ies') && token.length > 4) return `${token.slice(0, -3)}y`;
+      if (token.endsWith('s') && token.length > 4 && !token.endsWith('ss')) return token.slice(0, -1);
+      return token;
+    })
+    .filter((token) => token.length >= 2 && !MODEL_COMPANY_RESOLUTION_NOISE.has(token))
+    .join(' ')
+    .trim();
+}
+
+function resolveSingleDemoCompanyFromPrompt(
+  prompt: string,
+  snapshots: Record<string, DemoCompanySnapshot>,
+): { ticker: string; snapshot: DemoCompanySnapshot } | null {
+  const explicitTickers = Array.from(
+    new Set((prompt.match(/\b[A-Z]{1,5}(?:\.[A-Z])?\b/g) ?? []).filter((ticker) => snapshots[ticker])),
+  );
+  if (explicitTickers.length === 1) {
+    const ticker = explicitTickers[0];
+    return { ticker, snapshot: snapshots[ticker] };
+  }
+
+  const candidatePhrases = [
+    prompt.match(/\bfor\b\s+(.+?)(?:\b(?:forecast|three[\s-]?statement|dcf|lbo|comps|precedent|football|merger|cap\s+table|saas|debt\s+capacity|model)\b|$)/i)?.[1] ?? null,
+    prompt.match(/\b(?:about|on)\b\s+(.+?)(?:\b(?:forecast|three[\s-]?statement|dcf|lbo|comps|precedent|football|merger|cap\s+table|saas|debt\s+capacity|model)\b|$)/i)?.[1] ?? null,
+    cleanCompanyResolutionCandidate(prompt),
+  ].filter((value): value is string => Boolean(value && value.trim().length > 0));
+
+  for (const candidate of candidatePhrases) {
+    const resolved = resolveDemoTickersFromList(candidate, snapshots);
+    if (resolved.length === 1) {
+      const ticker = resolved[0];
+      return { ticker, snapshot: snapshots[ticker] };
+    }
+  }
+
+  const cleanedPrompt = cleanCompanyResolutionCandidate(prompt);
+  if (!cleanedPrompt) return null;
+  const cleanedTokens = cleanedPrompt.split(' ').filter((token) => token.length >= 2);
+  if (cleanedTokens.length === 0) return null;
+
+  let best: { ticker: string; snapshot: DemoCompanySnapshot; score: number } | null = null;
+  for (const [ticker, snapshot] of Object.entries(snapshots)) {
+    const cleanedName = cleanCompanyResolutionCandidate(snapshot.companyName || ticker);
+    if (!cleanedName) continue;
+    const matches = cleanedTokens.filter((token) => cleanedName.includes(token));
+    if (matches.length === 0) continue;
+    const score = matches.length * 100 + cleanedName.length;
+    if (!best || score > best.score) {
+      best = { ticker, snapshot, score };
+    }
+  }
+
+  return best ? { ticker: best.ticker, snapshot: best.snapshot } : null;
+}
+
+function applyResolvedDemoCompanyToInputs(
+  modelType: StructuredModelType,
+  extractedInputs: ExtractedModelInputs,
+  resolved: { ticker: string; snapshot: DemoCompanySnapshot },
+): ExtractedModelInputs {
+  const next = { ...extractedInputs } as Record<string, unknown>;
+
+  next.companyName = resolved.snapshot.companyName || resolved.ticker;
+  next.ticker = resolved.ticker;
+  if (resolved.snapshot.sector) {
+    next.companyType = resolved.snapshot.sector;
+  }
+  next.source = 'demo_company_snapshots';
+
+  if (modelType === 'THREE_STATEMENT') {
+    if (resolved.snapshot.revenueLtm != null) next.baseRevenue = resolved.snapshot.revenueLtm;
+    if (resolved.snapshot.cash != null) next.cash = resolved.snapshot.cash;
+    if (resolved.snapshot.totalDebt != null) next.debt = resolved.snapshot.totalDebt;
+  }
+
+  if (modelType === 'DCF') {
+    if (resolved.snapshot.revenueLtm != null) next.baseRevenue = resolved.snapshot.revenueLtm;
+    if (resolved.snapshot.cash != null) next.cash = resolved.snapshot.cash;
+    if (resolved.snapshot.totalDebt != null) next.debt = resolved.snapshot.totalDebt;
+    if (resolved.snapshot.sharesOutstanding != null) next.sharesOutstanding = resolved.snapshot.sharesOutstanding;
+    if (resolved.snapshot.sharePrice != null) next.sharePrice = resolved.snapshot.sharePrice;
+    if (resolved.snapshot.marketCap != null) next.marketCap = resolved.snapshot.marketCap;
+  }
+
+  return next as ExtractedModelInputs;
+}
+
+function applyResolvedDemoCompanyProvenance(
+  provenanceSummary: ProvenanceSummary,
+  resolved: { ticker: string; snapshot: DemoCompanySnapshot },
+): ProvenanceSummary {
+  return {
+    ...provenanceSummary,
+    sourceType: 'demo_fallback',
+    sources: Array.from(new Set([...provenanceSummary.sources, 'demo_company_snapshots'])),
+    asOfDate: provenanceSummary.asOfDate ?? resolved.snapshot.updatedAt ?? null,
+    lastSynced: provenanceSummary.lastSynced ?? resolved.snapshot.updatedAt ?? null,
+    fallbackUsed: Array.from(new Set([...provenanceSummary.fallbackUsed, 'analyst_company_resolution'])),
+  };
+}
+
+function withUniverseBackfill(
+  snapshots: Record<string, DemoCompanySnapshot>,
+): Record<string, DemoCompanySnapshot> {
+  const next = { ...snapshots };
+  for (const [ticker, meta] of Object.entries(DEMO_COMPANY_META)) {
+    if (next[ticker]) continue;
+    next[ticker] = {
+      ticker,
+      companyName: meta.name,
+      sector: meta.sector,
+      updatedAt: null,
+    };
+  }
+  return next;
 }
 
 function extractNestedScalarOverride(prompt: string, aliases: string[], type: 'percent' | 'money' | 'number'): number | undefined {
@@ -1169,7 +1354,7 @@ async function buildClaudeNarrativeBlocks(params: {
   provenanceSummary: ProvenanceSummary;
 }): Promise<ModelNarrativeBlock[] | null> {
   try {
-    const result = await generateTextWithProviderFallback({
+    const result = await analystModelChatDeps.generateTextWithProviderFallback({
       preferredProvider: 'anthropic',
       clientType: 'service',
       temperature: 0.1,
@@ -1209,16 +1394,33 @@ async function buildStructuredModelPayload(params: {
   extractedInputs: ExtractedModelInputs;
   defaultsUsed: Record<string, unknown>;
   provenanceSummary: ProvenanceSummary;
+  fieldDisplayMap?: AnalystFieldDisplayMap;
+  unitValidation?: AttachmentScaleValidation;
   sessionId?: string | null;
   replyPrefix?: string;
   attachmentExtractionContext?: AttachmentModelExtractionContext | null;
 }): Promise<{ reply: string; payload: AnalystGeneratedModelPayload }> {
-  const { prompt, modelType, extractedInputs, defaultsUsed, provenanceSummary, sessionId, replyPrefix, attachmentExtractionContext } = params;
+  const {
+    prompt,
+    modelType,
+    extractedInputs,
+    defaultsUsed,
+    provenanceSummary,
+    fieldDisplayMap,
+    unitValidation,
+    sessionId,
+    replyPrefix,
+    attachmentExtractionContext,
+  } = params;
   const preview = TEMPLATE_MAP[modelType].getPreview(extractedInputs);
   const modelLabel = labelForModelType(modelType);
+  const companyLabel =
+    'companyName' in extractedInputs && typeof extractedInputs.companyName === 'string'
+      ? extractedInputs.companyName
+      : null;
   const defaultsSummary = summarizeDefaults(defaultsUsed);
   const scenarioContext = extractScenarioContext(prompt);
-  const recentRun = await getLatestComparableRun({
+  const recentRun = await analystModelChatDeps.getLatestComparableRun({
     surface: 'analyst_chat',
     sessionId: sessionId ?? null,
     modelType,
@@ -1240,7 +1442,8 @@ async function buildStructuredModelPayload(params: {
 
   return {
     reply: [
-      replyPrefix ?? `Built a demo-ready ${modelLabel} model from your prompt. The workbook includes ${preview.tabs.join(', ')} so the output is immediately downloadable and reviewable in Excel.`,
+      replyPrefix ??
+        `Built ${companyLabel ? `${companyLabel}'s` : 'a'} ${modelLabel}. The workbook includes ${preview.tabs.join(', ')} so the output is immediately downloadable and reviewable in Excel.`,
       scenarioContext ? `Scenario context: ${scenarioContext}` : null,
       `${defaultsSummary} Key outputs in the workbook are ${KEY_OUTPUTS[modelType].join(', ')}. Use the attached card to download the model file.`,
       narrativeBlocks.map((block) => `${block.title}\n${block.body}`).join('\n\n'),
@@ -1258,6 +1461,9 @@ async function buildStructuredModelPayload(params: {
       comparisonSummary,
       recentRun: buildRecentRunSummary(recentRun),
       narrativeBlocks,
+      fieldDisplayMap,
+      unitValidationStatus: unitValidation?.ok ? 'validated' : undefined,
+      unitValidationMessage: unitValidation?.ok ? unitValidation.message : null,
       attachmentExtraction: attachmentExtractionContext
         ? {
             providerTrace: attachmentExtractionContext.providerTrace,
@@ -1276,12 +1482,36 @@ export async function reviseAnalystStructuredModel(
   prompt: string,
   existingPayload: AnalystGeneratedModelPayload,
   sessionId?: string | null,
-): Promise<{ reply: string; payload: AnalystGeneratedModelPayload } | null> {
-  const eventShockOverrides = inferStructuredModelEventShock(prompt, existingPayload);
-  const overrides = extractFollowUpOverrides(prompt, existingPayload.extractedInputs);
-  const nestedOverrides = await applyNestedModelOverrides(prompt, existingPayload);
-  const mergedOverrides = { ...eventShockOverrides, ...overrides, ...nestedOverrides };
-  if (Object.keys(mergedOverrides).length === 0) return null;
+): Promise<AnalystModelRevisionResult | null> {
+  const structuredReasoning = await derivePersistentModelReasoningResponse(prompt, existingPayload);
+  const structuredOverrides = structuredReasoning
+    ? translateFinancialReasoningToOverrides(existingPayload, structuredReasoning)
+    : {};
+  const eventShockOverrides = Object.keys(structuredOverrides).length === 0
+    ? inferStructuredModelEventShock(prompt, existingPayload)
+    : {};
+  const overrides = Object.keys(structuredOverrides).length === 0
+    ? extractFollowUpOverrides(prompt, existingPayload.extractedInputs)
+    : {};
+  const nestedOverrides = Object.keys(structuredOverrides).length === 0
+    ? await applyNestedModelOverrides(prompt, existingPayload)
+    : {};
+  const mergedOverrides = { ...eventShockOverrides, ...overrides, ...nestedOverrides, ...structuredOverrides };
+  const modelChanged = Object.keys(mergedOverrides).length > 0;
+  if (!modelChanged) {
+    if (
+      structuredReasoning &&
+      (structuredReasoning.intent === 'explanation' || structuredReasoning.intent === 'other') &&
+      (structuredReasoning.summary || structuredReasoning.detailed_reasoning)
+    ) {
+      return {
+        reply: buildReasoningReply(labelForModelType(existingPayload.modelType), structuredReasoning, false),
+        payload: existingPayload,
+        modelChanged: false,
+      };
+    }
+    return null;
+  }
 
   const extractedInputs = {
     ...existingPayload.extractedInputs,
@@ -1314,7 +1544,9 @@ export async function reviseAnalystStructuredModel(
   });
 
   return {
-    reply: payloadResult.reply,
+    reply: structuredReasoning
+      ? buildReasoningReply(labelForModelType(existingPayload.modelType), structuredReasoning, true)
+      : payloadResult.reply,
     payload: {
       ...payloadResult.payload,
       comparisonSummary:
@@ -1326,6 +1558,7 @@ export async function reviseAnalystStructuredModel(
             }
           : payloadResult.payload.comparisonSummary,
     },
+    modelChanged: true,
   };
 }
 
@@ -1333,7 +1566,7 @@ export async function reviseAnalystStructuredModelFromOverrides(
   overrides: Record<string, unknown>,
   existingPayload: AnalystGeneratedModelPayload,
   sessionId?: string | null,
-): Promise<{ reply: string; payload: AnalystGeneratedModelPayload } | null> {
+): Promise<AnalystModelRevisionResult | null> {
   const safeOverrides = Object.fromEntries(
     Object.entries(overrides).filter(([key, value]) => key in existingPayload.extractedInputs && value !== undefined),
   );
@@ -1381,6 +1614,7 @@ export async function reviseAnalystStructuredModelFromOverrides(
             }
           : payloadResult.payload.comparisonSummary,
     },
+    modelChanged: true,
   };
 }
 
@@ -1396,10 +1630,7 @@ export async function generateAnalystStructuredModel(
     attachmentSummary?: string | null;
     attachmentExtractionContext?: AttachmentModelExtractionContext | null;
   } = {},
-): Promise<{
-  reply: string;
-  payload: AnalystGeneratedModelPayload;
-} | null> {
+): Promise<AnalystStructuredModelResult | null> {
   const modelType = classifyPrompt(prompt);
   if (!modelType) return null;
 
@@ -1412,12 +1643,56 @@ export async function generateAnalystStructuredModel(
     attachmentSummary: options.attachmentSummary,
     attachmentExtractionContext: options.attachmentExtractionContext ?? null,
   });
+
+  if (extraction.scaleValidation && !extraction.scaleValidation.ok) {
+    return {
+      reply: extraction.scaleValidation.message,
+      validationFailed: true,
+      unitValidation: extraction.scaleValidation,
+    };
+  }
+
+  const keepCompanyType =
+    promptExplicitlySetsCompanyType(prompt) ||
+    (typeof options.inputOverrides?.companyType === 'string' && options.inputOverrides.companyType.trim().length > 0);
+  let extractedInputs =
+    options.attachmentDriven === true
+      ? stripUngroundedAttachmentMetadata(extraction.extractedInputs, keepCompanyType)
+      : extraction.extractedInputs;
+  let defaultsUsed = extraction.defaultsUsed;
+  let provenanceSummary = extraction.provenanceSummary;
+
+  const extractedInputRecord = extractedInputs as Record<string, unknown>;
+  const shouldForceNamedCompanyResolution =
+    options.attachmentDriven !== true &&
+    (extractedInputRecord.companyName === 'Demo Company' ||
+      (typeof extractedInputRecord.ticker !== 'string' || extractedInputRecord.ticker.trim().length === 0));
+
+  if (shouldForceNamedCompanyResolution) {
+    const snapshots = withUniverseBackfill(await loadDemoSnapshots());
+    const resolvedCompany = resolveSingleDemoCompanyFromPrompt(prompt, snapshots);
+    if (resolvedCompany) {
+      extractedInputs = applyResolvedDemoCompanyToInputs(modelType, extractedInputs, resolvedCompany);
+      provenanceSummary = applyResolvedDemoCompanyProvenance(provenanceSummary, resolvedCompany);
+      defaultsUsed = { ...defaultsUsed };
+      delete defaultsUsed.companyName;
+      delete defaultsUsed.baseRevenue;
+      delete defaultsUsed.cash;
+      delete defaultsUsed.debt;
+      delete defaultsUsed.sharesOutstanding;
+      delete defaultsUsed.sharePrice;
+      delete defaultsUsed.marketCap;
+    }
+  }
+
   return buildStructuredModelPayload({
     prompt,
     modelType,
-    extractedInputs: extraction.extractedInputs,
-    defaultsUsed: extraction.defaultsUsed,
-    provenanceSummary: extraction.provenanceSummary,
+    extractedInputs,
+    defaultsUsed,
+    provenanceSummary,
+    fieldDisplayMap: extraction.fieldDisplayMap,
+    unitValidation: extraction.scaleValidation,
     sessionId,
     attachmentExtractionContext: options.attachmentExtractionContext ?? null,
   });

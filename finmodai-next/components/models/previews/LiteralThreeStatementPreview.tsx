@@ -84,14 +84,14 @@ export function LiteralThreeStatementPreview({
 
   return (
     <ExcelPreviewShell
-      title={`${ticker} - Three-Statement Model`}
+      title={`${ticker} - Forecast Model`}
       asOfDate={asOfDate}
       currency="USD"
       units="millions"
       dataCoverage={dataCoverage.length > 0 ? dataCoverage : undefined}
       tables={[
         {
-          name: "Three-Statement Model",
+          name: "Forecast Model",
           data: tableData,
           maxRows: 100, // Show first 100 rows, truncate rest
         },

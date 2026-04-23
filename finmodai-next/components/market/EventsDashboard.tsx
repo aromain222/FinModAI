@@ -326,7 +326,7 @@ export default function EventsDashboard() {
                 className={`h-9 px-4 text-sm ${tabButtonClass(providerMode === 'demo-seed')}`}
                 onClick={() => setProviderMode('demo-seed')}
               >
-                Demo Seed
+                Curated
               </Button>
               <Button
                 size="sm"
@@ -394,7 +394,7 @@ export default function EventsDashboard() {
                 <h2 className="text-xl font-semibold text-zinc-100">No market-moving events detected</h2>
                 <p className="mt-2 max-w-2xl text-sm leading-7 text-zinc-400">
                   {message || warning || 'No events passed the current live filters.'} If you want to preview the
-                  structured examples you specified, switch the provider to Demo Seed.
+                  curated event set, switch the provider to Curated.
                 </p>
                 <div className="mt-4">
                   <Button
@@ -403,7 +403,7 @@ export default function EventsDashboard() {
                     className="h-9 rounded-xl border-zinc-700 bg-zinc-950/70 px-4 text-sm text-zinc-200 hover:bg-zinc-900"
                     onClick={() => setProviderMode('demo-seed')}
                   >
-                    Show Demo Seed Events
+                    Show Curated Events
                   </Button>
                 </div>
               </div>

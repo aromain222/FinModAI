@@ -2,6 +2,7 @@ import { getLTMFinancials } from '@/lib/getLTMFinancials';
 import type { LTMFinancials } from '@/lib/getLTMFinancials';
 import type { ManualInputs, ModelInputs } from '@/types/modelInputs';
 import { ManualInputsSchema } from '@/types/modelInputs';
+import type { MappedModelInputs } from '@/lib/data/financial-extraction/types';
 import {
   LIVE_DATA_FALLBACK_NOTICE,
   normalizeModelInputs,
@@ -205,6 +206,78 @@ export function fromManual(payload: ManualInputs): ModelInputs {
       normalized.issues.map((issue) => issue.message).join(' ') || 'Manual inputs are invalid.';
     throw new Error(message);
   }
+  return normalized.value;
+}
+
+export function fromFinancialExtractionMappedInputs(mapped: MappedModelInputs): ModelInputs {
+  const revenue = mapped.revenue;
+  if (!(typeof revenue === 'number' && Number.isFinite(revenue) && revenue > 0)) {
+    throw new Error('Financial extraction snapshot requires positive revenue.');
+  }
+
+  const derivedMargin =
+    typeof mapped.ebitda === 'number' && revenue > 0
+      ? mapped.ebitda / revenue
+      : typeof mapped.ebit === 'number' && revenue > 0
+        ? mapped.ebit / revenue
+        : typeof mapped.grossProfit === 'number' && revenue > 0
+          ? mapped.grossProfit / revenue
+          : 0.2;
+
+  const netDebt =
+    typeof mapped.netDebt === 'number' && Number.isFinite(mapped.netDebt)
+      ? mapped.netDebt
+      : typeof mapped.totalDebt === 'number' && Number.isFinite(mapped.totalDebt)
+        ? mapped.totalDebt - (typeof mapped.cash === 'number' && Number.isFinite(mapped.cash) ? mapped.cash : 0)
+        : undefined;
+
+  const extractionModelInputs: ModelInputs = {
+    company: {
+      name: mapped.companyName.trim(),
+      currency: 'USD',
+      ...(mapped.ticker ? { ticker: mapped.ticker.trim().toUpperCase() } : {}),
+    },
+    historicals: {
+      years: [new Date().getUTCFullYear() - 1],
+      revenue: [revenue],
+    },
+    assumptions: {
+      growth: 0.08,
+      margin: clamp(derivedMargin, -0.2, 0.8),
+      taxRate: 0.25,
+      capexPctRevenue: 0.04,
+      nwcPctRevenue: 0.02,
+      daPctRevenue: 0.04,
+      growthSeries: [0.08, 0.08, 0.08, 0.08, 0.08],
+    },
+    capitalStructure: {
+      ...(netDebt !== undefined ? { netDebt } : {}),
+      ...(typeof mapped.sharesOutstanding === 'number' && Number.isFinite(mapped.sharesOutstanding)
+        ? { sharesOutstanding: mapped.sharesOutstanding }
+        : {}),
+    },
+    pricingAnchor: {
+      ...(typeof mapped.marketCap === 'number' && Number.isFinite(mapped.marketCap) ? { marketCap: mapped.marketCap } : {}),
+      ...(typeof mapped.sharePrice === 'number' && Number.isFinite(mapped.sharePrice) ? { sharePrice: mapped.sharePrice } : {}),
+      ...(typeof mapped.sharesOutstanding === 'number' && Number.isFinite(mapped.sharesOutstanding)
+        ? { sharesOutstanding: mapped.sharesOutstanding }
+        : {}),
+    },
+    metadata: {
+      source: 'financial_extraction',
+      asOfDate: mapped.asOfDate || new Date().toISOString().slice(0, 10),
+      liveDataStatus: mapped.source,
+    },
+  };
+
+  const normalized = normalizeModelInputs(extractionModelInputs);
+  if (!normalized.ok || !normalized.value) {
+    const message =
+      normalized.issues.map((issue) => issue.message).join(' ') ||
+      'Financial extraction snapshot could not be normalized.';
+    throw new Error(message);
+  }
+
   return normalized.value;
 }
 

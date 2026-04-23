@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { 
   LayoutDashboard, 
   Layers, 
-  LineChart, 
   FileText, 
   Settings, 
   MessageSquare,
@@ -21,7 +20,6 @@ const navItems = [
   { href: '/models', label: 'Models', icon: Layers, section: 'Workspace' },
   { href: '/news', label: 'News', icon: Newspaper, section: 'Tools' },
   { href: '/events', label: 'Events', icon: Radar, section: 'Tools' },
-  { href: '/market', label: 'Market', icon: LineChart, section: 'Tools' },
   { href: '/reports', label: 'Reports', icon: FileText, section: 'Tools' },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings, section: 'Settings' },
   { href: '/analyst-chat', label: 'Analyst Chat', icon: MessageSquare, section: 'Tools' }

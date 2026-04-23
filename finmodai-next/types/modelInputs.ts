@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export type DataSourceMode = 'ticker' | 'manual';
+export type DataSourceMode = 'ticker' | 'manual' | 'financial_extraction';
 
 export type PricingAnchor = {
   marketCap?: number;

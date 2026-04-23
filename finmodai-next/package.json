@@ -6,6 +6,7 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "next lint",
+    "audit:optimize": "node --import tsx scripts/audit-optimization.ts",
     "start": "next start",
     "investor-materials:scrape": "node --import tsx scripts/scrape-investor-materials.ts",
     "demo:refresh": "tsx scripts/refresh-demo-snapshots.ts",

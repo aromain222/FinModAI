@@ -4,7 +4,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { AnalystModelCard } from '@/components/analyst/AnalystModelCard';
-import type { AnalystGeneratedModelPayload } from '@/lib/analyst/modelChat';
+import { generateAnalystStructuredModel, type AnalystGeneratedModelPayload } from '@/lib/analyst/modelChat';
 import { classifyPrompt } from '@/lib/model-generator/classifyPrompt';
 import { extractInputs } from '@/lib/model-generator/extractInputs';
 
@@ -27,6 +27,16 @@ test('forecast prompts build three-statement inputs with a five-year horizon', a
     Array.isArray(result.extractedInputs.revenueGrowth) && result.extractedInputs.revenueGrowth.length === 5,
     'expected a five-year revenue growth path',
   );
+});
+
+test('analyst forecast generation resolves named demo companies before falling back to Demo Company', async () => {
+  const result = await generateAnalystStructuredModel('Generate a Micron Technologies forecast model.');
+
+  assert.ok(result);
+  assert.equal(result?.payload.modelType, 'THREE_STATEMENT');
+  assert.equal(result?.payload.extractedInputs.ticker, 'MU');
+  assert.equal(result?.payload.extractedInputs.companyName, 'Micron Technology, Inc.');
+  assert.notEqual(result?.payload.extractedInputs.companyName, 'Demo Company');
 });
 
 test('analyst chat renders the three-statement forecast card controls', () => {
@@ -74,9 +84,10 @@ test('analyst chat renders the three-statement forecast card controls', () => {
 
   const markup = renderToStaticMarkup(React.createElement(AnalystModelCard, { payload }));
 
-  assert.match(markup, /Live Model Controls/);
-  assert.match(markup, /Revenue Growth Shift/);
-  assert.match(markup, /Apply Changes/);
+  assert.match(markup, /Model Summary/);
+  assert.match(markup, /NVIDIA Corporation • NVDA • Technology/);
+  assert.match(markup, /Adjust model/);
+  assert.match(markup, /Model details/);
   assert.match(markup, /Forecast Model Workspace/);
   assert.match(markup, /NVIDIA Corporation Forecast Model/);
   assert.match(markup, /FORECAST MODEL/);

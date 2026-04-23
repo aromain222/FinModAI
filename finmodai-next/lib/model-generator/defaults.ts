@@ -64,6 +64,7 @@ export const FOOTBALL_FIELD_DEFAULTS = {
   includeTradingComps: true,
   includePrecedents: true,
   controlPremiumUplift: 0.15,
+  minimumSpreadFloorPct: 0.075,
 } as const;
 
 export const MERGER_DEFAULTS = {

@@ -15,6 +15,18 @@ import { compareScenarios } from '@/src/core/engine/compare';
 import type { Scenario } from '@/src/core/engine/scenario';
 import { runSensitivity } from '@/src/core/engine/sensitivity';
 import { buildDocumentFromPreview } from '@/lib/models/schema/fromPreview';
+import { buildRequiredInputState } from '@/lib/models/shared/requiredInputs';
+import {
+  extractCatalogRefreshValues,
+  refreshCatalogCompanyProfile,
+  type DataRefreshStatus,
+} from '@/lib/models/shared/catalogRefresh';
+import {
+  addExecutionTraceNote,
+  addExecutionTraceService,
+  createExecutionTrace,
+  withExecutionTrace,
+} from '@/lib/debug/executionTrace';
 
 type GeneratedPayload = {
   preview?: unknown;
@@ -37,6 +49,7 @@ type GeneratedPayload = {
   macroAssumptionContext?: unknown;
   catalystContext?: string;
   companyCatalystContext?: unknown;
+  dataRefreshStatus?: DataRefreshStatus;
 };
 
 const SUPPORTED_MODEL_TYPES = new Set([
@@ -91,6 +104,27 @@ function errorResponse(
     },
     { status }
   );
+}
+
+function buildAssumptionsRequiredPayload(
+  modelType: string,
+  missingInputs: string[],
+  message: string,
+  dataRefreshStatus: DataRefreshStatus = 'cached',
+  warnings: string[] = []
+) {
+  const requirementState = buildRequiredInputState(modelType, missingInputs, message);
+  return {
+    status: 'assumptions_required' as const,
+    state: 'assumptions_required' as const,
+    missingInputs: requirementState.missing,
+    requiredInputs: requirementState.requiredInputs,
+    isComputable: requirementState.isComputable,
+    exportEligibility: requirementState.exportEligibility,
+    dataRefreshStatus,
+    warnings,
+    message,
+  };
 }
 
 function isPrivateManualMode(body: any): boolean {
@@ -381,6 +415,21 @@ export async function generateRunForModelType({
   return runWithDemoMode(true, async () => {
     try {
   const modelType = String(modelTypeRaw || '').toLowerCase();
+  const executionTrace = createExecutionTrace({
+    surface: 'models_create',
+    prompt: typeof body?.prompt === 'string' ? body.prompt : `Generate ${modelType} model`,
+    modelType,
+  });
+  addExecutionTraceService(
+    executionTrace,
+    'generate_run_for_model_type',
+    'macro_assumption_context',
+    'company_catalyst_context',
+    isPrivateManualMode(body) ? 'manual_inputs_adapter' : 'catalog_ticker_adapter',
+    body?.smartAssumptionSummary ? 'smart_assumption_agent' : null,
+    body?.eventContext || body?.eventAdjustment ? 'derive_event_linked_model_adjustment' : null,
+    body?.financialExtractionJobId ? 'financial_extraction_snapshot' : null,
+  );
   if (!SUPPORTED_MODEL_TYPES.has(modelType)) {
     return errorResponse(400, 'unsupported_model_type', `Unsupported model type: ${modelType}`, 'validate');
   }
@@ -419,10 +468,7 @@ export async function generateRunForModelType({
     return NextResponse.json(
       {
         ok: true,
-        status: 'assumptions_required',
-        state: 'assumptions_required',
-        missingInputs: ['ticker'],
-        message: 'Ticker is required.',
+        ...buildAssumptionsRequiredPayload(modelType, ['ticker'], 'Ticker is required.'),
       },
       { status: 200 }
     );
@@ -449,10 +495,11 @@ export async function generateRunForModelType({
       return NextResponse.json(
         {
           ok: true,
-          status: 'assumptions_required',
-          state: 'assumptions_required',
-          missingInputs: ['ticker'],
-          message: 'Football Field currently requires a public ticker in the main wizard backend.',
+          ...buildAssumptionsRequiredPayload(
+            modelType,
+            ['ticker'],
+            'Football Field currently requires a public ticker in the main wizard backend.'
+          ),
         },
         { status: 200 }
       );
@@ -520,7 +567,8 @@ export async function generateRunForModelType({
   const existing = findRunByHash(inputsHash);
   if (existing?.status === 'generated' && (existing.storageKey || existing.dataUrl)) {
     const generatedResult = (existing.result || {}) as GeneratedPayload;
-    return NextResponse.json({
+    addExecutionTraceNote(executionTrace, 'Returned cached generated run for identical normalized inputs.');
+    return NextResponse.json(withExecutionTrace({
       ok: true,
       status: 'generated',
       state: 'generated',
@@ -528,10 +576,11 @@ export async function generateRunForModelType({
       storageKey: existing.storageKey,
       downloadUrl: null,
       ...generatedResult,
-    });
+    }, executionTrace));
   }
   if (existing?.status === 'generating') {
-    return NextResponse.json({ ok: true, status: 'generating', state: 'generating', runId: existing.id });
+    addExecutionTraceNote(executionTrace, 'Matched an in-flight generation run for identical normalized inputs.');
+    return NextResponse.json(withExecutionTrace({ ok: true, status: 'generating', state: 'generating', runId: existing.id }, executionTrace));
   }
 
   const run = createRun({
@@ -554,20 +603,19 @@ export async function generateRunForModelType({
       const footballFieldInputs = extracted.extractedInputs;
 
       if (extracted.missingCriticalInputs.length > 0) {
+        const assumptionsRequired = buildAssumptionsRequiredPayload(
+          modelType,
+          extracted.missingCriticalInputs,
+          'Football Field requires more company anchors before generation.'
+        );
         updateRun(run.id, {
-          status: 'assumptions_required',
-          result: {
-            missingInputs: extracted.missingCriticalInputs,
-            requiredInputs: extracted.missingCriticalInputs,
-          },
+          status: assumptionsRequired.status,
+          result: assumptionsRequired,
         });
         return NextResponse.json({
           ok: true,
-          status: 'assumptions_required',
-          state: 'assumptions_required',
           runId: run.id,
-          missingInputs: extracted.missingCriticalInputs,
-          message: 'Football Field requires more company anchors before generation.',
+          ...assumptionsRequired,
         });
       }
 
@@ -646,7 +694,8 @@ export async function generateRunForModelType({
         engine: 'football-field',
       });
 
-      return NextResponse.json({
+      addExecutionTraceService(executionTrace, 'core_engine_run_model');
+      return NextResponse.json(withExecutionTrace({
         ok: true,
         status: 'generated',
         state: 'generated',
@@ -654,7 +703,7 @@ export async function generateRunForModelType({
         storageKey,
         downloadUrl: null,
         ...generatedResult,
-      });
+      }, executionTrace));
     }
 
     if (modelType === 'precedents') {
@@ -663,45 +712,83 @@ export async function generateRunForModelType({
 
       const prompt = `Create a precedent transactions view for ${isPrivateMode ? (privateCompanyName || 'the company') : runTicker}`;
       const overrideSource = body?.manualInputs && typeof body.manualInputs === 'object' ? body.manualInputs : body;
-      const extracted = await extractInputs(prompt, 'PRECEDENTS', {
+      const baseInputOverrides = {
+        companyName: isPrivateMode ? (privateCompanyName || 'Private Company') : undefined,
+        ticker: isPrivateMode ? privateTickerFallback : runTicker,
+        subjectRevenue:
+          typeof overrideSource?.revenue === 'number'
+            ? overrideSource.revenue
+            : typeof body?.revenue === 'number'
+              ? body.revenue
+              : undefined,
+        subjectEbitda:
+          typeof overrideSource?.ebitda === 'number'
+            ? overrideSource.ebitda
+            : typeof body?.ebitda === 'number'
+              ? body.ebitda
+              : undefined,
+      };
+      let extracted = await extractInputs(prompt, 'PRECEDENTS', {
         inputOverrides: {
-          companyName: isPrivateMode ? (privateCompanyName || 'Private Company') : undefined,
-          ticker: isPrivateMode ? privateTickerFallback : runTicker,
-          subjectRevenue:
-            typeof overrideSource?.revenue === 'number'
-              ? overrideSource.revenue
-              : typeof body?.revenue === 'number'
-                ? body.revenue
-                : undefined,
-          subjectEbitda:
-            typeof overrideSource?.ebitda === 'number'
-              ? overrideSource.ebitda
-              : typeof body?.ebitda === 'number'
-                ? body.ebitda
-                : undefined,
+          ...baseInputOverrides,
         },
       });
-      const precedentsInputs = extracted.extractedInputs;
+      let precedentsInputs: any = extracted.extractedInputs;
+      let dataRefreshStatus: DataRefreshStatus = 'cached';
+      let dataRefreshWarnings: string[] = [];
+
+      const missingSubjectAnchors =
+        !precedentsInputs?.companyName ||
+        (typeof precedentsInputs?.subjectRevenue !== 'number' &&
+          typeof precedentsInputs?.subjectEbitda !== 'number');
+
+      if (!isPrivateMode && (extracted.missingCriticalInputs.length > 0 || missingSubjectAnchors)) {
+        const refreshResult = await refreshCatalogCompanyProfile(runTicker);
+        dataRefreshWarnings = refreshResult.warnings;
+
+        if (refreshResult.status === 'rerun_failed') {
+          dataRefreshStatus = 'rerun_failed';
+        } else {
+          const refreshedValues = extractCatalogRefreshValues(refreshResult.profile);
+          extracted = await extractInputs(prompt, 'PRECEDENTS', {
+            inputOverrides: {
+              ...baseInputOverrides,
+              companyName: baseInputOverrides.companyName ?? refreshedValues.companyName ?? undefined,
+              subjectRevenue: baseInputOverrides.subjectRevenue ?? refreshedValues.revenue ?? undefined,
+              subjectEbitda: baseInputOverrides.subjectEbitda ?? refreshedValues.ebitda ?? undefined,
+            },
+          });
+          precedentsInputs = extracted.extractedInputs;
+          dataRefreshStatus =
+            extracted.missingCriticalInputs.length === 0 &&
+            Boolean(precedentsInputs?.companyName) &&
+            (typeof precedentsInputs?.subjectRevenue === 'number' ||
+              typeof precedentsInputs?.subjectEbitda === 'number')
+              ? 'rerun_succeeded'
+              : 'rerun_attempted';
+        }
+      }
 
       if (extracted.missingCriticalInputs.length > 0 || precedentsInputs.modelType !== 'PRECEDENTS') {
         const missingInputs =
           precedentsInputs.modelType === 'PRECEDENTS'
             ? extracted.missingCriticalInputs
             : ['companyName', 'revenue', 'ebitda'];
+        const assumptionsRequired = buildAssumptionsRequiredPayload(
+          modelType,
+          missingInputs,
+          'Precedent transactions requires a resolved subject company and at least one operating anchor before generation.',
+          dataRefreshStatus,
+          dataRefreshWarnings
+        );
         updateRun(run.id, {
-          status: 'assumptions_required',
-          result: {
-            missingInputs,
-            requiredInputs: missingInputs,
-          },
+          status: assumptionsRequired.status,
+          result: assumptionsRequired,
         });
         return NextResponse.json({
           ok: true,
-          status: 'assumptions_required',
-          state: 'assumptions_required',
           runId: run.id,
-          missingInputs,
-          message: 'Precedent transactions requires company, revenue, and EBITDA anchors before generation.',
+          ...assumptionsRequired,
         });
       }
 
@@ -748,13 +835,17 @@ export async function generateRunForModelType({
         modelDocument,
         assumptions: precedentsInputs,
         diagnostics: [],
-        warnings: extracted.missingInputs.length > 0 ? [`Missing optional inputs: ${extracted.missingInputs.join(', ')}`] : [],
+        warnings: [
+          ...(extracted.missingInputs.length > 0 ? [`Missing optional inputs: ${extracted.missingInputs.join(', ')}`] : []),
+          ...dataRefreshWarnings,
+        ],
         appliedDefaults: Object.entries(extracted.defaultsUsed).map(([key, value]) => ({ key, value })),
         macroContext: macroAssumptionContext.summary,
         macroAssumptions: macroAssumptionContext.items,
         macroAssumptionContext,
         catalystContext: companyCatalystContext?.summary,
         companyCatalystContext,
+        dataRefreshStatus,
       };
 
       updateRun(run.id, {
@@ -779,6 +870,7 @@ export async function generateRunForModelType({
         runId: run.id,
         storageKey,
         downloadUrl: null,
+        dataRefreshStatus,
         ...generatedResult,
       });
     }
@@ -791,40 +883,38 @@ export async function generateRunForModelType({
 
       const missing = getMissingMergerInputs(mergerInputsRaw);
       if (missing.length > 0) {
+        const assumptionsRequired = buildAssumptionsRequiredPayload(
+          modelType,
+          missing,
+          'Merger model requires acquirer, target, and deal terms before generation.'
+        );
         updateRun(run.id, {
-          status: 'assumptions_required',
-          result: {
-            missingInputs: missing,
-            requiredInputs: missing,
-          },
+          status: assumptionsRequired.status,
+          result: assumptionsRequired,
         });
         return NextResponse.json({
           ok: true,
-          status: 'assumptions_required',
-          state: 'assumptions_required',
           runId: run.id,
-          missingInputs: missing,
-          message: 'Merger model requires acquirer, target, and deal terms before generation.',
+          ...assumptionsRequired,
         });
       }
 
       const parsedMerger = MergerModelInputSchema.safeParse(mergerInputsRaw);
       if (!parsedMerger.success) {
         const invalidInputs = parsedMerger.error.errors.map((entry) => entry.path.join('.') || entry.message);
+        const assumptionsRequired = buildAssumptionsRequiredPayload(
+          modelType,
+          invalidInputs,
+          'Merger inputs are incomplete or invalid.'
+        );
         updateRun(run.id, {
-          status: 'assumptions_required',
-          result: {
-            missingInputs: invalidInputs,
-            requiredInputs: invalidInputs,
-          },
+          status: assumptionsRequired.status,
+          result: assumptionsRequired,
         });
         return NextResponse.json({
           ok: true,
-          status: 'assumptions_required',
-          state: 'assumptions_required',
           runId: run.id,
-          missingInputs: invalidInputs,
-          message: 'Merger inputs are incomplete or invalid.',
+          ...assumptionsRequired,
         });
       }
 
@@ -857,20 +947,19 @@ export async function generateRunForModelType({
           mergerInputs.modelType === 'MERGER'
             ? extracted.missingCriticalInputs
             : ['acquirerTicker', 'targetTicker', 'purchasePrice'];
+        const assumptionsRequired = buildAssumptionsRequiredPayload(
+          modelType,
+          missingInputs,
+          'Merger model requires complete acquirer, target, and purchase price inputs.'
+        );
         updateRun(run.id, {
-          status: 'assumptions_required',
-          result: {
-            missingInputs,
-            requiredInputs: missingInputs,
-          },
+          status: assumptionsRequired.status,
+          result: assumptionsRequired,
         });
         return NextResponse.json({
           ok: true,
-          status: 'assumptions_required',
-          state: 'assumptions_required',
           runId: run.id,
-          missingInputs,
-          message: 'Merger model requires complete acquirer, target, and purchase price inputs.',
+          ...assumptionsRequired,
         });
       }
 
@@ -1260,6 +1349,7 @@ export async function generateRunForModelType({
       }),
     });
 
+    addExecutionTraceService(executionTrace, 'generate_model_route');
     const generationResponse = await generateModelPost(internalReq);
     const generationJson = await generationResponse.json();
 
@@ -1277,25 +1367,29 @@ export async function generateRunForModelType({
     }
 
     if (generationJson?.state === 'assumptions_required') {
+      const assumptionsRequired = buildAssumptionsRequiredPayload(
+        modelType,
+        generationJson?.missing || [],
+        generationJson?.message || 'Required assumptions are missing.'
+      );
       updateRun(run.id, {
-        status: 'assumptions_required',
+        status: assumptionsRequired.status,
         result: {
-          missingInputs: generationJson?.missing || [],
-          requiredInputs: generationJson?.requiredInputs || [],
+          missingInputs: assumptionsRequired.missingInputs,
+          requiredInputs: assumptionsRequired.requiredInputs,
           estimatedInputs: generationJson?.estimated || [],
+          isComputable: assumptionsRequired.isComputable,
+          exportEligibility: assumptionsRequired.exportEligibility,
+          dataRefreshStatus: assumptionsRequired.dataRefreshStatus,
         },
       });
       console.log('[model-run] status transition', { runId: run.id, from: 'generating', to: 'assumptions_required' });
-      return NextResponse.json({
+      return NextResponse.json(withExecutionTrace({
         ok: true,
-        status: 'assumptions_required',
-        state: 'assumptions_required',
         runId: run.id,
-        missingInputs: generationJson?.missing || [],
-        requiredInputs: generationJson?.requiredInputs || [],
         estimatedInputs: generationJson?.estimated || [],
-        message: generationJson?.message || 'Required assumptions are missing.',
-      });
+        ...assumptionsRequired,
+      }, executionTrace));
     }
 
     const dataUri = generationJson?.downloadUrl;
@@ -1344,6 +1438,7 @@ export async function generateRunForModelType({
       catalystContext: generationJson?.catalystContext ?? companyCatalystContext?.summary,
       companyCatalystContext: generationJson?.companyCatalystContext ?? companyCatalystContext,
     };
+    addExecutionTraceService(executionTrace, 'core_engine_run_model');
 
     updateRun(run.id, {
       status: 'generated',
@@ -1359,7 +1454,7 @@ export async function generateRunForModelType({
       storageKey: storageKey || null,
     });
 
-    return NextResponse.json({
+    return NextResponse.json(withExecutionTrace({
       ok: true,
       status: 'generated',
       state: 'generated',
@@ -1367,7 +1462,7 @@ export async function generateRunForModelType({
       storageKey,
       downloadUrl: null,
       ...generatedResult,
-    });
+    }, executionTrace));
   } catch (error: any) {
     updateRun(run.id, {
       status: 'failed',

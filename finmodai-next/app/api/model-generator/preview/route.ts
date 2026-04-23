@@ -14,6 +14,7 @@ import * as footballFieldTemplate from '@/lib/model-generator/templates/football
 import * as mergerTemplate from '@/lib/model-generator/templates/merger';
 import * as precedentsTemplate from '@/lib/model-generator/templates/precedents';
 import * as lboTemplate from '@/lib/model-generator/templates/lbo';
+import { financialExtractionRouteDeps } from '@/lib/data/financial-extraction/routeDeps';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -211,6 +212,10 @@ export async function POST(req: NextRequest) {
       body?.inputOverrides && typeof body.inputOverrides === 'object' && !Array.isArray(body.inputOverrides)
         ? (body.inputOverrides as Record<string, unknown>)
         : undefined;
+    const financialExtractionJobId =
+      typeof body?.financialExtractionJobId === 'string' && body.financialExtractionJobId.trim()
+        ? body.financialExtractionJobId.trim()
+        : '';
 
     if (!prompt) {
       return buildUnsupportedResponse('Prompt is required.');
@@ -227,7 +232,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const extraction = await extractInputs(prompt, modelType, { clarificationAnswer, inputOverrides });
+    const financialExtractionJob = financialExtractionJobId
+      ? await financialExtractionRouteDeps.getFinancialExtractionJob(financialExtractionJobId)
+      : null;
+    if (financialExtractionJobId && !financialExtractionJob) {
+      return buildUnsupportedResponse('Financial extraction job not found.', 404);
+    }
+    if (financialExtractionJob?.snapshot?.validationState === 'blocking_error') {
+      return buildUnsupportedResponse(
+        financialExtractionJob.snapshot.blockingErrors.join(' ') || 'Financial extraction snapshot is not model-ready.',
+        400,
+      );
+    }
+
+    const extraction = await extractInputs(prompt, modelType, {
+      clarificationAnswer,
+      inputOverrides,
+      financialExtractionSnapshot: financialExtractionJob?.snapshot ?? null,
+    });
     const { getMacroAssumptionContext } = await import('@/lib/models/shared/macroAssumptions');
     const macroAssumptionContext = await getMacroAssumptionContext(toSharedModelType(modelType) as any);
     const { getCompanyCatalystContext } = await import('@/lib/models/shared/companyCatalystContext');
@@ -280,8 +302,12 @@ export async function POST(req: NextRequest) {
             status: latestRun.status,
             createdAt: latestRun.createdAt,
             versionNumber: latestRun.latestVersion?.versionNumber ?? null,
+            eventContext: latestRun.latestVersion?.eventContext ?? null,
+            eventAdjustmentSummary: latestRun.latestVersion?.eventAdjustmentSummary ?? null,
+            smartAssumptionSummary: latestRun.latestVersion?.smartAssumptionSummary ?? null,
           }
         : null,
+      financialExtractionJobId: financialExtractionJob?.id ?? null,
     });
   } catch (error) {
     return buildUnsupportedResponse(error instanceof Error ? error.message : 'Unable to preview model.', 500);

@@ -57,7 +57,7 @@ const WELL_KNOWN_NAMES: Array<{ pattern: RegExp; ticker: string }> = [
   { pattern: /\bmicrosoft\b/i, ticker: 'MSFT' },
   { pattern: /\bnvidia\b/i, ticker: 'NVDA' },
   { pattern: /\badvanced micro devices\b|\bamd\b/i, ticker: 'AMD' },
-  { pattern: /\bamazon\b/i, ticker: 'AMZN' },
+  { pattern: /\bamazon(?:'s|s)?\b/i, ticker: 'AMZN' },
   { pattern: /\bmeta\b|\bfacebook\b/i, ticker: 'META' },
   { pattern: /\btesla\b/i, ticker: 'TSLA' },
   { pattern: /\bnetflix\b/i, ticker: 'NFLX' },
@@ -157,6 +157,16 @@ function isCompanyFrameworkQuestion(message: string, tickers: string[]): boolean
   );
 }
 
+function isGenericEarningsSummaryQuestion(message: string, tickers: string[]): boolean {
+  const text = message.toLowerCase();
+  if (tickers.length === 0) return false;
+  const hasEarningsAnchor =
+    /\b(earnings|quarter|quarterly|results|reported|print|release)\b/.test(text);
+  const hasSummaryVerb =
+    /\b(tell me about|walk me through|summarize|summary|recap|what happened|how were|how did|talk me through|brief me on)\b/.test(text);
+  return hasEarningsAnchor && hasSummaryVerb;
+}
+
 function isQuarterReportQuestion(message: string, tickers: string[]): boolean {
   const text = message.toLowerCase();
   if (tickers.length === 0) return false;
@@ -173,7 +183,9 @@ export function routeAnalystQuery(message: string, explicitTicker?: string): Ana
   }
 
   const intent = classifyIntent(message, tickers);
-  const prefersEarningsContext = intent === 'company_question' && isCompanyFrameworkQuestion(message, tickers);
+  const prefersEarningsContext =
+    intent === 'company_question' &&
+    (isCompanyFrameworkQuestion(message, tickers) || isGenericEarningsSummaryQuestion(message, tickers));
   const requiresQuarterReportContext = intent === 'company_question' && isQuarterReportQuestion(message, tickers);
 
   return {

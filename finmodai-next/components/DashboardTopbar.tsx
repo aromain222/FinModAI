@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { APP_WORKSPACE_NAME } from "@/lib/branding";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { isDemoMode } from "@/lib/demo/isDemoMode";
 
 type DashboardTopbarProps = {
   userEmail?: string;
@@ -15,10 +14,8 @@ type DashboardTopbarProps = {
 
 export function DashboardTopbar({ userEmail: propUserEmail }: DashboardTopbarProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [userEmail, setUserEmail] = useState(propUserEmail || "guest@capitalbase.app");
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const demoMode = isDemoMode(searchParams);
 
   useEffect(() => {
     async function getUserEmail() {
@@ -47,6 +44,7 @@ export function DashboardTopbar({ userEmail: propUserEmail }: DashboardTopbarPro
       // Clear guest mode
       if (typeof window !== 'undefined') {
         localStorage.removeItem('cb_guest');
+        sessionStorage.removeItem('cb_app_access');
       }
 
       // Clear any cached user data
@@ -72,11 +70,6 @@ export function DashboardTopbar({ userEmail: propUserEmail }: DashboardTopbarPro
           <p className="text-xs uppercase tracking-[0.2em] text-[var(--cb-text-muted)]">Workspace</p>
           <h1 className="text-2xl font-semibold text-[var(--cb-text-primary)]">{APP_WORKSPACE_NAME}</h1>
         </div>
-        {demoMode && (
-          <span className="rounded-full bg-[var(--cb-green)]/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--cb-green)]">
-            Demo
-          </span>
-        )}
       </div>
       <div className="flex items-center gap-4">
         <ThemeToggle />
