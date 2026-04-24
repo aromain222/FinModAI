@@ -253,6 +253,7 @@ const RANGE_NAMES = {
   netDebt: 'CB_NetDebt',
   equityValue: 'CB_EquityValue',
   impliedSharePrice: 'CB_ImpliedSharePrice',
+  terminalYearEbitda: 'CB_TerminalYearEBITDA',
 } as const;
 
 export function getPreview(inputs: DcfModelInputs) {
@@ -734,6 +735,7 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
     { name: RANGE_NAMES.netDebt, cellRef: 'B7' },
     { name: RANGE_NAMES.equityValue, cellRef: 'B8' },
     { name: RANGE_NAMES.impliedSharePrice, cellRef: 'B9' },
+    { name: RANGE_NAMES.terminalYearEbitda, cellRef: `${lastLetter}${valRows.ebitda}` },
   ]);
 
   styleSectionHeader(valuationSheet, 25, 'Value Driver Mix', 4);
@@ -760,8 +762,8 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
     {
       metric: 'Terminal value (exit multiple)',
       description: 'Terminal-year EBITDA multiplied by the assumed exit multiple.',
-      excelFormula: `=${lastLetter}${valRows.ebitda}*${RANGE_NAMES.exitMultiple}`,
-      dependencies: `${lastLetter}${valRows.ebitda}, ${RANGE_NAMES.exitMultiple}`,
+      excelFormula: `=${RANGE_NAMES.terminalYearEbitda}*${RANGE_NAMES.exitMultiple}`,
+      dependencies: `${RANGE_NAMES.terminalYearEbitda}, ${RANGE_NAMES.exitMultiple}`,
       location: `'DCF Valuation'!C20`,
     },
     {
@@ -826,7 +828,7 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
       sensitivitySheet.getCell(row, 3 + colIndex).value = {
         formula:
           `=((` +
-          `${explicitPv})+((${lastLetter}${valRows.ebitda}*${multipleRef})/(1+${waccRef})^${inputs.years})-(${RANGE_NAMES.debtBalance}-${RANGE_NAMES.cashBalance}))/${RANGE_NAMES.sharesOutstanding}`,
+          `${explicitPv})+((${RANGE_NAMES.terminalYearEbitda}*${multipleRef})/(1+${waccRef})^${inputs.years})-(${RANGE_NAMES.debtBalance}-${RANGE_NAMES.cashBalance}))/${RANGE_NAMES.sharesOutstanding}`,
         result: cache.sensitivity.exitMultiple[rowIndex][colIndex],
       };
       styleFormula(sensitivitySheet.getCell(row, 3 + colIndex), 'currency');
@@ -843,9 +845,16 @@ export async function buildWorkbook(inputs: DcfModelInputs): Promise<ExcelJS.Wor
   writeCheckRow(checksSheet, 4, 'Terminal growth < WACC', `IF(${RANGE_NAMES.terminalGrowth}<${RANGE_NAMES.wacc},"PASS","FLAG")`, 'Perpetuity growth must remain below WACC.');
   writeCheckRow(checksSheet, 5, 'FCF is populated', `IF(COUNTA('Operating Forecast'!C14:${lastLetter}14)=${inputs.years},"PASS","FLAG")`, 'All forecast FCF cells should be populated.');
   writeCheckRow(checksSheet, 6, 'Sensitivity tables generated', 'IF(COUNTA(Sensitivity!C5:G9)+COUNTA(Sensitivity!C14:G18)=50,"PASS","FLAG")', 'Both sensitivity tables should be fully populated.');
-  writeCheckRow(checksSheet, 7, 'Value per share available', `IF(AND(${RANGE_NAMES.sharesOutstanding}>0,${RANGE_NAMES.impliedSharePrice}>0),"PASS","FLAG")`, 'Share price requires a positive share count and valuation.');
-  styleThinGrid(checksSheet, 4, 7, 1, 3);
-  finalizeChecksSheet(checksSheet, 4, 7);
+  writeCheckRow(
+    checksSheet,
+    7,
+    'Exit multiple sensitivity moves',
+    'IF(AND(MAX(Sensitivity!C14:G14)-MIN(Sensitivity!C14:G14)>0.1,MAX(Sensitivity!C15:G15)-MIN(Sensitivity!C15:G15)>0.1,MAX(Sensitivity!C16:G16)-MIN(Sensitivity!C16:G16)>0.1,MAX(Sensitivity!C17:G17)-MIN(Sensitivity!C17:G17)>0.1,MAX(Sensitivity!C18:G18)-MIN(Sensitivity!C18:G18)>0.1),"PASS","FLAG")',
+    'Each WACC row should move across the 10x to 18x exit-multiple columns.',
+  );
+  writeCheckRow(checksSheet, 8, 'Value per share available', `IF(AND(${RANGE_NAMES.sharesOutstanding}>0,${RANGE_NAMES.impliedSharePrice}>0),"PASS","FLAG")`, 'Share price requires a positive share count and valuation.');
+  styleThinGrid(checksSheet, 4, 8, 1, 3);
+  finalizeChecksSheet(checksSheet, 4, 8);
 
   addEquationsSheet(workbook, `${inputs.companyName} DCF`, equations);
 
