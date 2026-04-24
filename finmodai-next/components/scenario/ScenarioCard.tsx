@@ -7,8 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { AnalystScenarioCardPayload } from '@/lib/analyst/scenarioCard';
 
 type ScenarioCardProps = AnalystScenarioCardPayload & {
-  canApplyToActiveDcf?: boolean;
-  onApplyToDcf?: () => void;
+  canApplyToActiveModel?: boolean;
+  onApplyToModel?: () => void;
 };
 
 function formatBillions(value: number): string {
@@ -39,11 +39,19 @@ export function ScenarioCard(props: ScenarioCardProps) {
                   <div className="text-sm text-[var(--cb-text-muted)]">{props.company}</div>
                 </div>
               </div>
-              {props.canApplyToActiveDcf && props.onApplyToDcf ? (
-                <Button type="button" variant="outline" size="sm" onClick={props.onApplyToDcf}>
-                  Apply to Active DCF
+              {props.canApplyToActiveModel && props.onApplyToModel ? (
+                <Button type="button" variant="outline" size="sm" onClick={props.onApplyToModel}>
+                  Apply to model
                 </Button>
               ) : null}
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <div className="rounded-full border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] px-3 py-1 text-[11px] font-medium text-[var(--cb-text-primary)]">
+                {props.eventHeadline}
+              </div>
+              <div className="text-[11px] uppercase tracking-wide text-[var(--cb-text-muted)]">
+                {props.eventSourceLabel}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-6 p-0">

@@ -74,6 +74,13 @@ import {
   isGenericEarningsSummaryPrompt,
 } from '@/lib/analyst/earningsSummary';
 import {
+  buildTeslaDemoInterpretationReply,
+  hasTeslaDemoHistory,
+  isTeslaTicker,
+  looksLikeTeslaDemoEntryPrompt,
+  looksLikeTeslaDemoInterpretationPrompt,
+} from '@/lib/analyst/demoWorkflow';
+import {
   buildScenarioDcfAdjustmentFromPayload,
   buildAnalystScenarioCardPayload,
   buildScenarioStructuredModelOverridesFromPayload,
@@ -1373,6 +1380,10 @@ export async function POST(req: NextRequest) {
     const shouldRunTeslaScenarioCard =
       !pendingModelRequest &&
       looksLikeTeslaMacroScenarioPrompt(lastUserMessage, explicitRequestedTicker ?? tickerFromCurrentArtifact);
+    const shouldRunTeslaDemoInterpretation =
+      !pendingModelRequest &&
+      looksLikeTeslaDemoInterpretationPrompt(lastUserMessage) &&
+      hasTeslaDemoHistory(messages);
     const shouldApplyLatestScenarioToCurrentDcf =
       Boolean(
         currentDcf &&
@@ -1446,6 +1457,30 @@ export async function POST(req: NextRequest) {
           ),
         );
       }
+    }
+
+    if (shouldRunTeslaDemoInterpretation) {
+      addExecutionTraceService(executionTrace, 'run_tesla_demo_interpretation');
+      addExecutionTraceNote(
+        executionTrace,
+        'Deterministic Tesla guided-demo interpretation branch used after earnings and scenario steps.',
+      );
+      return NextResponse.json(
+        withAttachmentStatus(
+          withExecutionTrace(
+            {
+              reply: buildTeslaDemoInterpretationReply(),
+              fallback: false,
+              mode: 'live',
+              route: 'company_question',
+              sources: ['Deterministic Tesla guided demo interpretation'],
+              factsCount: 0,
+              attachmentUsed: attachmentLabel,
+            },
+            executionTrace,
+          ),
+        ),
+      );
     }
 
     if (shouldApplyLatestScenarioToCurrentDcf && currentDcf && latestScenarioCard) {
@@ -1564,8 +1599,12 @@ export async function POST(req: NextRequest) {
     const shouldRunEarningsAgent =
       featureFlags.ENABLE_EARNINGS_PACKAGE_CACHE &&
       Boolean(resolvedTicker) &&
-      route.intent === 'company_question' &&
-      (route.prefersEarningsContext || route.requiresQuarterReportContext);
+      (route.intent === 'company_question' || isTeslaTicker(resolvedTicker)) &&
+      (
+        route.prefersEarningsContext ||
+        route.requiresQuarterReportContext ||
+        (isTeslaTicker(resolvedTicker) && looksLikeTeslaDemoEntryPrompt(lastUserMessage, resolvedTicker))
+      );
     const shouldReviseCurrentModel =
       currentModel &&
       !artifactTickerMismatch &&
@@ -1648,8 +1687,11 @@ export async function POST(req: NextRequest) {
 
     const shouldUseDeterministicEarningsSummary =
       Boolean(resolvedTicker) &&
-      route.intent === 'company_question' &&
-      isGenericEarningsSummaryPrompt(lastUserMessage) &&
+      (route.intent === 'company_question' || isTeslaTicker(resolvedTicker)) &&
+      (
+        isGenericEarningsSummaryPrompt(lastUserMessage) ||
+        (isTeslaTicker(resolvedTicker) && looksLikeTeslaDemoEntryPrompt(lastUserMessage, resolvedTicker))
+      ) &&
       earningsAgentResult !== null;
 
     if (shouldUseDeterministicEarningsSummary && resolvedTicker && earningsAgentResult) {
@@ -1658,7 +1700,9 @@ export async function POST(req: NextRequest) {
         catalystContext?.calendarItems.find((item) => item.kind === 'earnings' && item.date) ?? null;
       addExecutionTraceNote(
         executionTrace,
-        'Deterministic earnings summary branch used for a generic company earnings prompt.',
+        isTeslaTicker(resolvedTicker) && looksLikeTeslaDemoEntryPrompt(lastUserMessage, resolvedTicker)
+          ? 'Deterministic earnings summary branch used for the Tesla guided demo entry step.'
+          : 'Deterministic earnings summary branch used for a generic company earnings prompt.',
       );
       return NextResponse.json(withAttachmentStatus(withExecutionTrace({
         reply: buildDeterministicEarningsSummaryReply({

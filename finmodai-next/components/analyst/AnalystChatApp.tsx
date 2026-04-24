@@ -7,6 +7,13 @@ import { parseUploadedAttachment, type UploadedAttachmentContext } from '@/lib/a
 import type { AttachmentStatusPayload as AnalystAttachmentStatus } from '@/lib/analyst/attachmentStatus';
 import { buildClientVisibleBackendError } from '@/lib/analyst/clientErrorResponse';
 import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplates';
+import {
+  isTeslaDemoProgressionPrompt,
+  isTeslaTicker,
+  looksLikeTeslaDemoEntryPrompt,
+  looksLikeTeslaDemoInterpretationPrompt,
+  type AnalystDemoStep,
+} from '@/lib/analyst/demoWorkflow';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 import type { PendingModelRequest } from '@/lib/analyst/modelReadiness';
 import { routeAnalystQuery } from '@/lib/analyst/router';
@@ -197,6 +204,8 @@ export function AnalystChatApp() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingState, setLoadingState] = useState<AgentLoadingState | null>(null);
+  const [demoMode, setDemoMode] = useState(false);
+  const [demoStep, setDemoStep] = useState<AnalystDemoStep | null>(null);
   const [memoPdfLoadingId, setMemoPdfLoadingId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string>('');
   const [pendingModelRequest, setPendingModelRequest] = useState<PendingModelRequest | null>(null);
@@ -331,15 +340,26 @@ export function AnalystChatApp() {
     const prompt = input.trim();
     if (!prompt || isLoading) return;
 
+    const explicitTicker = ticker.trim().length > 0 ? ticker.trim().toUpperCase() : undefined;
+    const entersTeslaDemo = looksLikeTeslaDemoEntryPrompt(prompt, explicitTicker);
+    const staysInTeslaDemo = isTeslaDemoProgressionPrompt(prompt, explicitTicker);
+    if (entersTeslaDemo) {
+      setDemoMode(true);
+      setDemoStep(null);
+    } else if (demoMode && !staysInTeslaDemo) {
+      setDemoMode(false);
+      setDemoStep(null);
+    }
+
     const userMessage: Message = { id: crypto.randomUUID(), role: 'user', content: prompt };
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
-    const loadingPlan = getLoadingPlan(prompt, ticker.trim().length > 0 ? ticker.trim().toUpperCase() : undefined);
+    const loadingPlan = getLoadingPlan(prompt, explicitTicker);
     setLoadingState(loadingPlan);
     const isScenarioMode = looksLikeTeslaMacroScenarioPrompt(
       prompt,
-      ticker.trim().length > 0 ? ticker.trim().toUpperCase() : undefined,
+      explicitTicker,
     );
     const requestStartedAt = Date.now();
     const preserveStructure = userExplicitlyWantsStructuredOutput(prompt);
@@ -361,7 +381,7 @@ export function AnalystChatApp() {
         headers: { 'Content-Type': 'application/json' },
         // Optional ticker context; chat should still work without it.
         body: JSON.stringify({
-          ticker: ticker.trim().length > 0 ? ticker.trim().toUpperCase() : undefined,
+          ticker: explicitTicker,
           attachmentContext: attachment,
           sessionId,
           currentModel: latestArtifact.generatedModel,
@@ -485,6 +505,21 @@ export function AnalystChatApp() {
       };
       if (process.env.NODE_ENV !== 'production' && payload?.executionTrace) {
         console.debug('[analyst-chat] execution trace', payload.executionTrace);
+      }
+      if (reply.meta?.earningsSummary && isTeslaTicker(reply.meta.earningsSummary.ticker) && (demoMode || entersTeslaDemo)) {
+        setDemoMode(true);
+        setDemoStep('earnings');
+      } else if (
+        reply.meta?.mode === 'scenario' &&
+        reply.meta?.scenarioCard &&
+        reply.meta.scenarioCard.company.trim().toLowerCase() === 'tesla' &&
+        (demoMode || staysInTeslaDemo)
+      ) {
+        setDemoMode(true);
+        setDemoStep('scenario');
+      } else if ((demoMode || staysInTeslaDemo) && looksLikeTeslaDemoInterpretationPrompt(prompt)) {
+        setDemoMode(true);
+        setDemoStep('interpretation');
       }
       setMessages((prev) => [...prev, reply]);
       setPendingModelRequest(reply.meta?.needsClarification ? reply.meta?.pendingModelRequest ?? null : null);
@@ -786,7 +821,15 @@ export function AnalystChatApp() {
       bottomRef={bottomRef}
       promptRef={promptRef}
       quickEventTextRef={quickEventTextRef}
-      onTickerChange={setTicker}
+      demoMode={demoMode}
+      demoStep={demoStep}
+      onTickerChange={(value) => {
+        setTicker(value);
+        if (value.trim().length > 0 && !isTeslaTicker(value)) {
+          setDemoMode(false);
+          setDemoStep(null);
+        }
+      }}
       onAttachmentSelect={handleAttachment}
       getPromptForAssistantMessage={getPromptForAssistantMessage}
       onDownloadMemoPdf={handleDownloadMemoPdf}

@@ -10,10 +10,19 @@ import { Input } from '@/components/ui/input';
 import type { UploadedAttachmentContext } from '@/lib/analyst/attachmentContext';
 import type { AttachmentStatusPayload as AnalystAttachmentStatus } from '@/lib/analyst/attachmentStatus';
 import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplates';
+import {
+  getTeslaDemoGuidedHint,
+  isTeslaTicker,
+  type AnalystDemoStep,
+} from '@/lib/analyst/demoWorkflow';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 import { supportsSmartAssumptionAdjustment } from '@/lib/analyst/modelAdjustmentHelpers';
 import type { PendingModelRequest } from '@/lib/analyst/modelReadiness';
-import { buildScenarioDcfAdjustmentFromPayload, type AnalystScenarioCardPayload } from '@/lib/analyst/scenarioCard';
+import {
+  buildScenarioDcfAdjustmentFromPayload,
+  buildScenarioStructuredModelOverridesFromPayload,
+  type AnalystScenarioCardPayload,
+} from '@/lib/analyst/scenarioCard';
 import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } from '@/lib/analyst/types';
 import type { AnalystVisualizationPayload } from '@/lib/analyst/visualization';
 import type { AnalystEarningsSummaryCard } from '@/lib/analyst/earningsSummary';
@@ -88,6 +97,36 @@ function getLatestDcfMessage(messages: Message[]): LatestDcfMessage {
     };
   }
   return null;
+}
+
+function isTeslaScenarioCard(payload?: AnalystScenarioCardPayload): boolean {
+  return Boolean(payload && payload.company.trim().toLowerCase() === 'tesla');
+}
+
+function isLatestTeslaEarningsMessage(messages: Message[], index: number): boolean {
+  for (let cursor = messages.length - 1; cursor >= 0; cursor -= 1) {
+    const candidate = messages[cursor];
+    if (!candidate.meta?.earningsSummary) continue;
+    return cursor === index && isTeslaTicker(candidate.meta.earningsSummary.ticker);
+  }
+  return false;
+}
+
+function isLatestTeslaScenarioMessage(messages: Message[], index: number): boolean {
+  for (let cursor = messages.length - 1; cursor >= 0; cursor -= 1) {
+    const candidate = messages[cursor];
+    if (candidate.role !== 'assistant' || !isTeslaScenarioCard(candidate.meta?.scenarioCard)) continue;
+    return cursor === index;
+  }
+  return false;
+}
+
+function GuidedDemoHint({ children }: { children: string }) {
+  return (
+    <div className="mt-3 pl-3 text-sm text-[var(--cb-text-muted)]">
+      {children}
+    </div>
+  );
 }
 
 function AnalystEarningsSummaryCardView({ summary }: { summary: AnalystEarningsSummaryCard }) {
@@ -178,6 +217,8 @@ type AnalystChatSurfaceProps = {
   quickEventNotice: string | null;
   quickEventApplying: boolean;
   input: string;
+  demoMode: boolean;
+  demoStep: AnalystDemoStep | null;
   bottomRef: RefObject<HTMLDivElement>;
   promptRef: RefObject<HTMLTextAreaElement>;
   quickEventTextRef: RefObject<HTMLTextAreaElement>;
@@ -326,243 +367,298 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
           {props.messages.map((message, index) => {
             const prompt = props.getPromptForAssistantMessage(index);
             const isScenarioMode = message.role === 'assistant' && message.meta?.mode === 'scenario' && message.meta?.scenarioCard;
+            const showEarningsHint =
+              props.demoMode &&
+              props.demoStep === 'earnings' &&
+              message.role === 'assistant' &&
+              Boolean(message.meta?.earningsSummary) &&
+              isTeslaTicker(message.meta?.earningsSummary?.ticker) &&
+              isLatestTeslaEarningsMessage(props.messages, index);
+            const showScenarioHint =
+              props.demoMode &&
+              props.demoStep === 'scenario' &&
+              isScenarioMode &&
+              isLatestTeslaScenarioMessage(props.messages, index);
+            const guidedHint = getTeslaDemoGuidedHint(props.demoStep);
 
             return (
               <div key={message.id} className={message.role === 'user' ? 'text-right' : 'text-left'}>
                 {isScenarioMode ? (
-                  <div className="my-6 w-full border-y border-[color:var(--cb-border-subtle)]/40 bg-muted/30 py-8">
-                    <div className="flex w-full justify-center px-4 md:px-6">
-                      <div className="w-full max-w-5xl">
-                        <ScenarioCard
-                          {...message.meta!.scenarioCard!}
-                          canApplyToActiveDcf={latestDcfMessage?.payload.ticker === 'TSLA'}
-                          onApplyToDcf={
-                            latestDcfMessage?.payload.ticker === 'TSLA'
+                  <>
+                    <div className="my-6 w-full border-y border-[color:var(--cb-border-subtle)]/40 bg-muted/30 py-8">
+                      <div className="flex w-full justify-center px-4 md:px-6">
+                        <div className="w-full max-w-5xl">
+                          {(() => {
+                            const activeGeneratedTeslaDcf =
+                              latestModelMessage?.payload.modelType === 'DCF' &&
+                              latestModelMessage.payload.extractedInputs &&
+                              typeof latestModelMessage.payload.extractedInputs === 'object' &&
+                              'ticker' in latestModelMessage.payload.extractedInputs &&
+                              isTeslaTicker(
+                                typeof latestModelMessage.payload.extractedInputs.ticker === 'string'
+                                  ? latestModelMessage.payload.extractedInputs.ticker
+                                  : null,
+                              )
+                                ? latestModelMessage
+                                : null;
+
+                            const canApplyToModel = Boolean(activeGeneratedTeslaDcf || latestDcfMessage?.payload.ticker === 'TSLA');
+                            const onApplyToModel = activeGeneratedTeslaDcf
                               ? () =>
-                                  void props.onDcfAdjustment(
-                                    latestDcfMessage.messageId,
-                                    latestDcfMessage.payload,
-                                    buildScenarioDcfAdjustmentFromPayload(
-                                      message.meta!.scenarioCard!,
-                                      latestDcfMessage.payload,
-                                    ),
+                                  void props.onModelAdjustment(
+                                    activeGeneratedTeslaDcf.messageId,
+                                    activeGeneratedTeslaDcf.payload,
+                                    {
+                                      changes: buildScenarioStructuredModelOverridesFromPayload(
+                                        message.meta!.scenarioCard!,
+                                        activeGeneratedTeslaDcf.payload,
+                                      ),
+                                    },
                                   )
+                              : latestDcfMessage?.payload.ticker === 'TSLA'
+                                ? () =>
+                                    void props.onDcfAdjustment(
+                                      latestDcfMessage.messageId,
+                                      latestDcfMessage.payload,
+                                      buildScenarioDcfAdjustmentFromPayload(
+                                        message.meta!.scenarioCard!,
+                                        latestDcfMessage.payload,
+                                      ),
+                                    )
+                                : undefined;
+
+                            return (
+                          <ScenarioCard
+                            {...message.meta!.scenarioCard!}
+                            canApplyToActiveModel={canApplyToModel}
+                            onApplyToModel={onApplyToModel}
+                          />
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                    {showScenarioHint && guidedHint ? <GuidedDemoHint>{guidedHint}</GuidedDemoHint> : null}
+                  </>
+                ) : (
+                  <>
+                    <div
+                      className={`inline-block rounded-2xl px-4 py-3 ${
+                        message.role === 'user'
+                          ? 'bg-[var(--cb-green)] text-[#041007]'
+                          : 'block max-w-full border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] text-[var(--cb-text-primary)] whitespace-pre-wrap leading-7'
+                      }`}
+                    >
+                      {message.role === 'assistant' ? (
+                        <FormattedTextBlock
+                          content={message.content}
+                          className="space-y-4"
+                          paragraphClassName="text-[var(--cb-text-primary)] leading-7"
+                        />
+                      ) : (
+                        message.content
+                      )}
+                      {message.role === 'assistant' && message.meta?.earningsSummary ? (
+                        <AnalystEarningsSummaryCardView summary={message.meta.earningsSummary} />
+                      ) : null}
+                      {message.role === 'assistant' && message.meta?.attachmentUsed && (
+                        <div className="mt-2 text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
+                          {message.meta.attachmentUsed}
+                        </div>
+                      )}
+                      {message.role === 'assistant' && message.meta?.attachmentStatus && (
+                        <div className="mt-3 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3 text-[11px] text-[var(--cb-text-muted)]">
+                          <div className="mb-1 uppercase tracking-wide">Server Read Status</div>
+                          <div className="text-[var(--cb-text-primary)]">
+                            {attachmentReadStatusLabel(message.meta.attachmentStatus.readStatus)}
+                          </div>
+                          <div className="mt-1">
+                            Seedable: {message.meta.attachmentStatus.isFinancialModelSeedable ? 'yes' : 'no'} • Package: {message.meta.attachmentStatus.hasStatementPackage ? 'present' : 'missing'}
+                          </div>
+                          <div className="mt-1">
+                            Coverage: {message.meta.attachmentStatus.statementCoverage.incomeStatement ? 'IS' : '-'} / {message.meta.attachmentStatus.statementCoverage.balanceSheet ? 'BS' : '-'} / {message.meta.attachmentStatus.statementCoverage.cashFlowStatement ? 'CF' : '-'}
+                          </div>
+                          {(message.meta.attachmentStatus.extractedIdentity.companyName ||
+                            message.meta.attachmentStatus.extractedIdentity.ticker ||
+                            message.meta.attachmentStatus.extractedIdentity.fiscalPeriod) && (
+                            <div className="mt-1">
+                              {[message.meta.attachmentStatus.extractedIdentity.companyName, message.meta.attachmentStatus.extractedIdentity.ticker, message.meta.attachmentStatus.extractedIdentity.fiscalPeriod]
+                                .filter((item): item is string => Boolean(item))
+                                .join(' • ')}
+                            </div>
+                          )}
+                          {(message.meta.attachmentStatus.filingView.familiarCategory ||
+                            message.meta.attachmentStatus.filingView.rawFilingType ||
+                            message.meta.attachmentStatus.packetView?.label) && (
+                            <div className="mt-1">
+                              {[
+                                message.meta.attachmentStatus.filingView.familiarCategory,
+                                message.meta.attachmentStatus.filingView.rawFilingType,
+                                message.meta.attachmentStatus.packetView?.label,
+                              ]
+                                .filter((item): item is string => Boolean(item))
+                                .join(' • ')}
+                            </div>
+                          )}
+                          {message.meta.attachmentStatus.packetView?.rawFilingTypes.length ? (
+                            <div className="mt-1">
+                              Packet filings: {message.meta.attachmentStatus.packetView.rawFilingTypes.join(', ')}
+                            </div>
+                          ) : null}
+                          {message.meta.attachmentStatus.warnings.length > 0 && (
+                            <details className="mt-2">
+                              <summary className="cursor-pointer text-amber-300/90">Warnings</summary>
+                              <div className="mt-1 text-amber-300/90">
+                                {message.meta.attachmentStatus.warnings[0]}
+                              </div>
+                            </details>
+                          )}
+                        </div>
+                      )}
+                      {message.role === 'assistant' &&
+                        !message.meta?.dcfDemo &&
+                        !message.meta?.generatedModel &&
+                        !message.meta?.coreTemplateModel &&
+                        !message.meta?.stockLookup &&
+                        !message.meta?.visualization &&
+                        !message.meta?.scenarioCard && (
+                          <div className="mt-3 flex justify-end">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                void props.onDownloadMemoPdf(
+                                  message.id,
+                                  message.content,
+                                  prompt,
+                                  message.meta?.sources,
+                                )
+                              }
+                              disabled={props.memoPdfLoadingId === message.id}
+                            >
+                              {props.memoPdfLoadingId === message.id ? 'Generating Memo PDF…' : 'Download Memo PDF'}
+                            </Button>
+                          </div>
+                        )}
+                      {message.role === 'assistant' && message.meta?.sources && message.meta.sources.length > 0 && (
+                        <div className="mt-3 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3 text-[11px] text-[var(--cb-text-muted)]">
+                          <div className="mb-2 uppercase tracking-wide">Sources</div>
+                          <div className="space-y-2">
+                            {message.meta.sources.map((source) => {
+                              const href = getSourceHref(source);
+                              const label = getSourceLabel(source);
+                              return (
+                                <div key={source} className="min-w-0">
+                                  {href ? (
+                                    <a
+                                      href={href}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="block truncate text-[var(--cb-text-primary)] underline decoration-[var(--cb-border-strong)] underline-offset-4 hover:text-[var(--cb-green)]"
+                                      title={source}
+                                    >
+                                      {label}
+                                    </a>
+                                  ) : (
+                                    <div className="truncate text-[var(--cb-text-primary)]" title={source}>
+                                      {source}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      {message.role === 'assistant' &&
+                        message.meta?.retrievalWarnings &&
+                        message.meta.retrievalWarnings.length > 0 && (
+                          <div className="mt-2 text-[11px] text-amber-300/90">
+                            {message.meta.retrievalWarnings.join(' • ')}
+                          </div>
+                        )}
+                      {message.role === 'assistant' && message.meta?.dcfDemo && (
+                        <AnalystDcfCard
+                          payload={message.meta.dcfDemo}
+                          onAdjust={(adjustment) => props.onDcfAdjustment(message.id, message.meta!.dcfDemo!, adjustment)}
+                          onRunEventShock={(promptText) => props.onDcfEventShock(message.id, message.meta!.dcfDemo!, promptText)}
+                        />
+                      )}
+                      {message.role === 'assistant' && message.meta?.generatedModel && (
+                        <AnalystModelCard
+                          payload={message.meta.generatedModel}
+                          onAdjust={(adjustment) =>
+                            props.onModelAdjustment(message.id, message.meta!.generatedModel!, adjustment)
+                          }
+                          onAdjustFromEvent={props.onAdjustFromEvent}
+                          onSuggestSmartAssumptions={
+                            supportsSmartAssumptionAdjustment(message.meta.generatedModel)
+                              ? () => props.onSuggestSmartAssumptions(message.id, message.meta!.generatedModel!)
                               : undefined
                           }
                         />
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                <div
-                  className={`inline-block rounded-2xl px-4 py-3 ${
-                    message.role === 'user'
-                      ? 'bg-[var(--cb-green)] text-[#041007]'
-                      : 'block max-w-full border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] text-[var(--cb-text-primary)] whitespace-pre-wrap leading-7'
-                  }`}
-                >
-                  {message.role === 'assistant' ? (
-                    <FormattedTextBlock
-                      content={message.content}
-                      className="space-y-4"
-                      paragraphClassName="text-[var(--cb-text-primary)] leading-7"
-                    />
-                  ) : (
-                    message.content
-                  )}
-                  {message.role === 'assistant' && message.meta?.earningsSummary ? (
-                    <AnalystEarningsSummaryCardView summary={message.meta.earningsSummary} />
-                  ) : null}
-                  {message.role === 'assistant' && message.meta?.attachmentUsed && (
-                    <div className="mt-2 text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
-                      {message.meta.attachmentUsed}
-                    </div>
-                  )}
-                  {message.role === 'assistant' && message.meta?.attachmentStatus && (
-                    <div className="mt-3 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3 text-[11px] text-[var(--cb-text-muted)]">
-                      <div className="mb-1 uppercase tracking-wide">Server Read Status</div>
-                      <div className="text-[var(--cb-text-primary)]">
-                        {attachmentReadStatusLabel(message.meta.attachmentStatus.readStatus)}
-                      </div>
-                      <div className="mt-1">
-                        Seedable: {message.meta.attachmentStatus.isFinancialModelSeedable ? 'yes' : 'no'} • Package: {message.meta.attachmentStatus.hasStatementPackage ? 'present' : 'missing'}
-                      </div>
-                      <div className="mt-1">
-                        Coverage: {message.meta.attachmentStatus.statementCoverage.incomeStatement ? 'IS' : '-'} / {message.meta.attachmentStatus.statementCoverage.balanceSheet ? 'BS' : '-'} / {message.meta.attachmentStatus.statementCoverage.cashFlowStatement ? 'CF' : '-'}
-                      </div>
-                      {(message.meta.attachmentStatus.extractedIdentity.companyName ||
-                        message.meta.attachmentStatus.extractedIdentity.ticker ||
-                        message.meta.attachmentStatus.extractedIdentity.fiscalPeriod) && (
-                        <div className="mt-1">
-                          {[message.meta.attachmentStatus.extractedIdentity.companyName, message.meta.attachmentStatus.extractedIdentity.ticker, message.meta.attachmentStatus.extractedIdentity.fiscalPeriod]
-                            .filter((item): item is string => Boolean(item))
-                            .join(' • ')}
+                      )}
+                      {message.role === 'assistant' && message.meta?.coreTemplateModel && (
+                        <AnalystCoreTemplateCard payload={message.meta.coreTemplateModel} />
+                      )}
+                      {message.role === 'assistant' && message.meta?.stockLookup && (
+                        <AnalystStockCard payload={message.meta.stockLookup} />
+                      )}
+                      {message.role === 'assistant' && message.meta?.visualization && (
+                        <AnalystVisualizationCard payload={message.meta.visualization} />
+                      )}
+                      {message.role === 'assistant' && message.meta?.needsClarification && message.meta.clarificationQuestion && (
+                        <div className="mt-3 rounded-xl border border-[var(--cb-border-strong)] bg-[var(--cb-surface-alt)] p-3 text-sm text-[var(--cb-text-primary)]">
+                          <div className="text-xs uppercase tracking-wide text-[var(--cb-text-muted)]">Needs input</div>
+                          <div className="mt-1">{message.meta.clarificationQuestion}</div>
                         </div>
                       )}
-                      {(message.meta.attachmentStatus.filingView.familiarCategory ||
-                        message.meta.attachmentStatus.filingView.rawFilingType ||
-                        message.meta.attachmentStatus.packetView?.label) && (
-                        <div className="mt-1">
-                          {[
-                            message.meta.attachmentStatus.filingView.familiarCategory,
-                            message.meta.attachmentStatus.filingView.rawFilingType,
-                            message.meta.attachmentStatus.packetView?.label,
-                          ]
-                            .filter((item): item is string => Boolean(item))
-                            .join(' • ')}
-                        </div>
-                      )}
-                      {message.meta.attachmentStatus.packetView?.rawFilingTypes.length ? (
-                        <div className="mt-1">
-                          Packet filings: {message.meta.attachmentStatus.packetView.rawFilingTypes.join(', ')}
-                        </div>
-                      ) : null}
-                      {message.meta.attachmentStatus.warnings.length > 0 && (
-                        <details className="mt-2">
-                          <summary className="cursor-pointer text-amber-300/90">Warnings</summary>
-                          <div className="mt-1 text-amber-300/90">
-                            {message.meta.attachmentStatus.warnings[0]}
+                      {message.role === 'assistant' && props.showExecutionTrace && message.meta?.executionTrace && (
+                        <details className="mt-3 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3 text-[11px] text-[var(--cb-text-muted)]">
+                          <summary className="cursor-pointer uppercase tracking-wide">Execution Trace</summary>
+                          <div className="mt-2 space-y-2">
+                            <div>
+                              <span className="text-[var(--cb-text-muted)]">Surface:</span>{' '}
+                              <span className="text-[var(--cb-text-primary)]">{message.meta.executionTrace.surface}</span>
+                            </div>
+                            <div>
+                              <span className="text-[var(--cb-text-muted)]">Route:</span>{' '}
+                              <span className="text-[var(--cb-text-primary)]">{message.meta.executionTrace.routeIntent || 'n/a'}</span>
+                            </div>
+                            <div>
+                              <span className="text-[var(--cb-text-muted)]">Model:</span>{' '}
+                              <span className="text-[var(--cb-text-primary)]">{message.meta.executionTrace.modelType || 'n/a'}</span>
+                            </div>
+                            <div>
+                              <div className="mb-1 text-[var(--cb-text-muted)]">Fired Services</div>
+                              <div className="flex flex-wrap gap-2">
+                                {message.meta.executionTrace.firedServices.map((service) => (
+                                  <span
+                                    key={service}
+                                    className="rounded-full border border-[var(--cb-border-subtle)] px-2 py-1 text-[10px] text-[var(--cb-text-primary)]"
+                                  >
+                                    {service}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            {message.meta.executionTrace.notes?.length ? (
+                              <div>
+                                <div className="mb-1 text-[var(--cb-text-muted)]">Notes</div>
+                                <ul className="list-disc pl-4 text-[var(--cb-text-primary)]">
+                                  {message.meta.executionTrace.notes.map((note) => (
+                                    <li key={note}>{note}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : null}
                           </div>
                         </details>
                       )}
                     </div>
-                  )}
-                  {message.role === 'assistant' &&
-                    !message.meta?.dcfDemo &&
-                    !message.meta?.generatedModel &&
-                    !message.meta?.coreTemplateModel &&
-                    !message.meta?.stockLookup &&
-                    !message.meta?.visualization &&
-                    !message.meta?.scenarioCard && (
-                      <div className="mt-3 flex justify-end">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            void props.onDownloadMemoPdf(
-                              message.id,
-                              message.content,
-                              prompt,
-                              message.meta?.sources,
-                            )
-                          }
-                          disabled={props.memoPdfLoadingId === message.id}
-                        >
-                          {props.memoPdfLoadingId === message.id ? 'Generating Memo PDF…' : 'Download Memo PDF'}
-                        </Button>
-                      </div>
-                    )}
-                  {message.role === 'assistant' && message.meta?.sources && message.meta.sources.length > 0 && (
-                    <div className="mt-3 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3 text-[11px] text-[var(--cb-text-muted)]">
-                      <div className="mb-2 uppercase tracking-wide">Sources</div>
-                      <div className="space-y-2">
-                        {message.meta.sources.map((source) => {
-                          const href = getSourceHref(source);
-                          const label = getSourceLabel(source);
-                          return (
-                            <div key={source} className="min-w-0">
-                              {href ? (
-                                <a
-                                  href={href}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="block truncate text-[var(--cb-text-primary)] underline decoration-[var(--cb-border-strong)] underline-offset-4 hover:text-[var(--cb-green)]"
-                                  title={source}
-                                >
-                                  {label}
-                                </a>
-                              ) : (
-                                <div className="truncate text-[var(--cb-text-primary)]" title={source}>
-                                  {source}
-                    </div>
-                  )}
-                  {message.role === 'assistant' && props.showExecutionTrace && message.meta?.executionTrace && (
-                    <details className="mt-3 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3 text-[11px] text-[var(--cb-text-muted)]">
-                      <summary className="cursor-pointer uppercase tracking-wide">Execution Trace</summary>
-                      <div className="mt-2 space-y-2">
-                        <div>
-                          <span className="text-[var(--cb-text-muted)]">Surface:</span>{' '}
-                          <span className="text-[var(--cb-text-primary)]">{message.meta.executionTrace.surface}</span>
-                        </div>
-                        <div>
-                          <span className="text-[var(--cb-text-muted)]">Route:</span>{' '}
-                          <span className="text-[var(--cb-text-primary)]">{message.meta.executionTrace.routeIntent || 'n/a'}</span>
-                        </div>
-                        <div>
-                          <span className="text-[var(--cb-text-muted)]">Model:</span>{' '}
-                          <span className="text-[var(--cb-text-primary)]">{message.meta.executionTrace.modelType || 'n/a'}</span>
-                        </div>
-                        <div>
-                          <div className="mb-1 text-[var(--cb-text-muted)]">Fired Services</div>
-                          <div className="flex flex-wrap gap-2">
-                            {message.meta.executionTrace.firedServices.map((service) => (
-                              <span
-                                key={service}
-                                className="rounded-full border border-[var(--cb-border-subtle)] px-2 py-1 text-[10px] text-[var(--cb-text-primary)]"
-                              >
-                                {service}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        {message.meta.executionTrace.notes?.length ? (
-                          <div>
-                            <div className="mb-1 text-[var(--cb-text-muted)]">Notes</div>
-                            <ul className="list-disc pl-4 text-[var(--cb-text-primary)]">
-                              {message.meta.executionTrace.notes.map((note) => (
-                                <li key={note}>{note}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : null}
-                      </div>
-                    </details>
-                  )}
-                </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  {message.role === 'assistant' &&
-                    message.meta?.retrievalWarnings &&
-                    message.meta.retrievalWarnings.length > 0 && (
-                      <div className="mt-2 text-[11px] text-amber-300/90">
-                        {message.meta.retrievalWarnings.join(' • ')}
-                      </div>
-                    )}
-                  {message.role === 'assistant' && message.meta?.dcfDemo && (
-                    <AnalystDcfCard
-                      payload={message.meta.dcfDemo}
-                      onAdjust={(adjustment) => props.onDcfAdjustment(message.id, message.meta!.dcfDemo!, adjustment)}
-                      onRunEventShock={(promptText) => props.onDcfEventShock(message.id, message.meta!.dcfDemo!, promptText)}
-                    />
-                  )}
-                  {message.role === 'assistant' && message.meta?.generatedModel && (
-                    <AnalystModelCard
-                      payload={message.meta.generatedModel}
-                      onAdjust={(adjustment) =>
-                        props.onModelAdjustment(message.id, message.meta!.generatedModel!, adjustment)
-                      }
-                      onAdjustFromEvent={props.onAdjustFromEvent}
-                      onSuggestSmartAssumptions={
-                        supportsSmartAssumptionAdjustment(message.meta.generatedModel)
-                          ? () => props.onSuggestSmartAssumptions(message.id, message.meta!.generatedModel!)
-                          : undefined
-                      }
-                    />
-                  )}
-                  {message.role === 'assistant' && message.meta?.coreTemplateModel && (
-                    <AnalystCoreTemplateCard payload={message.meta.coreTemplateModel} />
-                  )}
-                  {message.role === 'assistant' && message.meta?.stockLookup && (
-                    <AnalystStockCard payload={message.meta.stockLookup} />
-                  )}
-                  {message.role === 'assistant' && message.meta?.visualization && (
-                    <AnalystVisualizationCard payload={message.meta.visualization} />
-                  )}
-                </div>
+                    {showEarningsHint && guidedHint ? <GuidedDemoHint>{guidedHint}</GuidedDemoHint> : null}
+                  </>
                 )}
               </div>
             );

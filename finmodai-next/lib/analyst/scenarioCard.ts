@@ -12,6 +12,8 @@ export type AnalystScenarioCardPayload = {
   modeLabel: string;
   title: string;
   company: string;
+  eventHeadline: string;
+  eventSourceLabel: string;
   baseValuation: number;
   scenarioValuation: number;
   changePercent: number;
@@ -128,6 +130,8 @@ export function buildAnalystScenarioCardPayload(report: SmartScenarioDcfReport):
     modeLabel: 'Scenario Analysis Mode',
     title: 'AI Scenario: Rates ↓ 100bps',
     company: report.company,
+    eventHeadline: 'Rates down 100bps: impact on Tesla',
+    eventSourceLabel: 'Cached demo event',
     baseValuation: report.baseValuation.enterprise_value,
     scenarioValuation: report.scenarioValuation.enterprise_value,
     changePercent: report.valuationChangePct,
