@@ -8,13 +8,18 @@ import logging
 from datetime import datetime
 
 from backend.models_data.company_analyzer import UniversalAnalyzer
+from backend.api.v1.pdf_analysis import router as pdf_router
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Create FastAPI app
-app = FastAPI(title="FinModAI API")
+app = FastAPI(
+    title="FinModAI API",
+    description="Financial modeling platform with AI-powered PDF extraction",
+    version="1.0.0",
+)
 
 # Add CORS middleware
 app.add_middleware(
@@ -24,6 +29,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount routers
+app.include_router(pdf_router)
 
 # Initialize analyzer
 analyzer = UniversalAnalyzer({})  # Add API keys here if available

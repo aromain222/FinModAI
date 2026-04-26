@@ -49,3 +49,8 @@ mypy==1.7.1
 
 # Environment
 python-dotenv==1.0.0
+
+# PDF parsing & AI extraction
+pypdf>=4.0.0
+anthropic>=0.40.0
+python-multipart>=0.0.9  # required for FastAPI file uploads
