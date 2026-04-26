@@ -15,7 +15,10 @@ import {
 import { useEventImpact, type EventImpactResult } from '@/lib/useEventImpact';
 import { useModelAssumptions } from '@/lib/modelAssumptionsStore';
 import { useEventStack } from '@/lib/useEventStack';
+import { useTradingSignal } from '@/lib/useTradingSignal';
+import { computeEv } from '@/lib/eventStackEngine';
 import EventTimeline from '@/components/events/EventTimeline';
+import TradingSignalCard, { TradingSignalSkeleton } from '@/components/TradingSignalCard';
 import type { CurrentModel } from '@/lib/applyEventMutation';
 
 type NewsItem = HeadlinePanelItem;
@@ -106,6 +109,57 @@ export default function HeadlinesPanel({
     exitReplay,
     jumpToIndex,
   } = useEventStack(baseModelRef.current);
+
+  // ── Trading signal ────────────────────────────────────────────────────────
+  const { loading: signalLoading, signal, analyze: analyzeSignal, reset: resetSignal } = useTradingSignal();
+
+  // Recompute signal whenever the visible event set changes (debounced 600ms).
+  useEffect(() => {
+    if (stack.events.length === 0) {
+      resetSignal();
+      return;
+    }
+
+    const visibleEvents =
+      timelineIndex !== null
+        ? stack.events.slice(0, timelineIndex + 1)
+        : stack.events;
+
+    const baseEv    = computeEv(stack.base_model);
+    const updatedEv = computeEv(activeModel);
+
+    // Aggregate scenarios from cumulative delta of visible slice
+    const cumulativeDelta = visibleEvents.length > 0
+      ? visibleEvents[visibleEvents.length - 1].cumulative_valuation_delta_pct
+      : 0;
+
+    const ticker = visibleEvents[visibleEvents.length - 1]?.ticker ?? 'MARKET';
+
+    const tid = setTimeout(() => {
+      void analyzeSignal({
+        ticker,
+        current_price:     baseEv,
+        base_valuation:    baseEv,
+        updated_valuation: updatedEv,
+        event_stack: visibleEvents.map((e) => ({
+          headline:                      e.headline,
+          ticker:                        e.ticker,
+          timestamp:                     e.timestamp,
+          marginal_valuation_delta_pct:  e.marginal_valuation_delta_pct,
+          cumulative_valuation_delta_pct: e.cumulative_valuation_delta_pct,
+          impact_summary:                e.impact_summary,
+        })),
+        scenarios: {
+          base:     { valuation_delta_pct: cumulativeDelta },
+          upside:   { valuation_delta_pct: cumulativeDelta * 1.5 },
+          downside: { valuation_delta_pct: cumulativeDelta * 0.5 },
+        },
+      });
+    }, 600);
+
+    return () => clearTimeout(tid);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stack.events.length, timelineIndex]);
 
   const loadHeadlines = useCallback(async () => {
     setLoading(true);
@@ -381,7 +435,7 @@ export default function HeadlinesPanel({
 
       {/* Event timeline — visible once at least one headline has been stacked */}
       {stack.events.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <EventTimeline
             stack={stack}
             timelineIndex={timelineIndex}
@@ -395,6 +449,11 @@ export default function HeadlinesPanel({
             onStopPlayback={stopPlayback}
             onExitReplay={exitReplay}
           />
+
+          {/* Trading signal — auto-updates as events stack */}
+          {signalLoading && <TradingSignalSkeleton />}
+          {!signalLoading && signal && <TradingSignalCard signal={signal} />}
+
           <button
             onClick={handleApplyStackedModel}
             className="w-full rounded-lg border border-cyan-700 bg-cyan-950/50 py-2 text-xs font-semibold text-cyan-300 hover:border-cyan-500 hover:bg-cyan-900/50 hover:text-cyan-100 transition-colors"
