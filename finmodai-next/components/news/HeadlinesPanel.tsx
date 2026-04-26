@@ -12,6 +12,8 @@ import {
   LoadingState,
   type HeadlinePanelItem,
 } from '@/components/news/HeadlinesPanelParts';
+import { useEventImpact, type EventImpactResult } from '@/lib/useEventImpact';
+import { useModelAssumptions } from '@/lib/modelAssumptionsStore';
 
 type NewsItem = HeadlinePanelItem;
 
@@ -67,6 +69,12 @@ export default function HeadlinesPanel({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [enrichLoadingId, setEnrichLoadingId] = useState<string | null>(null);
   const [enrichMap, setEnrichMap] = useState<Record<string, HeadlineEnrichment>>({});
+
+  // ── Model mutation state ──────────────────────────────────────────────────
+  const { modelAssumptions, updateScenarioValue } = useModelAssumptions();
+  const { loading: impactLoading, analyze: analyzeImpact } = useEventImpact();
+  const [impactLoadingId, setImpactLoadingId]   = useState<string | null>(null);
+  const [impactMap, setImpactMap]               = useState<Record<string, EventImpactResult>>({});
 
   const loadHeadlines = useCallback(async () => {
     setLoading(true);
@@ -240,6 +248,55 @@ export default function HeadlinesPanel({
     [buildLocalFallback, enrichMap]
   );
 
+  // Converts store values (whole-number %) to decimal form for the API
+  const handleAnalyzeImpact = useCallback(
+    async (item: NewsItem) => {
+      if (impactMap[item.id] || impactLoadingId === item.id) return;
+      setImpactLoadingId(item.id);
+
+      // Derive a ticker/company hint from enrichment if available
+      const enrichment = enrichMap[item.id];
+      const ticker  = enrichment?.impacted_tickers?.[0]?.ticker ?? 'MARKET';
+      const company = enrichment?.impacted_tickers?.[0]?.ticker
+        ? `${enrichment.impacted_tickers[0].ticker} (${enrichment.impacted_sectors?.[0]?.sector ?? 'Market'})`
+        : 'Broad Market';
+
+      const currentModel = {
+        revenue_growth:    modelAssumptions.revenueGrowth    / 100,
+        ebitda_margin:     modelAssumptions.ebitdaMargin     / 100,
+        wacc:              modelAssumptions.wacc             / 100,
+        terminal_growth:   modelAssumptions.terminalGrowth   / 100,
+        capex_pct_revenue: modelAssumptions.capexPctRevenue  / 100,
+      };
+
+      const result = await analyzeImpact({
+        company,
+        ticker,
+        headline: item.title,
+        context:  item.description ?? undefined,
+        current_model: currentModel,
+      });
+
+      if (result) {
+        setImpactMap((prev) => ({ ...prev, [item.id]: result }));
+      }
+      setImpactLoadingId(null);
+    },
+    [analyzeImpact, enrichMap, impactLoadingId, impactMap, modelAssumptions]
+  );
+
+  const handleApplyToModel = useCallback(
+    (updatedModel: EventImpactResult['updated_model']) => {
+      // Write each mutated value back into the base scenario (scaled to whole-number %)
+      updateScenarioValue('base', 'revenueGrowth',    updatedModel.revenue_growth    * 100);
+      updateScenarioValue('base', 'ebitdaMargin',     updatedModel.ebitda_margin     * 100);
+      updateScenarioValue('base', 'wacc',             updatedModel.wacc              * 100);
+      updateScenarioValue('base', 'terminalGrowth',   updatedModel.terminal_growth   * 100);
+      updateScenarioValue('base', 'capexPctRevenue',  updatedModel.capex_pct_revenue * 100);
+    },
+    [updateScenarioValue]
+  );
+
   const resolvedProviderLabel = useMemo(() => providerLabel(provider), [provider]);
   const selectedItem = useMemo(
     () => items.find((item) => item.id === selectedId) ?? items[0] ?? null,
@@ -297,6 +354,10 @@ export default function HeadlinesPanel({
                     if (!enrichment) void loadEnrichment(item);
                   }}
                   onRetry={() => void loadEnrichment(item)}
+                  onAnalyzeImpact={() => void handleAnalyzeImpact(item)}
+                  impactLoading={impactLoadingId === item.id}
+                  impactResult={impactMap[item.id] ?? null}
+                  onApplyToModel={handleApplyToModel}
                 />
               );
             })}

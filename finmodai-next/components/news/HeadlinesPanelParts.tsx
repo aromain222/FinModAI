@@ -2,7 +2,9 @@
 
 import Image from 'next/image';
 import { useState, type ReactNode } from 'react';
-import { AlertTriangle, Clock, ExternalLink, Eye, Newspaper, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Clock, ExternalLink, Eye, Newspaper, RefreshCw, Zap } from 'lucide-react';
+import { EventImpactPanel } from '@/components/events/EventImpactPanel';
+import type { EventImpactResult } from '@/lib/useEventImpact';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { getMacroEventFallbackImage } from '@/lib/macroEventImageQueries';
@@ -247,6 +249,14 @@ export function HeadlineCard(props: {
   enrichLoading: boolean;
   onToggle: () => void;
   onRetry: () => void;
+  /** Called when the user clicks "Analyze Model Impact" */
+  onAnalyzeImpact?: () => void;
+  /** True while the impact API call is in-flight */
+  impactLoading?: boolean;
+  /** Result from /api/event-impact to display inline */
+  impactResult?: EventImpactResult | null;
+  /** Propagated to EventImpactPanel — lets user push mutation into the live model */
+  onApplyToModel?: (updatedModel: EventImpactResult['updated_model']) => void;
 }) {
   const fallbackImg = getMacroEventFallbackImage(inferHeadlineImageCategory(props.item), 'thumb');
   const lead = headlineLead(props.enrichment);
@@ -332,6 +342,39 @@ export function HeadlineCard(props: {
               >
                 Retry
               </button>
+            </div>
+          )}
+
+          {/* Model mutation button + result panel */}
+          {props.onAnalyzeImpact && (
+            <div className="mt-4">
+              {!props.impactResult && (
+                <button
+                  type="button"
+                  disabled={props.impactLoading}
+                  onClick={props.onAnalyzeImpact}
+                  className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-500/8 px-4 py-2 text-sm font-medium text-cyan-300 transition-colors hover:border-cyan-400/40 hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {props.impactLoading ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-400/30 border-t-cyan-400" />
+                      Analyzing model impact…
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="h-4 w-4" />
+                      Analyze Model Impact
+                    </>
+                  )}
+                </button>
+              )}
+
+              {props.impactResult && (
+                <EventImpactPanel
+                  result={props.impactResult}
+                  onApplyToModel={props.onApplyToModel}
+                />
+              )}
             </div>
           )}
         </div>
