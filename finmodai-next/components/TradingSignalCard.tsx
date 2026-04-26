@@ -303,6 +303,51 @@ export default function TradingSignalCard({
         </>
       )}
 
+      {/* ── Scenario probabilities ── */}
+      {signal.probabilities && (
+        <>
+          <div className="h-px bg-zinc-800/60" />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <SectionLabel label="Scenario Probabilities" />
+              <span className="text-[10px] text-zinc-500">
+                conf {fmtAsPct(signal.probabilities.confidence, 0)}
+              </span>
+            </div>
+            {(
+              [
+                { key: 'bull', label: 'Bull', color: 'bg-emerald-500', text: 'text-emerald-400' },
+                { key: 'base', label: 'Base', color: 'bg-zinc-500',    text: 'text-zinc-300'   },
+                { key: 'bear', label: 'Bear', color: 'bg-rose-500',    text: 'text-rose-400'   },
+              ] as const
+            ).map(({ key, label, color, text }) => {
+              const val = signal.probabilities![key];
+              return (
+                <div key={key} className="space-y-0.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-zinc-500">{label}</span>
+                    <span className={`text-[10px] font-mono font-semibold tabular-nums ${text}`}>
+                      {fmtAsPct(val, 1)}
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${color}`}
+                      style={{ width: `${(val * 100).toFixed(1)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+            {signal._meta?.prob_override && (
+              <p className="text-[10px] text-amber-400/80">
+                Direction overridden by probability model
+              </p>
+            )}
+          </div>
+        </>
+      )}
+
       {/* ── R/R summary ── */}
       <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
         <div className="flex items-center justify-between text-[10px] text-zinc-500 font-medium uppercase tracking-wider mb-2">

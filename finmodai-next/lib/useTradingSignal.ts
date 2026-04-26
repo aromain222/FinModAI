@@ -71,10 +71,18 @@ export interface TradingSignal {
 
   drivers: string[];
 
+  probabilities?: {
+    bull:       number;
+    base:       number;
+    bear:       number;
+    confidence: number;
+  };
+
   _meta?: {
     event_count:        number;
     active_event_count: number;
     half_life_hrs:      number;
+    prob_override?:     boolean;
     fallback?:          boolean;
   };
 }

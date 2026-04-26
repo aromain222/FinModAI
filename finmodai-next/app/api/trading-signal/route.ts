@@ -13,6 +13,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { z } from 'zod';
 import { getOpenAIKey } from '@/lib/openaiKey';
+import {
+  computeProbabilities,
+  computeConfidence,
+  probabilityToDirection,
+  type ProbabilityInput,
+} from '@/lib/probabilityModel';
 
 export const dynamic = 'force-dynamic';
 
@@ -144,10 +150,17 @@ export type TradingSignalResponse = z.infer<typeof signalResponseSchema> & {
   updated_valuation:      number;
   valuation_gap_pct:      number;
   processed_events_count: number;
+  probabilities: {
+    bull: number;
+    base: number;
+    bear: number;
+    confidence: number;
+  };
   _meta: {
     event_count:        number;
     active_event_count: number;
     half_life_hrs:      number;
+    prob_override:      boolean;
     fallback?:          boolean;
   };
 };
@@ -170,7 +183,8 @@ function buildUserPrompt(
   currentPrice: number,
   valuationGapPct: number,
   events: WeightedEvent[],
-  scenarios: z.infer<typeof requestSchema>['scenarios']
+  scenarios: z.infer<typeof requestSchema>['scenarios'],
+  probs?: { bull: number; base: number; bear: number; confidence: number }
 ): string {
   const eventsText =
     events.length === 0
@@ -190,10 +204,18 @@ function buildUserPrompt(
 
   const s = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
 
+  const probsSection = probs
+    ? `\nDeterministic Scenario Probabilities (pre-computed, do NOT override direction):
+  Bull: ${(probs.bull * 100).toFixed(1)}%
+  Base: ${(probs.base * 100).toFixed(1)}%
+  Bear: ${(probs.bear * 100).toFixed(1)}%
+  Confidence: ${(probs.confidence * 100).toFixed(1)}%`
+    : '';
+
   return `Ticker: ${ticker}
 Current Price: ${currentPrice.toFixed(4)}
 Valuation Gap: ${s(valuationGapPct)}  (positive = model says stock is cheap)
-
+${probsSection}
 Events (decay-weighted, T½=${HALF_LIFE_HOURS}h, most recent first):
 ${eventsText}
 
@@ -273,10 +295,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .sort((a, b) => b.weight - a.weight)
     .filter((e) => e.weight >= 0.05);
 
+  // 3b — Deterministic probability computation (pre-LLM, always runs)
+  const event_scores   = weightedEvents.map((e) => e.marginal_valuation_delta_pct * e.weight);
+  const scenario_skew  =
+    (scenarios.upside.valuation_delta_pct - scenarios.downside.valuation_delta_pct) / 100;
+
+  const probInput: ProbabilityInput = {
+    valuation_gap:  valuationGapPct / 100,   // convert % back to decimal
+    event_scores,
+    scenario_skew,
+    volatility: 0.5,
+  };
+
+  const probs          = computeProbabilities(probInput);
+  const probConfidence = computeConfidence(probs);
+  const probDirection  = probabilityToDirection(probs, 0.65);
+
+  const probSummary = {
+    bull:       probs.bull_prob,
+    base:       probs.base_prob,
+    bear:       probs.bear_prob,
+    confidence: probConfidence,
+  };
+
   // 4 — LLM call
   const apiKey = getOpenAIKey('service');
   if (!apiKey) {
-    // Degrade gracefully — return fallback signal rather than 503
     return NextResponse.json(
       buildFallback(ticker, current_price, base_valuation, updated_valuation,
         valuationGapPct, weightedEvents.length, event_stack.length)
@@ -296,7 +340,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         { role: 'system', content: SYSTEM_PROMPT },
         {
           role: 'user',
-          content: buildUserPrompt(ticker, current_price, valuationGapPct, weightedEvents, scenarios),
+          content: buildUserPrompt(ticker, current_price, valuationGapPct, weightedEvents, scenarios, probSummary),
         },
       ],
     });
@@ -331,7 +375,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // 6 — Return enriched response
+  // 6 — Apply deterministic probability overrides
+  //
+  // If the prob model has strong conviction (> 0.65), override the LLM's
+  // direction so the signal is always consistent with the deterministic model.
+  // Position size is also capped by probability confidence × base size.
+  const BASE_SIZE = 0.05;
+  const prob_override = probDirection !== 'neutral' && probDirection !== signalData.signal.direction;
+
+  const finalDirection = probDirection !== 'neutral' ? probDirection : signalData.signal.direction;
+  const maxProb        = Math.max(probs.bull_prob, probs.bear_prob);
+  const probSizeBoost  = Math.min(BASE_SIZE * probConfidence * maxProb * 10, 0.10);
+  const finalSizePct   = Math.min(
+    Math.max(probSizeBoost, signalData.position.size_pct),
+    0.10
+  );
+
   const result: TradingSignalResponse = {
     ticker,
     current_price,
@@ -339,11 +398,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     updated_valuation,
     valuation_gap_pct:      valuationGapPct,
     processed_events_count: weightedEvents.length,
+    probabilities:          probSummary,
     ...signalData,
+    // Apply overrides after spread so they take precedence
+    signal: {
+      ...signalData.signal,
+      direction: finalDirection,
+    },
+    position: {
+      ...signalData.position,
+      size_pct: finalSizePct,
+    },
     _meta: {
       event_count:        event_stack.length,
       active_event_count: weightedEvents.length,
       half_life_hrs:      HALF_LIFE_HOURS,
+      prob_override,
     },
   };
 
