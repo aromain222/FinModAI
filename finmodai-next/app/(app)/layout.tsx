@@ -7,16 +7,16 @@
 
 import { ConsoleShell } from '@/components/ConsoleShell';
 import { GuestModeGate } from '@/components/auth/GuestModeGate';
-import { ModelAssumptionsProvider } from '@/lib/modelAssumptionsStore';
+import AppProviders from '@/components/AppProviders';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Use client-side gate to check for session or guest mode
   // This allows guest mode to work (which is stored in localStorage, client-side only)
   return (
     <GuestModeGate>
-      <ModelAssumptionsProvider>
+      <AppProviders>
         <ConsoleShell>{children}</ConsoleShell>
-      </ModelAssumptionsProvider>
+      </AppProviders>
     </GuestModeGate>
   );
 }
