@@ -113,41 +113,46 @@ export default function HeadlinesPanel({
   // ── Trading signal ────────────────────────────────────────────────────────
   const { loading: signalLoading, signal, analyze: analyzeSignal, reset: resetSignal } = useTradingSignal();
 
-  // Recompute signal whenever the visible event set changes (debounced 600ms).
+  // Recompute signal whenever the visible event set changes — debounced 600ms.
+  // The hook handles AbortController (cancels in-flight requests) and deduplication
+  // (skips re-call if valuation gap change < 0.5% with same ticker + event count).
   useEffect(() => {
     if (stack.events.length === 0) {
       resetSignal();
       return;
     }
 
-    const visibleEvents =
-      timelineIndex !== null
-        ? stack.events.slice(0, timelineIndex + 1)
-        : stack.events;
+    // Visible slice: all events when live, prefix slice when replaying
+    const activeEvents =
+      timelineIndex === null
+        ? stack.events
+        : stack.events.slice(0, timelineIndex + 1);
 
-    const baseEv    = computeEv(stack.base_model);
-    const updatedEv = computeEv(activeModel);
+    if (activeEvents.length === 0) return;
 
-    // Aggregate scenarios from cumulative delta of visible slice
-    const cumulativeDelta = visibleEvents.length > 0
-      ? visibleEvents[visibleEvents.length - 1].cumulative_valuation_delta_pct
-      : 0;
+    const baseVal    = computeEv(stack.base_model);
+    const updatedVal = computeEv(activeModel);
 
-    const ticker = visibleEvents[visibleEvents.length - 1]?.ticker ?? 'MARKET';
+    // Cumulative delta of the last visible event for scenario construction
+    const lastEvent      = activeEvents[activeEvents.length - 1];
+    const cumulativeDelta = lastEvent.cumulative_valuation_delta_pct;
+
+    // Use the most recently stacked ticker as the signal ticker
+    const ticker = lastEvent.ticker ?? 'MARKET';
 
     const tid = setTimeout(() => {
       void analyzeSignal({
         ticker,
-        current_price:     baseEv,
-        base_valuation:    baseEv,
-        updated_valuation: updatedEv,
-        event_stack: visibleEvents.map((e) => ({
-          headline:                      e.headline,
-          ticker:                        e.ticker,
-          timestamp:                     e.timestamp,
-          marginal_valuation_delta_pct:  e.marginal_valuation_delta_pct,
+        current_price:     baseVal,   // market is assumed priced at base
+        base_valuation:    baseVal,
+        updated_valuation: updatedVal,
+        event_stack: activeEvents.map((e) => ({
+          headline:                       e.headline,
+          ticker:                         e.ticker,
+          timestamp:                      e.timestamp,
+          marginal_valuation_delta_pct:   e.marginal_valuation_delta_pct,
           cumulative_valuation_delta_pct: e.cumulative_valuation_delta_pct,
-          impact_summary:                e.impact_summary,
+          impact_summary:                 e.impact_summary,
         })),
         scenarios: {
           base:     { valuation_delta_pct: cumulativeDelta },
@@ -158,8 +163,9 @@ export default function HeadlinesPanel({
     }, 600);
 
     return () => clearTimeout(tid);
+  // analyzeSignal is stable (useCallback []); activeModel identity changes with stack
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stack.events.length, timelineIndex]);
+  }, [stack.events.length, timelineIndex, activeModel]);
 
   const loadHeadlines = useCallback(async () => {
     setLoading(true);

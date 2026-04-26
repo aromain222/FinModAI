@@ -329,10 +329,20 @@ export default function TradingSignalCard({
 
       {/* ── Meta ── */}
       {signal._meta && (
-        <p className="text-center text-[10px] text-zinc-600">
-          {signal._meta.active_event_count} of {signal._meta.event_count} events active
-          {' · '}decay: {signal._meta.decay_constant_hrs}h
-        </p>
+        <div className="space-y-1">
+          {signal._meta.fallback && (
+            <div className="flex items-center justify-center gap-1.5 rounded-md border border-amber-800/40 bg-amber-950/20 py-1.5 px-2">
+              <AlertTriangle className="h-3 w-3 text-amber-500" />
+              <span className="text-[10px] font-medium text-amber-400">
+                Degraded — using fallback signal
+              </span>
+            </div>
+          )}
+          <p className="text-center text-[10px] text-zinc-600">
+            {signal._meta.active_event_count} of {signal._meta.event_count} events active
+            {' · '}T½ {signal._meta.half_life_hrs}h
+          </p>
+        </div>
       )}
     </div>
   );

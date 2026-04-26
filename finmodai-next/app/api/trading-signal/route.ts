@@ -2,11 +2,11 @@
  * POST /api/trading-signal
  *
  * Converts a stacked event timeline + model valuation shift into an
- * actionable trading signal: direction, conviction, position sizing,
- * stop/target levels, and risk parameters.
+ * actionable trading signal with position sizing and risk parameters.
  *
- * Signal decay: older events are down-weighted using exp(-Δt / 6h)
- * so fresh catalysts dominate the signal.
+ * Signal decay uses proper half-life semantics:
+ *   λ = ln(2) / T½   →   weight = e^(-λ·hours_elapsed)
+ *   At T½=6h: 6h→50%, 12h→25%, 24h→6.25%
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -16,17 +16,73 @@ import { getOpenAIKey } from '@/lib/openaiKey';
 
 export const dynamic = 'force-dynamic';
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── Decay constants ────────────────────────────────────────────────────────────
 
-const DECAY_CONSTANT_MS = 6 * 60 * 60 * 1000; // 6-hour half-life
+const HALF_LIFE_HOURS = 6;
+const LAMBDA = Math.log(2) / HALF_LIFE_HOURS; // ≈ 0.1155 per hour
+
+function decayWeight(timestamp: number): number {
+  const hoursElapsed = (Date.now() - timestamp) / 3_600_000;
+  return Math.exp(-LAMBDA * hoursElapsed);
+}
+
+// ── Fallback signal ────────────────────────────────────────────────────────────
+// Returned (as a 200) whenever the LLM output fails validation.
+
+function buildFallback(
+  ticker: string,
+  currentPrice: number,
+  baseVal: number,
+  updatedVal: number,
+  gapPct: number,
+  activeCount: number,
+  totalCount: number
+) {
+  return {
+    ticker,
+    current_price:     currentPrice,
+    base_valuation:    baseVal,
+    updated_valuation: updatedVal,
+    valuation_gap_pct: gapPct,
+    processed_events_count: activeCount,
+    signal: {
+      direction:    'neutral' as const,
+      conviction:   0.20,
+      time_horizon: 'short_term' as const,
+    },
+    edge: {
+      valuation_gap_pct:  gapPct,
+      market_mispricing:  'efficient' as const,
+      catalyst_strength:  'low' as const,
+    },
+    position: {
+      size_pct:        0.02,
+      entry_zone:      { min: currentPrice * 0.98, max: currentPrice * 1.02 },
+      stop_loss_pct:   0.05,
+      take_profit_pct: 0.08,
+    },
+    risk: {
+      primary_risk:           'Signal generation degraded — LLM output could not be validated.',
+      scenario_skew:          'balanced' as const,
+      volatility_expectation: 'medium' as const,
+    },
+    drivers: ['Model valuation shift detected', 'Manual review recommended'],
+    _meta: {
+      event_count:        totalCount,
+      active_event_count: activeCount,
+      half_life_hrs:      HALF_LIFE_HOURS,
+      fallback:           true,
+    },
+  };
+}
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
 const eventSummarySchema = z.object({
-  headline:                      z.string(),
-  ticker:                        z.string(),
-  timestamp:                     z.number(),
-  marginal_valuation_delta_pct:  z.number(),
+  headline:                       z.string(),
+  ticker:                         z.string(),
+  timestamp:                      z.number(),
+  marginal_valuation_delta_pct:   z.number(),
   cumulative_valuation_delta_pct: z.number(),
   impact_summary: z
     .object({
@@ -50,104 +106,103 @@ const requestSchema = z.object({
   }),
 });
 
-const signalResponseSchema = z.object({
-  signal: z.object({
-    direction:    z.enum(['long', 'short', 'neutral']),
-    conviction:   z.number().min(0).max(1),
-    time_horizon: z.enum(['intraday', 'short_term', 'medium_term']),
-  }),
-  edge: z.object({
-    valuation_gap_pct:  z.number(),
-    market_mispricing:  z.enum(['underreacting', 'overreacting', 'efficient']),
-    catalyst_strength:  z.enum(['low', 'medium', 'high']),
-  }),
-  position: z.object({
-    size_pct:       z.number().min(0).max(0.10),
-    entry_zone:     z.object({ min: z.number(), max: z.number() }),
-    stop_loss_pct:  z.number().min(0),
-    take_profit_pct: z.number().min(0),
-  }),
-  risk: z.object({
-    primary_risk:            z.string(),
-    scenario_skew:           z.enum(['upside', 'downside', 'balanced']),
-    volatility_expectation:  z.enum(['low', 'medium', 'high']),
-  }),
-  drivers: z.array(z.string()),
-});
+const signalResponseSchema = z
+  .object({
+    signal: z.object({
+      direction:    z.enum(['long', 'short', 'neutral']),
+      conviction:   z.number().min(0).max(1),
+      time_horizon: z.enum(['intraday', 'short_term', 'medium_term']),
+    }),
+    edge: z.object({
+      valuation_gap_pct: z.number(),
+      market_mispricing: z.enum(['underreacting', 'overreacting', 'efficient']),
+      catalyst_strength: z.enum(['low', 'medium', 'high']),
+    }),
+    position: z.object({
+      size_pct:        z.number().min(0).max(0.10),
+      entry_zone:      z.object({ min: z.number(), max: z.number() }),
+      stop_loss_pct:   z.number().positive(),
+      take_profit_pct: z.number().positive(),
+    }),
+    risk: z.object({
+      primary_risk:           z.string().min(1),
+      scenario_skew:          z.enum(['upside', 'downside', 'balanced']),
+      volatility_expectation: z.enum(['low', 'medium', 'high']),
+    }),
+    drivers: z.array(z.string()).min(1),
+  })
+  // Enforce take_profit > stop_loss
+  .refine(
+    (d) => d.position.take_profit_pct > d.position.stop_loss_pct,
+    { message: 'take_profit_pct must exceed stop_loss_pct', path: ['position'] }
+  );
 
 export type TradingSignalResponse = z.infer<typeof signalResponseSchema> & {
-  ticker:            string;
-  current_price:     number;
-  base_valuation:    number;
-  updated_valuation: number;
-  valuation_gap_pct: number;
+  ticker:                 string;
+  current_price:          number;
+  base_valuation:         number;
+  updated_valuation:      number;
+  valuation_gap_pct:      number;
+  processed_events_count: number;
   _meta: {
-    event_count:           number;
-    active_event_count:    number;
-    decay_constant_hrs:    number;
+    event_count:        number;
+    active_event_count: number;
+    half_life_hrs:      number;
+    fallback?:          boolean;
   };
 };
 
-// ── Decay ─────────────────────────────────────────────────────────────────────
-
-function decayWeight(timestamp: number): number {
-  return Math.exp(-(Date.now() - timestamp) / DECAY_CONSTANT_MS);
-}
-
-// ── Prompt ────────────────────────────────────────────────────────────────────
+// ── Prompt builder ────────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT = `You are a hedge fund analyst generating trading signals.
 
-You must convert model outputs and recent events into:
-- a clear directional trade
-- confidence level
-- time horizon
-- risk assessment
+You MUST produce a trade that reflects:
+- valuation gap between current price and model-implied value
+- event momentum weighted by recency (decay-adjusted)
+- scenario skew (upside vs downside asymmetry)
 
 Output STRICT JSON only. No text outside JSON.`;
+
+type WeightedEvent = z.infer<typeof eventSummarySchema> & { weight: number };
 
 function buildUserPrompt(
   ticker: string,
   currentPrice: number,
-  baseValuation: number,
-  updatedValuation: number,
   valuationGapPct: number,
-  events: Array<z.infer<typeof eventSummarySchema> & { decay_weight: number }>,
+  events: WeightedEvent[],
   scenarios: z.infer<typeof requestSchema>['scenarios']
 ): string {
   const eventsText =
     events.length === 0
-      ? 'No recent events.'
+      ? 'None — no recent catalysts.'
       : events
           .map((e, i) => {
-            const ageMin = Math.round((Date.now() - e.timestamp) / 60_000);
-            const margStr = `${e.marginal_valuation_delta_pct >= 0 ? '+' : ''}${e.marginal_valuation_delta_pct.toFixed(2)}%`;
-            const cumStr  = `${e.cumulative_valuation_delta_pct >= 0 ? '+' : ''}${e.cumulative_valuation_delta_pct.toFixed(2)}%`;
+            const hoursAgo = ((Date.now() - e.timestamp) / 3_600_000).toFixed(1);
+            const dir      = e.impact_summary?.direction ?? '—';
+            const mag      = e.impact_summary?.magnitude ?? '—';
+            const marg     = `${e.marginal_valuation_delta_pct >= 0 ? '+' : ''}${e.marginal_valuation_delta_pct.toFixed(2)}%`;
             return [
-              `${i + 1}. [weight=${e.decay_weight.toFixed(2)}, ${ageMin}m ago] "${e.headline}"`,
-              `   Direction: ${e.impact_summary?.direction ?? '—'} | Magnitude: ${e.impact_summary?.magnitude ?? '—'}`,
-              `   Marginal ΔEV: ${margStr} | Cumulative ΔEV: ${cumStr}`,
+              `${i + 1}. [weight=${e.weight.toFixed(3)}, ${hoursAgo}h ago] "${e.headline}"`,
+              `   ${dir} / ${mag} | Marginal ΔEV: ${marg}`,
             ].join('\n');
           })
-          .join('\n\n');
+          .join('\n');
 
-  const fmt = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
+  const s = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
 
   return `Ticker: ${ticker}
-Current Price: ${currentPrice.toFixed(4)} (normalized)
-Base Valuation: ${baseValuation.toFixed(4)} (normalized)
-Updated Valuation: ${updatedValuation.toFixed(4)} (normalized)
-Valuation Gap: ${fmt(valuationGapPct)}
+Current Price: ${currentPrice.toFixed(4)}
+Valuation Gap: ${s(valuationGapPct)}  (positive = model says stock is cheap)
 
-Recent Events (decay-weighted, 6h half-life):
+Events (decay-weighted, T½=${HALF_LIFE_HOURS}h, most recent first):
 ${eventsText}
 
 Scenarios:
-  Base:     ${fmt(scenarios.base.valuation_delta_pct)} EV delta
-  Upside:   ${fmt(scenarios.upside.valuation_delta_pct)} EV delta
-  Downside: ${fmt(scenarios.downside.valuation_delta_pct)} EV delta
+  Base:     ${s(scenarios.base.valuation_delta_pct)} EV delta
+  Upside:   ${s(scenarios.upside.valuation_delta_pct)} EV delta
+  Downside: ${s(scenarios.downside.valuation_delta_pct)} EV delta
 
-OUTPUT (strict JSON):
+OUTPUT (strict JSON — no extra keys, no markdown):
 {
   "signal": {
     "direction": "long | short | neutral",
@@ -166,7 +221,7 @@ OUTPUT (strict JSON):
     "take_profit_pct": 0.0
   },
   "risk": {
-    "primary_risk": "",
+    "primary_risk": "concise sentence",
     "scenario_skew": "upside | downside | balanced",
     "volatility_expectation": "low | medium | high"
   },
@@ -174,19 +229,20 @@ OUTPUT (strict JSON):
 }
 
 RULES:
-- conviction: 0–1 (0=no edge, 1=maximum conviction)
-- size_pct: 0–0.10 (hard 10% portfolio cap)
-- stop_loss_pct: % price can move against position before exit (e.g. 0.05 = 5% stop)
-- take_profit_pct: % upside target from current price (e.g. 0.12 = 12% target)
-- entry_zone min/max are absolute price levels around current_price
-- weight recent events more; decay-weight < 0.20 means stale catalyst
-- if events conflict, follow highest-weighted consensus
-- no vague language, no text outside JSON`;
+- conviction ∈ [0,1]
+- size_pct ∈ [0, 0.10]  (10% hard cap)
+- stop_loss_pct > 0
+- take_profit_pct > stop_loss_pct  (positive R:R required)
+- entry_zone must bracket current_price ± reasonable band
+- positive valuation_gap → model sees upside → lean long unless events say otherwise
+- weight events by their decay weight; ignore weight < 0.05
+- no vague language`;
 }
 
-// ── Route ─────────────────────────────────────────────────────────────────────
+// ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  // 1 — Parse request body
   let body: unknown;
   try {
     body = await req.json();
@@ -202,72 +258,59 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const {
-    ticker,
-    current_price,
-    base_valuation,
-    updated_valuation,
-    event_stack,
-    scenarios,
-  } = parsed.data;
+  const { ticker, current_price, base_valuation, updated_valuation, event_stack, scenarios } =
+    parsed.data;
 
-  // Valuation gap: how far the updated model is from current price
+  // 2 — Pre-LLM computation
   const valuationGapPct =
     current_price !== 0
       ? ((updated_valuation - current_price) / Math.abs(current_price)) * 100
       : 0;
 
-  // Decay-weight every event and sort most-recent first
-  const weightedEvents = event_stack
-    .map((e) => ({ ...e, decay_weight: decayWeight(e.timestamp) }))
-    .sort((a, b) => b.decay_weight - a.decay_weight);
+  // 3 — Signal decay: apply proper half-life weighting, sort DESC, drop noise
+  const weightedEvents: WeightedEvent[] = event_stack
+    .map((e) => ({ ...e, weight: decayWeight(e.timestamp) }))
+    .sort((a, b) => b.weight - a.weight)
+    .filter((e) => e.weight >= 0.05);
 
-  const activeEvents = weightedEvents.filter((e) => e.decay_weight > 0.05);
-
-  // ── LLM ──────────────────────────────────────────────────────────────────
+  // 4 — LLM call
   const apiKey = getOpenAIKey('service');
   if (!apiKey) {
+    // Degrade gracefully — return fallback signal rather than 503
     return NextResponse.json(
-      { error: 'LLM API key not configured (set OPENAI_SERVICE_API_KEY or OPENAI_API_KEY)' },
-      { status: 503 }
+      buildFallback(ticker, current_price, base_valuation, updated_valuation,
+        valuationGapPct, weightedEvents.length, event_stack.length)
     );
   }
 
-  const client = new OpenAI({ apiKey });
-
+  const client  = new OpenAI({ apiKey });
   let rawContent = '';
+
   try {
     const completion = await client.chat.completions.create({
       model:           process.env.OPENAI_MODEL ?? 'gpt-4o',
       temperature:     0,
-      max_tokens:      1024,
+      max_tokens:      1_024,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         {
           role: 'user',
-          content: buildUserPrompt(
-            ticker,
-            current_price,
-            base_valuation,
-            updated_valuation,
-            valuationGapPct,
-            weightedEvents,
-            scenarios
-          ),
+          content: buildUserPrompt(ticker, current_price, valuationGapPct, weightedEvents, scenarios),
         },
       ],
     });
     rawContent = completion.choices[0]?.message?.content ?? '';
   } catch (err) {
     console.error('[trading-signal] LLM call failed:', err);
+    // Degrade gracefully with fallback signal
     return NextResponse.json(
-      { error: 'LLM call failed', details: String(err) },
-      { status: 502 }
+      buildFallback(ticker, current_price, base_valuation, updated_valuation,
+        valuationGapPct, weightedEvents.length, event_stack.length)
     );
   }
 
-  // ── Parse + validate ──────────────────────────────────────────────────────
+  // 5 — Parse + strict Zod validation; fallback on any failure
   let signalData: z.infer<typeof signalResponseSchema>;
   try {
     const jsonParsed = JSON.parse(rawContent);
@@ -275,27 +318,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (!validated.success) {
       console.warn('[trading-signal] schema mismatch:', validated.error.flatten());
       return NextResponse.json(
-        { error: 'Signal validation failed', details: validated.error.flatten() },
-        { status: 502 }
+        buildFallback(ticker, current_price, base_valuation, updated_valuation,
+          valuationGapPct, weightedEvents.length, event_stack.length)
       );
     }
     signalData = validated.data;
   } catch (err) {
     console.error('[trading-signal] JSON parse failed:', err, rawContent.slice(0, 300));
-    return NextResponse.json({ error: 'Failed to parse LLM response' }, { status: 502 });
+    return NextResponse.json(
+      buildFallback(ticker, current_price, base_valuation, updated_valuation,
+        valuationGapPct, weightedEvents.length, event_stack.length)
+    );
   }
 
+  // 6 — Return enriched response
   const result: TradingSignalResponse = {
     ticker,
     current_price,
     base_valuation,
     updated_valuation,
-    valuation_gap_pct: valuationGapPct,
+    valuation_gap_pct:      valuationGapPct,
+    processed_events_count: weightedEvents.length,
     ...signalData,
     _meta: {
       event_count:        event_stack.length,
-      active_event_count: activeEvents.length,
-      decay_constant_hrs: DECAY_CONSTANT_MS / 3_600_000,
+      active_event_count: weightedEvents.length,
+      half_life_hrs:      HALF_LIFE_HOURS,
     },
   };
 
