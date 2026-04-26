@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { headlineEnrichmentSchema, type HeadlineEnrichment, type NewsRange, type NewsTopic } from '@/lib/news/types';
 import type { ServerHeadlinesPayload } from '@/lib/news/fetchHeadlinesServer';
 import {
@@ -14,6 +14,9 @@ import {
 } from '@/components/news/HeadlinesPanelParts';
 import { useEventImpact, type EventImpactResult } from '@/lib/useEventImpact';
 import { useModelAssumptions } from '@/lib/modelAssumptionsStore';
+import { useEventStack } from '@/lib/useEventStack';
+import EventTimeline from '@/components/events/EventTimeline';
+import type { CurrentModel } from '@/lib/applyEventMutation';
 
 type NewsItem = HeadlinePanelItem;
 
@@ -72,9 +75,37 @@ export default function HeadlinesPanel({
 
   // ── Model mutation state ──────────────────────────────────────────────────
   const { modelAssumptions, updateScenarioValue } = useModelAssumptions();
-  const { loading: impactLoading, analyze: analyzeImpact } = useEventImpact();
-  const [impactLoadingId, setImpactLoadingId]   = useState<string | null>(null);
-  const [impactMap, setImpactMap]               = useState<Record<string, EventImpactResult>>({});
+  const { analyze: analyzeImpact } = useEventImpact();
+  const [impactLoadingId, setImpactLoadingId] = useState<string | null>(null);
+
+  // Capture base model once on mount — stacking works from this snapshot.
+  const baseModelRef = useRef<CurrentModel | null>(null);
+  if (baseModelRef.current === null) {
+    baseModelRef.current = {
+      revenue_growth:    modelAssumptions.revenueGrowth    / 100,
+      ebitda_margin:     modelAssumptions.ebitdaMargin     / 100,
+      wacc:              modelAssumptions.wacc             / 100,
+      terminal_growth:   modelAssumptions.terminalGrowth   / 100,
+      capex_pct_revenue: modelAssumptions.capexPctRevenue  / 100,
+    };
+  }
+
+  const {
+    stack,
+    activeModel,
+    currentModel,
+    totalDeltaPct,
+    timelineIndex,
+    isPlaying,
+    isReplaying,
+    addEvent,
+    removeEvent: stackRemoveEvent,
+    clearStack,
+    playTimeline,
+    stopPlayback,
+    exitReplay,
+    jumpToIndex,
+  } = useEventStack(baseModelRef.current);
 
   const loadHeadlines = useCallback(async () => {
     setLoading(true);
@@ -248,46 +279,50 @@ export default function HeadlinesPanel({
     [buildLocalFallback, enrichMap]
   );
 
-  // Converts store values (whole-number %) to decimal form for the API
+  // Analyze impact using the stacked activeModel as the starting point.
   const handleAnalyzeImpact = useCallback(
     async (item: NewsItem) => {
-      if (impactMap[item.id] || impactLoadingId === item.id) return;
+      const alreadyStacked = stack.events.some((e) => e.headline === item.title);
+      if (alreadyStacked || impactLoadingId === item.id) return;
       setImpactLoadingId(item.id);
 
-      // Derive a ticker/company hint from enrichment if available
       const enrichment = enrichMap[item.id];
       const ticker  = enrichment?.impacted_tickers?.[0]?.ticker ?? 'MARKET';
       const company = enrichment?.impacted_tickers?.[0]?.ticker
         ? `${enrichment.impacted_tickers[0].ticker} (${enrichment.impacted_sectors?.[0]?.sector ?? 'Market'})`
         : 'Broad Market';
 
-      const currentModel = {
-        revenue_growth:    modelAssumptions.revenueGrowth    / 100,
-        ebitda_margin:     modelAssumptions.ebitdaMargin     / 100,
-        wacc:              modelAssumptions.wacc             / 100,
-        terminal_growth:   modelAssumptions.terminalGrowth   / 100,
-        capex_pct_revenue: modelAssumptions.capexPctRevenue  / 100,
-      };
-
+      // Use activeModel (stacked) so each event layers on prior events.
       const result = await analyzeImpact({
         company,
         ticker,
         headline: item.title,
         context:  item.description ?? undefined,
-        current_model: currentModel,
+        current_model: activeModel,
       });
 
       if (result) {
-        setImpactMap((prev) => ({ ...prev, [item.id]: result }));
+        addEvent(
+          item.title,
+          ticker,
+          result.assumption_deltas,
+          result.impact_summary
+            ? {
+                primary_driver: result.impact_summary.primary_driver ?? '',
+                direction: result.impact_summary.direction,
+                magnitude: result.impact_summary.magnitude,
+              }
+            : undefined
+        );
       }
       setImpactLoadingId(null);
     },
-    [analyzeImpact, enrichMap, impactLoadingId, impactMap, modelAssumptions]
+    [analyzeImpact, enrichMap, impactLoadingId, activeModel, addEvent, stack.events]
   );
 
+  // Apply an individual event's updated_model back to the scenario store.
   const handleApplyToModel = useCallback(
     (updatedModel: EventImpactResult['updated_model']) => {
-      // Write each mutated value back into the base scenario (scaled to whole-number %)
       updateScenarioValue('base', 'revenueGrowth',    updatedModel.revenue_growth    * 100);
       updateScenarioValue('base', 'ebitdaMargin',     updatedModel.ebitda_margin     * 100);
       updateScenarioValue('base', 'wacc',             updatedModel.wacc              * 100);
@@ -296,6 +331,15 @@ export default function HeadlinesPanel({
     },
     [updateScenarioValue]
   );
+
+  // Apply the full stacked currentModel to the scenario store.
+  const handleApplyStackedModel = useCallback(() => {
+    updateScenarioValue('base', 'revenueGrowth',    currentModel.revenue_growth    * 100);
+    updateScenarioValue('base', 'ebitdaMargin',     currentModel.ebitda_margin     * 100);
+    updateScenarioValue('base', 'wacc',             currentModel.wacc              * 100);
+    updateScenarioValue('base', 'terminalGrowth',   currentModel.terminal_growth   * 100);
+    updateScenarioValue('base', 'capexPctRevenue',  currentModel.capex_pct_revenue * 100);
+  }, [currentModel, updateScenarioValue]);
 
   const resolvedProviderLabel = useMemo(() => providerLabel(provider), [provider]);
   const selectedItem = useMemo(
@@ -310,6 +354,12 @@ export default function HeadlinesPanel({
       void loadEnrichment(selectedItem);
     }
   }, [selectedEnrichment, selectedItem, enrichLoadingId, loadEnrichment]);
+
+  // Track which headlines have already been stacked.
+  const stackedHeadlines = useMemo(
+    () => new Set(stack.events.map((e) => e.headline)),
+    [stack.events]
+  );
 
   return (
     <div className="space-y-5">
@@ -329,6 +379,31 @@ export default function HeadlinesPanel({
         onTopicChange={onTopicChange}
       />
 
+      {/* Event timeline — visible once at least one headline has been stacked */}
+      {stack.events.length > 0 && (
+        <div className="space-y-2">
+          <EventTimeline
+            stack={stack}
+            timelineIndex={timelineIndex}
+            isPlaying={isPlaying}
+            isReplaying={isReplaying}
+            totalDeltaPct={totalDeltaPct}
+            onJumpToIndex={jumpToIndex}
+            onRemoveEvent={stackRemoveEvent}
+            onClearStack={clearStack}
+            onPlayTimeline={playTimeline}
+            onStopPlayback={stopPlayback}
+            onExitReplay={exitReplay}
+          />
+          <button
+            onClick={handleApplyStackedModel}
+            className="w-full rounded-lg border border-cyan-700 bg-cyan-950/50 py-2 text-xs font-semibold text-cyan-300 hover:border-cyan-500 hover:bg-cyan-900/50 hover:text-cyan-100 transition-colors"
+          >
+            Apply Stacked Model to Scenarios
+          </button>
+        </div>
+      )}
+
       <div className="space-y-3">
         <FeedSummaryBanner itemCount={items.length} />
 
@@ -342,6 +417,10 @@ export default function HeadlinesPanel({
             items.map((item) => {
               const enrichment = enrichMap[item.id];
               const isSelected = selectedItem?.id === item.id;
+              const isStacked = stackedHeadlines.has(item.title);
+              const stackedEvent = isStacked
+                ? stack.events.find((e) => e.headline === item.title) ?? null
+                : null;
               return (
                 <HeadlineCard
                   key={item.id}
@@ -354,9 +433,31 @@ export default function HeadlinesPanel({
                     if (!enrichment) void loadEnrichment(item);
                   }}
                   onRetry={() => void loadEnrichment(item)}
-                  onAnalyzeImpact={() => void handleAnalyzeImpact(item)}
+                  onAnalyzeImpact={isStacked ? undefined : () => { void handleAnalyzeImpact(item); }}
                   impactLoading={impactLoadingId === item.id}
-                  impactResult={impactMap[item.id] ?? null}
+                  impactResult={
+                    stackedEvent
+                      ? {
+                          company: 'Broad Market',
+                          ticker: stackedEvent.ticker,
+                          headline: stackedEvent.headline,
+                          current_model: stack.base_model,
+                          assumption_deltas: stackedEvent.deltas,
+                          updated_model: stackedEvent.resulting_model,
+                          scenarios: {
+                            base:     { valuation_delta_pct: stackedEvent.marginal_valuation_delta_pct },
+                            upside:   { valuation_delta_pct: stackedEvent.marginal_valuation_delta_pct * 1.5 },
+                            downside: { valuation_delta_pct: stackedEvent.marginal_valuation_delta_pct * 0.5 },
+                          },
+                          impact_summary: stackedEvent.impact_summary ?? {
+                            primary_driver: '',
+                            direction: 'mixed' as const,
+                            magnitude: 'low' as const,
+                          },
+                          mechanism: [],
+                        }
+                      : null
+                  }
                   onApplyToModel={handleApplyToModel}
                 />
               );
