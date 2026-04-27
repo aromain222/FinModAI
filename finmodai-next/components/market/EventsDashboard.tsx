@@ -95,13 +95,14 @@ function sevBarColor(s: number) {
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 function MarketRegimeBar({
-  regime, avgSeverity, eventCount, onRefresh, loading,
+  regime, avgSeverity, eventCount, onRefresh, loading, isDemo,
 }: {
   regime: 'risk_off' | 'risk_on' | 'neutral';
   avgSeverity: number | null;
   eventCount: number;
   onRefresh: () => void;
   loading: boolean;
+  isDemo: boolean;
 }) {
   const cfg = {
     risk_off: { label: 'RISK OFF', dot: 'bg-rose-400 animate-pulse',    border: 'border-rose-500/30',    bg: 'bg-rose-500/5',    text: 'text-rose-300' },
@@ -123,6 +124,14 @@ function MarketRegimeBar({
       <span className="text-[10px] font-mono text-zinc-500">
         <span className="tabular-nums text-zinc-300">{eventCount}</span> ACTIVE EVENTS
       </span>
+      {isDemo && (
+        <>
+          <div className="h-3.5 w-px bg-zinc-700/50" />
+          <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-mono font-bold tracking-wide text-amber-400">
+            DEMO DATA
+          </span>
+        </>
+      )}
       <div className="ml-auto">
         <button
           onClick={onRefresh}
@@ -328,6 +337,7 @@ export default function EventsDashboard() {
   const [diagnostics, setDiagnostics] = useState<MarketEventsApiResponse['diagnostics']>(undefined);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState<string | null>(null);
+  const [isDemo, setIsDemo]           = useState(false);
 
   const today = useMemo(() => new Date(), []);
 
@@ -336,6 +346,7 @@ export default function EventsDashboard() {
     setError(null);
     setWarning(null);
     setMessage(null);
+    setIsDemo(false);
     try {
       const query = new URLSearchParams({ view, limit: '20', provider: 'live' });
       if (debugMode) query.set('debug', '1');
@@ -350,6 +361,23 @@ export default function EventsDashboard() {
         setDiagnostics(undefined);
         setError(parsed.success ? parsed.data.error || 'Failed to load events.' : 'Invalid events payload.');
         return;
+      }
+
+      if (parsed.data.events.length === 0) {
+        const demoQuery = new URLSearchParams({ view, limit: '20', provider: 'demo-seed' });
+        try {
+          const demoResponse = await fetch(`/api/market/events?${demoQuery.toString()}`, { cache: 'no-store' });
+          const demoRaw = await demoResponse.json();
+          const demoParsed = marketEventsApiResponseSchema.safeParse(demoRaw);
+          if (demoParsed.success && demoParsed.data.events.length > 0) {
+            setEvents(demoParsed.data.events);
+            setDiagnostics(demoParsed.data.diagnostics);
+            setIsDemo(true);
+            return;
+          }
+        } catch {
+          // demo fallback failed — fall through to show empty state
+        }
       }
 
       setEvents(parsed.data.events);
@@ -446,6 +474,7 @@ export default function EventsDashboard() {
           eventCount={filteredEvents.length}
           onRefresh={() => void fetchEvents({ force: true })}
           loading={loading}
+          isDemo={isDemo}
         />
 
         {/* Event monitor grid */}
