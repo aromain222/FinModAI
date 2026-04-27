@@ -20,6 +20,9 @@ export default function NewsPage({
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
 
+  const currentRange = (searchParams?.get('range') as NewsRange) || initialRange;
+  const currentTopic = (searchParams?.get('topic') as NewsTopic) || initialTopic;
+
   const updateFilters = useCallback(
     (nextRange: NewsRange, nextTopic: NewsTopic) => {
       const params = new URLSearchParams(searchParams?.toString() ?? '');
@@ -36,11 +39,11 @@ export default function NewsPage({
     <div className="w-full bg-zinc-950 px-6 py-5 lg:px-10">
       <div className="mx-auto max-w-7xl">
         <HeadlinesPanel
-          range={initialRange}
-          topic={initialTopic}
+          range={currentRange}
+          topic={currentTopic}
           initialHeadlines={initialHeadlines}
-          onRangeChange={(next) => updateFilters(next, initialTopic)}
-          onTopicChange={(next) => updateFilters(initialRange, next)}
+          onRangeChange={(next) => updateFilters(next, currentTopic)}
+          onTopicChange={(next) => updateFilters(currentRange, next)}
         />
       </div>
     </div>
