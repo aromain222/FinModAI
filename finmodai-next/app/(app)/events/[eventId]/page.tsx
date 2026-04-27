@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: EventDetailPageProps) {
 }
 
 function parseProvider(value?: string): MarketEventsProvider {
-  return value === 'live' ? 'live' : 'demo-seed';
+  return value === 'demo-seed' ? 'demo-seed' : 'live';
 }
 
 function parseView(value?: string): MarketEventsView {
