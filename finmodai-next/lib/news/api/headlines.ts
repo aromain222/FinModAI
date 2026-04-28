@@ -227,10 +227,14 @@ async function fetchPerigon(params: Params): Promise<HeadlineItem[]> {
     size: String(params.limit),
   });
   const timeout = withTimeoutSignal(10_000);
+  const origin = process.env.NEXT_PUBLIC_ROOT_DOMAIN
+    ? `https://${process.env.NEXT_PUBLIC_ROOT_DOMAIN}`
+    : 'https://capital-base.com';
   try {
     const response = await fetch(`https://api.goperigon.com/v1/all?${qs.toString()}`, {
       cache: 'no-store',
       signal: timeout.signal,
+      headers: { Referer: origin, Origin: origin },
     });
     if (!response.ok) throw new Error(`PERIGON_HTTP_${response.status}`);
     const payload = (await response.json()) as { articles?: unknown[] };
