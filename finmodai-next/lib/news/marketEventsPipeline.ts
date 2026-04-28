@@ -29,7 +29,7 @@ import {
 import { buildHeadlineImageQuery } from '@/lib/headlineQuery';
 import { searchPexelsPhotos } from '@/lib/pexels';
 
-type ProviderKey = 'newsapi' | 'perigon' | 'benzinga';
+type ProviderKey = 'newsapi' | 'perigon' | 'benzinga' | 'marketaux';
 
 type PipelineDiagnostics = {
   fetched: number;
@@ -245,7 +245,13 @@ async function fetchPerigon(query: string, queryId: TriggerQueryId, limit: numbe
     size: String(limit),
   });
 
-  const response = await fetch(`https://api.goperigon.com/v1/all?${qs.toString()}`, { cache: 'no-store' });
+  const perigonOrigin = process.env.NEXT_PUBLIC_ROOT_DOMAIN
+    ? `https://${process.env.NEXT_PUBLIC_ROOT_DOMAIN}`
+    : 'https://capital-base.com';
+  const response = await fetch(`https://api.goperigon.com/v1/all?${qs.toString()}`, {
+    cache: 'no-store',
+    headers: { Referer: perigonOrigin, Origin: perigonOrigin },
+  });
   if (!response.ok) throw new Error(`PERIGON_HTTP_${response.status}`);
 
   const payload = (await response.json()) as { articles?: Array<Record<string, unknown>> };
@@ -320,6 +326,41 @@ async function fetchBenzinga(query: string, queryId: TriggerQueryId, limit: numb
     .slice(0, limit);
 }
 
+async function fetchMarketaux(query: string, queryId: TriggerQueryId, limit: number): Promise<EventCandidate[]> {
+  const apiKey = process.env.MARKETAUX_API_KEY;
+  if (!apiKey) return [];
+
+  const qs = new URLSearchParams({
+    api_token: apiKey,
+    search: query,
+    language: 'en',
+    limit: String(limit),
+    published_after: buildFromDateIso(7),
+  });
+
+  const response = await fetch(`https://api.marketaux.com/v1/news/all?${qs.toString()}`, { cache: 'no-store' });
+  if (!response.ok) throw new Error(`MARKETAUX_HTTP_${response.status}`);
+
+  const payload = (await response.json()) as { data?: Array<Record<string, unknown>> };
+  const rows = Array.isArray(payload.data) ? payload.data : [];
+
+  return rows
+    .map((row) =>
+      normalizeCandidate({
+        title: row.title,
+        description: row.description,
+        url: row.url,
+        source: row.source,
+        imageUrl: row.image_url,
+        publishedAt: row.published_at,
+        provider: 'marketaux',
+        queryId,
+      })
+    )
+    .filter((item): item is EventCandidate => item !== null)
+    .slice(0, limit);
+}
+
 async function fetchTriggeredCandidates(diagnostics: PipelineDiagnostics): Promise<EventCandidate[]> {
   const perProviderLimit = clampLimit(PROVIDER_FETCH_LIMIT);
   const tasks: Array<Promise<EventCandidate[]>> = [];
@@ -328,6 +369,7 @@ async function fetchTriggeredCandidates(diagnostics: PipelineDiagnostics): Promi
     tasks.push(fetchNewsApi(trigger.query, trigger.id, perProviderLimit));
     tasks.push(fetchPerigon(trigger.query, trigger.id, perProviderLimit));
     tasks.push(fetchBenzinga(trigger.query, trigger.id, perProviderLimit));
+    tasks.push(fetchMarketaux(trigger.query, trigger.id, perProviderLimit));
   }
 
   const settled = await Promise.allSettled(tasks);
