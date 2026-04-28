@@ -20,7 +20,7 @@ import {
   withTimeoutSignal,
 } from '@/lib/news/api/shared';
 
-function buildDemoHeadlines(params: Params, limit = params.limit): HeadlineItem[] {
+export function buildDemoHeadlines(params: Params, limit = params.limit): HeadlineItem[] {
   const selected = demoScenariosForTag(params.tag).slice(0, Math.min(limit, demoScenariosForTag(params.tag).length));
   return selected.map((scenario, index) => {
     const published = demoPublishedAt(params, index, selected.length);
@@ -415,10 +415,20 @@ export async function handleHeadlines(params: Params, supabase: SupabaseClient |
 
   if (isDev()) console.debug('[api/news][headlines][live]', { rawCount: live.items.length, normalizedCount: dedupeHeadlines(live.items).length, relevantCount: strictLive.accepted.length, droppedNoiseCount: strictLive.droppedNoiseCount, minScoreUsed: strictLive.accepted.length >= Math.min(params.limit, 8) ? 35 : softLive.accepted.length >= Math.min(params.limit, 5) ? 26 : 18 });
 
-  if (supabase && finalLiveItems.length > 0) ingested = await upsertHeadlines(supabase, finalLiveItems, errors);
+  if (supabase && finalLiveItems.length > 0) {
+    try { ingested = await upsertHeadlines(supabase, finalLiveItems, errors); } catch (e) {
+      errors.push(`supabase_upsert:${e instanceof Error ? e.message : 'failed'}`);
+    }
+  }
 
   let supabaseItems: HeadlineItem[] = [];
-  if (supabase) supabaseItems = filterHeadlinesByFreshness(await readHeadlinesFromSupabase(supabase, params, errors), params.fromIso);
+  if (supabase) {
+    try {
+      supabaseItems = filterHeadlinesByFreshness(await readHeadlinesFromSupabase(supabase, params, errors), params.fromIso);
+    } catch (e) {
+      errors.push(`supabase_read:${e instanceof Error ? e.message : 'failed'}`);
+    }
+  }
   const freshSupabaseHeadlines = filterHeadlinesByFreshness(dedupeHeadlines(supabaseItems), params.fromIso);
   const strictSupabase = evaluateRelevantHeadlines(freshSupabaseHeadlines, 35);
   const softSupabase = evaluateRelevantHeadlines(freshSupabaseHeadlines, 26);

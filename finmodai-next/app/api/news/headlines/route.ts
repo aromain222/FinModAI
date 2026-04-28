@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { handleHeadlines } from '@/lib/news/api/headlines';
+import { buildDemoHeadlines, handleHeadlines } from '@/lib/news/api/headlines';
 import { getSupabaseClient, isDev } from '@/lib/news/api/shared';
 
 export const dynamic = 'force-dynamic';
@@ -37,9 +37,10 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'headlines_failed';
     if (isDev()) console.error('[api/news/headlines] fatal', message);
+    const fallback = buildDemoHeadlines(params, params.limit);
     return NextResponse.json(
-      { ok: false, error: 'provider_failed', details: { message } },
-      { status: 502 }
+      { ok: true, provider: 'demo', items: fallback, meta: { ingested: 0, fromSupabase: 0, errors: [message] } },
+      { status: 200 }
     );
   }
 }
