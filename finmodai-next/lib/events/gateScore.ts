@@ -9,7 +9,7 @@ export type EventCandidate = {
   url: string;
   source: string;
   imageUrl?: string;
-  provider: 'newsapi' | 'perigon' | 'benzinga';
+  provider: 'newsapi' | 'perigon' | 'benzinga' | 'marketaux';
   publishedAt: string;
   queryId: TriggerQueryId;
 };
