@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getEnrichmentForHeadline, getModelImpactForEvent } from '@/lib/news/enrichment';
 import { getEventExtraction } from '@/lib/news/eventExtraction';
+import { getTradingSignal } from '@/lib/news/tradingSignal';
 import { inferEventImpact } from '@/lib/news/eventImpact';
 import { assessHeadlineRelevance, type RelevanceEventType } from '@/lib/news/relevance';
 import { resolveMacroEventImageById } from '@/lib/macroEventImages';
@@ -548,7 +549,7 @@ export async function handleEvents(params: Params, supabase: SupabaseClient | nu
       const primarySource = event.sources[0];
       if (!primarySource) return event;
       try {
-        const [enrichment, modelImpact, extraction] = await Promise.all([
+        const [enrichment, modelImpact, extraction, tradingSignal] = await Promise.all([
           getEnrichmentForHeadline({
             title: event.title,
             description: `${event.what_happened}\nSources: ${event.sources.slice(0, 4).map((source) => `${source.source}: ${source.title}`).join(' | ')}`,
@@ -558,6 +559,7 @@ export async function handleEvents(params: Params, supabase: SupabaseClient | nu
           }),
           getModelImpactForEvent({ title: event.title, description: event.what_happened }),
           getEventExtraction({ title: event.title, description: event.what_happened }),
+          getTradingSignal({ title: event.title, description: event.what_happened }),
         ]);
         return {
           ...event,
@@ -568,6 +570,7 @@ export async function handleEvents(params: Params, supabase: SupabaseClient | nu
           confidence: enrichment.confidence ?? event.confidence,
           model_impact: modelImpact ?? undefined,
           event_extraction: extraction ?? undefined,
+          trading_signal: tradingSignal ?? undefined,
         } satisfies EventItem;
       } catch (error) {
         if (isDev()) console.error('[api/news] event enrichment failed', { title: event.title, url: primarySource.url, message: error instanceof Error ? error.message : String(error) });

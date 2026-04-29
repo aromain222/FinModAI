@@ -4,6 +4,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { assessHeadlineRelevance, type RelevanceEventType } from '@/lib/news/relevance';
 import { getMacroEventFallbackImage } from '@/lib/macroEventImageQueries';
 import type { EventExtraction } from '@/lib/news/eventExtraction';
+import type { TradingSignal } from '@/lib/news/tradingSignal';
 
 export type NewsType = 'headlines' | 'events';
 export type NewsRange = '1D' | '3D' | '1W' | '1M' | '3M';
@@ -61,6 +62,8 @@ export type EventItem = {
   model_impact?: ModelImpact;
   /** Structured 6-step event extraction: normalized label, subject, type, direction, validity */
   event_extraction?: EventExtraction;
+  /** Full 7-step pipeline output: extraction + model mapping + scenarios + trading signal */
+  trading_signal?: TradingSignal;
   image_url?: string;
   image_thumb_url?: string;
   image_provider?: string;

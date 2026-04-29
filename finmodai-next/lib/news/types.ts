@@ -106,6 +106,40 @@ export const eventExtractionSchema = z.object({
   valid: z.boolean().optional().default(true),
 });
 
+const scenarioCaseSchema = z.object({
+  probability: z.number().min(0).max(1),
+  expected_direction: z.string().min(1),
+  magnitude: z.number(),
+});
+
+export const tradingSignalSchema = z.object({
+  event: z.string().min(1),
+  type: z.enum(['earnings', 'macro', 'geopolitics', 'regulatory', 'systemic']),
+  impact_type: z.enum(['growth', 'margin', 'risk']),
+  direction: z.enum(['positive', 'negative']),
+  severity: z.number().int().min(1).max(5),
+  confidence: z.number().min(0).max(1),
+  horizon: z.enum(['intraday', 'short_term', 'medium_term']),
+  model_impact: z.object({
+    revenue_growth_delta: z.number(),
+    margin_delta: z.number(),
+    discount_rate_delta: z.number(),
+    primary_driver: z.enum(['growth', 'margin', 'discount_rate']),
+  }),
+  scenarios: z.object({
+    bull: scenarioCaseSchema,
+    base: scenarioCaseSchema,
+    bear: scenarioCaseSchema,
+  }),
+  signal: z.object({
+    position: z.enum(['LONG', 'SHORT', 'NEUTRAL']),
+    conviction: z.number().min(0).max(1),
+    size_pct: z.number().min(0).max(1),
+    primary_driver: z.string().min(1),
+  }),
+});
+export type TradingSignalItem = z.infer<typeof tradingSignalSchema>;
+
 export const eventItemSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -120,6 +154,7 @@ export const eventItemSchema = z.object({
   published_at: z.string().datetime(),
   model_impact: modelImpactSchema.optional(),
   event_extraction: eventExtractionSchema.optional(),
+  trading_signal: tradingSignalSchema.optional(),
   tags: z.array(z.string()).optional(),
 });
 export type EventItem = z.infer<typeof eventItemSchema>;
