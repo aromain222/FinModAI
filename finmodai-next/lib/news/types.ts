@@ -113,30 +113,36 @@ const scenarioCaseSchema = z.object({
 });
 
 export const tradingSignalSchema = z.object({
-  event: z.string().min(1),
-  type: z.enum(['earnings', 'macro', 'geopolitics', 'regulatory', 'systemic']),
-  impact_type: z.enum(['growth', 'margin', 'risk']),
-  direction: z.enum(['positive', 'negative']),
-  severity: z.number().int().min(1).max(5),
+  mode: z.enum(['EVENT_ANALYSIS', 'MODEL_ANALYSIS']),
+  event: z.string().default(''),
+  type: z.enum(['earnings', 'macro', 'geopolitics', 'regulatory', 'systemic']).optional(),
+  impact_type: z.enum(['growth', 'margin', 'risk']).optional(),
+  direction: z.enum(['positive', 'negative']).optional(),
+  severity: z.number().int().min(1).max(5).optional(),
   confidence: z.number().min(0).max(1),
-  horizon: z.enum(['intraday', 'short_term', 'medium_term']),
   model_impact: z.object({
     revenue_growth_delta: z.number(),
     margin_delta: z.number(),
     discount_rate_delta: z.number(),
     primary_driver: z.enum(['growth', 'margin', 'discount_rate']),
-  }),
+  }).optional(),
   scenarios: z.object({
     bull: scenarioCaseSchema,
     base: scenarioCaseSchema,
     bear: scenarioCaseSchema,
-  }),
+  }).optional(),
   signal: z.object({
     position: z.enum(['LONG', 'SHORT', 'NEUTRAL']),
     conviction: z.number().min(0).max(1),
     size_pct: z.number().min(0).max(1),
     primary_driver: z.string().min(1),
-  }),
+  }).optional(),
+  model_analysis: z.object({
+    sensitivity: z.array(z.unknown()),
+    key_drivers: z.array(z.unknown()),
+    risks: z.array(z.unknown()),
+    insights: z.array(z.unknown()),
+  }).optional(),
 });
 export type TradingSignalItem = z.infer<typeof tradingSignalSchema>;
 

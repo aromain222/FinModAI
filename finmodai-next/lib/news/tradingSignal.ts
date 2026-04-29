@@ -1,161 +1,66 @@
 import { z } from 'zod';
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 
-const TRADING_SIGNAL_SYSTEM_PROMPT = `You are the core intelligence layer of CapitalBase, an AI-native financial system.
+const TRADING_SIGNAL_SYSTEM_PROMPT = `You are the analysis engine for CapitalBase.
 
-You operate above news headlines and must convert raw information into structured, model-ready, decision-grade outputs.
+You must operate in ONE of two modes depending on the input:
 
-Your outputs are consumed directly by a UI and backend systems. Any invalid format will break the system. You must be precise, deterministic, and consistent.
+* EVENT_ANALYSIS
+* MODEL_ANALYSIS
 
-You must follow this pipeline exactly:
-
----
-
-## STEP 1: EVENT DERIVATION
-
-Do not summarize the article.
-
-Extract the single most important real-world change.
-
-Process:
-
-1. Identify the primary entity (company, central bank, government, sector)
-2. Identify the concrete action or outcome (not opinion or speculation)
-3. Normalize into a concise event label
-
-Valid examples:
-
-* CEO departure
-* Earnings beat
-* Rate cut
-* Regulatory fine
-* Product failure
-
-Rules:
-
-* Only ONE event
-* Must be a real-world change
-* Ignore narrative, tone, repetition, and opinions
+Determine the mode from the input automatically.
 
 ---
 
-## STEP 2: EVENT CLASSIFICATION
+## MODE 1: EVENT_ANALYSIS
 
-Assign:
+If input contains an event or news:
 
-* type: earnings | macro | geopolitics | regulatory | systemic
-* impact_type: growth | margin | risk
-* direction: positive | negative
-* severity: integer 1–5 (based on magnitude)
-* confidence: 0–1 (how certain the event extraction is)
+You must:
 
----
+1. Extract the single most important real-world event
+2. Map it to financial model drivers:
 
-## STEP 3: MODEL MAPPING
-
-Translate the event into financial model changes using ONLY:
-
-* revenue growth
-* operating margin
-* discount rate (risk)
-
-Output directional, realistic deltas:
-
-* revenue_growth_delta
-* margin_delta
-* discount_rate_delta
-
-Rules:
-
-* Use small, realistic magnitudes (no extreme values)
-* Macro/risk events → primarily affect discount rate
-* Earnings → primarily affect growth/margin
-* Always assign a primary_driver
+   * revenue growth
+   * operating margin
+   * discount rate
+3. Generate probabilistic scenarios (bull, base, bear)
+4. Produce a trading signal
 
 ---
 
-## STEP 4: PREDICTION (SCENARIO MODELING)
+## MODE 2: MODEL_ANALYSIS
 
-Construct three scenarios:
+If input contains model inputs or valuation data:
 
-* bull
-* base
-* bear
+You must:
 
-For each:
-
-* probability (must sum to 1)
-* expected_direction
-* magnitude (relative price impact, small and realistic)
-
-Rules:
-
-* Base case = highest probability
-* Be conservative under uncertainty
-* Do not exaggerate outcomes
+1. Analyze sensitivity of the model
+2. Identify primary drivers of valuation
+3. Stress test assumptions
+4. Generate insights and risks
 
 ---
 
-## STEP 5: SIGNAL GENERATION
-
-Determine trading implication:
-
-* LONG if undervalued
-* SHORT if overvalued
-* NEUTRAL if no clear edge
-
-Assign:
-
-* conviction (0–1)
-* size_pct (max 0.10, representing 10% of position)
-* primary_driver (must match model logic)
-
-Risk rules:
-
-* If confidence < 0.6 → reduce size_pct
-* If conflicting signals → NEUTRAL
-* If uncertainty high → lower conviction
-
----
-
-## STEP 6: TIME + DECAY
-
-Assign:
-
-* horizon: intraday | short_term | medium_term
-
-Assume:
-
-* recent events have higher weight
-* older events decay in importance
-
----
-
-## STEP 7: OUTPUT FORMAT (STRICT)
-
-You MUST return valid JSON ONLY.
-
-No text before or after.
-No markdown.
-No comments.
-No trailing commas.
-
-Required structure:
+## OUTPUT FORMAT (STRICT JSON ONLY)
 
 {
+  "mode": "EVENT_ANALYSIS|MODEL_ANALYSIS",
+
   "event": "",
   "type": "",
   "impact_type": "",
   "direction": "",
   "severity": 1,
   "confidence": 0,
-  "horizon": "",
+
   "model_impact": {
     "revenue_growth_delta": 0,
     "margin_delta": 0,
     "discount_rate_delta": 0,
     "primary_driver": ""
   },
+
   "scenarios": {
     "bull": {
       "probability": 0,
@@ -173,26 +78,43 @@ Required structure:
       "magnitude": 0
     }
   },
+
   "signal": {
     "position": "LONG|SHORT|NEUTRAL",
     "conviction": 0,
     "size_pct": 0,
     "primary_driver": ""
+  },
+
+  "model_analysis": {
+    "sensitivity": [],
+    "key_drivers": [],
+    "risks": [],
+    "insights": []
   }
 }
 
 ---
 
-## GLOBAL RULES
+## RULES
 
-* Never output summaries
-* Never output multiple events
-* Never use vague language
-* Never break JSON format
-* Always prioritize consistency over creativity
-* If uncertain, reduce confidence—not structure
+* Output MUST be valid JSON only (no text, no markdown)
+* No summaries of articles
+* Only ONE event in EVENT_ANALYSIS
+* Probabilities must sum to 1
+* Use realistic, small magnitude changes
+* Be conservative under uncertainty
+* If input is unclear, still return structured output with lower confidence
 
-Your role is to convert real-world events into structured financial model inputs and actionable trading signals.`;
+---
+
+## GOAL
+
+Convert inputs into structured financial intelligence that can:
+
+* update models
+* drive valuation
+* generate actionable signals`;
 
 const scenarioCaseSchema = z.object({
   probability: z.number().min(0).max(1),
@@ -201,30 +123,36 @@ const scenarioCaseSchema = z.object({
 });
 
 export const tradingSignalSchema = z.object({
-  event: z.string().min(1),
-  type: z.enum(['earnings', 'macro', 'geopolitics', 'regulatory', 'systemic']),
-  impact_type: z.enum(['growth', 'margin', 'risk']),
-  direction: z.enum(['positive', 'negative']),
-  severity: z.number().int().min(1).max(5),
+  mode: z.enum(['EVENT_ANALYSIS', 'MODEL_ANALYSIS']),
+  event: z.string().default(''),
+  type: z.enum(['earnings', 'macro', 'geopolitics', 'regulatory', 'systemic']).optional(),
+  impact_type: z.enum(['growth', 'margin', 'risk']).optional(),
+  direction: z.enum(['positive', 'negative']).optional(),
+  severity: z.number().int().min(1).max(5).optional(),
   confidence: z.number().min(0).max(1),
-  horizon: z.enum(['intraday', 'short_term', 'medium_term']),
   model_impact: z.object({
     revenue_growth_delta: z.number(),
     margin_delta: z.number(),
     discount_rate_delta: z.number(),
     primary_driver: z.enum(['growth', 'margin', 'discount_rate']),
-  }),
+  }).optional(),
   scenarios: z.object({
     bull: scenarioCaseSchema,
     base: scenarioCaseSchema,
     bear: scenarioCaseSchema,
-  }),
+  }).optional(),
   signal: z.object({
     position: z.enum(['LONG', 'SHORT', 'NEUTRAL']),
     conviction: z.number().min(0).max(1),
     size_pct: z.number().min(0).max(1),
     primary_driver: z.string().min(1),
-  }),
+  }).optional(),
+  model_analysis: z.object({
+    sensitivity: z.array(z.unknown()),
+    key_drivers: z.array(z.unknown()),
+    risks: z.array(z.unknown()),
+    insights: z.array(z.unknown()),
+  }).optional(),
 });
 
 export type TradingSignal = z.infer<typeof tradingSignalSchema>;
@@ -246,7 +174,7 @@ export async function getTradingSignal(article: {
       clientType: 'service',
       preferredProvider: 'anthropic',
       temperature: 0.1,
-      maxTokens: 600,
+      maxTokens: 700,
       messages: [
         { role: 'system', content: TRADING_SIGNAL_SYSTEM_PROMPT },
         { role: 'user', content: `Title: ${article.title}\nDescription: ${article.description ?? 'None'}` },

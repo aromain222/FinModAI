@@ -29,9 +29,6 @@ export default function NewsPage({
   const currentRange = normalizeFilter(searchParams?.get('range') ?? null, VALID_RANGES, initialRange);
   const currentTopic = normalizeFilter(searchParams?.get('topic') ?? null, VALID_TOPICS, initialTopic);
 
-  const currentRange = (searchParams?.get('range') as NewsRange) || initialRange;
-  const currentTopic = (searchParams?.get('topic') as NewsTopic) || initialTopic;
-
   const updateFilters = useCallback(
     (nextRange: NewsRange, nextTopic: NewsTopic) => {
       const params = new URLSearchParams(searchParams?.toString() ?? '');

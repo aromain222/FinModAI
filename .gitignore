@@ -67,6 +67,11 @@ uploads/*
 # Embedded repositories
 Bitcoin-Scraper/
 
+# Large data / training dirs — too large for git
+data/
+tmp/
+finmodai-next/data/
+
 # Credentials and API keys
 credentials/
 *credentials*.json
