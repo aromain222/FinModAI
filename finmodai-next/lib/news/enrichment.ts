@@ -1096,61 +1096,98 @@ Rules:
   }
 }
 
-const MODEL_IMPACT_SYSTEM_PROMPT = `You are powering a financial intelligence system that feeds directly into valuation models.
+const MODEL_IMPACT_SYSTEM_PROMPT = `You are an event extraction system that operates above news headlines.
 
-This system does not stop at identifying events. Every output must be usable as an input to a financial model.
+You must follow a strict process to derive events. Do not jump directly to conclusions.
 
-For each piece of news:
+PROCESS:
 
-1. Extract the core event
-   Identify the single most important real-world change. Do not summarize the article.
+Step 1: Identify the primary subject
+Determine the main entity the article is about (company, government, central bank, sector).
 
-2. Map the event to model assumptions
-   Every event must be translated into changes in the following drivers:
+Step 2: Identify the concrete change
+Find the single verifiable action or outcome that occurred.
+This must be something that changed in the real world, not commentary.
 
-* revenue growth
-* operating margin
-* discount rate (risk)
+Examples of valid changes:
+* executive departure or appointment
+* earnings release (beat/miss)
+* policy decision (rate hike/cut)
+* regulatory action (fine, ban, approval)
+* product launch or failure
 
-You must quantify directional changes. Do not use vague language.
+Step 3: Filter out noise
+Ignore:
+* opinions
+* forecasts without action
+* repeated headlines across sources
+* descriptive or emotional language
 
-3. Produce model-ready output
-   The output must be structured JSON that can be directly applied to a financial model.
+Step 4: Normalize the event
+Convert the change into a standardized, concise event label.
 
-Required format:
+Examples:
+* "Company X announced that its CEO will step down" → "CEO departure"
+* "The Federal Reserve cut rates by 25bps" → "Rate cut"
+* "Company Y reported stronger than expected earnings" → "Earnings beat"
+
+Step 5: Classify the event
+Assign:
+* type: earnings | macro | geopolitics | regulatory | systemic
+* direction: positive or negative
+* impact_type: growth | margin | risk
+
+Step 6: Validate
+Before outputting, confirm:
+* Is this a real-world change?
+* Is it the most important event in the article?
+* Can it affect financial outcomes?
+
+If not, discard and choose a better event.
+
+After completing the 6-step extraction, map the event to valuation model inputs.
+Quantify directional changes as signed decimals:
+* revenue_growth_delta: signed decimal (e.g. -0.02 = -2pp revenue growth)
+* margin_delta: signed decimal (e.g. -0.01 = -1pp operating margin)
+* discount_rate_delta: signed decimal (e.g. 0.005 = +50bps discount rate)
+* primary_driver: which of growth | margin | discount_rate dominates
+
+OUTPUT (valid JSON only — no text outside JSON):
 
 {
-  "event": "",
+  "event_label": "<normalized label from Step 4>",
+  "subject": "<primary entity from Step 1>",
   "type": "earnings|macro|geopolitics|regulatory|systemic",
-  "severity": 1-5,
+  "direction": "positive|negative",
+  "impact_type": "growth|margin|risk",
   "probability": 0-1,
   "horizon": "intraday|short_term|medium_term",
-  "model_impact": {
-    "revenue_growth_delta": number,
-    "margin_delta": number,
-    "discount_rate_delta": number,
-    "primary_driver": "growth|margin|discount_rate"
-  },
-  "reasoning": ""
+  "revenue_growth_delta": number,
+  "margin_delta": number,
+  "discount_rate_delta": number,
+  "primary_driver": "growth|margin|discount_rate"
 }
 
 Rules:
+* Extract exactly ONE event
 * Output must be valid JSON only
 * No text outside JSON
-* No summaries
+* No summaries, no explanations
 * No multiple events
-* All outputs must be directly usable in a financial model
-
-Your role is to convert real-world events into structured changes in valuation assumptions.`;
+* No narrative text`;
 
 const llmModelImpactSchema = z.object({
+  event_label: z.string().min(1),
+  subject: z.string().min(1),
+  type: z.enum(['earnings', 'macro', 'geopolitics', 'regulatory', 'systemic']),
+  direction: z.enum(['positive', 'negative']),
+  impact_type: z.enum(['growth', 'margin', 'risk']),
   probability: z.number().min(0).max(1),
-  model_impact: z.object({
-    revenue_growth_delta: z.number(),
-    margin_delta: z.number(),
-    discount_rate_delta: z.number(),
-    primary_driver: z.enum(['growth', 'margin', 'discount_rate']),
-  }),
+  horizon: z.enum(['intraday', 'short_term', 'medium_term']),
+  revenue_growth_delta: z.number(),
+  margin_delta: z.number(),
+  discount_rate_delta: z.number(),
+  primary_driver: z.enum(['growth', 'margin', 'discount_rate']),
 });
 
 export async function getModelImpactForEvent(event: {
@@ -1179,13 +1216,7 @@ export async function getModelImpactForEvent(event: {
     const parsed = llmModelImpactSchema.safeParse(JSON.parse(raw.slice(firstBrace, lastBrace + 1)));
     if (!parsed.success) return null;
 
-    return {
-      revenue_growth_delta: parsed.data.model_impact.revenue_growth_delta,
-      margin_delta: parsed.data.model_impact.margin_delta,
-      discount_rate_delta: parsed.data.model_impact.discount_rate_delta,
-      primary_driver: parsed.data.model_impact.primary_driver,
-      probability: parsed.data.probability,
-    };
+    return parsed.data;
   } catch {
     return null;
   }

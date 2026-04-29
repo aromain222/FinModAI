@@ -83,11 +83,17 @@ export const eventSourceSchema = z.object({
 export type EventSource = z.infer<typeof eventSourceSchema>;
 
 export const modelImpactSchema = z.object({
+  event_label: z.string(),
+  subject: z.string(),
+  type: z.enum(['earnings', 'macro', 'geopolitics', 'regulatory', 'systemic']),
+  direction: z.enum(['positive', 'negative']),
+  impact_type: z.enum(['growth', 'margin', 'risk']),
+  probability: z.number().min(0).max(1),
+  horizon: z.enum(['intraday', 'short_term', 'medium_term']),
   revenue_growth_delta: z.number(),
   margin_delta: z.number(),
   discount_rate_delta: z.number(),
   primary_driver: z.enum(['growth', 'margin', 'discount_rate']),
-  probability: z.number().min(0).max(1),
 });
 export type ModelImpact = z.infer<typeof modelImpactSchema>;
 
