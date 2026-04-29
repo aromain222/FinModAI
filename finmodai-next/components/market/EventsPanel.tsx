@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ExpandableCard from '@/components/news/ExpandableCard';
+import { ModelImpactModal } from '@/components/news/ModelImpactModal';
 import {
   marketEventsApiResponseSchema,
   type MarketEventsApiResponse,
@@ -110,6 +111,28 @@ export default function EventsPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [modelImpactOpen, setModelImpactOpen] = useState(false);
+  const [modelImpactData, setModelImpactData] = useState<Record<string, unknown> | null>(null);
+  const [modelImpactLoading, setModelImpactLoading] = useState(false);
+
+  const handleAnalyzeImpact = useCallback(async (event: MarketEvent) => {
+    setModelImpactData(null);
+    setModelImpactOpen(true);
+    setModelImpactLoading(true);
+    try {
+      const res = await fetch('/api/model-impact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: event.title }),
+      });
+      const data = await res.json() as Record<string, unknown>;
+      setModelImpactData(data);
+    } catch {
+      setModelImpactData(null);
+    } finally {
+      setModelImpactLoading(false);
+    }
+  }, []);
 
   const fetchEvents = useCallback(async (opts?: { force?: boolean }) => {
     setLoading(true);
@@ -423,12 +446,27 @@ export default function EventsPanel() {
                     >
                       Open lead source <ExternalLink className="h-3 w-3" />
                     </a>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 border-violet-500/40 bg-violet-500/10 px-2 text-[11px] text-violet-300 hover:bg-violet-500/20"
+                      onClick={() => void handleAnalyzeImpact(event)}
+                    >
+                      Analyze Model Impact
+                    </Button>
                   </div>
                 )}
               </ExpandableCard>
             );
           })}
       </div>
+
+      <ModelImpactModal
+        open={modelImpactOpen}
+        onClose={setModelImpactOpen}
+        data={modelImpactData as Parameters<typeof ModelImpactModal>[0]['data']}
+        loading={modelImpactLoading}
+      />
     </div>
   );
 }
