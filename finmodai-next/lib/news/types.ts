@@ -113,35 +113,39 @@ const scenarioCaseSchema = z.object({
 });
 
 export const tradingSignalSchema = z.object({
-  mode: z.enum(['EVENT_ANALYSIS', 'MODEL_ANALYSIS']),
+  mode: z.enum(['EVENT_ANALYSIS', 'MODEL_ANALYSIS', 'WHAT_IF_SIMULATION']),
   event: z.string().default(''),
-  type: z.enum(['earnings', 'macro', 'geopolitics', 'regulatory', 'systemic']).optional(),
+  type: z.enum(['earnings', 'macro', 'regulatory', 'management']).optional(),
   impact_type: z.enum(['growth', 'margin', 'risk']).optional(),
   direction: z.enum(['positive', 'negative']).optional(),
   severity: z.number().int().min(1).max(5).optional(),
   confidence: z.number().min(0).max(1),
   model_impact: z.object({
-    revenue_growth_delta: z.number(),
+    growth_delta: z.number(),
     margin_delta: z.number(),
     discount_rate_delta: z.number(),
-    primary_driver: z.enum(['growth', 'margin', 'discount_rate']),
+    primary_driver: z.string(),
+  }).optional(),
+  what_if: z.object({
+    variable: z.string(),
+    delta: z.number(),
+    valuation_change: z.number(),
   }).optional(),
   scenarios: z.object({
-    bull: scenarioCaseSchema,
-    base: scenarioCaseSchema,
-    bear: scenarioCaseSchema,
+    bull: z.object({ probability: z.number().min(0).max(1), impact: z.number() }),
+    base: z.object({ probability: z.number().min(0).max(1), impact: z.number() }),
+    bear: z.object({ probability: z.number().min(0).max(1), impact: z.number() }),
   }).optional(),
   signal: z.object({
     position: z.enum(['LONG', 'SHORT', 'NEUTRAL']),
     conviction: z.number().min(0).max(1),
-    size_pct: z.number().min(0).max(1),
-    primary_driver: z.string().min(1),
+    size_pct: z.number().min(0),
+    primary_driver: z.string(),
   }).optional(),
   model_analysis: z.object({
-    sensitivity: z.array(z.unknown()),
-    key_drivers: z.array(z.unknown()),
-    risks: z.array(z.unknown()),
-    insights: z.array(z.unknown()),
+    key_driver: z.string(),
+    risks: z.array(z.string()),
+    insight: z.string(),
   }).optional(),
 });
 export type TradingSignalItem = z.infer<typeof tradingSignalSchema>;

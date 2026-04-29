@@ -1,161 +1,186 @@
 import { z } from 'zod';
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 
-const TRADING_SIGNAL_SYSTEM_PROMPT = `You are the analysis engine for CapitalBase.
+const FINANCIAL_MODEL_ENGINE_PROMPT = `You are the CapitalBase Financial Model Engine.
 
-You must operate in ONE of two modes depending on the input:
+You operate as a structured system, not a chatbot.
 
-* EVENT_ANALYSIS
-* MODEL_ANALYSIS
+---
 
-Determine the mode from the input automatically.
+## INPUT (ALWAYS PROVIDED)
+
+{
+  "mode": "EVENT_ANALYSIS | MODEL_ANALYSIS | WHAT_IF_SIMULATION",
+  "data": { ... }
+}
+
+You MUST follow the given mode.
+Do NOT infer the mode.
+
+---
+
+## CORE RULES
+
+* Always return valid JSON
+* Never return empty or zero-only outputs
+* If input is weak → reduce confidence, but still produce values
+* Be concise and deterministic
 
 ---
 
 ## MODE 1: EVENT_ANALYSIS
 
-If input contains an event or news:
+Input:
+{
+  "content": "news or event"
+}
 
-You must:
+Steps:
 
-1. Extract the single most important real-world event
-2. Map it to financial model drivers:
+1. Extract ONE real event
 
-   * revenue growth
-   * operating margin
-   * discount rate
-3. Generate probabilistic scenarios (bull, base, bear)
-4. Produce a trading signal
+2. Classify:
+
+   * type: earnings | macro | regulatory | management
+   * impact_type: growth | margin | risk
+   * direction: positive | negative
+   * severity: 1–5
+
+3. Map to model deltas (small, realistic):
+
+   * growth: ±0.005 to ±0.02
+   * margin: ±0.002 to ±0.01
+   * discount_rate: ±0.002 to ±0.02
 
 ---
 
 ## MODE 2: MODEL_ANALYSIS
 
-If input contains model inputs or valuation data:
+Input:
+{
+  "growth": number,
+  "margin": number,
+  "discount_rate": number
+}
 
-You must:
+Steps:
 
-1. Analyze sensitivity of the model
-2. Identify primary drivers of valuation
-3. Stress test assumptions
-4. Generate insights and risks
+* Identify primary driver
+* Highlight 2–3 key risks
+* Provide directional insight
 
 ---
 
-## OUTPUT FORMAT (STRICT JSON ONLY)
+## MODE 3: WHAT_IF_SIMULATION
+
+Input:
+{
+  "base_model": {
+    "growth": number,
+    "margin": number,
+    "discount_rate": number
+  },
+  "change": {
+    "variable": "growth | margin | discount_rate",
+    "delta": number
+  }
+}
+
+Steps:
+
+* Apply ONLY the change
+* Estimate valuation change (direction + magnitude)
+
+---
+
+## OUTPUT (JSON ONLY)
 
 {
-  "mode": "EVENT_ANALYSIS|MODEL_ANALYSIS",
+  "mode": "",
 
   "event": "",
   "type": "",
   "impact_type": "",
   "direction": "",
   "severity": 1,
-  "confidence": 0,
+  "confidence": 0.7,
 
   "model_impact": {
-    "revenue_growth_delta": 0,
-    "margin_delta": 0,
+    "growth_delta": 0.01,
+    "margin_delta": 0.005,
     "discount_rate_delta": 0,
     "primary_driver": ""
   },
 
+  "what_if": {
+    "variable": "",
+    "delta": 0,
+    "valuation_change": 0
+  },
+
   "scenarios": {
-    "bull": {
-      "probability": 0,
-      "expected_direction": "up",
-      "magnitude": 0
-    },
-    "base": {
-      "probability": 0,
-      "expected_direction": "neutral",
-      "magnitude": 0
-    },
-    "bear": {
-      "probability": 0,
-      "expected_direction": "down",
-      "magnitude": 0
-    }
+    "bull": { "probability": 0.3, "impact": 0.1 },
+    "base": { "probability": 0.5, "impact": 0.03 },
+    "bear": { "probability": 0.2, "impact": -0.08 }
   },
 
   "signal": {
     "position": "LONG|SHORT|NEUTRAL",
-    "conviction": 0,
-    "size_pct": 0,
+    "conviction": 0.6,
+    "size_pct": 5,
     "primary_driver": ""
   },
 
   "model_analysis": {
-    "sensitivity": [],
-    "key_drivers": [],
+    "key_driver": "",
     "risks": [],
-    "insights": []
+    "insight": ""
   }
-}
-
----
-
-## RULES
-
-* Output MUST be valid JSON only (no text, no markdown)
-* No summaries of articles
-* Only ONE event in EVENT_ANALYSIS
-* Probabilities must sum to 1
-* Use realistic, small magnitude changes
-* Be conservative under uncertainty
-* If input is unclear, still return structured output with lower confidence
-
----
-
-## GOAL
-
-Convert inputs into structured financial intelligence that can:
-
-* update models
-* drive valuation
-* generate actionable signals`;
-
-const scenarioCaseSchema = z.object({
-  probability: z.number().min(0).max(1),
-  expected_direction: z.string().min(1),
-  magnitude: z.number(),
-});
+}`;
 
 export const tradingSignalSchema = z.object({
-  mode: z.enum(['EVENT_ANALYSIS', 'MODEL_ANALYSIS']),
+  mode: z.enum(['EVENT_ANALYSIS', 'MODEL_ANALYSIS', 'WHAT_IF_SIMULATION']),
   event: z.string().default(''),
-  type: z.enum(['earnings', 'macro', 'geopolitics', 'regulatory', 'systemic']).optional(),
+  type: z.enum(['earnings', 'macro', 'regulatory', 'management']).optional(),
   impact_type: z.enum(['growth', 'margin', 'risk']).optional(),
   direction: z.enum(['positive', 'negative']).optional(),
   severity: z.number().int().min(1).max(5).optional(),
   confidence: z.number().min(0).max(1),
   model_impact: z.object({
-    revenue_growth_delta: z.number(),
+    growth_delta: z.number(),
     margin_delta: z.number(),
     discount_rate_delta: z.number(),
-    primary_driver: z.enum(['growth', 'margin', 'discount_rate']),
+    primary_driver: z.string(),
+  }).optional(),
+  what_if: z.object({
+    variable: z.string(),
+    delta: z.number(),
+    valuation_change: z.number(),
   }).optional(),
   scenarios: z.object({
-    bull: scenarioCaseSchema,
-    base: scenarioCaseSchema,
-    bear: scenarioCaseSchema,
+    bull: z.object({ probability: z.number().min(0).max(1), impact: z.number() }),
+    base: z.object({ probability: z.number().min(0).max(1), impact: z.number() }),
+    bear: z.object({ probability: z.number().min(0).max(1), impact: z.number() }),
   }).optional(),
   signal: z.object({
     position: z.enum(['LONG', 'SHORT', 'NEUTRAL']),
     conviction: z.number().min(0).max(1),
-    size_pct: z.number().min(0).max(1),
-    primary_driver: z.string().min(1),
+    size_pct: z.number().min(0),
+    primary_driver: z.string(),
   }).optional(),
   model_analysis: z.object({
-    sensitivity: z.array(z.unknown()),
-    key_drivers: z.array(z.unknown()),
-    risks: z.array(z.unknown()),
-    insights: z.array(z.unknown()),
+    key_driver: z.string(),
+    risks: z.array(z.string()),
+    insight: z.string(),
   }).optional(),
 });
 
 export type TradingSignal = z.infer<typeof tradingSignalSchema>;
+
+export type FinancialModelInput =
+  | { mode: 'EVENT_ANALYSIS'; data: { content: string } }
+  | { mode: 'MODEL_ANALYSIS'; data: { growth: number; margin: number; discount_rate: number } }
+  | { mode: 'WHAT_IF_SIMULATION'; data: { base_model: { growth: number; margin: number; discount_rate: number }; change: { variable: string; delta: number } } };
 
 function extractJson(text: string): unknown {
   const stripped = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
@@ -165,19 +190,16 @@ function extractJson(text: string): unknown {
   return JSON.parse(stripped.slice(first, last + 1));
 }
 
-export async function getTradingSignal(article: {
-  title: string;
-  description: string | null;
-}): Promise<TradingSignal | null> {
+export async function getFinancialModelAnalysis(input: FinancialModelInput): Promise<TradingSignal | null> {
   try {
     const response = await generateTextWithProviderFallback({
       clientType: 'service',
       preferredProvider: 'anthropic',
       temperature: 0.1,
-      maxTokens: 700,
+      maxTokens: 600,
       messages: [
-        { role: 'system', content: TRADING_SIGNAL_SYSTEM_PROMPT },
-        { role: 'user', content: `Title: ${article.title}\nDescription: ${article.description ?? 'None'}` },
+        { role: 'system', content: FINANCIAL_MODEL_ENGINE_PROMPT },
+        { role: 'user', content: JSON.stringify(input) },
       ],
     });
 
@@ -190,4 +212,15 @@ export async function getTradingSignal(article: {
   } catch {
     return null;
   }
+}
+
+/** Convenience wrapper for news/event enrichment. */
+export async function getTradingSignal(article: {
+  title: string;
+  description: string | null;
+}): Promise<TradingSignal | null> {
+  return getFinancialModelAnalysis({
+    mode: 'EVENT_ANALYSIS',
+    data: { content: `${article.title}. ${article.description ?? ''}`.trim() },
+  });
 }
