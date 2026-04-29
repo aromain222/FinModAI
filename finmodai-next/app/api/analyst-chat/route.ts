@@ -21,12 +21,19 @@ import type { UploadedAttachmentContext } from '@/lib/analyst/attachmentContext'
 import { overrideRouteFromAttachment } from '@/lib/analyst/attachmentRouting';
 import { buildAttachmentStatus, type AttachmentStatusPayload } from '@/lib/analyst/attachmentStatus';
 import { buildFilingPacket, classifyAttachmentFiling } from '@/lib/analyst/filingClassification';
-import { extractPdfStatementPackage } from '@/lib/analyst/pdfFinancialStatements';
+import {
+  extractPdfStatementPackage,
+  type AttachmentStatementSnapshot,
+} from '@/lib/analyst/pdfFinancialStatements';
 import {
   assessPdfStatementExtraction,
   isPdfAttachment,
 } from '@/lib/analyst/pdfModelSeeding';
 import { extractPdfTextServer } from '@/lib/analyst/serverPdfExtraction';
+import {
+  runAiStatementCompletion,
+  type MissingFieldSchema,
+} from '@/lib/analyst/aiStatementCompletion';
 import { routeAnalystQuery, type AnalystRoute } from '@/lib/analyst/router';
 import { retrieveDataForRoute } from '@/lib/analyst/dataRetrieval';
 import { extractVerifiedFacts, serializeFactsBriefForContext, type VerifiedFacts } from '@/lib/analyst/factsExtractor';
@@ -143,6 +150,48 @@ export const fetchCache = 'force-no-store';
 /* ────────── Utility Functions ────────── */
 
 const WEB_TOOL_CANDIDATES = [{ type: 'web_search' }, { type: 'web_search_preview' }] as const;
+const PDF_COMPLETION_SCHEMA: MissingFieldSchema[] = [
+  { field: 'companyName', type: 'string', description: 'Legal company name in the statement header.', required: true },
+  { field: 'ticker', type: 'string', description: 'Primary stock ticker symbol.', required: false },
+  { field: 'fiscalPeriod', type: 'string', description: 'Fiscal period such as Q1 2026 or FY 2025.', required: false },
+  { field: 'reportEndDate', type: 'string', description: 'Report end date in ISO format YYYY-MM-DD.', required: false },
+  { field: 'revenue', type: 'number', description: 'Revenue in absolute USD units.', required: true },
+  {
+    field: 'operatingIncome',
+    type: 'number',
+    description: 'Operating income in absolute USD units.',
+    required: true,
+    anyOfGroup: 'profitability_anchor',
+  },
+  {
+    field: 'ebitda',
+    type: 'number',
+    description: 'EBITDA in absolute USD units.',
+    required: true,
+    anyOfGroup: 'profitability_anchor',
+  },
+  {
+    field: 'cash',
+    type: 'number',
+    description: 'Cash and cash equivalents in absolute USD units.',
+    required: true,
+    anyOfGroup: 'cash_or_debt_anchor',
+  },
+  {
+    field: 'totalDebt',
+    type: 'number',
+    description: 'Total debt in absolute USD units.',
+    required: true,
+    anyOfGroup: 'cash_or_debt_anchor',
+  },
+  { field: 'sharesOutstanding', type: 'number', description: 'Diluted shares outstanding count.', required: false },
+];
+
+function getAttachmentSeedSnapshot(attachment: UploadedAttachmentContext | null): AttachmentStatementSnapshot | null {
+  if (!attachment) return null;
+  return attachment.aiStatementCompletion?.mergedSnapshot ?? attachment.statementPackage?.snapshot ?? null;
+}
+
 function redactSecrets(value: string): string {
   return value.replace(/sk-[A-Za-z0-9_-]+/g, 'sk-***');
 }
@@ -386,6 +435,9 @@ function attachmentContextBlock(attachment: UploadedAttachmentContext): string {
           .filter((item): item is string => Boolean(item))
           .join(', ') || 'statement package'}`
       : null,
+    attachment.aiStatementCompletion
+      ? `AI completion candidates: ${attachment.aiStatementCompletion.candidates.length} (source: ${attachment.aiStatementCompletion.sourceTag})`
+      : null,
     'Use this uploaded artifact as primary context when the user asks to explain, interpret, or turn it into a model.',
     `Attachment summary:\n${attachment.summary}`,
   ]
@@ -605,15 +657,32 @@ async function hydrateAttachmentContext(
       trustStatus: resolvedStatus,
       missingStatements: statementPackage?.missingStatements ?? [],
     });
+    const shouldRunAiCompletion = featureFlags.ENABLE_AI_PDF_COMPLETION === true;
+    const aiCompletion = shouldRunAiCompletion
+      ? await runAiStatementCompletion({
+          extractedText,
+          statementPackage: statementPackage ?? undefined,
+          statementExtractionStatus: resolvedStatus,
+          missingFieldSchema: PDF_COMPLETION_SCHEMA,
+        })
+      : null;
+    const finalStatementPackage = statementPackage
+      ? {
+          ...statementPackage,
+          snapshot: aiCompletion?.mergedSnapshot ?? statementPackage.snapshot,
+        }
+      : undefined;
+
     return withDerivedFilingMetadata({
       ...attachment,
       summary: extractedText.slice(0, 7000),
       rawText: extractedText.slice(0, 120000),
-      ...(statementPackage ? { statementPackage } : {}),
-      ...(!statementPackage ? { statementPackage: undefined } : {}),
+      ...(finalStatementPackage ? { statementPackage: finalStatementPackage } : {}),
+      ...(!finalStatementPackage ? { statementPackage: undefined } : {}),
       statementExtractionStatus: resolvedStatus,
       statementExtractionWarnings: parserWarnings.length > 0 ? parserWarnings : extractionAssessment.statementExtractionWarnings,
       isFinancialModelSeedable: parserFailure ? false : extractionAssessment.isFinancialModelSeedable,
+      ...(aiCompletion ? { aiStatementCompletion: aiCompletion } : {}),
       warnings: attachment.warnings.filter(
         (warning) => !warning.toLowerCase().includes('client-side pdf preview extraction'),
       ),
@@ -1805,7 +1874,7 @@ export async function POST(req: NextRequest) {
         const demo = await generateAnalystDcfDemo({
           prompt: effectiveUserMessage,
           explicitTicker: resolvedTicker,
-          attachmentStatementSnapshot: attachmentContext?.statementPackage?.snapshot ?? null,
+          attachmentStatementSnapshot: getAttachmentSeedSnapshot(attachmentContext),
         });
         const visualization = buildRevenueForecastVisualizationFromDcf(demo.payload);
         return NextResponse.json(withAttachmentStatus(withExecutionTrace({
@@ -2051,14 +2120,14 @@ export async function POST(req: NextRequest) {
           attachmentExtractionContext = await resolveAttachmentModelExtraction({
             modelType: requestedPdfModelType,
             prompt: activeModelPrompt,
-            snapshot: attachmentContext?.statementPackage?.snapshot ?? null,
+            snapshot: getAttachmentSeedSnapshot(attachmentContext),
             inputOverrides: attachmentModelOverrides,
             attachmentText: attachmentContext?.rawText ?? null,
             attachmentSummary: attachmentContext?.summary ?? null,
           });
           const readiness = evaluateAttachmentModelReadiness({
             modelType: requestedPdfModelType,
-            attachmentSnapshot: attachmentContext?.statementPackage?.snapshot ?? null,
+            attachmentSnapshot: getAttachmentSeedSnapshot(attachmentContext),
             inputOverrides: attachmentModelOverrides,
             extractionContext: attachmentExtractionContext,
           });
@@ -2107,7 +2176,7 @@ export async function POST(req: NextRequest) {
         const generatedModel = await generateAnalystStructuredModel(normalizedModelPrompt, sessionId, {
           attachmentStatementSnapshot:
             attachmentContext?.isFinancialModelSeedable === true
-              ? attachmentExtractionContext?.snapshot ?? attachmentContext?.statementPackage?.snapshot ?? null
+              ? attachmentExtractionContext?.snapshot ?? getAttachmentSeedSnapshot(attachmentContext)
               : null,
           inputOverrides: attachmentModelOverrides,
           clarificationAnswer,
@@ -2248,8 +2317,11 @@ export async function POST(req: NextRequest) {
             unitValidationMessage: generatedPayload.unitValidationMessage,
             sources: [
               ...(attachmentContext?.isFinancialModelSeedable === true &&
-              attachmentContext?.statementPackage?.snapshot?.source === 'attachment_pdf_statement'
+              getAttachmentSeedSnapshot(attachmentContext)?.source === 'attachment_pdf_statement'
                 ? ['Attachment PDF statement package']
+                : []),
+              ...(attachmentContext?.aiStatementCompletion
+                ? [`AI PDF completion: ${attachmentContext.aiStatementCompletion.sourceTag}`]
                 : []),
               ...generatedPayload.provenanceSummary.sources,
               'CapitalBase local model templates',
@@ -2289,7 +2361,7 @@ export async function POST(req: NextRequest) {
         explicitTicker: shouldGenerateScenarioAdjustedTeslaDcf ? (resolvedTicker ?? 'TSLA') : resolvedTicker,
         attachmentStatementSnapshot:
           attachmentContext?.isFinancialModelSeedable === true
-            ? attachmentContext?.statementPackage?.snapshot ?? null
+            ? getAttachmentSeedSnapshot(attachmentContext)
             : null,
       });
       addExecutionTraceService(executionTrace, 'generate_analyst_dcf_demo');

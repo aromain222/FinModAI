@@ -11,6 +11,8 @@ export const chatIntentSchema = z.enum([
 ]);
 export type ChatIntent = z.infer<typeof chatIntentSchema>;
 
+const nullableMarketNumberSchema = z.number().nullable();
+
 export const marketSnapshotSchema = z.object({
   asOf: z.string().datetime(),
   spy: z.object({
@@ -24,15 +26,15 @@ export const marketSnapshotSchema = z.object({
     changePct: z.number(),
   }),
   rates: z.object({
-    us2y: z.number(),
+    us2y: nullableMarketNumberSchema,
     us10y: z.number(),
   }),
   fx: z.object({
-    dxy: z.number(),
+    dxy: nullableMarketNumberSchema,
   }),
   commodities: z.object({
-    wti: z.number(),
-    gold: z.number(),
+    wti: nullableMarketNumberSchema,
+    gold: nullableMarketNumberSchema,
   }),
   topMovers: z.array(
     z.object({
@@ -176,4 +178,3 @@ export const chatModelJsonSchema = {
     required: ['answer', 'bullets'],
   },
 } as const;
-

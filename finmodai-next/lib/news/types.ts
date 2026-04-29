@@ -82,6 +82,15 @@ export const eventSourceSchema = z.object({
 });
 export type EventSource = z.infer<typeof eventSourceSchema>;
 
+export const modelImpactSchema = z.object({
+  revenue_growth_delta: z.number(),
+  margin_delta: z.number(),
+  discount_rate_delta: z.number(),
+  primary_driver: z.enum(['growth', 'margin', 'discount_rate']),
+  probability: z.number().min(0).max(1),
+});
+export type ModelImpact = z.infer<typeof modelImpactSchema>;
+
 export const eventItemSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -94,6 +103,7 @@ export const eventItemSchema = z.object({
   sources: z.array(eventSourceSchema).min(1),
   confidence: z.enum(['high', 'medium', 'low']),
   published_at: z.string().datetime(),
+  model_impact: modelImpactSchema.optional(),
   tags: z.array(z.string()).optional(),
 });
 export type EventItem = z.infer<typeof eventItemSchema>;

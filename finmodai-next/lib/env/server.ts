@@ -63,6 +63,7 @@ export const featureFlags = {
   ENABLE_DATABENTO: flag('ENABLE_DATABENTO'),
   ENABLE_EARNINGS_PACKAGE_CACHE: flag('ENABLE_EARNINGS_PACKAGE_CACHE'),
   ENABLE_EARNINGS_PACKAGE_LOGS: flag('ENABLE_EARNINGS_PACKAGE_LOGS'),
+  ENABLE_AI_PDF_COMPLETION: flag('ENABLE_AI_PDF_COMPLETION'),
 } as const;
 
 export function getEarningsPackageCacheTtlHours(): number {

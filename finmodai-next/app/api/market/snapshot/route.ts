@@ -30,6 +30,7 @@ const performancePayloadSchema = z.object({
 type SnapshotSeries = Record<string, { points?: Array<{ value: number | null }> } | undefined>;
 
 type DemoFallbackPayload = {
+  ok: true;
   candles: Array<Record<string, unknown>>;
   breadth: Record<string, unknown>;
   movers: { gainers: Array<Record<string, unknown>>; losers: Array<Record<string, unknown>> };
@@ -37,6 +38,8 @@ type DemoFallbackPayload = {
   ratesFx: Record<string, unknown>;
   vol: Record<string, unknown>;
   provider: 'demo-fallback';
+  fallback: true;
+  warnings: string[];
 };
 
 type DemoSnapshotRow = {
@@ -81,6 +84,7 @@ function getSupabaseClient() {
 
 function demoFallback(): DemoFallbackPayload {
   return {
+    ok: true,
     candles: [],
     breadth: {},
     movers: { gainers: [], losers: [] },
@@ -88,7 +92,17 @@ function demoFallback(): DemoFallbackPayload {
     ratesFx: {},
     vol: {},
     provider: 'demo-fallback',
+    fallback: true,
+    warnings: ['demo_snapshot_unavailable'],
   };
+}
+
+function addUnavailableWarning(warnings: string[], warning: string, value: number | null): number | null {
+  if (value === null) {
+    warnings.push(warning);
+    return null;
+  }
+  return value;
 }
 
 function normalizeDemoCandles(rows: DemoCandleRow[] | null): Array<Record<string, unknown>> {
@@ -170,9 +184,12 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json(
         {
+          ok: true,
           candles: candles || [],
           ...snapshotPayload,
           provider: 'demo',
+          fallback: false,
+          warnings: [],
         },
         { status: 200 }
       );
@@ -227,6 +244,10 @@ export async function GET(req: NextRequest) {
     const spyChangePct = macroSnapshot.metrics.sp500_pct ?? 0;
     const spyDayHigh = typeof latestPoint?.high === 'number' ? latestPoint.high : spyPrice;
     const spyDayLow = typeof latestPoint?.low === 'number' ? latestPoint.low : spyPrice;
+    const us2y = latestFiniteFromSeries(macroSnapshot.series, ['treasury2y', 'us2y']);
+    const dxy = latestFiniteFromSeries(macroSnapshot.series, ['dxy']);
+    const wti = latestFiniteFromSeries(macroSnapshot.series, ['wti', 'oil']);
+    const gold = latestFiniteFromSeries(macroSnapshot.series, ['gold']);
 
     const payload = marketSnapshotSchema.parse({
       asOf: macroSnapshot.asOf,
@@ -241,21 +262,21 @@ export async function GET(req: NextRequest) {
         changePct: macroSnapshot.metrics.vix_pct ?? 0,
       },
       rates: {
-        us2y: latestFiniteFromSeries(macroSnapshot.series, ['treasury2y', 'us2y']) ?? 0,
+        us2y: addUnavailableWarning(warnings, 'rates_2y_unavailable', us2y),
         us10y: macroSnapshot.metrics.tenY_level ?? latestFiniteFromSeries(macroSnapshot.series, ['treasury10y']) ?? 0,
       },
       fx: {
-        dxy: latestFiniteFromSeries(macroSnapshot.series, ['dxy']) ?? 0,
+        dxy: addUnavailableWarning(warnings, 'dxy_unavailable', dxy),
       },
       commodities: {
-        wti: latestFiniteFromSeries(macroSnapshot.series, ['wti', 'oil']) ?? 0,
-        gold: latestFiniteFromSeries(macroSnapshot.series, ['gold']) ?? 0,
+        wti: addUnavailableWarning(warnings, 'wti_unavailable', wti),
+        gold: addUnavailableWarning(warnings, 'gold_unavailable', gold),
       },
       topMovers: movers,
       sectors,
     });
 
-    return NextResponse.json({ ...payload, warnings });
+    return NextResponse.json({ ok: true, provider: 'live', fallback: false, ...payload, warnings });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to build market snapshot.';
     return NextResponse.json({ ok: false, error: message }, { status: 500 });

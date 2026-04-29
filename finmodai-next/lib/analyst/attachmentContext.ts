@@ -13,6 +13,7 @@ import {
   type FilingClassification,
   type FilingPacket,
 } from '@/lib/analyst/filingClassification';
+import type { AiStatementCompletionResult } from '@/lib/analyst/aiStatementCompletion';
 
 export type AttachmentKind = 'earnings_report' | 'model_workbook' | 'spreadsheet' | 'document';
 
@@ -39,6 +40,7 @@ export type UploadedAttachmentContext = {
   statementExtractionStatus?: StatementExtractionStatus;
   statementExtractionWarnings?: string[];
   isFinancialModelSeedable?: boolean;
+  aiStatementCompletion?: AiStatementCompletionResult;
   filingClassification?: FilingClassification;
   filingPacket?: FilingPacket;
 };

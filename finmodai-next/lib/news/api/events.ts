@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getEnrichmentForHeadline } from '@/lib/news/enrichment';
+import { getEnrichmentForHeadline, getModelImpactForEvent } from '@/lib/news/enrichment';
 import { inferEventImpact } from '@/lib/news/eventImpact';
 import { assessHeadlineRelevance, type RelevanceEventType } from '@/lib/news/relevance';
 import { resolveMacroEventImageById } from '@/lib/macroEventImages';
@@ -547,13 +547,16 @@ export async function handleEvents(params: Params, supabase: SupabaseClient | nu
       const primarySource = event.sources[0];
       if (!primarySource) return event;
       try {
-        const enrichment = await getEnrichmentForHeadline({
-          title: event.title,
-          description: `${event.what_happened}\nSources: ${event.sources.slice(0, 4).map((source) => `${source.source}: ${source.title}`).join(' | ')}`,
-          mode: 'general',
-          contextLines: [contextSnapshot.summaryLine, contextSnapshot.themeLine, ...contextSnapshot.headlineLines, `Current event to analyze: ${event.title}`],
-          url: `event://${hashId(`${event.id}|${event.title}|${event.sources.map((source) => source.url).join('|')}`)}`,
-        });
+        const [enrichment, modelImpact] = await Promise.all([
+          getEnrichmentForHeadline({
+            title: event.title,
+            description: `${event.what_happened}\nSources: ${event.sources.slice(0, 4).map((source) => `${source.source}: ${source.title}`).join(' | ')}`,
+            mode: 'general',
+            contextLines: [contextSnapshot.summaryLine, contextSnapshot.themeLine, ...contextSnapshot.headlineLines, `Current event to analyze: ${event.title}`],
+            url: `event://${hashId(`${event.id}|${event.title}|${event.sources.map((source) => source.url).join('|')}`)}`,
+          }),
+          getModelImpactForEvent({ title: event.title, description: event.what_happened }),
+        ]);
         return {
           ...event,
           ai_summary: enrichment.ai_summary ?? event.ai_summary,
@@ -561,6 +564,7 @@ export async function handleEvents(params: Params, supabase: SupabaseClient | nu
           impacted_sectors: enrichment.impacted_sectors.length > 0 ? enrichment.impacted_sectors : event.impacted_sectors,
           impacted_tickers: enrichment.impacted_tickers.length > 0 ? enrichment.impacted_tickers : event.impacted_tickers,
           confidence: enrichment.confidence ?? event.confidence,
+          model_impact: modelImpact ?? undefined,
         } satisfies EventItem;
       } catch (error) {
         if (isDev()) console.error('[api/news] event enrichment failed', { title: event.title, url: primarySource.url, message: error instanceof Error ? error.message : String(error) });

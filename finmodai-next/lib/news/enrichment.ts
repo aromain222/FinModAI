@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
-import { headlineEnrichmentSchema, type HeadlineEnrichment, type SectorName } from '@/lib/news/types';
+import { headlineEnrichmentSchema, modelImpactSchema, type HeadlineEnrichment, type ModelImpact, type SectorName } from '@/lib/news/types';
 import { inferEventImpact, isBroadProxyTicker } from '@/lib/news/eventImpact';
 import { assessHeadlineRelevance } from '@/lib/news/relevance';
 
@@ -1093,5 +1093,100 @@ Rules:
       console.error('[news/enrichment] llm enrichment failed', error);
     }
     return deterministicFallback(headline);
+  }
+}
+
+const MODEL_IMPACT_SYSTEM_PROMPT = `You are powering a financial intelligence system that feeds directly into valuation models.
+
+This system does not stop at identifying events. Every output must be usable as an input to a financial model.
+
+For each piece of news:
+
+1. Extract the core event
+   Identify the single most important real-world change. Do not summarize the article.
+
+2. Map the event to model assumptions
+   Every event must be translated into changes in the following drivers:
+
+* revenue growth
+* operating margin
+* discount rate (risk)
+
+You must quantify directional changes. Do not use vague language.
+
+3. Produce model-ready output
+   The output must be structured JSON that can be directly applied to a financial model.
+
+Required format:
+
+{
+  "event": "",
+  "type": "earnings|macro|geopolitics|regulatory|systemic",
+  "severity": 1-5,
+  "probability": 0-1,
+  "horizon": "intraday|short_term|medium_term",
+  "model_impact": {
+    "revenue_growth_delta": number,
+    "margin_delta": number,
+    "discount_rate_delta": number,
+    "primary_driver": "growth|margin|discount_rate"
+  },
+  "reasoning": ""
+}
+
+Rules:
+* Output must be valid JSON only
+* No text outside JSON
+* No summaries
+* No multiple events
+* All outputs must be directly usable in a financial model
+
+Your role is to convert real-world events into structured changes in valuation assumptions.`;
+
+const llmModelImpactSchema = z.object({
+  probability: z.number().min(0).max(1),
+  model_impact: z.object({
+    revenue_growth_delta: z.number(),
+    margin_delta: z.number(),
+    discount_rate_delta: z.number(),
+    primary_driver: z.enum(['growth', 'margin', 'discount_rate']),
+  }),
+});
+
+export async function getModelImpactForEvent(event: {
+  title: string;
+  description: string | null;
+}): Promise<ModelImpact | null> {
+  try {
+    const response = await generateTextWithProviderFallback({
+      clientType: 'service',
+      preferredProvider: 'anthropic',
+      temperature: 0.1,
+      maxTokens: 500,
+      messages: [
+        { role: 'system', content: MODEL_IMPACT_SYSTEM_PROMPT },
+        { role: 'user', content: `Title: ${event.title}\nDescription: ${event.description ?? 'None'}` },
+      ],
+    });
+
+    if (!response?.text) return null;
+
+    const raw = response.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+    const firstBrace = raw.indexOf('{');
+    const lastBrace = raw.lastIndexOf('}');
+    if (firstBrace < 0 || lastBrace <= firstBrace) return null;
+
+    const parsed = llmModelImpactSchema.safeParse(JSON.parse(raw.slice(firstBrace, lastBrace + 1)));
+    if (!parsed.success) return null;
+
+    return {
+      revenue_growth_delta: parsed.data.model_impact.revenue_growth_delta,
+      margin_delta: parsed.data.model_impact.margin_delta,
+      discount_rate_delta: parsed.data.model_impact.discount_rate_delta,
+      primary_driver: parsed.data.model_impact.primary_driver,
+      probability: parsed.data.probability,
+    };
+  } catch {
+    return null;
   }
 }

@@ -6,6 +6,13 @@ import HeadlinesPanel from '@/components/news/HeadlinesPanel';
 import type { NewsRange, NewsTopic } from '@/lib/news/types';
 import type { ServerHeadlinesPayload } from '@/lib/news/fetchHeadlinesServer';
 
+const VALID_RANGES = new Set<NewsRange>(['1D', '3D', '1W', '1M']);
+const VALID_TOPICS = new Set<NewsTopic>(['all', 'policy', 'rates', 'inflation', 'energy', 'fx', 'equities']);
+
+function normalizeFilter<T extends string>(value: string | null, valid: Set<T>, fallback: T): T {
+  return value && valid.has(value as T) ? (value as T) : fallback;
+}
+
 export default function NewsPage({
   initialRange,
   initialTopic,
@@ -19,6 +26,8 @@ export default function NewsPage({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
+  const currentRange = normalizeFilter(searchParams?.get('range') ?? null, VALID_RANGES, initialRange);
+  const currentTopic = normalizeFilter(searchParams?.get('topic') ?? null, VALID_TOPICS, initialTopic);
 
   const currentRange = (searchParams?.get('range') as NewsRange) || initialRange;
   const currentTopic = (searchParams?.get('topic') as NewsTopic) || initialTopic;

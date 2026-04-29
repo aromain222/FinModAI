@@ -24,6 +24,14 @@ export type HeadlineItem = {
 
 export type Sentiment = 'positive' | 'negative' | 'neutral';
 
+export type ModelImpact = {
+  revenue_growth_delta: number;
+  margin_delta: number;
+  discount_rate_delta: number;
+  primary_driver: 'growth' | 'margin' | 'discount_rate';
+  probability: number;
+};
+
 export type EventItem = {
   id: string;
   title: string;
@@ -42,6 +50,8 @@ export type EventItem = {
   time_decay_weight?: number;
   /** Directional sentiment derived from dominant impacted_tickers/sectors direction */
   sentiment?: Sentiment;
+  /** Model-ready valuation assumption deltas — directly applicable to DCF/LBO inputs */
+  model_impact?: ModelImpact;
   image_url?: string;
   image_thumb_url?: string;
   image_provider?: string;
