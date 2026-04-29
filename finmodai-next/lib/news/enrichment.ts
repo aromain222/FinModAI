@@ -1110,98 +1110,97 @@ Rules:
   }
 }
 
-const MODEL_IMPACT_SYSTEM_PROMPT = `You are an event extraction system that operates above news headlines.
+const MODEL_IMPACT_SYSTEM_PROMPT = `You are the CapitalBase Model Impact Engine.
 
-You must follow a strict process to derive events. Do not jump directly to conclusions.
+Your job is to take a market event and convert it into financial model changes and a clear investment implication.
 
-PROCESS:
+---
 
-Step 1: Identify the primary subject
-Determine the main entity the article is about (company, government, central bank, sector).
-
-Step 2: Identify the concrete change
-Find the single verifiable action or outcome that occurred.
-This must be something that changed in the real world, not commentary.
-
-Examples of valid changes:
-* executive departure or appointment
-* earnings release (beat/miss)
-* policy decision (rate hike/cut)
-* regulatory action (fine, ban, approval)
-* product launch or failure
-
-Step 3: Filter out noise
-Ignore:
-* opinions
-* forecasts without action
-* repeated headlines across sources
-* descriptive or emotional language
-
-Step 4: Normalize the event
-Convert the change into a standardized, concise event label.
-
-Examples:
-* "Company X announced that its CEO will step down" → "CEO departure"
-* "The Federal Reserve cut rates by 25bps" → "Rate cut"
-* "Company Y reported stronger than expected earnings" → "Earnings beat"
-
-Step 5: Classify the event
-Assign:
-* type: earnings | macro | geopolitics | regulatory | systemic
-* direction: positive or negative
-* impact_type: growth | margin | risk
-
-Step 6: Validate
-Before outputting, confirm:
-* Is this a real-world change?
-* Is it the most important event in the article?
-* Can it affect financial outcomes?
-
-If not, discard and choose a better event.
-
-After completing the 6-step extraction, map the event to valuation model inputs.
-Quantify directional changes as signed decimals:
-* revenue_growth_delta: signed decimal (e.g. -0.02 = -2pp revenue growth)
-* margin_delta: signed decimal (e.g. -0.01 = -1pp operating margin)
-* discount_rate_delta: signed decimal (e.g. 0.005 = +50bps discount rate)
-* primary_driver: which of growth | margin | discount_rate dominates
-
-OUTPUT (valid JSON only — no text outside JSON):
+## INPUT
 
 {
-  "event_label": "<normalized label from Step 4>",
-  "subject": "<primary entity from Step 1>",
-  "type": "earnings|macro|geopolitics|regulatory|systemic",
-  "direction": "positive|negative",
-  "impact_type": "growth|margin|risk",
-  "probability": 0-1,
-  "horizon": "intraday|short_term|medium_term",
-  "revenue_growth_delta": number,
-  "margin_delta": number,
-  "discount_rate_delta": number,
-  "primary_driver": "growth|margin|discount_rate"
+  "event": "",
+  "context": "optional headline or summary"
 }
 
-Rules:
-* Extract exactly ONE event
-* Output must be valid JSON only
+---
+
+## TASK
+
+1. Identify the primary financial impact of the event
+
+2. Map to model changes:
+
+* revenue growth
+* operating margin
+* discount rate
+
+3. Estimate valuation impact
+
+4. Generate a clear signal
+
+---
+
+## OUTPUT (JSON ONLY)
+
+{
+  "impact_summary": {
+    "direction": "bullish | bearish | neutral",
+    "primary_driver": "growth | margin | discount_rate",
+    "valuation_change": number
+  },
+
+  "model_changes": {
+    "growth_delta": number,
+    "margin_delta": number,
+    "discount_rate_delta": number
+  },
+
+  "scenarios": {
+    "bull": number,
+    "base": number,
+    "bear": number
+  },
+
+  "signal": {
+    "position": "LONG | SHORT | NEUTRAL",
+    "conviction": number,
+    "size_pct": number
+  }
+}
+
+---
+
+## RULES
+
+* Keep values realistic and small
+* Always produce non-zero outputs
+* Be directional and decisive
 * No text outside JSON
-* No summaries, no explanations
-* No multiple events
-* No narrative text`;
+
+Your goal is to translate events into model-level impact and investment decisions.`;
 
 const llmModelImpactSchema = z.object({
-  event_label: z.string().min(1),
-  subject: z.string().min(1),
-  type: z.enum(['earnings', 'macro', 'geopolitics', 'regulatory', 'systemic']),
-  direction: z.enum(['positive', 'negative']),
-  impact_type: z.enum(['growth', 'margin', 'risk']),
-  probability: z.number().min(0).max(1),
-  horizon: z.enum(['intraday', 'short_term', 'medium_term']),
-  revenue_growth_delta: z.number(),
-  margin_delta: z.number(),
-  discount_rate_delta: z.number(),
-  primary_driver: z.enum(['growth', 'margin', 'discount_rate']),
+  impact_summary: z.object({
+    direction: z.enum(['bullish', 'bearish', 'neutral']),
+    primary_driver: z.enum(['growth', 'margin', 'discount_rate']),
+    valuation_change: z.number(),
+  }),
+  model_changes: z.object({
+    growth_delta: z.number(),
+    margin_delta: z.number(),
+    discount_rate_delta: z.number(),
+  }),
+  scenarios: z.object({
+    bull: z.number(),
+    base: z.number(),
+    bear: z.number(),
+  }),
+  signal: z.object({
+    position: z.enum(['LONG', 'SHORT', 'NEUTRAL']),
+    conviction: z.number().min(0).max(1),
+    size_pct: z.number().min(0),
+  }),
 });
 
 export async function getModelImpactForEvent(event: {
@@ -1209,14 +1208,19 @@ export async function getModelImpactForEvent(event: {
   description: string | null;
 }): Promise<ModelImpact | null> {
   try {
+    const input = JSON.stringify({
+      event: event.title,
+      context: event.description ?? undefined,
+    });
+
     const response = await generateTextWithProviderFallback({
       clientType: 'service',
       preferredProvider: 'anthropic',
       temperature: 0.1,
-      maxTokens: 500,
+      maxTokens: 400,
       messages: [
         { role: 'system', content: MODEL_IMPACT_SYSTEM_PROMPT },
-        { role: 'user', content: `Title: ${event.title}\nDescription: ${event.description ?? 'None'}` },
+        { role: 'user', content: input },
       ],
     });
 

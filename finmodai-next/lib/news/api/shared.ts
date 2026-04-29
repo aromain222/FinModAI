@@ -27,17 +27,26 @@ export type HeadlineItem = {
 export type Sentiment = 'positive' | 'negative' | 'neutral';
 
 export type ModelImpact = {
-  event_label: string;
-  subject: string;
-  type: 'earnings' | 'macro' | 'geopolitics' | 'regulatory' | 'systemic';
-  direction: 'positive' | 'negative';
-  impact_type: 'growth' | 'margin' | 'risk';
-  probability: number;
-  horizon: 'intraday' | 'short_term' | 'medium_term';
-  revenue_growth_delta: number;
-  margin_delta: number;
-  discount_rate_delta: number;
-  primary_driver: 'growth' | 'margin' | 'discount_rate';
+  impact_summary: {
+    direction: 'bullish' | 'bearish' | 'neutral';
+    primary_driver: 'growth' | 'margin' | 'discount_rate';
+    valuation_change: number;
+  };
+  model_changes: {
+    growth_delta: number;
+    margin_delta: number;
+    discount_rate_delta: number;
+  };
+  scenarios: {
+    bull: number;
+    base: number;
+    bear: number;
+  };
+  signal: {
+    position: 'LONG' | 'SHORT' | 'NEUTRAL';
+    conviction: number;
+    size_pct: number;
+  };
 };
 
 export type EventItem = {
