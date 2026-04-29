@@ -117,6 +117,29 @@ const EVENT_PATTERNS: Array<{
       /\bdow\b/i,
       /\bstoxx\b/i,
       /\bmsci\b/i,
+      // company financial events
+      /\bquarterly results?\b/i,
+      /\beps\b/i,
+      /\brevenue\b/i,
+      /\bguidance\b/i,
+      /\bbeat(s)?\b/i,
+      /\bmiss(es|ed)?\b/i,
+      /\bprofit\b/i,
+      /\bmargin\b/i,
+      /\boutlook\b/i,
+      /\bforecast\b/i,
+      /\bshares?\b/i,
+      /\bipo\b/i,
+      /\bsplit\b/i,
+      /\bdividend\b/i,
+      /\bbuyback\b/i,
+      /\bacquisition\b/i,
+      /\bmerger\b/i,
+      /\btakeover\b/i,
+      /\bdeal\b/i,
+      /\bbuyout\b/i,
+      /\bdowngrade\b/i,
+      /\bupgrade\b/i,
     ],
   },
 ];
@@ -183,6 +206,11 @@ export function assessHeadlineRelevance(params: {
   if (/\b(reuters|bloomberg|financial times|wall street journal|cnbc)\b/i.test(params.source)) {
     score += 8;
     reasons.push('source:top-tier');
+  }
+
+  if (/\b(benzinga|eodhd|finnhub|polygon|alphavantage|alpha vantage)\b/i.test(params.source)) {
+    score += 6;
+    reasons.push('source:financial-data');
   }
 
   if (NOISE_PATTERNS.some((pattern) => pattern.test(text))) {

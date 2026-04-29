@@ -8,6 +8,7 @@ import {
   dedupeHeadlines,
   demoPublishedAt,
   demoScenariosForTag,
+  enrichEventScores,
   evaluateRelevantHeadlines,
   filterEventsByFreshness,
   filterHeadlinesByFreshness,
@@ -106,6 +107,11 @@ function makeDetailedEvent(event: EventItem): EventItem {
   );
   const whyItMatters = ensureImpactPrefix(buildReadableImpact(event.why_it_matters, event.impacted_sectors));
   return { ...event, ai_summary: aiSummary, why_it_matters: whyItMatters };
+}
+
+/** Exported for use as absolute last-resort fallback in the events API route. */
+export function buildDemoEventsFallback(params: Params): EventItem[] {
+  return buildDemoEvents(params, params.limit).map(enrichEventScores);
 }
 
 function buildDemoEvents(params: Params, limit = params.limit): EventItem[] {
@@ -580,11 +586,12 @@ export async function handleEvents(params: Params, supabase: SupabaseClient | nu
     const fromSupabase = supplemented.filter((event) => cachedDetailed.some((cached) => cached.id === event.id)).length;
     const usedDemoFallback = supplemented.some((event) => (event.tags ?? []).includes('demo'));
     const responseErrors = usedDemoFallback ? [...errors, 'fallback:demo_events'] : errors;
+    const scored = supplemented.map(enrichEventScores);
     return {
       ok: true,
       provider: headlinesPayload.provider ?? (fromSupabase > 0 ? 'supabase' : usedDemoFallback ? 'demo' : 'newsapi'),
-      items: supplemented,
-      events: supplemented,
+      items: scored,
+      events: scored,
       meta: { ingested, fromSupabase, errors: responseErrors },
     };
   }

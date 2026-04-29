@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildHeadlineImageQuery } from '@/lib/headlineQuery';
 import { searchPexelsPhotos } from '@/lib/pexels';
+import { assessHeadlineRelevance } from '@/lib/news/relevance';
 import {
   addRelevanceTags,
   dedupeHeadlines,
@@ -77,6 +78,41 @@ function normalizeHeadline(raw: Record<string, unknown>, provider: ProviderName)
     imageUrl: typeof imageCandidate === 'string' && imageCandidate.trim().length > 0 ? imageCandidate : undefined,
     tags: tags.length > 0 ? tags : undefined,
   };
+}
+
+function eodhdTopicTag(tag: string): string {
+  const map: Record<string, string> = {
+    all: 'market',
+    policy: 'central bank',
+    rates: 'bond market',
+    inflation: 'inflation',
+    energy: 'energy',
+    fx: 'currency',
+    equities: 'stock market',
+    growth: 'artificial intelligence',
+  };
+  return map[tag] ?? map.all;
+}
+
+function formatEodhdDate(value: string): string {
+  const parsed = new Date(value);
+  const date = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizeEodhdHeadline(row: Record<string, unknown>): HeadlineItem | null {
+  const content = typeof row.content === 'string' ? row.content.trim() : '';
+  return normalizeHeadline(
+    {
+      title: row.title,
+      description: content ? content.replace(/\s+/g, ' ').slice(0, 500) : null,
+      link: row.link,
+      source: 'EODHD',
+      date: row.date,
+      tags: row.tags,
+    },
+    'eodhd'
+  );
 }
 
 function absolutizeImageUrl(candidate: string, pageUrl: string): string | null {
@@ -275,6 +311,36 @@ async function fetchBenzinga(params: Params): Promise<HeadlineItem[]> {
   }
 }
 
+async function fetchEodhd(params: Params): Promise<HeadlineItem[]> {
+  const key = process.env.EODHD_API_KEY || process.env.EODHD_API || process.env.EOD_HISTORICAL_DATA_API_KEY;
+  if (!key) return [];
+  const qs = new URLSearchParams({
+    api_token: key,
+    fmt: 'json',
+    t: eodhdTopicTag(params.tag),
+    from: formatEodhdDate(params.fromIso),
+    limit: String(params.limit),
+    offset: '0',
+  });
+  const timeout = withTimeoutSignal(10_000);
+  try {
+    const response = await fetch(`https://eodhd.com/api/news?${qs.toString()}`, {
+      cache: 'no-store',
+      signal: timeout.signal,
+    });
+    if (!response.ok) throw new Error(`EODHD_HTTP_${response.status}`);
+    const payload = (await response.json()) as unknown;
+    const rows = Array.isArray(payload)
+      ? payload.filter((x): x is Record<string, unknown> => Boolean(x && typeof x === 'object'))
+      : [];
+    const normalized = rows.map(normalizeEodhdHeadline).filter((x): x is HeadlineItem => x !== null);
+    if (isDev()) console.debug('[api/news] eodhd', { rawCount: rows.length, normalizedCount: normalized.length, droppedCount: rows.length - normalized.length, sampleKeys: rows.length > 0 ? Object.keys(rows[0]) : [] });
+    return dedupeHeadlines(normalized).slice(0, params.limit);
+  } finally {
+    timeout.cleanup();
+  }
+}
+
 async function fetchNewsApi(params: Params): Promise<HeadlineItem[]> {
   const key = process.env.NEWS_API_KEY || process.env.NEWSAPI_KEY;
   if (!key) return [];
@@ -303,6 +369,98 @@ async function fetchNewsApi(params: Params): Promise<HeadlineItem[]> {
   }
 }
 
+async function fetchPolygon(params: Params): Promise<HeadlineItem[]> {
+  const key = process.env.POLYGON_API_KEY;
+  if (!key) return [];
+  const timeout = withTimeoutSignal(10_000);
+  try {
+    const { fetchPolygonHeadlines } = await import('@/lib/news/providers/polygon');
+    const items = await fetchPolygonHeadlines({
+      apiKey: key,
+      range: params.range as import('@/lib/news/types').NewsRange,
+      topic: (params.tag as import('@/lib/news/types').NewsTopic) ?? 'all',
+      limit: params.limit,
+      signal: timeout.signal,
+    });
+    const normalized = items.map((item) =>
+      normalizeHeadline(
+        { id: item.id, title: item.title, description: item.description, url: item.url, source: item.source, publishedAt: item.published_at, tags: item.tags, imageUrl: undefined },
+        'newsapi' as ProviderName
+      )
+    ).filter((x): x is HeadlineItem => x !== null);
+    if (isDev()) console.debug('[api/news] polygon', { rawCount: items.length, normalizedCount: normalized.length });
+    return dedupeHeadlines(normalized).slice(0, params.limit);
+  } finally {
+    timeout.cleanup();
+  }
+}
+
+async function fetchAlphaVantage(params: Params): Promise<HeadlineItem[]> {
+  const key =
+    process.env.ALPHA_VANTAGE_API_KEY ||
+    process.env.ALPHAVANTAGE_API_KEY ||
+    process.env.ALPHA_VANTAGE;
+  if (!key) return [];
+  const timeout = withTimeoutSignal(12_000);
+  try {
+    const { fetchAlphaVantageHeadlines } = await import('@/lib/news/providers/alphavantage');
+    const items = await fetchAlphaVantageHeadlines({
+      apiKey: key,
+      range: params.range as import('@/lib/news/types').NewsRange,
+      topic: (params.tag as import('@/lib/news/types').NewsTopic) ?? 'all',
+      limit: params.limit,
+      signal: timeout.signal,
+    });
+    const normalized = items.map((item) =>
+      normalizeHeadline(
+        { id: item.id, title: item.title, description: item.description, url: item.url, source: item.source, publishedAt: item.published_at, tags: item.tags, imageUrl: undefined },
+        'newsapi' as ProviderName
+      )
+    ).filter((x): x is HeadlineItem => x !== null);
+    if (isDev()) console.debug('[api/news] alphavantage', { rawCount: items.length, normalizedCount: normalized.length });
+    return dedupeHeadlines(normalized).slice(0, params.limit);
+  } finally {
+    timeout.cleanup();
+  }
+}
+
+async function fetchFinnhub(params: Params): Promise<HeadlineItem[]> {
+  const key = process.env.FINNHUB_API_KEY;
+  if (!key) return [];
+  const timeout = withTimeoutSignal(10_000);
+  try {
+    const { fetchFinnhubHeadlines } = await import('@/lib/news/providers/finnhub');
+    const items = await fetchFinnhubHeadlines({
+      apiKey: key,
+      range: params.range as import('@/lib/news/types').NewsRange,
+      topic: (params.tag as import('@/lib/news/types').NewsTopic) ?? 'all',
+      limit: params.limit,
+      signal: timeout.signal,
+    });
+    const normalized = items.map((item) =>
+      normalizeHeadline(
+        {
+          id: item.id,
+          title: item.title,
+          description: item.description,
+          url: item.url,
+          source: item.source,
+          publishedAt: item.published_at,
+          tags: item.tags,
+          imageUrl: undefined,
+        },
+        'newsapi' as ProviderName
+      )
+    ).filter((x): x is HeadlineItem => x !== null);
+    if (isDev()) console.debug('[api/news] finnhub', { rawCount: items.length, normalizedCount: normalized.length });
+    return dedupeHeadlines(normalized).slice(0, params.limit);
+  } catch (error) {
+    throw error;
+  } finally {
+    timeout.cleanup();
+  }
+}
+
 async function pullLiveHeadlines(params: Params, providers: ProviderName[], errors: string[]): Promise<{ provider: ProviderName | null; items: HeadlineItem[] }> {
   let primaryProvider: ProviderName | null = null;
   const collected: HeadlineItem[] = [];
@@ -310,8 +468,12 @@ async function pullLiveHeadlines(params: Params, providers: ProviderName[], erro
     try {
       let items: HeadlineItem[] = [];
       if (provider === 'perigon') items = await fetchPerigon(params);
+      if (provider === 'polygon') items = await fetchPolygon(params);
       if (provider === 'benzinga') items = await fetchBenzinga(params);
+      if (provider === 'eodhd') items = await fetchEodhd(params);
       if (provider === 'newsapi') items = await fetchNewsApi(params);
+      if (provider === 'alphavantage') items = await fetchAlphaVantage(params);
+      if (provider === 'finnhub') items = await fetchFinnhub(params);
       if (items.length > 0) {
         if (primaryProvider === null) primaryProvider = provider;
         collected.push(...items);
@@ -387,22 +549,12 @@ async function readHeadlinesFromSupabase(supabase: SupabaseClient, params: Param
     .slice(0, params.limit);
 
   if (normalizedLatest.length > 0) return normalizedLatest;
-
-  const demo = await supabase.from('demo_headlines').select('*').order('published_at', { ascending: false }).limit(params.limit);
-  if (demo.error) {
-    errors.push(`supabase_read_demo_headlines:${demo.error.message}`);
-    return [];
-  }
-  const demoRows = Array.isArray(demo.data) ? demo.data.filter((x): x is Record<string, unknown> => Boolean(x && typeof x === 'object')) : [];
-  return demoRows
-    .map((row) => normalizeHeadline({ id: row.id, title: row.title, description: null, url: row.url, source: row.source, publishedAt: row.published_at, tags: row.tags }, 'supabase'))
-    .filter((item): item is HeadlineItem => item !== null)
-    .slice(0, params.limit);
+  return [];
 }
 
 export async function handleHeadlines(params: Params, supabase: SupabaseClient | null): Promise<NewsResponse> {
   const errors: string[] = [];
-  const live = await pullLiveHeadlines(params, ['perigon', 'benzinga', 'newsapi'], errors);
+  const live = await pullLiveHeadlines(params, ['perigon', 'polygon', 'benzinga', 'eodhd', 'newsapi', 'alphavantage', 'finnhub'], errors);
   let ingested = 0;
   let provider: ProviderName = live.provider ?? 'supabase';
   const freshLiveHeadlines = filterHeadlinesByFreshness(dedupeHeadlines(live.items), params.fromIso);
@@ -450,14 +602,14 @@ export async function handleHeadlines(params: Params, supabase: SupabaseClient |
   const salvage = filterHeadlinesByFreshness(dedupeHeadlines([...supabaseItems, ...live.items]), params.fromIso)
     .map((item) => ({
       item,
-      relevance: item
-        ? {
-            ...evaluateRelevantHeadlines([item], 0).accepted[0]?.relevance,
-          }
-        : null,
+      relevance: assessHeadlineRelevance({
+        title: item.title,
+        description: item.description,
+        source: item.source,
+        minScore: 0,
+      }),
     }))
-    .filter((entry): entry is { item: HeadlineItem; relevance: NonNullable<typeof entry.relevance> } => Boolean(entry.relevance))
-    .filter((entry) => !entry.relevance.reasons.includes('noise:detected') && entry.relevance.eventType !== 'other' && entry.relevance.score >= 18)
+    .filter((entry) => !entry.relevance.reasons.includes('noise:detected') && entry.relevance.eventType !== 'other' && entry.relevance.score >= 6)
     .sort((a, b) => b.relevance.score - a.relevance.score)
     .map(({ item, relevance }) => addRelevanceTags({ ...item, relevance }))
     .slice(0, params.limit);
@@ -466,8 +618,7 @@ export async function handleHeadlines(params: Params, supabase: SupabaseClient |
   const minimumTarget = Math.min(params.limit, 6);
   const blended = preferred.length >= minimumTarget ? preferred : dedupeHeadlines([...preferred, ...salvage]).slice(0, params.limit);
   const demoHeadlines = buildDemoHeadlines(params, params.limit);
-  const supplemented =
-    blended.length >= minimumTarget ? blended : filterHeadlinesByFreshness(dedupeHeadlines([...blended, ...demoHeadlines]), params.fromIso).slice(0, params.limit);
+  const supplemented = blended.length > 0 ? blended : demoHeadlines;
 
   if (supplemented.length > 0) {
     const fromSupabaseCount = supplemented.filter((item) => finalSupabaseItems.some((cached) => cached.url === item.url)).length;

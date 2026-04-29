@@ -64,8 +64,8 @@ export function getAnthropicModelCandidates(...preferred: Array<string | null | 
   return dedupeNonEmpty([
     ...preferred,
     process.env.ANTHROPIC_MODEL,
-    'claude-sonnet-4-20250514',
-    'claude-3-7-sonnet-latest',
+    'claude-sonnet-4-6',
+    'claude-haiku-4-5-20251001',
     'claude-3-5-sonnet-latest',
   ]);
 }

@@ -17,6 +17,8 @@ export type LlmMessage = {
 
 type ProviderPreference = 'anthropic' | 'openai';
 
+const DEFAULT_OPENAI_CHAT_MODELS = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo'] as const;
+
 export type GenerateTextParams = {
   messages: LlmMessage[];
   clientType?: OpenAIClientType | AnthropicClientType;
@@ -35,6 +37,22 @@ export type GenerateTextResult = {
 
 function dedupe(values: string[]): string[] {
   return Array.from(new Set(values.filter((value) => typeof value === 'string' && value.trim().length > 0)));
+}
+
+function isLikelyChatCompletionsModel(model: string): boolean {
+  const normalized = model.trim().toLowerCase();
+  if (!normalized) return false;
+  if (/^(text-|davinci|curie|babbage|ada)/.test(normalized)) return false;
+  if (normalized.includes('instruct')) return false;
+  return true;
+}
+
+export function getOpenAIChatModelCandidates(...preferred: Array<string | null | undefined>): string[] {
+  return dedupe([
+    ...preferred.filter((model): model is string => typeof model === 'string'),
+    process.env.OPENAI_MODEL || '',
+    ...DEFAULT_OPENAI_CHAT_MODELS,
+  ]).filter(isLikelyChatCompletionsModel);
 }
 
 function normalizeMessages(messages: LlmMessage[]): { system: string | null; chatMessages: Array<{ role: 'user' | 'assistant'; content: string }> } {
@@ -73,7 +91,9 @@ function extractOpenAIText(response: unknown): string | null {
 async function generateWithOpenAI(params: GenerateTextParams): Promise<GenerateTextResult | null> {
   const clientType = params.clientType ?? 'service';
   const apiKeys = getOpenAIKeyCandidates(clientType);
-  const models = dedupe(params.openAiModels ?? getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-5.4'));
+  const models = params.openAiModels
+    ? dedupe(params.openAiModels).filter(isLikelyChatCompletionsModel)
+    : getOpenAIChatModelCandidates(...getOpenAIModelCandidates(process.env.OPENAI_MODEL));
   if (!apiKeys.length || !models.length) return null;
 
   const { system, chatMessages } = normalizeMessages(params.messages);

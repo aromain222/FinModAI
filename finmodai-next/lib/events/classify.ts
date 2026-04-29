@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { EventCluster } from '@/lib/events/cluster';
-import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
+import { generateTextWithProviderFallback, getOpenAIChatModelCandidates } from '@/lib/llm/generateText';
 import { buildMacroPlaybookPromptContext } from '@/lib/macro/macroPlaybook';
 import {
   marketImpactSchema,
@@ -174,6 +174,7 @@ export async function classifyClusterWithOpenAI(
     const response = await generateTextWithProviderFallback({
       clientType: 'service',
       preferredProvider: 'anthropic',
+      openAiModels: getOpenAIChatModelCandidates('gpt-4o-mini', 'gpt-4o'),
       temperature: 0.1,
       maxTokens: 900,
       messages: [
@@ -188,13 +189,17 @@ export async function classifyClusterWithOpenAI(
       ],
     });
 
-    const raw = response?.text?.trim() || '{}';
+    const raw = response?.text?.trim();
     if (debug) {
       diagnostics.rawSamples = diagnostics.rawSamples || [];
       if (diagnostics.rawSamples.length < 5) {
         const provider = response ? `${response.provider}:${response.model}` : 'unknown';
-        diagnostics.rawSamples.push(`${cluster.fingerprint.slice(0, 8)}:${provider}:${raw.slice(0, 260)}`);
+        diagnostics.rawSamples.push(`${cluster.fingerprint.slice(0, 8)}:${provider}:${(raw || '').slice(0, 260)}`);
       }
+    }
+    if (!raw) {
+      if (diagnostics.openaiErrors.length < 8) diagnostics.openaiErrors.push('classifier_no_response:no_provider_result');
+      return null;
     }
 
     let parsed: z.infer<typeof classifierSchema>;

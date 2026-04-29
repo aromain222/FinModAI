@@ -26,7 +26,7 @@ type NewsItem = HeadlinePanelItem;
 type NewsSuccessResponse = {
   ok?: true;
   items: NewsItem[];
-  provider?: 'perigon' | 'benzinga' | 'newsapi' | 'supabase' | 'demo' | 'none';
+  provider?: 'perigon' | 'polygon' | 'alphavantage' | 'benzinga' | 'eodhd' | 'newsapi' | 'finnhub' | 'supabase' | 'demo' | 'none';
 };
 
 type NewsErrorResponse = {
@@ -38,8 +38,12 @@ type NewsErrorResponse = {
 function providerLabel(provider?: string): string {
   const map: Record<string, string> = {
     perigon: 'Perigon',
+    polygon: 'Polygon',
+    alphavantage: 'Alpha Vantage',
     benzinga: 'Benzinga',
+    eodhd: 'EODHD',
     newsapi: 'NewsAPI',
+    finnhub: 'Finnhub',
     supabase: 'CapitalBase',
     demo: 'CapitalBase',
     none: 'CapitalBase',

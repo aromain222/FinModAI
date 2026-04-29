@@ -13,7 +13,7 @@ export type ServerHeadlineItem = {
 
 export type ServerHeadlinesPayload = {
   items: ServerHeadlineItem[];
-  provider?: 'perigon' | 'benzinga' | 'newsapi' | 'supabase' | 'demo' | 'none';
+  provider?: 'perigon' | 'polygon' | 'alphavantage' | 'benzinga' | 'eodhd' | 'newsapi' | 'finnhub' | 'supabase' | 'demo' | 'none';
   error?: { error: string; details?: Record<string, unknown> };
 };
 
@@ -82,8 +82,12 @@ export async function fetchHeadlinesServer(params: {
       items,
       provider:
         raw?.provider === 'perigon' ||
+        raw?.provider === 'polygon' ||
+        raw?.provider === 'alphavantage' ||
         raw?.provider === 'benzinga' ||
+        raw?.provider === 'eodhd' ||
         raw?.provider === 'newsapi' ||
+        raw?.provider === 'finnhub' ||
         raw?.provider === 'supabase' ||
         raw?.provider === 'demo' ||
         raw?.provider === 'none'

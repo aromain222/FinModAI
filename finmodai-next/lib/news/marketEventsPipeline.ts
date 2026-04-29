@@ -658,6 +658,89 @@ function buildSeedEventImage(label: string, accent: string, kind: DemoSeedImageK
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
+const BLOOMBERG_STYLE_DEMO_COPY: Record<string, Pick<MarketEvent, 'title' | 'drivers'>> = {
+  'hormuz-oil-shock': {
+    title: 'Oil Risk Premium Jumps as Hormuz Threat Revives Inflation Trade',
+    drivers: [
+      'Energy supply risk is back in focus as Middle East escalation raises shipping and insurance costs.',
+      'Higher crude prices threaten to slow the disinflation path and delay policy relief.',
+      'Energy, defense, and safe-haven assets screen best while fuel-sensitive cyclicals remain exposed.',
+    ],
+  },
+  'us-tariff-broadening': {
+    title: 'Tariff Shock Puts Margin Risk Back on the Tape',
+    drivers: [
+      'Broader import duties lift landed-cost uncertainty across semis, autos, retail, and industrial supply chains.',
+      'Pass-through risk raises the odds that goods inflation stays sticky into the next CPI cycle.',
+      'Domestic defensives hold an edge while multinationals and import-heavy cyclicals face earnings pressure.',
+    ],
+  },
+  'fed-higher-for-longer': {
+    title: 'Fed Cut Bets Fade as Oil, Tariffs Keep Inflation Risk Alive',
+    drivers: [
+      'Policy makers have less room to ease while supply shocks keep inflation expectations firm.',
+      'Front-end rates remain sticky as markets reprice away from a clean rescue-cut path.',
+      'Quality balance sheets and cash-flow durability matter more as refinancing relief gets delayed.',
+    ],
+  },
+  'ecb-energy-inflation-pause': {
+    title: 'ECB Pause Turns Hawkish as Energy Shock Clouds Growth Outlook',
+    drivers: [
+      'Energy inflation complicates the case for easier policy even as European growth remains soft.',
+      'Short-end euro rates stay firmer than a pure slowdown would imply.',
+      'European cyclicals and lower-quality credit remain vulnerable to a policy-growth squeeze.',
+    ],
+  },
+  'boj-normalization-volatility': {
+    title: 'BOJ Normalization Keeps Global Duration Volatility in Play',
+    drivers: [
+      'Higher JGB yields pressure carry trades and global duration positioning.',
+      'Yen sensitivity rises as Japan narrows the policy gap with other developed markets.',
+      'Duration-heavy equities and balance-sheet-sensitive assets remain the cleanest downside channels.',
+    ],
+  },
+  'china-policy-support': {
+    title: 'China Stimulus Signal Puts a Floor Under Cyclical Demand',
+    drivers: [
+      'More proactive fiscal and monetary support reduces the risk of a sharper China demand downdraft.',
+      'Commodity and Asia-linked assets get relief if policy follow-through improves credit confidence.',
+      'The read-through is stabilization, not a full recovery call.',
+    ],
+  },
+  'imf-shadow-of-war': {
+    title: 'IMF Downgrade Reprices the Stagflation Playbook',
+    drivers: [
+      'Lower growth paired with higher inflation risk weakens the case for broad cyclical beta.',
+      'Policy relief becomes less certain when supply shocks keep price pressure elevated.',
+      'Quality, pricing power, and defensives screen better than lower-quality cyclicals.',
+    ],
+  },
+  'iea-oil-buffer-release': {
+    title: 'IEA Stock Release Caps Oil Panic Without Killing Risk Premium',
+    drivers: [
+      'Emergency reserves reduce near-term physical shortage risk but do not resolve the underlying supply shock.',
+      'Crude upside tail risk eases at the margin while inflation pressure remains relevant.',
+      'Airlines and importers get tactical relief, but energy cash-flow strength persists.',
+    ],
+  },
+  'fiscal-term-premia': {
+    title: 'Debt Supply Keeps Term-Premium Risk Alive',
+    drivers: [
+      'Rising public debt and defense spending keep sovereign issuance pressure elevated.',
+      'Higher term premia weigh on long-duration equities and levered cyclicals.',
+      'Balance-sheet strength and lower-duration cash flows remain favored.',
+    ],
+  },
+  'china-reflation-turn': {
+    title: 'China Reflation Signal Lifts Commodity Demand Read-Through',
+    drivers: [
+      'Firmer CPI and PPI data reduce the prior global disinflation impulse.',
+      'Commodity producers and industrial exporters benefit if nominal demand keeps improving.',
+      'The signal supports cyclical leadership but still needs confirmation from metals and order data.',
+    ],
+  },
+};
+
 function buildDemoSeedEvents(): MarketEvent[] {
   const now = Date.now();
   const isoOffset = (hours: number) => new Date(now - hours * 60 * 60 * 1000).toISOString();
@@ -705,8 +788,10 @@ function buildDemoSeedEvents(): MarketEvent[] {
   ) => {
     const updatedAt = isoOffset(payload.ageHours);
     const firstSeenAt = isoOffset(payload.firstSeenHours);
+    const bloombergStyleCopy = BLOOMBERG_STYLE_DEMO_COPY[seed];
     return marketEventSchema.parse({
       ...payload,
+      ...bloombergStyleCopy,
       id: createHash('sha256').update(`demo-seed:${seed}`).digest('hex').slice(0, 24),
       firstSeenAt,
       lastUpdatedAt: updatedAt,
@@ -1090,6 +1175,51 @@ function filterForView(events: MarketEvent[], view: MarketEventsView, limit: num
   return selected.slice(0, cap);
 }
 
+function liveClassifierUnavailable(diagnostics: PipelineDiagnostics, classifiedCount: number): boolean {
+  if (classifiedCount > 0) return false;
+  if (diagnostics.openaiCallCount <= 0) return false;
+  return (
+    diagnostics.openaiErrors.some((error) => /^(provider_call_failed|classifier_no_response):/.test(error)) ||
+    diagnostics.schemaParseFailures >= diagnostics.openaiCallCount
+  );
+}
+
+function buildClassifierFallbackResult(params: {
+  view: MarketEventsView;
+  requestedLimit: number;
+  diagnostics: PipelineDiagnostics;
+}): {
+  provider: MarketEventsProvider;
+  fallback: boolean;
+  events: MarketEvent[];
+  warning: string;
+  message: string;
+  diagnostics: PipelineDiagnostics;
+} {
+  const events = filterForView(buildDemoSeedEvents(), params.view, params.requestedLimit);
+  params.diagnostics.returned = events.length;
+  return {
+    provider: 'demo-seed',
+    fallback: true,
+    events,
+    warning: 'Live classifier unavailable',
+    message: 'Live classifier unavailable',
+    diagnostics: params.diagnostics,
+  };
+}
+
+function filterClassifiedThreadsForView(
+  threads: ClassifiedThread[],
+  view: MarketEventsView,
+  requestedLimit: number
+): MarketEvent[] {
+  return filterForView(
+    threads.map((item) => item.event),
+    view,
+    requestedLimit
+  );
+}
+
 async function refreshLivePipeline(params: {
   supabase: SupabaseClient | null;
   debug: boolean;
@@ -1266,6 +1396,9 @@ export async function getMarketEvents(params: {
     }
 
     const refreshed = await refreshLivePipeline({ supabase, debug, diagnostics });
+    if (liveClassifierUnavailable(diagnostics, refreshed.classified.length)) {
+      return buildClassifierFallbackResult({ view, requestedLimit, diagnostics });
+    }
 
     if (supabase) {
       await markStaleEventsResolved(supabase, ACTIVE_LOOKBACK_DAYS);
@@ -1286,6 +1419,21 @@ export async function getMarketEvents(params: {
         };
       }
 
+      const refreshedEvents = filterClassifiedThreadsForView(refreshed.classified, view, requestedLimit);
+      if (refreshedEvents.length > 0) {
+        diagnostics.returned = refreshedEvents.length;
+        if (diagnostics.openaiErrors.length < 8) {
+          diagnostics.openaiErrors.push('persistence_unavailable:using_fresh_classified_events');
+        }
+        return {
+          provider: 'live',
+          fallback: false,
+          events: refreshedEvents,
+          warning: refreshed.warning || 'Live event store unavailable; showing current refresh results',
+          diagnostics,
+        };
+      }
+
       return {
         provider: 'live',
         fallback: false,
@@ -1297,11 +1445,7 @@ export async function getMarketEvents(params: {
       };
     }
 
-    const adHoc = filterForView(
-      refreshed.classified.map((item) => item.event),
-      view,
-      requestedLimit
-    );
+    const adHoc = filterClassifiedThreadsForView(refreshed.classified, view, requestedLimit);
     diagnostics.returned = adHoc.length;
     return {
       provider: 'live',
@@ -1315,15 +1459,10 @@ export async function getMarketEvents(params: {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'PIPELINE_FAILED';
     if (diagnostics.openaiErrors.length < 8) diagnostics.openaiErrors.push(`pipeline_failed:${message.slice(0, 180)}`);
-    diagnostics.returned = 0;
     return {
-      provider: 'live',
-      fallback: false,
-      events: [],
+      ...buildClassifierFallbackResult({ view, requestedLimit, diagnostics }),
       error: 'PIPELINE_FAILED',
-      warning: message,
-      message: 'Live pipeline unavailable',
-      diagnostics,
+      warning: message || 'Live classifier unavailable',
     };
   }
 }

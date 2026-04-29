@@ -87,7 +87,7 @@ export function getOpenAIModelCandidates(...preferred: Array<string | null | und
   return dedupeNonEmpty([
     ...preferred,
     process.env.OPENAI_MODEL,
-    'gpt-5.4-pro',
-    'gpt-5.4',
+    'gpt-4o',
+    'gpt-4o-mini',
   ]);
 }

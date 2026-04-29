@@ -6,7 +6,7 @@ import { getMacroEventFallbackImage } from '@/lib/macroEventImageQueries';
 
 export type NewsType = 'headlines' | 'events';
 export type NewsRange = '1D' | '3D' | '1W' | '1M' | '3M';
-export type ProviderName = 'perigon' | 'benzinga' | 'newsapi' | 'supabase' | 'demo' | 'none';
+export type ProviderName = 'perigon' | 'polygon' | 'alphavantage' | 'benzinga' | 'eodhd' | 'newsapi' | 'finnhub' | 'supabase' | 'demo' | 'none';
 export type Direction = 'up' | 'down' | 'mixed' | 'unknown';
 export type Confidence = 'high' | 'medium' | 'low';
 
@@ -22,6 +22,8 @@ export type HeadlineItem = {
   tags?: string[];
 };
 
+export type Sentiment = 'positive' | 'negative' | 'neutral';
+
 export type EventItem = {
   id: string;
   title: string;
@@ -34,6 +36,12 @@ export type EventItem = {
   sources: Array<{ source: string; title: string; url: string; published_at: string }>;
   confidence: Confidence;
   published_at: string;
+  /** 0–1 importance score derived from confidence + event type + source count */
+  impact_score?: number;
+  /** Exponential time decay: exp(-hours_since_event / 6). 1.0 = just published, ~0.22 at 8h */
+  time_decay_weight?: number;
+  /** Directional sentiment derived from dominant impacted_tickers/sectors direction */
+  sentiment?: Sentiment;
   image_url?: string;
   image_thumb_url?: string;
   image_provider?: string;
@@ -367,4 +375,58 @@ export function demoPublishedAt(params: Params, index: number, total: number): s
 
 export function isDev(): boolean {
   return process.env.NODE_ENV !== 'production';
+}
+
+/** Compute 0–1 impact score from confidence, source count, and event type. */
+export function computeImpactScore(event: Pick<EventItem, 'confidence' | 'sources' | 'tags'>): number {
+  const baseByConfidence: Record<Confidence, number> = { high: 0.75, medium: 0.50, low: 0.28 };
+  let score = baseByConfidence[event.confidence] ?? 0.40;
+
+  // Source corroboration bonus
+  const uniqueSources = new Set(event.sources.map((s) => s.source.toLowerCase())).size;
+  score += Math.min(uniqueSources * 0.04, 0.12);
+
+  // High-signal event type bonus
+  const highSignalTags = new Set(['policy', 'rates', 'inflation', 'earnings', 'geopolitics', 'energy', 'credit']);
+  const tags = event.tags ?? [];
+  if (tags.some((t) => highSignalTags.has(t.toLowerCase()))) score += 0.08;
+
+  return Math.min(Math.round(score * 100) / 100, 1.0);
+}
+
+/** Exponential decay over 6-hour half-life. Returns 1.0 for fresh events, approaches 0 as age grows. */
+export function computeTimeDecayWeight(publishedAt: string): number {
+  const now = Date.now();
+  const published = new Date(publishedAt).getTime();
+  if (!Number.isFinite(published)) return 0.5;
+  const hoursSince = Math.max(0, (now - published) / (1000 * 60 * 60));
+  return Math.round(Math.exp(-hoursSince / 6) * 1000) / 1000;
+}
+
+/** Derive sentiment from the dominant direction of impacted tickers/sectors. */
+export function computeSentiment(event: Pick<EventItem, 'impacted_tickers' | 'impacted_sectors'>): Sentiment {
+  const items = [
+    ...event.impacted_tickers.map((t) => t.direction),
+    ...event.impacted_sectors.map((s) => s.direction),
+  ];
+  let up = 0;
+  let down = 0;
+  for (const d of items) {
+    if (d === 'up') up++;
+    else if (d === 'down') down++;
+  }
+  if (up === 0 && down === 0) return 'neutral';
+  if (up > down * 1.5) return 'positive';
+  if (down > up * 1.5) return 'negative';
+  return 'neutral';
+}
+
+/** Attach impact_score, time_decay_weight, and sentiment to an event. */
+export function enrichEventScores<T extends EventItem>(event: T): T {
+  return {
+    ...event,
+    impact_score: event.impact_score ?? computeImpactScore(event),
+    time_decay_weight: event.time_decay_weight ?? computeTimeDecayWeight(event.published_at),
+    sentiment: event.sentiment ?? computeSentiment(event),
+  };
 }
