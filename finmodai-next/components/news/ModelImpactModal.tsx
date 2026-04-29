@@ -5,19 +5,21 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 type ScenarioCase = { probability: number; impact: number };
 
 type ModelImpactData = {
-  event?: string;
-  analysis?: {
-    signal?: { position?: string; conviction?: number; size_pct?: number; primary_driver?: string };
-    model_impact?: { growth_delta?: number; margin_delta?: number; discount_rate_delta?: number; primary_driver?: string };
-    scenarios?: { bull?: ScenarioCase; base?: ScenarioCase; bear?: ScenarioCase };
-    confidence?: number;
-  } | null;
-  dcf?: {
-    base_valuation: number;
-    new_valuation: number;
-    valuation_change: number;
-    direction: 'bullish' | 'bearish' | 'neutral';
+  impact_summary?: {
+    direction?: 'bullish' | 'bearish' | 'neutral';
+    primary_driver?: string;
+    valuation_change?: number;
+    base_valuation?: number;
+    new_valuation?: number;
   };
+  model_changes?: {
+    growth_delta?: number;
+    margin_delta?: number;
+    discount_rate_delta?: number;
+  };
+  scenarios?: { bull?: ScenarioCase; base?: ScenarioCase; bear?: ScenarioCase } | null;
+  signal?: { position?: string; conviction?: number; size_pct?: number; primary_driver?: string } | null;
+  confidence?: number | null;
 };
 
 type Props = {
@@ -62,10 +64,10 @@ function ScenarioBar({ label, value }: { label: string; value?: number }) {
 }
 
 export function ModelImpactModal({ open, onClose, data, loading }: Props) {
-  const signal = data?.analysis?.signal;
-  const impact = data?.analysis?.model_impact;
-  const scenarios = data?.analysis?.scenarios;
-  const dcf = data?.dcf;
+  const signal = data?.signal;
+  const impact = data?.model_changes;
+  const scenarios = data?.scenarios;
+  const summary = data?.impact_summary;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -94,15 +96,17 @@ export function ModelImpactModal({ open, onClose, data, loading }: Props) {
                 )}
               </div>
 
-              {dcf && (
+              {summary && (
                 <div className="text-right">
                   <p className="text-[10px] uppercase tracking-widest text-zinc-500">DCF Valuation Δ</p>
-                  <p className={`text-2xl font-bold ${directionColor(dcf.direction)}`}>
-                    {dcf.valuation_change >= 0 ? '+' : ''}{(dcf.valuation_change * 100).toFixed(1)}%
+                  <p className={`text-2xl font-bold ${directionColor(summary.direction)}`}>
+                    {(summary.valuation_change ?? 0) >= 0 ? '+' : ''}{((summary.valuation_change ?? 0) * 100).toFixed(1)}%
                   </p>
-                  <p className="mt-0.5 text-xs text-zinc-400">
-                    {Math.round(dcf.base_valuation)} → {Math.round(dcf.new_valuation)}
-                  </p>
+                  {summary.base_valuation != null && summary.new_valuation != null && (
+                    <p className="mt-0.5 text-xs text-zinc-400">
+                      {Math.round(summary.base_valuation)} → {Math.round(summary.new_valuation)}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -115,6 +119,9 @@ export function ModelImpactModal({ open, onClose, data, loading }: Props) {
                 <Delta label="Margin" value={impact?.margin_delta} />
                 <Delta label="Discount Rate" value={impact?.discount_rate_delta} />
               </div>
+              {summary?.primary_driver && (
+                <p className="mt-1 text-[10px] text-zinc-500">Primary driver: {summary.primary_driver}</p>
+              )}
             </div>
 
             {/* Scenarios */}
@@ -152,11 +159,11 @@ export function ModelImpactModal({ open, onClose, data, loading }: Props) {
                   {signal?.size_pct != null ? `${signal.size_pct}%` : '—'}
                 </span>
               </div>
-              {data.analysis?.confidence != null && (
+              {data.confidence != null && (
                 <div>
                   <span className="text-zinc-500">AI Confidence </span>
                   <span className="font-semibold text-zinc-200">
-                    {Math.round(data.analysis.confidence * 100)}%
+                    {Math.round(data.confidence * 100)}%
                   </span>
                 </div>
               )}

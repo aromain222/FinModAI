@@ -123,7 +123,10 @@ export default function EventsPanel() {
       const res = await fetch('/api/model-impact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event: event.title }),
+        body: JSON.stringify({
+          event: event.title,
+          context: event.drivers.join('. '),
+        }),
       });
       const data = await res.json() as Record<string, unknown>;
       setModelImpactData(data);
