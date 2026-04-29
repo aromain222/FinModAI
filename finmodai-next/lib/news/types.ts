@@ -97,6 +97,15 @@ export const modelImpactSchema = z.object({
 });
 export type ModelImpact = z.infer<typeof modelImpactSchema>;
 
+export const eventExtractionSchema = z.object({
+  event_label: z.string().min(1),
+  subject: z.string().min(1),
+  type: z.enum(['earnings', 'macro', 'geopolitics', 'regulatory', 'systemic']),
+  direction: z.enum(['positive', 'negative']),
+  impact_type: z.enum(['growth', 'margin', 'risk']),
+  valid: z.boolean().optional().default(true),
+});
+
 export const eventItemSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -110,6 +119,7 @@ export const eventItemSchema = z.object({
   confidence: z.enum(['high', 'medium', 'low']),
   published_at: z.string().datetime(),
   model_impact: modelImpactSchema.optional(),
+  event_extraction: eventExtractionSchema.optional(),
   tags: z.array(z.string()).optional(),
 });
 export type EventItem = z.infer<typeof eventItemSchema>;

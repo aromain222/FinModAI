@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { assessHeadlineRelevance, type RelevanceEventType } from '@/lib/news/relevance';
 import { getMacroEventFallbackImage } from '@/lib/macroEventImageQueries';
+import type { EventExtraction } from '@/lib/news/eventExtraction';
 
 export type NewsType = 'headlines' | 'events';
 export type NewsRange = '1D' | '3D' | '1W' | '1M' | '3M';
@@ -58,6 +59,8 @@ export type EventItem = {
   sentiment?: Sentiment;
   /** Model-ready valuation assumption deltas — directly applicable to DCF/LBO inputs */
   model_impact?: ModelImpact;
+  /** Structured 6-step event extraction: normalized label, subject, type, direction, validity */
+  event_extraction?: EventExtraction;
   image_url?: string;
   image_thumb_url?: string;
   image_provider?: string;
