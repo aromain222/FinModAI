@@ -93,6 +93,26 @@ Steps:
 
 ---
 
+## MODE EXECUTION RULES
+
+You MUST execute ONLY the logic relevant to the provided mode.
+
+EVENT_ANALYSIS:
+Populate event + classification + model_impact + signal
+Leave what_if empty
+
+MODEL_ANALYSIS:
+Populate model_analysis + signal
+Leave event fields empty
+
+WHAT_IF_SIMULATION:
+Populate what_if + signal
+Do NOT extract events
+
+Never attempt to run multiple modes at once.
+
+---
+
 ## OUTPUT (JSON ONLY)
 
 {
