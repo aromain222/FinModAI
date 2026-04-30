@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { getFinancialModelAnalysis, type TradingSignal } from '@/lib/news/tradingSignal';
 import { applyModelImpact, DEFAULT_BASE_MODEL, runDCF, type DCFInputs } from '@/lib/finance/dcfEngine';
 import { fetchHistoricalFinancials } from '@/lib/data/historicalFinancials';
+import { computeForecastAttribution, type ForecastAttribution } from '@/lib/forecasting/attribution';
+import { computeForecastConfidence } from '@/lib/forecasting/confidence';
 import { forecastSeries } from '@/lib/forecasting/timesfm';
 import { buildGrowthPathFromForecast } from '@/lib/valuation/forecastBridge';
 
@@ -33,6 +35,26 @@ type ScenarioCase = {
   probability: number;
   expected_direction: 'up' | 'neutral' | 'down';
   magnitude: number;
+};
+
+type EventKind = 'rates' | 'inflation' | 'company_specific';
+type ConfidenceBand = 'low' | 'medium' | 'high';
+
+type ForecastEnrichment = {
+  model: DCFInputs;
+  growthPath: number[];
+  confidence: number;
+  confidenceBand: ConfidenceBand;
+  attribution: ForecastAttribution;
+  source: 'timesfm' | 'flat_fallback';
+  warning?: string;
+};
+
+const DEFAULT_MACRO_SERIES = [4.5, 4.6, 4.7, 4.65, 4.55, 4.5];
+const DEFAULT_ATTRIBUTION: ForecastAttribution = {
+  delta: [],
+  primaryDriver: 'mixed',
+  explanation: 'Forecast attribution unavailable; using baseline assumptions',
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -144,9 +166,10 @@ function normalizeScenarios(
 function buildSignal(
   analysis: TradingSignal | null,
   valuationChange: number,
-  primaryDriver: ModelDeltas['primary_driver']
+  primaryDriver: ModelDeltas['primary_driver'],
+  forecastConfidence: number | null,
 ) {
-  const confidence = analysis?.confidence ?? 0.45;
+  const confidence = clamp(forecastConfidence ?? analysis?.confidence ?? 0.45, 0, 1);
   const derivedPosition =
     Math.abs(valuationChange) < 0.01 || confidence < 0.35
       ? 'NEUTRAL'
@@ -155,10 +178,11 @@ function buildSignal(
         : 'SHORT';
   const position = analysis?.signal?.position ?? derivedPosition;
   const conviction = round(Math.min(0.9, Math.max(0.15, analysis?.signal?.conviction ?? confidence * Math.min(1, Math.abs(valuationChange) * 8))));
+  const baseSizePct = Math.min(10, Math.max(1, analysis?.signal?.size_pct ?? conviction * 10));
   const sizePct =
     position === 'NEUTRAL'
       ? 0
-      : round(Math.min(10, Math.max(1, analysis?.signal?.size_pct ?? conviction * 10)), 1);
+      : round(Math.min(10, baseSizePct * confidence), 1);
 
   return {
     position,
@@ -179,7 +203,77 @@ function normalizeBaseModel(baseModel: DCFInputs): DCFInputs {
   };
 }
 
-async function buildForecastGrowthPath(ticker: string): Promise<number[] | null> {
+function confidenceBand(confidence: number): ConfidenceBand {
+  if (confidence >= 0.75) return 'high';
+  if (confidence >= 0.5) return 'medium';
+  return 'low';
+}
+
+function averageConfidence(values: number[] | undefined): number | null {
+  const finite = values?.filter((value) => Number.isFinite(value) && value >= 0 && value <= 1) ?? [];
+  if (finite.length === 0) return null;
+  return finite.reduce((sum, value) => sum + value, 0) / finite.length;
+}
+
+function historicalGrowth(values: number[]): number[] {
+  const growth: number[] = [];
+  for (let index = 1; index < values.length; index += 1) {
+    const previous = values[index - 1];
+    const current = values[index];
+    if (Number.isFinite(previous) && previous > 0 && Number.isFinite(current)) {
+      growth.push(clamp(current / previous - 1, -0.4, 0.4));
+    }
+  }
+  return growth;
+}
+
+function buildBaselineGrowth(values: number[], horizon: number): number[] {
+  const latestGrowth = historicalGrowth(values).at(-1) ?? 0;
+  return Array.from({ length: horizon }, () => latestGrowth);
+}
+
+function detectEventKind(content: string): EventKind {
+  const text = content.toLowerCase();
+  if (/\b(rate|rates|yield|yields|fed|central bank|wacc|treasury)\b/.test(text)) return 'rates';
+  if (/\b(inflation|cpi|ppi|prices|price pressure|disinflation)\b/.test(text)) return 'inflation';
+  return 'company_specific';
+}
+
+function eventDirection(content: string): 1 | -1 {
+  const text = content.toLowerCase();
+  const positive = /\b(beat|beats|strong|accelerat|upgrade|easing|rate cut|rates down|cuts rates|approval|record|surge|declining rate|lower rates|disinflation)\b/.test(text);
+  const negative = /\b(miss|weak|slowdown|tariff|sanction|war|conflict|risk|higher yield|higher rates|rates rise|inflation|default|probe|ban|rising rate)\b/.test(text);
+  return positive && !negative ? 1 : -1;
+}
+
+function conditionRevenueSeries(revenue: number[], eventKind: EventKind, content: string, deltas: ModelDeltas): number[] {
+  if (eventKind !== 'company_specific' || revenue.length === 0) return revenue;
+  const direction = eventDirection(content);
+  const shock = clamp(deltas.growth_delta !== 0 ? deltas.growth_delta : direction * 0.015, -0.05, 0.05);
+  return revenue.map((value, index) => (index === revenue.length - 1 ? Number((value * (1 + shock)).toFixed(4)) : value));
+}
+
+function conditionMacroSeries(eventKind: EventKind, content: string): number[] {
+  const direction = eventDirection(content);
+  const shift = eventKind === 'rates' ? direction * -0.5 : eventKind === 'inflation' ? direction * -0.35 : 0;
+  return DEFAULT_MACRO_SERIES.map((value, index) =>
+    index === DEFAULT_MACRO_SERIES.length - 1 ? Number((value + shift).toFixed(4)) : value,
+  );
+}
+
+function macroDiscountRateDelta(eventKind: EventKind, content: string): number {
+  if (eventKind !== 'rates' && eventKind !== 'inflation') return 0;
+  const baseLast = DEFAULT_MACRO_SERIES.at(-1) ?? 0;
+  const conditionedLast = conditionMacroSeries(eventKind, content).at(-1) ?? baseLast;
+  return round(clamp((conditionedLast - baseLast) / 100, -0.015, 0.015));
+}
+
+async function buildEventConditionedForecast(
+  baseModel: DCFInputs,
+  ticker: string,
+  content: string,
+  deltas: ModelDeltas,
+): Promise<ForecastEnrichment | null> {
   const historical = await fetchHistoricalFinancials(ticker, 6).catch(() => null);
   const revenue = historical?.revenue
     .filter((value) => Number.isFinite(value) && value > 0)
@@ -187,22 +281,55 @@ async function buildForecastGrowthPath(ticker: string): Promise<number[] | null>
   const lastActual = revenue.at(-1);
   if (revenue.length < 2 || typeof lastActual !== 'number') return null;
 
-  const result = await forecastSeries({ series: revenue, horizon: 5 });
+  const eventKind = detectEventKind(content);
+  const conditionedRevenue = conditionRevenueSeries(revenue, eventKind, content, deltas);
+  const result = await forecastSeries({ series: conditionedRevenue, horizon: 5 });
   const growthPath = buildGrowthPathFromForecast(result.forecast, lastActual).slice(0, 5);
-  return growthPath.length > 0 ? growthPath : null;
-}
+  if (growthPath.length === 0) return null;
 
-async function enrichBaseModelWithForecast(baseModel: DCFInputs, ticker: string | undefined, enabled: boolean | undefined): Promise<DCFInputs> {
-  if (!enabled || !ticker) return baseModel;
-
-  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000));
-  const growthPath = await Promise.race([buildForecastGrowthPath(ticker), timeout]).catch(() => null);
-  if (!growthPath) return baseModel;
+  const statisticalConfidence = computeForecastConfidence({
+    historical: revenue,
+    forecast: result.forecast,
+  });
+  const modelConfidence = averageConfidence(result.confidence);
+  const confidence = round(
+    modelConfidence === null
+      ? statisticalConfidence.confidence
+      : (statisticalConfidence.confidence + modelConfidence) / 2,
+    2,
+  );
+  const macroSeries = eventKind === 'company_specific' ? undefined : conditionMacroSeries(eventKind, content);
+  const attribution = computeForecastAttribution({
+    baselineGrowth: buildBaselineGrowth(revenue, 5),
+    forecastGrowth: growthPath,
+    macroSeries,
+  });
 
   return {
-    ...baseModel,
-    revenueGrowthPath: growthPath,
+    model: {
+      ...baseModel,
+      revenueGrowthPath: growthPath,
+    },
+    growthPath,
+    confidence,
+    confidenceBand: confidenceBand(confidence),
+    attribution,
+    source: result.source,
+    warning: result.warning,
   };
+}
+
+async function enrichBaseModelWithForecast(
+  baseModel: DCFInputs,
+  ticker: string | undefined,
+  enabled: boolean | undefined,
+  content: string,
+  deltas: ModelDeltas,
+): Promise<ForecastEnrichment | null> {
+  if (!enabled || !ticker) return null;
+
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000));
+  return Promise.race([buildEventConditionedForecast(baseModel, ticker, content, deltas), timeout]).catch(() => null);
 }
 
 export async function POST(req: Request) {
@@ -219,11 +346,7 @@ export async function POST(req: Request) {
   }
 
   const { event, context, base_model, ticker, use_ai_forecast } = parsed.data;
-  const baseModel = await enrichBaseModelWithForecast(
-    normalizeBaseModel(base_model ?? DEFAULT_BASE_MODEL),
-    ticker,
-    use_ai_forecast,
-  );
+  const baseModel = normalizeBaseModel(base_model ?? DEFAULT_BASE_MODEL);
 
   const content = context ? `${event}. ${context}` : event;
 
@@ -238,31 +361,70 @@ export async function POST(req: Request) {
   }
 
   const deltas = normalizeDeltas(analysis, content);
+  const forecast = await enrichBaseModelWithForecast(baseModel, ticker, use_ai_forecast, content, deltas);
+  const forecastDeltas: ModelDeltas = forecast
+    ? {
+        growth_delta: 0,
+        margin_delta: deltas.margin_delta,
+        discount_rate_delta: macroDiscountRateDelta(detectEventKind(content), content) || deltas.discount_rate_delta,
+        primary_driver: deltas.primary_driver,
+      }
+    : deltas;
 
   const baseVal = runDCF(baseModel).value;
-  const updatedModel = applyModelImpact(baseModel, deltas);
+  const updatedModel = applyModelImpact(forecast?.model ?? baseModel, forecastDeltas);
   const newVal = runDCF(updatedModel).value;
   const valuationChange = baseVal > 0 ? (newVal - baseVal) / baseVal : 0;
   const direction =
     valuationChange > 0.005 ? 'bullish' : valuationChange < -0.005 ? 'bearish' : 'neutral';
   const scenarios = normalizeScenarios(analysis, valuationChange);
-  const signal = buildSignal(analysis, valuationChange, deltas.primary_driver);
+  const forecastConfidence = forecast?.confidence ?? null;
+  const signal = buildSignal(analysis, valuationChange, forecastDeltas.primary_driver, forecastConfidence);
+  const confidence = forecastConfidence ?? analysis?.confidence ?? null;
+  const band = forecast ? forecast.confidenceBand : confidence === null ? null : confidenceBand(confidence);
+  const attribution = forecast?.attribution ?? DEFAULT_ATTRIBUTION;
 
   return NextResponse.json({
     impact_summary: {
       direction,
-      primary_driver: deltas.primary_driver,
+      primary_driver: forecastDeltas.primary_driver,
       valuation_change: round(valuationChange),
       base_valuation: round(baseVal, 2),
       new_valuation: round(newVal, 2),
+      baseEV: round(baseVal, 2),
+      scenarioEV: round(newVal, 2),
+      percentChange: round(valuationChange),
+      attributionExplanation: attribution.explanation,
+      confidence,
     },
     model_changes: {
-      growth_delta: deltas.growth_delta,
-      margin_delta: deltas.margin_delta,
-      discount_rate_delta: deltas.discount_rate_delta,
+      growth_delta: forecastDeltas.growth_delta,
+      margin_delta: forecastDeltas.margin_delta,
+      discount_rate_delta: forecastDeltas.discount_rate_delta,
     },
     scenarios,
-    signal,
-    confidence: analysis?.confidence ?? null,
+    signal: {
+      ...signal,
+      confidence_band: band,
+    },
+    attribution: {
+      primaryDriver: attribution.primaryDriver,
+      explanation: attribution.explanation,
+      delta: attribution.delta,
+    },
+    forecast: forecast
+      ? {
+          growthPath: forecast.growthPath,
+          source: forecast.source,
+          warning: forecast.warning,
+        }
+      : null,
+    baseEV: round(baseVal, 2),
+    scenarioEV: round(newVal, 2),
+    percentChange: round(valuationChange),
+    primaryDriver: forecastDeltas.primary_driver,
+    attributionExplanation: attribution.explanation,
+    confidence,
+    confidence_band: band,
   });
 }

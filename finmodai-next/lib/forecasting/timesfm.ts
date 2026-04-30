@@ -1,3 +1,5 @@
+import type { ForecastAttribution } from '@/lib/forecasting/attribution';
+
 export type ForecastSeriesInput = {
   series: number[];
   horizon: number;
@@ -15,7 +17,9 @@ export type ForecastResponse = {
   type: 'revenue' | 'macro';
   historical: number[];
   forecast: number[];
-  confidence?: number[];
+  confidence: number;
+  modelConfidence?: number[];
+  attribution: ForecastAttribution;
   source: ForecastSeries['source'];
   cached: boolean;
   warning?: string;

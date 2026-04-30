@@ -2,8 +2,11 @@ import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { fetchHistoricalFinancials } from '@/lib/data/historicalFinancials';
+import { computeForecastAttribution, type ForecastAttribution } from '@/lib/forecasting/attribution';
+import { computeForecastConfidence } from '@/lib/forecasting/confidence';
 import { forecastSeries, type ForecastResponse } from '@/lib/forecasting/timesfm';
 import { runForecast, type BaseAssumptions, type ScenarioAssumptions } from '@/lib/scenarioEngine';
+import { buildGrowthPathFromForecast } from '@/lib/valuation/forecastBridge';
 
 type ForecastLayerRequest = {
   ticker: string;
@@ -28,6 +31,11 @@ type FredResponse = {
 
 const forecastCache = new Map<string, { expiresAt: number; value: ForecastResponse }>();
 const FORECAST_CACHE_TTL_MS = 10 * 60 * 1000;
+const DEFAULT_ATTRIBUTION: ForecastAttribution = {
+  delta: [],
+  primaryDriver: 'mixed',
+  explanation: 'Forecast attribution unavailable; using baseline assumptions',
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -83,6 +91,11 @@ function setCachedForecast(key: string, value: ForecastResponse): void {
   });
 }
 
+function clamp(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(max, Math.max(min, value));
+}
+
 function normalizeRevenueHistory(values: number[]): number[] {
   return values
     .filter((value) => Number.isFinite(value) && value > 0)
@@ -123,6 +136,58 @@ async function fetchMacroHistory(): Promise<number[]> {
   }
 }
 
+function historicalGrowth(values: number[]): number[] {
+  const growth: number[] = [];
+  for (let index = 1; index < values.length; index += 1) {
+    const previous = values[index - 1];
+    const current = values[index];
+    if (Number.isFinite(previous) && previous > 0 && Number.isFinite(current)) {
+      growth.push(clamp(current / previous - 1, -0.4, 0.4));
+    }
+  }
+  return growth;
+}
+
+function buildBaselineGrowth(values: number[], horizon: number): number[] {
+  const growth = historicalGrowth(values);
+  const latestGrowth = growth.at(-1) ?? 0;
+  return Array.from({ length: horizon }, () => latestGrowth);
+}
+
+function buildForecastGrowth(historical: number[], forecast: number[], horizon: number): number[] {
+  const lastActual = historical.at(-1);
+  if (typeof lastActual !== 'number' || !Number.isFinite(lastActual) || lastActual <= 0) {
+    return buildBaselineGrowth(historical, horizon);
+  }
+
+  const growth = buildGrowthPathFromForecast(forecast, lastActual).slice(0, horizon);
+  return growth.length > 0 ? growth : buildBaselineGrowth(historical, horizon);
+}
+
+function averageConfidence(values: number[] | undefined): number | null {
+  const finite = values?.filter((value) => Number.isFinite(value) && value >= 0 && value <= 1) ?? [];
+  if (finite.length === 0) return null;
+  return finite.reduce((sum, value) => sum + value, 0) / finite.length;
+}
+
+function safeFallbackResponse(request: ForecastLayerRequest, warning: string): ForecastResponse {
+  const horizon = request.horizon ?? (request.type === 'revenue' ? 5 : 8);
+  const historical = request.type === 'revenue' ? [100, 105, 110, 116, 122] : [4.5, 4.6, 4.7, 4.65, 4.55, 4.5];
+  const forecast = Array.from({ length: horizon }, () => historical.at(-1) ?? 0);
+  return {
+    ticker: request.ticker.trim().toUpperCase(),
+    type: request.type,
+    historical,
+    forecast,
+    confidence: 0.5,
+    modelConfidence: Array.from({ length: horizon }, () => 0.25),
+    attribution: DEFAULT_ATTRIBUTION,
+    source: 'flat_fallback',
+    cached: false,
+    warning,
+  };
+}
+
 async function handleForecastLayerRequest(request: ForecastLayerRequest): Promise<NextResponse<ForecastResponse>> {
   const normalizedRequest: ForecastLayerRequest = {
     ticker: request.ticker.trim().toUpperCase(),
@@ -133,23 +198,53 @@ async function handleForecastLayerRequest(request: ForecastLayerRequest): Promis
   const cached = getCachedForecast(key);
   if (cached) return NextResponse.json(cached);
 
-  const historical =
-    normalizedRequest.type === 'revenue'
-      ? await fetchRevenueHistory(normalizedRequest.ticker)
-      : await fetchMacroHistory();
-  const result = await forecastSeries({ series: historical, horizon: normalizedRequest.horizon ?? 5 });
-  const payload: ForecastResponse = {
-    ticker: normalizedRequest.ticker,
-    type: normalizedRequest.type,
-    historical,
-    forecast: result.forecast,
-    confidence: result.confidence,
-    source: result.source,
-    cached: false,
-    warning: result.warning,
-  };
-  setCachedForecast(key, payload);
-  return NextResponse.json(payload);
+  try {
+    const horizon = normalizedRequest.horizon ?? 5;
+    const historical =
+      normalizedRequest.type === 'revenue'
+        ? await fetchRevenueHistory(normalizedRequest.ticker)
+        : await fetchMacroHistory();
+    const result = await forecastSeries({ series: historical, horizon });
+    const statisticalConfidence = computeForecastConfidence({
+      historical,
+      forecast: result.forecast,
+    });
+    const modelConfidence = averageConfidence(result.confidence);
+    const confidence = Number(
+      (modelConfidence === null
+        ? statisticalConfidence.confidence
+        : (statisticalConfidence.confidence + modelConfidence) / 2
+      ).toFixed(2),
+    );
+    const baselineGrowth = buildBaselineGrowth(historical, horizon);
+    const forecastGrowth = buildForecastGrowth(historical, result.forecast, horizon);
+    const attribution = computeForecastAttribution({
+      baselineGrowth,
+      forecastGrowth,
+      macroSeries: normalizedRequest.type === 'macro' ? historical : undefined,
+    });
+    const payload: ForecastResponse = {
+      ticker: normalizedRequest.ticker,
+      type: normalizedRequest.type,
+      historical,
+      forecast: result.forecast,
+      confidence,
+      modelConfidence: result.confidence,
+      attribution,
+      source: result.source,
+      cached: false,
+      warning: result.warning,
+    };
+    setCachedForecast(key, payload);
+    return NextResponse.json(payload);
+  } catch (error) {
+    const fallback = safeFallbackResponse(
+      normalizedRequest,
+      error instanceof Error ? `Forecast request failed: ${error.message}` : 'Forecast request failed.',
+    );
+    setCachedForecast(key, fallback);
+    return NextResponse.json(fallback);
+  }
 }
 
 export async function POST(request: Request) {

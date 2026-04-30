@@ -61,12 +61,24 @@ function ComparisonRow(props: { label: string; primary: string; comparison: stri
   );
 }
 
+type AiForecastMeta = {
+  confidence: number;
+  explanation: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function isForecastResponse(value: unknown): value is ForecastResponse {
+  if (!isRecord(value)) return false;
+  const attribution = value.attribution;
   return (
-    typeof value === 'object' &&
-    value !== null &&
-    Array.isArray((value as ForecastResponse).historical) &&
-    Array.isArray((value as ForecastResponse).forecast)
+    Array.isArray(value.historical) &&
+    Array.isArray(value.forecast) &&
+    typeof value.confidence === 'number' &&
+    isRecord(attribution) &&
+    typeof attribution.explanation === 'string'
   );
 }
 
@@ -92,6 +104,7 @@ export function AnalystDcfCard({
   const [isApplyingAiForecast, setIsApplyingAiForecast] = useState(false);
   const [useAiForecast, setUseAiForecast] = useState(false);
   const [aiForecastBaseline, setAiForecastBaseline] = useState<number[] | null>(null);
+  const [aiForecastMeta, setAiForecastMeta] = useState<AiForecastMeta | null>(null);
   const [scenarioPrompt, setScenarioPrompt] = useState('');
   const [revenueGrowthShiftBps, setRevenueGrowthShiftBps] = useState(0);
   const [marginShiftBps, setMarginShiftBps] = useState(0);
@@ -114,6 +127,7 @@ export function AnalystDcfCard({
     setScenarioPrompt('');
     setUseAiForecast(false);
     setAiForecastBaseline(null);
+    setAiForecastMeta(null);
   }, [repairedPayload]);
 
   const adjustedRevenueGrowth = useMemo(
@@ -370,6 +384,7 @@ export function AnalystDcfCard({
           await onAdjust({ revenueGrowth: aiForecastBaseline });
         }
         setAiForecastBaseline(null);
+        setAiForecastMeta(null);
         return;
       }
 
@@ -400,8 +415,13 @@ export function AnalystDcfCard({
       }
 
       await onAdjust({ revenueGrowth: growthPath });
+      setAiForecastMeta({
+        confidence: data.confidence,
+        explanation: data.attribution.explanation,
+      });
     } catch (error) {
       setUseAiForecast(false);
+      setAiForecastMeta(null);
       setControlsError(error instanceof Error ? error.message : 'Unable to apply AI forecast.');
     } finally {
       setIsApplyingAiForecast(false);
@@ -416,6 +436,7 @@ export function AnalystDcfCard({
     setControlsError(null);
     setUseAiForecast(false);
     setAiForecastBaseline(null);
+    setAiForecastMeta(null);
   }
 
   return (
@@ -538,6 +559,12 @@ export function AnalystDcfCard({
                   <div className="mt-1 text-xs text-[var(--cb-text-muted)]">
                     Pulls a revenue forecast in the background and maps it into the growth path.
                   </div>
+                  {useAiForecast && aiForecastMeta ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--cb-text-muted)]">
+                      <Badge variant="outline">{Math.round(aiForecastMeta.confidence * 100)}% confidence</Badge>
+                      <span>{aiForecastMeta.explanation}</span>
+                    </div>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-3">
                   {isApplyingAiForecast ? (
