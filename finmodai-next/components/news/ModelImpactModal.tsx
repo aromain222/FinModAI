@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { AlertTriangle, ArrowRight } from 'lucide-react';
+import { FinanceDataChart } from '@/components/charts/FinanceDataChart';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 type ScenarioCase = {
@@ -18,6 +19,8 @@ type ModelImpactData = {
     valuation_change?: number;
     base_valuation?: number;
     new_valuation?: number;
+    attributionExplanation?: string;
+    confidence?: number | null;
   };
   model_changes?: {
     growth_delta?: number;
@@ -25,8 +28,11 @@ type ModelImpactData = {
     discount_rate_delta?: number;
   };
   scenarios?: { bull?: ScenarioCase; base?: ScenarioCase; bear?: ScenarioCase } | null;
-  signal?: { position?: string; conviction?: number; size_pct?: number; primary_driver?: string } | null;
+  signal?: { position?: string; conviction?: number; size_pct?: number; primary_driver?: string; confidence_band?: string | null } | null;
+  forecast?: { growthPath?: number[] } | null;
+  attributionExplanation?: string;
   confidence?: number | null;
+  confidence_band?: string | null;
 };
 
 type Props = {
@@ -84,10 +90,26 @@ export function ModelImpactModal({ open, onClose, data, loading, error }: Props)
   const impact = data?.model_changes;
   const scenarios = data?.scenarios;
   const summary = data?.impact_summary;
+  const scenarioChartData = [
+    { x: 'Bull', y: scenarios?.bull ? (scenarios.bull.magnitude ?? scenarios.bull.impact ?? 0) * 100 : null },
+    { x: 'Base', y: scenarios?.base ? (scenarios.base.magnitude ?? scenarios.base.impact ?? 0) * 100 : null },
+    { x: 'Bear', y: scenarios?.bear ? (scenarios.bear.magnitude ?? scenarios.bear.impact ?? 0) * 100 : null },
+  ];
+  const modelChangesChartData = [
+    { x: 'Growth', y: impact?.growth_delta != null ? impact.growth_delta * 100 : null },
+    { x: 'Margin', y: impact?.margin_delta != null ? impact.margin_delta * 100 : null },
+    { x: 'Discount', y: impact?.discount_rate_delta != null ? impact.discount_rate_delta * 100 : null },
+  ];
+  const forecastPathChartData = data?.forecast?.growthPath?.map((value, index) => ({
+    x: `Y${index + 1}`,
+    y: value * 100,
+  })) ?? [];
+  const attributionExplanation = data?.attributionExplanation ?? summary?.attributionExplanation;
+  const confidenceBand = signal?.confidence_band ?? data?.confidence_band;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl border border-zinc-800 bg-zinc-950 text-white">
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto border border-zinc-800 bg-zinc-950 text-white">
         <DialogHeader>
           <DialogTitle className="text-zinc-100">Model Impact</DialogTitle>
           <DialogDescription className="text-zinc-500">
@@ -157,6 +179,42 @@ export function ModelImpactModal({ open, onClose, data, loading, error }: Props)
               )}
             </div>
 
+            <div className="grid gap-3 lg:grid-cols-2">
+              <FinanceDataChart
+                title="Model Change Chart"
+                subtitle="Assumption deltas applied to the event-driven DCF."
+                data={modelChangesChartData}
+                chartType="bar"
+                valueFormat="percent"
+                color="#8b5cf6"
+                height={190}
+                className="p-3"
+              />
+              <FinanceDataChart
+                title="Scenario Valuation Chart"
+                subtitle="Bull, base, and bear valuation impact."
+                data={scenarioChartData}
+                chartType="bar"
+                valueFormat="percent"
+                color="#06b6d4"
+                height={190}
+                className="p-3"
+              />
+            </div>
+
+            {forecastPathChartData.length > 0 ? (
+              <FinanceDataChart
+                title="AI Forecast Growth Path"
+                subtitle={attributionExplanation ?? 'Forecast-driven revenue growth path used in the DCF.'}
+                data={forecastPathChartData}
+                chartType="line"
+                valueFormat="percent"
+                color="#22c55e"
+                height={210}
+                className="p-3"
+              />
+            ) : null}
+
             {/* Scenarios */}
             {scenarios && (
               <div>
@@ -188,7 +246,7 @@ export function ModelImpactModal({ open, onClose, data, loading, error }: Props)
                   <div>
                     <span className="text-zinc-500">AI Confidence </span>
                     <span className="font-semibold text-zinc-200">
-                      {Math.round(data.confidence * 100)}%
+                      {Math.round(data.confidence * 100)}%{confidenceBand ? ` · ${confidenceBand}` : ''}
                     </span>
                   </div>
                 )}
