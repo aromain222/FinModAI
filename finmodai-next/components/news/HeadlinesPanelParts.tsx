@@ -345,36 +345,37 @@ export function HeadlineCard(props: {
             </div>
           )}
 
-          {/* Model mutation button + result panel */}
-          {props.onAnalyzeImpact && (
+          {/* Analyze button — hidden once result is available or already stacked */}
+          {props.onAnalyzeImpact && !props.impactResult && (
             <div className="mt-4">
-              {!props.impactResult && (
-                <button
-                  type="button"
-                  disabled={props.impactLoading}
-                  onClick={props.onAnalyzeImpact}
-                  className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-500/8 px-4 py-2 text-sm font-medium text-cyan-300 transition-colors hover:border-cyan-400/40 hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {props.impactLoading ? (
-                    <>
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-400/30 border-t-cyan-400" />
-                      Analyzing model impact…
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="h-4 w-4" />
-                      Analyze Model Impact
-                    </>
-                  )}
-                </button>
-              )}
+              <button
+                type="button"
+                disabled={props.impactLoading}
+                onClick={props.onAnalyzeImpact}
+                className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-500/8 px-4 py-2 text-sm font-medium text-cyan-300 transition-colors hover:border-cyan-400/40 hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {props.impactLoading ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-400/30 border-t-cyan-400" />
+                    Analyzing model impact…
+                  </>
+                ) : (
+                  <>
+                    <Zap className="h-4 w-4" />
+                    Analyze Model Impact
+                  </>
+                )}
+              </button>
+            </div>
+          )}
 
-              {props.impactResult && (
-                <EventImpactPanel
-                  result={props.impactResult}
-                  onApplyToModel={props.onApplyToModel}
-                />
-              )}
+          {/* Result panel — shown once analysis completes, survives isStacked transition */}
+          {props.impactResult && (
+            <div className="mt-4">
+              <EventImpactPanel
+                result={props.impactResult}
+                onApplyToModel={props.onApplyToModel}
+              />
             </div>
           )}
         </div>
