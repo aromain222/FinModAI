@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { useState } from 'react';
 import type { FormEvent, RefObject } from 'react';
 import { FormattedTextBlock } from '@/components/ui/formatted-text-block';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -121,11 +122,205 @@ function isLatestTeslaScenarioMessage(messages: Message[], index: number): boole
   return false;
 }
 
+function attachmentReadStatusLabel(readStatus: AnalystAttachmentStatus['readStatus']): string {
+  if (readStatus === 'read_success') return 'Server PDF read: succeeded';
+  if (readStatus === 'read_failed') return 'Server PDF read: failed';
+  return 'Server PDF read: partial';
+}
+
+function getSourceHref(source: string): string | null {
+  const trimmed = source.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  const match = trimmed.match(/https?:\/\/\S+/i);
+  return match ? match[0] : null;
+}
+
+function getSourceLabel(source: string): string {
+  const href = getSourceHref(source);
+  if (!href) return source;
+  try {
+    const url = new URL(href);
+    return url.hostname.replace(/^www\./, '');
+  } catch {
+    return source;
+  }
+}
+
+function formatMarketCap(value: number | null): string | null {
+  if (value == null) return null;
+  if (value >= 1e12) return `$${(value / 1e12).toFixed(1)}T`;
+  if (value >= 1e9) return `$${(value / 1e9).toFixed(1)}B`;
+  return `$${(value / 1e6).toFixed(0)}M`;
+}
+
+// ─── Sidebar state ───────────────────────────────────────────────────────────
+
+type SidebarState = {
+  latestStockLookup: StockLookupResult | null;
+  latestSources: string[] | null;
+  latestAttachmentStatus: AnalystAttachmentStatus | null;
+};
+
+function getSidebarState(messages: Message[]): SidebarState {
+  let latestStockLookup: StockLookupResult | null = null;
+  let latestSources: string[] | null = null;
+  let latestAttachmentStatus: AnalystAttachmentStatus | null = null;
+
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const m = messages[i];
+    if (m.role !== 'assistant') continue;
+    if (!latestStockLookup && m.meta?.stockLookup) latestStockLookup = m.meta.stockLookup;
+    if (!latestSources && m.meta?.sources?.length) latestSources = m.meta.sources;
+    if (!latestAttachmentStatus && m.meta?.attachmentStatus) latestAttachmentStatus = m.meta.attachmentStatus;
+    if (latestStockLookup && latestSources && latestAttachmentStatus) break;
+  }
+
+  return { latestStockLookup, latestSources, latestAttachmentStatus };
+}
+
+// ─── Sidebar components ───────────────────────────────────────────────────────
+
+function CompactStockSnapshot({ payload }: { payload: StockLookupResult }) {
+  const [expanded, setExpanded] = useState(false);
+  const mcap = formatMarketCap(payload.marketCap);
+
+  return (
+    <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-[10px] uppercase tracking-widest text-zinc-500">Company</p>
+          <p className="mt-0.5 text-sm font-bold text-white">{payload.ticker}</p>
+          {payload.companyName && (
+            <p className="text-[11px] text-zinc-400">{payload.companyName}</p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-0.5 text-[10px] uppercase tracking-wide text-zinc-500 hover:text-zinc-300"
+        >
+          {expanded ? 'Less ▴' : 'More ▾'}
+        </button>
+      </div>
+
+      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+        {payload.price != null && (
+          <div>
+            <p className="text-[10px] text-zinc-500">Price</p>
+            <p className="text-sm font-semibold text-white">${payload.price.toFixed(2)}</p>
+          </div>
+        )}
+        {mcap && (
+          <div>
+            <p className="text-[10px] text-zinc-500">Mkt Cap</p>
+            <p className="text-sm font-semibold text-white">{mcap}</p>
+          </div>
+        )}
+        {payload.sector && (
+          <div className="col-span-2">
+            <p className="text-[10px] text-zinc-500">Sector</p>
+            <p className="text-[11px] text-zinc-300">{payload.sector}</p>
+          </div>
+        )}
+      </div>
+
+      {expanded && (
+        <div className="mt-3 border-t border-[var(--cb-border-subtle)] pt-3">
+          <AnalystStockCard payload={payload} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CollapsedSources({ sources }: { sources: string[] }) {
+  return (
+    <details className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-3 text-[11px]">
+      <summary className="cursor-pointer list-none select-none">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] uppercase tracking-widest text-zinc-500">
+            Sources ({sources.length})
+          </span>
+          <span className="text-zinc-500 text-[10px]">▸</span>
+        </div>
+      </summary>
+      <div className="mt-3 space-y-2">
+        {sources.map((source) => {
+          const href = getSourceHref(source);
+          const label = getSourceLabel(source);
+          return (
+            <div key={source} className="min-w-0">
+              {href ? (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block truncate text-[var(--cb-text-primary)] underline decoration-[var(--cb-border-strong)] underline-offset-4 hover:text-[var(--cb-green)]"
+                  title={source}
+                >
+                  {label}
+                </a>
+              ) : (
+                <div className="truncate text-[var(--cb-text-primary)]" title={source}>
+                  {source}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </details>
+  );
+}
+
+function CollapsedAttachmentStatus({ status }: { status: AnalystAttachmentStatus }) {
+  const hasWarnings = status.warnings.length > 0;
+  const label = attachmentReadStatusLabel(status.readStatus);
+  const identity = [
+    status.extractedIdentity.companyName,
+    status.extractedIdentity.ticker,
+    status.extractedIdentity.fiscalPeriod,
+  ].filter((v): v is string => Boolean(v));
+
+  return (
+    <details className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-3 text-[11px]">
+      <summary className="cursor-pointer list-none select-none">
+        <div className="flex items-center justify-between gap-2">
+          <span
+            className={`text-[10px] uppercase tracking-widest ${
+              hasWarnings ? 'text-amber-300/90' : 'text-zinc-500'
+            }`}
+          >
+            {hasWarnings ? '⚠ Data Issues' : 'Server Status'}
+          </span>
+          <span className="text-zinc-500 text-[10px]">▸</span>
+        </div>
+      </summary>
+      <div className="mt-3 space-y-1 text-zinc-400">
+        <div className="text-zinc-200">{label}</div>
+        <div>
+          Seedable: {status.isFinancialModelSeedable ? 'yes' : 'no'} · Package:{' '}
+          {status.hasStatementPackage ? 'present' : 'missing'}
+        </div>
+        <div>
+          Coverage: {status.statementCoverage.incomeStatement ? 'IS' : '—'} /{' '}
+          {status.statementCoverage.balanceSheet ? 'BS' : '—'} /{' '}
+          {status.statementCoverage.cashFlowStatement ? 'CF' : '—'}
+        </div>
+        {identity.length > 0 && <div>{identity.join(' · ')}</div>}
+        {hasWarnings && (
+          <div className="mt-1 text-amber-300/90">{status.warnings[0]}</div>
+        )}
+      </div>
+    </details>
+  );
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
 function GuidedDemoHint({ children }: { children: string }) {
   return (
-    <div className="mt-3 pl-3 text-sm text-[var(--cb-text-muted)]">
-      {children}
-    </div>
+    <div className="mt-3 pl-3 text-sm text-[var(--cb-text-muted)]">{children}</div>
   );
 }
 
@@ -134,7 +329,9 @@ function AnalystEarningsSummaryCardView({ summary }: { summary: AnalystEarningsS
     <div className="mt-3 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3 text-left">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Earnings Snapshot</div>
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">
+            Earnings Snapshot
+          </div>
           <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">
             {summary.companyName} ({summary.ticker})
           </div>
@@ -149,9 +346,16 @@ function AnalystEarningsSummaryCardView({ summary }: { summary: AnalystEarningsS
       {summary.metrics.length > 0 ? (
         <div className="mt-3 grid gap-2 md:grid-cols-4">
           {summary.metrics.map((metric) => (
-            <div key={metric.label} className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-2">
-              <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">{metric.label}</div>
-              <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">{metric.value}</div>
+            <div
+              key={metric.label}
+              className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.02)] p-2"
+            >
+              <div className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
+                {metric.label}
+              </div>
+              <div className="mt-1 text-sm font-medium text-[var(--cb-text-primary)]">
+                {metric.value}
+              </div>
             </div>
           ))}
         </div>
@@ -170,30 +374,7 @@ function AnalystEarningsSummaryCardView({ summary }: { summary: AnalystEarningsS
   );
 }
 
-function attachmentReadStatusLabel(readStatus: AnalystAttachmentStatus['readStatus']): string {
-  if (readStatus === 'read_success') return 'Server PDF read: succeeded';
-  if (readStatus === 'read_failed') return 'Server PDF read: failed';
-  return 'Server PDF read: partial';
-}
-
-function getSourceHref(source: string): string | null {
-  const trimmed = source.trim();
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  const match = trimmed.match(/https?:\/\/\S+/i);
-  return match ? match[0] : null;
-}
-
-function getSourceLabel(source: string): string {
-  const href = getSourceHref(source);
-  if (!href) return source;
-
-  try {
-    const url = new URL(href);
-    return url.hostname.replace(/^www\./, '');
-  } catch {
-    return source;
-  }
-}
+// ─── Props ────────────────────────────────────────────────────────────────────
 
 type AnalystChatSurfaceProps = {
   ticker: string;
@@ -245,547 +426,571 @@ type AnalystChatSurfaceProps = {
   showExecutionTrace: boolean;
 };
 
+// ─── Main surface ─────────────────────────────────────────────────────────────
+
 export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
   const latestModelMessage = props.getLatestGeneratedModelMessage();
   const latestDcfMessage = getLatestDcfMessage(props.messages);
+  const sidebar = getSidebarState(props.messages);
+  const hasSidebar =
+    Boolean(sidebar.latestStockLookup) ||
+    Boolean(sidebar.latestSources) ||
+    Boolean(sidebar.latestAttachmentStatus);
 
   return (
-    <Card className="flex h-full flex-col shadow-lg">
-      <CardHeader className="border-b border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)]">
-        <CardTitle className="text-xl font-semibold text-[var(--cb-text-primary)]">Analyst Chat</CardTitle>
-        <div className="flex flex-col gap-3 text-sm text-[var(--cb-text-muted)] md:flex-row md:items-center">
-          <div className="flex flex-1 flex-col gap-2 md:flex-row md:items-center">
-            <label htmlFor="ticker-input" className="sr-only">Ticker</label>
-            <Input
-              id="ticker-input"
-              name="ticker-input"
-              value={props.ticker}
-              onChange={(event) => props.onTickerChange(event.target.value.toUpperCase())}
-              placeholder="Ticker (optional)"
+    <div className={`grid gap-4 ${hasSidebar ? 'lg:grid-cols-[2fr_1fr]' : ''} lg:items-start`}>
+      {/* ── LEFT: primary analysis ── */}
+      <Card className="flex flex-col shadow-lg">
+        <CardHeader className="border-b border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)]">
+          <CardTitle className="text-xl font-semibold text-[var(--cb-text-primary)]">
+            Analyst Chat
+          </CardTitle>
+          <div className="flex flex-col gap-3 text-sm text-[var(--cb-text-muted)] md:flex-row md:items-center">
+            <div className="flex flex-1 flex-col gap-2 md:flex-row md:items-center">
+              <label htmlFor="ticker-input" className="sr-only">Ticker</label>
+              <Input
+                id="ticker-input"
+                name="ticker-input"
+                value={props.ticker}
+                onChange={(event) => props.onTickerChange(event.target.value.toUpperCase())}
+                placeholder="Ticker (optional)"
+              />
+            </div>
+            <label htmlFor="pdf-upload-analyst" className="sr-only">Upload PDF</label>
+            <input
+              type="file"
+              id="pdf-upload-analyst"
+              name="pdf-upload-analyst"
+              accept=".pdf,.xlsx,.xls,.csv,.txt,.md,application/pdf,text/csv,text/plain"
+              onChange={(event) => void props.onAttachmentSelect(event.target.files?.[0] ?? null)}
+              className="text-xs text-[var(--cb-text-muted)]"
             />
           </div>
-          <label htmlFor="pdf-upload-analyst" className="sr-only">Upload PDF</label>
-          <input
-            type="file"
-            id="pdf-upload-analyst"
-            name="pdf-upload-analyst"
-            accept=".pdf,.xlsx,.xls,.csv,.txt,.md,application/pdf,text/csv,text/plain"
-            onChange={(event) => void props.onAttachmentSelect(event.target.files?.[0] ?? null)}
-            className="text-xs text-[var(--cb-text-muted)]"
-          />
-        </div>
-        {props.attachment && (
-          <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] px-3 py-2 text-xs text-[var(--cb-text-muted)]">
-            <div className="font-medium text-[var(--cb-text-primary)]">
-              Attached: {props.attachment.name} • {props.attachment.kind.replace(/_/g, ' ')}
+          {props.attachment && (
+            <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] px-3 py-2 text-xs text-[var(--cb-text-muted)]">
+              <div className="font-medium text-[var(--cb-text-primary)]">
+                Attached: {props.attachment.name} • {props.attachment.kind.replace(/_/g, ' ')}
+              </div>
+              <div>{props.attachment.sizeKb}kb • Client preview ready</div>
+              <div>Waiting for server parse on submit</div>
+              {(props.attachment.filingClassification?.familiarCategory ||
+                props.attachment.filingClassification?.rawFilingType ||
+                props.attachment.filingPacket?.label) && (
+                <div className="mt-1">
+                  {[
+                    props.attachment.filingClassification?.familiarCategory,
+                    props.attachment.filingClassification?.rawFilingType,
+                    props.attachment.filingPacket?.label,
+                  ]
+                    .filter((item): item is string => Boolean(item))
+                    .join(' • ')}
+                </div>
+              )}
+              {(props.attachment.signals?.ticker ||
+                props.attachment.signals?.companyName ||
+                props.attachment.signals?.modelTypeHint ||
+                props.attachment.signals?.fiscalPeriod) && (
+                <div className="mt-1">
+                  {[
+                    props.attachment.signals?.companyName,
+                    props.attachment.signals?.ticker,
+                    props.attachment.signals?.modelTypeHint?.replace(/_/g, ' '),
+                    props.attachment.signals?.fiscalPeriod,
+                  ]
+                    .filter((item): item is string => Boolean(item))
+                    .join(' • ')}
+                </div>
+              )}
+              {props.attachment.signals?.extractedMetrics &&
+                props.attachment.signals.extractedMetrics.length > 0 && (
+                  <div className="mt-1 truncate">
+                    {props.attachment.signals.extractedMetrics
+                      .slice(0, 3)
+                      .map((metric) => `${metric.label}: ${metric.value}`)
+                      .join(' • ')}
+                  </div>
+                )}
+              {props.attachment.warnings.length > 0 && (
+                <div className="mt-1 text-amber-300/90">{props.attachment.warnings[0]}</div>
+              )}
             </div>
-            <div>{props.attachment.sizeKb}kb • Client preview ready</div>
-            <div>Waiting for server parse on submit</div>
-            {(props.attachment.filingClassification?.familiarCategory || props.attachment.filingClassification?.rawFilingType || props.attachment.filingPacket?.label) && (
-              <div className="mt-1">
-                {[
-                  props.attachment.filingClassification?.familiarCategory,
-                  props.attachment.filingClassification?.rawFilingType,
-                  props.attachment.filingPacket?.label,
-                ]
-                  .filter((item): item is string => Boolean(item))
-                  .join(' • ')}
-              </div>
-            )}
-            {(props.attachment.signals?.ticker || props.attachment.signals?.companyName || props.attachment.signals?.modelTypeHint || props.attachment.signals?.fiscalPeriod) && (
-              <div className="mt-1">
-                {[
-                  props.attachment.signals?.companyName,
-                  props.attachment.signals?.ticker,
-                  props.attachment.signals?.modelTypeHint?.replace(/_/g, ' '),
-                  props.attachment.signals?.fiscalPeriod,
-                ]
-                  .filter((item): item is string => Boolean(item))
-                  .join(' • ')}
-              </div>
-            )}
-            {props.attachment.signals?.extractedMetrics && props.attachment.signals.extractedMetrics.length > 0 && (
-              <div className="mt-1 truncate">
-                {props.attachment.signals.extractedMetrics
-                  .slice(0, 3)
-                  .map((metric) => `${metric.label}: ${metric.value}`)
-                  .join(' • ')}
-              </div>
-            )}
-            {props.attachment.warnings.length > 0 && (
-              <div className="mt-1 text-amber-300/90">{props.attachment.warnings[0]}</div>
-            )}
-          </div>
-        )}
-        {props.attachmentError && (
-          <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
-            {props.attachmentError}
-          </div>
-        )}
-      </CardHeader>
-      <CardContent className="flex flex-1 flex-col gap-4 bg-[var(--cb-surface-subtle)] p-0">
-        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-6 text-sm">
-          {props.isLoading && props.loadingState ? (
-            (() => {
-              const loadingState = props.loadingState;
-              return (
-            <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-sm font-medium text-[var(--cb-text-primary)]">{loadingState.title}</div>
-                  <div className="mt-1 text-xs text-[var(--cb-text-muted)]">{loadingState.detail}</div>
-                </div>
-                <div className="rounded-full border border-[var(--cb-border-subtle)] px-2 py-1 text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
-                  {loadingState.routeLabel}
-                </div>
-              </div>
-              <div className="mt-3 grid gap-2 md:grid-cols-4">
-                {loadingState.steps.map((step, index) => {
-                  const isActive = index === loadingState.activeStep;
-                  const isComplete = index < loadingState.activeStep;
+          )}
+          {props.attachmentError && (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+              {props.attachmentError}
+            </div>
+          )}
+        </CardHeader>
+
+        <CardContent className="flex flex-1 flex-col gap-4 bg-[var(--cb-surface-subtle)] p-0">
+          {/* Message list */}
+          <div className="flex-1 space-y-4 overflow-y-auto px-4 py-6 text-sm">
+            {props.isLoading && props.loadingState
+              ? (() => {
+                  const loadingState = props.loadingState;
                   return (
-                    <div
-                      key={`${step}-${index}`}
-                      className={`rounded-xl border px-3 py-2 text-xs ${
-                        isActive
-                          ? 'border-[var(--cb-green)] bg-[var(--cb-green)]/10 text-[var(--cb-text-primary)]'
-                          : isComplete
-                            ? 'border-[var(--cb-border-strong)] bg-[var(--cb-surface-alt)] text-[var(--cb-text-primary)]'
-                            : 'border-[var(--cb-border-subtle)] bg-[var(--cb-surface-subtle)] text-[var(--cb-text-muted)]'
-                      }`}
-                    >
-                      <div className="mb-1 uppercase tracking-wide">{isComplete ? 'Done' : isActive ? 'Now' : 'Queued'}</div>
-                      <div>{step}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-              );
-            })()
-          ) : null}
-          {props.messages.map((message, index) => {
-            const prompt = props.getPromptForAssistantMessage(index);
-            const isScenarioMode = message.role === 'assistant' && message.meta?.mode === 'scenario' && message.meta?.scenarioCard;
-            const showEarningsHint =
-              props.demoMode &&
-              props.demoStep === 'earnings' &&
-              message.role === 'assistant' &&
-              Boolean(message.meta?.earningsSummary) &&
-              isTeslaTicker(message.meta?.earningsSummary?.ticker) &&
-              isLatestTeslaEarningsMessage(props.messages, index);
-            const showScenarioHint =
-              props.demoMode &&
-              props.demoStep === 'scenario' &&
-              isScenarioMode &&
-              isLatestTeslaScenarioMessage(props.messages, index);
-            const guidedHint = getTeslaDemoGuidedHint(props.demoStep);
-
-            return (
-              <div key={message.id} className={message.role === 'user' ? 'text-right' : 'text-left'}>
-                {isScenarioMode ? (
-                  <>
-                    <div className="my-6 w-full border-y border-[color:var(--cb-border-subtle)]/40 bg-muted/30 py-8">
-                      <div className="flex w-full justify-center px-4 md:px-6">
-                        <div className="w-full max-w-5xl">
-                          {(() => {
-                            const activeGeneratedTeslaDcf =
-                              latestModelMessage?.payload.modelType === 'DCF' &&
-                              latestModelMessage.payload.extractedInputs &&
-                              typeof latestModelMessage.payload.extractedInputs === 'object' &&
-                              'ticker' in latestModelMessage.payload.extractedInputs &&
-                              isTeslaTicker(
-                                typeof latestModelMessage.payload.extractedInputs.ticker === 'string'
-                                  ? latestModelMessage.payload.extractedInputs.ticker
-                                  : null,
-                              )
-                                ? latestModelMessage
-                                : null;
-
-                            const canApplyToModel = Boolean(activeGeneratedTeslaDcf || latestDcfMessage?.payload.ticker === 'TSLA');
-                            const onApplyToModel = activeGeneratedTeslaDcf
-                              ? () =>
-                                  void props.onModelAdjustment(
-                                    activeGeneratedTeslaDcf.messageId,
-                                    activeGeneratedTeslaDcf.payload,
-                                    {
-                                      changes: buildScenarioStructuredModelOverridesFromPayload(
-                                        message.meta!.scenarioCard!,
-                                        activeGeneratedTeslaDcf.payload,
-                                      ),
-                                    },
-                                  )
-                              : latestDcfMessage?.payload.ticker === 'TSLA'
-                                ? () =>
-                                    void props.onDcfAdjustment(
-                                      latestDcfMessage.messageId,
-                                      latestDcfMessage.payload,
-                                      buildScenarioDcfAdjustmentFromPayload(
-                                        message.meta!.scenarioCard!,
-                                        latestDcfMessage.payload,
-                                      ),
-                                    )
-                                : undefined;
-
-                            return (
-                          <ScenarioCard
-                            {...message.meta!.scenarioCard!}
-                            canApplyToActiveModel={canApplyToModel}
-                            onApplyToModel={onApplyToModel}
-                          />
-                            );
-                          })()}
+                    <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="text-sm font-medium text-[var(--cb-text-primary)]">
+                            {loadingState.title}
+                          </div>
+                          <div className="mt-1 text-xs text-[var(--cb-text-muted)]">
+                            {loadingState.detail}
+                          </div>
+                        </div>
+                        <div className="rounded-full border border-[var(--cb-border-subtle)] px-2 py-1 text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
+                          {loadingState.routeLabel}
                         </div>
                       </div>
+                      <div className="mt-3 grid gap-2 md:grid-cols-4">
+                        {loadingState.steps.map((step, index) => {
+                          const isActive = index === loadingState.activeStep;
+                          const isComplete = index < loadingState.activeStep;
+                          return (
+                            <div
+                              key={`${step}-${index}`}
+                              className={`rounded-xl border px-3 py-2 text-xs ${
+                                isActive
+                                  ? 'border-[var(--cb-green)] bg-[var(--cb-green)]/10 text-[var(--cb-text-primary)]'
+                                  : isComplete
+                                    ? 'border-[var(--cb-border-strong)] bg-[var(--cb-surface-alt)] text-[var(--cb-text-primary)]'
+                                    : 'border-[var(--cb-border-subtle)] bg-[var(--cb-surface-subtle)] text-[var(--cb-text-muted)]'
+                              }`}
+                            >
+                              <div className="mb-1 uppercase tracking-wide">
+                                {isComplete ? 'Done' : isActive ? 'Now' : 'Queued'}
+                              </div>
+                              <div>{step}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                    {showScenarioHint && guidedHint ? <GuidedDemoHint>{guidedHint}</GuidedDemoHint> : null}
-                  </>
-                ) : (
-                  <>
-                    <div
-                      className={`inline-block rounded-2xl px-4 py-3 ${
-                        message.role === 'user'
-                          ? 'bg-[var(--cb-green)] text-[#041007]'
-                          : 'block max-w-full border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] text-[var(--cb-text-primary)] whitespace-pre-wrap leading-7'
-                      }`}
-                    >
-                      {message.role === 'assistant' ? (
-                        <FormattedTextBlock
-                          content={message.content}
-                          className="space-y-4"
-                          paragraphClassName="text-[var(--cb-text-primary)] leading-7"
-                        />
-                      ) : (
-                        message.content
-                      )}
-                      {message.role === 'assistant' && message.meta?.earningsSummary ? (
-                        <AnalystEarningsSummaryCardView summary={message.meta.earningsSummary} />
-                      ) : null}
-                      {message.role === 'assistant' && message.meta?.attachmentUsed && (
-                        <div className="mt-2 text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
-                          {message.meta.attachmentUsed}
+                  );
+                })()
+              : null}
+
+            {props.messages.map((message, index) => {
+              const prompt = props.getPromptForAssistantMessage(index);
+              const isScenarioMode =
+                message.role === 'assistant' &&
+                message.meta?.mode === 'scenario' &&
+                message.meta?.scenarioCard;
+              const showEarningsHint =
+                props.demoMode &&
+                props.demoStep === 'earnings' &&
+                message.role === 'assistant' &&
+                Boolean(message.meta?.earningsSummary) &&
+                isTeslaTicker(message.meta?.earningsSummary?.ticker) &&
+                isLatestTeslaEarningsMessage(props.messages, index);
+              const showScenarioHint =
+                props.demoMode &&
+                props.demoStep === 'scenario' &&
+                isScenarioMode &&
+                isLatestTeslaScenarioMessage(props.messages, index);
+              const guidedHint = getTeslaDemoGuidedHint(props.demoStep);
+
+              return (
+                <div key={message.id} className={message.role === 'user' ? 'text-right' : 'text-left'}>
+                  {isScenarioMode ? (
+                    <>
+                      <div className="my-6 w-full border-y border-[color:var(--cb-border-subtle)]/40 bg-muted/30 py-8">
+                        <div className="flex w-full justify-center px-4 md:px-6">
+                          <div className="w-full max-w-5xl">
+                            {(() => {
+                              const activeGeneratedTeslaDcf =
+                                latestModelMessage?.payload.modelType === 'DCF' &&
+                                latestModelMessage.payload.extractedInputs &&
+                                typeof latestModelMessage.payload.extractedInputs === 'object' &&
+                                'ticker' in latestModelMessage.payload.extractedInputs &&
+                                isTeslaTicker(
+                                  typeof latestModelMessage.payload.extractedInputs.ticker === 'string'
+                                    ? latestModelMessage.payload.extractedInputs.ticker
+                                    : null,
+                                )
+                                  ? latestModelMessage
+                                  : null;
+
+                              const canApplyToModel = Boolean(
+                                activeGeneratedTeslaDcf || latestDcfMessage?.payload.ticker === 'TSLA',
+                              );
+                              const onApplyToModel = activeGeneratedTeslaDcf
+                                ? () =>
+                                    void props.onModelAdjustment(
+                                      activeGeneratedTeslaDcf.messageId,
+                                      activeGeneratedTeslaDcf.payload,
+                                      {
+                                        changes: buildScenarioStructuredModelOverridesFromPayload(
+                                          message.meta!.scenarioCard!,
+                                          activeGeneratedTeslaDcf.payload,
+                                        ),
+                                      },
+                                    )
+                                : latestDcfMessage?.payload.ticker === 'TSLA'
+                                  ? () =>
+                                      void props.onDcfAdjustment(
+                                        latestDcfMessage.messageId,
+                                        latestDcfMessage.payload,
+                                        buildScenarioDcfAdjustmentFromPayload(
+                                          message.meta!.scenarioCard!,
+                                          latestDcfMessage.payload,
+                                        ),
+                                      )
+                                  : undefined;
+
+                              return (
+                                <ScenarioCard
+                                  {...message.meta!.scenarioCard!}
+                                  canApplyToActiveModel={canApplyToModel}
+                                  onApplyToModel={onApplyToModel}
+                                />
+                              );
+                            })()}
+                          </div>
                         </div>
-                      )}
-                      {message.role === 'assistant' && message.meta?.attachmentStatus && (
-                        <div className="mt-3 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3 text-[11px] text-[var(--cb-text-muted)]">
-                          <div className="mb-1 uppercase tracking-wide">Server Read Status</div>
-                          <div className="text-[var(--cb-text-primary)]">
-                            {attachmentReadStatusLabel(message.meta.attachmentStatus.readStatus)}
+                      </div>
+                      {showScenarioHint && guidedHint ? (
+                        <GuidedDemoHint>{guidedHint}</GuidedDemoHint>
+                      ) : null}
+                    </>
+                  ) : (
+                    <>
+                      <div
+                        className={`inline-block rounded-2xl px-4 py-3 ${
+                          message.role === 'user'
+                            ? 'bg-[var(--cb-green)] text-[#041007]'
+                            : 'block max-w-full border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] text-[var(--cb-text-primary)] whitespace-pre-wrap leading-7'
+                        }`}
+                      >
+                        {message.role === 'assistant' ? (
+                          <FormattedTextBlock
+                            content={message.content}
+                            className="space-y-4"
+                            paragraphClassName="text-[var(--cb-text-primary)] leading-7"
+                          />
+                        ) : (
+                          message.content
+                        )}
+
+                        {message.role === 'assistant' && message.meta?.earningsSummary ? (
+                          <AnalystEarningsSummaryCardView summary={message.meta.earningsSummary} />
+                        ) : null}
+
+                        {message.role === 'assistant' && message.meta?.attachmentUsed && (
+                          <div className="mt-2 text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
+                            {message.meta.attachmentUsed}
                           </div>
-                          <div className="mt-1">
-                            Seedable: {message.meta.attachmentStatus.isFinancialModelSeedable ? 'yes' : 'no'} • Package: {message.meta.attachmentStatus.hasStatementPackage ? 'present' : 'missing'}
-                          </div>
-                          <div className="mt-1">
-                            Coverage: {message.meta.attachmentStatus.statementCoverage.incomeStatement ? 'IS' : '-'} / {message.meta.attachmentStatus.statementCoverage.balanceSheet ? 'BS' : '-'} / {message.meta.attachmentStatus.statementCoverage.cashFlowStatement ? 'CF' : '-'}
-                          </div>
-                          {(message.meta.attachmentStatus.extractedIdentity.companyName ||
-                            message.meta.attachmentStatus.extractedIdentity.ticker ||
-                            message.meta.attachmentStatus.extractedIdentity.fiscalPeriod) && (
-                            <div className="mt-1">
-                              {[message.meta.attachmentStatus.extractedIdentity.companyName, message.meta.attachmentStatus.extractedIdentity.ticker, message.meta.attachmentStatus.extractedIdentity.fiscalPeriod]
-                                .filter((item): item is string => Boolean(item))
-                                .join(' • ')}
+                        )}
+
+                        {message.role === 'assistant' &&
+                          message.meta?.retrievalWarnings &&
+                          message.meta.retrievalWarnings.length > 0 && (
+                            <div className="mt-2 text-[11px] text-amber-300/90">
+                              {message.meta.retrievalWarnings.join(' • ')}
                             </div>
                           )}
-                          {(message.meta.attachmentStatus.filingView.familiarCategory ||
-                            message.meta.attachmentStatus.filingView.rawFilingType ||
-                            message.meta.attachmentStatus.packetView?.label) && (
-                            <div className="mt-1">
-                              {[
-                                message.meta.attachmentStatus.filingView.familiarCategory,
-                                message.meta.attachmentStatus.filingView.rawFilingType,
-                                message.meta.attachmentStatus.packetView?.label,
-                              ]
-                                .filter((item): item is string => Boolean(item))
-                                .join(' • ')}
+
+                        {message.role === 'assistant' &&
+                          !message.meta?.dcfDemo &&
+                          !message.meta?.generatedModel &&
+                          !message.meta?.coreTemplateModel &&
+                          !message.meta?.stockLookup &&
+                          !message.meta?.visualization &&
+                          !message.meta?.scenarioCard && (
+                            <div className="mt-3 flex justify-end">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  void props.onDownloadMemoPdf(
+                                    message.id,
+                                    message.content,
+                                    prompt,
+                                    message.meta?.sources,
+                                  )
+                                }
+                                disabled={props.memoPdfLoadingId === message.id}
+                              >
+                                {props.memoPdfLoadingId === message.id
+                                  ? 'Generating Memo PDF…'
+                                  : 'Download Memo PDF'}
+                              </Button>
                             </div>
                           )}
-                          {message.meta.attachmentStatus.packetView?.rawFilingTypes.length ? (
-                            <div className="mt-1">
-                              Packet filings: {message.meta.attachmentStatus.packetView.rawFilingTypes.join(', ')}
+
+                        {message.role === 'assistant' && message.meta?.dcfDemo && (
+                          <AnalystDcfCard
+                            payload={message.meta.dcfDemo}
+                            onAdjust={(adjustment) =>
+                              props.onDcfAdjustment(message.id, message.meta!.dcfDemo!, adjustment)
+                            }
+                            onRunEventShock={(promptText) =>
+                              props.onDcfEventShock(message.id, message.meta!.dcfDemo!, promptText)
+                            }
+                          />
+                        )}
+
+                        {message.role === 'assistant' && message.meta?.generatedModel && (
+                          <AnalystModelCard
+                            payload={message.meta.generatedModel}
+                            onAdjust={(adjustment) =>
+                              props.onModelAdjustment(
+                                message.id,
+                                message.meta!.generatedModel!,
+                                adjustment,
+                              )
+                            }
+                            onAdjustFromEvent={props.onAdjustFromEvent}
+                            onSuggestSmartAssumptions={
+                              supportsSmartAssumptionAdjustment(message.meta.generatedModel)
+                                ? () =>
+                                    props.onSuggestSmartAssumptions(
+                                      message.id,
+                                      message.meta!.generatedModel!,
+                                    )
+                                : undefined
+                            }
+                          />
+                        )}
+
+                        {message.role === 'assistant' && message.meta?.coreTemplateModel && (
+                          <AnalystCoreTemplateCard payload={message.meta.coreTemplateModel} />
+                        )}
+
+                        {message.role === 'assistant' && message.meta?.visualization && (
+                          <AnalystVisualizationCard payload={message.meta.visualization} />
+                        )}
+
+                        {message.role === 'assistant' &&
+                          message.meta?.needsClarification &&
+                          message.meta.clarificationQuestion && (
+                            <div className="mt-3 rounded-xl border border-[var(--cb-border-strong)] bg-[var(--cb-surface-alt)] p-3 text-sm text-[var(--cb-text-primary)]">
+                              <div className="text-xs uppercase tracking-wide text-[var(--cb-text-muted)]">
+                                Needs input
+                              </div>
+                              <div className="mt-1">{message.meta.clarificationQuestion}</div>
                             </div>
-                          ) : null}
-                          {message.meta.attachmentStatus.warnings.length > 0 && (
-                            <details className="mt-2">
-                              <summary className="cursor-pointer text-amber-300/90">Warnings</summary>
-                              <div className="mt-1 text-amber-300/90">
-                                {message.meta.attachmentStatus.warnings[0]}
+                          )}
+
+                        {message.role === 'assistant' &&
+                          props.showExecutionTrace &&
+                          message.meta?.executionTrace && (
+                            <details className="mt-3 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3 text-[11px] text-[var(--cb-text-muted)]">
+                              <summary className="cursor-pointer uppercase tracking-wide">
+                                Execution Trace
+                              </summary>
+                              <div className="mt-2 space-y-2">
+                                <div>
+                                  <span className="text-[var(--cb-text-muted)]">Surface:</span>{' '}
+                                  <span className="text-[var(--cb-text-primary)]">
+                                    {message.meta.executionTrace.surface}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-[var(--cb-text-muted)]">Route:</span>{' '}
+                                  <span className="text-[var(--cb-text-primary)]">
+                                    {message.meta.executionTrace.routeIntent || 'n/a'}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-[var(--cb-text-muted)]">Model:</span>{' '}
+                                  <span className="text-[var(--cb-text-primary)]">
+                                    {message.meta.executionTrace.modelType || 'n/a'}
+                                  </span>
+                                </div>
+                                <div>
+                                  <div className="mb-1 text-[var(--cb-text-muted)]">
+                                    Fired Services
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {message.meta.executionTrace.firedServices.map((service) => (
+                                      <span
+                                        key={service}
+                                        className="rounded-full border border-[var(--cb-border-subtle)] px-2 py-1 text-[10px] text-[var(--cb-text-primary)]"
+                                      >
+                                        {service}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                                {message.meta.executionTrace.notes?.length ? (
+                                  <div>
+                                    <div className="mb-1 text-[var(--cb-text-muted)]">Notes</div>
+                                    <ul className="list-disc pl-4 text-[var(--cb-text-primary)]">
+                                      {message.meta.executionTrace.notes.map((note) => (
+                                        <li key={note}>{note}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                ) : null}
                               </div>
                             </details>
                           )}
-                        </div>
-                      )}
-                      {message.role === 'assistant' &&
-                        !message.meta?.dcfDemo &&
-                        !message.meta?.generatedModel &&
-                        !message.meta?.coreTemplateModel &&
-                        !message.meta?.stockLookup &&
-                        !message.meta?.visualization &&
-                        !message.meta?.scenarioCard && (
-                          <div className="mt-3 flex justify-end">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                void props.onDownloadMemoPdf(
-                                  message.id,
-                                  message.content,
-                                  prompt,
-                                  message.meta?.sources,
-                                )
-                              }
-                              disabled={props.memoPdfLoadingId === message.id}
-                            >
-                              {props.memoPdfLoadingId === message.id ? 'Generating Memo PDF…' : 'Download Memo PDF'}
-                            </Button>
-                          </div>
-                        )}
-                      {message.role === 'assistant' && message.meta?.sources && message.meta.sources.length > 0 && (
-                        <div className="mt-3 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3 text-[11px] text-[var(--cb-text-muted)]">
-                          <div className="mb-2 uppercase tracking-wide">Sources</div>
-                          <div className="space-y-2">
-                            {message.meta.sources.map((source) => {
-                              const href = getSourceHref(source);
-                              const label = getSourceLabel(source);
-                              return (
-                                <div key={source} className="min-w-0">
-                                  {href ? (
-                                    <a
-                                      href={href}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="block truncate text-[var(--cb-text-primary)] underline decoration-[var(--cb-border-strong)] underline-offset-4 hover:text-[var(--cb-green)]"
-                                      title={source}
-                                    >
-                                      {label}
-                                    </a>
-                                  ) : (
-                                    <div className="truncate text-[var(--cb-text-primary)]" title={source}>
-                                      {source}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                      {message.role === 'assistant' &&
-                        message.meta?.retrievalWarnings &&
-                        message.meta.retrievalWarnings.length > 0 && (
-                          <div className="mt-2 text-[11px] text-amber-300/90">
-                            {message.meta.retrievalWarnings.join(' • ')}
-                          </div>
-                        )}
-                      {message.role === 'assistant' && message.meta?.dcfDemo && (
-                        <AnalystDcfCard
-                          payload={message.meta.dcfDemo}
-                          onAdjust={(adjustment) => props.onDcfAdjustment(message.id, message.meta!.dcfDemo!, adjustment)}
-                          onRunEventShock={(promptText) => props.onDcfEventShock(message.id, message.meta!.dcfDemo!, promptText)}
-                        />
-                      )}
-                      {message.role === 'assistant' && message.meta?.generatedModel && (
-                        <AnalystModelCard
-                          payload={message.meta.generatedModel}
-                          onAdjust={(adjustment) =>
-                            props.onModelAdjustment(message.id, message.meta!.generatedModel!, adjustment)
-                          }
-                          onAdjustFromEvent={props.onAdjustFromEvent}
-                          onSuggestSmartAssumptions={
-                            supportsSmartAssumptionAdjustment(message.meta.generatedModel)
-                              ? () => props.onSuggestSmartAssumptions(message.id, message.meta!.generatedModel!)
-                              : undefined
-                          }
-                        />
-                      )}
-                      {message.role === 'assistant' && message.meta?.coreTemplateModel && (
-                        <AnalystCoreTemplateCard payload={message.meta.coreTemplateModel} />
-                      )}
-                      {message.role === 'assistant' && message.meta?.stockLookup && (
-                        <AnalystStockCard payload={message.meta.stockLookup} />
-                      )}
-                      {message.role === 'assistant' && message.meta?.visualization && (
-                        <AnalystVisualizationCard payload={message.meta.visualization} />
-                      )}
-                      {message.role === 'assistant' && message.meta?.needsClarification && message.meta.clarificationQuestion && (
-                        <div className="mt-3 rounded-xl border border-[var(--cb-border-strong)] bg-[var(--cb-surface-alt)] p-3 text-sm text-[var(--cb-text-primary)]">
-                          <div className="text-xs uppercase tracking-wide text-[var(--cb-text-muted)]">Needs input</div>
-                          <div className="mt-1">{message.meta.clarificationQuestion}</div>
-                        </div>
-                      )}
-                      {message.role === 'assistant' && props.showExecutionTrace && message.meta?.executionTrace && (
-                        <details className="mt-3 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-3 text-[11px] text-[var(--cb-text-muted)]">
-                          <summary className="cursor-pointer uppercase tracking-wide">Execution Trace</summary>
-                          <div className="mt-2 space-y-2">
-                            <div>
-                              <span className="text-[var(--cb-text-muted)]">Surface:</span>{' '}
-                              <span className="text-[var(--cb-text-primary)]">{message.meta.executionTrace.surface}</span>
-                            </div>
-                            <div>
-                              <span className="text-[var(--cb-text-muted)]">Route:</span>{' '}
-                              <span className="text-[var(--cb-text-primary)]">{message.meta.executionTrace.routeIntent || 'n/a'}</span>
-                            </div>
-                            <div>
-                              <span className="text-[var(--cb-text-muted)]">Model:</span>{' '}
-                              <span className="text-[var(--cb-text-primary)]">{message.meta.executionTrace.modelType || 'n/a'}</span>
-                            </div>
-                            <div>
-                              <div className="mb-1 text-[var(--cb-text-muted)]">Fired Services</div>
-                              <div className="flex flex-wrap gap-2">
-                                {message.meta.executionTrace.firedServices.map((service) => (
-                                  <span
-                                    key={service}
-                                    className="rounded-full border border-[var(--cb-border-subtle)] px-2 py-1 text-[10px] text-[var(--cb-text-primary)]"
-                                  >
-                                    {service}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                            {message.meta.executionTrace.notes?.length ? (
-                              <div>
-                                <div className="mb-1 text-[var(--cb-text-muted)]">Notes</div>
-                                <ul className="list-disc pl-4 text-[var(--cb-text-primary)]">
-                                  {message.meta.executionTrace.notes.map((note) => (
-                                    <li key={note}>{note}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            ) : null}
-                          </div>
-                        </details>
-                      )}
+                      </div>
+                      {showEarningsHint && guidedHint ? (
+                        <GuidedDemoHint>{guidedHint}</GuidedDemoHint>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              );
+            })}
+
+            {props.isLoading && props.loadingState && (
+              <div className="text-left">
+                <div className="block max-w-full rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] px-4 py-3 text-[var(--cb-text-primary)]">
+                  <div className="flex items-center gap-3">
+                    <div className="flex gap-1">
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--cb-green)] [animation-delay:0ms]" />
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--cb-green)] [animation-delay:150ms]" />
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--cb-green)] [animation-delay:300ms]" />
                     </div>
-                    {showEarningsHint && guidedHint ? <GuidedDemoHint>{guidedHint}</GuidedDemoHint> : null}
-                  </>
-                )}
-              </div>
-            );
-          })}
-          {props.isLoading && props.loadingState && (
-            <div className="text-left">
-              <div className="block max-w-full rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] px-4 py-3 text-[var(--cb-text-primary)]">
-                <div className="flex items-center gap-3">
-                  <div className="flex gap-1">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--cb-green)] [animation-delay:0ms]" />
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--cb-green)] [animation-delay:150ms]" />
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--cb-green)] [animation-delay:300ms]" />
+                    <div>
+                      <div className="text-sm font-medium">{props.loadingState.title}</div>
+                      <div className="text-xs text-[var(--cb-text-muted)]">
+                        {props.loadingState.detail}
+                      </div>
+                    </div>
                   </div>
+                </div>
+              </div>
+            )}
+            <div ref={props.bottomRef} />
+          </div>
+
+          {/* Input area */}
+          <div className="border-t border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-4">
+            {latestModelMessage ? (
+              <div className="mb-4 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <div className="text-sm font-medium">{props.loadingState.title}</div>
-                    <div className="text-xs text-[var(--cb-text-muted)]">{props.loadingState.detail}</div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">
+                      Quick Assumption Update
+                    </div>
+                    <div className="mt-1 text-sm text-[var(--cb-text-primary)]">
+                      Paste a headline or event excerpt here to adjust the active model's assumptions
+                      without leaving chat.
+                    </div>
+                    <div className="mt-1 text-xs text-[var(--cb-text-muted)]">
+                      Reviewed updates can move growth, margin, WACC, or terminal growth when the
+                      event actually supports it.
+                    </div>
+                  </div>
+                  <div className="rounded-full border border-[var(--cb-border-subtle)] px-2 py-1 text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
+                    Active model: {latestModelMessage.payload.modelType.replace(/_/g, ' ')}
                   </div>
                 </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-[1fr_220px]">
+                  <div className="space-y-3">
+                    <Input
+                      value={props.quickEventTitle}
+                      placeholder="Event title (optional)"
+                      onChange={(event) => props.onQuickEventTitleChange(event.target.value)}
+                    />
+                    <Textarea
+                      ref={props.quickEventTextRef}
+                      value={props.quickEventText}
+                      placeholder="Paste the headline, article excerpt, or short event description you want reflected in assumptions."
+                      onChange={(event) => props.onQuickEventTextChange(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <Input
+                      value={props.quickEventSource}
+                      placeholder="Source label (optional)"
+                      onChange={(event) => props.onQuickEventSourceChange(event.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => void props.onQuickEventApply()}
+                      disabled={props.quickEventApplying || !props.quickEventText.trim()}
+                      className="w-full"
+                    >
+                      {props.quickEventApplying ? 'Applying…' : 'Apply to Assumptions'}
+                    </Button>
+                  </div>
+                </div>
+                {props.quickEventError ? (
+                  <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                    {props.quickEventError}
+                  </div>
+                ) : null}
+                {props.quickEventNotice ? (
+                  <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                    {props.quickEventNotice}
+                  </div>
+                ) : null}
               </div>
-            </div>
+            ) : null}
+
+            <form onSubmit={props.onSubmit}>
+              <label htmlFor="analyst-prompt" className="sr-only">Ask a question</label>
+              <Textarea
+                ref={props.promptRef}
+                id="analyst-prompt"
+                name="analyst-prompt"
+                placeholder={
+                  props.pendingModelRequest?.clarificationField
+                    ? 'Answer the missing-input question so the model can continue...'
+                    : 'Ask about valuations, KPIs, diligence follow-ups...'
+                }
+                value={props.input}
+                onChange={(event) => props.onInputChange(event.target.value)}
+                onKeyDownCapture={(event) => { event.stopPropagation(); }}
+                onKeyUpCapture={(event) => { event.stopPropagation(); }}
+                disabled={props.isLoading}
+                autoFocus
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="sentences"
+                spellCheck={false}
+              />
+              <div className="mt-3 flex items-center justify-between text-xs text-[var(--cb-text-muted)]">
+                {props.pendingModelRequest ? (
+                  <span>
+                    Waiting for{' '}
+                    {props.pendingModelRequest.clarificationField
+                      ?.replace(/([A-Z])/g, ' $1')
+                      .toLowerCase() || 'the next required input'}{' '}
+                    to continue the model build.
+                  </span>
+                ) : props.attachment ? (
+                  <span>
+                    Using {props.attachment.kind.replace(/_/g, ' ')} context from{' '}
+                    {props.attachment.name}.
+                  </span>
+                ) : (
+                  <span>Attach earnings reports, model files, or notes for additional context.</span>
+                )}
+                <Button type="submit" disabled={props.isLoading || !props.input.trim()}>
+                  {props.isLoading
+                    ? 'Thinking…'
+                    : props.pendingModelRequest
+                      ? 'Continue Model'
+                      : 'Ask'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── RIGHT: context sidebar ── */}
+      {hasSidebar && (
+        <div className="space-y-3 lg:sticky lg:top-4 lg:self-start">
+          {sidebar.latestStockLookup && (
+            <CompactStockSnapshot payload={sidebar.latestStockLookup} />
           )}
-          <div ref={props.bottomRef} />
+          {sidebar.latestSources && sidebar.latestSources.length > 0 && (
+            <CollapsedSources sources={sidebar.latestSources} />
+          )}
+          {sidebar.latestAttachmentStatus && (
+            <CollapsedAttachmentStatus status={sidebar.latestAttachmentStatus} />
+          )}
         </div>
-        <div className="border-t border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-4">
-          {latestModelMessage ? (
-            <div className="mb-4 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">
-                    Quick Assumption Update
-                  </div>
-                  <div className="mt-1 text-sm text-[var(--cb-text-primary)]">
-                    Paste a headline or event excerpt here to adjust the active model’s assumptions without leaving chat.
-                  </div>
-                  <div className="mt-1 text-xs text-[var(--cb-text-muted)]">
-                    Reviewed updates can move growth, margin, WACC, or terminal growth when the event actually supports it.
-                  </div>
-                </div>
-                <div className="rounded-full border border-[var(--cb-border-subtle)] px-2 py-1 text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
-                  Active model: {latestModelMessage.payload.modelType.replace(/_/g, ' ')}
-                </div>
-              </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-[1fr_220px]">
-                <div className="space-y-3">
-                  <Input
-                    value={props.quickEventTitle}
-                    placeholder="Event title (optional)"
-                    onChange={(event) => props.onQuickEventTitleChange(event.target.value)}
-                  />
-                  <Textarea
-                    ref={props.quickEventTextRef}
-                    value={props.quickEventText}
-                    placeholder="Paste the headline, article excerpt, or short event description you want reflected in assumptions."
-                    onChange={(event) => props.onQuickEventTextChange(event.target.value)}
-                  />
-                </div>
-                <div className="space-y-3">
-                  <Input
-                    value={props.quickEventSource}
-                    placeholder="Source label (optional)"
-                    onChange={(event) => props.onQuickEventSourceChange(event.target.value)}
-                  />
-                  <Button
-                    type="button"
-                    onClick={() => void props.onQuickEventApply()}
-                    disabled={props.quickEventApplying || !props.quickEventText.trim()}
-                    className="w-full"
-                  >
-                    {props.quickEventApplying ? 'Applying…' : 'Apply to Assumptions'}
-                  </Button>
-                </div>
-              </div>
-              {props.quickEventError ? (
-                <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
-                  {props.quickEventError}
-                </div>
-              ) : null}
-              {props.quickEventNotice ? (
-                <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
-                  {props.quickEventNotice}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          <form onSubmit={props.onSubmit}>
-            <label htmlFor="analyst-prompt" className="sr-only">Ask a question</label>
-            <Textarea
-              ref={props.promptRef}
-              id="analyst-prompt"
-              name="analyst-prompt"
-              placeholder={
-                props.pendingModelRequest?.clarificationField
-                  ? 'Answer the missing-input question so the model can continue...'
-                  : 'Ask about valuations, KPIs, diligence follow-ups...'
-              }
-              value={props.input}
-              onChange={(event) => props.onInputChange(event.target.value)}
-              onKeyDownCapture={(event) => {
-                event.stopPropagation();
-              }}
-              onKeyUpCapture={(event) => {
-                event.stopPropagation();
-              }}
-              disabled={props.isLoading}
-              autoFocus
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="sentences"
-              spellCheck={false}
-            />
-            <div className="mt-3 flex items-center justify-between text-xs text-[var(--cb-text-muted)]">
-              {props.pendingModelRequest ? (
-                <span>
-                  Waiting for {props.pendingModelRequest.clarificationField?.replace(/([A-Z])/g, ' $1').toLowerCase() || 'the next required input'} to continue the model build.
-                </span>
-              ) : props.attachment ? (
-                <span>Using {props.attachment.kind.replace(/_/g, ' ')} context from {props.attachment.name}.</span>
-              ) : (
-                <span>Attach earnings reports, model files, or notes for additional context.</span>
-              )}
-              <Button type="submit" disabled={props.isLoading || !props.input.trim()}>
-                {props.isLoading ? 'Thinking…' : props.pendingModelRequest ? 'Continue Model' : 'Ask'}
-              </Button>
-            </div>
-          </form>
-        </div>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 }

@@ -6,7 +6,7 @@ import { APP_NAME } from '@/lib/branding';
 export default async function AnalystChatPage() {
   return (
     <main className="min-h-screen bg-[var(--cb-bg)] px-6 py-10 text-[var(--cb-text-body)]">
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="mx-auto max-w-7xl space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <header className="space-y-2">
             <p className="text-sm font-semibold uppercase tracking-wide text-[var(--cb-green)]">{APP_NAME}</p>
