@@ -162,9 +162,15 @@ function formatMarketCap(value: number | null): string | null {
 }
 
 function signalClasses(signal: InvestmentSignal): string {
-  if (signal === 'LONG') return 'bg-emerald-500/10 text-emerald-300';
-  if (signal === 'SHORT') return 'bg-rose-500/10 text-rose-300';
-  return 'bg-zinc-500/10 text-zinc-300';
+  if (signal === 'LONG') return 'border-emerald-400/30 bg-emerald-500/15 text-emerald-200';
+  if (signal === 'SHORT') return 'border-rose-400/30 bg-rose-500/15 text-rose-200';
+  return 'border-zinc-400/30 bg-zinc-500/15 text-zinc-200';
+}
+
+function signalAccentClasses(signal: InvestmentSignal): string {
+  if (signal === 'LONG') return 'bg-emerald-400';
+  if (signal === 'SHORT') return 'bg-rose-400';
+  return 'bg-zinc-400';
 }
 
 function formatValuationGap(value: number): string {
@@ -182,18 +188,19 @@ function AnalystInvestmentOutputCard({ output }: { output: AnalystOutput }) {
 
   if (!normalized.isComplete) {
     return (
-      <div className="rounded-2xl bg-[var(--cb-surface)] p-5 text-[var(--cb-text-primary)] md:p-6">
+      <div className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-5 text-[var(--cb-text-primary)] md:p-6">
         <div className="text-sm font-semibold text-[var(--cb-text-muted)]">Signal: Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-5 rounded-2xl bg-[var(--cb-surface)] p-5 text-[var(--cb-text-primary)] md:p-6">
+    <div className="relative space-y-5 overflow-hidden rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-5 text-[var(--cb-text-primary)] shadow-[0_18px_60px_rgba(0,0,0,0.18)] md:p-6">
+      <div className={`absolute inset-y-0 left-0 w-1 ${signalAccentClasses(normalized.signal)}`} />
       <div className="grid gap-3 md:grid-cols-3">
         <div>
           <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Signal</div>
-          <div className={`mt-2 inline-flex rounded-full px-3 py-1 text-sm font-semibold ${signalClasses(normalized.signal)}`}>
+          <div className={`mt-2 inline-flex rounded-full border px-3 py-1 text-sm font-semibold ${signalClasses(normalized.signal)}`}>
             {summaryLine}
           </div>
         </div>

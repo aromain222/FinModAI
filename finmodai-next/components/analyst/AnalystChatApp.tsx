@@ -141,58 +141,114 @@ function parseConfidenceBreakdown(value: unknown): AnalystOutput['confidenceBrea
   return {
     model: finiteNumber(value.model),
     accuracy: finiteNumber(value.accuracy),
-    sampleSize: finiteNumber(value.sampleSize) ?? 0,
+    sampleSize: finiteNumber(value.sampleSize) ?? finiteNumber(value.sample_size) ?? 0,
   };
 }
 
 function parseSizePct(payload: Record<string, unknown>): number | null {
-  const topLevel = finiteNumber(payload.size_pct);
+  const topLevel = finiteNumber(payload.size_pct) ?? finiteNumber(payload.sizePct);
   if (topLevel !== null) return topLevel;
   if (!isRecord(payload.signal)) return null;
-  return finiteNumber(payload.signal.size_pct);
+  return finiteNumber(payload.signal.size_pct) ?? finiteNumber(payload.signal.sizePct);
 }
 
 function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystOutput | undefined {
   if (!payload) return undefined;
   const hasStructuredOutput =
     'signal' in payload ||
+    'position' in payload ||
+    'direction' in payload ||
+    'impact_summary' in payload ||
     'percentChange' in payload ||
+    'percent_change' in payload ||
+    'valuation_change' in payload ||
+    'valuationChange' in payload ||
     'primaryDriver' in payload ||
+    'primary_driver' in payload ||
     'attributionExplanation' in payload ||
+    'attribution_explanation' in payload ||
     'confidence' in payload ||
     'confidence_breakdown' in payload ||
+    'confidenceBreakdown' in payload ||
     'drivers' in payload ||
-    'analystNote' in payload;
+    'secondaryDrivers' in payload ||
+    'secondary_drivers' in payload ||
+    'analystNote' in payload ||
+    'analyst_note' in payload;
   if (!hasStructuredOutput) return undefined;
 
-  const signal = parseSignal(payload.signal);
-  const percentChange = finiteNumber(payload.percentChange) ?? undefined;
-  const confidence = finiteNumber(payload.confidence);
-  const analystNote = typeof payload.analystNote === 'string' ? payload.analystNote.trim() : '';
+  const impactSummary = isRecord(payload.impact_summary) ? payload.impact_summary : null;
+  const signal =
+    parseSignal(payload.signal) ??
+    parseSignal(payload.position) ??
+    parseSignal(payload.direction) ??
+    parseSignal(impactSummary?.direction);
+  const percentChange =
+    finiteNumber(payload.percentChange) ??
+    finiteNumber(payload.percent_change) ??
+    finiteNumber(payload.valuationChange) ??
+    finiteNumber(payload.valuation_change) ??
+    finiteNumber(impactSummary?.valuation_change) ??
+    undefined;
+  const confidence =
+    finiteNumber(payload.confidence) ??
+    (isRecord(payload.signal) ? finiteNumber(payload.signal.conviction) : null);
+  const analystNote =
+    typeof payload.analystNote === 'string'
+      ? payload.analystNote.trim()
+      : typeof payload.analyst_note === 'string'
+        ? payload.analyst_note.trim()
+        : '';
   const primaryDriver =
     typeof payload.primaryDriver === 'string' && payload.primaryDriver.trim().length > 0
       ? payload.primaryDriver.trim()
+      : typeof payload.primary_driver === 'string' && payload.primary_driver.trim().length > 0
+        ? payload.primary_driver.trim()
+        : typeof impactSummary?.primary_driver === 'string' && impactSummary.primary_driver.trim().length > 0
+          ? impactSummary.primary_driver.trim()
+        : isRecord(payload.signal) &&
+            typeof payload.signal.primary_driver === 'string' &&
+            payload.signal.primary_driver.trim().length > 0
+          ? payload.signal.primary_driver.trim()
       : undefined;
   const attributionExplanation =
     typeof payload.attributionExplanation === 'string' && payload.attributionExplanation.trim().length > 0
       ? payload.attributionExplanation.trim()
+      : typeof payload.attribution_explanation === 'string' && payload.attribution_explanation.trim().length > 0
+        ? payload.attribution_explanation.trim()
       : undefined;
 
-  const drivers = Array.isArray(payload.drivers)
-    ? payload.drivers.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
-    : [];
+  const rawDrivers = Array.isArray(payload.drivers)
+    ? payload.drivers
+    : Array.isArray(payload.secondaryDrivers)
+      ? payload.secondaryDrivers
+      : Array.isArray(payload.secondary_drivers)
+        ? payload.secondary_drivers
+        : [];
+  const drivers = rawDrivers
+    .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    .map((item) => item.trim());
 
-  return {
+  const confidenceBreakdownSource =
+    payload.confidence_breakdown ?? payload.confidenceBreakdown;
+
+  const analystOutput: AnalystOutput = {
     signal,
     percentChange,
     primaryDriver,
     attributionExplanation,
     confidence: confidence ?? undefined,
-    confidenceBreakdown: parseConfidenceBreakdown(payload.confidence_breakdown),
+    confidenceBreakdown: parseConfidenceBreakdown(confidenceBreakdownSource),
     drivers,
     analystNote: analystNote || undefined,
     sizePct: parseSizePct(payload),
   };
+
+  if (!analystOutput.signal && isRecord(payload.signal)) {
+    analystOutput.signal = parseSignal(payload.signal);
+  }
+
+  return analystOutput;
 }
 
 function parseAttachmentStatus(payload: Record<string, unknown> | null): AnalystAttachmentStatus | undefined {
