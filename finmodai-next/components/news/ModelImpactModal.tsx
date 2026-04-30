@@ -1,6 +1,7 @@
 'use client';
 
-import { AlertTriangle } from 'lucide-react';
+import Link from 'next/link';
+import { AlertTriangle, ArrowRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 type ScenarioCase = {
@@ -169,27 +170,35 @@ export function ModelImpactModal({ open, onClose, data, loading, error }: Props)
             )}
 
             {/* Conviction + size */}
-            <div className="border-t border-zinc-800 pt-4 flex gap-6 text-sm">
-              <div>
-                <span className="text-zinc-500">Conviction </span>
-                <span className="font-semibold text-zinc-200">
-                  {signal?.conviction != null ? `${Math.round(signal.conviction * 100)}%` : '—'}
-                </span>
-              </div>
-              <div>
-                <span className="text-zinc-500">Size </span>
-                <span className="font-semibold text-zinc-200">
-                  {signal?.size_pct != null ? `${signal.size_pct}%` : '—'}
-                </span>
-              </div>
-              {data.confidence != null && (
+            <div className="border-t border-zinc-800 pt-4 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex gap-6 text-sm">
                 <div>
-                  <span className="text-zinc-500">AI Confidence </span>
+                  <span className="text-zinc-500">Conviction </span>
                   <span className="font-semibold text-zinc-200">
-                    {Math.round(data.confidence * 100)}%
+                    {signal?.conviction != null ? `${Math.round(signal.conviction * 100)}%` : '—'}
                   </span>
                 </div>
-              )}
+                <div>
+                  <span className="text-zinc-500">Size </span>
+                  <span className="font-semibold text-zinc-200">
+                    {signal?.size_pct != null ? `${signal.size_pct}%` : '—'}
+                  </span>
+                </div>
+                {data.confidence != null && (
+                  <div>
+                    <span className="text-zinc-500">AI Confidence </span>
+                    <span className="font-semibold text-zinc-200">
+                      {Math.round(data.confidence * 100)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+              <Link
+                href="/models/create"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-300 transition-colors hover:border-violet-500/60 hover:bg-violet-500/20"
+              >
+                Go to Model Builder <ArrowRight className="h-3 w-3" />
+              </Link>
             </div>
           </div>
         )}

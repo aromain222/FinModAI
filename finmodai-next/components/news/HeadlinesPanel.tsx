@@ -1,8 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { headlineEnrichmentSchema, type HeadlineEnrichment, type NewsRange, type NewsTopic } from '@/lib/news/types';
 import type { ServerHeadlinesPayload } from '@/lib/news/fetchHeadlinesServer';
+import { useToast } from '@/hooks/use-toast';
+import { ToastEnhanced } from '@/components/ui/toast-enhanced';
 import {
   EmptyState,
   ErrorState,
@@ -81,6 +84,8 @@ export default function HeadlinesPanel({
   const [enrichMap, setEnrichMap] = useState<Record<string, HeadlineEnrichment>>({});
 
   // ── Model mutation state ──────────────────────────────────────────────────
+  const router = useRouter();
+  const { toasts, showToast, removeToast } = useToast();
   const { modelAssumptions, updateScenarioValue } = useModelAssumptions();
   const { analyze: analyzeImpact } = useEventImpact();
   const [impactLoadingId, setImpactLoadingId] = useState<string | null>(null);
@@ -384,7 +389,7 @@ export default function HeadlinesPanel({
     [analyzeImpact, enrichMap, impactLoadingId, activeModel, addEvent, stack.events]
   );
 
-  // Apply an individual event's updated_model back to the scenario store.
+  // Apply an individual event's updated_model back to the scenario store, then navigate.
   const handleApplyToModel = useCallback(
     (updatedModel: EventImpactResult['updated_model']) => {
       updateScenarioValue('base', 'revenueGrowth',    updatedModel.revenue_growth    * 100);
@@ -392,8 +397,13 @@ export default function HeadlinesPanel({
       updateScenarioValue('base', 'wacc',             updatedModel.wacc              * 100);
       updateScenarioValue('base', 'terminalGrowth',   updatedModel.terminal_growth   * 100);
       updateScenarioValue('base', 'capexPctRevenue',  updatedModel.capex_pct_revenue * 100);
+      showToast({
+        title: 'Model updated',
+        description: 'Base scenario assumptions updated from event analysis. Opening model builder…',
+      });
+      router.push('/models/create');
     },
-    [updateScenarioValue]
+    [updateScenarioValue, showToast, router]
   );
 
   // Apply the full stacked currentModel to the scenario store.
@@ -533,6 +543,7 @@ export default function HeadlinesPanel({
             })}
         </div>
       </div>
+      <ToastEnhanced toasts={toasts} onRemove={removeToast} />
     </div>
   );
 }
