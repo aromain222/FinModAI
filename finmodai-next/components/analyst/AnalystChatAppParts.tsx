@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { FormEvent, RefObject } from 'react';
 import { FormattedTextBlock } from '@/components/ui/formatted-text-block';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,6 +28,7 @@ import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } f
 import type { AnalystVisualizationPayload } from '@/lib/analyst/visualization';
 import type { AnalystEarningsSummaryCard } from '@/lib/analyst/earningsSummary';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
+import type { CompanyInfoResponse } from '@/app/api/company-info/route';
 import type { AppExecutionTrace } from '@/lib/debug/executionTrace';
 
 const AnalystDcfCard = dynamic(
@@ -183,10 +184,21 @@ function getSidebarState(messages: Message[]): SidebarState {
 
 function CompactStockSnapshot({ payload }: { payload: StockLookupResult }) {
   const [expanded, setExpanded] = useState(false);
+  const [info, setInfo] = useState<CompanyInfoResponse | null>(null);
   const mcap = formatMarketCap(payload.marketCap);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/company-info?ticker=${encodeURIComponent(payload.ticker)}`, { cache: 'no-store' })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: CompanyInfoResponse | null) => { if (!cancelled) setInfo(data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [payload.ticker]);
+
   return (
-    <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-3">
+    <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-3 space-y-3">
+      {/* Header row */}
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-[10px] uppercase tracking-widest text-zinc-500">Company</p>
@@ -198,13 +210,14 @@ function CompactStockSnapshot({ payload }: { payload: StockLookupResult }) {
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="mt-0.5 text-[10px] uppercase tracking-wide text-zinc-500 hover:text-zinc-300"
+          className="mt-0.5 shrink-0 text-[10px] uppercase tracking-wide text-zinc-500 hover:text-zinc-300"
         >
           {expanded ? 'Less ▴' : 'More ▾'}
         </button>
       </div>
 
-      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+      {/* Stats row */}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
         {payload.price != null && (
           <div>
             <p className="text-[10px] text-zinc-500">Price</p>
@@ -220,13 +233,63 @@ function CompactStockSnapshot({ payload }: { payload: StockLookupResult }) {
         {payload.sector && (
           <div className="col-span-2">
             <p className="text-[10px] text-zinc-500">Sector</p>
-            <p className="text-[11px] text-zinc-300">{payload.sector}</p>
+            <p className="text-[11px] text-zinc-300">
+              {payload.sector}{payload.industry ? ` · ${payload.industry}` : ''}
+            </p>
+          </div>
+        )}
+        {info?.employees && (
+          <div>
+            <p className="text-[10px] text-zinc-500">Employees</p>
+            <p className="text-[11px] text-zinc-300">{info.employees.toLocaleString()}</p>
+          </div>
+        )}
+        {info?.founded && (
+          <div>
+            <p className="text-[10px] text-zinc-500">Founded / IPO</p>
+            <p className="text-[11px] text-zinc-300">{info.founded}</p>
           </div>
         )}
       </div>
 
+      {/* Company description */}
+      {info?.description && (
+        <div>
+          <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">About</p>
+          <p className="text-[11px] leading-[1.6] text-zinc-300 line-clamp-4">
+            {info.description}
+          </p>
+        </div>
+      )}
+
+      {/* Recent news */}
+      {info?.news && info.news.length > 0 && (
+        <div>
+          <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5">Recent News</p>
+          <div className="space-y-2">
+            {info.news.slice(0, 4).map((item, idx) => (
+              <a
+                key={idx}
+                href={item.url}
+                target="_blank"
+                rel="noreferrer"
+                className="block group"
+              >
+                <p className="text-[11px] leading-[1.5] text-zinc-300 group-hover:text-white line-clamp-2">
+                  {item.title}
+                </p>
+                <p className="mt-0.5 text-[10px] text-zinc-600">
+                  {item.source}{item.publishedAt ? ` · ${item.publishedAt.slice(0, 10)}` : ''}
+                </p>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Expanded full card */}
       {expanded && (
-        <div className="mt-3 border-t border-[var(--cb-border-subtle)] pt-3">
+        <div className="border-t border-[var(--cb-border-subtle)] pt-3">
           <AnalystStockCard payload={payload} />
         </div>
       )}
