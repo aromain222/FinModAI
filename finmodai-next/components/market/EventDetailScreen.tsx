@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ExternalLink, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { readJsonResponse } from '@/lib/http/readJsonResponse';
 import { getSpecificEventFallbackImage } from '@/lib/macroEventImageQueries';
 import { proxiedEventImageUrl } from '@/lib/news/eventImageProxy';
 import {
@@ -278,8 +279,14 @@ export default function EventDetailScreen({
       if (force) query.set('force', '1');
 
       const response = await fetch(`/api/market/events?${query.toString()}`, { cache: 'no-store' });
-      const raw = await response.json();
-      const parsed = marketEventsApiResponseSchema.safeParse(raw);
+      const raw = await readJsonResponse(response);
+      if (!raw.ok) {
+        setEvents([]);
+        setError(raw.message);
+        return;
+      }
+
+      const parsed = marketEventsApiResponseSchema.safeParse(raw.data);
 
       if (!response.ok || !parsed.success) {
         setEvents([]);

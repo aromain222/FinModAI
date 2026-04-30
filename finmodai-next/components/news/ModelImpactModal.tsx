@@ -1,8 +1,14 @@
 'use client';
 
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { AlertTriangle } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-type ScenarioCase = { probability: number; impact: number };
+type ScenarioCase = {
+  probability: number;
+  expected_direction?: 'up' | 'neutral' | 'down';
+  magnitude?: number;
+  impact?: number;
+};
 
 type ModelImpactData = {
   impact_summary?: {
@@ -27,6 +33,7 @@ type Props = {
   onClose: (open: boolean) => void;
   data: ModelImpactData | null;
   loading?: boolean;
+  error?: string | null;
 };
 
 function positionColor(position?: string): string {
@@ -41,8 +48,13 @@ function directionColor(direction?: string): string {
   return 'text-zinc-400';
 }
 
+function formatPct(value?: number, digits = 1): string {
+  if (value == null || !Number.isFinite(value)) return '-';
+  return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(digits)}%`;
+}
+
 function Delta({ label, value }: { label: string; value?: number }) {
-  const formatted = value != null ? `${value >= 0 ? '+' : ''}${(value * 100).toFixed(2)}%` : '—';
+  const formatted = formatPct(value, 2);
   const color = value == null ? 'text-zinc-400' : value > 0 ? 'text-emerald-400' : value < 0 ? 'text-rose-400' : 'text-zinc-400';
   return (
     <div className="rounded border border-zinc-800 p-3">
@@ -52,18 +64,21 @@ function Delta({ label, value }: { label: string; value?: number }) {
   );
 }
 
-function ScenarioBar({ label, value }: { label: string; value?: number }) {
-  const pct = value != null ? `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}%` : '—';
+function ScenarioBar({ label, scenario }: { label: string; scenario?: ScenarioCase }) {
+  const value = scenario?.magnitude ?? scenario?.impact;
   const color = value == null ? 'text-zinc-400' : value > 0 ? 'text-emerald-400' : value < 0 ? 'text-rose-400' : 'text-zinc-400';
   return (
     <div className="rounded border border-zinc-800 p-3">
       <p className="text-[10px] uppercase tracking-widest text-zinc-500">{label}</p>
-      <p className={`mt-1 text-base font-semibold ${color}`}>{pct}</p>
+      <p className={`mt-1 text-base font-semibold ${color}`}>{formatPct(value)}</p>
+      <p className="mt-0.5 text-[10px] capitalize text-zinc-500">
+        {scenario?.expected_direction ?? 'neutral'} · {scenario?.probability != null ? `${Math.round(scenario.probability * 100)}% prob` : '-'}
+      </p>
     </div>
   );
 }
 
-export function ModelImpactModal({ open, onClose, data, loading }: Props) {
+export function ModelImpactModal({ open, onClose, data, loading, error }: Props) {
   const signal = data?.signal;
   const impact = data?.model_changes;
   const scenarios = data?.scenarios;
@@ -72,17 +87,34 @@ export function ModelImpactModal({ open, onClose, data, loading }: Props) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl border border-zinc-800 bg-zinc-950 text-white">
+        <DialogHeader>
+          <DialogTitle className="text-zinc-100">Model Impact</DialogTitle>
+          <DialogDescription className="text-zinc-500">
+            Event-driven DCF sensitivity and signal output.
+          </DialogDescription>
+        </DialogHeader>
+
         {loading && (
           <div className="flex items-center justify-center py-16 text-sm text-zinc-400">
             Running model analysis…
           </div>
         )}
 
-        {!loading && !data && (
-          <div className="py-8 text-center text-sm text-zinc-500">No data returned.</div>
+        {!loading && error && (
+          <div className="flex items-start gap-3 rounded-md border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <div className="font-medium">Unable to analyze this event.</div>
+              <div className="mt-1 text-rose-200/80">{error}</div>
+            </div>
+          </div>
         )}
 
-        {!loading && data && (
+        {!loading && !error && !data && (
+          <div className="py-8 text-center text-sm text-zinc-500">No model impact data returned.</div>
+        )}
+
+        {!loading && !error && data && (
           <div className="space-y-6">
             {/* Header: signal + DCF result */}
             <div className="flex items-start justify-between gap-4">
@@ -100,7 +132,7 @@ export function ModelImpactModal({ open, onClose, data, loading }: Props) {
                 <div className="text-right">
                   <p className="text-[10px] uppercase tracking-widest text-zinc-500">DCF Valuation Δ</p>
                   <p className={`text-2xl font-bold ${directionColor(summary.direction)}`}>
-                    {(summary.valuation_change ?? 0) >= 0 ? '+' : ''}{((summary.valuation_change ?? 0) * 100).toFixed(1)}%
+                    {formatPct(summary.valuation_change)}
                   </p>
                   {summary.base_valuation != null && summary.new_valuation != null && (
                     <p className="mt-0.5 text-xs text-zinc-400">
@@ -129,18 +161,9 @@ export function ModelImpactModal({ open, onClose, data, loading }: Props) {
               <div>
                 <p className="mb-2 text-[10px] uppercase tracking-widest text-zinc-500">Scenarios</p>
                 <div className="grid grid-cols-3 gap-3">
-                  <ScenarioBar label="Bull" value={scenarios.bull?.impact} />
-                  <ScenarioBar label="Base" value={scenarios.base?.impact} />
-                  <ScenarioBar label="Bear" value={scenarios.bear?.impact} />
-                </div>
-                <div className="mt-2 grid grid-cols-3 gap-3">
-                  {(['bull', 'base', 'bear'] as const).map((key) => (
-                    <p key={key} className="text-center text-[10px] text-zinc-500">
-                      {scenarios[key]?.probability != null
-                        ? `${Math.round(scenarios[key]!.probability * 100)}% prob`
-                        : ''}
-                    </p>
-                  ))}
+                  <ScenarioBar label="Bull" scenario={scenarios.bull} />
+                  <ScenarioBar label="Base" scenario={scenarios.base} />
+                  <ScenarioBar label="Bear" scenario={scenarios.bear} />
                 </div>
               </div>
             )}

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Activity, RefreshCcw } from 'lucide-react';
+import { readJsonResponse } from '@/lib/http/readJsonResponse';
 import { computeProbabilities, type ScenarioProbabilities } from '@/lib/probabilityModel';
 import { MACRO_CALENDAR, isPastEntry, type MacroCalendarEntry } from '@/lib/macroCalendar';
 import {
@@ -353,31 +354,21 @@ export default function EventsDashboard() {
       if (opts?.force) query.set('force', '1');
 
       const response = await fetch(`/api/market/events?${query.toString()}`, { cache: 'no-store' });
-      const raw = await response.json();
-      const parsed = marketEventsApiResponseSchema.safeParse(raw);
+      const raw = await readJsonResponse(response);
+      if (!raw.ok) {
+        setEvents([]);
+        setDiagnostics(undefined);
+        setError(raw.message);
+        return;
+      }
+
+      const parsed = marketEventsApiResponseSchema.safeParse(raw.data);
 
       if (!response.ok || !parsed.success) {
         setEvents([]);
         setDiagnostics(undefined);
         setError(parsed.success ? parsed.data.error || 'Failed to load events.' : 'Invalid events payload.');
         return;
-      }
-
-      if (parsed.data.events.length === 0) {
-        const demoQuery = new URLSearchParams({ view, limit: '20', provider: 'demo-seed' });
-        try {
-          const demoResponse = await fetch(`/api/market/events?${demoQuery.toString()}`, { cache: 'no-store' });
-          const demoRaw = await demoResponse.json();
-          const demoParsed = marketEventsApiResponseSchema.safeParse(demoRaw);
-          if (demoParsed.success && demoParsed.data.events.length > 0) {
-            setEvents(demoParsed.data.events);
-            setDiagnostics(demoParsed.data.diagnostics);
-            setIsDemo(true);
-            return;
-          }
-        } catch {
-          // demo fallback failed — fall through to show empty state
-        }
       }
 
       setEvents(parsed.data.events);

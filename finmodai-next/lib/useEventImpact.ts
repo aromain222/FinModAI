@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useState } from 'react';
+import { readJsonResponse } from '@/lib/http/readJsonResponse';
 import type { CurrentModel } from './applyEventMutation';
 
 // ─── Public types ────────────────────────────────────────────────────────────
@@ -75,7 +76,13 @@ export function useEventImpact() {
         body: JSON.stringify(params),
       });
 
-      const data: unknown = await response.json();
+      const parsedResponse = await readJsonResponse(response);
+      if (!parsedResponse.ok) {
+        setError(parsedResponse.message);
+        return null;
+      }
+
+      const data: unknown = parsedResponse.data;
 
       if (!response.ok) {
         const msg = data && typeof data === 'object' && 'error' in data
