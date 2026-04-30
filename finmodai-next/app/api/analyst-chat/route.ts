@@ -2584,7 +2584,17 @@ export async function POST(req: NextRequest) {
         route: route.intent,
         sources: [],
         factsCount: 0,
-        retrievalWarnings: retrievedData.warnings.length > 0 ? retrievedData.warnings : undefined,
+        retrievalWarnings: (() => {
+          const hasGoodEarningsData = earningsAgentResult != null;
+          const filtered = retrievedData.warnings.filter((w) => {
+            const lower = w.toLowerCase();
+            if (hasGoodEarningsData && lower.includes('fmp retrieval returned no usable')) return false;
+            if (hasGoodEarningsData && lower.includes('no financial data was retrieved')) return false;
+            if (hasGoodEarningsData && lower.includes('no live web data was available')) return false;
+            return true;
+          });
+          return filtered.length > 0 ? filtered : undefined;
+        })(),
         stockLookup: null,
         earningsRetrieval: earningsAgentResult,
         earningsPackageMeta: earningsRuntimeMeta,
@@ -2929,7 +2939,22 @@ export async function POST(req: NextRequest) {
       ],
       factsCount: facts.numbers.length + facts.events.length,
       dataGaps: facts.dataGaps.length > 0 ? facts.dataGaps : undefined,
-      retrievalWarnings: retrievedData.warnings.length > 0 ? retrievedData.warnings : undefined,
+      retrievalWarnings: (() => {
+        const hasGoodStockData =
+          responseStockLookup != null &&
+          (responseStockLookup.price != null ||
+            responseStockLookup.revenueLtm != null ||
+            responseStockLookup.marketCap != null);
+        const filtered = retrievedData.warnings.filter((w) => {
+          const lower = w.toLowerCase();
+          // Suppress FMP/financial-retrieval noise when Finnhub already delivered data
+          if (hasGoodStockData && lower.includes('fmp retrieval returned no usable')) return false;
+          if (hasGoodStockData && lower.includes('no financial data was retrieved')) return false;
+          if (hasGoodStockData && lower.includes('no live web data was available')) return false;
+          return true;
+        });
+        return filtered.length > 0 ? filtered : undefined;
+      })(),
       stockLookup: responseStockLookup,
       earningsRetrieval: earningsAgentResult,
       earningsPackageMeta: earningsRuntimeMeta,
