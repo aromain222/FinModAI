@@ -55,6 +55,13 @@ export const marketImpactSchema = z
   );
 export type MarketImpact = z.infer<typeof marketImpactSchema>;
 
+export const marketEventSignalSchema = z.object({
+  position: z.enum(['LONG', 'SHORT', 'NEUTRAL']),
+  conviction: z.number().min(0).max(1),
+  primary_driver: z.string().optional(),
+});
+export type MarketEventSignal = z.infer<typeof marketEventSignalSchema>;
+
 export const marketEventSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -66,6 +73,7 @@ export const marketEventSchema = z.object({
   transmissionPath: z.array(z.string().min(1)).min(1),
   watchNext: z.array(z.string().min(1)).min(1).max(3),
   status: marketEventStatusSchema.default('developing'),
+  signal: marketEventSignalSchema.optional(),
   firstSeenAt: z.string().datetime(),
   lastUpdatedAt: z.string().datetime(),
   sources: z.array(marketEventSourceSchema).min(1).max(8),

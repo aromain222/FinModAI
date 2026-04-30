@@ -409,6 +409,17 @@ export default function EventsPanel() {
                       <span className="rounded-full border border-zinc-700/60 px-2 py-0.5 text-[10px] text-zinc-300">
                         {event.horizon}
                       </span>
+                      {event.signal && (
+                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                          event.signal.position === 'LONG'
+                            ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                            : event.signal.position === 'SHORT'
+                              ? 'border-rose-500/40 bg-rose-500/10 text-rose-300'
+                              : 'border-zinc-600/40 bg-zinc-700/20 text-zinc-400'
+                        }`}>
+                          {event.signal.position} · {Math.round(event.signal.conviction * 100)}%
+                        </span>
+                      )}
                     </div>
                     <div className="mt-1 line-clamp-2 text-sm font-semibold leading-5 text-zinc-100">{event.title}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-zinc-400">

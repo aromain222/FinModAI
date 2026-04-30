@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { TRIGGER_QUERIES, type TriggerQueryId, PROVIDER_FETCH_LIMIT, MAX_FETCH_PER_QUERY_PROVIDER } from '@/lib/events/queries';
 import { gateAndScoreCandidates, type EventCandidate, type GatedCandidate, type GateCategory } from '@/lib/events/gateScore';
 import { clusterCandidates, type EventCluster } from '@/lib/events/cluster';
-import { classifyClusterWithOpenAI, type ClassifyDiagnostics } from '@/lib/events/classify';
+import { classifyClusterWithOpenAI, type ClassifiedEventPayload, type ClassifyDiagnostics } from '@/lib/events/classify';
 import {
   getSupabaseServiceClient,
   isEventsCacheFresh,
@@ -65,6 +65,8 @@ const MAX_ACTIVE_EVENTS = 20;
 const MAX_CLUSTER_COUNT = 45;
 const MAX_SOURCES_PER_CLUSTER = 8;
 const MAX_PEXELS_IMAGE_RESOLVES = 12;
+const LIVE_REFRESH_TIME_BUDGET_MS = 18_000;
+const MAX_SYNC_CLASSIFY_CLUSTERS = 8;
 
 const MATERIAL_KEYWORD_PATTERNS: RegExp[] = [
   /\binvasion\b/i,
@@ -116,6 +118,39 @@ function createDiagnostics(): PipelineDiagnostics {
     persistedSampleIds: [],
     classifierRawSamples: [],
   };
+}
+
+async function withLiveRefreshBudget(
+  task: Promise<{ classified: ClassifiedThread[]; fallback: ClassifiedThread[]; warning?: string; error?: string }>,
+  diagnostics: PipelineDiagnostics
+): Promise<{ classified: ClassifiedThread[]; fallback: ClassifiedThread[]; warning?: string; error?: string }> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<{ classified: ClassifiedThread[]; fallback: ClassifiedThread[]; warning?: string; error?: string }>((resolve) => {
+    timeoutId = setTimeout(() => {
+      if (diagnostics.openaiErrors.length < 8) {
+        diagnostics.openaiErrors.push('live_refresh_route_timeout_guard');
+      }
+      resolve({
+        classified: [],
+        fallback: [],
+        warning: 'Live refresh exceeded route time budget',
+        error: 'LIVE_REFRESH_TIMEOUT',
+      });
+    }, LIVE_REFRESH_TIME_BUDGET_MS);
+  });
+
+  task.catch((error) => {
+    if (diagnostics.openaiErrors.length < 8) {
+      const message = error instanceof Error ? error.message : String(error);
+      diagnostics.openaiErrors.push(`late_live_refresh_failed:${message.slice(0, 180)}`);
+    }
+  });
+
+  try {
+    return await Promise.race([task, timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 }
 
 function clampLimit(limit: number): number {
@@ -509,6 +544,77 @@ function buildSources(cluster: EventCluster): MarketEventSource[] {
     imageUrl: item.imageUrl,
     publishedAt: item.publishedAt,
   }));
+}
+
+function buildDeterministicLiveEvent(cluster: EventCluster): ClassifiedThread | null {
+  const firstItem = cluster.items[0];
+  if (!firstItem) return null;
+
+  const defaults = mapDefaultsFromGate(firstItem.gateCategory);
+  const sources = buildSources(cluster);
+  const event = marketEventSchema.parse({
+    id: cluster.fingerprint,
+    title: cluster.canonicalTitle,
+    eventType: defaults.eventType,
+    severity: Math.max(defaults.severity, firstItem.score),
+    horizon: defaults.horizon,
+    drivers: defaults.drivers,
+    marketImpact: defaults.marketImpact,
+    transmissionPath: defaults.transmissionPath,
+    watchNext: [
+      'Watch follow-up source reporting and official confirmations.',
+      'Watch whether the move propagates into rates, credit, FX, commodities, or sector leadership.',
+    ],
+    status: deterministicStatus(cluster),
+    firstSeenAt: cluster.firstSeenAt,
+    lastUpdatedAt: cluster.lastUpdatedAt,
+    sources,
+  });
+
+  return {
+    fingerprint: cluster.fingerprint,
+    event,
+    keyEntities: unique(cluster.keyEntities),
+  };
+}
+
+function buildDeterministicLiveFallback(clusters: EventCluster[], requestedLimit: number): ClassifiedThread[] {
+  return clusters
+    .map(buildDeterministicLiveEvent)
+    .filter((item): item is ClassifiedThread => item !== null)
+    .sort((a, b) => b.event.severity - a.event.severity || new Date(b.event.lastUpdatedAt).getTime() - new Date(a.event.lastUpdatedAt).getTime())
+    .slice(0, Math.min(requestedLimit, MAX_ACTIVE_EVENTS));
+}
+
+async function classifyClusterWithDeadline(
+  cluster: EventCluster,
+  defaults: Parameters<typeof classifyClusterWithOpenAI>[1],
+  diagnostics: ClassifyDiagnostics,
+  debug: boolean,
+  deadlineMs?: number
+): Promise<ClassifiedEventPayload | null> {
+  if (!deadlineMs) return classifyClusterWithOpenAI(cluster, defaults, diagnostics, debug);
+  const remainingMs = deadlineMs - Date.now();
+  if (remainingMs <= 750) return null;
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timeoutId = setTimeout(() => {
+      if (diagnostics.openaiErrors.length < 8) {
+        diagnostics.openaiErrors.push('classifier_time_budget_exceeded');
+      }
+      resolve(null);
+    }, Math.max(750, remainingMs));
+  });
+
+  try {
+    return await Promise.race([
+      classifyClusterWithOpenAI(cluster, defaults, diagnostics, debug),
+      timeout,
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 }
 
 function buildClassifyDiagnostics(diagnostics: PipelineDiagnostics): ClassifyDiagnostics {
@@ -1185,30 +1291,6 @@ function liveClassifierUnavailable(diagnostics: PipelineDiagnostics, classifiedC
   );
 }
 
-function buildClassifierFallbackResult(params: {
-  view: MarketEventsView;
-  requestedLimit: number;
-  diagnostics: PipelineDiagnostics;
-}): {
-  provider: MarketEventsProvider;
-  fallback: boolean;
-  events: MarketEvent[];
-  warning: string;
-  message: string;
-  diagnostics: PipelineDiagnostics;
-} {
-  const events = filterForView(buildDemoSeedEvents(), params.view, params.requestedLimit);
-  params.diagnostics.returned = events.length;
-  return {
-    provider: 'demo-seed',
-    fallback: true,
-    events,
-    warning: 'Live classifier unavailable',
-    message: 'Live classifier unavailable',
-    diagnostics: params.diagnostics,
-  };
-}
-
 function filterClassifiedThreadsForView(
   threads: ClassifiedThread[],
   view: MarketEventsView,
@@ -1225,8 +1307,10 @@ async function refreshLivePipeline(params: {
   supabase: SupabaseClient | null;
   debug: boolean;
   diagnostics: PipelineDiagnostics;
-}): Promise<{ classified: ClassifiedThread[]; warning?: string; error?: string }> {
-  const { supabase, debug, diagnostics } = params;
+  deadlineMs?: number;
+  requestedLimit: number;
+}): Promise<{ classified: ClassifiedThread[]; fallback: ClassifiedThread[]; warning?: string; error?: string }> {
+  const { supabase, debug, diagnostics, deadlineMs } = params;
 
   const fetched = await fetchTriggeredCandidates(diagnostics);
   const deduped = dedupeCandidates(fetched);
@@ -1241,8 +1325,10 @@ async function refreshLivePipeline(params: {
   clusters.slice(0, 8).forEach((cluster) => pushLimited(diagnostics.clusteredSampleIds, cluster.fingerprint.slice(0, 12)));
 
   if (clusters.length === 0) {
-    return { classified: [], warning: 'No events passed filters' };
+    return { classified: [], fallback: [], warning: 'No events passed filters' };
   }
+
+  const fallback = buildDeterministicLiveFallback(clusters, params.requestedLimit);
 
   const existingByFingerprint =
     supabase !== null ? await readExistingEventMeta(supabase, clusters.map((cluster) => cluster.fingerprint)) : new Map<string, ExistingEventMeta>();
@@ -1251,7 +1337,14 @@ async function refreshLivePipeline(params: {
   const classified: ClassifiedThread[] = [];
   let pexelsResolves = 0;
 
-  for (const cluster of clusters) {
+  for (const cluster of clusters.slice(0, MAX_SYNC_CLASSIFY_CLUSTERS)) {
+    if (deadlineMs && Date.now() > deadlineMs) {
+      if (diagnostics.openaiErrors.length < 8) {
+        diagnostics.openaiErrors.push('live_refresh_time_budget_exceeded');
+      }
+      break;
+    }
+
     const existing = existingByFingerprint.get(cluster.fingerprint);
     if (!shouldClassifyCluster(cluster, existing)) continue;
 
@@ -1259,7 +1352,7 @@ async function refreshLivePipeline(params: {
     if (!firstItem) continue;
 
     const defaults = mapDefaultsFromGate(firstItem.gateCategory);
-    const classification = await classifyClusterWithOpenAI(
+    const classification = await classifyClusterWithDeadline(
       cluster,
       {
         title: cluster.canonicalTitle,
@@ -1271,13 +1364,18 @@ async function refreshLivePipeline(params: {
         transmissionPath: defaults.transmissionPath,
       },
       classifyDiagnostics,
-      debug
+      debug,
+      deadlineMs
     );
 
     if (!classification || !classification.marketMoving) continue;
 
     const sources = buildSources(cluster);
-    if (!sources.some((source) => Boolean(source.imageUrl)) && pexelsResolves < MAX_PEXELS_IMAGE_RESOLVES) {
+    if (
+      (!deadlineMs || Date.now() < deadlineMs) &&
+      !sources.some((source) => Boolean(source.imageUrl)) &&
+      pexelsResolves < MAX_PEXELS_IMAGE_RESOLVES
+    ) {
       const resolvedImageUrl = await resolveClusterImageUrl(cluster);
       if (resolvedImageUrl) {
         pexelsResolves += 1;
@@ -1299,6 +1397,7 @@ async function refreshLivePipeline(params: {
       transmissionPath: classification.transmissionPath,
       watchNext: classification.watchNext,
       status: classification.status ?? deterministicStatus(cluster),
+      signal: classification.signal,
       firstSeenAt: cluster.firstSeenAt,
       lastUpdatedAt: cluster.lastUpdatedAt,
       sources,
@@ -1329,6 +1428,7 @@ async function refreshLivePipeline(params: {
 
   return {
     classified,
+    fallback,
     warning: classified.length === 0 ? 'No events passed filters' : undefined,
   };
 }
@@ -1396,9 +1496,25 @@ export async function getMarketEvents(params: {
       }
     }
 
-    const refreshed = await refreshLivePipeline({ supabase, debug, diagnostics });
-    if (liveClassifierUnavailable(diagnostics, refreshed.classified.length)) {
-      return buildClassifierFallbackResult({ view, requestedLimit, diagnostics });
+    const deadlineMs = Date.now() + LIVE_REFRESH_TIME_BUDGET_MS;
+    const refreshed = await withLiveRefreshBudget(
+      refreshLivePipeline({ supabase, debug, diagnostics, deadlineMs, requestedLimit }),
+      diagnostics
+    );
+    if (refreshed.error === 'LIVE_REFRESH_TIMEOUT' || liveClassifierUnavailable(diagnostics, refreshed.classified.length)) {
+      const fallbackEvents = filterClassifiedThreadsForView(refreshed.fallback, view, requestedLimit);
+      diagnostics.returned = fallbackEvents.length;
+      return {
+        provider: 'live',
+        fallback: true,
+        events: fallbackEvents,
+        warning: refreshed.error === 'LIVE_REFRESH_TIMEOUT'
+          ? 'Live classifier timed out; showing unclassified live event candidates'
+          : 'Live classifier unavailable; showing unclassified live event candidates',
+        message: 'Showing real fetched headlines with deterministic market mapping.',
+        error: refreshed.error,
+        diagnostics,
+      };
     }
 
     if (supabase) {
@@ -1435,6 +1551,20 @@ export async function getMarketEvents(params: {
         };
       }
 
+      if (refreshed.fallback.length > 0) {
+        const fallbackEvents = filterClassifiedThreadsForView(refreshed.fallback, view, requestedLimit);
+        diagnostics.returned = fallbackEvents.length;
+        return {
+          provider: 'live',
+          fallback: true,
+          events: fallbackEvents,
+          warning: refreshed.warning || 'No classified live events; showing unclassified live event candidates',
+          message: 'Showing real fetched headlines with deterministic market mapping.',
+          error: refreshed.error,
+          diagnostics,
+        };
+      }
+
       return {
         provider: 'live',
         fallback: false,
@@ -1448,6 +1578,20 @@ export async function getMarketEvents(params: {
 
     const adHoc = filterClassifiedThreadsForView(refreshed.classified, view, requestedLimit);
     diagnostics.returned = adHoc.length;
+    if (adHoc.length === 0 && refreshed.fallback.length > 0) {
+      const fallbackEvents = filterClassifiedThreadsForView(refreshed.fallback, view, requestedLimit);
+      diagnostics.returned = fallbackEvents.length;
+      return {
+        provider: 'live',
+        fallback: true,
+        events: fallbackEvents,
+        warning: refreshed.warning || 'No classified live events; showing unclassified live event candidates',
+        message: 'Showing real fetched headlines with deterministic market mapping.',
+        error: refreshed.error,
+        diagnostics,
+      };
+    }
+
     return {
       provider: 'live',
       fallback: false,
@@ -1461,9 +1605,13 @@ export async function getMarketEvents(params: {
     const message = error instanceof Error ? error.message : 'PIPELINE_FAILED';
     if (diagnostics.openaiErrors.length < 8) diagnostics.openaiErrors.push(`pipeline_failed:${message.slice(0, 180)}`);
     return {
-      ...buildClassifierFallbackResult({ view, requestedLimit, diagnostics }),
+      provider: 'live',
+      fallback: false,
+      events: [],
       error: 'PIPELINE_FAILED',
-      warning: message || 'Live classifier unavailable',
+      warning: message || 'Live event pipeline unavailable',
+      message: 'Live event pipeline unavailable',
+      diagnostics,
     };
   }
 }

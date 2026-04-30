@@ -56,7 +56,12 @@ If marketMoving=true, return:
   "transmissionPath": ["Event -> Economic effect -> Market reaction (full causal chain)"],
   "watchNext": ["upcoming catalyst that could amplify or reverse"],
   "status": "developing" | "confirmed" | "resolved",
-  "keyEntities": ["affected tickers, countries, or instruments"]
+  "keyEntities": ["affected tickers, countries, or instruments"],
+  "signal": {
+    "position": "LONG" | "SHORT" | "NEUTRAL",
+    "conviction": 0.0-1.0,
+    "primary_driver": "the single dominant market driver"
+  }
 }
 
 If marketMoving=false, return:
@@ -84,6 +89,11 @@ const classifierSchema = z.object({
   status: marketEventStatusSchema.optional(),
   watchNext: z.array(z.string().min(1)).min(1).max(3).optional(),
   keyEntities: z.array(z.string().min(1)).max(12).optional(),
+  signal: z.object({
+    position: z.enum(['LONG', 'SHORT', 'NEUTRAL']),
+    conviction: z.number().min(0).max(1),
+    primary_driver: z.string().optional(),
+  }).optional(),
 });
 
 export type ClassifyDiagnostics = {
@@ -105,6 +115,7 @@ export type ClassifiedEventPayload = {
   status?: MarketEventStatus;
   watchNext: string[];
   keyEntities: string[];
+  signal?: { position: 'LONG' | 'SHORT' | 'NEUTRAL'; conviction: number; primary_driver?: string };
 };
 
 function clamp(value: number | undefined, fallback: number): number {
@@ -135,6 +146,19 @@ function extractJsonObject(text: string): unknown {
     throw new Error('No JSON object found in classifier response.');
   }
   return JSON.parse(candidate.slice(firstBrace, lastBrace + 1));
+}
+
+function deriveSignalFallback(
+  severity: number,
+  drivers: string[],
+): { position: 'LONG' | 'SHORT' | 'NEUTRAL'; conviction: number; primary_driver?: string } {
+  const text = drivers.join(' ').toLowerCase();
+  const bullish = /\b(rate cut|easing|stimulus|recovery|beat|upgrade|deal|ceasefire|resolution)\b/.test(text);
+  const bearish = /\b(rate hike|tariff|sanction|conflict|war|miss|downgrade|default|recession|tightening|probe|ban)\b/.test(text);
+  const conviction = Math.min(0.85, Math.max(0.2, severity / 100));
+  if (bullish && !bearish) return { position: 'LONG', conviction, primary_driver: drivers[0] };
+  if (bearish && !bullish) return { position: 'SHORT', conviction, primary_driver: drivers[0] };
+  return { position: 'NEUTRAL', conviction: Math.min(conviction, 0.4), primary_driver: drivers[0] };
 }
 
 export async function classifyClusterWithOpenAI(
@@ -228,6 +252,7 @@ export async function classifyClusterWithOpenAI(
         'Watch official confirmations and policy statements.',
       ]).slice(0, 3),
       keyEntities: dedupeStrings(parsed.keyEntities, cluster.keyEntities).slice(0, 12),
+      signal: parsed.signal ?? deriveSignalFallback(parsed.severity ?? defaults.severity, parsed.drivers ?? defaults.drivers),
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
