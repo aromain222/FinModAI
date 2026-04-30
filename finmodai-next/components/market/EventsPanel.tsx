@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ExpandableCard from '@/components/news/ExpandableCard';
@@ -51,6 +51,8 @@ const MARKET_IMPACT_ORDER: Array<keyof MarketEvent['marketImpact']> = [
   'sectors',
 ];
 
+type ModelImpactModalData = ComponentProps<typeof ModelImpactModal>['data'];
+
 function formatTime(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return 'Unknown';
@@ -97,6 +99,24 @@ function formatImpactLabel(key: keyof MarketEvent['marketImpact']): string {
   }
 }
 
+function buildModelImpactContext(event: MarketEvent): string {
+  const marketImpact = MARKET_IMPACT_ORDER
+    .map((key) => {
+      const value = event.marketImpact[key];
+      return value ? `${formatImpactLabel(key)}: ${value}` : null;
+    })
+    .filter(Boolean);
+
+  return [
+    event.drivers.join(' '),
+    marketImpact.join(' '),
+    event.transmissionPath.join(' '),
+    event.watchNext.join(' '),
+  ]
+    .filter((section) => section.trim().length > 0)
+    .join('\n');
+}
+
 export default function EventsPanel() {
   const [view, setView] = useState<MarketEventsView>('active');
   const [eventFilter, setEventFilter] = useState<MarketEvent['eventType'] | 'all'>('all');
@@ -112,11 +132,13 @@ export default function EventsPanel() {
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [modelImpactOpen, setModelImpactOpen] = useState(false);
-  const [modelImpactData, setModelImpactData] = useState<Record<string, unknown> | null>(null);
+  const [modelImpactData, setModelImpactData] = useState<ModelImpactModalData | null>(null);
   const [modelImpactLoading, setModelImpactLoading] = useState(false);
+  const [modelImpactError, setModelImpactError] = useState<string | null>(null);
 
   const handleAnalyzeImpact = useCallback(async (event: MarketEvent) => {
     setModelImpactData(null);
+    setModelImpactError(null);
     setModelImpactOpen(true);
     setModelImpactLoading(true);
     try {
@@ -125,13 +147,29 @@ export default function EventsPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           event: event.title,
-          context: event.drivers.join('. '),
+          context: buildModelImpactContext(event),
         }),
       });
-      const data = await res.json() as Record<string, unknown>;
-      setModelImpactData(data);
-    } catch {
+
+      const data = await res.json().catch(() => null) as unknown;
+      const responseError =
+        data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
+          ? data.error
+          : null;
+      if (!res.ok) {
+        setModelImpactError(responseError ?? 'Model impact request failed.');
+        return;
+      }
+
+      if (!data || typeof data !== 'object' || responseError) {
+        setModelImpactError(responseError ?? 'Invalid model impact response.');
+        return;
+      }
+
+      setModelImpactData(data as ModelImpactModalData);
+    } catch (requestError) {
       setModelImpactData(null);
+      setModelImpactError(requestError instanceof Error ? requestError.message : 'Model impact request failed.');
     } finally {
       setModelImpactLoading(false);
     }
@@ -152,7 +190,17 @@ export default function EventsPanel() {
       if (opts?.force) query.set('force', '1');
 
       const response = await fetch(`/api/market/events?${query.toString()}`, { cache: 'no-store' });
-      const raw = await response.json();
+      let raw: unknown;
+      try {
+        raw = await response.json();
+      } catch {
+        setEvents([]);
+        setProvider('live');
+        setFallback(false);
+        setDiagnostics(undefined);
+        setError('Market events service is temporarily unavailable. Try switching to Curated mode.');
+        return;
+      }
       const parsed = marketEventsApiResponseSchema.safeParse(raw);
 
       if (!response.ok || !parsed.success) {
@@ -467,8 +515,9 @@ export default function EventsPanel() {
       <ModelImpactModal
         open={modelImpactOpen}
         onClose={setModelImpactOpen}
-        data={modelImpactData as Parameters<typeof ModelImpactModal>[0]['data']}
+        data={modelImpactData}
         loading={modelImpactLoading}
+        error={modelImpactError}
       />
     </div>
   );

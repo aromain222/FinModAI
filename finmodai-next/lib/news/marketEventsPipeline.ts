@@ -210,7 +210,7 @@ async function fetchNewsApi(query: string, queryId: TriggerQueryId, limit: numbe
     pageSize: String(limit),
   });
 
-  const response = await fetch(`https://newsapi.org/v2/everything?${qs.toString()}`, { cache: 'no-store' });
+  const response = await fetch(`https://newsapi.org/v2/everything?${qs.toString()}`, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
   if (!response.ok) throw new Error(`NEWSAPI_HTTP_${response.status}`);
 
   const payload = (await response.json()) as { articles?: Array<Record<string, unknown>> };
@@ -251,6 +251,7 @@ async function fetchPerigon(query: string, queryId: TriggerQueryId, limit: numbe
   const response = await fetch(`https://api.goperigon.com/v1/all?${qs.toString()}`, {
     cache: 'no-store',
     headers: { Referer: perigonOrigin, Origin: perigonOrigin },
+    signal: AbortSignal.timeout(8000),
   });
   if (!response.ok) throw new Error(`PERIGON_HTTP_${response.status}`);
 
@@ -287,7 +288,7 @@ async function fetchBenzinga(query: string, queryId: TriggerQueryId, limit: numb
     search: query,
   });
 
-  const response = await fetch(`https://api.benzinga.com/api/v2/news?${qs.toString()}`, { cache: 'no-store' });
+  const response = await fetch(`https://api.benzinga.com/api/v2/news?${qs.toString()}`, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
   if (!response.ok) throw new Error(`BENZINGA_HTTP_${response.status}`);
 
   const payload = (await response.json()) as { data?: Array<Record<string, unknown>>; articles?: Array<Record<string, unknown>> };
@@ -338,7 +339,7 @@ async function fetchMarketaux(query: string, queryId: TriggerQueryId, limit: num
     published_after: buildFromDateIso(7),
   });
 
-  const response = await fetch(`https://api.marketaux.com/v1/news/all?${qs.toString()}`, { cache: 'no-store' });
+  const response = await fetch(`https://api.marketaux.com/v1/news/all?${qs.toString()}`, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
   if (!response.ok) throw new Error(`MARKETAUX_HTTP_${response.status}`);
 
   const payload = (await response.json()) as { data?: Array<Record<string, unknown>> };
