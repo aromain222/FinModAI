@@ -55,7 +55,7 @@ def _fetch_quarterly_revenue(ticker: str, quarters: int = 12) -> tuple[list[str]
 
         # Sort chronologically
         rev_row = rev_row.sort_index()
-        labels = [d.strftime("Q%q %Y") if hasattr(d, "strftime") else str(d) for d in rev_row.index]
+        labels = [f"Q{d.quarter} {d.year}" if hasattr(d, "quarter") else str(d) for d in rev_row.index]
         values = [(v / 1e6) for v in rev_row.values]  # raw dollars → millions
         return labels[-quarters:], values[-quarters:]
     except Exception as exc:
