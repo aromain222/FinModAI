@@ -341,6 +341,45 @@ function isRevenueForecastVisualizationPrompt(message: string): boolean {
   );
 }
 
+function isCompanyForecastPrompt(message: string): boolean {
+  const text = message.toLowerCase();
+  return (
+    /\b(forecast|outlook|predict|prediction|project|projection|move|price target|where.*(?:trade|go)|next\s+\d+\s*(?:days?|weeks?|months?))\b/.test(text) ||
+    /\b\d+\s*(?:day|week|month)s?\s+(?:forecast|outlook|prediction|move)\b/.test(text)
+  );
+}
+
+function parseForecastHorizonDays(message: string): number {
+  const text = message.toLowerCase();
+  const explicit = text.match(/\b(\d{1,2})\s*[- ]?\s*(day|days|week|weeks|month|months)\b/);
+  if (explicit?.[1] && explicit[2]) {
+    const amount = Number(explicit[1]);
+    const unit = explicit[2];
+    if (Number.isFinite(amount) && amount > 0) {
+      const days =
+        unit.startsWith('day') ? amount :
+        unit.startsWith('week') ? amount * 7 :
+        amount * 30;
+      return Math.min(180, Math.max(5, days));
+    }
+  }
+  if (/\bnext\s+month\b|\bone\s+month\b/.test(text)) return 30;
+  if (/\bnext\s+quarter\b|\bthree\s+months?\b/.test(text)) return 90;
+  return 30;
+}
+
+function formatForecastHorizon(days: number): string {
+  if (days % 30 === 0) {
+    const months = days / 30;
+    return `${months}-month`;
+  }
+  if (days % 7 === 0) {
+    const weeks = days / 7;
+    return `${weeks}-week`;
+  }
+  return `${days}-day`;
+}
+
 function isTerseFollowUpQuestion(message: string): boolean {
   const text = message.trim().toLowerCase();
   return (
@@ -1844,21 +1883,27 @@ export async function POST(req: NextRequest) {
           )}`
         : null;
 
-    // TimesFM price + revenue forecast — injected for company questions to support
-    // "how will this stock move" style queries. Fetched in parallel with 8s timeout.
+    // TimesFM price + revenue forecast — injected for company questions and
+    // explicit forecast/outlook prompts. Fetched in parallel with 8s timeout.
     let timesFMBlock: string | null = null;
-    if (route.intent === 'company_question' && resolvedTicker) {
+    const shouldInjectTimesFmForecast =
+      Boolean(resolvedTicker) &&
+      (route.intent === 'company_question' || isCompanyForecastPrompt(lastUserMessage));
+    if (shouldInjectTimesFmForecast && resolvedTicker) {
       try {
         const origin = req.nextUrl.origin;
         const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000));
+        const horizonDays = parseForecastHorizonDays(lastUserMessage);
+        const horizonLabel = formatForecastHorizon(horizonDays);
+        const revenueQuarters = Math.min(8, Math.max(1, Math.ceil(horizonDays / 90)));
 
         const [priceRes, revRes] = await Promise.all([
           Promise.race([
-            fetch(`${origin}/api/timesfm?type=price&ticker=${resolvedTicker}&horizon=30`, { cache: 'no-store' }),
+            fetch(`${origin}/api/timesfm?type=price&ticker=${resolvedTicker}&horizon=${horizonDays}`, { cache: 'no-store' }),
             timeout,
           ]),
           Promise.race([
-            fetch(`${origin}/api/timesfm?type=revenue&ticker=${resolvedTicker}`, { cache: 'no-store' }),
+            fetch(`${origin}/api/timesfm?type=revenue&ticker=${resolvedTicker}&quarters=${revenueQuarters}`, { cache: 'no-store' }),
             timeout,
           ]),
         ]);
@@ -1888,13 +1933,13 @@ export async function POST(req: NextRequest) {
                 ? buildEventAdjustedForecast(pd, marketEventAdjustment, 'market_events')
                 : null;
               const eventSynthesisBlock = eventSynthesis
-                ? `\nEvent overlay: ${eventSynthesis.event_adjustment.label ?? 'active market events'} implies a ${eventSynthesis.event_adjustment.price_proxy_pct >= 0 ? '+' : ''}${eventSynthesis.event_adjustment.price_proxy_pct.toFixed(1)}% 30-day price proxy after confidence/horizon weighting.\n` +
+                ? `\nEvent overlay: ${eventSynthesis.event_adjustment.label ?? 'active market events'} implies a ${eventSynthesis.event_adjustment.price_proxy_pct >= 0 ? '+' : ''}${eventSynthesis.event_adjustment.price_proxy_pct.toFixed(1)}% ${horizonLabel} price proxy after confidence/horizon weighting.\n` +
                   `Combined outlook: $${eventSynthesis.baseline.start_price.toFixed(2)} → $${eventSynthesis.combined.end_price.toFixed(2)} (${eventSynthesis.combined.direction}, ${eventSynthesis.combined.return_pct >= 0 ? '+' : ''}${eventSynthesis.combined.return_pct.toFixed(1)}%).\n` +
                   `Caveat: ${eventSynthesis.caveat}`
                 : '';
               parts.push(
-                `TIMESFM 30-DAY PRICE FORECAST (Google foundation model, time-series extrapolation from historical price patterns — not event-driven):\n` +
-                `Current price: $${lastActual.toFixed(2)} → 30-day forecast: $${endForecast.toFixed(2)} (${direction}, ${pctChangeValue >= 0 ? '+' : ''}${pctChange}%)${bandStr}\n` +
+                `TIMESFM ${horizonLabel.toUpperCase()} PRICE FORECAST (Google foundation model, time-series extrapolation from historical price patterns — not event-driven):\n` +
+                `Current price: $${lastActual.toFixed(2)} → ${horizonLabel} forecast: $${endForecast.toFixed(2)} (${direction}, ${pctChangeValue >= 0 ? '+' : ''}${pctChange}%)${bandStr}\n` +
                 `Note: this reflects momentum/trend continuation only; news events are not inputs to this model.` +
                 eventSynthesisBlock
               );
@@ -1915,7 +1960,7 @@ export async function POST(req: NextRequest) {
               .map((v, i) => `${rd.forecast!.labels[i]}: $${Math.round(v)}M`)
               .join(', ');
             parts.push(
-              `TIMESFM REVENUE FORECAST:\nImplied NTM growth: ${Number(growth) >= 0 ? '+' : ''}${growth}%\nQuarterly projections: ${fwdRevenue}`
+              `TIMESFM REVENUE FORECAST (${revenueQuarters} quarter${revenueQuarters === 1 ? '' : 's'}):\nImplied NTM growth: ${Number(growth) >= 0 ? '+' : ''}${growth}%\nQuarterly projections: ${fwdRevenue}`
             );
           }
         }
@@ -1923,9 +1968,10 @@ export async function POST(req: NextRequest) {
         if (parts.length > 0) {
           parts.push(
             `SYNTHESIS GUIDANCE: When asked how a stock will move or what the price outlook is, ` +
-            `lead with the TimesFM 30-day baseline, then layer in any event or news signals you know about ` +
+            `lead with the TimesFM ${horizonLabel} baseline, then layer in any event or news signals you know about ` +
             `(earnings, macro events, rate decisions, geopolitical risk) as adjustments on top of that baseline. ` +
             `If a combined outlook is provided, use that as the primary net view. ` +
+            `Do not say no internal forecast model is loaded when this TimesFM block is present. ` +
             `Do not present TimesFM and event signals as unrelated bullets; synthesize baseline + overlay into one conclusion.`
           );
           timesFMBlock = parts.join('\n\n');
