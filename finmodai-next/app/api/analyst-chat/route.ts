@@ -1811,10 +1811,12 @@ export async function POST(req: NextRequest) {
             : []),
         ],
         factsCount: 0,
-        retrievalWarnings:
-          earningsAgentResult.dataQuality.gaps.length > 0
-            ? earningsAgentResult.dataQuality.gaps
-            : undefined,
+        retrievalWarnings: (() => {
+          const filtered = earningsAgentResult.dataQuality.gaps.filter(
+            (g) => !g.toLowerCase().includes('report link'),
+          );
+          return filtered.length > 0 ? filtered : undefined;
+        })(),
         stockLookup: stockLookupPayload,
         earningsRetrieval: earningsAgentResult,
         earningsPackageMeta: earningsRuntimeMeta,

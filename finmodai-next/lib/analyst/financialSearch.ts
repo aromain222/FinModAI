@@ -150,6 +150,12 @@ function fmtUsd(value: number | null | undefined): string {
   return `$${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 }
 
+// Snapshot fields (marketCap, revenueLtm, etc.) are stored in millions in Supabase.
+function fmtUsdM(value: number | null | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
+  return fmtUsd(value * 1e6);
+}
+
 function fmtRawNumber(value: number | null | undefined): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
   return value.toLocaleString('en-US', { maximumFractionDigits: 2 });
@@ -355,11 +361,11 @@ function buildRankedFacts(
 
   if (stockLookup) {
     push('Current price', fmtUsd(stockLookup.price), 'price', stockLookup.source.price ?? topSourceLabel, null, stockLookup.priceAsOfDate);
-    push('Market cap', fmtUsd(stockLookup.marketCap), 'marketCap', stockLookup.source.price ?? topSourceLabel, null, stockLookup.priceAsOfDate);
-    push('LTM revenue', fmtUsd(stockLookup.revenueLtm), 'revenueLtm', stockLookup.source.fundamentals ?? topSourceLabel, null, stockLookup.asOfDate);
-    push('LTM EBITDA', fmtUsd(stockLookup.ebitdaLtm), 'ebitdaLtm', stockLookup.source.fundamentals ?? topSourceLabel, null, stockLookup.asOfDate);
-    push('Cash', fmtUsd(stockLookup.cash), 'cash', stockLookup.source.fundamentals ?? topSourceLabel, null, stockLookup.asOfDate);
-    push('Total debt', fmtUsd(stockLookup.totalDebt), 'totalDebt', stockLookup.source.fundamentals ?? topSourceLabel, null, stockLookup.asOfDate);
+    push('Market cap', fmtUsdM(stockLookup.marketCap), 'marketCap', stockLookup.source.price ?? topSourceLabel, null, stockLookup.priceAsOfDate);
+    push('LTM revenue', fmtUsdM(stockLookup.revenueLtm), 'revenueLtm', stockLookup.source.fundamentals ?? topSourceLabel, null, stockLookup.asOfDate);
+    push('LTM EBITDA', fmtUsdM(stockLookup.ebitdaLtm), 'ebitdaLtm', stockLookup.source.fundamentals ?? topSourceLabel, null, stockLookup.asOfDate);
+    push('Cash', fmtUsdM(stockLookup.cash), 'cash', stockLookup.source.fundamentals ?? topSourceLabel, null, stockLookup.asOfDate);
+    push('Total debt', fmtUsdM(stockLookup.totalDebt), 'totalDebt', stockLookup.source.fundamentals ?? topSourceLabel, null, stockLookup.asOfDate);
     push('Shares outstanding', fmtRawNumber(stockLookup.sharesOutstanding), 'sharesOutstanding', stockLookup.source.fundamentals ?? topSourceLabel, null, stockLookup.asOfDate);
   }
 
@@ -458,7 +464,8 @@ function buildDeterministicReply(
   const filing = params.facts.companies[0]?.latestQuarterReportUrl
     ? ` Latest filing link: ${params.facts.companies[0]?.latestQuarterReportUrl}.`
     : '';
-  const warningLine = params.warnings.length > 0 ? ` Warning: ${params.warnings[0]}` : '';
+  // Only surface warnings when no facts were found — warnings alongside good data are confusing.
+  const warningLine = params.warnings.length > 0 && params.rankedFacts.length === 0 ? ` Warning: ${params.warnings[0]}` : '';
   return `${subject}: ${metrics}.${filing}${warningLine}`.trim();
 }
 

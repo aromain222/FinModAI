@@ -26,7 +26,10 @@ function formatNumber(value: number | null): string | null {
 
 function formatMoneyMillions(value: number | null): string | null {
   if (value === null || !Number.isFinite(value)) return null;
-  return `$${value.toLocaleString('en-US')}M`;
+  const abs = Math.abs(value);
+  if (abs >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `$${(value / 1e6).toFixed(0)}M`;
+  return `$${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
 function formatQuarterLabel(result: EarningsRetrievalAgentResult): string {
@@ -123,6 +126,6 @@ export function buildDeterministicEarningsSummaryCard(params: {
     metrics,
     highlights: result.commentary.highlights.slice(0, 2),
     nextEarningsDate: nextEarnings?.displayDate ?? null,
-    warnings: result.dataQuality.gaps.slice(0, 2),
+    warnings: result.dataQuality.gaps.filter((g) => !g.toLowerCase().includes('report link')).slice(0, 2),
   };
 }
