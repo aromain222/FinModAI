@@ -4,6 +4,7 @@ import { loadDemoSnapshots, type DemoCompanySnapshot } from '@/lib/demo/demoSnap
 import { buildSeededFallbackLtm } from '@/lib/demo/seededTickerFallback';
 import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKey';
 import { inferTickerFromPrompt } from '@/lib/analyst/retrieval';
+import { getLiveCompanyFinancialSnapshot, type LiveFinancialSnapshot } from '@/lib/data/company/liveFinancialSnapshot';
 import { resolveCompanyProfile } from '@/lib/data/company/resolveCompanyProfile';
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 import { formatCompactCurrency } from '@/lib/analyst/dcfFormatting';
@@ -436,6 +437,39 @@ function mapStoredProfileToSnapshot(
   };
 }
 
+function mapLiveFinancialSnapshotToResolved(live: LiveFinancialSnapshot | null): ResolvedCompany | null {
+  if (!live) return null;
+
+  return {
+    ticker: live.ticker,
+    source: live.source.fundamentals ?? live.source.company ?? live.source.price ?? 'live_financial_snapshot',
+    asOfDate: live.asOfDate ?? live.priceAsOfDate ?? null,
+    snapshot: {
+      ticker: live.ticker,
+      companyName: live.companyName ?? live.ticker,
+      sector: live.sector ?? null,
+      revenueLtm: live.revenueLtm,
+      grossProfitLtm: live.grossProfitLtm,
+      ebitLtm: live.ebitLtm,
+      ebitdaLtm: live.ebitdaLtm ?? live.ebitLtm,
+      netIncomeLtm: live.netIncomeLtm,
+      cash: live.cash,
+      totalDebt: live.totalDebt,
+      sharesOutstanding: live.sharesOutstanding,
+      sharePrice: live.price,
+      marketCap: live.marketCap,
+      updatedAt: live.asOfDate ?? live.priceAsOfDate ?? null,
+      sourceMap: Object.fromEntries(
+        Object.entries({
+          company: live.source.company,
+          fundamentals: live.source.fundamentals,
+          price: live.source.price,
+        }).filter((entry): entry is [string, string] => entry[1] !== null)
+      ),
+    },
+  };
+}
+
 function buildResolvedCompanyFromAttachment(snapshot: AttachmentStatementSnapshot): ResolvedCompany | null {
   if (!(typeof snapshot.revenue === 'number' && snapshot.revenue > 0)) return null;
   const ticker = snapshot.ticker?.trim().toUpperCase() || 'ATTACHMENT';
@@ -501,6 +535,15 @@ function buildSeededResolvedCompany(params: {
 
 async function resolveCompanyForDcf(prompt: string, explicitTicker?: string): Promise<ResolvedCompany | null> {
   const stored = await resolveCompanyProfile({ prompt, ticker: explicitTicker });
+  const parsed = parseDcfPrompt(prompt, explicitTicker);
+  const tickerForLive = explicitTicker?.trim().toUpperCase() || stored?.company.ticker || parsed.impliedTicker;
+  const liveResolved = tickerForLive
+    ? mapLiveFinancialSnapshotToResolved(await getLiveCompanyFinancialSnapshot(tickerForLive).catch(() => null))
+    : null;
+  if (liveResolved?.snapshot.revenueLtm && liveResolved.snapshot.revenueLtm > 0) {
+    return liveResolved;
+  }
+
   const storedResolved = mapStoredProfileToSnapshot(stored);
   if (storedResolved?.snapshot.revenueLtm && storedResolved.snapshot.revenueLtm > 0) {
     return storedResolved;
@@ -520,7 +563,6 @@ async function resolveCompanyForDcf(prompt: string, explicitTicker?: string): Pr
     });
   }
 
-  const parsed = parseDcfPrompt(prompt, explicitTicker);
   const fallbackTicker = explicitTicker?.trim().toUpperCase() || parsed.impliedTicker;
   if (fallbackTicker) {
     return buildSeededResolvedCompany({ ticker: fallbackTicker });
@@ -530,6 +572,11 @@ async function resolveCompanyForDcf(prompt: string, explicitTicker?: string): Pr
 }
 
 async function hydrateResolvedCompany(seed: ResolvedCompany): Promise<ResolvedCompany> {
+  const liveResolved = mapLiveFinancialSnapshotToResolved(await getLiveCompanyFinancialSnapshot(seed.ticker).catch(() => null));
+  if (liveResolved?.snapshot.revenueLtm && liveResolved.snapshot.revenueLtm > 0) {
+    return liveResolved;
+  }
+
   const stored = await resolveCompanyProfile({
     prompt: seed.snapshot.companyName || seed.ticker,
     ticker: seed.ticker,

@@ -24,6 +24,7 @@ import {
   THREE_STATEMENT_DEFAULTS,
 } from '@/lib/model-generator/defaults';
 import { resolveCompanyProfile } from '@/lib/data/company/resolveCompanyProfile';
+import { getLiveCompanyFinancialSnapshot, type LiveFinancialSnapshot } from '@/lib/data/company/liveFinancialSnapshot';
 import {
   getQualityPublicCompanyUniverse,
   type MarketCompanyListing,
@@ -726,7 +727,7 @@ async function resolveMergerParty(
 ): Promise<ResolvedMergerParty | null> {
   if (!entity) return null;
 
-  const stored = await resolveCompanyProfile({ prompt: entity });
+  const stored = await resolveStoredCompany(entity);
   if (stored?.company) {
     return {
       ticker: stored.company.ticker,
@@ -1118,7 +1119,71 @@ function getScaleProfile(companyScale: string | null): ScaleProfile | null {
   return companyScale ? SCALE_PROFILES[companyScale] ?? null : null;
 }
 
+type ResolvedCompanyProfileLike = NonNullable<Awaited<ReturnType<typeof resolveCompanyProfile>>>;
+
+function liveSnapshotToResolvedProfile(live: LiveFinancialSnapshot): ResolvedCompanyProfileLike {
+  const now = new Date().toISOString();
+  return {
+    company: {
+      id: `live:${live.ticker}`,
+      ticker: live.ticker,
+      name: live.companyName ?? live.ticker,
+      sector: live.sector,
+      industry: live.industry,
+      country: live.country,
+      exchange: live.exchange,
+      companyType: live.sector,
+      isSaas: /software|cloud|saas/i.test(`${live.sector ?? ''} ${live.industry ?? ''}`),
+      createdAt: now,
+      updatedAt: now,
+    },
+    identifiers: [],
+    snapshot: {
+      id: `live:${live.ticker}:snapshot`,
+      companyId: `live:${live.ticker}`,
+      asOfDate: live.asOfDate ?? now.slice(0, 10),
+      periodType: 'ltm',
+      currency: live.currency ?? 'USD',
+      revenueLtm: live.revenueLtm,
+      grossProfitLtm: live.grossProfitLtm,
+      ebitdaLtm: live.ebitdaLtm,
+      ebitLtm: live.ebitLtm,
+      netIncomeLtm: live.netIncomeLtm,
+      cash: live.cash,
+      totalDebt: live.totalDebt,
+      sharesOutstanding: live.sharesOutstanding,
+      marketCap: live.marketCap,
+      source: live.source.fundamentals ?? 'live_financial_snapshot',
+      sourcePriority: 10,
+      createdAt: now,
+    },
+    latestPrice: live.price !== null
+      ? {
+          id: `live:${live.ticker}:price`,
+          companyId: `live:${live.ticker}`,
+          date: live.priceAsOfDate ?? now.slice(0, 10),
+          open: null,
+          high: null,
+          low: null,
+          close: live.price,
+          volume: null,
+          source: live.source.price ?? 'live_quote',
+          createdAt: now,
+        }
+      : null,
+    kpis: [],
+  };
+}
+
 async function resolveStoredCompany(prompt: string) {
+  const ticker = inferTickerFromPrompt(prompt);
+  if (ticker) {
+    const live = await getLiveCompanyFinancialSnapshot(ticker).catch(() => null);
+    if (live?.revenueLtm && live.revenueLtm > 0) {
+      return liveSnapshotToResolvedProfile(live);
+    }
+  }
+
   return resolveCompanyProfile({ prompt });
 }
 
