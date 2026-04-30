@@ -380,6 +380,20 @@ function formatForecastHorizon(days: number): string {
   return `${days}-day`;
 }
 
+function ensureForecastLead(reply: string, leadSentence: string | null): string {
+  const trimmed = reply.trim();
+  if (!leadSentence) return trimmed;
+  if (trimmed.startsWith(leadSentence)) return trimmed;
+  const firstSentence = trimmed.match(/^[^.!?]+[.!?]/)?.[0] ?? '';
+  const looksLikeFragment =
+    /^[+-]?\d+(?:\.\d+)?%?\s+(?:move|from|to|upside|downside)\b/i.test(trimmed) ||
+    /^with\s+a\s+wide\s+confidence\s+band\b/i.test(trimmed);
+  if (looksLikeFragment) {
+    return `${leadSentence}\n\n${trimmed.replace(firstSentence, '').trim() || trimmed}`;
+  }
+  return `${leadSentence}\n\n${trimmed}`;
+}
+
 function isTerseFollowUpQuestion(message: string): boolean {
   const text = message.trim().toLowerCase();
   return (
@@ -1886,6 +1900,7 @@ export async function POST(req: NextRequest) {
     // TimesFM price + revenue forecast — injected for company questions and
     // explicit forecast/outlook prompts. Fetched in parallel with 8s timeout.
     let timesFMBlock: string | null = null;
+    let forecastLeadSentence: string | null = null;
     const shouldInjectTimesFmForecast =
       Boolean(resolvedTicker) &&
       (route.intent === 'company_question' || isCompanyForecastPrompt(lastUserMessage));
@@ -1938,6 +1953,11 @@ export async function POST(req: NextRequest) {
               const bandStr = (endLower != null && endUpper != null)
                 ? ` (90% confidence band: $${endLower.toFixed(2)}–$${endUpper.toFixed(2)})`
                 : '';
+              const bandSentence = (endLower != null && endUpper != null)
+                ? ` The 90% model band is $${endLower.toFixed(2)} to $${endUpper.toFixed(2)}.`
+                : '';
+              forecastLeadSentence =
+                `For ${resolvedTicker}, the ${horizonLabel} forecast is $${lastActual.toFixed(2)} to $${endForecast.toFixed(2)}, a ${pctChangeValue >= 0 ? '+' : ''}${pctChange}% ${direction === 'flat' ? 'move' : `move ${direction}`}.${bandSentence}`;
               const eventSynthesis = marketEventAdjustment
                 ? buildEventAdjustedForecast(pd, marketEventAdjustment, 'market_events')
                 : null;
@@ -1981,6 +2001,7 @@ export async function POST(req: NextRequest) {
             `SYNTHESIS GUIDANCE: When asked how a stock will move or what the price outlook is, ` +
             `lead with the supplied ${horizonLabel} forecast baseline, then layer in any event or news signals you know about ` +
             `(earnings, macro events, rate decisions, geopolitical risk) as adjustments on top of that baseline. ` +
+            (forecastLeadSentence ? `The first sentence must be exactly: "${forecastLeadSentence}" ` : '') +
             `If a combined outlook is provided, use that as the primary net view. ` +
             `Do not say no internal forecast model is loaded when this forecast block is present. ` +
             `Do not present baseline and event signals as unrelated bullets; synthesize baseline + overlay into one conclusion.`
@@ -2977,6 +2998,8 @@ export async function POST(req: NextRequest) {
       }
       throw (lastError instanceof Error ? lastError : new Error('LLM request failed across all provider candidates'));
     }
+
+    replyText = ensureForecastLead(replyText, forecastLeadSentence);
 
     return NextResponse.json(withAttachmentStatus({
       reply: replyText.trim(),
