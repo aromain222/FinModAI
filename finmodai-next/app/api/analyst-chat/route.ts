@@ -351,6 +351,25 @@ function isCompanyForecastPrompt(message: string): boolean {
   );
 }
 
+function isLongHorizonForecastPrompt(message: string): boolean {
+  const text = message.toLowerCase();
+  return (
+    /\b(?:next|over|for)\s+\d{1,2}\s*(?:years?|yrs?)\b/.test(text) ||
+    /\b\d{1,2}\s*(?:years?|yrs?)\s+(?:forecast|outlook|projection|view|model)\b/.test(text) ||
+    /\b(?:multi[- ]year|long[- ]term)\s+(?:forecast|outlook|projection|view)\b/.test(text)
+  );
+}
+
+function parseForecastHorizonYears(message: string, fallbackYears: number): number {
+  const text = message.toLowerCase();
+  const explicit = text.match(/\b(\d{1,2})\s*(?:years?|yrs?)\b/);
+  if (explicit?.[1]) {
+    const years = Number(explicit[1]);
+    if (Number.isFinite(years) && years > 0) return Math.min(10, Math.max(1, Math.round(years)));
+  }
+  return Math.min(10, Math.max(1, Math.round(fallbackYears)));
+}
+
 function parseForecastHorizonDays(message: string): number {
   const text = message.toLowerCase();
   const explicit = text.match(/\b(\d{1,2})\s*[- ]?\s*(day|days|week|weeks|month|months)\b/);
@@ -517,6 +536,49 @@ function buildDcfValuationVerdictReply(payload: AnalystDcfDemoPayload): string {
     `${payload.ticker} looks ${verdict} in the current DCF: base intrinsic value is $${intrinsic.toFixed(2)} per share versus market price of $${market.toFixed(2)}, implying ${formatValuationPct(upside)} upside/downside.`,
     `${action} The base case assumes revenue growth of ${payload.assumptions.revenueGrowth.map((value) => `${(value * 100).toFixed(1)}%`).join(' / ')}, EBIT margins of ${payload.assumptions.ebitMargin.map((value) => `${(value * 100).toFixed(1)}%`).join(' / ')}, WACC of ${(payload.assumptions.wacc * 100).toFixed(1)}%, and terminal growth of ${(payload.assumptions.terminalGrowth * 100).toFixed(1)}%.${terminalText}`,
     `The right read is not a blanket yes/no. It is ${verdict} under this DCF, but the conclusion should be stress-tested against lower ad growth, AI search pressure, antitrust risk, and higher discount rates.`,
+  ].join('\n\n');
+}
+
+function buildDcfLongHorizonForecastReply(payload: AnalystDcfDemoPayload, requestedYears: number): string {
+  const years = Math.min(requestedYears, payload.forecast.length, payload.assumptions.revenueGrowth.length);
+  const forecastRows = payload.forecast.slice(0, years);
+  const base = payload.scenarios.base;
+  const startRevenue = payload.baseMetrics.revenueLtm;
+  const endRevenue = forecastRows.at(-1)?.revenue ?? null;
+  const revenueCagr =
+    typeof startRevenue === 'number' &&
+    Number.isFinite(startRevenue) &&
+    startRevenue > 0 &&
+    typeof endRevenue === 'number' &&
+    Number.isFinite(endRevenue) &&
+    years > 0
+      ? (endRevenue / startRevenue) ** (1 / years) - 1
+      : null;
+  const growthPath = payload.assumptions.revenueGrowth
+    .slice(0, years)
+    .map((value) => `${(value * 100).toFixed(1)}%`)
+    .join(' / ');
+  const marginPath = payload.assumptions.ebitMargin
+    .slice(0, years)
+    .map((value) => `${(value * 100).toFixed(1)}%`)
+    .join(' / ');
+  const fcffPath = forecastRows
+    .map((row) => `$${Math.round(row.fcff).toLocaleString('en-US')}M`)
+    .join(' / ');
+  const terminalText =
+    base.terminalValueWeight !== null && Number.isFinite(base.terminalValueWeight)
+      ? ` Terminal value is ${(base.terminalValueWeight * 100).toFixed(0)}% of enterprise value, so the out-year value is still highly sensitive to WACC, terminal growth, and mature margins.`
+      : '';
+
+  if (years <= 0 || forecastRows.length === 0) {
+    return `${payload.ticker} does not have a populated multi-year operating forecast in the active DCF. Build or refresh the model first, then ask for the year-by-year forecast.`;
+  }
+
+  return [
+    `${payload.ticker} ${years}-year operating forecast from the active DCF: revenue growth is ${growthPath}, with EBIT margin moving to ${marginPath}. This is an operating-model forecast, not a short-term price extrapolation.`,
+    `Revenue moves from $${Math.round(startRevenue).toLocaleString('en-US')}M LTM to $${Math.round(endRevenue ?? 0).toLocaleString('en-US')}M by year ${years}${revenueCagr !== null ? `, implying a ${(revenueCagr * 100).toFixed(1)}% CAGR` : ''}. FCFF across the forecast is ${fcffPath}.`,
+    `Valuation read: the base DCF implies ${base.pricePerShare !== null ? `$${base.pricePerShare.toFixed(2)} per share` : 'no computable per-share value'} on $${Math.round(base.enterpriseValue).toLocaleString('en-US')}M of enterprise value. WACC is ${(payload.assumptions.wacc * 100).toFixed(1)}% and terminal growth is ${(payload.assumptions.terminalGrowth * 100).toFixed(1)}%.${terminalText}`,
+    `Net read: the forecast is constructive only if the modeled growth and margin path hold. The biggest risks are slower revenue growth, weaker margin expansion, and a higher discount rate.`,
   ].join('\n\n');
 }
 
@@ -1902,6 +1964,24 @@ export async function POST(req: NextRequest) {
       }, executionTrace)));
     }
 
+    if (currentDcf && !artifactTickerMismatch && isLongHorizonForecastPrompt(lastUserMessage)) {
+      return NextResponse.json(withAttachmentStatus(withExecutionTrace({
+        reply: buildDcfLongHorizonForecastReply(
+          currentDcf,
+          parseForecastHorizonYears(lastUserMessage, currentDcf.years),
+        ),
+        fallback: false,
+        mode: 'live',
+        route: 'financial_model',
+        sources: [
+          `Current DCF artifact - ${currentDcf.source}`,
+          ...(currentDcf.asOfDate ? [`Snapshot updated ${currentDcf.asOfDate}`] : []),
+        ],
+        factsCount: 0,
+        attachmentUsed: attachmentLabel,
+      }, executionTrace)));
+    }
+
     // Run stock lookup and earnings retrieval in parallel — neither depends on the other.
     const [parallelStockLookup, parallelEarningsEnvelope] = await Promise.all([
       route.intent === 'company_question' && !(preferCurrentArtifact && currentStock)
@@ -2027,6 +2107,7 @@ export async function POST(req: NextRequest) {
     let deterministicForecastReply: string | null = null;
     const shouldInjectTimesFmForecast =
       Boolean(resolvedTicker) &&
+      !isLongHorizonForecastPrompt(lastUserMessage) &&
       (route.intent === 'company_question' || isCompanyForecastPrompt(lastUserMessage));
     if (shouldInjectTimesFmForecast && resolvedTicker) {
       try {
