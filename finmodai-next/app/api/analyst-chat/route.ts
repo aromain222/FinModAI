@@ -1837,6 +1837,33 @@ export async function POST(req: NextRequest) {
           )}`
         : null;
 
+    // TimesFM revenue forecast — inject implied growth rate when available for company questions.
+    let timesFMBlock: string | null = null;
+    if (route.intent === 'company_question' && resolvedTicker) {
+      try {
+        const tfmRes = await Promise.race([
+          fetch(`${req.nextUrl.origin}/api/timesfm?type=revenue&ticker=${resolvedTicker}`, { cache: 'no-store' }),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+        ]);
+        if (tfmRes && tfmRes instanceof Response && tfmRes.ok) {
+          const tfmData = await tfmRes.json() as {
+            implied_growth_rate?: number | null;
+            forecast?: { labels: string[]; values: number[] } | null;
+            model_available?: boolean;
+          };
+          if (tfmData.model_available && tfmData.forecast && tfmData.implied_growth_rate != null) {
+            const growth = (tfmData.implied_growth_rate * 100).toFixed(1);
+            const fwdRevenue = tfmData.forecast.values
+              .map((v, i) => `${tfmData.forecast!.labels[i]}: $${Math.round(v)}M`)
+              .join(', ');
+            timesFMBlock = `TIMESFM REVENUE FORECAST (Google foundation model — use as a quantitative forward reference):\nImplied NTM revenue growth: ${growth >= '0' ? '+' : ''}${growth}%\nQuarterly projections: ${fwdRevenue}`;
+          }
+        }
+      } catch {
+        // Non-fatal — forecast is supplemental context only
+      }
+    }
+
     if (isVisualizationPrompt(lastUserMessage)) {
       const comparisonVisualization = await buildComparisonVisualizationFromPrompt(lastUserMessage);
       if (comparisonVisualization) {
@@ -2641,6 +2668,7 @@ export async function POST(req: NextRequest) {
         content: `Sourced context for this answer:\n\n${factsContext}`,
       },
       ...(macroEventsBlock ? [{ role: 'system' as const, content: macroEventsBlock }] : []),
+      ...(timesFMBlock ? [{ role: 'system' as const, content: timesFMBlock }] : []),
       ...(currentArtifactBlock ? [{ role: 'system' as const, content: currentArtifactBlock }] : []),
       ...(attachmentContext ? [{ role: 'system' as const, content: attachmentContextBlock(attachmentContext) }] : []),
       ...safeMessages,

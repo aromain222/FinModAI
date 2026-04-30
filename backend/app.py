@@ -9,6 +9,7 @@ from datetime import datetime
 
 from backend.models_data.company_analyzer import UniversalAnalyzer
 from backend.api.v1.pdf_analysis import router as pdf_router
+from backend.api.v1.timesfm import router as timesfm_router
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -32,6 +33,7 @@ app.add_middleware(
 
 # Mount routers
 app.include_router(pdf_router)
+app.include_router(timesfm_router)
 
 # Initialize analyzer
 analyzer = UniversalAnalyzer({})  # Add API keys here if available

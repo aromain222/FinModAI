@@ -1,9 +1,12 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { FinanceDataChart } from '@/components/charts/FinanceDataChart';
+import { ForecastChart } from '@/components/charts/ForecastChart';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
+import { fetchPriceForecast, fetchRevenueForecast, type PriceForecastResult, type RevenueForecastResult } from '@/lib/forecast/timesFM';
 
 function fmtNumber(value: number | null): string {
   if (value === null || !Number.isFinite(value)) return 'n/a';
@@ -33,12 +36,61 @@ function StatCard(props: { label: string; value: string; helper?: string }) {
   );
 }
 
+function ImpliedGrowthBadge({ rate }: { rate: number | null }) {
+  if (rate == null) return null;
+  const pct = (rate * 100).toFixed(1);
+  const color = rate >= 0.05 ? 'text-emerald-400' : rate < 0 ? 'text-rose-400' : 'text-zinc-300';
+  return (
+    <span className={`text-[11px] font-medium ${color}`}>
+      Implied NTM growth {rate >= 0 ? '+' : ''}{pct}%
+    </span>
+  );
+}
+
 export function AnalystStockCard({ payload }: { payload: StockLookupResult }) {
   const chartHeight = 220;
   const stockChartData = payload.chart.points.map((point) => ({
     x: point.label,
     y: point.value,
   }));
+
+  const [priceForecast, setPriceForecast] = useState<PriceForecastResult | null>(null);
+  const [revenueForecast, setRevenueForecast] = useState<RevenueForecastResult | null>(null);
+  const [forecastLoading, setForecastLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setForecastLoading(true);
+    Promise.all([
+      fetchPriceForecast(payload.ticker, 30),
+      fetchRevenueForecast(payload.ticker, 4),
+    ]).then(([price, revenue]) => {
+      if (cancelled) return;
+      setPriceForecast(price);
+      setRevenueForecast(revenue);
+      setForecastLoading(false);
+    }).catch(() => {
+      if (!cancelled) setForecastLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [payload.ticker]);
+
+  // Build ForecastChart data from the TimesFM response
+  const historicalPoints = priceForecast?.historical.dates.map((d, i) => ({
+    date: d,
+    actual: priceForecast.historical.prices[i] ?? 0,
+  })) ?? [];
+
+  const forecastPoints = priceForecast?.forecast
+    ? priceForecast.forecast.dates.map((d, i) => ({
+        date: d,
+        forecast: priceForecast.forecast!.values[i] ?? 0,
+        lower: priceForecast.forecast!.lower[i] ?? 0,
+        upper: priceForecast.forecast!.upper[i] ?? 0,
+      }))
+    : null;
+
+  const showForecastChart = !forecastLoading && historicalPoints.length > 0;
 
   return (
     <Card className="mt-4 overflow-hidden border-[var(--cb-border-subtle)] bg-[var(--cb-surface)]">
@@ -69,23 +121,65 @@ export function AnalystStockCard({ payload }: { payload: StockLookupResult }) {
           <StatCard label="Cash / Debt" value={`${fmtMillions(payload.cash)} / ${fmtMillions(payload.totalDebt)}`} helper={payload.country ?? undefined} />
         </div>
 
+        {/* Price chart — TimesFM forecast overlay when available, fallback to snapshot */}
         <div>
-          <FinanceDataChart
-            title={payload.chart.kind === 'price' ? 'Recent Price Trend' : 'Fundamental Snapshot'}
-            subtitle={payload.chart.kind === 'price' ? 'Recent trading range.' : 'Snapshot of key reported values.'}
-            xLabel={payload.chart.kind === 'price' ? 'Date' : 'Metric'}
-            yLabel={payload.chart.kind === 'price' ? 'Price' : 'Value'}
-            data={stockChartData}
-            chartType="auto"
-            valueFormat="number"
-            valuePrefix="$"
-            valueSuffix={payload.chart.kind === 'price' ? undefined : 'M'}
-            seriesLabel={payload.ticker}
-            color={payload.chart.kind === 'price' ? '#10b981' : '#2563eb'}
-            className="p-3"
-            height={chartHeight}
-          />
+          {showForecastChart ? (
+            <ForecastChart
+              ticker={payload.ticker}
+              historical={historicalPoints}
+              forecast={forecastPoints}
+              valuePrefix="$"
+              height={chartHeight}
+              modelAvailable={priceForecast?.model_available ?? false}
+            />
+          ) : (
+            <FinanceDataChart
+              title={payload.chart.kind === 'price' ? 'Recent Price Trend' : 'Fundamental Snapshot'}
+              subtitle={forecastLoading ? 'Loading TimesFM forecast…' : 'Recent trading range.'}
+              xLabel={payload.chart.kind === 'price' ? 'Date' : 'Metric'}
+              yLabel={payload.chart.kind === 'price' ? 'Price' : 'Value'}
+              data={stockChartData}
+              chartType="auto"
+              valueFormat="number"
+              valuePrefix="$"
+              valueSuffix={payload.chart.kind === 'price' ? undefined : 'M'}
+              seriesLabel={payload.ticker}
+              color={payload.chart.kind === 'price' ? '#10b981' : '#2563eb'}
+              className="p-3"
+              height={chartHeight}
+            />
+          )}
         </div>
+
+        {/* Revenue forecast section */}
+        {!forecastLoading && revenueForecast && (
+          <div>
+            <div className="mb-2 flex items-center gap-3">
+              <span className="text-[10px] font-medium uppercase tracking-wide text-[var(--cb-text-muted)]">
+                TimesFM Revenue Forecast
+              </span>
+              <ImpliedGrowthBadge rate={revenueForecast.implied_growth_rate} />
+            </div>
+            <FinanceDataChart
+              title=""
+              data={[
+                ...revenueForecast.historical.labels.map((l, i) => ({
+                  x: l,
+                  y: revenueForecast.historical.revenue[i] ?? null,
+                })),
+                ...(revenueForecast.forecast?.labels.map((l, i) => ({
+                  x: `${l} ▸`,
+                  y: revenueForecast.forecast!.values[i] ?? null,
+                })) ?? []),
+              ]}
+              chartType="bar"
+              valuePrefix="$"
+              valueSuffix="M"
+              color="#8b5cf6"
+              height={180}
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   );
