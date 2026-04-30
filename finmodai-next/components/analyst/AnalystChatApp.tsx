@@ -15,6 +15,7 @@ import {
   type AnalystDemoStep,
 } from '@/lib/analyst/demoWorkflow';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
+import type { AnalystOutput, InvestmentSignal } from '@/lib/analyst/investmentOutput';
 import type { PendingModelRequest } from '@/lib/analyst/modelReadiness';
 import { routeAnalystQuery } from '@/lib/analyst/router';
 import type { AnalystScenarioCardPayload } from '@/lib/analyst/scenarioCard';
@@ -58,23 +59,8 @@ type Message = {
     clarificationFieldLabel?: string;
     remainingMissingInputs?: string[];
     pendingModelRequest?: PendingModelRequest;
-    analystOutput?: AnalystChatInvestmentOutput;
+    analystOutput?: AnalystOutput;
   };
-};
-
-export type AnalystChatInvestmentOutput = {
-  signal: 'LONG' | 'SHORT' | 'NEUTRAL';
-  percentChange: number;
-  primaryDriver: string;
-  attributionExplanation: string;
-  confidence: number;
-  confidenceBreakdown: {
-    model: number | null;
-    accuracy: number | null;
-    sampleSize: number;
-  };
-  drivers: string[];
-  analystNote: string;
 };
 
 function userExplicitlyWantsStructuredOutput(message: string): boolean {
@@ -140,18 +126,18 @@ function finiteNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-function parseSignal(value: unknown): AnalystChatInvestmentOutput['signal'] | null {
+function parseSignal(value: unknown): InvestmentSignal | undefined {
   const raw = isRecord(value) ? value.position ?? value.direction : value;
   if (raw === 'LONG' || raw === 'SHORT' || raw === 'NEUTRAL') return raw;
-  if (typeof raw !== 'string') return null;
+  if (typeof raw !== 'string') return undefined;
   const normalized = raw.trim().toUpperCase();
   return normalized === 'LONG' || normalized === 'SHORT' || normalized === 'NEUTRAL'
     ? normalized
-    : null;
+    : undefined;
 }
 
-function parseConfidenceBreakdown(value: unknown): AnalystChatInvestmentOutput['confidenceBreakdown'] {
-  if (!isRecord(value)) return { model: null, accuracy: null, sampleSize: 0 };
+function parseConfidenceBreakdown(value: unknown): AnalystOutput['confidenceBreakdown'] {
+  if (!isRecord(value)) return undefined;
   return {
     model: finiteNumber(value.model),
     accuracy: finiteNumber(value.accuracy),
@@ -159,24 +145,38 @@ function parseConfidenceBreakdown(value: unknown): AnalystChatInvestmentOutput['
   };
 }
 
-function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystChatInvestmentOutput | undefined {
+function parseSizePct(payload: Record<string, unknown>): number | null {
+  const topLevel = finiteNumber(payload.size_pct);
+  if (topLevel !== null) return topLevel;
+  if (!isRecord(payload.signal)) return null;
+  return finiteNumber(payload.signal.size_pct);
+}
+
+function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystOutput | undefined {
   if (!payload) return undefined;
+  const hasStructuredOutput =
+    'signal' in payload ||
+    'percentChange' in payload ||
+    'primaryDriver' in payload ||
+    'attributionExplanation' in payload ||
+    'confidence' in payload ||
+    'confidence_breakdown' in payload ||
+    'drivers' in payload ||
+    'analystNote' in payload;
+  if (!hasStructuredOutput) return undefined;
+
   const signal = parseSignal(payload.signal);
-  const percentChange = finiteNumber(payload.percentChange);
+  const percentChange = finiteNumber(payload.percentChange) ?? undefined;
   const confidence = finiteNumber(payload.confidence);
   const analystNote = typeof payload.analystNote === 'string' ? payload.analystNote.trim() : '';
   const primaryDriver =
     typeof payload.primaryDriver === 'string' && payload.primaryDriver.trim().length > 0
       ? payload.primaryDriver.trim()
-      : '';
+      : undefined;
   const attributionExplanation =
     typeof payload.attributionExplanation === 'string' && payload.attributionExplanation.trim().length > 0
       ? payload.attributionExplanation.trim()
-      : '';
-
-  if (!signal || percentChange === null || confidence === null || !analystNote || !primaryDriver) {
-    return undefined;
-  }
+      : undefined;
 
   const drivers = Array.isArray(payload.drivers)
     ? payload.drivers.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
@@ -187,10 +187,11 @@ function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystCha
     percentChange,
     primaryDriver,
     attributionExplanation,
-    confidence,
+    confidence: confidence ?? undefined,
     confidenceBreakdown: parseConfidenceBreakdown(payload.confidence_breakdown),
     drivers,
-    analystNote,
+    analystNote: analystNote || undefined,
+    sizePct: parseSizePct(payload),
   };
 }
 
