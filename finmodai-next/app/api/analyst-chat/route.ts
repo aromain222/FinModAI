@@ -1839,27 +1839,75 @@ export async function POST(req: NextRequest) {
           )}`
         : null;
 
-    // TimesFM revenue forecast — inject implied growth rate when available for company questions.
+    // TimesFM price + revenue forecast — injected for company questions to support
+    // "how will this stock move" style queries. Fetched in parallel with 8s timeout.
     let timesFMBlock: string | null = null;
     if (route.intent === 'company_question' && resolvedTicker) {
       try {
-        const tfmRes = await Promise.race([
-          fetch(`${req.nextUrl.origin}/api/timesfm?type=revenue&ticker=${resolvedTicker}`, { cache: 'no-store' }),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+        const origin = req.nextUrl.origin;
+        const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000));
+
+        const [priceRes, revRes] = await Promise.all([
+          Promise.race([
+            fetch(`${origin}/api/timesfm?type=price&ticker=${resolvedTicker}&horizon=30`, { cache: 'no-store' }),
+            timeout,
+          ]),
+          Promise.race([
+            fetch(`${origin}/api/timesfm?type=revenue&ticker=${resolvedTicker}`, { cache: 'no-store' }),
+            timeout,
+          ]),
         ]);
-        if (tfmRes && tfmRes instanceof Response && tfmRes.ok) {
-          const tfmData = await tfmRes.json() as {
+
+        const parts: string[] = [];
+
+        // Price forecast block
+        if (priceRes && priceRes instanceof Response && priceRes.ok) {
+          const pd = await priceRes.json() as {
+            model_available?: boolean;
+            historical?: { dates: string[]; prices: number[] };
+            forecast?: { dates: string[]; values: number[]; lower: number[]; upper: number[] } | null;
+            horizon_days?: number;
+          };
+          if (pd.model_available && pd.forecast && pd.historical) {
+            const lastActual = pd.historical.prices.at(-1);
+            const endForecast = pd.forecast.values.at(-1);
+            const endLower = pd.forecast.lower.at(-1);
+            const endUpper = pd.forecast.upper.at(-1);
+            if (lastActual != null && endForecast != null) {
+              const pctChange = ((endForecast - lastActual) / lastActual * 100).toFixed(1);
+              const direction = endForecast > lastActual ? 'up' : endForecast < lastActual ? 'down' : 'flat';
+              const bandStr = (endLower != null && endUpper != null)
+                ? ` (90% confidence band: $${endLower.toFixed(2)}–$${endUpper.toFixed(2)})`
+                : '';
+              parts.push(
+                `TIMESFM 30-DAY PRICE FORECAST (Google foundation model, time-series extrapolation from historical price patterns — not event-driven):\n` +
+                `Current price: $${lastActual.toFixed(2)} → 30-day forecast: $${endForecast.toFixed(2)} (${direction}, ${pctChange >= '0' ? '+' : ''}${pctChange}%)${bandStr}\n` +
+                `Note: this reflects momentum/trend continuation only; news events are not inputs to this model.`
+              );
+            }
+          }
+        }
+
+        // Revenue forecast block
+        if (revRes && revRes instanceof Response && revRes.ok) {
+          const rd = await revRes.json() as {
+            model_available?: boolean;
             implied_growth_rate?: number | null;
             forecast?: { labels: string[]; values: number[] } | null;
-            model_available?: boolean;
           };
-          if (tfmData.model_available && tfmData.forecast && tfmData.implied_growth_rate != null) {
-            const growth = (tfmData.implied_growth_rate * 100).toFixed(1);
-            const fwdRevenue = tfmData.forecast.values
-              .map((v, i) => `${tfmData.forecast!.labels[i]}: $${Math.round(v)}M`)
+          if (rd.model_available && rd.forecast && rd.implied_growth_rate != null) {
+            const growth = (rd.implied_growth_rate * 100).toFixed(1);
+            const fwdRevenue = rd.forecast.values
+              .map((v, i) => `${rd.forecast!.labels[i]}: $${Math.round(v)}M`)
               .join(', ');
-            timesFMBlock = `TIMESFM REVENUE FORECAST (Google foundation model — use as a quantitative forward reference):\nImplied NTM revenue growth: ${growth >= '0' ? '+' : ''}${growth}%\nQuarterly projections: ${fwdRevenue}`;
+            parts.push(
+              `TIMESFM REVENUE FORECAST:\nImplied NTM growth: ${Number(growth) >= 0 ? '+' : ''}${growth}%\nQuarterly projections: ${fwdRevenue}`
+            );
           }
+        }
+
+        if (parts.length > 0) {
+          timesFMBlock = parts.join('\n\n');
         }
       } catch {
         // Non-fatal — forecast is supplemental context only

@@ -5,14 +5,17 @@
  *
  * Displays the output of /api/event-impact inline below a headline card.
  * Shows:
+ *  - TimesFM 30-day price forecast for the impacted ticker
  *  - Impact summary chip (direction + magnitude)
  *  - Before / After assumption table
  *  - Scenario valuation deltas (base · upside · downside)
  *  - Causal mechanism bullets
  */
 
-import { ArrowDown, ArrowUp, Minus, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ArrowDown, ArrowRight, ArrowUp, Minus, TrendingDown, TrendingUp, Zap } from 'lucide-react';
 import type { EventImpactResult } from '@/lib/useEventImpact';
+import { fetchPriceForecast, type PriceForecastResult } from '@/lib/forecast/timesFM';
 
 // ─── Formatting ──────────────────────────────────────────────────────────────
 
@@ -91,6 +94,51 @@ interface EventImpactPanelProps {
   onApplyToModel?: (updatedModel: EventImpactResult['updated_model']) => void;
 }
 
+function TimesFMPriceBadge({ ticker }: { ticker: string }) {
+  const [data, setData] = useState<PriceForecastResult | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchPriceForecast(ticker, 30).then((result) => {
+      if (!cancelled) { setData(result); setLoading(false); }
+    }).catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [ticker]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-xs text-zinc-500">
+        <span className="h-3 w-3 animate-spin rounded-full border border-zinc-600 border-t-zinc-400" />
+        Loading TimesFM forecast…
+      </div>
+    );
+  }
+  if (!data?.forecast || !data.model_available) return null;
+
+  const lastActual = data.historical.prices.at(-1);
+  const endForecast = data.forecast.values.at(-1);
+  if (lastActual == null || endForecast == null) return null;
+
+  const pct = ((endForecast - lastActual) / lastActual * 100);
+  const up = pct > 0;
+  const color = up ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/8' : 'text-rose-400 border-rose-500/30 bg-rose-500/8';
+  const Icon = up ? TrendingUp : TrendingDown;
+
+  return (
+    <div className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium ${color}`}>
+      <Icon className="h-3.5 w-3.5 shrink-0" />
+      <span>
+        TimesFM 30-day: ${lastActual.toFixed(2)}
+        <ArrowRight className="mx-1 inline h-3 w-3 opacity-60" />
+        ${endForecast.toFixed(2)} ({up ? '+' : ''}{pct.toFixed(1)}%)
+      </span>
+      <span className="text-[10px] opacity-60 ml-1">historical trend only</span>
+    </div>
+  );
+}
+
 export function EventImpactPanel({ result, onApplyToModel }: EventImpactPanelProps) {
   const { assumption_deltas: d, current_model: before, updated_model: after } = result;
 
@@ -145,6 +193,11 @@ export function EventImpactPanel({ result, onApplyToModel }: EventImpactPanelPro
           <MagnitudeChip magnitude={result.impact_summary.magnitude} />
         </div>
       </div>
+
+      {/* TimesFM price forecast baseline for this ticker */}
+      {result.ticker && result.ticker !== 'MARKET' && (
+        <TimesFMPriceBadge ticker={result.ticker} />
+      )}
 
       {/* Primary driver */}
       <div className="rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3">
