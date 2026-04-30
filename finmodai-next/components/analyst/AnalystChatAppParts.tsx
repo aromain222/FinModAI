@@ -148,9 +148,10 @@ function getSourceLabel(source: string): string {
 
 function formatMarketCap(value: number | null): string | null {
   if (value == null) return null;
-  if (value >= 1e12) return `$${(value / 1e12).toFixed(1)}T`;
-  if (value >= 1e9) return `$${(value / 1e9).toFixed(1)}B`;
-  return `$${(value / 1e6).toFixed(0)}M`;
+  // marketCap is stored in millions in StockLookupResult
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}T`;
+  if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}B`;
+  return `$${value.toFixed(0)}M`;
 }
 
 // ─── Sidebar state ───────────────────────────────────────────────────────────

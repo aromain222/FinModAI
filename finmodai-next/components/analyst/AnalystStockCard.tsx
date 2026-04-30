@@ -12,6 +12,9 @@ function fmtNumber(value: number | null): string {
 
 function fmtMillions(value: number | null): string {
   if (value === null || !Number.isFinite(value)) return 'n/a';
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}T`;
+  if (abs >= 1_000) return `$${(value / 1_000).toFixed(1)}B`;
   return `$${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}M`;
 }
 
