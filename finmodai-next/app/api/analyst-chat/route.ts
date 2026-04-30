@@ -1137,10 +1137,12 @@ export async function POST(req: NextRequest) {
         }));
       }
 
-      const shockedDcf = await reviseAnalystDcfDemoFromEventShock(dcfEventShockPrompt, currentDcf);
+      const shockedDcf =
+        (await reviseAnalystDcfDemo(dcfEventShockPrompt, currentDcf)) ??
+        (await reviseAnalystDcfDemoFromEventShock(dcfEventShockPrompt, currentDcf));
       if (!shockedDcf) {
         return NextResponse.json(
-          withAttachmentStatus({ error: 'No supported event shock was detected for the active DCF.' }),
+          withAttachmentStatus({ error: 'No supported scenario adjustment was detected for the active DCF.' }),
           { status: 400 },
         );
       }

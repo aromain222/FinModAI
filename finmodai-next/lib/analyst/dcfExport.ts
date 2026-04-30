@@ -174,8 +174,6 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystDcfDemoP
     ['Base EV', payload.scenarios.base.enterpriseValue, 'currency', 'Base enterprise value'],
     ['Base Equity Value', payload.scenarios.base.equityValue, 'currency', 'Base equity value'],
     ['Base Value / Share', payload.scenarios.base.pricePerShare, 'currency', 'Base implied share price'],
-    ['Cached Price', payload.baseMetrics.sharePrice, 'currency', 'Current price anchor'],
-    ['Upside / Downside', payload.scenarios.base.upsidePct, 'percent', 'Base case vs cached price'],
     ['Terminal Mix', payload.scenarios.base.terminalValueWeight, 'percent', 'Terminal value as % of EV'],
   ].forEach(([label, value, kind, context], index) => {
     const row = 12 + Math.floor(index / 2);
@@ -191,7 +189,7 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystDcfDemoP
 
   styleSectionHeader(sheet, 16, 'Scenario Summary', 6);
   styleTableHeader(sheet, 17, 1, 6);
-  ['Scenario', 'EV', 'Equity Value', 'Value / Share', 'Upside / Downside', 'Terminal Mix'].forEach((label, index) => {
+  ['Scenario', 'EV', 'Equity Value', 'Value / Share', 'Terminal Mix', 'Context'].forEach((label, index) => {
     sheet.getCell(17, 1 + index).value = label;
   });
 
@@ -202,11 +200,11 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystDcfDemoP
     sheet.getCell(`B${row}`).value = scenario.enterpriseValue;
     sheet.getCell(`C${row}`).value = scenario.equityValue;
     sheet.getCell(`D${row}`).value = scenario.pricePerShare;
-    sheet.getCell(`E${row}`).value = scenario.upsidePct;
-    sheet.getCell(`F${row}`).value = scenario.terminalValueWeight;
+    sheet.getCell(`E${row}`).value = scenario.terminalValueWeight;
+    sheet.getCell(`F${row}`).value = 'Intrinsic model';
     styleLabel(sheet.getCell(`A${row}`));
     ['B', 'C', 'D'].forEach((col) => styleOutput(sheet.getCell(`${col}${row}`), 'currency'));
-    ['E', 'F'].forEach((col) => styleOutput(sheet.getCell(`${col}${row}`), 'percent'));
+    styleOutput(sheet.getCell(`E${row}`), 'percent');
   });
   styleThinGrid(sheet, 17, 20, 1, 6);
 
@@ -223,7 +221,6 @@ function appendSummarySheet(workbook: ExcelJS.Workbook, payload: AnalystDcfDemoP
     ['Total Debt', payload.baseMetrics.totalDebt, 'currency', 'Gross debt balance'],
     ['Net Debt', payload.baseMetrics.netDebt, 'currency', 'Debt less cash'],
     ['Shares Outstanding', payload.baseMetrics.sharesOutstanding, 'number', 'Diluted share count'],
-    ['Cached Price', payload.baseMetrics.sharePrice, 'currency', 'Snapshot share price'],
   ].forEach(([label, value, kind, context], index) => {
     const row = 24 + Math.floor(index / 2);
     const colOffset = index % 2 === 0 ? 0 : 3;

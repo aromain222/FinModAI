@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
+import { Textarea } from '@/components/ui/textarea';
 import { EditableFinanceChart } from '@/components/charts/EditableFinanceChart';
 import { FormattedTextBlock } from '@/components/ui/formatted-text-block';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
@@ -19,7 +20,7 @@ import {
 } from '@/lib/workbookOpen';
 
 function fmtMillions(value: number): string {
-  return formatCompactCurrency(value);
+  return formatCompactCurrency(value * 1_000_000);
 }
 
 function fmtPrice(value: number | null): string {
@@ -75,6 +76,7 @@ export function AnalystDcfCard({
   const [isApplyingControls, setIsApplyingControls] = useState(false);
   const [controlsError, setControlsError] = useState<string | null>(null);
   const [isApplyingEventShock, setIsApplyingEventShock] = useState(false);
+  const [scenarioPrompt, setScenarioPrompt] = useState('');
   const [revenueGrowthShiftBps, setRevenueGrowthShiftBps] = useState(0);
   const [marginShiftBps, setMarginShiftBps] = useState(0);
   const [waccPct, setWaccPct] = useState(payload.assumptions.wacc * 100);
@@ -92,6 +94,7 @@ export function AnalystDcfCard({
     setWaccPct(payload.assumptions.wacc * 100);
     setTerminalGrowthPct(payload.assumptions.terminalGrowth * 100);
     setControlsError(null);
+    setScenarioPrompt('');
   }, [payload]);
 
   const adjustedRevenueGrowth = useMemo(
@@ -255,8 +258,7 @@ export function AnalystDcfCard({
             baseValuePerShare: payload.scenarios.base.pricePerShare,
             bullValuePerShare: payload.scenarios.bull.pricePerShare,
             bearValuePerShare: payload.scenarios.bear.pricePerShare,
-            impliedUpsidePct:
-              typeof payload.scenarios.base.upsidePct === 'number' ? payload.scenarios.base.upsidePct * 100 : null,
+            impliedUpsidePct: null,
           },
           modelData: {
             dcfSummary: {
@@ -267,9 +269,7 @@ export function AnalystDcfCard({
               },
               scenarios: payload.scenarios,
               assumptions: payload.assumptions,
-              marketContext: {
-                sharePrice: payload.baseMetrics.sharePrice,
-              },
+              marketContext: {},
             },
             forecast: payload.forecast,
             notes: payload.notes,
@@ -321,14 +321,18 @@ export function AnalystDcfCard({
   }
 
   async function handleRunEventShock(prompt: string) {
-    if (!onRunEventShock || isApplyingEventShock || isApplyingControls) return;
+    const trimmedPrompt = prompt.trim();
+    if (!onRunEventShock || isApplyingEventShock || isApplyingControls || !trimmedPrompt) return;
 
     setIsApplyingEventShock(true);
     setControlsError(null);
     try {
-      await onRunEventShock(prompt);
+      await onRunEventShock(trimmedPrompt);
+      if (trimmedPrompt === scenarioPrompt.trim()) {
+        setScenarioPrompt('');
+      }
     } catch (error) {
-      setControlsError(error instanceof Error ? error.message : 'Unable to apply event shock.');
+      setControlsError(error instanceof Error ? error.message : 'Unable to apply scenario.');
     } finally {
       setIsApplyingEventShock(false);
     }
@@ -426,6 +430,33 @@ export function AnalystDcfCard({
                       {isApplyingEventShock ? 'Applying…' : preset.label}
                     </Button>
                   ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <Label htmlFor={`dcf-scenario-${payload.ticker}`}>Scenario Prompt</Label>
+                  <span className="text-xs text-[var(--cb-text-muted)]">
+                    Example: rates rise 100 bps and EBIT margin compresses 200 bps
+                  </span>
+                </div>
+                <Textarea
+                  id={`dcf-scenario-${payload.ticker}`}
+                  value={scenarioPrompt}
+                  onChange={(event) => setScenarioPrompt(event.target.value)}
+                  placeholder="Type a scenario that changes assumptions..."
+                  className="min-h-[88px] rounded-xl"
+                  disabled={!onRunEventShock || isApplyingEventShock || isApplyingControls}
+                />
+                <div className="mt-3 flex justify-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => void handleRunEventShock(scenarioPrompt)}
+                    disabled={!onRunEventShock || isApplyingEventShock || isApplyingControls || scenarioPrompt.trim().length === 0}
+                  >
+                    {isApplyingEventShock ? 'Applying...' : 'Apply Scenario'}
+                  </Button>
                 </div>
               </div>
 
@@ -529,7 +560,7 @@ export function AnalystDcfCard({
             </div>
           ) : null}
         </div>
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-3">
           <StatCard
             label="Base EV"
             value={fmtMillions(displayPayload.scenarios.base.enterpriseValue)}
@@ -545,14 +576,9 @@ export function AnalystDcfCard({
             helper={hasControlChanges ? 'Preview base case per share' : 'Base case per share'}
           />
           <StatCard
-            label="Cached Price"
-            value={fmtPrice(displayPayload.baseMetrics.sharePrice)}
-            helper={payload.asOfDate ? `As of ${payload.asOfDate.slice(0, 10)}` : 'Demo snapshot'}
-          />
-          <StatCard
-            label="Upside / Downside"
-            value={fmtPct(displayPayload.scenarios.base.upsidePct)}
-            helper={`Bull ${fmtPrice(displayPayload.scenarios.bull.pricePerShare)} | Bear ${fmtPrice(displayPayload.scenarios.bear.pricePerShare)}`}
+            label="Valuation Range"
+            value={`${fmtPrice(displayPayload.scenarios.bear.pricePerShare)} - ${fmtPrice(displayPayload.scenarios.bull.pricePerShare)}`}
+            helper={`Base ${fmtPrice(displayPayload.scenarios.base.pricePerShare)}`}
           />
         </div>
 
@@ -566,23 +592,9 @@ export function AnalystDcfCard({
             </div>
             <div className="grid gap-2">
               <ComparisonRow
-                label="Cached Price"
-                primary={fmtPrice(payload.baseMetrics.sharePrice)}
-                comparison={fmtPrice(payload.comparison.baseMetrics.sharePrice)}
-                primaryTicker={payload.ticker}
-                comparisonTicker={payload.comparison.ticker}
-              />
-              <ComparisonRow
                 label="Base Implied Value"
                 primary={fmtPrice(displayPayload.scenarios.base.pricePerShare)}
                 comparison={fmtPrice(payload.comparison.scenarios.base.pricePerShare)}
-                primaryTicker={payload.ticker}
-                comparisonTicker={payload.comparison.ticker}
-              />
-              <ComparisonRow
-                label="Base Upside / Downside"
-                primary={fmtPct(displayPayload.scenarios.base.upsidePct)}
-                comparison={fmtPct(payload.comparison.scenarios.base.upsidePct)}
                 primaryTicker={payload.ticker}
                 comparisonTicker={payload.comparison.ticker}
               />

@@ -939,12 +939,11 @@ function evaluateScenario(params: {
 
 function buildDeterministicMemo(payload: AnalystDcfDemoPayload): string {
   const base = payload.scenarios.base;
-  const upsideText =
-    base.upsidePct === null
-      ? 'Market price comparison is not available in the cached demo dataset.'
-      : base.upsidePct >= 0
-        ? `Base case implies ${Math.abs(base.upsidePct * 100).toFixed(1)}% upside versus the cached reference price.`
-        : `Base case implies ${Math.abs(base.upsidePct * 100).toFixed(1)}% downside versus the cached reference price.`;
+  const formatMemoPrice = (value: number | null) => (value === null ? 'n/a' : `$${value.toFixed(2)}`);
+  const baseValueText =
+    base.pricePerShare === null
+      ? 'Base case per-share valuation is unavailable because share count is missing.'
+      : `Base case intrinsic value is ${formatMemoPrice(base.pricePerShare)} per share.`;
   const terminalMix =
     base.terminalValueWeight === null ? 'Terminal value mix is not available.' : `Terminal value represents ${(base.terminalValueWeight * 100).toFixed(1)}% of enterprise value.`;
 
@@ -954,7 +953,7 @@ function buildDeterministicMemo(payload: AnalystDcfDemoPayload): string {
 
   return [
     `${payload.companyName} screens as a long-duration valuation where cash flow compounding and discount-rate discipline drive most of the result.`,
-    `${upsideText} ${terminalMix}`,
+    `${baseValueText} ${terminalMix}`,
     `The underwriting debate is whether revenue growth can decelerate into the terminal period without giving back too much operating margin.${comparisonSentence}`,
   ].join(' ');
 }
@@ -1023,8 +1022,7 @@ async function generateAiMemo(
 
 function buildReply(payload: AnalystDcfDemoPayload): string {
   const formatPrice = (value: number | null) => (value === null ? 'n/a' : `$${value.toFixed(2)}`);
-  const formatPct = (value: number | null) => (value === null ? 'n/a' : `${(value * 100).toFixed(1)}%`);
-  const formatValue = (value: number) => formatCompactCurrency(value);
+  const formatValue = (value: number) => formatCompactCurrency(value * 1_000_000);
   const base = payload.scenarios.base;
   const bull = payload.scenarios.bull;
   const bear = payload.scenarios.bear;
@@ -1033,8 +1031,8 @@ function buildReply(payload: AnalystDcfDemoPayload): string {
     ? [
         '',
         `COMPARISON VS ${payload.comparison.companyName.toUpperCase()}`,
-        `- ${payload.companyName}: base implied value ${formatPrice(base.pricePerShare)} and ${formatPct(base.upsidePct)} upside/downside versus cached price.`,
-        `- ${payload.comparison.companyName}: base implied value ${formatPrice(payload.comparison.scenarios.base.pricePerShare)} and ${formatPct(payload.comparison.scenarios.base.upsidePct)} upside/downside versus cached price.`,
+        `- ${payload.companyName}: base implied value ${formatPrice(base.pricePerShare)} on ${formatValue(base.enterpriseValue)} EV.`,
+        `- ${payload.comparison.companyName}: base implied value ${formatPrice(payload.comparison.scenarios.base.pricePerShare)} on ${formatValue(payload.comparison.scenarios.base.enterpriseValue)} EV.`,
         `- Year 1 revenue growth: ${(payload.assumptions.revenueGrowth[0] * 100).toFixed(1)}% for ${payload.ticker} vs ${(payload.comparison.assumptions.revenueGrowth[0] * 100).toFixed(1)}% for ${payload.comparison.ticker}.`,
         `- Year 1 EBIT margin: ${(payload.assumptions.ebitMargin[0] * 100).toFixed(1)}% for ${payload.ticker} vs ${(payload.comparison.assumptions.ebitMargin[0] * 100).toFixed(1)}% for ${payload.comparison.ticker}.`,
       ]
@@ -1051,7 +1049,6 @@ function buildReply(payload: AnalystDcfDemoPayload): string {
     `- Revenue growth path: ${payload.assumptions.revenueGrowth.map((value) => `${(value * 100).toFixed(1)}%`).join(', ')}.`,
     `- EBIT margin path: ${payload.assumptions.ebitMargin.map((value) => `${(value * 100).toFixed(1)}%`).join(', ')}.`,
     `- WACC / terminal growth: ${(payload.assumptions.wacc * 100).toFixed(1)}% / ${(payload.assumptions.terminalGrowth * 100).toFixed(1)}%.`,
-    `- Base case upside vs cached price: ${formatPct(base.upsidePct)}.`,
     ...comparisonSection,
     '',
     'INVESTMENT MEMO',
@@ -1088,6 +1085,43 @@ function parseDcfOverrideValue(raw: string, typeHint: 'percent' | 'number' | 'te
   if (!Number.isFinite(parsed)) return undefined;
   if (typeHint === 'percent' || match[2]) return parsed > 1 ? parsed / 100 : parsed;
   return parsed;
+}
+
+function parseScenarioDeltaValue(rawValue: string, rawUnit: string | undefined): number | undefined {
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed)) return undefined;
+  const unit = (rawUnit ?? '').toLowerCase();
+  if (/\b(bp|bps|basis\s+points?)\b/.test(unit)) return parsed / 10000;
+  return parsed > 1 ? parsed / 100 : parsed;
+}
+
+function directionSign(rawDirection: string): 1 | -1 {
+  return /\b(down|decrease|decreases|decreased|decline|declines|declined|drop|drops|dropped|fall|falls|fell|lower|compress|compresses|compressed|compression)\b/i.test(rawDirection)
+    ? -1
+    : 1;
+}
+
+function extractScenarioDelta(prompt: string, aliases: string[]): number | null {
+  for (const alias of aliases) {
+    const escapedAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+    const patterns = [
+      new RegExp(`\\b${escapedAlias}\\b\\s+(up|increase[sd]?|rise[sn]?|rose|higher|down|decrease[sd]?|decline[sd]?|drop(?:ped|s)?|fall(?:s|en)?|fell|lower|compress(?:es|ed)?|compression)\\s+(?:by\\s+)?(-?\\d*\\.?\\d+)\\s*(bps?|basis\\s+points?|%)?`, 'i'),
+      new RegExp(`(up|increase[sd]?|rise[sn]?|rose|higher|down|decrease[sd]?|decline[sd]?|drop(?:ped|s)?|fall(?:s|en)?|fell|lower)\\s+(?:by\\s+)?(-?\\d*\\.?\\d+)\\s*(bps?|basis\\s+points?|%)?\\s+(?:in\\s+)?\\b${escapedAlias}\\b`, 'i'),
+      new RegExp(`\\b${escapedAlias}\\b\\s+(?:compression|compress(?:es|ed)?)\\s+(?:of\\s+)?(-?\\d*\\.?\\d+)\\s*(bps?|basis\\s+points?|%)?`, 'i'),
+    ];
+
+    for (const pattern of patterns) {
+      const match = prompt.match(pattern);
+      if (!match) continue;
+      const rawDirection = match.length === 4 ? match[1] : 'down';
+      const rawValue = match.length === 4 ? match[2] : match[1];
+      const rawUnit = match.length === 4 ? match[3] : match[2];
+      const parsed = parseScenarioDeltaValue(rawValue, rawUnit);
+      if (typeof parsed === 'number') return directionSign(rawDirection) * Math.abs(parsed);
+    }
+  }
+
+  return null;
 }
 
 function extractDcfOverrides(prompt: string, payload: AnalystDcfDemoPayload): {
@@ -1143,6 +1177,26 @@ function extractDcfOverrides(prompt: string, payload: AnalystDcfDemoPayload): {
       }
       if (key in assumptionOverrides) break;
     }
+  }
+
+  const waccDelta = extractScenarioDelta(prompt, ['wacc', 'discount rate', 'rates', 'interest rates']);
+  if (typeof waccDelta === 'number') {
+    assumptionOverrides.wacc = Number(clamp(payload.assumptions.wacc + waccDelta, 0.06, 0.16).toFixed(4));
+  }
+
+  const terminalGrowthDelta = extractScenarioDelta(prompt, ['terminal growth', 'terminal g']);
+  if (typeof terminalGrowthDelta === 'number') {
+    assumptionOverrides.terminalGrowth = Number(clamp(payload.assumptions.terminalGrowth + terminalGrowthDelta, 0.01, 0.04).toFixed(4));
+  }
+
+  const revenueGrowthDelta = extractScenarioDelta(prompt, ['revenue growth', 'growth']);
+  if (typeof revenueGrowthDelta === 'number') {
+    assumptionOverrides.revenueGrowth = applySeriesDelta(payload.assumptions.revenueGrowth, revenueGrowthDelta, -0.05, 0.25);
+  }
+
+  const ebitMarginDelta = extractScenarioDelta(prompt, ['ebit margin', 'operating margin', 'margin', 'margins']);
+  if (typeof ebitMarginDelta === 'number') {
+    assumptionOverrides.ebitMargin = applySeriesDelta(payload.assumptions.ebitMargin, ebitMarginDelta, 0.05, 0.5);
   }
 
   const seriesPatterns: Array<{ key: 'revenueGrowth' | 'ebitMargin'; aliases: string[] }> = [
