@@ -335,9 +335,7 @@ export function AnalystChatApp() {
     }
   };
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const prompt = input.trim();
+  const submitPrompt = async (prompt: string) => {
     if (!prompt || isLoading) return;
 
     const explicitTicker = ticker.trim().length > 0 ? ticker.trim().toUpperCase() : undefined;
@@ -553,6 +551,15 @@ export function AnalystChatApp() {
         promptRef.current?.focus();
       });
     }
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    await submitPrompt(input.trim());
+  };
+
+  const handleQuickPrompt = async (text: string) => {
+    await submitPrompt(text.trim());
   };
 
   const handleDcfAdjustment = async (
@@ -843,6 +850,7 @@ export function AnalystChatApp() {
       onQuickEventTextChange={setQuickEventText}
       onQuickEventSourceChange={setQuickEventSource}
       onQuickEventApply={handleQuickEventApply}
+      onQuickPrompt={handleQuickPrompt}
       onSubmit={handleSubmit}
       onInputChange={setInput}
       showExecutionTrace={showExecutionTrace}

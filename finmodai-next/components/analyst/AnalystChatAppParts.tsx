@@ -485,6 +485,7 @@ type AnalystChatSurfaceProps = {
   onQuickEventTextChange: (value: string) => void;
   onQuickEventSourceChange: (value: string) => void;
   onQuickEventApply: () => Promise<void>;
+  onQuickPrompt: (text: string) => void;
   onSubmit: (event: FormEvent) => Promise<void>;
   onInputChange: (value: string) => void;
   showExecutionTrace: boolean;
@@ -989,6 +990,27 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
               </div>
             ) : null}
 
+            {(latestModelMessage || latestDcfMessage) && (
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                {(([
+                  { label: 'Is it undervalued?',  prompt: 'is it undervalued?' },
+                  { label: 'Upside / downside',   prompt: 'what is the upside/downside?' },
+                  { label: 'Key assumptions',     prompt: 'what are the key assumptions?' },
+                  { label: 'What breaks this?',   prompt: 'what breaks this valuation case?' },
+                  { label: 'Stress test',         prompt: 'stress test this model' },
+                ]) as { label: string; prompt: string }[]).map(({ label, prompt }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    disabled={props.isLoading}
+                    onClick={() => props.onQuickPrompt(prompt)}
+                    className="inline-flex items-center rounded-full border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] px-3 py-1 text-[11px] font-medium text-[var(--cb-text-muted)] transition-colors hover:border-[var(--cb-border-strong)] hover:bg-[var(--cb-surface)] hover:text-[var(--cb-text-primary)] disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
             <form onSubmit={props.onSubmit}>
               <label htmlFor="analyst-prompt" className="sr-only">Ask a question</label>
               <Textarea
