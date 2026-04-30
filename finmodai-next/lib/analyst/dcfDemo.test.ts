@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDeterministicAssumptions, parseDcfPrompt } from './dcfDemo';
+import { buildDeterministicAssumptions, normalizeDcfSharesOutstanding, parseDcfPrompt } from './dcfDemo';
 
 test('parseDcfPrompt extracts years and explicit valuation overrides', () => {
   const parsed = parseDcfPrompt('Build a 5-year DCF model for Google with 9% WACC and 3% terminal growth');
@@ -35,4 +35,16 @@ test('buildDeterministicAssumptions returns bounded arrays sized to the forecast
   assert.ok(assumptions.revenueGrowth[0] > assumptions.revenueGrowth[4]);
   assert.ok(assumptions.wacc >= 0.06 && assumptions.wacc <= 0.16);
   assert.ok(assumptions.terminalGrowth >= 0.01 && assumptions.terminalGrowth <= 0.04);
+});
+
+test('normalizeDcfSharesOutstanding converts billion-scale live shares to model millions', () => {
+  const normalized = normalizeDcfSharesOutstanding(12.3, 4_710_000, 383);
+
+  assert.ok(normalized !== null);
+  assert.ok(normalized > 12_000);
+  assert.ok(normalized < 13_000);
+});
+
+test('normalizeDcfSharesOutstanding leaves already-million share counts unchanged', () => {
+  assert.equal(normalizeDcfSharesOutstanding(12_300, 4_710_000, 383), 12_300);
 });

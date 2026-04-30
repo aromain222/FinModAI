@@ -138,6 +138,31 @@ const DEFAULT_YEARS = 5;
 const COMPANY_SUFFIX_RE =
   /\b(incorporated|inc|corp|corporation|holdings|holding|group|plc|limited|ltd|co|company)\b/gi;
 
+export function normalizeDcfSharesOutstanding(
+  sharesOutstanding: number | null | undefined,
+  marketCapM: number | null | undefined,
+  sharePrice: number | null | undefined,
+): number | null {
+  const shares =
+    typeof sharesOutstanding === 'number' && Number.isFinite(sharesOutstanding) && sharesOutstanding > 0
+      ? sharesOutstanding
+      : null;
+  const derivedFromMarket =
+    typeof marketCapM === 'number' &&
+    Number.isFinite(marketCapM) &&
+    marketCapM > 0 &&
+    typeof sharePrice === 'number' &&
+    Number.isFinite(sharePrice) &&
+    sharePrice > 0
+      ? marketCapM / sharePrice
+      : null;
+
+  if (shares === null) return derivedFromMarket;
+  if (derivedFromMarket !== null && shares < 100 && derivedFromMarket > shares * 50) return derivedFromMarket;
+  if (shares > 1_000_000) return shares / 1_000_000;
+  return shares;
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
@@ -598,6 +623,8 @@ async function hydrateResolvedCompany(seed: ResolvedCompany): Promise<ResolvedCo
 function buildBaseMetrics(snapshot: DemoCompanySnapshot): AnalystDcfBaseMetrics {
   const cash = snapshot.cash ?? 0;
   const totalDebt = snapshot.totalDebt ?? 0;
+  const sharePrice = typeof snapshot.sharePrice === 'number' && snapshot.sharePrice > 0 ? snapshot.sharePrice : null;
+  const marketCap = typeof snapshot.marketCap === 'number' && snapshot.marketCap > 0 ? snapshot.marketCap : null;
 
   return {
     revenueLtm: snapshot.revenueLtm ?? 0,
@@ -606,10 +633,9 @@ function buildBaseMetrics(snapshot: DemoCompanySnapshot): AnalystDcfBaseMetrics 
     cash,
     totalDebt,
     netDebt: totalDebt - cash,
-    sharesOutstanding:
-      typeof snapshot.sharesOutstanding === 'number' && snapshot.sharesOutstanding > 0 ? snapshot.sharesOutstanding : null,
-    sharePrice: typeof snapshot.sharePrice === 'number' && snapshot.sharePrice > 0 ? snapshot.sharePrice : null,
-    marketCap: typeof snapshot.marketCap === 'number' && snapshot.marketCap > 0 ? snapshot.marketCap : null,
+    sharesOutstanding: normalizeDcfSharesOutstanding(snapshot.sharesOutstanding, marketCap, sharePrice),
+    sharePrice,
+    marketCap,
   };
 }
 
@@ -1640,11 +1666,9 @@ export async function generateAnalystDcfDemo(params: {
   const cash = snapshot.cash ?? 0;
   const totalDebt = snapshot.totalDebt ?? 0;
   const netDebt = totalDebt - cash;
-  const sharesOutstanding = typeof snapshot.sharesOutstanding === 'number' && snapshot.sharesOutstanding > 0
-    ? snapshot.sharesOutstanding
-    : null;
   const sharePrice = typeof snapshot.sharePrice === 'number' && snapshot.sharePrice > 0 ? snapshot.sharePrice : null;
   const marketCap = typeof snapshot.marketCap === 'number' && snapshot.marketCap > 0 ? snapshot.marketCap : null;
+  const sharesOutstanding = normalizeDcfSharesOutstanding(snapshot.sharesOutstanding, marketCap, sharePrice);
   const ebitdaMargin = revenueLtm > 0 && ebitdaLtm > 0 ? ebitdaLtm / revenueLtm : null;
 
   const defaultAssumptions = buildDeterministicAssumptions(snapshot, parsed);

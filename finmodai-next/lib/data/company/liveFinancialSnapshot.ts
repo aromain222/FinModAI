@@ -67,6 +67,23 @@ function toMillions(value: unknown): number | null {
   return parsed === null ? null : parsed / 1_000_000;
 }
 
+function normalizeMarketCapToMillions(value: unknown): number | null {
+  const parsed = toNumber(value);
+  if (parsed === null || parsed <= 0) return null;
+  return parsed > 100_000_000 ? parsed / 1_000_000 : parsed;
+}
+
+function normalizeSharesToMillions(value: unknown, marketCapM: number | null, price: number | null): number | null {
+  const parsed = toNumber(value);
+  const derivedFromMarket =
+    marketCapM !== null && price !== null && price > 0 ? marketCapM / price : null;
+
+  if (parsed === null || parsed <= 0) return derivedFromMarket;
+  if (derivedFromMarket !== null && parsed < 100 && derivedFromMarket > parsed * 50) return derivedFromMarket;
+  if (parsed > 1_000_000) return parsed / 1_000_000;
+  return parsed;
+}
+
 function pick<T>(...values: Array<T | null | undefined>): T | null {
   for (const value of values) {
     if (value !== null && value !== undefined) return value;
@@ -123,8 +140,15 @@ async function fetchFinnhubPatch(ticker: string): Promise<ProviderPatch> {
   const metrics = metric?.metric ?? {};
   const price = toNumber(quote?.c);
   const priceAsOfDate = quote?.t ? new Date(Number(quote.t) * 1000).toISOString().slice(0, 10) : null;
-  const marketCap = pickNumber(toNumber(metrics.marketCapitalization), toMillions(profile?.marketCapitalization));
-  const sharesOutstanding = pickNumber(toNumber(metrics.sharesOutstanding), toMillions(profile?.shareOutstanding));
+  const marketCap = pickNumber(
+    normalizeMarketCapToMillions(metrics.marketCapitalization),
+    normalizeMarketCapToMillions(profile?.marketCapitalization),
+  );
+  const sharesOutstanding = normalizeSharesToMillions(
+    pickNumber(toNumber(metrics.sharesOutstanding), toNumber(profile?.shareOutstanding)),
+    marketCap,
+    price,
+  );
 
   return {
     companyName: profile?.name ?? null,

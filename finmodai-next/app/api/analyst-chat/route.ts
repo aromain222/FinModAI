@@ -41,6 +41,7 @@ import { gatherAnalystRetrievalContext, inferTickerFromPrompt } from '@/lib/anal
 import {
   generateAnalystDcfDemo,
   isDcfEventShockPrompt,
+  normalizeDcfSharesOutstanding,
   reviseAnalystDcfDemo,
   reviseAnalystDcfDemoFromAdjustment,
   reviseAnalystDcfDemoFromEventShock,
@@ -424,10 +425,19 @@ function formatValuationPct(value: number | null): string {
 
 function buildDcfValuationVerdictReply(payload: AnalystDcfDemoPayload): string {
   const base = payload.scenarios.base;
-  const intrinsic = base.pricePerShare;
   const market = base.marketPrice ?? payload.baseMetrics.sharePrice;
-  const upside = base.upsidePct ??
-    (intrinsic !== null && market !== null && market > 0 ? intrinsic / market - 1 : null);
+  const normalizedShares = normalizeDcfSharesOutstanding(
+    payload.baseMetrics.sharesOutstanding,
+    payload.baseMetrics.marketCap,
+    market,
+  );
+  const intrinsic =
+    normalizedShares !== null && normalizedShares > 0
+      ? base.equityValue / normalizedShares
+      : base.pricePerShare;
+  const upside = intrinsic !== null && market !== null && market > 0
+    ? intrinsic / market - 1
+    : base.upsidePct;
   const terminalWeight = base.terminalValueWeight;
 
   if (intrinsic === null || market === null || market <= 0 || upside === null) {
