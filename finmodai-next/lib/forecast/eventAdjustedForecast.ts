@@ -11,6 +11,8 @@ export type PriceForecastPayload = {
   } | null;
   model_available: boolean;
   horizon_days: number;
+  model_source?: 'timesfm' | 'provider_trend_fallback' | string;
+  methodology?: string;
 };
 
 export type EventAdjustmentInput = {
@@ -29,7 +31,7 @@ export type EventAdjustedForecast = {
     start_price: number;
     end_price: number;
     return_pct: number;
-    source: 'timesfm';
+    source: 'timesfm' | 'provider_trend_fallback' | string;
   };
   event_adjustment: {
     label: string | null;
@@ -156,7 +158,7 @@ export function buildEventAdjustedForecast(
       start_price: round(startPrice, 2),
       end_price: round(endBaseline, 2),
       return_pct: round(baselineReturnPct, 2),
-      source: 'timesfm',
+      source: priceForecast.model_source ?? 'timesfm',
     },
     event_adjustment: {
       label: event.label ?? null,

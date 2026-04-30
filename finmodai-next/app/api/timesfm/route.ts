@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  buildProviderBackedPriceForecast,
+  buildProviderBackedRevenueForecast,
+} from '@/lib/forecast/providerBackedForecast';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-const PYTHON_BACKEND = process.env.PYTHON_BACKEND_URL ?? 'http://localhost:8082';
+const PYTHON_BACKEND = process.env.PYTHON_BACKEND_URL?.trim() || null;
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -27,29 +31,52 @@ export async function GET(req: NextRequest) {
     params.set('quarters', quarters);
   }
 
-  try {
-    const upstream = await fetch(`${PYTHON_BACKEND}/api/v1/timesfm/${type}?${params.toString()}`, {
-      signal: AbortSignal.timeout(55000),
-      cache: 'no-store',
-    });
+  if (PYTHON_BACKEND) {
+    try {
+      const upstream = await fetch(`${PYTHON_BACKEND}/api/v1/timesfm/${type}?${params.toString()}`, {
+        signal: AbortSignal.timeout(4500),
+        cache: 'no-store',
+      });
 
-    if (!upstream.ok) {
-      const text = await upstream.text().catch(() => '');
-      return NextResponse.json(
-        { error: `Forecast service error (${upstream.status})`, detail: text },
-        { status: upstream.status },
-      );
+      if (upstream.ok) {
+        const data = await upstream.json();
+        return NextResponse.json(
+          {
+            ...data,
+            model_source: data?.model_source ?? 'timesfm',
+            methodology: data?.methodology ?? 'TimesFM forecast service',
+          },
+          { headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=600' } },
+        );
+      }
+    } catch {
+      // Fall through to provider-backed forecast below.
     }
-
-    const data = await upstream.json();
-    return NextResponse.json(data, {
-      headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=600' },
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json(
-      { error: 'Forecast service unavailable', detail: message },
-      { status: 503 },
-    );
   }
+
+  if (type === 'price') {
+    const fallback = await buildProviderBackedPriceForecast(ticker, Number(params.get('horizon') ?? 30));
+    if (fallback) {
+      return NextResponse.json(fallback, {
+        headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=600' },
+      });
+    }
+  } else {
+    const fallback = await buildProviderBackedRevenueForecast(ticker, Number(params.get('quarters') ?? 4));
+    if (fallback) {
+      return NextResponse.json(fallback, {
+        headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=600' },
+      });
+    }
+  }
+
+  return NextResponse.json(
+    {
+      error: 'Forecast unavailable',
+      detail: PYTHON_BACKEND
+        ? 'TimesFM service and provider-backed fallback were unavailable.'
+        : 'PYTHON_BACKEND_URL is not configured and provider-backed fallback could not resolve enough data.',
+    },
+    { status: 503 },
+  );
 }

@@ -9,6 +9,9 @@ export type PriceForecastResult = {
   } | null;
   model_available: boolean;
   horizon_days: number;
+  model_source?: 'timesfm' | 'provider_trend_fallback' | string;
+  methodology?: string;
+  warnings?: string[];
 };
 
 export type RevenueForecastResult = {
@@ -22,6 +25,9 @@ export type RevenueForecastResult = {
   } | null;
   model_available: boolean;
   implied_growth_rate: number | null;
+  model_source?: 'timesfm' | 'historical_financials_fallback' | string;
+  methodology?: string;
+  warnings?: string[];
 };
 
 export async function fetchPriceForecast(ticker: string, horizon = 30): Promise<PriceForecastResult | null> {

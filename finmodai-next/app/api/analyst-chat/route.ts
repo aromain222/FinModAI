@@ -1918,6 +1918,15 @@ export async function POST(req: NextRequest) {
         if (priceRes && priceRes instanceof Response && priceRes.ok) {
           const pd = await priceRes.json() as PriceForecastPayload;
           if (pd.model_available && pd.forecast && pd.historical) {
+            const forecastSourceLabel =
+              pd.model_source === 'provider_trend_fallback'
+                ? 'PROVIDER-BACKED TREND'
+                : 'TIMESFM';
+            const forecastMethodology =
+              pd.methodology ??
+              (pd.model_source === 'provider_trend_fallback'
+                ? 'Provider-backed fallback from recent end-of-day price history.'
+                : 'Google foundation model, time-series extrapolation from historical price patterns; not event-driven.');
             const lastActual = pd.historical.prices.at(-1);
             const endForecast = pd.forecast.values.at(-1);
             const endLower = pd.forecast.lower.at(-1);
@@ -1938,9 +1947,9 @@ export async function POST(req: NextRequest) {
                   `Caveat: ${eventSynthesis.caveat}`
                 : '';
               parts.push(
-                `TIMESFM ${horizonLabel.toUpperCase()} PRICE FORECAST (Google foundation model, time-series extrapolation from historical price patterns — not event-driven):\n` +
+                `${forecastSourceLabel} ${horizonLabel.toUpperCase()} PRICE FORECAST (${forecastMethodology}):\n` +
                 `Current price: $${lastActual.toFixed(2)} → ${horizonLabel} forecast: $${endForecast.toFixed(2)} (${direction}, ${pctChangeValue >= 0 ? '+' : ''}${pctChange}%)${bandStr}\n` +
-                `Note: this reflects momentum/trend continuation only; news events are not inputs to this model.` +
+                `Note: this reflects momentum/trend continuation only; news events are handled as an overlay when available.` +
                 eventSynthesisBlock
               );
             }
@@ -1953,6 +1962,8 @@ export async function POST(req: NextRequest) {
             model_available?: boolean;
             implied_growth_rate?: number | null;
             forecast?: { labels: string[]; values: number[] } | null;
+            model_source?: string;
+            methodology?: string;
           };
           if (rd.model_available && rd.forecast && rd.implied_growth_rate != null) {
             const growth = (rd.implied_growth_rate * 100).toFixed(1);
@@ -1960,7 +1971,7 @@ export async function POST(req: NextRequest) {
               .map((v, i) => `${rd.forecast!.labels[i]}: $${Math.round(v)}M`)
               .join(', ');
             parts.push(
-              `TIMESFM REVENUE FORECAST (${revenueQuarters} quarter${revenueQuarters === 1 ? '' : 's'}):\nImplied NTM growth: ${Number(growth) >= 0 ? '+' : ''}${growth}%\nQuarterly projections: ${fwdRevenue}`
+              `${rd.model_source === 'historical_financials_fallback' ? 'PROVIDER-BACKED' : 'TIMESFM'} REVENUE FORECAST (${revenueQuarters} quarter${revenueQuarters === 1 ? '' : 's'}):\nImplied NTM growth: ${Number(growth) >= 0 ? '+' : ''}${growth}%\nQuarterly projections: ${fwdRevenue}${rd.methodology ? `\nMethodology: ${rd.methodology}` : ''}`
             );
           }
         }
@@ -1968,11 +1979,11 @@ export async function POST(req: NextRequest) {
         if (parts.length > 0) {
           parts.push(
             `SYNTHESIS GUIDANCE: When asked how a stock will move or what the price outlook is, ` +
-            `lead with the TimesFM ${horizonLabel} baseline, then layer in any event or news signals you know about ` +
+            `lead with the supplied ${horizonLabel} forecast baseline, then layer in any event or news signals you know about ` +
             `(earnings, macro events, rate decisions, geopolitical risk) as adjustments on top of that baseline. ` +
             `If a combined outlook is provided, use that as the primary net view. ` +
-            `Do not say no internal forecast model is loaded when this TimesFM block is present. ` +
-            `Do not present TimesFM and event signals as unrelated bullets; synthesize baseline + overlay into one conclusion.`
+            `Do not say no internal forecast model is loaded when this forecast block is present. ` +
+            `Do not present baseline and event signals as unrelated bullets; synthesize baseline + overlay into one conclusion.`
           );
           timesFMBlock = parts.join('\n\n');
         }
@@ -2765,7 +2776,9 @@ export async function POST(req: NextRequest) {
       ? 'Use the structure the user explicitly asked for. Keep it concise and finance-native.'
       : 'Default to natural analyst prose in short paragraphs. Do not use labeled section headers, bullet lists, memo scaffolding, or template headings unless the user explicitly asked for them.';
     const numericDisciplineInstruction =
-      facts.numbers.length >= 3 || facts.companies.length > 0
+      timesFMBlock
+        ? 'Use the supplied forecast block as verified application-generated context. Lead with its numeric forecast range and do not replace it with a generic caveat.'
+        : facts.numbers.length >= 3 || facts.companies.length > 0
         ? 'Use verified numeric facts when they sharpen the point. Do not add unsupported numeric sensitivities, valuation percentages, debt balances, or basis-point rules that are not in the sourced context.'
         : 'Verified numeric support is thin. Do not introduce precise numeric sensitivities, debt balances, WACC rules, valuation percentages, or basis-point estimates. Answer directionally and explain the mechanism instead.';
     const earningsFirstInstruction =
