@@ -870,7 +870,7 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
                       Quick Assumption Update
                     </div>
                     <div className="mt-1 text-sm text-[var(--cb-text-primary)]">
-                      Paste a headline or event excerpt here to adjust the active model's assumptions
+                      Paste a headline or event excerpt here to adjust the active model&apos;s assumptions
                       without leaving chat.
                     </div>
                     <div className="mt-1 text-xs text-[var(--cb-text-muted)]">
