@@ -3045,6 +3045,9 @@ export async function POST(req: NextRequest) {
     /* ── Step 4: Build LLM messages with intent-specific prompt + verified facts ── */
     const useWebTools = route.requiresLiveData && facts.events.length === 0 && facts.numbers.length === 0;
     const intentPrompt = getIntentPrompt(route.intent, lastUserMessage);
+    const longHorizonForecastInstruction = isLongHorizonForecastPrompt(lastUserMessage)
+      ? 'For this multi-year forecast, return clean prose only: no markdown tables, no pipe-delimited rows, no section headers, and no bullet lists unless the user explicitly asked for them. Use 3-4 short paragraphs in this order: core forecast, revenue/segment drivers, margin/FCF setup, key risks. Keep every currency and percent value attached to its subject and unit.'
+      : null;
     const styleInstruction = userExplicitlyWantsStructuredOutput(lastUserMessage)
       ? 'Use the structure the user explicitly asked for. Keep it concise and finance-native.'
       : 'Default to natural analyst prose in short paragraphs. Do not use labeled section headers, bullet lists, memo scaffolding, or template headings unless the user explicitly asked for them.';
@@ -3073,6 +3076,7 @@ export async function POST(req: NextRequest) {
       { role: 'system', content: ANALYST_SYSTEM_PROMPT },
       ...(intentPrompt ? [{ role: 'system' as const, content: intentPrompt }] : []),
       { role: 'system', content: styleInstruction },
+      ...(longHorizonForecastInstruction ? [{ role: 'system' as const, content: longHorizonForecastInstruction }] : []),
       { role: 'system', content: responseQualityInstruction },
       { role: 'system', content: numericDisciplineInstruction },
       ...(earningsFirstInstruction ? [{ role: 'system' as const, content: earningsFirstInstruction }] : []),
