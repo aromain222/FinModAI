@@ -1719,37 +1719,39 @@ export async function POST(req: NextRequest) {
         attachmentUsed: attachmentLabel,
       }));
     }
-    if (route.intent === 'company_question') {
-      stockLookupPayload = preferCurrentArtifact && currentStock
-        ? currentStock
-        : await lookupStock(
+    // Run stock lookup and earnings retrieval in parallel — neither depends on the other.
+    const [parallelStockLookup, parallelEarningsEnvelope] = await Promise.all([
+      route.intent === 'company_question' && !(preferCurrentArtifact && currentStock)
+        ? lookupStock(
             resolvedTicker
               ? { prompt: lastUserMessage, ticker: resolvedTicker }
               : { prompt: lastUserMessage }
-          );
-    }
+          ).catch(() => null)
+        : Promise.resolve(preferCurrentArtifact && currentStock ? currentStock : null),
+      shouldRunEarningsAgent && resolvedTicker
+        ? (addExecutionTraceService(executionTrace, 'run_earnings_retrieval_agent'),
+           runEarningsRetrievalAgent({ ticker: resolvedTicker, prompt: lastUserMessage }).catch((error) => {
+             console.warn('[analyst-chat] earnings retrieval agent failed; falling back to base retrieval', {
+               ticker: resolvedTicker,
+               message: error instanceof Error ? redactSecrets(error.message) : 'unknown error',
+             });
+             return null;
+           }))
+        : Promise.resolve(null),
+    ]);
 
-    if (shouldRunEarningsAgent && resolvedTicker) {
-      try {
-        addExecutionTraceService(executionTrace, 'run_earnings_retrieval_agent');
-        const earningsEnvelope = await runEarningsRetrievalAgent({
+    if (route.intent === 'company_question') {
+      stockLookupPayload = parallelStockLookup ?? stockLookupPayload;
+    }
+    if (shouldRunEarningsAgent && resolvedTicker && parallelEarningsEnvelope) {
+      earningsAgentResult = parallelEarningsEnvelope.result ?? null;
+      earningsRuntimeMeta = parallelEarningsEnvelope.runtime ?? null;
+      if (featureFlags.ENABLE_EARNINGS_PACKAGE_LOGS) {
+        console.info('[analyst-chat] earnings package context resolved', {
           ticker: resolvedTicker,
-          prompt: lastUserMessage,
-        });
-        earningsAgentResult = earningsEnvelope?.result ?? null;
-        earningsRuntimeMeta = earningsEnvelope?.runtime ?? null;
-        if (featureFlags.ENABLE_EARNINGS_PACKAGE_LOGS) {
-          console.info('[analyst-chat] earnings package context resolved', {
-            ticker: resolvedTicker,
-            packageKey: earningsRuntimeMeta?.packageKey ?? null,
-            packageId: earningsRuntimeMeta?.packageId ?? null,
-            cacheStatus: earningsRuntimeMeta?.cacheStatus ?? 'miss',
-          });
-        }
-      } catch (error) {
-        console.warn('[analyst-chat] earnings retrieval agent failed; falling back to base retrieval', {
-          ticker: resolvedTicker,
-          message: error instanceof Error ? redactSecrets(error.message) : 'unknown error',
+          packageKey: earningsRuntimeMeta?.packageKey ?? null,
+          packageId: earningsRuntimeMeta?.packageId ?? null,
+          cacheStatus: earningsRuntimeMeta?.cacheStatus ?? 'miss',
         });
       }
     }
@@ -1821,12 +1823,10 @@ export async function POST(req: NextRequest) {
     }
 
     const macroEventsContext = shouldInjectMacroEventsContext(route, effectiveUserMessage, attachmentContext)
-      ? await getMarketEvents({
-          origin: req.nextUrl.origin,
-          view: 'active',
-          limit: 5,
-          provider: 'live',
-        }).catch(() => null)
+      ? await Promise.race([
+          getMarketEvents({ origin: req.nextUrl.origin, view: 'active', limit: 5, provider: 'live' }),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 12000)),
+        ]).catch(() => null)
       : null;
     const macroEventsBlock =
       macroEventsContext && macroEventsContext.events.length > 0
