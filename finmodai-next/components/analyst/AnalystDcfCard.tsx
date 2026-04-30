@@ -12,6 +12,7 @@ import { FormattedTextBlock } from '@/components/ui/formatted-text-block';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
 import { formatCompactCurrency } from '@/lib/analyst/dcfFormatting';
 import { buildAnalystDcfPreviewPayload } from '@/lib/analyst/dcfPreview';
+import { repairDcfPayloadShareCount } from '@/lib/analyst/dcfUnits';
 import {
   createGoogleSheetsPendingWindow,
   downloadWorkbookArtifact,
@@ -87,37 +88,38 @@ export function AnalystDcfCard({
     { label: 'Oil Shock', prompt: 'Show me the impact of an oil shock on this DCF' },
     { label: 'Tariff Shock', prompt: 'Stress this DCF for tariffs going up' },
   ] as const;
+  const repairedPayload = useMemo(() => repairDcfPayloadShareCount(payload), [payload]);
 
   useEffect(() => {
     setRevenueGrowthShiftBps(0);
     setMarginShiftBps(0);
-    setWaccPct(payload.assumptions.wacc * 100);
-    setTerminalGrowthPct(payload.assumptions.terminalGrowth * 100);
+    setWaccPct(repairedPayload.assumptions.wacc * 100);
+    setTerminalGrowthPct(repairedPayload.assumptions.terminalGrowth * 100);
     setControlsError(null);
     setScenarioPrompt('');
-  }, [payload]);
+  }, [repairedPayload]);
 
   const adjustedRevenueGrowth = useMemo(
     () =>
-      payload.assumptions.revenueGrowth.map((value) =>
+      repairedPayload.assumptions.revenueGrowth.map((value) =>
         Math.min(0.25, Math.max(-0.05, value + revenueGrowthShiftBps / 10000)),
       ),
-    [payload.assumptions.revenueGrowth, revenueGrowthShiftBps],
+    [repairedPayload.assumptions.revenueGrowth, revenueGrowthShiftBps],
   );
 
   const adjustedEbitMargin = useMemo(
     () =>
-      payload.assumptions.ebitMargin.map((value) =>
+      repairedPayload.assumptions.ebitMargin.map((value) =>
         Math.min(0.5, Math.max(0.05, value + marginShiftBps / 10000)),
       ),
-    [payload.assumptions.ebitMargin, marginShiftBps],
+    [repairedPayload.assumptions.ebitMargin, marginShiftBps],
   );
 
   const hasControlChanges =
     revenueGrowthShiftBps !== 0 ||
     marginShiftBps !== 0 ||
-    Math.abs(waccPct - payload.assumptions.wacc * 100) > 0.001 ||
-    Math.abs(terminalGrowthPct - payload.assumptions.terminalGrowth * 100) > 0.001;
+    Math.abs(waccPct - repairedPayload.assumptions.wacc * 100) > 0.001 ||
+    Math.abs(terminalGrowthPct - repairedPayload.assumptions.terminalGrowth * 100) > 0.001;
 
   const stagedAdjustment = useMemo<AnalystDcfAdjustment>(
     () => ({
@@ -130,8 +132,8 @@ export function AnalystDcfCard({
   );
 
   const displayPayload = useMemo(
-    () => (hasControlChanges ? buildAnalystDcfPreviewPayload(payload, stagedAdjustment) : payload),
-    [hasControlChanges, payload, stagedAdjustment],
+    () => (hasControlChanges ? buildAnalystDcfPreviewPayload(repairedPayload, stagedAdjustment) : repairedPayload),
+    [hasControlChanges, repairedPayload, stagedAdjustment],
   );
 
   const scenarioBars = [
@@ -190,9 +192,9 @@ export function AnalystDcfCard({
             'Content-Type': 'application/json',
             accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           },
-          body: JSON.stringify({ payload }),
+          body: JSON.stringify({ payload: repairedPayload }),
         },
-        `${payload.ticker}_DCF_Demo.xlsx`,
+        `${repairedPayload.ticker}_DCF_Demo.xlsx`,
       );
 
       downloadWorkbookArtifact(workbook);
@@ -220,9 +222,9 @@ export function AnalystDcfCard({
             'Content-Type': 'application/json',
             accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           },
-          body: JSON.stringify({ payload }),
+          body: JSON.stringify({ payload: repairedPayload }),
         },
-        `${payload.ticker}_DCF_Demo.xlsx`,
+        `${repairedPayload.ticker}_DCF_Demo.xlsx`,
       );
 
       const result = await openWorkbookInGoogleSheets(workbook, { pendingWindow });
@@ -250,32 +252,32 @@ export function AnalystDcfCard({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ticker: payload.ticker,
-          companyName: payload.companyName,
-          asOfDate: payload.asOfDate,
+          ticker: repairedPayload.ticker,
+          companyName: repairedPayload.companyName,
+          asOfDate: repairedPayload.asOfDate,
           modelType: 'dcf',
           keyOutputs: {
-            baseValuePerShare: payload.scenarios.base.pricePerShare,
-            bullValuePerShare: payload.scenarios.bull.pricePerShare,
-            bearValuePerShare: payload.scenarios.bear.pricePerShare,
+            baseValuePerShare: repairedPayload.scenarios.base.pricePerShare,
+            bullValuePerShare: repairedPayload.scenarios.bull.pricePerShare,
+            bearValuePerShare: repairedPayload.scenarios.bear.pricePerShare,
             impliedUpsidePct: null,
           },
           modelData: {
             dcfSummary: {
               results: {
-                enterpriseValue: payload.scenarios.base.enterpriseValue,
-                equityValue: payload.scenarios.base.equityValue,
-                pricePerShare: payload.scenarios.base.pricePerShare,
+                enterpriseValue: repairedPayload.scenarios.base.enterpriseValue,
+                equityValue: repairedPayload.scenarios.base.equityValue,
+                pricePerShare: repairedPayload.scenarios.base.pricePerShare,
               },
-              scenarios: payload.scenarios,
-              assumptions: payload.assumptions,
+              scenarios: repairedPayload.scenarios,
+              assumptions: repairedPayload.assumptions,
               marketContext: {},
             },
-            forecast: payload.forecast,
-            notes: payload.notes,
+            forecast: repairedPayload.forecast,
+            notes: repairedPayload.notes,
           },
           reportInput: {
-            highLevelNotes: `Prompt run: ${payload.prompt}\nMemo summary: ${payload.memo}`,
+            highLevelNotes: `Prompt run: ${repairedPayload.prompt}\nMemo summary: ${repairedPayload.memo}`,
           },
         }),
       });
@@ -296,7 +298,7 @@ export function AnalystDcfCard({
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `${payload.ticker}_capitalbase_dcf_memo.pdf`;
+      anchor.download = `${repairedPayload.ticker}_capitalbase_dcf_memo.pdf`;
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (error) {
@@ -341,8 +343,8 @@ export function AnalystDcfCard({
   function handleResetControls() {
     setRevenueGrowthShiftBps(0);
     setMarginShiftBps(0);
-    setWaccPct(payload.assumptions.wacc * 100);
-    setTerminalGrowthPct(payload.assumptions.terminalGrowth * 100);
+    setWaccPct(repairedPayload.assumptions.wacc * 100);
+    setTerminalGrowthPct(repairedPayload.assumptions.terminalGrowth * 100);
     setControlsError(null);
   }
 
@@ -353,16 +355,16 @@ export function AnalystDcfCard({
           <div className="space-y-1">
             <CardTitle className="text-base">DCF Model Workspace</CardTitle>
             <CardDescription>
-              {payload.companyName} ({payload.ticker}) with deterministic valuation math, editable live preview, and export-ready workbook output.
+              {repairedPayload.companyName} ({repairedPayload.ticker}) with deterministic valuation math, editable live preview, and export-ready workbook output.
             </CardDescription>
             <div className="text-xs text-[var(--cb-text-muted)]">
               Use Google Sheets to bypass local `.xlsx` app associations like Apple Numbers.
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">{payload.years}Y</Badge>
-            <Badge variant="outline">{payload.currency}</Badge>
-            <Badge variant="outline">{payload.source}</Badge>
+            <Badge variant="outline">{repairedPayload.years}Y</Badge>
+            <Badge variant="outline">{repairedPayload.currency}</Badge>
+            <Badge variant="outline">{repairedPayload.source}</Badge>
             <Button type="button" variant="outline" size="sm" onClick={() => void handleGenerateReport()} disabled={isGeneratingReport}>
               {isGeneratingReport ? 'Generating Memo PDF…' : 'Generate Memo PDF'}
             </Button>
@@ -435,13 +437,13 @@ export function AnalystDcfCard({
 
               <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-3">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <Label htmlFor={`dcf-scenario-${payload.ticker}`}>Scenario Prompt</Label>
+                  <Label htmlFor={`dcf-scenario-${repairedPayload.ticker}`}>Scenario Prompt</Label>
                   <span className="text-xs text-[var(--cb-text-muted)]">
                     Example: rates rise 100 bps and EBIT margin compresses 200 bps
                   </span>
                 </div>
                 <Textarea
-                  id={`dcf-scenario-${payload.ticker}`}
+                  id={`dcf-scenario-${repairedPayload.ticker}`}
                   value={scenarioPrompt}
                   onChange={(event) => setScenarioPrompt(event.target.value)}
                   placeholder="Type a scenario that changes assumptions..."
@@ -582,49 +584,49 @@ export function AnalystDcfCard({
           />
         </div>
 
-        {payload.comparison && (
+        {displayPayload.comparison && (
           <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
             <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">
               Comparison Summary
             </div>
             <div className="mb-4 text-sm text-[var(--cb-text-primary)]">
-              {payload.companyName} ({payload.ticker}) vs {payload.comparison.companyName} ({payload.comparison.ticker})
+              {displayPayload.companyName} ({displayPayload.ticker}) vs {displayPayload.comparison.companyName} ({displayPayload.comparison.ticker})
             </div>
             <div className="grid gap-2">
               <ComparisonRow
                 label="Base Implied Value"
                 primary={fmtPrice(displayPayload.scenarios.base.pricePerShare)}
-                comparison={fmtPrice(payload.comparison.scenarios.base.pricePerShare)}
-                primaryTicker={payload.ticker}
-                comparisonTicker={payload.comparison.ticker}
+                comparison={fmtPrice(displayPayload.comparison.scenarios.base.pricePerShare)}
+                primaryTicker={displayPayload.ticker}
+                comparisonTicker={displayPayload.comparison.ticker}
               />
               <ComparisonRow
                 label="Base Enterprise Value"
                 primary={fmtMillions(displayPayload.scenarios.base.enterpriseValue)}
-                comparison={fmtMillions(payload.comparison.scenarios.base.enterpriseValue)}
-                primaryTicker={payload.ticker}
-                comparisonTicker={payload.comparison.ticker}
+                comparison={fmtMillions(displayPayload.comparison.scenarios.base.enterpriseValue)}
+                primaryTicker={displayPayload.ticker}
+                comparisonTicker={displayPayload.comparison.ticker}
               />
               <ComparisonRow
                 label="Year 1 Revenue Growth"
                 primary={`${((displayPayload.assumptions.revenueGrowth[0] ?? 0) * 100).toFixed(1)}%`}
-                comparison={`${((payload.comparison.assumptions.revenueGrowth[0] ?? 0) * 100).toFixed(1)}%`}
-                primaryTicker={payload.ticker}
-                comparisonTicker={payload.comparison.ticker}
+                comparison={`${((displayPayload.comparison.assumptions.revenueGrowth[0] ?? 0) * 100).toFixed(1)}%`}
+                primaryTicker={displayPayload.ticker}
+                comparisonTicker={displayPayload.comparison.ticker}
               />
               <ComparisonRow
                 label="Year 1 EBIT Margin"
                 primary={`${((displayPayload.assumptions.ebitMargin[0] ?? 0) * 100).toFixed(1)}%`}
-                comparison={`${((payload.comparison.assumptions.ebitMargin[0] ?? 0) * 100).toFixed(1)}%`}
-                primaryTicker={payload.ticker}
-                comparisonTicker={payload.comparison.ticker}
+                comparison={`${((displayPayload.comparison.assumptions.ebitMargin[0] ?? 0) * 100).toFixed(1)}%`}
+                primaryTicker={displayPayload.ticker}
+                comparisonTicker={displayPayload.comparison.ticker}
               />
               <ComparisonRow
                 label="WACC / Terminal g"
                 primary={`${(displayPayload.assumptions.wacc * 100).toFixed(1)}% / ${(displayPayload.assumptions.terminalGrowth * 100).toFixed(1)}%`}
-                comparison={`${(payload.comparison.assumptions.wacc * 100).toFixed(1)}% / ${(payload.comparison.assumptions.terminalGrowth * 100).toFixed(1)}%`}
-                primaryTicker={payload.ticker}
-                comparisonTicker={payload.comparison.ticker}
+                comparison={`${(displayPayload.comparison.assumptions.wacc * 100).toFixed(1)}% / ${(displayPayload.comparison.assumptions.terminalGrowth * 100).toFixed(1)}%`}
+                primaryTicker={displayPayload.ticker}
+                comparisonTicker={displayPayload.comparison.ticker}
               />
             </div>
           </div>
@@ -698,23 +700,23 @@ export function AnalystDcfCard({
 
         <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Investment Memo</div>
-          <FormattedTextBlock content={payload.memo} />
+          <FormattedTextBlock content={displayPayload.memo} />
         </div>
 
-        {payload.notes.length > 0 && (
+        {displayPayload.notes.length > 0 && (
           <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
             <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">Model Notes</div>
             <ul className="space-y-2 text-sm text-[var(--cb-text-primary)]">
-              {payload.notes.map((note) => (
+              {displayPayload.notes.map((note) => (
                 <li key={note}>- {note}</li>
               ))}
             </ul>
           </div>
         )}
 
-        {payload.warnings.length > 0 && (
+        {displayPayload.warnings.length > 0 && (
           <div className="rounded-xl border border-amber-300/60 bg-amber-50/80 p-3 text-sm text-amber-900">
-            {payload.warnings.join(' ')}
+            {displayPayload.warnings.join(' ')}
           </div>
         )}
       </CardContent>

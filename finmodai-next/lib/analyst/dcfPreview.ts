@@ -5,6 +5,7 @@ import type {
   AnalystDcfScenarioKey,
   AnalystDcfScenarioResult,
 } from '@/lib/analyst/dcfDemo';
+import { repairDcfPayloadShareCount } from '@/lib/analyst/dcfUnits';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -138,13 +139,14 @@ export function buildAnalystDcfPreviewPayload(
   payload: AnalystDcfDemoPayload,
   adjustment: AnalystDcfAdjustment,
 ): AnalystDcfDemoPayload {
-  const assumptions = normalizeAssumptions(payload.assumptions, adjustment);
-  const base = evaluateScenario(payload, assumptions, 'base');
-  const bull = evaluateScenario(payload, assumptions, 'bull');
-  const bear = evaluateScenario(payload, assumptions, 'bear');
+  const repairedPayload = repairDcfPayloadShareCount(payload);
+  const assumptions = normalizeAssumptions(repairedPayload.assumptions, adjustment);
+  const base = evaluateScenario(repairedPayload, assumptions, 'base');
+  const bull = evaluateScenario(repairedPayload, assumptions, 'bull');
+  const bear = evaluateScenario(repairedPayload, assumptions, 'bear');
 
   return {
-    ...payload,
+    ...repairedPayload,
     assumptions,
     forecast: base.forecast,
     scenarios: {

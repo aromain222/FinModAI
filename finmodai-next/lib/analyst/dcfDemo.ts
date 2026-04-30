@@ -9,6 +9,8 @@ import { resolveCompanyProfile } from '@/lib/data/company/resolveCompanyProfile'
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 import { formatCompactCurrency } from '@/lib/analyst/dcfFormatting';
 import type { AttachmentStatementSnapshot } from '@/lib/analyst/pdfFinancialStatements';
+export { normalizeDcfSharesOutstanding, repairDcfPayloadShareCount } from '@/lib/analyst/dcfUnits';
+import { normalizeDcfSharesOutstanding } from '@/lib/analyst/dcfUnits';
 
 export type AnalystDcfScenarioKey = 'base' | 'bull' | 'bear';
 
@@ -137,31 +139,6 @@ type MentionedResolvedCompany = ResolvedCompany & {
 const DEFAULT_YEARS = 5;
 const COMPANY_SUFFIX_RE =
   /\b(incorporated|inc|corp|corporation|holdings|holding|group|plc|limited|ltd|co|company)\b/gi;
-
-export function normalizeDcfSharesOutstanding(
-  sharesOutstanding: number | null | undefined,
-  marketCapM: number | null | undefined,
-  sharePrice: number | null | undefined,
-): number | null {
-  const shares =
-    typeof sharesOutstanding === 'number' && Number.isFinite(sharesOutstanding) && sharesOutstanding > 0
-      ? sharesOutstanding
-      : null;
-  const derivedFromMarket =
-    typeof marketCapM === 'number' &&
-    Number.isFinite(marketCapM) &&
-    marketCapM > 0 &&
-    typeof sharePrice === 'number' &&
-    Number.isFinite(sharePrice) &&
-    sharePrice > 0
-      ? marketCapM / sharePrice
-      : null;
-
-  if (shares === null) return derivedFromMarket;
-  if (derivedFromMarket !== null && shares < 100 && derivedFromMarket > shares * 50) return derivedFromMarket;
-  if (shares > 1_000_000) return shares / 1_000_000;
-  return shares;
-}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));

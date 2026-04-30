@@ -1,5 +1,6 @@
 import type ExcelJS from 'exceljs';
 import type { AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
+import { repairDcfPayloadShareCount } from '@/lib/analyst/dcfUnits';
 import { DcfSpecSchema, type DcfSpec } from '@/lib/modeling/dcfSpec';
 import { buildDcfWorkbook, evaluateDcfSpec } from '@/lib/modeling/buildDcfWorkbook';
 import {
@@ -50,28 +51,29 @@ function normalizeSeries(series: number[] | null | undefined, years: number, fal
 }
 
 function buildNormalizedPayload(payload: AnalystDcfDemoPayload): AnalystDcfDemoPayload {
-  const years = normalizeYears(payload);
+  const repairedPayload = repairDcfPayloadShareCount(payload);
+  const years = normalizeYears(repairedPayload);
   const inferredMargin =
-    payload.baseMetrics.revenueLtm > 0 && payload.baseMetrics.ebitdaLtm > 0
-      ? Math.max(0.08, Math.min(0.4, payload.baseMetrics.ebitdaLtm / payload.baseMetrics.revenueLtm - safeNumber(payload.assumptions?.daPctRevenue, 0.03)))
+    repairedPayload.baseMetrics.revenueLtm > 0 && repairedPayload.baseMetrics.ebitdaLtm > 0
+      ? Math.max(0.08, Math.min(0.4, repairedPayload.baseMetrics.ebitdaLtm / repairedPayload.baseMetrics.revenueLtm - safeNumber(repairedPayload.assumptions?.daPctRevenue, 0.03)))
       : 0.2;
 
   const normalizedAssumptions = {
-    revenueGrowth: normalizeSeries(payload.assumptions?.revenueGrowth, years, 0.06),
-    ebitMargin: normalizeSeries(payload.assumptions?.ebitMargin, years, inferredMargin),
-    taxRate: safeNumber(payload.assumptions?.taxRate, 0.21),
-    daPctRevenue: safeNumber(payload.assumptions?.daPctRevenue, 0.03),
-    capexPctRevenue: safeNumber(payload.assumptions?.capexPctRevenue, 0.04),
-    nwcPctRevenue: safeNumber(payload.assumptions?.nwcPctRevenue, 0.01),
-    wacc: safeNumber(payload.assumptions?.wacc, 0.095),
-    terminalGrowth: safeNumber(payload.assumptions?.terminalGrowth, 0.03),
+    revenueGrowth: normalizeSeries(repairedPayload.assumptions?.revenueGrowth, years, 0.06),
+    ebitMargin: normalizeSeries(repairedPayload.assumptions?.ebitMargin, years, inferredMargin),
+    taxRate: safeNumber(repairedPayload.assumptions?.taxRate, 0.21),
+    daPctRevenue: safeNumber(repairedPayload.assumptions?.daPctRevenue, 0.03),
+    capexPctRevenue: safeNumber(repairedPayload.assumptions?.capexPctRevenue, 0.04),
+    nwcPctRevenue: safeNumber(repairedPayload.assumptions?.nwcPctRevenue, 0.01),
+    wacc: safeNumber(repairedPayload.assumptions?.wacc, 0.095),
+    terminalGrowth: safeNumber(repairedPayload.assumptions?.terminalGrowth, 0.03),
   };
 
   const normalized: AnalystDcfDemoPayload = {
-    ...payload,
+    ...repairedPayload,
     years,
     assumptions: normalizedAssumptions,
-    forecast: Array.isArray(payload.forecast) ? payload.forecast.filter((row) => row && Number.isFinite(row.year)) : [],
+    forecast: Array.isArray(repairedPayload.forecast) ? repairedPayload.forecast.filter((row) => row && Number.isFinite(row.year)) : [],
   };
 
   return normalized;
