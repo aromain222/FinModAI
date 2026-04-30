@@ -42,6 +42,7 @@ import {
   generateAnalystDcfDemo,
   isDcfEventShockPrompt,
   normalizeDcfSharesOutstanding,
+  repairDcfPayloadShareCount,
   reviseAnalystDcfDemo,
   reviseAnalystDcfDemoFromAdjustment,
   reviseAnalystDcfDemoFromEventShock,
@@ -379,6 +380,59 @@ function formatForecastHorizon(days: number): string {
     return `${weeks}-week`;
   }
   return `${days}-day`;
+}
+
+type DeterministicForecastReplyInput = {
+  ticker: string;
+  horizonLabel: string;
+  sourceLabel: string;
+  methodology: string;
+  startPrice: number;
+  endForecast: number;
+  returnPct: number;
+  direction: 'up' | 'down' | 'flat';
+  lower: number | null;
+  upper: number | null;
+  eventSynthesis: ReturnType<typeof buildEventAdjustedForecast>;
+  revenueForecast: {
+    quarters: number;
+    impliedGrowthPct: number;
+    quarterlyProjections: string;
+    sourceLabel: string;
+  } | null;
+};
+
+function buildDeterministicForecastReply(input: DeterministicForecastReplyInput): string {
+  const directionText = input.direction === 'flat' ? 'flat move' : `move ${input.direction}`;
+  const band =
+    input.lower !== null && input.upper !== null
+      ? ` The 90% model band is $${input.lower.toFixed(2)} to $${input.upper.toFixed(2)}, so treat the point estimate as directional rather than precise.`
+      : '';
+  const eventText = input.eventSynthesis
+    ? ` Active event context changes the net view: ${input.eventSynthesis.event_adjustment.label ?? 'current market events'} adds a ${input.eventSynthesis.event_adjustment.price_proxy_pct >= 0 ? '+' : ''}${input.eventSynthesis.event_adjustment.price_proxy_pct.toFixed(1)}% price proxy, taking the combined outlook to $${input.eventSynthesis.combined.end_price.toFixed(2)} (${input.eventSynthesis.combined.return_pct >= 0 ? '+' : ''}${input.eventSynthesis.combined.return_pct.toFixed(1)}%).`
+    : ' I do not have a strong event overlay loaded for this ticker in the active market-event context, so the clean baseline is the trend forecast.';
+  const revenueText = input.revenueForecast
+    ? ` Revenue context: the ${input.revenueForecast.sourceLabel.toLowerCase()} revenue forecast implies ${input.revenueForecast.impliedGrowthPct >= 0 ? '+' : ''}${input.revenueForecast.impliedGrowthPct.toFixed(1)}% NTM growth, with projected quarters of ${input.revenueForecast.quarterlyProjections}.`
+    : null;
+  const read =
+    input.eventSynthesis
+      ? input.eventSynthesis.combined.direction === 'up'
+        ? 'Net read: constructive, but only modestly so unless the event overlay strengthens.'
+        : input.eventSynthesis.combined.direction === 'down'
+          ? 'Net read: cautious, because event pressure offsets or overwhelms the trend baseline.'
+          : 'Net read: neutral, because the trend baseline and event overlay mostly offset.'
+      : input.direction === 'up'
+        ? 'Net read: constructive on trend, with confidence limited by the forecast band.'
+        : input.direction === 'down'
+          ? 'Net read: cautious on trend, with confidence limited by the forecast band.'
+          : 'Net read: neutral, with the forecast not showing a meaningful directional edge.';
+
+  return [
+    `For ${input.ticker}, the ${input.horizonLabel} forecast is $${input.startPrice.toFixed(2)} to $${input.endForecast.toFixed(2)}, a ${input.returnPct >= 0 ? '+' : ''}${input.returnPct.toFixed(1)}% ${directionText}.${band}`,
+    `${input.sourceLabel} basis: ${input.methodology}${eventText}`,
+    ...(revenueText ? [revenueText] : []),
+    read,
+  ].join('\n\n');
 }
 
 function ensureForecastLead(reply: string, leadSentence: string | null): string {
@@ -1131,7 +1185,7 @@ export async function POST(req: NextRequest) {
         : null;
     const currentDcf =
       body?.currentDcf && typeof body.currentDcf === 'object'
-        ? (body.currentDcf as AnalystDcfDemoPayload)
+        ? repairDcfPayloadShareCount(body.currentDcf as AnalystDcfDemoPayload)
         : null;
     const dcfAdjustment =
       body?.dcfAdjustment && typeof body.dcfAdjustment === 'object'
@@ -1970,6 +2024,7 @@ export async function POST(req: NextRequest) {
     // explicit forecast/outlook prompts. Fetched in parallel with 8s timeout.
     let timesFMBlock: string | null = null;
     let forecastLeadSentence: string | null = null;
+    let deterministicForecastReply: string | null = null;
     const shouldInjectTimesFmForecast =
       Boolean(resolvedTicker) &&
       (route.intent === 'company_question' || isCompanyForecastPrompt(lastUserMessage));
@@ -1993,6 +2048,7 @@ export async function POST(req: NextRequest) {
         ]);
 
         const parts: string[] = [];
+        let forecastReplyInput: DeterministicForecastReplyInput | null = null;
         const marketEventAdjustment =
           macroEventsContext?.events && macroEventsContext.events.length > 0
             ? deriveMarketEventAdjustment(macroEventsContext.events, resolvedTicker)
@@ -2030,6 +2086,20 @@ export async function POST(req: NextRequest) {
               const eventSynthesis = marketEventAdjustment
                 ? buildEventAdjustedForecast(pd, marketEventAdjustment, 'market_events')
                 : null;
+              forecastReplyInput = {
+                ticker: resolvedTicker,
+                horizonLabel,
+                sourceLabel: forecastSourceLabel,
+                methodology: forecastMethodology,
+                startPrice: lastActual,
+                endForecast,
+                returnPct: pctChangeValue,
+                direction,
+                lower: endLower ?? null,
+                upper: endUpper ?? null,
+                eventSynthesis,
+                revenueForecast: null,
+              };
               const eventSynthesisBlock = eventSynthesis
                 ? `\nEvent overlay: ${eventSynthesis.event_adjustment.label ?? 'active market events'} implies a ${eventSynthesis.event_adjustment.price_proxy_pct >= 0 ? '+' : ''}${eventSynthesis.event_adjustment.price_proxy_pct.toFixed(1)}% ${horizonLabel} price proxy after confidence/horizon weighting.\n` +
                   `Combined outlook: $${eventSynthesis.baseline.start_price.toFixed(2)} → $${eventSynthesis.combined.end_price.toFixed(2)} (${eventSynthesis.combined.direction}, ${eventSynthesis.combined.return_pct >= 0 ? '+' : ''}${eventSynthesis.combined.return_pct.toFixed(1)}%).\n` +
@@ -2059,10 +2129,22 @@ export async function POST(req: NextRequest) {
             const fwdRevenue = rd.forecast.values
               .map((v, i) => `${rd.forecast!.labels[i]}: $${Math.round(v)}M`)
               .join(', ');
+            if (forecastReplyInput) {
+              forecastReplyInput.revenueForecast = {
+                quarters: revenueQuarters,
+                impliedGrowthPct: Number(growth),
+                quarterlyProjections: fwdRevenue,
+                sourceLabel: rd.model_source === 'historical_financials_fallback' ? 'Provider-backed' : 'TimesFM',
+              };
+            }
             parts.push(
               `${rd.model_source === 'historical_financials_fallback' ? 'PROVIDER-BACKED' : 'TIMESFM'} REVENUE FORECAST (${revenueQuarters} quarter${revenueQuarters === 1 ? '' : 's'}):\nImplied NTM growth: ${Number(growth) >= 0 ? '+' : ''}${growth}%\nQuarterly projections: ${fwdRevenue}${rd.methodology ? `\nMethodology: ${rd.methodology}` : ''}`
             );
           }
+        }
+
+        if (forecastReplyInput && isCompanyForecastPrompt(lastUserMessage)) {
+          deterministicForecastReply = buildDeterministicForecastReply(forecastReplyInput);
         }
 
         if (parts.length > 0) {
@@ -2080,6 +2162,26 @@ export async function POST(req: NextRequest) {
       } catch {
         // Non-fatal — forecast is supplemental context only
       }
+    }
+
+    if (deterministicForecastReply) {
+      return NextResponse.json(withAttachmentStatus(withExecutionTrace({
+        reply: deterministicForecastReply,
+        fallback: false,
+        mode: 'live',
+        route: route.intent,
+        sources: [
+          'CapitalBase forecast engine',
+          ...(macroEventsContext && macroEventsContext.events.length > 0
+            ? ['CapitalBase active market event context']
+            : []),
+        ],
+        factsCount: 0,
+        stockLookup: responseStockLookup ?? stockLookupPayload,
+        earningsRetrieval: earningsAgentResult,
+        earningsPackageMeta: earningsRuntimeMeta,
+        attachmentUsed: attachmentLabel,
+      }, executionTrace)));
     }
 
     if (isVisualizationPrompt(lastUserMessage)) {
@@ -2865,6 +2967,8 @@ export async function POST(req: NextRequest) {
     const styleInstruction = userExplicitlyWantsStructuredOutput(lastUserMessage)
       ? 'Use the structure the user explicitly asked for. Keep it concise and finance-native.'
       : 'Default to natural analyst prose in short paragraphs. Do not use labeled section headers, bullet lists, memo scaffolding, or template headings unless the user explicitly asked for them.';
+    const responseQualityInstruction =
+      'Output quality guard: write complete sentences with intact currency/percent values. Never begin a paragraph with an orphaned numeric fragment such as "94 is pricing", "5% move", or "6T EV"; include the full subject and unit. Keep the answer to 2-4 short paragraphs unless the user explicitly asks for a table or memo.';
     const numericDisciplineInstruction =
       timesFMBlock
         ? 'Use the supplied forecast block as verified application-generated context. Lead with its numeric forecast range and do not replace it with a generic caveat.'
@@ -2888,6 +2992,7 @@ export async function POST(req: NextRequest) {
       { role: 'system', content: ANALYST_SYSTEM_PROMPT },
       ...(intentPrompt ? [{ role: 'system' as const, content: intentPrompt }] : []),
       { role: 'system', content: styleInstruction },
+      { role: 'system', content: responseQualityInstruction },
       { role: 'system', content: numericDisciplineInstruction },
       ...(earningsFirstInstruction ? [{ role: 'system' as const, content: earningsFirstInstruction }] : []),
       ...(earningsAgentInstruction ? [{ role: 'system' as const, content: earningsAgentInstruction }] : []),
@@ -2925,7 +3030,7 @@ export async function POST(req: NextRequest) {
           model,
           input: msgs,
           temperature: 0,
-          max_output_tokens: 800,
+          max_output_tokens: 1000,
         });
         return typeof response.output_text === 'string' && response.output_text.trim().length > 0
           ? response.output_text.trim()
@@ -2939,7 +3044,7 @@ export async function POST(req: NextRequest) {
             model,
             input: msgs,
             temperature: 0,
-            max_output_tokens: 900,
+            max_output_tokens: 1000,
             tools: [tool as unknown as Record<string, unknown>],
           } as never);
           if (typeof response.output_text === 'string' && response.output_text.trim().length > 0) {
@@ -2965,7 +3070,7 @@ export async function POST(req: NextRequest) {
           clientType: 'user',
           preferredProvider: 'anthropic',
           temperature: 0,
-          maxTokens: 800,
+          maxTokens: 1000,
           messages: inputMessages,
         });
         replyText = providerReply?.text?.trim() ?? null;
@@ -2989,7 +3094,7 @@ export async function POST(req: NextRequest) {
             clientType: 'user',
             preferredProvider: 'anthropic',
             temperature: 0,
-            maxTokens: 800,
+            maxTokens: 1000,
             messages: repairMsgs,
           });
           if (repaired?.text?.trim()) replyText = repaired.text.trim();
@@ -3025,7 +3130,7 @@ export async function POST(req: NextRequest) {
                 model,
                 messages: inputMessages,
                 temperature: 0,
-                max_tokens: 800,
+                max_tokens: 1000,
               });
               replyText = extractReplyFromCompletions(completion);
               if (process.env.NODE_ENV !== 'production') {
