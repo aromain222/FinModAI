@@ -103,6 +103,11 @@ import { detectCoreTemplatePrompt } from '@/lib/analyst/coreModelTemplates';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
 import { getMarketEvents } from '@/lib/news/marketEventsPipeline';
 import type { MarketEvent } from '@/lib/news/marketEventsTypes';
+import {
+  buildEventAdjustedForecast,
+  deriveMarketEventAdjustment,
+  type PriceForecastPayload,
+} from '@/lib/forecast/eventAdjustedForecast';
 import { featureFlags } from '@/lib/env/server';
 import {
   buildComparisonVisualizationFromPrompt,
@@ -1859,30 +1864,39 @@ export async function POST(req: NextRequest) {
         ]);
 
         const parts: string[] = [];
+        const marketEventAdjustment =
+          macroEventsContext?.events && macroEventsContext.events.length > 0
+            ? deriveMarketEventAdjustment(macroEventsContext.events, resolvedTicker)
+            : null;
 
         // Price forecast block
         if (priceRes && priceRes instanceof Response && priceRes.ok) {
-          const pd = await priceRes.json() as {
-            model_available?: boolean;
-            historical?: { dates: string[]; prices: number[] };
-            forecast?: { dates: string[]; values: number[]; lower: number[]; upper: number[] } | null;
-            horizon_days?: number;
-          };
+          const pd = await priceRes.json() as PriceForecastPayload;
           if (pd.model_available && pd.forecast && pd.historical) {
             const lastActual = pd.historical.prices.at(-1);
             const endForecast = pd.forecast.values.at(-1);
             const endLower = pd.forecast.lower.at(-1);
             const endUpper = pd.forecast.upper.at(-1);
             if (lastActual != null && endForecast != null) {
-              const pctChange = ((endForecast - lastActual) / lastActual * 100).toFixed(1);
+              const pctChangeValue = (endForecast - lastActual) / lastActual * 100;
+              const pctChange = pctChangeValue.toFixed(1);
               const direction = endForecast > lastActual ? 'up' : endForecast < lastActual ? 'down' : 'flat';
               const bandStr = (endLower != null && endUpper != null)
                 ? ` (90% confidence band: $${endLower.toFixed(2)}–$${endUpper.toFixed(2)})`
                 : '';
+              const eventSynthesis = marketEventAdjustment
+                ? buildEventAdjustedForecast(pd, marketEventAdjustment, 'market_events')
+                : null;
+              const eventSynthesisBlock = eventSynthesis
+                ? `\nEvent overlay: ${eventSynthesis.event_adjustment.label ?? 'active market events'} implies a ${eventSynthesis.event_adjustment.price_proxy_pct >= 0 ? '+' : ''}${eventSynthesis.event_adjustment.price_proxy_pct.toFixed(1)}% 30-day price proxy after confidence/horizon weighting.\n` +
+                  `Combined outlook: $${eventSynthesis.baseline.start_price.toFixed(2)} → $${eventSynthesis.combined.end_price.toFixed(2)} (${eventSynthesis.combined.direction}, ${eventSynthesis.combined.return_pct >= 0 ? '+' : ''}${eventSynthesis.combined.return_pct.toFixed(1)}%).\n` +
+                  `Caveat: ${eventSynthesis.caveat}`
+                : '';
               parts.push(
                 `TIMESFM 30-DAY PRICE FORECAST (Google foundation model, time-series extrapolation from historical price patterns — not event-driven):\n` +
-                `Current price: $${lastActual.toFixed(2)} → 30-day forecast: $${endForecast.toFixed(2)} (${direction}, ${pctChange >= '0' ? '+' : ''}${pctChange}%)${bandStr}\n` +
-                `Note: this reflects momentum/trend continuation only; news events are not inputs to this model.`
+                `Current price: $${lastActual.toFixed(2)} → 30-day forecast: $${endForecast.toFixed(2)} (${direction}, ${pctChangeValue >= 0 ? '+' : ''}${pctChange}%)${bandStr}\n` +
+                `Note: this reflects momentum/trend continuation only; news events are not inputs to this model.` +
+                eventSynthesisBlock
               );
             }
           }
@@ -1911,10 +1925,8 @@ export async function POST(req: NextRequest) {
             `SYNTHESIS GUIDANCE: When asked how a stock will move or what the price outlook is, ` +
             `lead with the TimesFM 30-day baseline, then layer in any event or news signals you know about ` +
             `(earnings, macro events, rate decisions, geopolitical risk) as adjustments on top of that baseline. ` +
-            `Clearly distinguish: (1) what the price trend model predicts from history alone, ` +
-            `(2) what current news/events suggest as incremental shifts. ` +
-            `Give a synthesized view: e.g. "TimesFM sees +5% from momentum; the recent tariff escalation ` +
-            `adds downside pressure, net outlook: roughly flat to slightly negative over 30 days."`
+            `If a combined outlook is provided, use that as the primary net view. ` +
+            `Do not present TimesFM and event signals as unrelated bullets; synthesize baseline + overlay into one conclusion.`
           );
           timesFMBlock = parts.join('\n\n');
         }

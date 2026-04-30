@@ -12,10 +12,10 @@
  *  - Causal mechanism bullets
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowDown, ArrowUp, Minus, Zap } from 'lucide-react';
 import type { EventImpactResult } from '@/lib/useEventImpact';
-import { fetchPriceForecast, type PriceForecastResult } from '@/lib/forecast/timesFM';
+import type { EventAdjustedForecast } from '@/lib/forecast/eventAdjustedForecast';
 import { ForecastChart } from '@/components/charts/ForecastChart';
 
 // ─── Formatting ──────────────────────────────────────────────────────────────
@@ -96,44 +96,54 @@ interface EventImpactPanelProps {
 }
 
 /**
- * Fetches TimesFM baseline, then applies the event's valuation delta as a linear ramp
- * to produce a "news-adjusted" forecast series shown alongside the baseline.
- *
- * Adjustment formula: adjusted[i] = baseline[i] * (1 + valuationDelta * ramp)
- * where ramp = (i+1)/horizon so the shift builds gradually over the forecast window.
+ * Fetches the shared TimesFM + event synthesis so this chart uses the same
+ * weighting, capping, and caveat as Analyst Chat.
  */
 function EventAdjustedForecastChart({
   ticker,
-  valuationDelta,       // fractional e.g. 0.05 = +5%
+  valuationDeltaPct,
   eventDirection,
+  eventMagnitude,
+  eventLabel,
 }: {
   ticker: string;
-  valuationDelta: number;
+  valuationDeltaPct: number;
   eventDirection: 'positive' | 'negative' | 'mixed';
+  eventMagnitude: 'low' | 'medium' | 'high';
+  eventLabel: string;
 }) {
-  const [data, setData] = useState<PriceForecastResult | null>(null);
+  const [data, setData] = useState<EventAdjustedForecast | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchPriceForecast(ticker, 30).then((r) => {
-      if (!cancelled) { setData(r); setLoading(false); }
-    }).catch(() => { if (!cancelled) setLoading(false); });
+    fetch('/api/forecast/event-adjusted', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticker,
+        horizon: 30,
+        event: {
+          valuationDeltaPct,
+          direction: eventDirection,
+          magnitude: eventMagnitude,
+          label: eventLabel,
+        },
+      }),
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (!cancelled) {
+          setData(payload?.synthesis ?? null);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => { cancelled = true; };
-  }, [ticker]);
-
-  // Build the event-adjusted series by ramping valuationDelta over the horizon.
-  const eventAdjusted = useMemo(() => {
-    if (!data?.forecast) return null;
-    const horizon = data.forecast.values.length;
-    // Cap the shift at ±20% to avoid absurd extrapolations.
-    const clampedDelta = Math.max(-0.20, Math.min(0.20, valuationDelta));
-    return data.forecast.values.map((v, i) => {
-      const ramp = (i + 1) / horizon;
-      return v * (1 + clampedDelta * ramp);
-    });
-  }, [data, valuationDelta]);
+  }, [eventDirection, eventLabel, eventMagnitude, ticker, valuationDeltaPct]);
 
   if (loading) {
     return (
@@ -143,17 +153,17 @@ function EventAdjustedForecastChart({
       </div>
     );
   }
-  if (!data?.model_available || !data.forecast || !data.historical) return null;
+  if (!data) return null;
 
-  const historical = data.historical.dates.map((date, i) => ({
+  const historical = data.series.historical_dates.map((date, i) => ({
     date,
-    actual: data.historical.prices[i] ?? 0,
+    actual: data.series.historical_prices[i] ?? 0,
   }));
-  const forecast = data.forecast.dates.map((date, i) => ({
+  const forecast = data.series.dates.map((date, i) => ({
     date,
-    forecast: data.forecast!.values[i] ?? 0,
-    lower: data.forecast!.lower[i] ?? 0,
-    upper: data.forecast!.upper[i] ?? 0,
+    forecast: data.series.baseline[i] ?? 0,
+    lower: data.series.lower[i] ?? 0,
+    upper: data.series.upper[i] ?? 0,
   }));
 
   const directionLabel = eventDirection === 'positive' ? 'bullish' : eventDirection === 'negative' ? 'bearish' : 'mixed';
@@ -163,18 +173,19 @@ function EventAdjustedForecastChart({
       <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
         <span>TimesFM Price Forecast</span>
         <span className="font-normal normal-case tracking-normal">
-          — violet: trend baseline · cyan: event-adjusted ({directionLabel})
+          — baseline {data.baseline.return_pct >= 0 ? '+' : ''}{data.baseline.return_pct.toFixed(1)}% · event proxy {data.event_adjustment.price_proxy_pct >= 0 ? '+' : ''}{data.event_adjustment.price_proxy_pct.toFixed(1)}% · net {data.combined.return_pct >= 0 ? '+' : ''}{data.combined.return_pct.toFixed(1)}%
         </span>
       </div>
       <ForecastChart
         ticker={ticker}
         historical={historical}
         forecast={forecast}
-        eventAdjusted={eventAdjusted}
+        eventAdjusted={data.series.event_adjusted}
         eventAdjustedLabel={`Event-adjusted (${directionLabel})`}
-        modelAvailable={data.model_available}
+        modelAvailable
         height={180}
       />
+      <div className="mt-1 text-[10px] leading-4 text-zinc-500">{data.caveat}</div>
     </div>
   );
 }
@@ -238,8 +249,10 @@ export function EventImpactPanel({ result, onApplyToModel }: EventImpactPanelPro
       {result.ticker && result.ticker !== 'MARKET' && (
         <EventAdjustedForecastChart
           ticker={result.ticker}
-          valuationDelta={result.scenarios.base.valuation_delta_pct / 100}
+          valuationDeltaPct={result.scenarios.base.valuation_delta_pct}
           eventDirection={result.impact_summary.direction}
+          eventMagnitude={result.impact_summary.magnitude}
+          eventLabel={result.headline}
         />
       )}
 
