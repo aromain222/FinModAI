@@ -2,13 +2,20 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getFinancialModelAnalysis, type TradingSignal } from '@/lib/news/tradingSignal';
 import { applyModelImpact, DEFAULT_BASE_MODEL, runDCF, type DCFInputs } from '@/lib/finance/dcfEngine';
+import { fetchHistoricalFinancials } from '@/lib/data/historicalFinancials';
+import { forecastSeries } from '@/lib/forecasting/timesfm';
+import { buildGrowthPathFromForecast } from '@/lib/valuation/forecastBridge';
 
 const requestSchema = z.object({
   event: z.string().min(1),
   context: z.string().optional(),
+  ticker: z.string().optional(),
+  use_ai_forecast: z.boolean().optional(),
   base_model: z
     .object({
       growth: z.number(),
+      revenueGrowth: z.number().optional(),
+      revenueGrowthPath: z.array(z.number()).optional(),
       margin: z.number(),
       discountRate: z.number(),
     })
@@ -164,9 +171,37 @@ function buildSignal(
 function normalizeBaseModel(baseModel: DCFInputs): DCFInputs {
   return {
     growth: baseModel.growth,
+    revenueGrowth: baseModel.revenueGrowth,
+    revenueGrowthPath: baseModel.revenueGrowthPath,
     margin: baseModel.margin,
     discountRate: baseModel.discountRate,
     terminalGrowth: baseModel.terminalGrowth,
+  };
+}
+
+async function buildForecastGrowthPath(ticker: string): Promise<number[] | null> {
+  const historical = await fetchHistoricalFinancials(ticker, 6).catch(() => null);
+  const revenue = historical?.revenue
+    .filter((value) => Number.isFinite(value) && value > 0)
+    .reverse() ?? [];
+  const lastActual = revenue.at(-1);
+  if (revenue.length < 2 || typeof lastActual !== 'number') return null;
+
+  const result = await forecastSeries({ series: revenue, horizon: 5 });
+  const growthPath = buildGrowthPathFromForecast(result.forecast, lastActual).slice(0, 5);
+  return growthPath.length > 0 ? growthPath : null;
+}
+
+async function enrichBaseModelWithForecast(baseModel: DCFInputs, ticker: string | undefined, enabled: boolean | undefined): Promise<DCFInputs> {
+  if (!enabled || !ticker) return baseModel;
+
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000));
+  const growthPath = await Promise.race([buildForecastGrowthPath(ticker), timeout]).catch(() => null);
+  if (!growthPath) return baseModel;
+
+  return {
+    ...baseModel,
+    revenueGrowthPath: growthPath,
   };
 }
 
@@ -183,8 +218,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Missing required field: event' }, { status: 400 });
   }
 
-  const { event, context, base_model } = parsed.data;
-  const baseModel = normalizeBaseModel(base_model ?? DEFAULT_BASE_MODEL);
+  const { event, context, base_model, ticker, use_ai_forecast } = parsed.data;
+  const baseModel = await enrichBaseModelWithForecast(
+    normalizeBaseModel(base_model ?? DEFAULT_BASE_MODEL),
+    ticker,
+    use_ai_forecast,
+  );
 
   const content = context ? `${event}. ${context}` : event;
 

@@ -1,9 +1,13 @@
 export type DCFInputs = {
   growth: number;
+  revenueGrowth?: number;
+  revenueGrowthPath?: number[];
   margin: number;
   discountRate: number;
   terminalGrowth?: number;
 };
+
+export type DCFInputsExtended = DCFInputs;
 
 export type DCFResult = {
   value: number;
@@ -14,8 +18,18 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-export function runDCF({ growth, margin, discountRate, terminalGrowth = 0.025 }: DCFInputs): DCFResult {
-  const normalizedGrowth = clamp(growth, -0.2, 0.35);
+export function runDCF({
+  growth,
+  revenueGrowth,
+  revenueGrowthPath,
+  margin,
+  discountRate,
+  terminalGrowth = 0.025,
+}: DCFInputs): DCFResult {
+  const normalizedGrowth = clamp(revenueGrowth ?? growth, -0.2, 0.35);
+  const normalizedGrowthPath = Array.isArray(revenueGrowthPath) && revenueGrowthPath.length > 0
+    ? revenueGrowthPath.map((value) => clamp(value, -0.2, 0.35))
+    : null;
   const normalizedMargin = clamp(margin, 0.01, 0.6);
   const normalizedDiscountRate = clamp(discountRate, 0.04, 0.25);
   const normalizedTerminalGrowth = clamp(
@@ -27,9 +41,11 @@ export function runDCF({ growth, margin, discountRate, terminalGrowth = 0.025 }:
   const years = 5;
   let value = 0;
   let finalYearCashFlow = 0;
+  let projectedRevenue = revenue;
 
   for (let t = 1; t <= years; t++) {
-    const projectedRevenue = revenue * Math.pow(1 + normalizedGrowth, t);
+    const growthForYear = normalizedGrowthPath?.[t - 1] ?? normalizedGrowth;
+    projectedRevenue *= 1 + growthForYear;
     const cashFlow = projectedRevenue * normalizedMargin;
     finalYearCashFlow = cashFlow;
     value += cashFlow / Math.pow(1 + normalizedDiscountRate, t);
@@ -48,6 +64,10 @@ export function applyModelImpact(
 ): DCFInputs {
   return {
     growth: clamp(base.growth + deltas.growth_delta, -0.2, 0.35),
+    revenueGrowth: base.revenueGrowth !== undefined
+      ? clamp(base.revenueGrowth + deltas.growth_delta, -0.2, 0.35)
+      : undefined,
+    revenueGrowthPath: base.revenueGrowthPath?.map((value) => clamp(value + deltas.growth_delta, -0.2, 0.35)),
     margin: clamp(base.margin + deltas.margin_delta, 0.01, 0.6),
     discountRate: clamp(base.discountRate + deltas.discount_rate_delta, 0.04, 0.25),
     terminalGrowth: base.terminalGrowth,

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { EditableFinanceChart } from '@/components/charts/EditableFinanceChart';
 import { FormattedTextBlock } from '@/components/ui/formatted-text-block';
@@ -13,6 +14,8 @@ import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/
 import { formatCompactCurrency } from '@/lib/analyst/dcfFormatting';
 import { buildAnalystDcfPreviewPayload } from '@/lib/analyst/dcfPreview';
 import { repairDcfPayloadShareCount } from '@/lib/analyst/dcfUnits';
+import type { ForecastResponse } from '@/lib/forecasting/timesfm';
+import { buildGrowthPathFromForecast } from '@/lib/valuation/forecastBridge';
 import {
   createGoogleSheetsPendingWindow,
   downloadWorkbookArtifact,
@@ -58,6 +61,15 @@ function ComparisonRow(props: { label: string; primary: string; comparison: stri
   );
 }
 
+function isForecastResponse(value: unknown): value is ForecastResponse {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    Array.isArray((value as ForecastResponse).historical) &&
+    Array.isArray((value as ForecastResponse).forecast)
+  );
+}
+
 export function AnalystDcfCard({
   payload,
   onAdjust,
@@ -77,6 +89,9 @@ export function AnalystDcfCard({
   const [isApplyingControls, setIsApplyingControls] = useState(false);
   const [controlsError, setControlsError] = useState<string | null>(null);
   const [isApplyingEventShock, setIsApplyingEventShock] = useState(false);
+  const [isApplyingAiForecast, setIsApplyingAiForecast] = useState(false);
+  const [useAiForecast, setUseAiForecast] = useState(false);
+  const [aiForecastBaseline, setAiForecastBaseline] = useState<number[] | null>(null);
   const [scenarioPrompt, setScenarioPrompt] = useState('');
   const [revenueGrowthShiftBps, setRevenueGrowthShiftBps] = useState(0);
   const [marginShiftBps, setMarginShiftBps] = useState(0);
@@ -97,6 +112,8 @@ export function AnalystDcfCard({
     setTerminalGrowthPct(repairedPayload.assumptions.terminalGrowth * 100);
     setControlsError(null);
     setScenarioPrompt('');
+    setUseAiForecast(false);
+    setAiForecastBaseline(null);
   }, [repairedPayload]);
 
   const adjustedRevenueGrowth = useMemo(
@@ -340,12 +357,65 @@ export function AnalystDcfCard({
     }
   }
 
+  async function handleAiForecastToggle(nextValue: boolean) {
+    if (!onAdjust || isApplyingAiForecast) return;
+
+    setIsApplyingAiForecast(true);
+    setControlsError(null);
+
+    try {
+      if (!nextValue) {
+        setUseAiForecast(false);
+        if (aiForecastBaseline) {
+          await onAdjust({ revenueGrowth: aiForecastBaseline });
+        }
+        setAiForecastBaseline(null);
+        return;
+      }
+
+      setAiForecastBaseline(repairedPayload.assumptions.revenueGrowth);
+      setUseAiForecast(true);
+
+      const response = await fetch('/api/forecast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticker: repairedPayload.ticker,
+          type: 'revenue',
+          horizon: repairedPayload.years,
+        }),
+      });
+      const data = (await response.json().catch(() => null)) as unknown;
+      if (!response.ok || !isForecastResponse(data)) {
+        throw new Error('AI forecast unavailable. Existing assumptions remain active.');
+      }
+
+      const lastActual = data.historical.at(-1);
+      const growthPath =
+        typeof lastActual === 'number'
+          ? buildGrowthPathFromForecast(data.forecast, lastActual).slice(0, repairedPayload.years)
+          : [];
+      if (growthPath.length === 0) {
+        throw new Error('AI forecast did not produce a usable growth path.');
+      }
+
+      await onAdjust({ revenueGrowth: growthPath });
+    } catch (error) {
+      setUseAiForecast(false);
+      setControlsError(error instanceof Error ? error.message : 'Unable to apply AI forecast.');
+    } finally {
+      setIsApplyingAiForecast(false);
+    }
+  }
+
   function handleResetControls() {
     setRevenueGrowthShiftBps(0);
     setMarginShiftBps(0);
     setWaccPct(repairedPayload.assumptions.wacc * 100);
     setTerminalGrowthPct(repairedPayload.assumptions.terminalGrowth * 100);
     setControlsError(null);
+    setUseAiForecast(false);
+    setAiForecastBaseline(null);
   }
 
   return (
@@ -459,6 +529,26 @@ export function AnalystDcfCard({
                   >
                     {isApplyingEventShock ? 'Applying...' : 'Apply Scenario'}
                   </Button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-3">
+                <div>
+                  <Label htmlFor={`dcf-ai-forecast-${repairedPayload.ticker}`}>Use AI Forecast</Label>
+                  <div className="mt-1 text-xs text-[var(--cb-text-muted)]">
+                    Pulls a revenue forecast in the background and maps it into the growth path.
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {isApplyingAiForecast ? (
+                    <span className="text-xs text-[var(--cb-text-muted)]">Updating…</span>
+                  ) : null}
+                  <Switch
+                    id={`dcf-ai-forecast-${repairedPayload.ticker}`}
+                    checked={useAiForecast}
+                    onCheckedChange={(checked) => void handleAiForecastToggle(checked)}
+                    disabled={!onAdjust || isApplyingAiForecast || isApplyingControls}
+                  />
                 </div>
               </div>
 
