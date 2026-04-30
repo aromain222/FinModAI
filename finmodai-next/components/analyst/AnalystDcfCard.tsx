@@ -64,6 +64,8 @@ function ComparisonRow(props: { label: string; primary: string; comparison: stri
 type AiForecastMeta = {
   confidence: number;
   explanation: string;
+  accuracy?: number;
+  accuracySampleSize?: number;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -418,6 +420,8 @@ export function AnalystDcfCard({
       setAiForecastMeta({
         confidence: data.confidence,
         explanation: data.attribution.explanation,
+        accuracy: data.accuracy,
+        accuracySampleSize: data.accuracySampleSize,
       });
     } catch (error) {
       setUseAiForecast(false);
@@ -562,6 +566,9 @@ export function AnalystDcfCard({
                   {useAiForecast && aiForecastMeta ? (
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--cb-text-muted)]">
                       <Badge variant="outline">{Math.round(aiForecastMeta.confidence * 100)}% confidence</Badge>
+                      {aiForecastMeta.accuracySampleSize != null && aiForecastMeta.accuracySampleSize >= 5 && aiForecastMeta.accuracy != null ? (
+                        <Badge variant="outline">{Math.round(aiForecastMeta.accuracy * 100)}% accuracy</Badge>
+                      ) : null}
                       <span>{aiForecastMeta.explanation}</span>
                     </div>
                   ) : null}

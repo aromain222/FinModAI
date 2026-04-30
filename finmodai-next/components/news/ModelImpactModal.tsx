@@ -21,6 +21,7 @@ type ModelImpactData = {
     new_valuation?: number;
     attributionExplanation?: string;
     confidence?: number | null;
+    confidence_breakdown?: ConfidenceBreakdown | null;
   };
   model_changes?: {
     growth_delta?: number;
@@ -28,11 +29,27 @@ type ModelImpactData = {
     discount_rate_delta?: number;
   };
   scenarios?: { bull?: ScenarioCase; base?: ScenarioCase; bear?: ScenarioCase } | null;
-  signal?: { position?: string; conviction?: number; size_pct?: number; primary_driver?: string; confidence_band?: string | null } | null;
+  signal?: {
+    position?: string;
+    conviction?: number;
+    size_pct?: number;
+    primary_driver?: string;
+    confidence_band?: string | null;
+    confidence_breakdown?: ConfidenceBreakdown | null;
+  } | null;
   forecast?: { growthPath?: number[] } | null;
   attributionExplanation?: string;
   confidence?: number | null;
   confidence_band?: string | null;
+  confidence_breakdown?: ConfidenceBreakdown | null;
+  accuracy?: number | null;
+  accuracySampleSize?: number;
+};
+
+type ConfidenceBreakdown = {
+  model?: number;
+  accuracy?: number;
+  sampleSize?: number;
 };
 
 type Props = {
@@ -106,6 +123,9 @@ export function ModelImpactModal({ open, onClose, data, loading, error }: Props)
   })) ?? [];
   const attributionExplanation = data?.attributionExplanation ?? summary?.attributionExplanation;
   const confidenceBand = signal?.confidence_band ?? data?.confidence_band;
+  const confidenceBreakdown = signal?.confidence_breakdown ?? data?.confidence_breakdown ?? summary?.confidence_breakdown;
+  const accuracy = data?.accuracy ?? confidenceBreakdown?.accuracy ?? null;
+  const accuracySampleSize = data?.accuracySampleSize ?? confidenceBreakdown?.sampleSize ?? 0;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -247,6 +267,14 @@ export function ModelImpactModal({ open, onClose, data, loading, error }: Props)
                     <span className="text-zinc-500">AI Confidence </span>
                     <span className="font-semibold text-zinc-200">
                       {Math.round(data.confidence * 100)}%{confidenceBand ? ` · ${confidenceBand}` : ''}
+                    </span>
+                  </div>
+                )}
+                {accuracySampleSize >= 5 && accuracy != null && (
+                  <div>
+                    <span className="text-zinc-500">Accuracy </span>
+                    <span className="font-semibold text-zinc-200">
+                      {Math.round(accuracy * 100)}%
                     </span>
                   </div>
                 )}

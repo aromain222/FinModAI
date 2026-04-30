@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { fetchHistoricalFinancials } from '@/lib/data/historicalFinancials';
+import { computeDirectionalAccuracy } from '@/lib/forecasting/accuracy';
 import { computeForecastAttribution, type ForecastAttribution } from '@/lib/forecasting/attribution';
-import { computeForecastConfidence } from '@/lib/forecasting/confidence';
+import { computeAdjustedConfidence, computeForecastConfidence } from '@/lib/forecasting/confidence';
+import { getForecastHistory, saveForecastRecord, type ForecastDirection } from '@/lib/forecasting/history';
 import { forecastSeries, type ForecastResponse } from '@/lib/forecasting/timesfm';
 import { runForecast, type BaseAssumptions, type ScenarioAssumptions } from '@/lib/scenarioEngine';
 import { buildGrowthPathFromForecast } from '@/lib/valuation/forecastBridge';
@@ -170,6 +172,26 @@ function averageConfidence(values: number[] | undefined): number | null {
   return finite.reduce((sum, value) => sum + value, 0) / finite.length;
 }
 
+function randomId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `forecast_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+
+function predictedDirection(historical: number[], forecast: number[]): ForecastDirection {
+  const lastActual = historical.at(-1);
+  const lastForecast = forecast.at(-1);
+  if (typeof lastActual !== 'number' || typeof lastForecast !== 'number') return 'down';
+  return lastForecast >= lastActual ? 'up' : 'down';
+}
+
+async function directionalAccuracyForTicker(ticker: string): Promise<{ accuracy: number; sampleSize: number }> {
+  try {
+    return computeDirectionalAccuracy(await getForecastHistory(ticker));
+  } catch {
+    return { accuracy: 0.5, sampleSize: 0 };
+  }
+}
+
 function safeFallbackResponse(request: ForecastLayerRequest, warning: string): ForecastResponse {
   const horizon = request.horizon ?? (request.type === 'revenue' ? 5 : 8);
   const historical = request.type === 'revenue' ? [100, 105, 110, 116, 122] : [4.5, 4.6, 4.7, 4.65, 4.55, 4.5];
@@ -180,6 +202,9 @@ function safeFallbackResponse(request: ForecastLayerRequest, warning: string): F
     historical,
     forecast,
     confidence: 0.5,
+    baseConfidence: 0.5,
+    accuracy: 0.5,
+    accuracySampleSize: 0,
     modelConfidence: Array.from({ length: horizon }, () => 0.25),
     attribution: DEFAULT_ATTRIBUTION,
     source: 'flat_fallback',
@@ -210,12 +235,17 @@ async function handleForecastLayerRequest(request: ForecastLayerRequest): Promis
       forecast: result.forecast,
     });
     const modelConfidence = averageConfidence(result.confidence);
-    const confidence = Number(
+    const baseConfidence = Number(
       (modelConfidence === null
         ? statisticalConfidence.confidence
         : (statisticalConfidence.confidence + modelConfidence) / 2
       ).toFixed(2),
     );
+    const accuracy = await directionalAccuracyForTicker(normalizedRequest.ticker);
+    const confidence = computeAdjustedConfidence({
+      baseConfidence,
+      accuracy: accuracy.accuracy,
+    });
     const baselineGrowth = buildBaselineGrowth(historical, horizon);
     const forecastGrowth = buildForecastGrowth(historical, result.forecast, horizon);
     const attribution = computeForecastAttribution({
@@ -229,12 +259,23 @@ async function handleForecastLayerRequest(request: ForecastLayerRequest): Promis
       historical,
       forecast: result.forecast,
       confidence,
+      baseConfidence,
+      accuracy: accuracy.accuracy,
+      accuracySampleSize: accuracy.sampleSize,
       modelConfidence: result.confidence,
       attribution,
       source: result.source,
       cached: false,
       warning: result.warning,
     };
+    void saveForecastRecord({
+      id: randomId(),
+      ticker: normalizedRequest.ticker,
+      forecast: result.forecast,
+      predictedDirection: predictedDirection(historical, result.forecast),
+      timestamp: Date.now(),
+      horizon,
+    });
     setCachedForecast(key, payload);
     return NextResponse.json(payload);
   } catch (error) {

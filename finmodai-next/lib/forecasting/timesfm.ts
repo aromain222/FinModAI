@@ -18,6 +18,9 @@ export type ForecastResponse = {
   historical: number[];
   forecast: number[];
   confidence: number;
+  baseConfidence: number;
+  accuracy: number;
+  accuracySampleSize: number;
   modelConfidence?: number[];
   attribution: ForecastAttribution;
   source: ForecastSeries['source'];

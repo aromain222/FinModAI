@@ -3,8 +3,10 @@ import { z } from 'zod';
 import { getFinancialModelAnalysis, type TradingSignal } from '@/lib/news/tradingSignal';
 import { applyModelImpact, DEFAULT_BASE_MODEL, runDCF, type DCFInputs } from '@/lib/finance/dcfEngine';
 import { fetchHistoricalFinancials } from '@/lib/data/historicalFinancials';
+import { computeDirectionalAccuracy } from '@/lib/forecasting/accuracy';
 import { computeForecastAttribution, type ForecastAttribution } from '@/lib/forecasting/attribution';
-import { computeForecastConfidence } from '@/lib/forecasting/confidence';
+import { computeAdjustedConfidence, computeForecastConfidence } from '@/lib/forecasting/confidence';
+import { getForecastHistory, saveForecastRecord, type ForecastDirection } from '@/lib/forecasting/history';
 import { forecastSeries } from '@/lib/forecasting/timesfm';
 import { buildGrowthPathFromForecast } from '@/lib/valuation/forecastBridge';
 
@@ -44,6 +46,9 @@ type ForecastEnrichment = {
   model: DCFInputs;
   growthPath: number[];
   confidence: number;
+  baseConfidence: number;
+  accuracy: number;
+  accuracySampleSize: number;
   confidenceBand: ConfidenceBand;
   attribution: ForecastAttribution;
   source: 'timesfm' | 'flat_fallback';
@@ -215,6 +220,26 @@ function averageConfidence(values: number[] | undefined): number | null {
   return finite.reduce((sum, value) => sum + value, 0) / finite.length;
 }
 
+function randomId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `forecast_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+
+function predictedDirection(historical: number[], forecast: number[]): ForecastDirection {
+  const lastActual = historical.at(-1);
+  const lastForecast = forecast.at(-1);
+  if (typeof lastActual !== 'number' || typeof lastForecast !== 'number') return 'down';
+  return lastForecast >= lastActual ? 'up' : 'down';
+}
+
+async function directionalAccuracyForTicker(ticker: string): Promise<{ accuracy: number; sampleSize: number }> {
+  try {
+    return computeDirectionalAccuracy(await getForecastHistory(ticker));
+  } catch {
+    return { accuracy: 0.5, sampleSize: 0 };
+  }
+}
+
 function historicalGrowth(values: number[]): number[] {
   const growth: number[] = [];
   for (let index = 1; index < values.length; index += 1) {
@@ -292,17 +317,30 @@ async function buildEventConditionedForecast(
     forecast: result.forecast,
   });
   const modelConfidence = averageConfidence(result.confidence);
-  const confidence = round(
+  const baseConfidence = round(
     modelConfidence === null
       ? statisticalConfidence.confidence
       : (statisticalConfidence.confidence + modelConfidence) / 2,
     2,
   );
+  const accuracy = await directionalAccuracyForTicker(ticker);
+  const confidence = computeAdjustedConfidence({
+    baseConfidence,
+    accuracy: accuracy.accuracy,
+  });
   const macroSeries = eventKind === 'company_specific' ? undefined : conditionMacroSeries(eventKind, content);
   const attribution = computeForecastAttribution({
     baselineGrowth: buildBaselineGrowth(revenue, 5),
     forecastGrowth: growthPath,
     macroSeries,
+  });
+  void saveForecastRecord({
+    id: randomId(),
+    ticker,
+    forecast: result.forecast,
+    predictedDirection: predictedDirection(revenue, result.forecast),
+    timestamp: Date.now(),
+    horizon: 5,
   });
 
   return {
@@ -312,6 +350,9 @@ async function buildEventConditionedForecast(
     },
     growthPath,
     confidence,
+    baseConfidence,
+    accuracy: accuracy.accuracy,
+    accuracySampleSize: accuracy.sampleSize,
     confidenceBand: confidenceBand(confidence),
     attribution,
     source: result.source,
@@ -383,6 +424,13 @@ export async function POST(req: Request) {
   const confidence = forecastConfidence ?? analysis?.confidence ?? null;
   const band = forecast ? forecast.confidenceBand : confidence === null ? null : confidenceBand(confidence);
   const attribution = forecast?.attribution ?? DEFAULT_ATTRIBUTION;
+  const confidenceBreakdown = forecast
+    ? {
+        model: forecast.baseConfidence,
+        accuracy: forecast.accuracy,
+        sampleSize: forecast.accuracySampleSize,
+      }
+    : null;
 
   return NextResponse.json({
     impact_summary: {
@@ -396,6 +444,7 @@ export async function POST(req: Request) {
       percentChange: round(valuationChange),
       attributionExplanation: attribution.explanation,
       confidence,
+      confidence_breakdown: confidenceBreakdown,
     },
     model_changes: {
       growth_delta: forecastDeltas.growth_delta,
@@ -406,6 +455,7 @@ export async function POST(req: Request) {
     signal: {
       ...signal,
       confidence_band: band,
+      confidence_breakdown: confidenceBreakdown,
     },
     attribution: {
       primaryDriver: attribution.primaryDriver,
@@ -426,5 +476,8 @@ export async function POST(req: Request) {
     attributionExplanation: attribution.explanation,
     confidence,
     confidence_band: band,
+    confidence_breakdown: confidenceBreakdown,
+    accuracy: forecast?.accuracy ?? null,
+    accuracySampleSize: forecast?.accuracySampleSize ?? 0,
   });
 }

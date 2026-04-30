@@ -8,6 +8,11 @@ export type ForecastConfidenceInput = {
   historical: number[];
 };
 
+export type AdjustedForecastConfidenceInput = {
+  baseConfidence: number;
+  accuracy: number;
+};
+
 function clamp(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   return Math.min(max, Math.max(min, value));
@@ -67,4 +72,11 @@ export function computeForecastConfidence(input: ForecastConfidenceInput): Forec
     confidence: Number(clamp(rawConfidence, 0.2, 0.95).toFixed(2)),
     volatility: Number(Math.max(0, volatility).toFixed(4)),
   };
+}
+
+export function computeAdjustedConfidence(input: AdjustedForecastConfidenceInput): number {
+  const baseConfidence = clamp(input.baseConfidence, 0.2, 0.95);
+  const accuracy = clamp(input.accuracy, 0, 1);
+  const adjustedConfidence = baseConfidence * (0.5 + 0.5 * accuracy);
+  return Number(clamp(adjustedConfidence, 0.2, 0.95).toFixed(2));
 }
