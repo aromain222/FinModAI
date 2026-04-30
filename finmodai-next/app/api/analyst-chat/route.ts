@@ -407,10 +407,53 @@ function isCurrentArtifactAnalysisPrompt(message: string): boolean {
   const text = message.toLowerCase();
   return (
     isTerseFollowUpQuestion(message) ||
-    /\b(explain this|walk me through|break this down|what matters|what changed|what stands out|what is driving|driving factors|key drivers|what assumptions are doing the most work|assumptions doing the most work|which assumptions matter|key assumptions|biggest risks|stress this|sensitivity|compare this to peers|does this hold up|is this realistic|what breaks this case|where is the risk)\b/.test(
+    /\b(explain this|walk me through|break this down|what matters|what changed|what stands out|what is driving|driving factors|key drivers|what assumptions are doing the most work|assumptions doing the most work|which assumptions matter|key assumptions|biggest risks|stress this|sensitivity|compare this to peers|does this hold up|is this realistic|what breaks this case|where is the risk|undervalued|under valued|overvalued|over valued|cheap|expensive|worth buying|buy|sell)\b/.test(
       text,
     )
   );
+}
+
+function looksLikeDcfValuationVerdictPrompt(message: string): boolean {
+  return /\b(undervalued|under valued|overvalued|over valued|cheap|expensive|worth buying|buy|sell|margin of safety|upside|downside)\b/i.test(message);
+}
+
+function formatValuationPct(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return 'not available';
+  return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}%`;
+}
+
+function buildDcfValuationVerdictReply(payload: AnalystDcfDemoPayload): string {
+  const base = payload.scenarios.base;
+  const intrinsic = base.pricePerShare;
+  const market = base.marketPrice ?? payload.baseMetrics.sharePrice;
+  const upside = base.upsidePct ??
+    (intrinsic !== null && market !== null && market > 0 ? intrinsic / market - 1 : null);
+  const terminalWeight = base.terminalValueWeight;
+
+  if (intrinsic === null || market === null || market <= 0 || upside === null) {
+    return `${payload.ticker} cannot be classified as undervalued from the current DCF because either the model price per share or market price is missing. The base DCF enterprise value is $${Math.round(base.enterpriseValue).toLocaleString('en-US')}M, but the per-share valuation gap is not computable.`;
+  }
+
+  const verdict =
+    upside > 0.15 ? 'undervalued' :
+    upside > 0.03 ? 'modestly undervalued' :
+    upside < -0.15 ? 'overvalued' :
+    upside < -0.03 ? 'modestly overvalued' :
+    'roughly fairly valued';
+  const action =
+    upside > 0.15 ? 'The signal is constructive, but still depends on the model assumptions holding.' :
+    upside > 0.03 ? 'The signal is positive, but the margin of safety is thin.' :
+    upside < -0.03 ? 'The model does not support a long thesis unless you underwrite better assumptions than the base case.' :
+    'The model is not showing a strong valuation gap either way.';
+  const terminalText = terminalWeight !== null && Number.isFinite(terminalWeight)
+    ? ` Terminal value is ${(terminalWeight * 100).toFixed(0)}% of enterprise value, so WACC, terminal growth, and long-run margins are the key swing factors.`
+    : '';
+
+  return [
+    `${payload.ticker} looks ${verdict} in the current DCF: base intrinsic value is $${intrinsic.toFixed(2)} per share versus market price of $${market.toFixed(2)}, implying ${formatValuationPct(upside)} upside/downside.`,
+    `${action} The base case assumes revenue growth of ${payload.assumptions.revenueGrowth.map((value) => `${(value * 100).toFixed(1)}%`).join(' / ')}, EBIT margins of ${payload.assumptions.ebitMargin.map((value) => `${(value * 100).toFixed(1)}%`).join(' / ')}, WACC of ${(payload.assumptions.wacc * 100).toFixed(1)}%, and terminal growth of ${(payload.assumptions.terminalGrowth * 100).toFixed(1)}%.${terminalText}`,
+    `The right read is not a blanket yes/no. It is ${verdict} under this DCF, but the conclusion should be stress-tested against lower ad growth, AI search pressure, antitrust risk, and higher discount rates.`,
+  ].join('\n\n');
 }
 
 function currentArtifactFollowUpInstruction(params: {
@@ -1779,6 +1822,22 @@ export async function POST(req: NextRequest) {
         attachmentUsed: attachmentLabel,
       }));
     }
+
+    if (currentDcf && !artifactTickerMismatch && looksLikeDcfValuationVerdictPrompt(lastUserMessage)) {
+      return NextResponse.json(withAttachmentStatus(withExecutionTrace({
+        reply: buildDcfValuationVerdictReply(currentDcf),
+        fallback: false,
+        mode: 'live',
+        route: 'financial_model',
+        sources: [
+          `Current DCF artifact - ${currentDcf.source}`,
+          ...(currentDcf.asOfDate ? [`Snapshot updated ${currentDcf.asOfDate}`] : []),
+        ],
+        factsCount: 0,
+        attachmentUsed: attachmentLabel,
+      }, executionTrace)));
+    }
+
     // Run stock lookup and earnings retrieval in parallel — neither depends on the other.
     const [parallelStockLookup, parallelEarningsEnvelope] = await Promise.all([
       route.intent === 'company_question' && !(preferCurrentArtifact && currentStock)
