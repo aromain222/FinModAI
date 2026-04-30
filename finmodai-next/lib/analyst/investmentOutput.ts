@@ -16,6 +16,8 @@ export type AnalystOutput = {
   drivers?: string[];
   analystNote?: string;
   sizePct?: number | null;
+  forecast?: number[];
+  historical?: number[];
 };
 
 export type NormalizedAnalystOutput = {
@@ -35,6 +37,8 @@ export type NormalizedAnalystOutput = {
   analystNote: string;
   confidenceExplanation: string;
   sizePct: number | null;
+  forecast: number[];
+  historical: number[];
   isComplete: boolean;
 };
 
@@ -83,6 +87,10 @@ export function formatDriver(driver: string): string {
 
 function normalizeConfidence(confidence?: number): number {
   return clamp(typeof confidence === 'number' ? confidence : 0.5, 0, 1);
+}
+
+function normalizeSeries(values?: number[]): number[] {
+  return (values ?? []).filter((value) => Number.isFinite(value));
 }
 
 function normalizeSignal(signal: InvestmentSignal | undefined, percentChange: number): InvestmentSignal {
@@ -145,6 +153,8 @@ export function normalizeAnalystOutput(output: AnalystOutput): NormalizedAnalyst
     analystNote,
     confidenceExplanation: confidenceExplanation(output),
     sizePct: output.sizePct ?? null,
+    forecast: normalizeSeries(output.forecast),
+    historical: normalizeSeries(output.historical),
     isComplete: output.percentChange !== undefined || Boolean(output.analystNote?.trim()),
   };
 }

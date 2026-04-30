@@ -152,6 +152,13 @@ function parseSizePct(payload: Record<string, unknown>): number | null {
   return finiteNumber(payload.signal.size_pct) ?? finiteNumber(payload.signal.sizePct);
 }
 
+function parseNumberSeries(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => finiteNumber(item))
+    .filter((item): item is number => item !== null);
+}
+
 function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystOutput | undefined {
   if (!payload) return undefined;
   const hasStructuredOutput =
@@ -174,7 +181,9 @@ function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystOut
     'secondaryDrivers' in payload ||
     'secondary_drivers' in payload ||
     'analystNote' in payload ||
-    'analyst_note' in payload;
+    'analyst_note' in payload ||
+    'forecast' in payload ||
+    'historical' in payload;
   if (!hasStructuredOutput) return undefined;
 
   const impactSummary = isRecord(payload.impact_summary) ? payload.impact_summary : null;
@@ -242,6 +251,8 @@ function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystOut
     drivers,
     analystNote: analystNote || undefined,
     sizePct: parseSizePct(payload),
+    forecast: parseNumberSeries(payload.forecast),
+    historical: parseNumberSeries(payload.historical),
   };
 
   if (!analystOutput.signal && isRecord(payload.signal)) {

@@ -35,6 +35,7 @@ import type { AnalystEarningsSummaryCard } from '@/lib/analyst/earningsSummary';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
 import type { CompanyInfoResponse } from '@/app/api/company-info/route';
 import type { AppExecutionTrace } from '@/lib/debug/executionTrace';
+import { ForecastSparkline } from '@/components/analyst/ForecastSparkline';
 
 const AnalystDcfCard = dynamic(
   () => import('@/components/analyst/AnalystDcfCard').then((mod) => mod.AnalystDcfCard)
@@ -221,6 +222,10 @@ function AnalystInvestmentOutputCard({ output }: { output: AnalystOutput }) {
       <div className="text-sm leading-6 text-[var(--cb-text-primary)]">
         {normalized.attributionExplanation}
       </div>
+
+      {normalized.forecast.length > 1 ? (
+        <ForecastSparkline forecast={normalized.forecast} historical={normalized.historical} />
+      ) : null}
 
       <p className="max-w-3xl text-[15px] leading-7 text-[var(--cb-text-primary)]">
         {normalized.analystNote}
