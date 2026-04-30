@@ -31,6 +31,8 @@ export async function GET(req: NextRequest) {
     params.set('quarters', quarters);
   }
 
+  const timesfmStatus: 'not_configured' | 'upstream_failed' = PYTHON_BACKEND ? 'upstream_failed' : 'not_configured';
+
   if (PYTHON_BACKEND) {
     try {
       const upstream = await fetch(`${PYTHON_BACKEND}/api/v1/timesfm/${type}?${params.toString()}`, {
@@ -44,6 +46,7 @@ export async function GET(req: NextRequest) {
           {
             ...data,
             model_source: data?.model_source ?? 'timesfm',
+            timesfm_status: 'used',
             methodology: data?.methodology ?? 'TimesFM forecast service',
           },
           { headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=600' } },
@@ -57,14 +60,28 @@ export async function GET(req: NextRequest) {
   if (type === 'price') {
     const fallback = await buildProviderBackedPriceForecast(ticker, Number(params.get('horizon') ?? 30));
     if (fallback) {
-      return NextResponse.json(fallback, {
+      return NextResponse.json({
+        ...fallback,
+        timesfm_status: timesfmStatus,
+        warnings: [
+          ...fallback.warnings,
+          timesfmStatus === 'not_configured' ? 'timesfm:not_configured' : 'timesfm:upstream_failed',
+        ],
+      }, {
         headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=600' },
       });
     }
   } else {
     const fallback = await buildProviderBackedRevenueForecast(ticker, Number(params.get('quarters') ?? 4));
     if (fallback) {
-      return NextResponse.json(fallback, {
+      return NextResponse.json({
+        ...fallback,
+        timesfm_status: timesfmStatus,
+        warnings: [
+          ...fallback.warnings,
+          timesfmStatus === 'not_configured' ? 'timesfm:not_configured' : 'timesfm:upstream_failed',
+        ],
+      }, {
         headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=600' },
       });
     }

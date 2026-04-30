@@ -34,6 +34,8 @@ export type ForecastChartProps = {
   height?: number;
   loading?: boolean;
   modelAvailable?: boolean;
+  modelSource?: string | null;
+  methodology?: string | null;
 };
 
 type ChartRow = {
@@ -61,7 +63,11 @@ export function ForecastChart({
   height = 220,
   loading = false,
   modelAvailable = true,
+  modelSource,
+  methodology,
 }: ForecastChartProps) {
+  const isTimesFm = modelSource === 'timesfm';
+  const forecastLabel = isTimesFm ? 'TimesFM baseline' : 'Provider trend';
   const allActual = historical.map((p) => p.actual);
   const allForecast = forecast?.map((p) => p.forecast) ?? [];
   const allLower = forecast?.map((p) => p.lower) ?? [];
@@ -91,15 +97,18 @@ export function ForecastChart({
     : !modelAvailable
       ? `Price trend · ${ticker} (TimesFM offline)`
       : hasAdjusted
-        ? `${historical.length}d history + TimesFM baseline (violet) + ${eventAdjustedLabel} (cyan)`
+        ? `${historical.length}d history + ${forecastLabel} (violet) + ${eventAdjustedLabel} (cyan)`
         : forecast
-          ? `${historical.length}-day history + ${forecast.length}-day TimesFM forecast`
+          ? `${historical.length}-day history + ${forecast.length}-day ${forecastLabel}`
           : `Price trend · ${ticker}`;
+  const footnote = methodology
+    ? `${subtitle}. ${isTimesFm ? 'TimesFM' : 'TimesFM offline; provider fallback'}: ${methodology}`
+    : subtitle;
 
   return (
     <FinanceChart
       title={`${ticker} Price`}
-      footnote={subtitle}
+      footnote={footnote}
       empty={rows.length === 0}
       emptyMessage="No price data available"
       height={height}
@@ -119,7 +128,7 @@ export function ForecastChart({
           formatter={(value: number, name: string) => [
             fmt(value, valuePrefix) + (valueSuffix ?? ''),
             name === 'actual' ? 'Price'
-              : name === 'forecast' ? 'TimesFM baseline'
+              : name === 'forecast' ? forecastLabel
               : name === 'eventAdjusted' ? eventAdjustedLabel
               : name,
           ]}
@@ -152,7 +161,7 @@ export function ForecastChart({
           connectNulls
         />
 
-        {/* TimesFM baseline — dashed violet */}
+        {/* Forecast baseline — dashed violet */}
         {forecast && (
           <Line
             type="monotone"

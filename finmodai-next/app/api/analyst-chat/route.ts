@@ -2141,12 +2141,12 @@ export async function POST(req: NextRequest) {
           if (pd.model_available && pd.forecast && pd.historical) {
             const forecastSourceLabel =
               pd.model_source === 'provider_trend_fallback'
-                ? 'PROVIDER-BACKED TREND'
+                ? 'PROVIDER-BACKED TREND (TIMESFM OFFLINE)'
                 : 'TIMESFM';
             const forecastMethodology =
               pd.methodology ??
               (pd.model_source === 'provider_trend_fallback'
-                ? 'Provider-backed fallback from recent end-of-day price history.'
+                ? 'TimesFM service is not configured or unavailable; using recent end-of-day price history as a fallback.'
                 : 'Google foundation model, time-series extrapolation from historical price patterns; not event-driven.');
             const lastActual = pd.historical.prices.at(-1);
             const endForecast = pd.forecast.values.at(-1);

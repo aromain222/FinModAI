@@ -12,6 +12,7 @@ export type PriceForecastPayload = {
   model_available: boolean;
   horizon_days: number;
   model_source?: 'timesfm' | 'provider_trend_fallback' | string;
+  timesfm_status?: 'used' | 'not_configured' | 'upstream_failed' | string;
   methodology?: string;
 };
 

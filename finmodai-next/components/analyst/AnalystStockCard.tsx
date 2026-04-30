@@ -47,6 +47,13 @@ function ImpliedGrowthBadge({ rate }: { rate: number | null }) {
   );
 }
 
+function forecastSourceLabel(source: string | undefined, kind: 'price' | 'revenue'): string {
+  if (source === 'timesfm') return `TimesFM ${kind === 'price' ? 'Price' : 'Revenue'} Forecast`;
+  if (source === 'provider_trend_fallback') return 'Provider Trend Forecast';
+  if (source === 'historical_financials_fallback') return 'Provider Revenue Forecast';
+  return `${kind === 'price' ? 'Price' : 'Revenue'} Forecast`;
+}
+
 export function AnalystStockCard({ payload }: { payload: StockLookupResult }) {
   const chartHeight = 220;
   const stockChartData = payload.chart.points.map((point) => ({
@@ -131,6 +138,8 @@ export function AnalystStockCard({ payload }: { payload: StockLookupResult }) {
               valuePrefix="$"
               height={chartHeight}
               modelAvailable={priceForecast?.model_available ?? false}
+              modelSource={priceForecast?.model_source}
+              methodology={priceForecast?.methodology}
             />
           ) : (
             <FinanceDataChart
@@ -156,7 +165,7 @@ export function AnalystStockCard({ payload }: { payload: StockLookupResult }) {
           <div>
             <div className="mb-2 flex items-center gap-3">
               <span className="text-[10px] font-medium uppercase tracking-wide text-[var(--cb-text-muted)]">
-                TimesFM Revenue Forecast
+                {forecastSourceLabel(revenueForecast.model_source, 'revenue')}
               </span>
               <ImpliedGrowthBadge rate={revenueForecast.implied_growth_rate} />
             </div>

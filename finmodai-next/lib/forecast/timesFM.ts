@@ -10,6 +10,7 @@ export type PriceForecastResult = {
   model_available: boolean;
   horizon_days: number;
   model_source?: 'timesfm' | 'provider_trend_fallback' | string;
+  timesfm_status?: 'used' | 'not_configured' | 'upstream_failed' | string;
   methodology?: string;
   warnings?: string[];
 };
@@ -26,6 +27,7 @@ export type RevenueForecastResult = {
   model_available: boolean;
   implied_growth_rate: number | null;
   model_source?: 'timesfm' | 'historical_financials_fallback' | string;
+  timesfm_status?: 'used' | 'not_configured' | 'upstream_failed' | string;
   methodology?: string;
   warnings?: string[];
 };
