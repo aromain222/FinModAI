@@ -76,7 +76,23 @@ type Message = {
     clarificationFieldLabel?: string;
     remainingMissingInputs?: string[];
     pendingModelRequest?: PendingModelRequest;
+    analystOutput?: AnalystChatInvestmentOutput;
   };
+};
+
+type AnalystChatInvestmentOutput = {
+  signal: 'LONG' | 'SHORT' | 'NEUTRAL';
+  percentChange: number;
+  primaryDriver: string;
+  attributionExplanation: string;
+  confidence: number;
+  confidenceBreakdown: {
+    model: number | null;
+    accuracy: number | null;
+    sampleSize: number;
+  };
+  drivers: string[];
+  analystNote: string;
 };
 
 type LatestGeneratedModelMessage = {
@@ -153,6 +169,125 @@ function formatMarketCap(value: number | null): string | null {
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}T`;
   if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}B`;
   return `$${value.toFixed(0)}M`;
+}
+
+function confidenceBand(confidence: number): 'low' | 'medium' | 'high' {
+  if (confidence < 0.4) return 'low';
+  if (confidence <= 0.7) return 'medium';
+  return 'high';
+}
+
+function signalClasses(signal: AnalystChatInvestmentOutput['signal']): string {
+  if (signal === 'LONG') return 'bg-emerald-500/10 text-emerald-300';
+  if (signal === 'SHORT') return 'bg-rose-500/10 text-rose-300';
+  return 'bg-zinc-500/10 text-zinc-300';
+}
+
+function formatValuationGap(value: number): string {
+  const pct = Math.abs(value) <= 1 ? value * 100 : value;
+  return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
+}
+
+function formatConfidence(value: number): string {
+  return value.toFixed(2);
+}
+
+function confidenceModerationReason(output: AnalystChatInvestmentOutput): string {
+  const { model, accuracy, sampleSize } = output.confidenceBreakdown;
+  if (sampleSize < 5) return 'limited realized accuracy sample';
+  if (accuracy != null && accuracy < 0.5) return 'historical accuracy below neutral';
+  if (model != null && model < 0.5) return 'lower model confidence';
+  if (confidenceBand(output.confidence) === 'low') return 'low combined forecast confidence';
+  return 'forecast uncertainty and historical hit rate';
+}
+
+function AnalystInvestmentOutputCard({ output }: { output: AnalystChatInvestmentOutput }) {
+  const band = confidenceBand(output.confidence);
+  const showAccuracy = output.confidenceBreakdown.sampleSize >= 5 && output.confidenceBreakdown.accuracy != null;
+
+  return (
+    <div className="space-y-5 rounded-2xl bg-[var(--cb-surface)] p-5 text-[var(--cb-text-primary)] md:p-6">
+      <div className="grid gap-3 md:grid-cols-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Signal</div>
+          <div className={`mt-2 inline-flex rounded-full px-3 py-1 text-sm font-semibold ${signalClasses(output.signal)}`}>
+            {output.signal}
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Valuation Gap</div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums text-[var(--cb-text-primary)]">
+            {formatValuationGap(output.percentChange)}
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Confidence</div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums text-[var(--cb-text-primary)]">
+            {formatConfidence(output.confidence)} <span className="text-sm font-medium capitalize text-[var(--cb-text-muted)]">({band})</span>
+          </div>
+        </div>
+      </div>
+
+      {output.attributionExplanation ? (
+        <div className="text-sm leading-6 text-[var(--cb-text-primary)]">
+          {output.attributionExplanation}
+        </div>
+      ) : (
+        <div className="text-sm leading-6 text-[var(--cb-text-primary)]">
+          Primary driver: {output.primaryDriver}
+        </div>
+      )}
+
+      <p className="max-w-3xl text-[15px] leading-7 text-[var(--cb-text-primary)]">
+        {output.analystNote}
+      </p>
+
+      <div className="text-xs text-[var(--cb-text-muted)]">
+        Confidence moderated by {confidenceModerationReason(output)}.
+      </div>
+
+      <details className="group text-sm">
+        <summary className="cursor-pointer list-none text-xs font-medium uppercase tracking-widest text-[var(--cb-text-muted)] transition-colors hover:text-[var(--cb-text-primary)]">
+          Details <span className="ml-1 inline-block transition-transform group-open:rotate-90">›</span>
+        </summary>
+        <div className="mt-4 grid gap-5 md:grid-cols-[0.8fr_1.2fr]">
+          <div className="space-y-2">
+            <div className="text-xs font-medium uppercase tracking-wide text-[var(--cb-text-muted)]">Confidence Breakdown</div>
+            <div className="space-y-1.5 text-sm text-[var(--cb-text-primary)]">
+              <div className="flex justify-between gap-4">
+                <span className="text-[var(--cb-text-muted)]">Model confidence</span>
+                <span className="font-medium tabular-nums">
+                  {output.confidenceBreakdown.model != null ? formatConfidence(output.confidenceBreakdown.model) : 'n/a'}
+                </span>
+              </div>
+              {showAccuracy ? (
+                <div className="flex justify-between gap-4">
+                  <span className="text-[var(--cb-text-muted)]">Historical accuracy</span>
+                  <span className="font-medium tabular-nums">
+                    {Math.round((output.confidenceBreakdown.accuracy ?? 0) * 100)}%
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          {output.drivers.length > 0 ? (
+            <div className="space-y-2">
+              <div className="text-xs font-medium uppercase tracking-wide text-[var(--cb-text-muted)]">Secondary Drivers</div>
+              <ul className="space-y-1.5 text-sm leading-6 text-[var(--cb-text-primary)]">
+                {output.drivers.map((driver) => (
+                  <li key={driver} className="flex gap-2">
+                    <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[var(--cb-text-muted)]" />
+                    <span>{driver}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      </details>
+    </div>
+  );
 }
 
 // ─── Sidebar state ───────────────────────────────────────────────────────────
@@ -725,15 +860,21 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
                         className={`inline-block rounded-2xl px-4 py-3 ${
                           message.role === 'user'
                             ? 'bg-[var(--cb-green)] text-[#041007]'
-                            : 'block max-w-full border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] text-[var(--cb-text-primary)] whitespace-pre-wrap leading-7'
+                            : message.meta?.analystOutput
+                              ? 'block max-w-full bg-transparent p-0 text-[var(--cb-text-primary)]'
+                              : 'block max-w-full border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] text-[var(--cb-text-primary)] whitespace-pre-wrap leading-7'
                         }`}
                       >
                         {message.role === 'assistant' ? (
-                          <FormattedTextBlock
-                            content={message.content}
-                            className="space-y-4"
-                            paragraphClassName="text-[var(--cb-text-primary)] leading-7"
-                          />
+                          message.meta?.analystOutput ? (
+                            <AnalystInvestmentOutputCard output={message.meta.analystOutput} />
+                          ) : (
+                            <FormattedTextBlock
+                              content={message.content}
+                              className="space-y-4"
+                              paragraphClassName="text-[var(--cb-text-primary)] leading-7"
+                            />
+                          )
                         ) : (
                           message.content
                         )}
@@ -762,7 +903,8 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
                           !message.meta?.coreTemplateModel &&
                           !message.meta?.stockLookup &&
                           !message.meta?.visualization &&
-                          !message.meta?.scenarioCard && (
+                          !message.meta?.scenarioCard &&
+                          !message.meta?.analystOutput && (
                             <div className="mt-3 flex justify-end">
                               <Button
                                 type="button"

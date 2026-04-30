@@ -58,7 +58,23 @@ type Message = {
     clarificationFieldLabel?: string;
     remainingMissingInputs?: string[];
     pendingModelRequest?: PendingModelRequest;
+    analystOutput?: AnalystChatInvestmentOutput;
   };
+};
+
+export type AnalystChatInvestmentOutput = {
+  signal: 'LONG' | 'SHORT' | 'NEUTRAL';
+  percentChange: number;
+  primaryDriver: string;
+  attributionExplanation: string;
+  confidence: number;
+  confidenceBreakdown: {
+    model: number | null;
+    accuracy: number | null;
+    sampleSize: number;
+  };
+  drivers: string[];
+  analystNote: string;
 };
 
 function userExplicitlyWantsStructuredOutput(message: string): boolean {
@@ -114,6 +130,68 @@ function tryParseJson<T>(value: string): T | null {
   } catch {
     return null;
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function finiteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function parseSignal(value: unknown): AnalystChatInvestmentOutput['signal'] | null {
+  const raw = isRecord(value) ? value.position ?? value.direction : value;
+  if (raw === 'LONG' || raw === 'SHORT' || raw === 'NEUTRAL') return raw;
+  if (typeof raw !== 'string') return null;
+  const normalized = raw.trim().toUpperCase();
+  return normalized === 'LONG' || normalized === 'SHORT' || normalized === 'NEUTRAL'
+    ? normalized
+    : null;
+}
+
+function parseConfidenceBreakdown(value: unknown): AnalystChatInvestmentOutput['confidenceBreakdown'] {
+  if (!isRecord(value)) return { model: null, accuracy: null, sampleSize: 0 };
+  return {
+    model: finiteNumber(value.model),
+    accuracy: finiteNumber(value.accuracy),
+    sampleSize: finiteNumber(value.sampleSize) ?? 0,
+  };
+}
+
+function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystChatInvestmentOutput | undefined {
+  if (!payload) return undefined;
+  const signal = parseSignal(payload.signal);
+  const percentChange = finiteNumber(payload.percentChange);
+  const confidence = finiteNumber(payload.confidence);
+  const analystNote = typeof payload.analystNote === 'string' ? payload.analystNote.trim() : '';
+  const primaryDriver =
+    typeof payload.primaryDriver === 'string' && payload.primaryDriver.trim().length > 0
+      ? payload.primaryDriver.trim()
+      : '';
+  const attributionExplanation =
+    typeof payload.attributionExplanation === 'string' && payload.attributionExplanation.trim().length > 0
+      ? payload.attributionExplanation.trim()
+      : '';
+
+  if (!signal || percentChange === null || confidence === null || !analystNote || !primaryDriver) {
+    return undefined;
+  }
+
+  const drivers = Array.isArray(payload.drivers)
+    ? payload.drivers.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    : [];
+
+  return {
+    signal,
+    percentChange,
+    primaryDriver,
+    attributionExplanation,
+    confidence,
+    confidenceBreakdown: parseConfidenceBreakdown(payload.confidence_breakdown),
+    drivers,
+    analystNote,
+  };
 }
 
 function parseAttachmentStatus(payload: Record<string, unknown> | null): AnalystAttachmentStatus | undefined {
@@ -499,6 +577,7 @@ export function AnalystChatApp() {
             payload?.pendingModelRequest && typeof payload.pendingModelRequest === 'object'
               ? (payload.pendingModelRequest as PendingModelRequest)
               : undefined,
+          analystOutput: parseAnalystOutput(payload),
         },
       };
       if (process.env.NODE_ENV !== 'production' && payload?.executionTrace) {
