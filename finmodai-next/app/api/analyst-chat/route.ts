@@ -1907,6 +1907,15 @@ export async function POST(req: NextRequest) {
         }
 
         if (parts.length > 0) {
+          parts.push(
+            `SYNTHESIS GUIDANCE: When asked how a stock will move or what the price outlook is, ` +
+            `lead with the TimesFM 30-day baseline, then layer in any event or news signals you know about ` +
+            `(earnings, macro events, rate decisions, geopolitical risk) as adjustments on top of that baseline. ` +
+            `Clearly distinguish: (1) what the price trend model predicts from history alone, ` +
+            `(2) what current news/events suggest as incremental shifts. ` +
+            `Give a synthesized view: e.g. "TimesFM sees +5% from momentum; the recent tariff escalation ` +
+            `adds downside pressure, net outlook: roughly flat to slightly negative over 30 days."`
+          );
           timesFMBlock = parts.join('\n\n');
         }
       } catch {

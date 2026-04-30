@@ -25,6 +25,10 @@ export type ForecastChartProps = {
   ticker: string;
   historical: HistoricalPoint[];
   forecast: ForecastPoint[] | null;
+  /** Optional event-adjusted forecast values (same length as forecast). */
+  eventAdjusted?: number[] | null;
+  /** Label shown in tooltip for the event-adjusted line. */
+  eventAdjustedLabel?: string;
   valuePrefix?: string;
   valueSuffix?: string;
   height?: number;
@@ -36,7 +40,8 @@ type ChartRow = {
   date: string;
   actual?: number;
   forecast?: number;
-  band?: [number, number]; // [lower, upper] for the area
+  band?: [number, number];
+  eventAdjusted?: number;
 };
 
 function fmt(value: number, prefix = '$'): string {
@@ -49,6 +54,8 @@ export function ForecastChart({
   ticker,
   historical,
   forecast,
+  eventAdjusted,
+  eventAdjustedLabel = 'News-adjusted',
   valuePrefix = '$',
   valueSuffix,
   height = 220,
@@ -59,29 +66,35 @@ export function ForecastChart({
   const allForecast = forecast?.map((p) => p.forecast) ?? [];
   const allLower = forecast?.map((p) => p.lower) ?? [];
   const allUpper = forecast?.map((p) => p.upper) ?? [];
+  const allAdjusted = eventAdjusted ?? [];
   const yDomain = useYDomain(
-    [...allActual, ...allForecast, ...allLower, ...allUpper],
+    [...allActual, ...allForecast, ...allLower, ...allUpper, ...allAdjusted],
     0.1,
   );
 
   const rows: ChartRow[] = [
     ...historical.map((p) => ({ date: p.date, actual: p.actual })),
-    ...(forecast ?? []).map((p) => ({
+    ...(forecast ?? []).map((p, i) => ({
       date: p.date,
       forecast: p.forecast,
       band: [p.lower, p.upper] as [number, number],
+      ...(eventAdjusted?.[i] != null ? { eventAdjusted: eventAdjusted[i] } : {}),
     })),
   ];
 
   const dividerDate = historical.at(-1)?.date;
 
+  const hasAdjusted = forecast != null && eventAdjusted != null && eventAdjusted.length > 0;
+
   const subtitle = loading
     ? 'Loading forecast…'
     : !modelAvailable
       ? `Price trend · ${ticker} (TimesFM offline)`
-      : forecast
-        ? `${historical.length}-day history + ${forecast.length}-day TimesFM forecast`
-        : `Price trend · ${ticker}`;
+      : hasAdjusted
+        ? `${historical.length}d history + TimesFM baseline (violet) + ${eventAdjustedLabel} (cyan)`
+        : forecast
+          ? `${historical.length}-day history + ${forecast.length}-day TimesFM forecast`
+          : `Price trend · ${ticker}`;
 
   return (
     <FinanceChart
@@ -105,12 +118,15 @@ export function ForecastChart({
           contentStyle={financeTooltipStyle}
           formatter={(value: number, name: string) => [
             fmt(value, valuePrefix) + (valueSuffix ?? ''),
-            name === 'actual' ? 'Price' : name === 'forecast' ? 'Forecast' : name,
+            name === 'actual' ? 'Price'
+              : name === 'forecast' ? 'TimesFM baseline'
+              : name === 'eventAdjusted' ? eventAdjustedLabel
+              : name,
           ]}
           labelFormatter={(label) => String(label)}
         />
 
-        {/* Confidence band (Area) */}
+        {/* Confidence band */}
         {forecast && (
           <Area
             type="monotone"
@@ -136,7 +152,7 @@ export function ForecastChart({
           connectNulls
         />
 
-        {/* Forecast — dashed violet */}
+        {/* TimesFM baseline — dashed violet */}
         {forecast && (
           <Line
             type="monotone"
@@ -145,6 +161,21 @@ export function ForecastChart({
             stroke="#8b5cf6"
             strokeWidth={2}
             strokeDasharray="5 3"
+            dot={false}
+            activeDot={{ r: 4 }}
+            connectNulls
+          />
+        )}
+
+        {/* Event-adjusted forecast — dashed cyan */}
+        {hasAdjusted && (
+          <Line
+            type="monotone"
+            dataKey="eventAdjusted"
+            name="eventAdjusted"
+            stroke="#06b6d4"
+            strokeWidth={2}
+            strokeDasharray="4 2"
             dot={false}
             activeDot={{ r: 4 }}
             connectNulls

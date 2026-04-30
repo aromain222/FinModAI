@@ -12,10 +12,11 @@
  *  - Causal mechanism bullets
  */
 
-import { useEffect, useState } from 'react';
-import { ArrowDown, ArrowRight, ArrowUp, Minus, TrendingDown, TrendingUp, Zap } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowDown, ArrowUp, Minus, Zap } from 'lucide-react';
 import type { EventImpactResult } from '@/lib/useEventImpact';
 import { fetchPriceForecast, type PriceForecastResult } from '@/lib/forecast/timesFM';
+import { ForecastChart } from '@/components/charts/ForecastChart';
 
 // ─── Formatting ──────────────────────────────────────────────────────────────
 
@@ -94,47 +95,86 @@ interface EventImpactPanelProps {
   onApplyToModel?: (updatedModel: EventImpactResult['updated_model']) => void;
 }
 
-function TimesFMPriceBadge({ ticker }: { ticker: string }) {
+/**
+ * Fetches TimesFM baseline, then applies the event's valuation delta as a linear ramp
+ * to produce a "news-adjusted" forecast series shown alongside the baseline.
+ *
+ * Adjustment formula: adjusted[i] = baseline[i] * (1 + valuationDelta * ramp)
+ * where ramp = (i+1)/horizon so the shift builds gradually over the forecast window.
+ */
+function EventAdjustedForecastChart({
+  ticker,
+  valuationDelta,       // fractional e.g. 0.05 = +5%
+  eventDirection,
+}: {
+  ticker: string;
+  valuationDelta: number;
+  eventDirection: 'positive' | 'negative' | 'mixed';
+}) {
   const [data, setData] = useState<PriceForecastResult | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchPriceForecast(ticker, 30).then((result) => {
-      if (!cancelled) { setData(result); setLoading(false); }
+    fetchPriceForecast(ticker, 30).then((r) => {
+      if (!cancelled) { setData(r); setLoading(false); }
     }).catch(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [ticker]);
 
+  // Build the event-adjusted series by ramping valuationDelta over the horizon.
+  const eventAdjusted = useMemo(() => {
+    if (!data?.forecast) return null;
+    const horizon = data.forecast.values.length;
+    // Cap the shift at ±20% to avoid absurd extrapolations.
+    const clampedDelta = Math.max(-0.20, Math.min(0.20, valuationDelta));
+    return data.forecast.values.map((v, i) => {
+      const ramp = (i + 1) / horizon;
+      return v * (1 + clampedDelta * ramp);
+    });
+  }, [data, valuationDelta]);
+
   if (loading) {
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-xs text-zinc-500">
+      <div className="flex items-center gap-2 py-2 text-xs text-zinc-500">
         <span className="h-3 w-3 animate-spin rounded-full border border-zinc-600 border-t-zinc-400" />
         Loading TimesFM forecast…
       </div>
     );
   }
-  if (!data?.forecast || !data.model_available) return null;
+  if (!data?.model_available || !data.forecast || !data.historical) return null;
 
-  const lastActual = data.historical.prices.at(-1);
-  const endForecast = data.forecast.values.at(-1);
-  if (lastActual == null || endForecast == null) return null;
+  const historical = data.historical.dates.map((date, i) => ({
+    date,
+    actual: data.historical.prices[i] ?? 0,
+  }));
+  const forecast = data.forecast.dates.map((date, i) => ({
+    date,
+    forecast: data.forecast!.values[i] ?? 0,
+    lower: data.forecast!.lower[i] ?? 0,
+    upper: data.forecast!.upper[i] ?? 0,
+  }));
 
-  const pct = ((endForecast - lastActual) / lastActual * 100);
-  const up = pct > 0;
-  const color = up ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/8' : 'text-rose-400 border-rose-500/30 bg-rose-500/8';
-  const Icon = up ? TrendingUp : TrendingDown;
+  const directionLabel = eventDirection === 'positive' ? 'bullish' : eventDirection === 'negative' ? 'bearish' : 'mixed';
 
   return (
-    <div className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium ${color}`}>
-      <Icon className="h-3.5 w-3.5 shrink-0" />
-      <span>
-        TimesFM 30-day: ${lastActual.toFixed(2)}
-        <ArrowRight className="mx-1 inline h-3 w-3 opacity-60" />
-        ${endForecast.toFixed(2)} ({up ? '+' : ''}{pct.toFixed(1)}%)
-      </span>
-      <span className="text-[10px] opacity-60 ml-1">historical trend only</span>
+    <div>
+      <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+        <span>TimesFM Price Forecast</span>
+        <span className="font-normal normal-case tracking-normal">
+          — violet: trend baseline · cyan: event-adjusted ({directionLabel})
+        </span>
+      </div>
+      <ForecastChart
+        ticker={ticker}
+        historical={historical}
+        forecast={forecast}
+        eventAdjusted={eventAdjusted}
+        eventAdjustedLabel={`Event-adjusted (${directionLabel})`}
+        modelAvailable={data.model_available}
+        height={180}
+      />
     </div>
   );
 }
@@ -194,9 +234,13 @@ export function EventImpactPanel({ result, onApplyToModel }: EventImpactPanelPro
         </div>
       </div>
 
-      {/* TimesFM price forecast baseline for this ticker */}
+      {/* TimesFM baseline + event-adjusted forecast chart */}
       {result.ticker && result.ticker !== 'MARKET' && (
-        <TimesFMPriceBadge ticker={result.ticker} />
+        <EventAdjustedForecastChart
+          ticker={result.ticker}
+          valuationDelta={result.scenarios.base.valuation_delta_pct / 100}
+          eventDirection={result.impact_summary.direction}
+        />
       )}
 
       {/* Primary driver */}
