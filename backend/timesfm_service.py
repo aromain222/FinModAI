@@ -13,15 +13,23 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Optional
+from dataclasses import dataclass
+from typing import Callable, Optional
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 _lock = threading.Lock()
-_model: Optional[object] = None
+_model: Optional["LoadedTimesFmModel"] = None
 _model_load_error: Optional[str] = None
+
+
+@dataclass
+class LoadedTimesFmModel:
+    name: str
+    max_context: int
+    infer: Callable[[list[float], int, int], dict]
 
 
 def _load_model():
@@ -29,8 +37,56 @@ def _load_model():
     try:
         import timesfm  # type: ignore
 
-        logger.info("[timesfm] loading model from google/timesfm-1.0-200m …")
-        _model = timesfm.TimesFm(
+        if hasattr(timesfm, "TimesFM_2p5_200M_torch"):
+            logger.info("[timesfm] loading torch model google/timesfm-2.5-200m-pytorch …")
+            try:
+                import torch  # type: ignore
+
+                torch.set_float32_matmul_precision("high")
+            except Exception as exc:
+                logger.warning("[timesfm] torch precision setup skipped: %s", exc)
+
+            model = timesfm.TimesFM_2p5_200M_torch.from_pretrained(
+                "google/timesfm-2.5-200m-pytorch"
+            )
+            model.compile(
+                timesfm.ForecastConfig(
+                    max_context=1024,
+                    max_horizon=256,
+                    normalize_inputs=True,
+                    use_continuous_quantile_head=True,
+                    force_flip_invariance=True,
+                    infer_is_positive=True,
+                    fix_quantile_crossing=True,
+                )
+            )
+
+            def infer_torch(series: list[float], horizon: int, freq: int) -> dict:
+                del freq
+                context = np.array(series, dtype=np.float32)
+                if len(context) > 1024:
+                    context = context[-1024:]
+                point_forecast, quantile_forecast = model.forecast(
+                    horizon=horizon,
+                    inputs=[context],
+                )
+                h = min(horizon, point_forecast.shape[1])
+                pf = point_forecast[0, :h].tolist()
+                # TimesFM 2.5 quantiles: mean plus 10th through 90th percentile.
+                lower = quantile_forecast[0, :h, 1].tolist()
+                upper = quantile_forecast[0, :h, -1].tolist()
+                return {"forecast": pf, "lower": lower, "upper": upper}
+
+            _model = LoadedTimesFmModel(
+                name="google/timesfm-2.5-200m-pytorch",
+                max_context=1024,
+                infer=infer_torch,
+            )
+            logger.info("[timesfm] torch model ready")
+            return
+
+        logger.info("[timesfm] loading legacy model google/timesfm-1.0-200m …")
+        legacy_model = timesfm.TimesFm(
             hparams=timesfm.TimesFmHparams(
                 backend="cpu",
                 per_core_batch_size=32,
@@ -44,7 +100,27 @@ def _load_model():
                 huggingface_repo_id="google/timesfm-1.0-200m",
             ),
         )
-        logger.info("[timesfm] model ready")
+
+        def infer_legacy(series: list[float], horizon: int, freq: int) -> dict:
+            context = np.array(series, dtype=np.float32)
+            if len(context) > 512:
+                context = context[-512:]
+            point_forecast, quantile_forecast = legacy_model.forecast(
+                inputs=[context],
+                freq=[freq],
+            )
+            h = min(horizon, point_forecast.shape[1])
+            pf = point_forecast[0, :h].tolist()
+            lower = quantile_forecast[0, :h, 0].tolist()
+            upper = quantile_forecast[0, :h, -1].tolist()
+            return {"forecast": pf, "lower": lower, "upper": upper}
+
+        _model = LoadedTimesFmModel(
+            name="google/timesfm-1.0-200m",
+            max_context=512,
+            infer=infer_legacy,
+        )
+        logger.info("[timesfm] legacy model ready")
     except Exception as exc:
         _model_load_error = str(exc)
         logger.error("[timesfm] failed to load model: %s", exc)
@@ -67,22 +143,7 @@ def get_model():
 def _run_inference(series: list[float], horizon: int, freq: int) -> dict:
     """Run TimesFM on a single series. freq=0 high-freq (daily), freq=1 low-freq (quarterly)."""
     model = get_model()
-    context = np.array(series, dtype=np.float32)
-    # Trim to model context limit (512 for timesfm-1.0-200m)
-    if len(context) > 512:
-        context = context[-512:]
-
-    point_forecast, quantile_forecast = model.forecast(
-        inputs=[context],
-        freq=[freq],
-    )
-    h = min(horizon, point_forecast.shape[1])
-    pf = point_forecast[0, :h].tolist()
-    # quantile_forecast shape: [batch, horizon, 9] → quantiles [0.1 … 0.9]
-    lower = quantile_forecast[0, :h, 0].tolist()   # 10th percentile
-    upper = quantile_forecast[0, :h, -1].tolist()  # 90th percentile
-
-    return {"forecast": pf, "lower": lower, "upper": upper}
+    return model.infer(series, horizon, freq)
 
 
 def forecast_price(prices: list[float], horizon: int = 30) -> dict:
