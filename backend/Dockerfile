@@ -33,16 +33,16 @@ USER finmodai
 WORKDIR /app
 
 # Copy application code
-COPY --chown=finmodai:finmodai backend/ .
+COPY --chown=finmodai:finmodai backend/ ./backend/
 
 # Create necessary directories
 RUN mkdir -p exports uploads
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
-    WEB_CONCURRENCY=2 \
+    WEB_CONCURRENCY=1 \
     PORT=8080 \
     PYTHONPATH=/app
 
 # Run application with gunicorn
-CMD ["gunicorn","backend.app:app","--worker-class","uvicorn.workers.UvicornWorker","--bind","0.0.0.0:${PORT}","--workers","${WEB_CONCURRENCY}","--timeout","120","--graceful-timeout","30"]
+CMD gunicorn backend.app:app --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT} --workers ${WEB_CONCURRENCY} --timeout 120 --graceful-timeout 30
