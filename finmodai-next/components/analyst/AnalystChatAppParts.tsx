@@ -161,6 +161,10 @@ function formatMarketCap(value: number | null): string | null {
   return `$${value.toFixed(0)}M`;
 }
 
+function isSeededFallbackDcf(payload: AnalystDcfDemoPayload): boolean {
+  return payload.source.toLowerCase() === 'demo_seed_fallback';
+}
+
 
 // ─── Sidebar state ───────────────────────────────────────────────────────────
 
@@ -834,17 +838,30 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
                             </div>
                           )}
 
-                        {message.role === 'assistant' && message.meta?.dcfDemo && (
-                          <AnalystDcfCard
-                            payload={message.meta.dcfDemo}
-                            onAdjust={(adjustment) =>
-                              props.onDcfAdjustment(message.id, message.meta!.dcfDemo!, adjustment)
-                            }
-                            onRunEventShock={(promptText) =>
-                              props.onDcfEventShock(message.id, message.meta!.dcfDemo!, promptText)
-                            }
-                          />
-                        )}
+                        {message.role === 'assistant' && message.meta?.dcfDemo ? (
+                          isSeededFallbackDcf(message.meta.dcfDemo) ? (
+                            <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-100/90">
+                              <div className="text-xs font-medium uppercase tracking-widest text-amber-200">
+                                DCF workspace hidden
+                              </div>
+                              <div className="mt-1 leading-6">
+                                Live or stored company financials were unavailable, so CapitalBase did not render
+                                the seeded fallback DCF as an actionable valuation. Refresh company data or attach
+                                source financials before using this as a trade setup.
+                              </div>
+                            </div>
+                          ) : (
+                            <AnalystDcfCard
+                              payload={message.meta.dcfDemo}
+                              onAdjust={(adjustment) =>
+                                props.onDcfAdjustment(message.id, message.meta!.dcfDemo!, adjustment)
+                              }
+                              onRunEventShock={(promptText) =>
+                                props.onDcfEventShock(message.id, message.meta!.dcfDemo!, promptText)
+                              }
+                            />
+                          )
+                        ) : null}
 
                         {message.role === 'assistant' && message.meta?.generatedModel && (
                           <AnalystModelCard

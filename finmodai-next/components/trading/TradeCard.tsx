@@ -133,7 +133,7 @@ export function TradeCard({ position, portfolioPositions = [], currentPrice, onC
           ) : isPending ? (
             <div className="mt-1 text-sm text-amber-300">Waiting for entry</div>
           ) : (
-            <div className="mt-1 text-sm text-[var(--cb-text-muted)]">P&L loading…</div>
+            <div className="mt-1 text-sm text-[var(--cb-text-muted)]">Current price unavailable</div>
           )}
         </div>
 

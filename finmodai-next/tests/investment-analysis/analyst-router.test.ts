@@ -25,6 +25,13 @@ test('forecast-model prompts route into deterministic model generation', () => {
   );
 });
 
+test('forecast plus valuation impact prompts route into deterministic model generation', () => {
+  const route = routeAnalystQuery('Analyze GOOGL with a forward forecast and valuation impact');
+
+  assert.equal(route.intent, 'financial_model');
+  assert.ok(route.tickers.includes('GOOGL'));
+});
+
 test('generic company earnings prompts prefer earnings-context retrieval', () => {
   const earningsRoute = routeAnalystQuery("Tell me about Amazon's earnings");
 

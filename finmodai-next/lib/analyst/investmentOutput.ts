@@ -194,6 +194,23 @@ function deriveTradeHorizon(confidence: number, absGapPct: number): string {
   return '12+ months';
 }
 
+function isFallbackDcfSource(source: string): boolean {
+  const normalized = source.toLowerCase();
+  return normalized.includes('demo') || normalized.includes('fallback');
+}
+
+function normalizedValuationConclusion(
+  existing: string | undefined,
+  percentGap: number,
+  isHighlySensitive: boolean,
+): string {
+  const trimmed = existing?.trim() ?? '';
+  if (trimmed.length > 0 && !(Math.abs(percentGap) >= 5 && /near intrinsic value/i.test(trimmed))) {
+    return trimmed;
+  }
+  return formatValuationConclusion({ percentGap, isHighlySensitive });
+}
+
 function computeDcfEquityPrice(
   dcf: DcfModelInputs,
   overrides: { wacc?: number; terminalGrowth?: number } = {},
@@ -232,6 +249,7 @@ function computeDcfEquityPrice(
 export function deriveOutputFromDcf(dcf: AnalystDcfDemoPayload): AnalystOutput {
   const base = dcf.scenarios.base;
   const upside = base.upsidePct ?? 0;
+  const isFallbackSource = isFallbackDcfSource(dcf.source);
 
   const bull = dcf.scenarios.bull;
   const bear = dcf.scenarios.bear;
@@ -249,7 +267,7 @@ export function deriveOutputFromDcf(dcf: AnalystDcfDemoPayload): AnalystOutput {
 
   const rawSignal: InvestmentSignal = upside > 5 ? 'LONG' : upside < -5 ? 'SHORT' : 'NEUTRAL';
   const signal: InvestmentSignal =
-    sensitivity.isHighlySensitive && rawSignal !== 'NEUTRAL' ? 'NEUTRAL' : rawSignal;
+    isFallbackSource || (sensitivity.isHighlySensitive && rawSignal !== 'NEUTRAL') ? 'NEUTRAL' : rawSignal;
   const baseConfidence = 0.65;
   const confidence = sensitivity.isHighlySensitive ? baseConfidence * 0.7 : baseConfidence;
 
@@ -268,20 +286,27 @@ export function deriveOutputFromDcf(dcf: AnalystDcfDemoPayload): AnalystOutput {
 
   const forecastRevenues = dcf.forecast.map((row) => row.revenue);
   const sizePct =
-    signal !== 'NEUTRAL' ? +Math.min(Math.max(Math.abs(upside) / 4, 1), 10).toFixed(1) : null;
+    signal !== 'NEUTRAL' && !isFallbackSource
+      ? +Math.min(Math.max(Math.abs(upside) / 4, 1), 10).toFixed(1)
+      : null;
 
   const noteText = firstSentences(dcf.memo);
   const analystNote =
-    noteText.length > 30
+    isFallbackSource
+      ? `${dcf.companyName} does not have enough live or stored financial data for a tradeable valuation call in this workspace. The DCF below is a fallback modeling scaffold, so CapitalBase is withholding target, stop, and position sizing until real company financials are available.`
+      : noteText.length > 30
       ? noteText
       : `${dcf.companyName} DCF analysis uses a ${waccPct.toFixed(1)}% WACC over ${dcf.years} years, implying a fair value of ${targetPrice != null ? '$' + targetPrice.toFixed(0) : 'N/A'}. The ${upside >= 0 ? 'discount' : 'premium'} to market supports a ${rawSignal.toLowerCase()} bias.`;
+  const outputPercentChange = isFallbackSource ? 0 : upside;
 
   return {
     signal,
-    percentChange: upside,
+    percentChange: outputPercentChange,
     confidence,
-    primaryDriver,
-    attributionExplanation: `${waccPct.toFixed(1)}% WACC · ${revGrowth0.toFixed(1)}% initial revenue growth · ${termGrowthPct.toFixed(1)}% terminal`,
+    primaryDriver: isFallbackSource ? 'live financial data unavailable' : primaryDriver,
+    attributionExplanation: isFallbackSource
+      ? 'Trade signal withheld because the model is using fallback seeded financials.'
+      : `${waccPct.toFixed(1)}% WACC · ${revGrowth0.toFixed(1)}% initial revenue growth · ${termGrowthPct.toFixed(1)}% terminal`,
     drivers: [
       `WACC: ${waccPct.toFixed(1)}%`,
       `Revenue growth (Yr 1): ${revGrowth0.toFixed(1)}%`,
@@ -299,13 +324,15 @@ export function deriveOutputFromDcf(dcf: AnalystDcfDemoPayload): AnalystOutput {
     sensitivity,
     breakeven: null,
     sensitivityDeltas: null,
-    valuationConclusion: formatValuationConclusion({
-      percentGap: upside,
-      isHighlySensitive: sensitivity.isHighlySensitive,
-    }),
+    valuationConclusion: isFallbackSource
+      ? 'Non-actionable fallback model — refresh live financials before trading'
+      : formatValuationConclusion({
+          percentGap: upside,
+          isHighlySensitive: sensitivity.isHighlySensitive,
+        }),
     ticker: dcf.ticker,
-    targetPrice: targetPrice ?? null,
-    stopLoss: deriveStopLoss(currentPrice ?? null, signal, upside),
+    targetPrice: isFallbackSource ? null : targetPrice ?? null,
+    stopLoss: isFallbackSource ? null : deriveStopLoss(currentPrice ?? null, signal, upside),
     tradeHorizon: signal !== 'NEUTRAL' ? deriveTradeHorizon(confidence, Math.abs(upside)) : '',
     currentPrice: currentPrice ?? null,
   };
@@ -480,6 +507,7 @@ export function normalizeAnalystOutput(output: AnalystOutput): NormalizedAnalyst
     .map((driver) => formatDriver(driver))
     .filter((driver, index, array) => driver.length > 0 && array.indexOf(driver) === index);
   const signal = normalizeSignal(output.signal, percentChange);
+  const outputSensitivity = output.sensitivity ?? null;
   const sampleSize = output.confidenceBreakdown?.sampleSize;
   const analystNote =
     output.analystNote?.trim() ||
@@ -505,10 +533,14 @@ export function normalizeAnalystOutput(output: AnalystOutput): NormalizedAnalyst
     forecast: normalizeSeries(output.forecast),
     historical: normalizeSeries(output.historical),
     isComplete: output.percentChange !== undefined || Boolean(output.analystNote?.trim()),
-    sensitivity: output.sensitivity ?? null,
+    sensitivity: outputSensitivity,
     breakeven: output.breakeven ?? null,
     sensitivityDeltas: output.sensitivityDeltas ?? null,
-    valuationConclusion: output.valuationConclusion ?? '',
+    valuationConclusion: normalizedValuationConclusion(
+      output.valuationConclusion,
+      percentChange,
+      outputSensitivity?.isHighlySensitive === true,
+    ),
     ticker: output.ticker ?? '',
     targetPrice: output.targetPrice ?? null,
     stopLoss: output.stopLoss ?? null,

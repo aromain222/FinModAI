@@ -20,7 +20,7 @@ function formatPct(value: number | null): string {
 
 function formatDollar(value: number | null): string {
   if (value == null) return '—';
-  return `${value >= 0 ? '+' : ''}$${Math.abs(value).toFixed(2)}`;
+  return `${value >= 0 ? '+' : '-'}$${Math.abs(value).toFixed(2)}`;
 }
 
 function ClosedRow({ position }: { position: Position }) {
