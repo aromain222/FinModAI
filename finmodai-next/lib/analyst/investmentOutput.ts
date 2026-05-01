@@ -1,3 +1,5 @@
+import type { AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
+
 export type InvestmentSignal = 'LONG' | 'SHORT' | 'NEUTRAL';
 export type ConfidenceBand = 'Low' | 'Medium' | 'High';
 export type EdgeStrength = 'Weak' | 'Moderate' | 'Strong';
@@ -118,6 +120,75 @@ function confidenceExplanation(output: AnalystOutput): string {
     return 'Confidence moderated by forecast volatility';
   }
   return 'Confidence supported by stable forecasts and historical accuracy';
+}
+
+export function getConvictionLabel(sizePct: number, confidence: number): string {
+  const conviction = sizePct * confidence;
+  if (conviction > 7) return 'High';
+  if (conviction >= 3) return 'Moderate';
+  return 'Low';
+}
+
+// ─── Derivation from DCF payload ──────────────────────────────────────────────
+
+function firstSentences(text: string, count = 3): string {
+  const sentences = text.match(/[^.!?]+[.!?]+(\s|$)/g) ?? [];
+  const joined = sentences.slice(0, count).join('').trim();
+  return joined.length > 20 ? joined : text.slice(0, 400).trim();
+}
+
+export function deriveOutputFromDcf(dcf: AnalystDcfDemoPayload): AnalystOutput {
+  const base = dcf.scenarios.base;
+  const upside = base.upsidePct ?? 0;
+  const signal: InvestmentSignal =
+    upside > 5 ? 'LONG' : upside < -5 ? 'SHORT' : 'NEUTRAL';
+
+  const wacc = dcf.assumptions.wacc;
+  const revGrowth0 = (dcf.assumptions.revenueGrowth[0] ?? 0) * 100;
+  const ebitMargin0 = (dcf.assumptions.ebitMargin[0] ?? 0) * 100;
+  const termGrowth = dcf.assumptions.terminalGrowth;
+
+  const targetPrice = base.pricePerShare;
+  const currentPrice = base.marketPrice;
+
+  const primaryDriver =
+    targetPrice != null && currentPrice != null
+      ? `DCF target $${targetPrice.toFixed(0)} vs market $${currentPrice.toFixed(0)}`
+      : `${dcf.companyName} ${Math.abs(upside).toFixed(1)}% ${upside >= 0 ? 'discount' : 'premium'} to intrinsic value`;
+
+  const forecastRevenues = dcf.forecast.map((row) => row.revenue);
+  const sizePct =
+    signal !== 'NEUTRAL'
+      ? +Math.min(Math.max(Math.abs(upside) / 4, 1), 10).toFixed(1)
+      : null;
+
+  const noteText = firstSentences(dcf.memo);
+  const analystNote =
+    noteText.length > 30
+      ? noteText
+      : `${dcf.companyName} DCF analysis uses a ${wacc.toFixed(1)}% WACC over ${dcf.years} years, implying a fair value of ${targetPrice != null ? '$' + targetPrice.toFixed(0) : 'N/A'}. The ${upside >= 0 ? 'discount' : 'premium'} to market supports a ${signal.toLowerCase()} bias.`;
+
+  return {
+    signal,
+    percentChange: upside,
+    confidence: 0.65,
+    primaryDriver,
+    attributionExplanation: `${wacc.toFixed(1)}% WACC · ${revGrowth0.toFixed(1)}% initial revenue growth · ${termGrowth.toFixed(1)}% terminal`,
+    drivers: [
+      `WACC: ${wacc.toFixed(1)}%`,
+      `Revenue growth (Yr 1): ${revGrowth0.toFixed(1)}%`,
+      `EBIT margin (Yr 1): ${ebitMargin0.toFixed(1)}%`,
+      `Terminal growth: ${termGrowth.toFixed(1)}%`,
+    ],
+    analystNote,
+    forecast: forecastRevenues.length > 1 ? forecastRevenues : [],
+    sizePct,
+    confidenceBreakdown: {
+      model: 0.65,
+      accuracy: 0.60,
+      sampleSize: dcf.years,
+    },
+  };
 }
 
 export function normalizeAnalystOutput(output: AnalystOutput): NormalizedAnalystOutput {

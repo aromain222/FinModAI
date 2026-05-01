@@ -15,7 +15,7 @@ import {
   type AnalystDemoStep,
 } from '@/lib/analyst/demoWorkflow';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
-import type { AnalystOutput, InvestmentSignal } from '@/lib/analyst/investmentOutput';
+import { deriveOutputFromDcf, type AnalystOutput, type InvestmentSignal } from '@/lib/analyst/investmentOutput';
 import type { PendingModelRequest } from '@/lib/analyst/modelReadiness';
 import { routeAnalystQuery } from '@/lib/analyst/router';
 import type { AnalystScenarioCardPayload } from '@/lib/analyst/scenarioCard';
@@ -645,7 +645,10 @@ export function AnalystChatApp() {
             payload?.pendingModelRequest && typeof payload.pendingModelRequest === 'object'
               ? (payload.pendingModelRequest as PendingModelRequest)
               : undefined,
-          analystOutput: parseAnalystOutput(payload),
+          analystOutput: parseAnalystOutput(payload) ??
+            (payload?.dcfDemo && typeof payload.dcfDemo === 'object'
+              ? deriveOutputFromDcf(payload.dcfDemo as AnalystDcfDemoPayload)
+              : undefined),
         },
       };
       if (process.env.NODE_ENV !== 'production' && payload?.executionTrace) {
