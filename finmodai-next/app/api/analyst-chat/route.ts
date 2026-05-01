@@ -357,6 +357,22 @@ function isValuationOrTradeAnalysisPrompt(message: string): boolean {
   return /\b(valuation impact|model impact|intrinsic value|undervalued|under valued|overvalued|over valued|worth|target price|price target|trade recommendation|position size|stop loss|margin of safety|upside|downside|buy|sell|long|short)\b/.test(text);
 }
 
+function isInvestmentValuationPrompt(message: string): boolean {
+  const text = message.toLowerCase();
+  return (
+    isValuationOrTradeAnalysisPrompt(message) ||
+    /\b(as an investment|investment case|investment view|investment impact|investment thesis|bull case|bear case|base case)\b/.test(text)
+  );
+}
+
+function explicitlyRequestsOperatingModelArtifact(message: string): boolean {
+  const text = message.toLowerCase();
+  return (
+    /\b(three[-\s]?statement|3[-\s]?statement|forecast model|operating model|operating forecast|projection model|income statement|balance sheet|cash flow statement)\b/.test(text) ||
+    (/\b(build|create|generate|download|export)\b/.test(text) && /\b(forecast workbook|forecast excel|forecast model|three[-\s]?statement|3[-\s]?statement)\b/.test(text))
+  );
+}
+
 function isLongHorizonForecastPrompt(message: string): boolean {
   const text = message.toLowerCase();
   return (
@@ -2495,7 +2511,12 @@ export async function POST(req: NextRequest) {
       const activeEffectiveUserMessage = attachmentContext
         ? `${activeModelPrompt}\n\n${attachmentContextBlock(attachmentContext)}`
         : activeModelPrompt;
-      const promptSelectedModelType = pendingModelRequest?.modelType ?? classifyPrompt(activeModelPrompt);
+      const shouldDefaultInvestmentAskToDcf =
+        !pendingModelRequest &&
+        isInvestmentValuationPrompt(activeModelPrompt) &&
+        !explicitlyRequestsOperatingModelArtifact(activeModelPrompt);
+      const promptSelectedModelType =
+        pendingModelRequest?.modelType ?? (shouldDefaultInvestmentAskToDcf ? 'DCF' : classifyPrompt(activeModelPrompt));
       const modelType =
         promptSelectedModelType ??
         (!attachmentContext?.statementPackage ? attachmentContext?.signals?.modelTypeHint ?? null : null);
