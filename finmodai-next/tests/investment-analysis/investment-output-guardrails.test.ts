@@ -160,5 +160,21 @@ test('NVDA output includes AI infrastructure strategic context', () => {
 
   assert.match(normalized.strategicContext, /AI infrastructure/i);
   assert.match(normalized.strategicContext, /CUDA/i);
-  assert.match(normalized.strategicContext, /capex durability/i);
+  assert.match(normalized.strategicContext, /neutral diligence question/i);
+  assert.doesNotMatch(normalized.strategicContext, /supports premium|stock works|buy|sell/i);
+});
+
+test('generic company output includes neutral strategic context', () => {
+  const dcf = buildFallbackDcf();
+  dcf.ticker = 'XYZ';
+  dcf.companyName = 'Example Industrial Co';
+  dcf.sector = 'Industrials';
+  dcf.source = 'finnhub_live_metrics';
+
+  const normalized = normalizeAnalystOutput(deriveOutputFromDcf(dcf));
+
+  assert.match(normalized.strategicContext, /Strategic context:/i);
+  assert.match(normalized.strategicContext, /neutral diligence question/i);
+  assert.match(normalized.strategicContext, /order cycles|operating leverage/i);
+  assert.doesNotMatch(normalized.strategicContext, /LONG|SHORT|buy|sell/i);
 });
