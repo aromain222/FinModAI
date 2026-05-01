@@ -42,6 +42,12 @@ function formatDelta(value: number): string {
   return `${value >= 0 ? '+' : ''}${Math.round(value)}%`;
 }
 
+function eventSignalClass(signal: 'LONG' | 'SHORT' | 'NEUTRAL' | null): string {
+  if (signal === 'LONG') return 'text-emerald-300';
+  if (signal === 'SHORT') return 'text-rose-300';
+  return 'text-[var(--cb-text-muted)]';
+}
+
 const sensitivityLabelMap: Record<string, string> = {
   terminal: 'terminal growth',
   wacc: 'discount rate',
@@ -211,6 +217,32 @@ export function InvestmentOutputCard({ output, loading = false }: InvestmentOutp
       {normalized.investmentCapabilityMemo ? (
         <div className="max-w-3xl rounded-lg border border-[var(--cb-border-subtle)] bg-black/10 px-3 py-2 text-sm leading-6 text-[var(--cb-text-muted)]">
           {normalized.investmentCapabilityMemo}
+        </div>
+      ) : null}
+
+      {normalized.eventContext.length > 0 ? (
+        <div className="max-w-3xl rounded-xl border border-[var(--cb-border-subtle)] bg-black/10 p-3">
+          <div className="text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
+            Event Context
+          </div>
+          <div className="mt-2 space-y-2">
+            {normalized.eventContext.map((event) => (
+              <div key={`${event.title}-${event.severity}`} className="text-sm leading-6">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="font-medium text-[var(--cb-text-primary)]">{event.title}</span>
+                  <span className="text-xs text-[var(--cb-text-muted)]">
+                    {event.eventType} · severity {event.severity}
+                  </span>
+                  {event.signal ? (
+                    <span className={`text-xs font-medium ${eventSignalClass(event.signal)}`}>
+                      {event.signal}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="text-xs text-[var(--cb-text-muted)]">{event.impact}</div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
 

@@ -14,7 +14,7 @@ import {
   looksLikeTeslaDemoInterpretationPrompt,
   type AnalystDemoStep,
 } from '@/lib/analyst/demoWorkflow';
-import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
+import type { AnalystDcfAdjustment, AnalystDcfDemoPayload, AnalystDcfEventContext } from '@/lib/analyst/dcfDemo';
 import { deriveOutputFromDcf, deriveOutputFromGeneratedModel, type AnalystOutput, type InvestmentSignal } from '@/lib/analyst/investmentOutput';
 import type { PendingModelRequest } from '@/lib/analyst/modelReadiness';
 import { routeAnalystQuery } from '@/lib/analyst/router';
@@ -167,6 +167,47 @@ function parseNumberSeries(value: unknown): number[] {
     .filter((item): item is number => item !== null);
 }
 
+function parseEventContext(value: unknown): AnalystDcfEventContext[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item): AnalystDcfEventContext | null => {
+      if (!isRecord(item)) return null;
+      const title = typeof item.title === 'string' ? item.title.trim() : '';
+      const impact = typeof item.impact === 'string' ? item.impact.trim() : '';
+      const eventType = typeof item.eventType === 'string'
+        ? item.eventType.trim()
+        : typeof item.event_type === 'string'
+          ? item.event_type.trim()
+          : '';
+      const horizon = typeof item.horizon === 'string' ? item.horizon.trim() : '';
+      const severity = finiteNumber(item.severity) ?? 0;
+      const sourceName = typeof item.sourceName === 'string'
+        ? item.sourceName.trim()
+        : typeof item.source_name === 'string'
+          ? item.source_name.trim()
+          : null;
+      const publishedAt = typeof item.publishedAt === 'string'
+        ? item.publishedAt
+        : typeof item.published_at === 'string'
+          ? item.published_at
+          : null;
+      const signal = parseSignal(item.signal);
+      if (!title || !impact) return null;
+      return {
+        title,
+        eventType: eventType || 'MarketEvent',
+        severity,
+        horizon: horizon || 'NearTerm',
+        impact,
+        sourceName,
+        publishedAt,
+        signal: signal ?? null,
+      };
+    })
+    .filter((item): item is AnalystDcfEventContext => item !== null)
+    .slice(0, 3);
+}
+
 function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystOutput | undefined {
   if (!payload) return undefined;
   const hasStructuredOutput =
@@ -192,6 +233,8 @@ function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystOut
     'analyst_note' in payload ||
     'investmentCapabilityMemo' in payload ||
     'investment_capability_memo' in payload ||
+    'eventContext' in payload ||
+    'event_context' in payload ||
     'forecast' in payload ||
     'historical' in payload ||
     'targetPrice' in payload ||
@@ -301,6 +344,7 @@ function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystOut
     drivers,
     analystNote: analystNote || undefined,
     investmentCapabilityMemo: investmentCapabilityMemo || undefined,
+    eventContext: parseEventContext(payload.eventContext ?? payload.event_context),
     sizePct: parseSizePct(payload),
     forecast: parseNumberSeries(payload.forecast),
     historical: parseNumberSeries(payload.historical),

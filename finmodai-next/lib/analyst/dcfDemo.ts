@@ -65,6 +65,17 @@ export type AnalystDcfComparisonPayload = {
   scenarios: Record<AnalystDcfScenarioKey, AnalystDcfScenarioResult>;
 };
 
+export type AnalystDcfEventContext = {
+  title: string;
+  eventType: string;
+  severity: number;
+  horizon: string;
+  impact: string;
+  sourceName: string | null;
+  publishedAt: string | null;
+  signal: 'LONG' | 'SHORT' | 'NEUTRAL' | null;
+};
+
 export type AnalystDcfDemoPayload = {
   prompt: string;
   ticker: string;
@@ -87,6 +98,7 @@ export type AnalystDcfDemoPayload = {
   }>;
   scenarios: Record<AnalystDcfScenarioKey, AnalystDcfScenarioResult>;
   comparison?: AnalystDcfComparisonPayload | null;
+  eventContext?: AnalystDcfEventContext[];
 };
 
 export type AnalystDcfAdjustment = {

@@ -1,4 +1,4 @@
-import type { AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
+import type { AnalystDcfDemoPayload, AnalystDcfEventContext } from '@/lib/analyst/dcfDemo';
 import type { AnalystGeneratedModelPayload } from '@/lib/analyst/types';
 import type { DcfModelInputs } from '@/lib/model-generator/extractInputs';
 import { detectSensitivity, type SensitivityResult } from '@/lib/valuation/sensitivity';
@@ -40,6 +40,7 @@ export type AnalystOutput = {
   sensitivityDeltas?: SensitivityDeltas | null;
   valuationConclusion?: string;
   investmentCapabilityMemo?: string;
+  eventContext?: AnalystDcfEventContext[];
   // Trade recommendation fields
   ticker?: string;
   targetPrice?: number | null;
@@ -73,6 +74,7 @@ export type NormalizedAnalystOutput = {
   sensitivityDeltas: SensitivityDeltas | null;
   valuationConclusion: string;
   investmentCapabilityMemo: string;
+  eventContext: AnalystDcfEventContext[];
   ticker: string;
   targetPrice: number | null;
   stopLoss: number | null;
@@ -129,6 +131,12 @@ function normalizeConfidence(confidence?: number): number {
 
 function normalizeSeries(values?: number[]): number[] {
   return (values ?? []).filter((value) => Number.isFinite(value));
+}
+
+function normalizeEventContext(events?: AnalystDcfEventContext[]): AnalystDcfEventContext[] {
+  return (events ?? [])
+    .filter((event) => event.title.trim().length > 0 && event.impact.trim().length > 0)
+    .slice(0, 3);
 }
 
 function normalizeSignal(signal: InvestmentSignal | undefined, percentChange: number): InvestmentSignal {
@@ -254,23 +262,28 @@ function buildInvestmentCapabilityMemo(params: {
   isHighlySensitive: boolean;
   sizePct: number | null;
   primarySensitivity?: string;
+  eventCount?: number;
 }): string {
+  const eventText =
+    params.eventCount && params.eventCount > 0
+      ? ` Active event context is included as a thesis check, not a direct price target.`
+      : '';
   if (params.isFallbackSource) {
-    return 'Investment capability: non-actionable scaffold only. Live company financials are required before CapitalBase can support a target, stop, or tracked trade.';
+    return `Investment capability: non-actionable scaffold only. Live company financials are required before CapitalBase can support a target, stop, or tracked trade.${eventText}`;
   }
   if (!params.hasCurrentPrice) {
-    return 'Investment capability: valuation framework only. A current market price is required before the system can size the edge or produce a trade setup.';
+    return `Investment capability: valuation framework only. A current market price is required before the system can size the edge or produce a trade setup.${eventText}`;
   }
   if (params.signal === 'NEUTRAL') {
     return params.isHighlySensitive
-      ? `Investment capability: watchlist and assumption testing. The ${params.companyName} signal is neutral because valuation depends too heavily on ${formatDriver(params.primarySensitivity ?? 'valuation drivers')}.`
-      : `Investment capability: watchlist only. The modeled valuation gap is not large enough to justify a directional position.`;
+      ? `Investment capability: watchlist and assumption testing. The ${params.companyName} signal is neutral because valuation depends too heavily on ${formatDriver(params.primarySensitivity ?? 'valuation drivers')}.${eventText}`
+      : `Investment capability: watchlist only. The modeled valuation gap is not large enough to justify a directional position.${eventText}`;
   }
   const sizingText = params.sizePct != null ? `${params.sizePct.toFixed(1)}%` : 'small';
   if (params.confidence < 0.55 || params.isHighlySensitive) {
-    return `Investment capability: small tracked ${params.signal.toLowerCase()} setup only. Suggested sizing is capped near ${sizingText} because the edge is sensitive to key valuation assumptions.`;
+    return `Investment capability: small tracked ${params.signal.toLowerCase()} setup only. Suggested sizing is capped near ${sizingText} because the edge is sensitive to key valuation assumptions.${eventText}`;
   }
-  return `Investment capability: actionable tracked ${params.signal.toLowerCase()} setup. The model supports a ${sizingText} paper position with target, stop, and follow-up thesis monitoring.`;
+  return `Investment capability: actionable tracked ${params.signal.toLowerCase()} setup. The model supports a ${sizingText} paper position with target, stop, and follow-up thesis monitoring.${eventText}`;
 }
 
 function computeDcfEquityPrice(
@@ -345,6 +358,7 @@ export function deriveOutputFromDcf(dcf: AnalystDcfDemoPayload): AnalystOutput {
       : `${dcf.companyName} ${Math.abs(upside).toFixed(1)}% ${upside >= 0 ? 'discount' : 'premium'} to intrinsic value`;
 
   const forecastRevenues = dcf.forecast.map((row) => row.revenue);
+  const eventContext = normalizeEventContext(dcf.eventContext);
   const confidence = computeDcfConfidence({
     source: dcf.source,
     isFallbackSource,
@@ -368,6 +382,7 @@ export function deriveOutputFromDcf(dcf: AnalystDcfDemoPayload): AnalystOutput {
     isHighlySensitive: sensitivity.isHighlySensitive,
     sizePct,
     primarySensitivity: sensitivity.primarySensitivity,
+    eventCount: eventContext.length,
   });
 
   const noteText = firstSentences(dcf.memo);
@@ -411,6 +426,7 @@ export function deriveOutputFromDcf(dcf: AnalystDcfDemoPayload): AnalystOutput {
           isHighlySensitive: sensitivity.isHighlySensitive,
         }),
     investmentCapabilityMemo,
+    eventContext,
     ticker: dcf.ticker,
     targetPrice: isFallbackSource ? null : targetPrice ?? null,
     stopLoss: isFallbackSource ? null : deriveStopLoss(currentPrice ?? null, signal, upside),
@@ -550,6 +566,7 @@ export function deriveOutputFromGeneratedModel(
     isHighlySensitive: sensitivity.isHighlySensitive,
     sizePct,
     primarySensitivity: sensitivity.primarySensitivity,
+    eventCount: model.eventAdjustmentSummary ? 1 : 0,
   });
 
   const firstNarrative = model.narrativeBlocks?.[0]?.body?.trim() ?? '';
@@ -590,6 +607,7 @@ export function deriveOutputFromGeneratedModel(
       isHighlySensitive: sensitivity.isHighlySensitive,
     }),
     investmentCapabilityMemo,
+    eventContext: [],
     ticker: dcf.ticker ?? dcf.companyName,
     targetPrice: impliedPrice,
     stopLoss: deriveStopLoss(currentPrice, signal, upside),
@@ -627,7 +645,9 @@ export function normalizeAnalystOutput(output: AnalystOutput): NormalizedAnalyst
       isHighlySensitive: outputSensitivity?.isHighlySensitive === true,
       sizePct: output.sizePct ?? null,
       primarySensitivity: outputSensitivity?.primarySensitivity,
+      eventCount: output.eventContext?.length ?? 0,
     });
+  const eventContext = normalizeEventContext(output.eventContext);
 
   return {
     signal,
@@ -658,6 +678,7 @@ export function normalizeAnalystOutput(output: AnalystOutput): NormalizedAnalyst
       outputSensitivity?.isHighlySensitive === true,
     ),
     investmentCapabilityMemo,
+    eventContext,
     ticker: output.ticker ?? '',
     targetPrice: output.targetPrice ?? null,
     stopLoss: output.stopLoss ?? null,

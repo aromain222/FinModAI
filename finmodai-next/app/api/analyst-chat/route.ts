@@ -48,6 +48,7 @@ import {
   reviseAnalystDcfDemoFromEventShock,
   type AnalystDcfAdjustment,
   type AnalystDcfDemoPayload,
+  type AnalystDcfEventContext,
 } from '@/lib/analyst/dcfDemo';
 import {
   buildAnalystGeneratedModelExportSeed,
@@ -683,6 +684,7 @@ function shouldInjectMacroEventsContext(
   attachment: UploadedAttachmentContext | null,
 ): boolean {
   if (route.intent === 'event_intelligence' || route.intent === 'market_question') return true;
+  if (isValuationOrTradeAnalysisPrompt(userMessage)) return true;
 
   const macroKeywords =
     /\b(macro|market|rates?|yield|curve|fed|fomc|ecb|boj|boe|inflation|cpi|pce|gdp|jobs|payrolls|unemployment|oil|crude|fx|dollar|dxy|treasury|credit|spread|liquidity|geopolitic|tariff|trade policy)\b/i;
@@ -1019,6 +1021,71 @@ function serializeMarketEventsContext(events: MarketEvent[]): string {
         .join('\n');
     })
     .join('\n\n');
+}
+
+function marketEventImpactSummary(event: MarketEvent): string {
+  return [
+    event.marketImpact.equities,
+    event.marketImpact.sectors,
+    event.marketImpact.rates,
+    event.marketImpact.oil,
+    event.marketImpact.credit,
+    event.marketImpact.fx,
+  ]
+    .filter((item): item is string => Boolean(item))
+    .slice(0, 2)
+    .join(' | ') || event.drivers.slice(0, 2).join(' | ');
+}
+
+function eventRelevanceScore(event: MarketEvent, ticker: string | null): number {
+  const tickerText = ticker?.trim().toUpperCase() ?? '';
+  const searchable = [
+    event.title,
+    ...event.drivers,
+    ...event.transmissionPath,
+    event.marketImpact.equities,
+    event.marketImpact.sectors,
+  ]
+    .filter((item): item is string => Boolean(item))
+    .join(' ')
+    .toUpperCase();
+  const tickerMatch = tickerText.length > 0 && searchable.includes(tickerText) ? 40 : 0;
+  const signalScore =
+    event.signal?.position && event.signal.position !== 'NEUTRAL'
+      ? Math.round((event.signal.conviction ?? 0.4) * 20)
+      : 0;
+  const typeScore = event.eventType === 'EarningsMegaCap' ? 16 : event.eventType === 'SystemicRisk' ? 12 : 8;
+  return tickerMatch + signalScore + typeScore + event.severity;
+}
+
+function buildDcfEventContext(events: MarketEvent[] | undefined, ticker: string | null): AnalystDcfEventContext[] {
+  return (events ?? [])
+    .slice()
+    .sort((a, b) => eventRelevanceScore(b, ticker) - eventRelevanceScore(a, ticker))
+    .slice(0, 3)
+    .map((event) => ({
+      title: event.title,
+      eventType: event.eventType,
+      severity: event.severity,
+      horizon: event.horizon,
+      impact: marketEventImpactSummary(event),
+      sourceName: event.sources[0]?.name ?? null,
+      publishedAt: event.sources[0]?.publishedAt ?? event.lastUpdatedAt ?? null,
+      signal: event.signal?.position ?? null,
+    }));
+}
+
+function attachDcfEventContext(
+  payload: AnalystDcfDemoPayload,
+  events: MarketEvent[] | undefined,
+  ticker: string | null,
+): AnalystDcfDemoPayload {
+  const eventContext = buildDcfEventContext(events, ticker);
+  if (eventContext.length === 0) return payload;
+  return {
+    ...payload,
+    eventContext,
+  };
 }
 
 function visualizationContextType(params: {
@@ -2496,7 +2563,11 @@ export async function POST(req: NextRequest) {
             fallback: false,
             mode: 'live',
             route: 'financial_model',
-            dcfDemo: shockedDcf.payload,
+            dcfDemo: attachDcfEventContext(
+              shockedDcf.payload,
+              macroEventsContext?.events,
+              resolvedTicker ?? shockedDcf.payload.ticker,
+            ),
             sources: [
               `Demo snapshot cache — ${shockedDcf.payload.source}`,
               ...(shockedDcf.payload.asOfDate ? [`Snapshot updated ${shockedDcf.payload.asOfDate}`] : []),
@@ -2517,7 +2588,11 @@ export async function POST(req: NextRequest) {
             fallback: false,
             mode: 'live',
             route: 'financial_model',
-            dcfDemo: revisedDcf.payload,
+            dcfDemo: attachDcfEventContext(
+              revisedDcf.payload,
+              macroEventsContext?.events,
+              resolvedTicker ?? revisedDcf.payload.ticker,
+            ),
             sources: [
               `Demo snapshot cache — ${revisedDcf.payload.source}`,
               ...(revisedDcf.payload.asOfDate ? [`Snapshot updated ${revisedDcf.payload.asOfDate}`] : []),
@@ -2810,10 +2885,17 @@ export async function POST(req: NextRequest) {
         fallback: false,
         mode: 'live',
         route: 'financial_model',
-        dcfDemo: demo.payload,
+        dcfDemo: attachDcfEventContext(
+          demo.payload,
+          macroEventsContext?.events,
+          resolvedTicker ?? demo.payload.ticker,
+        ),
         sources: [
           buildFinancialModelSourceLabel(demo.payload.source),
           ...(demo.payload.asOfDate ? [`Snapshot updated ${demo.payload.asOfDate}`] : []),
+          ...(macroEventsContext && macroEventsContext.events.length > 0
+            ? ['CapitalBase active market event context']
+            : []),
         ],
         factsCount: 0,
         attachmentUsed: attachmentLabel,

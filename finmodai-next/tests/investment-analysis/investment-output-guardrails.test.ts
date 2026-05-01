@@ -121,3 +121,27 @@ test('normalization includes an investment capability memo for incomplete price 
 
   assert.match(normalized.investmentCapabilityMemo, /valuation framework only/i);
 });
+
+test('DCF investment output carries active event context', () => {
+  const dcf = buildFallbackDcf();
+  dcf.source = 'finnhub_live_metrics';
+  dcf.eventContext = [
+    {
+      title: 'Fed signals higher-for-longer rates',
+      eventType: 'CentralBank',
+      severity: 78,
+      horizon: 'NearTerm',
+      impact: 'Rates pressure long-duration equities',
+      sourceName: 'Federal Reserve',
+      publishedAt: '2026-04-30T12:00:00.000Z',
+      signal: 'SHORT',
+    },
+  ];
+
+  const output = deriveOutputFromDcf(dcf);
+  const normalized = normalizeAnalystOutput(output);
+
+  assert.equal(normalized.eventContext.length, 1);
+  assert.match(normalized.eventContext[0].impact, /Rates pressure/i);
+  assert.match(normalized.investmentCapabilityMemo, /Active event context/i);
+});
