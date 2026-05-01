@@ -6,6 +6,7 @@ export interface MacroCalendarEntry {
   date: string;
   event: string;
   type: CalendarEventType;
+  actual?: string | null;
   prior: string | null;
   forecast: string | null;
   importance: CalendarEventImportance;

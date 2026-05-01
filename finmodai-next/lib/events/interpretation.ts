@@ -1,0 +1,158 @@
+import type { MacroCalendarEntry } from '@/lib/macroCalendar';
+
+export type EventBias = 'hawkish' | 'dovish' | 'neutral';
+
+export type EventInterpretation = {
+  summary: string;
+  bias: EventBias;
+};
+
+type InterpretableEvent = MacroCalendarEntry & {
+  actual?: string | null;
+};
+
+function normalizeDash(value: string): string {
+  return value.replace(/[–—]/g, '-');
+}
+
+export function parseEventValue(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const normalized = normalizeDash(value).trim().toLowerCase();
+  if (normalized === 'hold') return null;
+
+  const rangeMatch = normalized.match(/(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)/);
+  if (rangeMatch) {
+    const low = Number(rangeMatch[1]);
+    const high = Number(rangeMatch[2]);
+    if (Number.isFinite(low) && Number.isFinite(high)) return (low + high) / 2;
+  }
+
+  const firstNumber = normalized.match(/-?\d+(?:\.\d+)?/);
+  if (!firstNumber) return null;
+  const parsed = Number(firstNumber[0]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function computeEventSurprise(event: InterpretableEvent): number | null {
+  const actual = parseEventValue(event.actual);
+  const forecast = parseEventValue(event.forecast);
+  if (actual === null || forecast === null) return null;
+  return actual - forecast;
+}
+
+function directionFromSurprise(surprise: number | null): 'higher' | 'lower' | 'inline' | 'awaiting' {
+  if (surprise === null) return 'awaiting';
+  if (Math.abs(surprise) < 0.0001) return 'inline';
+  return surprise > 0 ? 'higher' : 'lower';
+}
+
+export function interpretEvent(event: InterpretableEvent): EventInterpretation {
+  const surprise = computeEventSurprise(event);
+  const direction = directionFromSurprise(surprise);
+
+  if (!event.actual) {
+    if (event.type === 'FOMC' && event.forecast?.toLowerCase() === 'hold') {
+      return {
+        summary: 'Markets expect no policy-rate change; the risk is in guidance, dots, and the press conference tone.',
+        bias: 'neutral',
+      };
+    }
+    return {
+      summary: 'Awaiting release; market impact depends on the gap between actual and forecast.',
+      bias: 'neutral',
+    };
+  }
+
+  switch (event.type) {
+    case 'CPI':
+    case 'PCE':
+      if (direction === 'higher') {
+        return {
+          summary: 'Inflation came in hotter than expected, increasing pressure for tighter policy.',
+          bias: 'hawkish',
+        };
+      }
+      if (direction === 'lower') {
+        return {
+          summary: 'Inflation cooled versus expectations, easing pressure on the Fed.',
+          bias: 'dovish',
+        };
+      }
+      return {
+        summary: 'Inflation was broadly in line with expectations, limiting immediate policy repricing.',
+        bias: 'neutral',
+      };
+
+    case 'NFP':
+      if (direction === 'higher') {
+        return {
+          summary: 'Payrolls beat expectations, signaling labor-market strength and a higher-for-longer rate risk.',
+          bias: 'hawkish',
+        };
+      }
+      if (direction === 'lower') {
+        return {
+          summary: 'Payrolls missed expectations, pointing to softer labor demand and less rate pressure.',
+          bias: 'dovish',
+        };
+      }
+      return {
+        summary: 'Payrolls were close to forecast, so wage details and revisions matter more than the headline.',
+        bias: 'neutral',
+      };
+
+    case 'FOMC':
+    case 'ECB':
+    case 'BOJ':
+      if (direction === 'higher') {
+        return {
+          summary: 'The policy rate landed above expectations, tightening financial conditions.',
+          bias: 'hawkish',
+        };
+      }
+      if (direction === 'lower') {
+        return {
+          summary: 'The policy rate landed below expectations, easing financial conditions.',
+          bias: 'dovish',
+        };
+      }
+      return {
+        summary: 'The rate decision was in line; forward guidance is the main driver for markets.',
+        bias: 'neutral',
+      };
+
+    case 'GDP':
+      if (direction === 'higher') {
+        return {
+          summary: 'Growth beat expectations, supporting cyclicals but potentially keeping rate cuts further away.',
+          bias: 'hawkish',
+        };
+      }
+      if (direction === 'lower') {
+        return {
+          summary: 'Growth missed expectations, increasing slowdown risk and lowering rate pressure.',
+          bias: 'dovish',
+        };
+      }
+      return {
+        summary: 'Growth was in line with expectations, so markets should focus on inflation and consumption detail.',
+        bias: 'neutral',
+      };
+  }
+}
+
+export function expectedMarketReaction(event: InterpretableEvent, interpretation: EventInterpretation): string {
+  if (!event.actual) return 'Awaiting release; rates, equity futures, and USD reaction will confirm the market read.';
+
+  if (interpretation.bias === 'hawkish') {
+    if (event.type === 'NFP') return 'Rates likely rise -> mixed/negative for tech and long-duration growth stocks.';
+    if (event.type === 'GDP') return 'Stronger growth supports cyclicals, but higher rates can pressure expensive equities.';
+    return 'Rates likely rise -> pressure on growth stocks and valuation multiples.';
+  }
+
+  if (interpretation.bias === 'dovish') {
+    return 'Lower rate pressure -> supports equities, especially long-duration growth stocks.';
+  }
+
+  return 'Inline result -> limited first-order market reaction unless details or guidance surprise.';
+}

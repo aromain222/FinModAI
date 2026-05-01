@@ -7,6 +7,11 @@ import { readJsonResponse } from '@/lib/http/readJsonResponse';
 import { computeProbabilities, type ScenarioProbabilities } from '@/lib/probabilityModel';
 import { MACRO_CALENDAR, isPastEntry, type MacroCalendarEntry } from '@/lib/macroCalendar';
 import {
+  computeEventSurprise,
+  expectedMarketReaction,
+  interpretEvent,
+} from '@/lib/events/interpretation';
+import {
   marketEventsApiResponseSchema,
   type MarketEvent,
   type MarketEventsApiResponse,
@@ -91,6 +96,36 @@ function sevTextColor(s: number) {
 }
 function sevBarColor(s: number) {
   return s >= 85 ? 'bg-red-500' : s >= 70 ? 'bg-amber-500' : 'bg-sky-500';
+}
+
+function formatCalendarValue(value: string | null | undefined): string {
+  return value && value.trim().length > 0 ? value : '—';
+}
+
+function formatSurprise(event: MacroCalendarEntry): string {
+  if (!event.actual) return 'Awaiting release';
+  const surprise = computeEventSurprise(event);
+  if (surprise === null) return 'Not comparable';
+  const sign = surprise > 0 ? '+' : '';
+  const suffix = event.actual.includes('%') || event.forecast?.includes('%') ? 'ppt' : '';
+  return `${sign}${surprise.toFixed(2)}${suffix}`;
+}
+
+function calendarBiasClass(bias: 'hawkish' | 'dovish' | 'neutral'): string {
+  if (bias === 'hawkish') return 'border-rose-500/30 bg-rose-500/10 text-rose-200';
+  if (bias === 'dovish') return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200';
+  return 'border-zinc-700/50 bg-zinc-900/70 text-zinc-300';
+}
+
+function calendarImportanceClass(importance: MacroCalendarEntry['importance'], isOpen: boolean): string {
+  if (importance === 'high') {
+    return isOpen
+      ? 'border-amber-500/40 bg-amber-500/[0.08]'
+      : 'border-amber-500/20 bg-zinc-950/40 hover:bg-amber-500/[0.04]';
+  }
+  return isOpen
+    ? 'border-zinc-700/70 bg-zinc-900/50'
+    : 'border-zinc-800/40 bg-zinc-950/30 hover:bg-zinc-900/35';
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
@@ -282,7 +317,19 @@ function EventMonitorGrid({
 
 function EconomicCalendar({ today }: { today: Date }) {
   const fmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
-  const in7Days = new Date(today.getTime() + 7 * 86_400_000);
+  const in7Days = useMemo(() => new Date(today.getTime() + 7 * 86_400_000), [today]);
+  const defaultExpandedId = useMemo(() => {
+    const upcomingHigh = MACRO_CALENDAR.find((entry) => {
+      const entryDate = new Date(entry.date + 'T12:00:00');
+      return entry.importance === 'high' && entryDate >= today && entryDate <= in7Days;
+    });
+    return upcomingHigh?.id ?? null;
+  }, [in7Days, today]);
+  const [expandedEntryId, setExpandedEntryId] = useState<string | null>(defaultExpandedId);
+
+  useEffect(() => {
+    setExpandedEntryId((current) => current ?? defaultExpandedId);
+  }, [defaultExpandedId]);
 
   return (
     <div className="overflow-hidden rounded-xl border border-zinc-800/60 bg-zinc-950/40">
@@ -298,26 +345,92 @@ function EconomicCalendar({ today }: { today: Date }) {
         const entryDate = new Date(entry.date + 'T12:00:00');
         const isPast = isPastEntry(entry, today);
         const isUpcoming = !isPast && entryDate <= in7Days;
+        const isOpen = expandedEntryId === entry.id;
+        const interpretation = interpretEvent(entry);
+        const marketReaction = expectedMarketReaction(entry, interpretation);
+        const hasActual = Boolean(entry.actual);
         return (
           <div
             key={entry.id}
-            className={`grid grid-cols-[80px_1fr_80px_80px_90px] items-center gap-2 border-b border-zinc-800/30 px-4 py-2 last:border-b-0 ${isUpcoming ? 'bg-zinc-900/50' : ''} ${isPast ? 'opacity-40' : ''}`}
+            className={`border-b border-zinc-800/30 px-2 py-1.5 last:border-b-0 ${isPast ? 'opacity-55' : ''}`}
           >
-            <div className="flex items-center gap-1">
-              {isUpcoming && <span className="text-[8px] text-amber-400">★</span>}
-              <span className="text-[10px] font-mono tabular-nums text-zinc-400">{fmt.format(entryDate)}</span>
-            </div>
-            <div>
-              <span className="text-xs font-medium text-zinc-200">{entry.event}</span>
-              {entry.notes && (
-                <span className="ml-2 text-[9px] text-zinc-600">{entry.notes}</span>
-              )}
-            </div>
-            <div className="text-[10px] font-mono tabular-nums text-zinc-400">{entry.prior ?? '—'}</div>
-            <div className="text-[10px] font-mono tabular-nums text-zinc-400">{entry.forecast ?? '—'}</div>
-            <div className="flex items-center gap-1.5">
-              <span className={`h-1.5 w-1.5 rounded-full ${IMPORTANCE_DOT[entry.importance]}`} />
-              <span className="text-[9px] font-mono uppercase tracking-wide text-zinc-500">{entry.importance}</span>
+            <div className={`overflow-hidden rounded-lg border transition-colors duration-200 ${calendarImportanceClass(entry.importance, isOpen)}`}>
+              <button
+                type="button"
+                onClick={() => setExpandedEntryId((current) => (current === entry.id ? null : entry.id))}
+                aria-expanded={isOpen}
+                className="grid w-full grid-cols-[80px_1fr_80px_80px_90px] items-center gap-2 px-2 py-2 text-left"
+              >
+                <div className="flex items-center gap-1">
+                  <span className={`text-[10px] text-zinc-500 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}>
+                    ▸
+                  </span>
+                  {isUpcoming && <span className="text-[8px] text-amber-400">★</span>}
+                  <span className="text-[10px] font-mono tabular-nums text-zinc-400">{fmt.format(entryDate)}</span>
+                </div>
+                <div className="min-w-0">
+                  <span className="text-xs font-medium text-zinc-200">{entry.event}</span>
+                  {entry.notes && (
+                    <span className="ml-2 text-[9px] text-zinc-600">{entry.notes}</span>
+                  )}
+                  {entry.importance === 'high' && (
+                    <span className="ml-2 rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wide text-amber-300">
+                      high signal
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] font-mono tabular-nums text-zinc-400">{formatCalendarValue(entry.prior)}</div>
+                <div className="text-[10px] font-mono tabular-nums text-zinc-400">{formatCalendarValue(entry.forecast)}</div>
+                <div className="flex items-center gap-1.5">
+                  <span className={`h-1.5 w-1.5 rounded-full ${IMPORTANCE_DOT[entry.importance]}`} />
+                  <span className="text-[9px] font-mono uppercase tracking-wide text-zinc-500">{entry.importance}</span>
+                </div>
+              </button>
+
+              <div
+                className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
+                  isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                }`}
+              >
+                <div className="min-h-0 overflow-hidden">
+                  <div className="mx-2 mb-2 rounded-lg border border-zinc-700/50 bg-zinc-900/70 p-4">
+                    <div className="grid gap-3 sm:grid-cols-4">
+                      {[
+                        ['Actual', hasActual ? formatCalendarValue(entry.actual) : 'Awaiting release'],
+                        ['Forecast', formatCalendarValue(entry.forecast)],
+                        ['Prior', formatCalendarValue(entry.prior)],
+                        ['Surprise', formatSurprise(entry)],
+                      ].map(([label, value]) => (
+                        <div key={`${entry.id}-${label}`} className="rounded-md border border-zinc-800/60 bg-zinc-950/45 px-3 py-2">
+                          <div className="text-[9px] font-mono uppercase tracking-[0.18em] text-zinc-600">{label}</div>
+                          <div className="mt-1 text-xs font-mono tabular-nums text-zinc-200">{value}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr]">
+                      <div className="rounded-md border border-zinc-800/60 bg-zinc-950/35 px-3 py-3">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-zinc-500">
+                            Interpretation
+                          </div>
+                          <span className={`rounded-full border px-2 py-0.5 text-[9px] font-mono uppercase tracking-wide ${calendarBiasClass(interpretation.bias)}`}>
+                            {interpretation.bias}
+                          </span>
+                        </div>
+                        <div className="text-xs leading-5 text-zinc-300">{interpretation.summary}</div>
+                      </div>
+
+                      <div className="rounded-md border border-zinc-800/60 bg-zinc-950/35 px-3 py-3">
+                        <div className="mb-2 text-[10px] font-mono uppercase tracking-[0.16em] text-zinc-500">
+                          Market Impact
+                        </div>
+                        <div className="text-xs leading-5 text-zinc-300">{marketReaction}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         );
