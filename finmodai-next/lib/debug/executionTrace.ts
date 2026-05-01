@@ -23,6 +23,7 @@ export type ExecutionTraceService =
   | 'catalog_ticker_adapter'
   | 'macro_assumption_context'
   | 'company_catalyst_context'
+  | 'forecast_layer_long_horizon'
   | 'core_engine_run_model'
   | 'local_template_builder'
   | 'sensitivity_refresh';

@@ -32,6 +32,13 @@ test('forecast plus valuation impact prompts route into deterministic model gene
   assert.ok(route.tickers.includes('GOOGL'));
 });
 
+test('plain multi-year forecast prompts stay company questions for forecast-layer handling', () => {
+  const route = routeAnalystQuery('Forecast Google for the next 4 years');
+
+  assert.equal(route.intent, 'company_question');
+  assert.ok(route.tickers.includes('GOOGL'));
+});
+
 test('generic company earnings prompts prefer earnings-context retrieval', () => {
   const earningsRoute = routeAnalystQuery("Tell me about Amazon's earnings");
 

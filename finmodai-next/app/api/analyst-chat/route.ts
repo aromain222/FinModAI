@@ -382,6 +382,14 @@ function isLongHorizonForecastPrompt(message: string): boolean {
   );
 }
 
+function shouldUseForecastLayerForLongHorizon(message: string): boolean {
+  const text = message.toLowerCase();
+  if (!isLongHorizonForecastPrompt(message) || !isCompanyForecastPrompt(message)) return false;
+  if (isValuationOrTradeAnalysisPrompt(message)) return false;
+  if (explicitlyRequestsOperatingModelArtifact(message)) return false;
+  return !/\b(active|current|existing)\s+(?:dcf|model|case|forecast)\b|\bdcf\b|\bfcff\b|\bfree cash flow\b/.test(text);
+}
+
 function parseForecastHorizonYears(message: string, fallbackYears: number): number {
   const text = message.toLowerCase();
   const explicit = text.match(/\b(\d{1,2})\s*(?:years?|yrs?)\b/);
@@ -442,6 +450,138 @@ type DeterministicForecastReplyInput = {
     sourceLabel: string;
   } | null;
 };
+
+type ForecastLayerPayload = {
+  ticker: string;
+  type: 'revenue' | 'macro';
+  historical: number[];
+  forecast: number[];
+  confidence: number;
+  baseConfidence?: number;
+  accuracy?: number;
+  accuracySampleSize?: number;
+  attribution?: {
+    primaryDriver?: string;
+    explanation?: string;
+  };
+  source: 'timesfm' | 'flat_fallback' | string;
+  warning?: string;
+};
+
+function isForecastLayerPayload(value: unknown): value is ForecastLayerPayload {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.ticker === 'string' &&
+    (record.type === 'revenue' || record.type === 'macro') &&
+    Array.isArray(record.historical) &&
+    record.historical.every((item) => typeof item === 'number' && Number.isFinite(item)) &&
+    Array.isArray(record.forecast) &&
+    record.forecast.every((item) => typeof item === 'number' && Number.isFinite(item)) &&
+    typeof record.confidence === 'number' &&
+    Number.isFinite(record.confidence) &&
+    typeof record.source === 'string'
+  );
+}
+
+function formatMillions(value: number): string {
+  if (!Number.isFinite(value)) return 'n/a';
+  return `$${Math.round(value).toLocaleString('en-US')}M`;
+}
+
+function formatPct(value: number): string {
+  if (!Number.isFinite(value)) return 'n/a';
+  return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}%`;
+}
+
+function sourceLabelForForecast(source: string): string {
+  if (source === 'timesfm') return 'TimesFM online';
+  if (source === 'flat_fallback') return 'Fallback';
+  return source.replace(/_/g, ' ');
+}
+
+function buildForecastGrowthPath(historical: number[], forecast: number[]): number[] {
+  const growth: number[] = [];
+  let previous = historical.at(-1);
+  if (typeof previous !== 'number' || !Number.isFinite(previous) || previous <= 0) return growth;
+  for (const value of forecast) {
+    if (!Number.isFinite(value) || value <= 0) continue;
+    growth.push(value / previous - 1);
+    previous = value;
+  }
+  return growth;
+}
+
+function buildLongHorizonForecastReply(payload: ForecastLayerPayload, years: number): string {
+  const horizon = Math.min(years, payload.forecast.length);
+  const lastActual = payload.historical.at(-1) ?? null;
+  const terminalForecast = payload.forecast[horizon - 1] ?? null;
+  const growthPath = buildForecastGrowthPath(payload.historical, payload.forecast).slice(0, horizon);
+  const cagr =
+    typeof lastActual === 'number' &&
+    lastActual > 0 &&
+    typeof terminalForecast === 'number' &&
+    terminalForecast > 0 &&
+    horizon > 0
+      ? (terminalForecast / lastActual) ** (1 / horizon) - 1
+      : null;
+  const source = sourceLabelForForecast(payload.source);
+  const confidence = Math.round(Math.max(0, Math.min(1, payload.confidence)) * 100);
+  const pathText = growthPath.length > 0
+    ? growthPath.map((value) => formatPct(value)).join(' / ')
+    : 'not available';
+  const attribution = payload.attribution?.explanation
+    ? ` The main driver flagged by the forecast layer is: ${payload.attribution.explanation}.`
+    : '';
+  const warning = payload.warning ? ` Warning: ${payload.warning}` : '';
+
+  if (typeof lastActual !== 'number' || typeof terminalForecast !== 'number' || horizon <= 0) {
+    return `${payload.ticker} forecast unavailable. The forecast layer returned an incomplete revenue path, so I would not rely on a multi-year forecast from this run.`;
+  }
+
+  return [
+    `${payload.ticker} ${horizon}-year revenue forecast: ${formatMillions(lastActual)} latest historical revenue to ${formatMillions(terminalForecast)} by year ${horizon}${cagr !== null ? `, implying about ${formatPct(cagr)} annualized growth` : ''}.`,
+    `Forecast source: ${source}. Confidence is ${confidence}%. The year-by-year growth path is ${pathText}.${attribution}${warning}`,
+    payload.source === 'timesfm'
+      ? 'This is the actual forecasting layer output, not a manually written DCF assumption. Use it as the operating baseline, then layer valuation separately through margins, capex, discount rate, and terminal growth.'
+      : 'This is not a live TimesFM run. It is a safe fallback, so it should be treated as a placeholder until the TimesFM backend is online.',
+  ].join('\n\n');
+}
+
+async function buildLongHorizonForecastLayerReply(params: {
+  origin: string;
+  ticker: string;
+  years: number;
+}): Promise<{ reply: string; sources: string[] } | null> {
+  const horizon = Math.min(10, Math.max(1, Math.round(params.years)));
+  try {
+    const response = await fetch(`${params.origin}/api/forecast`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticker: params.ticker,
+        type: 'revenue',
+        horizon,
+      }),
+      signal: AbortSignal.timeout(5000),
+      cache: 'no-store',
+    });
+    const data = (await response.json().catch(() => null)) as unknown;
+    if (!response.ok || !isForecastLayerPayload(data)) return null;
+    const source = sourceLabelForForecast(data.source);
+    return {
+      reply: buildLongHorizonForecastReply(data, horizon),
+      sources: [
+        `CapitalBase forecast layer - ${source}`,
+        ...(data.accuracySampleSize && data.accuracySampleSize >= 5
+          ? [`Forecast history accuracy sample: ${data.accuracySampleSize}`]
+          : []),
+      ],
+    };
+  } catch {
+    return null;
+  }
+}
 
 function buildDeterministicForecastReply(input: DeterministicForecastReplyInput): string {
   const directionText = input.direction === 'flat' ? 'flat move' : `move ${input.direction}`;
@@ -2130,6 +2270,32 @@ export async function POST(req: NextRequest) {
         factsCount: 0,
         attachmentUsed: attachmentLabel,
       }, executionTrace)));
+    }
+
+    if (
+      resolvedTicker &&
+      shouldUseForecastLayerForLongHorizon(lastUserMessage)
+    ) {
+      const forecastReply = await buildLongHorizonForecastLayerReply({
+        origin: req.nextUrl.origin,
+        ticker: resolvedTicker,
+        years: parseForecastHorizonYears(lastUserMessage, 4),
+      });
+      if (forecastReply) {
+        addExecutionTraceService(executionTrace, 'forecast_layer_long_horizon');
+        return NextResponse.json(withAttachmentStatus(withExecutionTrace({
+          reply: forecastReply.reply,
+          fallback: false,
+          mode: 'live',
+          route: 'company_question',
+          sources: forecastReply.sources,
+          factsCount: 0,
+          stockLookup: responseStockLookup ?? stockLookupPayload,
+          earningsRetrieval: earningsAgentResult,
+          earningsPackageMeta: earningsRuntimeMeta,
+          attachmentUsed: attachmentLabel,
+        }, executionTrace)));
+      }
     }
 
     if (currentDcf && !artifactTickerMismatch && isLongHorizonForecastPrompt(lastUserMessage)) {
