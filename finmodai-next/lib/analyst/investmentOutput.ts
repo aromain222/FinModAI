@@ -40,6 +40,7 @@ export type AnalystOutput = {
   sensitivityDeltas?: SensitivityDeltas | null;
   valuationConclusion?: string;
   investmentCapabilityMemo?: string;
+  strategicContext?: string;
   eventContext?: AnalystDcfEventContext[];
   // Trade recommendation fields
   ticker?: string;
@@ -74,6 +75,7 @@ export type NormalizedAnalystOutput = {
   sensitivityDeltas: SensitivityDeltas | null;
   valuationConclusion: string;
   investmentCapabilityMemo: string;
+  strategicContext: string;
   eventContext: AnalystDcfEventContext[];
   ticker: string;
   targetPrice: number | null;
@@ -137,6 +139,46 @@ function normalizeEventContext(events?: AnalystDcfEventContext[]): AnalystDcfEve
   return (events ?? [])
     .filter((event) => event.title.trim().length > 0 && event.impact.trim().length > 0)
     .slice(0, 3);
+}
+
+function buildStrategicContext(params: {
+  ticker?: string | null;
+  companyName: string;
+  sector?: string | null;
+  revenueGrowth0?: number | null;
+  ebitMargin0?: number | null;
+}): string {
+  const ticker = params.ticker?.trim().toUpperCase() ?? '';
+  const company = params.companyName.trim() || ticker || 'The company';
+  const sector = params.sector?.trim().toLowerCase() ?? '';
+  const growth = params.revenueGrowth0 ?? 0;
+  const margin = params.ebitMargin0 ?? 0;
+
+  if (ticker === 'NVDA' || /nvidia/i.test(company)) {
+    return 'Strategic context: NVIDIA is a core supplier of AI infrastructure; hyperscaler and enterprise AI capex runs through its accelerators, networking, and CUDA ecosystem. That supports premium growth and margin assumptions, but the investment debate hinges on AI capex durability, GPU supply/pricing normalization, and whether alternatives can weaken that platform dependency.';
+  }
+  if (ticker === 'GOOGL' || /alphabet|google/i.test(company)) {
+    return 'Strategic context: Alphabet is anchored by Search and YouTube cash flow, with Cloud and Gemini determining how much AI becomes a growth driver versus a margin drag. The key investment question is whether AI search changes defend monetization or compress the economics of the highest-margin part of the business.';
+  }
+  if (ticker === 'MSFT' || /microsoft/i.test(company)) {
+    return 'Strategic context: Microsoft sits at the enterprise AI distribution layer through Azure, Office, GitHub, and Copilot. The valuation case depends less on one product cycle and more on whether AI attach rates convert an already-dominant software base into durable incremental revenue.';
+  }
+  if (ticker === 'AMZN' || /amazon/i.test(company)) {
+    return 'Strategic context: Amazon combines retail scale with AWS, logistics, advertising, and AI infrastructure. The investment case turns on AWS reacceleration and retail margin discipline, because those two engines determine whether revenue scale converts into sustained free cash flow.';
+  }
+  if (ticker === 'META' || /meta platforms|facebook/i.test(company)) {
+    return 'Strategic context: Meta is a scaled attention and ad-pricing platform funding a large AI and Reality Labs investment cycle. The stock works when AI improves engagement and ad targeting faster than infrastructure spending absorbs operating leverage.';
+  }
+  if (ticker === 'AAPL' || /apple/i.test(company)) {
+    return 'Strategic context: Apple is a global installed-base and services monetization business more than a pure hardware cycle. The valuation depends on replacement demand, services growth, and whether on-device AI can reinforce ecosystem retention without requiring a major margin reset.';
+  }
+  if (ticker === 'TSLA' || /tesla/i.test(company)) {
+    return 'Strategic context: Tesla is valued as an EV, autonomy, energy, and robotics platform, not just an automaker. The core debate is whether software and autonomy economics can offset EV margin pressure and cyclical demand risk.';
+  }
+  if (/semiconductor|chip|ai|technology/.test(`${sector} ${company}`.toLowerCase()) && growth >= 0.15 && margin >= 0.3) {
+    return `Strategic context: ${company} screens as a high-growth technology compounder where platform relevance and ecosystem control matter as much as near-term earnings. The model should be read through durability of growth, margin persistence, and competitive substitution risk rather than a generic mature-company DCF lens.`;
+  }
+  return `Strategic context: ${company}'s valuation should be interpreted through its industry position, reinvestment runway, and durability of returns, not only the mechanical DCF spread to market price.`;
 }
 
 function normalizeSignal(signal: InvestmentSignal | undefined, percentChange: number): InvestmentSignal {
@@ -359,6 +401,13 @@ export function deriveOutputFromDcf(dcf: AnalystDcfDemoPayload): AnalystOutput {
 
   const forecastRevenues = dcf.forecast.map((row) => row.revenue);
   const eventContext = normalizeEventContext(dcf.eventContext);
+  const strategicContext = buildStrategicContext({
+    ticker: dcf.ticker,
+    companyName: dcf.companyName,
+    sector: dcf.sector,
+    revenueGrowth0: dcf.assumptions.revenueGrowth[0] ?? null,
+    ebitMargin0: dcf.assumptions.ebitMargin[0] ?? null,
+  });
   const confidence = computeDcfConfidence({
     source: dcf.source,
     isFallbackSource,
@@ -426,6 +475,7 @@ export function deriveOutputFromDcf(dcf: AnalystDcfDemoPayload): AnalystOutput {
           isHighlySensitive: sensitivity.isHighlySensitive,
         }),
     investmentCapabilityMemo,
+    strategicContext,
     eventContext,
     ticker: dcf.ticker,
     targetPrice: isFallbackSource ? null : targetPrice ?? null,
@@ -568,6 +618,13 @@ export function deriveOutputFromGeneratedModel(
     primarySensitivity: sensitivity.primarySensitivity,
     eventCount: model.eventAdjustmentSummary ? 1 : 0,
   });
+  const strategicContext = buildStrategicContext({
+    ticker: dcf.ticker,
+    companyName: dcf.companyName,
+    sector: dcf.companyType ?? null,
+    revenueGrowth0: dcf.revenueGrowth[0] ?? null,
+    ebitMargin0: dcf.ebitMargin[0] ?? null,
+  });
 
   const firstNarrative = model.narrativeBlocks?.[0]?.body?.trim() ?? '';
   const analystNote =
@@ -607,6 +664,7 @@ export function deriveOutputFromGeneratedModel(
       isHighlySensitive: sensitivity.isHighlySensitive,
     }),
     investmentCapabilityMemo,
+    strategicContext,
     eventContext: [],
     ticker: dcf.ticker ?? dcf.companyName,
     targetPrice: impliedPrice,
@@ -648,6 +706,12 @@ export function normalizeAnalystOutput(output: AnalystOutput): NormalizedAnalyst
       eventCount: output.eventContext?.length ?? 0,
     });
   const eventContext = normalizeEventContext(output.eventContext);
+  const strategicContext =
+    output.strategicContext?.trim() ||
+    buildStrategicContext({
+      ticker: output.ticker,
+      companyName: output.ticker || 'The company',
+    });
 
   return {
     signal,
@@ -678,6 +742,7 @@ export function normalizeAnalystOutput(output: AnalystOutput): NormalizedAnalyst
       outputSensitivity?.isHighlySensitive === true,
     ),
     investmentCapabilityMemo,
+    strategicContext,
     eventContext,
     ticker: output.ticker ?? '',
     targetPrice: output.targetPrice ?? null,

@@ -145,3 +145,20 @@ test('DCF investment output carries active event context', () => {
   assert.match(normalized.eventContext[0].impact, /Rates pressure/i);
   assert.match(normalized.investmentCapabilityMemo, /Active event context/i);
 });
+
+test('NVDA output includes AI infrastructure strategic context', () => {
+  const dcf = buildFallbackDcf();
+  dcf.ticker = 'NVDA';
+  dcf.companyName = 'NVIDIA Corp';
+  dcf.sector = 'Technology';
+  dcf.source = 'finnhub_live_metrics';
+  dcf.assumptions.revenueGrowth = [0.25, 0.22, 0.15, 0.1, 0.07];
+  dcf.assumptions.ebitMargin = [0.5, 0.5, 0.5, 0.5, 0.5];
+
+  const output = deriveOutputFromDcf(dcf);
+  const normalized = normalizeAnalystOutput(output);
+
+  assert.match(normalized.strategicContext, /AI infrastructure/i);
+  assert.match(normalized.strategicContext, /CUDA/i);
+  assert.match(normalized.strategicContext, /capex durability/i);
+});

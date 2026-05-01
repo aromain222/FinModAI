@@ -233,6 +233,8 @@ function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystOut
     'analyst_note' in payload ||
     'investmentCapabilityMemo' in payload ||
     'investment_capability_memo' in payload ||
+    'strategicContext' in payload ||
+    'strategic_context' in payload ||
     'eventContext' in payload ||
     'event_context' in payload ||
     'forecast' in payload ||
@@ -273,6 +275,12 @@ function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystOut
       ? payload.investmentCapabilityMemo.trim()
       : typeof payload.investment_capability_memo === 'string'
         ? payload.investment_capability_memo.trim()
+        : '';
+  const strategicContext =
+    typeof payload.strategicContext === 'string'
+      ? payload.strategicContext.trim()
+      : typeof payload.strategic_context === 'string'
+        ? payload.strategic_context.trim()
         : '';
   const primaryDriver =
     typeof payload.primaryDriver === 'string' && payload.primaryDriver.trim().length > 0
@@ -344,6 +352,7 @@ function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystOut
     drivers,
     analystNote: analystNote || undefined,
     investmentCapabilityMemo: investmentCapabilityMemo || undefined,
+    strategicContext: strategicContext || undefined,
     eventContext: parseEventContext(payload.eventContext ?? payload.event_context),
     sizePct: parseSizePct(payload),
     forecast: parseNumberSeries(payload.forecast),

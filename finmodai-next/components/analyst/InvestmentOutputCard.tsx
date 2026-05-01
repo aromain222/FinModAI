@@ -209,6 +209,12 @@ export function InvestmentOutputCard({ output, loading = false }: InvestmentOutp
         <ForecastSparkline forecast={normalized.forecast} historical={normalized.historical} />
       ) : null}
 
+      {normalized.strategicContext ? (
+        <div className="max-w-3xl rounded-lg border border-cyan-400/15 bg-cyan-500/5 px-3 py-2 text-sm leading-6 text-cyan-100/90">
+          {normalized.strategicContext}
+        </div>
+      ) : null}
+
       {/* Analyst note */}
       <p className="max-w-3xl text-[15px] leading-7 text-[var(--cb-text-primary)]">
         {normalized.analystNote}
