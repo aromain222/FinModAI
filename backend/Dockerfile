@@ -44,5 +44,6 @@ ENV PYTHONUNBUFFERED=1 \
     PORT=8080 \
     PYTHONPATH=/app:/app/backend
 
-# Run application with gunicorn
-CMD gunicorn backend.app:app --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT} --workers ${WEB_CONCURRENCY} --timeout 120 --graceful-timeout 30
+# Run the isolated TimesFM service. The full backend app imports optional
+# modeling/PDF modules that are not needed by the forecast deployment.
+CMD gunicorn backend.timesfm_app:app --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT} --workers ${WEB_CONCURRENCY} --timeout 180 --graceful-timeout 30
