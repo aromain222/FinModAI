@@ -42,6 +42,47 @@ function formatDelta(value: number): string {
   return `${value >= 0 ? '+' : ''}${Math.round(value)}%`;
 }
 
+function plainSignalLabel(signal: InvestmentSignal): string {
+  if (signal === 'LONG') return 'Potential opportunity';
+  if (signal === 'SHORT') return 'Looks expensive';
+  return 'Fair value / watchlist';
+}
+
+function plainGapExplanation(signal: InvestmentSignal, percentChange: number): string {
+  const absGap = Math.abs(percentChange);
+  if (signal === 'NEUTRAL' && absGap < 5) {
+    return 'The model is close to the market price, so there is not enough edge for a clear long or short call.';
+  }
+  if (signal === 'NEUTRAL') {
+    return 'The modeled gap is large, but sensitivity or conflicting signals make this better as a watchlist name than a trade.';
+  }
+  if (signal === 'LONG') {
+    return 'The model value is above the market price, so the setup only works if the growth and margin assumptions hold.';
+  }
+  return 'The market price is above the model value, so the setup only works as an underweight or paper short if the bull-case assumptions fail.';
+}
+
+function plainAssumptionRead(normalized: ReturnType<typeof normalizeAnalystOutput>): string {
+  const breakeven = normalized.breakeven;
+  if (breakeven?.terminalGrowthPct != null) {
+    const gap = breakeven.terminalGrowthPct - breakeven.currentTerminalGrowthPct;
+    if (Math.abs(gap) < 0.25) {
+      return `The market price is roughly justified if Alphabet can sustain about ${breakeven.currentTerminalGrowthPct.toFixed(1)}% long-term growth.`;
+    }
+    if (gap > 0) {
+      return `To justify the current price, the model needs long-term growth closer to ${breakeven.terminalGrowthPct.toFixed(1)}% instead of ${breakeven.currentTerminalGrowthPct.toFixed(1)}%.`;
+    }
+    return `The current assumptions already clear the market-implied long-term growth hurdle of ${breakeven.terminalGrowthPct.toFixed(1)}%.`;
+  }
+  return 'The result is mainly driven by long-term growth, discount rate, and whether AI/cloud spending turns into durable free cash flow.';
+}
+
+function sanitizeAnalystText(text: string, normalized: ReturnType<typeof normalizeAnalystOutput>): string {
+  const terminalGrowth = normalized.breakeven?.currentTerminalGrowthPct;
+  if (terminalGrowth == null || !Number.isFinite(terminalGrowth)) return text;
+  return text.replace(/\b(?:[2-9]\d|100)% terminal growth rate\b/g, `${terminalGrowth.toFixed(2)}% terminal growth rate`);
+}
+
 function eventSignalClass(signal: 'LONG' | 'SHORT' | 'NEUTRAL' | null): string {
   if (signal === 'LONG') return 'text-emerald-300';
   if (signal === 'SHORT') return 'text-rose-300';
@@ -121,6 +162,9 @@ export function InvestmentOutputCard({ output, loading = false }: InvestmentOutp
     normalized.ticker.length > 0 &&
     normalized.currentPrice != null &&
     normalized.sizePct != null;
+  const plainTakeaway = plainGapExplanation(normalized.signal, normalized.percentChange);
+  const assumptionRead = plainAssumptionRead(normalized);
+  const analystNote = sanitizeAnalystText(normalized.analystNote, normalized);
 
   async function handleTrackTrade() {
     if (!canTrackTrade) return;
@@ -159,7 +203,7 @@ export function InvestmentOutputCard({ output, loading = false }: InvestmentOutp
       {/* Top row: signal chip + valuation gap + confidence */}
       <div className="grid gap-3 md:grid-cols-3">
         <div>
-          <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Signal</div>
+          <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Decision</div>
           <div className={`mt-2 inline-flex rounded-full border px-3 py-1 text-sm font-semibold ${signalClasses(normalized.signal)}`}>
             {summaryLine}
           </div>
@@ -170,19 +214,37 @@ export function InvestmentOutputCard({ output, loading = false }: InvestmentOutp
           )}
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Valuation Gap</div>
+          <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Price vs Model</div>
           <div className="mt-1 text-2xl font-semibold tabular-nums text-[var(--cb-text-primary)]">
             {formatValuationGap(normalized.percentChange)}
           </div>
+          <div className="mt-1 text-xs text-[var(--cb-text-muted)]">
+            {normalized.percentChange >= 0 ? 'Model value above market' : 'Model value below market'}
+          </div>
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Confidence</div>
+          <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Model Confidence</div>
           <div className="mt-1 text-2xl font-semibold tabular-nums text-[var(--cb-text-primary)]">
             {formatConfidence(normalized.confidence)}{' '}
             <span className="text-sm font-medium text-[var(--cb-text-muted)]">
               ({normalized.confidenceBand})
             </span>
           </div>
+        </div>
+      </div>
+
+      <div className="grid gap-3 rounded-xl border border-[var(--cb-border-subtle)] bg-black/10 p-3 md:grid-cols-[0.7fr_1.3fr]">
+        <div>
+          <div className="text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
+            Plain-English Read
+          </div>
+          <div className="mt-1 text-sm font-semibold text-[var(--cb-text-primary)]">
+            {plainSignalLabel(normalized.signal)}
+          </div>
+        </div>
+        <div className="space-y-1 text-sm leading-6 text-[var(--cb-text-primary)]">
+          <p>{plainTakeaway}</p>
+          <p className="text-[var(--cb-text-muted)]">{assumptionRead}</p>
         </div>
       </div>
 
@@ -217,7 +279,7 @@ export function InvestmentOutputCard({ output, loading = false }: InvestmentOutp
 
       {/* Analyst note */}
       <p className="max-w-3xl text-[15px] leading-7 text-[var(--cb-text-primary)]">
-        {normalized.analystNote}
+        {analystNote}
       </p>
 
       {normalized.investmentCapabilityMemo ? (
@@ -281,34 +343,31 @@ export function InvestmentOutputCard({ output, loading = false }: InvestmentOutp
           )}
 
           {normalized.sensitivityDeltas != null && (
-            <div className="text-xs text-[var(--cb-text-muted)]">
-              Valuation sensitivity:
-              <span className="ml-2 inline-flex gap-3">
-                <span>
-                  +1% terminal growth{' '}
-                  <span
-                    className={
-                      normalized.sensitivityDeltas.terminalGrowthPlus1Pct >= 0
-                        ? 'text-emerald-400'
-                        : 'text-rose-400'
-                    }
-                  >
-                    {formatDelta(normalized.sensitivityDeltas.terminalGrowthPlus1Pct)}
-                  </span>
-                </span>
-                <span>
-                  &minus;1% WACC{' '}
-                  <span
-                    className={
-                      normalized.sensitivityDeltas.waccMinus1Pct >= 0
-                        ? 'text-emerald-400'
-                        : 'text-rose-400'
-                    }
-                  >
-                    {formatDelta(normalized.sensitivityDeltas.waccMinus1Pct)}
-                  </span>
-                </span>
-              </span>
+            <div className="grid gap-2 text-xs text-[var(--cb-text-muted)] sm:grid-cols-2">
+              <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-black/10 px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wide">If long-term growth is 1 point higher</div>
+                <div
+                  className={
+                    normalized.sensitivityDeltas.terminalGrowthPlus1Pct >= 0
+                      ? 'mt-1 font-medium text-emerald-400'
+                      : 'mt-1 font-medium text-rose-400'
+                  }
+                >
+                  Model value changes {formatDelta(normalized.sensitivityDeltas.terminalGrowthPlus1Pct)}
+                </div>
+              </div>
+              <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-black/10 px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wide">If the required return is 1 point lower</div>
+                <div
+                  className={
+                    normalized.sensitivityDeltas.waccMinus1Pct >= 0
+                      ? 'mt-1 font-medium text-emerald-400'
+                      : 'mt-1 font-medium text-rose-400'
+                  }
+                >
+                  Model value changes {formatDelta(normalized.sensitivityDeltas.waccMinus1Pct)}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -318,7 +377,7 @@ export function InvestmentOutputCard({ output, loading = false }: InvestmentOutp
       {normalized.sizePct != null || normalized.targetPrice != null || normalized.stopLoss != null ? (
         <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-black/10 p-3 text-xs">
           <div className="mb-2 text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
-            Trade Setup
+            Decision Setup
           </div>
           <div className="grid gap-2 text-[var(--cb-text-primary)] sm:grid-cols-4">
             <div>
@@ -334,7 +393,7 @@ export function InvestmentOutputCard({ output, loading = false }: InvestmentOutp
               </div>
             </div>
             <div>
-              <span className="text-[var(--cb-text-muted)]">Stop</span>
+              <span className="text-[var(--cb-text-muted)]">Risk Stop</span>
               <div className="font-medium tabular-nums text-rose-400/90">
                 {formatPrice(normalized.stopLoss)}
               </div>
@@ -349,7 +408,11 @@ export function InvestmentOutputCard({ output, loading = false }: InvestmentOutp
             <div className="mt-2 text-[var(--cb-text-muted)]">
               Conviction: {getConvictionLabel(normalized.sizePct, normalized.confidence)}
             </div>
-          ) : null}
+          ) : (
+            <div className="mt-2 text-[var(--cb-text-muted)]">
+              No paper trade suggested because the model does not show enough edge.
+            </div>
+          )}
 
           {portfolioWarnings.length > 0 ? (
             <div className="mt-3 space-y-1.5">

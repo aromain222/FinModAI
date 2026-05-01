@@ -80,7 +80,7 @@ export function ForecastSparkline({ forecast, historical }: ForecastSparklinePro
   return (
     <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-black/10 p-3">
       <div className="mb-2 text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
-        Forecast Trend
+        Forecast Path
       </div>
       <svg viewBox="0 0 100 80" role="img" aria-label="Forecast trend sparkline" className="h-20 w-full overflow-visible">
         <line x1="2" y1="68" x2="98" y2="68" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />

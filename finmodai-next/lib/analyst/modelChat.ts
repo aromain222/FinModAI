@@ -337,12 +337,12 @@ function buildNarrativeBlocks(
       return [
         ...scenarioBlock,
         {
-          title: 'VALUATION FRAME',
-          body: `${dcfInputs.companyName} is being framed through a canonical DCF with base revenue of ${fmtModelCurrencyFromMillions(dcfInputs.baseRevenue)}, cash of ${fmtModelCurrencyFromMillions(dcfInputs.cash)}, debt of ${fmtModelCurrencyFromMillions(dcfInputs.debt)}, and ${fmtModelSharesFromMillions(dcfInputs.sharesOutstanding)} diluted shares.`,
+          title: 'WHAT THIS MODEL TESTS',
+          body: `${dcfInputs.companyName} is valued by projecting future cash flow and comparing the implied share value with the current market price. The model starts from ${fmtModelCurrencyFromMillions(dcfInputs.baseRevenue)} of revenue, ${fmtModelCurrencyFromMillions(dcfInputs.cash)} of cash, ${fmtModelCurrencyFromMillions(dcfInputs.debt)} of debt, and ${fmtModelSharesFromMillions(dcfInputs.sharesOutstanding)} diluted shares.`,
         },
         {
-          title: 'KEY ASSUMPTIONS',
-          body: `The current case discounts cash flow at a WACC of ${fmtPercent(dcfInputs.wacc)} with terminal growth of ${fmtPercent(dcfInputs.terminalGrowth)}. Use the workbook to pressure-test operating drivers, discount rate sensitivity, and per-share value.`,
+          title: 'WHAT MATTERS MOST',
+          body: `The biggest swing factors are the required return (${fmtPercent(dcfInputs.wacc)}) and long-term growth (${fmtPercent(dcfInputs.terminalGrowth)}). Small changes to either can move the implied share value materially.`,
         },
       ];
     }
