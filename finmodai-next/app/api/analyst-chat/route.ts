@@ -131,7 +131,7 @@ import { deriveEventLinkedModelAdjustment } from '@/lib/model-events/deriveEvent
 import type { EventLinkedModelAdjustmentResult } from '@/lib/model-events/types';
 import { runPublicFinancialSearch } from '@/lib/analyst/financialSearch';
 import { buildEventContextFromPrompt, looksLikeEventLinkedModelFollowUp } from '@/lib/analyst/eventFollowUp';
-import { getCompanyCatalystContext } from '@/lib/models/shared/companyCatalystContext';
+import { getCompanyCatalystContext, type CompanyCatalystContext } from '@/lib/models/shared/companyCatalystContext';
 import { buildSmartAssumptionReply } from '@/lib/smart-assumptions/shared';
 import type { SmartAssumptionResult } from '@/lib/smart-assumptions/types';
 import {
@@ -1075,17 +1075,97 @@ function buildDcfEventContext(events: MarketEvent[] | undefined, ticker: string 
     }));
 }
 
+function catalystSeverity(relevance: 'primary' | 'secondary' | 'monitor'): number {
+  if (relevance === 'primary') return 65;
+  if (relevance === 'secondary') return 50;
+  return 35;
+}
+
+function buildDcfCatalystContext(context: CompanyCatalystContext | null | undefined): AnalystDcfEventContext[] {
+  if (!context) return [];
+
+  const transcriptItems = context.transcriptItems.slice(0, 1).map((item) => ({
+    title: item.label,
+    eventType: 'EarningsMegaCap',
+    severity: catalystSeverity(item.relevance),
+    horizon: 'NearTerm',
+    impact: item.excerpt,
+    sourceName: item.source,
+    publishedAt: item.asOf,
+    signal: null,
+  } satisfies AnalystDcfEventContext));
+
+  const calendarItems = context.calendarItems
+    .filter((item) => item.relevance !== 'monitor')
+    .slice(0, 2)
+    .map((item) => ({
+      title: item.kind === 'earnings' ? `${item.title}: ${item.displayDate}` : item.title,
+      eventType: item.kind === 'earnings' ? 'EarningsMegaCap' : 'Macro',
+      severity: catalystSeverity(item.relevance),
+      horizon: item.kind === 'earnings' ? 'NearTerm' : 'Immediate',
+      impact: item.note?.trim() || `${item.source}${item.date ? ` · ${item.displayDate}` : ''}`,
+      sourceName: item.source,
+      publishedAt: item.date,
+      signal: null,
+    } satisfies AnalystDcfEventContext));
+
+  const ownershipItems = context.ownershipItems
+    .filter((item) => item.relevance !== 'monitor')
+    .slice(0, 1)
+    .map((item) => ({
+      title: item.label,
+      eventType: 'SystemicRisk',
+      severity: catalystSeverity(item.relevance),
+      horizon: 'Structural',
+      impact: item.note?.trim() ? `${item.displayValue} · ${item.note}` : item.displayValue,
+      sourceName: item.source,
+      publishedAt: item.asOf,
+      signal: null,
+    } satisfies AnalystDcfEventContext));
+
+  return [...transcriptItems, ...calendarItems, ...ownershipItems]
+    .filter((item) => item.title.trim().length > 0 && item.impact.trim().length > 0)
+    .slice(0, 3);
+}
+
+function mergeDcfContextItems(...groups: AnalystDcfEventContext[][]): AnalystDcfEventContext[] {
+  const seen = new Set<string>();
+  const merged: AnalystDcfEventContext[] = [];
+  for (const group of groups) {
+    for (const item of group) {
+      const key = `${item.title.toLowerCase()}|${item.impact.toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(item);
+      if (merged.length >= 3) return merged;
+    }
+  }
+  return merged;
+}
+
 function attachDcfEventContext(
   payload: AnalystDcfDemoPayload,
   events: MarketEvent[] | undefined,
   ticker: string | null,
+  catalystContext?: CompanyCatalystContext | null,
 ): AnalystDcfDemoPayload {
-  const eventContext = buildDcfEventContext(events, ticker);
+  const eventContext = mergeDcfContextItems(
+    buildDcfEventContext(events, ticker),
+    buildDcfCatalystContext(catalystContext),
+  );
   if (eventContext.length === 0) return payload;
   return {
     ...payload,
     eventContext,
   };
+}
+
+async function loadDcfCatalystContext(ticker: string | null | undefined): Promise<CompanyCatalystContext | null> {
+  if (!ticker) return null;
+  return Promise.race([
+    getCompanyCatalystContext(ticker, 'dcf'),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+  ]).catch(() => null);
 }
 
 function visualizationContextType(params: {
@@ -2558,6 +2638,7 @@ export async function POST(req: NextRequest) {
         addExecutionTraceService(executionTrace, 'revise_analyst_dcf_demo_from_event_shock');
         const shockedDcf = await reviseAnalystDcfDemoFromEventShock(lastUserMessage, currentDcf);
         if (shockedDcf) {
+          const catalystContext = await loadDcfCatalystContext(resolvedTicker ?? shockedDcf.payload.ticker);
           return NextResponse.json(withAttachmentStatus(withExecutionTrace({
             reply: shockedDcf.reply,
             fallback: false,
@@ -2567,11 +2648,13 @@ export async function POST(req: NextRequest) {
               shockedDcf.payload,
               macroEventsContext?.events,
               resolvedTicker ?? shockedDcf.payload.ticker,
+              catalystContext,
             ),
             sources: [
               `Demo snapshot cache — ${shockedDcf.payload.source}`,
               ...(shockedDcf.payload.asOfDate ? [`Snapshot updated ${shockedDcf.payload.asOfDate}`] : []),
               'Deterministic event shock mapping',
+              ...(catalystContext ? ['CapitalBase company catalyst context'] : []),
             ],
             factsCount: 0,
             attachmentUsed: attachmentLabel,
@@ -2583,6 +2666,7 @@ export async function POST(req: NextRequest) {
         addExecutionTraceService(executionTrace, 'revise_analyst_dcf_demo');
         const revisedDcf = await reviseAnalystDcfDemo(lastUserMessage, currentDcf);
         if (revisedDcf) {
+          const catalystContext = await loadDcfCatalystContext(resolvedTicker ?? revisedDcf.payload.ticker);
           return NextResponse.json(withAttachmentStatus(withExecutionTrace({
             reply: revisedDcf.reply,
             fallback: false,
@@ -2592,11 +2676,13 @@ export async function POST(req: NextRequest) {
               revisedDcf.payload,
               macroEventsContext?.events,
               resolvedTicker ?? revisedDcf.payload.ticker,
+              catalystContext,
             ),
             sources: [
               `Demo snapshot cache — ${revisedDcf.payload.source}`,
               ...(revisedDcf.payload.asOfDate ? [`Snapshot updated ${revisedDcf.payload.asOfDate}`] : []),
               'Conversation follow-up DCF adjustment',
+              ...(catalystContext ? ['CapitalBase company catalyst context'] : []),
             ],
             factsCount: 0,
             attachmentUsed: attachmentLabel,
@@ -2879,6 +2965,7 @@ export async function POST(req: NextRequest) {
             : null,
       });
       addExecutionTraceService(executionTrace, 'generate_analyst_dcf_demo');
+      const dcfCatalystContext = await loadDcfCatalystContext(resolvedTicker ?? demo.payload.ticker);
 
       return NextResponse.json(withAttachmentStatus(withExecutionTrace({
         reply: demo.reply,
@@ -2889,6 +2976,7 @@ export async function POST(req: NextRequest) {
           demo.payload,
           macroEventsContext?.events,
           resolvedTicker ?? demo.payload.ticker,
+          dcfCatalystContext,
         ),
         sources: [
           buildFinancialModelSourceLabel(demo.payload.source),
@@ -2896,6 +2984,7 @@ export async function POST(req: NextRequest) {
           ...(macroEventsContext && macroEventsContext.events.length > 0
             ? ['CapitalBase active market event context']
             : []),
+          ...(dcfCatalystContext ? ['CapitalBase company catalyst context'] : []),
         ],
         factsCount: 0,
         attachmentUsed: attachmentLabel,
