@@ -9,6 +9,8 @@ import { resolveCompanyProfile } from '@/lib/data/company/resolveCompanyProfile'
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 import { formatCompactCurrency } from '@/lib/analyst/dcfFormatting';
 import type { AttachmentStatementSnapshot } from '@/lib/analyst/pdfFinancialStatements';
+import { deriveSmartAssumptions } from '@/lib/smart-assumptions/deriveSmartAssumptions';
+import type { SmartAssumptionResult } from '@/lib/smart-assumptions/types';
 export { normalizeDcfSharesOutstanding, repairDcfPayloadShareCount } from '@/lib/analyst/dcfUnits';
 import { normalizeDcfSharesOutstanding } from '@/lib/analyst/dcfUnits';
 
@@ -110,7 +112,7 @@ type PromptParseResult = {
   tone: 'base' | 'bull' | 'bear';
 };
 
-type DeterministicAssumptions = {
+export type DeterministicAssumptions = {
   revenueGrowth: number[];
   ebitMargin: number[];
   taxRate: number;
@@ -771,6 +773,159 @@ function mergeAssumptions(
       ? patch.notes.filter((value): value is string => typeof value === 'string' && value.trim().length > 0).slice(0, 4)
       : base.notes,
   };
+}
+
+function reshapeSeriesFromFirstValue(
+  existing: number[],
+  firstValue: number,
+  years: number,
+  min: number,
+  max: number,
+): number[] {
+  const currentFirst = existing[0];
+  if (typeof currentFirst === 'number' && Number.isFinite(currentFirst) && Math.abs(currentFirst) > 0.0001) {
+    return existing
+      .slice(0, years)
+      .map((value) => Number(clamp(value * (firstValue / currentFirst), min, max).toFixed(4)));
+  }
+  return Array.from({ length: years }, (_, index) => {
+    const fade = 1 - index / Math.max(years, 1) * 0.45;
+    return Number(clamp(firstValue * fade, min, max).toFixed(4));
+  });
+}
+
+function shiftSeriesToFirstValue(
+  existing: number[],
+  firstValue: number,
+  years: number,
+  min: number,
+  max: number,
+): number[] {
+  const currentFirst = existing[0];
+  if (typeof currentFirst !== 'number' || !Number.isFinite(currentFirst)) {
+    return Array.from({ length: years }, () => Number(clamp(firstValue, min, max).toFixed(4)));
+  }
+  const delta = firstValue - currentFirst;
+  return existing
+    .slice(0, years)
+    .map((value) => Number(clamp(value + delta, min, max).toFixed(4)));
+}
+
+function confidenceRank(value: string | undefined): number {
+  if (value === 'high') return 3;
+  if (value === 'medium') return 2;
+  return 1;
+}
+
+export function applySmartAssumptionResultToDcf(
+  base: DeterministicAssumptions,
+  result: SmartAssumptionResult,
+  options: {
+    years: number;
+    preserveExplicitWacc?: boolean;
+    preserveExplicitTerminalGrowth?: boolean;
+  },
+): DeterministicAssumptions {
+  const years = options.years;
+  const suggestions = result.suggestions;
+  const next: DeterministicAssumptions = {
+    ...base,
+    revenueGrowth: base.revenueGrowth.slice(0, years),
+    ebitMargin: base.ebitMargin.slice(0, years),
+    notes: [...base.notes],
+  };
+
+  if (
+    typeof suggestions.revenue_growth === 'number' &&
+    confidenceRank(result.driverConfidence.revenue_growth) >= 2
+  ) {
+    next.revenueGrowth = reshapeSeriesFromFirstValue(
+      next.revenueGrowth,
+      suggestions.revenue_growth,
+      years,
+      -0.05,
+      0.35,
+    );
+  }
+
+  if (
+    typeof suggestions.operating_margin === 'number' &&
+    confidenceRank(result.driverConfidence.operating_margin) >= 2
+  ) {
+    const existingFirst = next.ebitMargin[0] ?? 0;
+    const shouldPreserveExceptionalMargin =
+      existingFirst >= 0.45 &&
+      suggestions.operating_margin <= existingFirst &&
+      /semiconductor|ai|technology|compounder/i.test(
+        `${result.subject.industry ?? ''} ${result.subject.sector ?? ''} ${result.subject.regime}`,
+      );
+    if (!shouldPreserveExceptionalMargin) {
+      next.ebitMargin = shiftSeriesToFirstValue(
+        next.ebitMargin,
+        suggestions.operating_margin,
+        years,
+        0.05,
+        0.55,
+      );
+    }
+  }
+
+  if (
+    !options.preserveExplicitWacc &&
+    typeof suggestions.wacc === 'number' &&
+    confidenceRank(result.driverConfidence.wacc) >= 2
+  ) {
+    next.wacc = Number(clamp(suggestions.wacc, 0.06, 0.16).toFixed(4));
+  }
+
+  if (
+    !options.preserveExplicitTerminalGrowth &&
+    typeof suggestions.terminal_growth_rate === 'number' &&
+    confidenceRank(result.driverConfidence.terminal_growth_rate) >= 2
+  ) {
+    next.terminalGrowth = Number(clamp(suggestions.terminal_growth_rate, 0.01, 0.04).toFixed(4));
+  }
+
+  const changed = result.changedDrivers
+    .filter((driver) => confidenceRank(driver.confidence) >= 2)
+    .slice(0, 3)
+    .map((driver) => `${driver.label.toLowerCase()} ${(driver.new !== null ? driver.new * 100 : 0).toFixed(1)}%`)
+    .join(', ');
+  next.notes = [
+    ...next.notes,
+    changed
+      ? `Smart assumptions applied from company profile, scale, peer context, and macro overlay: ${changed}.`
+      : `Smart assumptions checked company profile, scale, peer context, and macro overlay; no material company-specific change was needed.`,
+    result.provenanceSummary.peerContext,
+  ].slice(0, 6);
+
+  return next;
+}
+
+async function deriveDcfSmartAssumptions(params: {
+  companyName: string;
+  ticker: string;
+  sector: string | null;
+  assumptions: DeterministicAssumptions;
+}): Promise<SmartAssumptionResult | null> {
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500));
+  return Promise.race([
+    deriveSmartAssumptions({
+      company: {
+        companyName: params.companyName,
+        ticker: params.ticker,
+        sector: params.sector,
+      },
+      modelType: 'DCF',
+      currentAssumptions: {
+        revenue_growth: params.assumptions.revenueGrowth[0] ?? null,
+        operating_margin: params.assumptions.ebitMargin[0] ?? null,
+        wacc: params.assumptions.wacc,
+        terminal_growth_rate: params.assumptions.terminalGrowth,
+      },
+    }),
+    timeout,
+  ]).catch(() => null);
 }
 
 function extractJsonObject(raw: string): unknown {
@@ -1660,7 +1815,20 @@ export async function generateAnalystDcfDemo(params: {
     defaults: defaultAssumptions,
     apiKeys: getOpenAIKeyCandidates('user'),
   });
-  const assumptions = mergeAssumptions(defaultAssumptions, aiPatch ?? {}, parsed.years);
+  const llmAssumptions = mergeAssumptions(defaultAssumptions, aiPatch ?? {}, parsed.years);
+  const smartAssumptionResult = await deriveDcfSmartAssumptions({
+    companyName,
+    ticker: effectiveResolved.ticker,
+    sector: snapshot.sector ?? null,
+    assumptions: llmAssumptions,
+  });
+  const assumptions = smartAssumptionResult
+    ? applySmartAssumptionResultToDcf(llmAssumptions, smartAssumptionResult, {
+        years: parsed.years,
+        preserveExplicitWacc: typeof parsed.overrides.wacc === 'number',
+        preserveExplicitTerminalGrowth: typeof parsed.overrides.terminalGrowth === 'number',
+      })
+    : llmAssumptions;
 
   let comparison: AnalystDcfComparisonPayload | null = null;
   if (comparisonPair) {
