@@ -11,6 +11,7 @@ import { formatCompactCurrency } from '@/lib/analyst/dcfFormatting';
 import type { AttachmentStatementSnapshot } from '@/lib/analyst/pdfFinancialStatements';
 import { deriveSmartAssumptions } from '@/lib/smart-assumptions/deriveSmartAssumptions';
 import type { SmartAssumptionResult } from '@/lib/smart-assumptions/types';
+import { buildDeterministicStrategicContext, sanitizeStrategicContext } from '@/lib/analyst/strategicContext';
 export { normalizeDcfSharesOutstanding, repairDcfPayloadShareCount } from '@/lib/analyst/dcfUnits';
 import { normalizeDcfSharesOutstanding } from '@/lib/analyst/dcfUnits';
 
@@ -86,6 +87,7 @@ export type AnalystDcfDemoPayload = {
   source: string;
   asOfDate: string | null;
   memo: string;
+  strategicContext?: string;
   warnings: string[];
   notes: string[];
   baseMetrics: AnalystDcfBaseMetrics;
@@ -1237,6 +1239,63 @@ async function generateAiMemo(
   return null;
 }
 
+async function generateAiStrategicContext(
+  payload: AnalystDcfDemoPayload,
+  apiKeys: string[],
+): Promise<string | null> {
+  if (apiKeys.length === 0) return null;
+
+  const models = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-5.4-pro', 'gpt-5.4');
+  const systemPrompt = [
+    'You write neutral strategic framing for buy-side investment analysis.',
+    'Return plain text only, 2 sentences maximum.',
+    'Do not give a recommendation, signal, target price, valuation conclusion, or directional opinion.',
+    'Explain what the company strategically is, what economic ecosystem it sits in, and the neutral diligence questions that matter.',
+    'Be specific to the company. Avoid generic sector boilerplate.',
+  ].join(' ');
+  const userPrompt = JSON.stringify(
+    {
+      company: payload.companyName,
+      ticker: payload.ticker,
+      sector: payload.sector,
+      source: payload.source,
+      baseMetrics: {
+        revenueLtm: payload.baseMetrics.revenueLtm,
+        ebitdaLtm: payload.baseMetrics.ebitdaLtm,
+        netIncomeLtm: payload.baseMetrics.netIncomeLtm,
+        marketCap: payload.baseMetrics.marketCap,
+      },
+      assumptions: {
+        revenueGrowth: payload.assumptions.revenueGrowth,
+        ebitMargin: payload.assumptions.ebitMargin,
+        capexPctRevenue: payload.assumptions.capexPctRevenue,
+      },
+      modelNotes: payload.notes.slice(0, 4),
+    },
+    null,
+    2,
+  );
+
+  try {
+    const request = generateTextWithProviderFallback({
+      clientType: 'user',
+      preferredProvider: 'anthropic',
+      temperature: 0.25,
+      maxTokens: 170,
+      openAiModels: models,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+    });
+    const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500));
+    const response = await Promise.race([request, timeout]);
+    return sanitizeStrategicContext(response?.text);
+  } catch {
+    return null;
+  }
+}
+
 function buildReply(payload: AnalystDcfDemoPayload): string {
   const formatPrice = (value: number | null) => (value === null ? 'n/a' : `$${value.toFixed(2)}`);
   const formatValue = (value: number) => formatCompactCurrency(value * 1_000_000);
@@ -1545,6 +1604,17 @@ async function buildAnalystDcfDemoFromPayload(params: {
     },
     comparison: params.comparison ?? null,
   };
+
+  const strategicFallback = buildDeterministicStrategicContext({
+    ticker: payload.ticker,
+    companyName: payload.companyName,
+    sector: payload.sector,
+    revenueGrowth0: payload.assumptions.revenueGrowth[0] ?? null,
+    ebitMargin0: payload.assumptions.ebitMargin[0] ?? null,
+  });
+  payload.strategicContext = params.includeMemo === false
+    ? strategicFallback
+    : (await generateAiStrategicContext(payload, getOpenAIKeyCandidates('user'))) ?? strategicFallback;
 
   if (payload.comparison) {
     payload.notes = [...payload.notes, ...buildComparisonNotes(payload, payload.comparison)].slice(0, 6);

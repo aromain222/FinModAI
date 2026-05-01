@@ -178,3 +178,15 @@ test('generic company output includes neutral strategic context', () => {
   assert.match(normalized.strategicContext, /order cycles|operating leverage/i);
   assert.doesNotMatch(normalized.strategicContext, /LONG|SHORT|buy|sell/i);
 });
+
+test('DCF output preserves AI-generated strategic context from payload', () => {
+  const dcf = buildFallbackDcf();
+  dcf.source = 'finnhub_live_metrics';
+  dcf.strategicContext =
+    'Strategic context: Example Co is a mission-critical supplier to industrial automation workflows with exposure to factory digitization, replacement cycles, and service attach. The neutral diligence question is how much demand is recurring versus tied to customer capital spending cycles.';
+
+  const normalized = normalizeAnalystOutput(deriveOutputFromDcf(dcf));
+
+  assert.match(normalized.strategicContext, /mission-critical supplier/i);
+  assert.match(normalized.strategicContext, /neutral diligence question/i);
+});
