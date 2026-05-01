@@ -42,7 +42,7 @@ RUN mkdir -p exports uploads
 ENV PYTHONUNBUFFERED=1 \
     WEB_CONCURRENCY=1 \
     PORT=8080 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app:/app/backend
 
 # Run application with gunicorn
 CMD gunicorn backend.app:app --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT} --workers ${WEB_CONCURRENCY} --timeout 120 --graceful-timeout 30
