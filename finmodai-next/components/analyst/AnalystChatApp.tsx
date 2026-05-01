@@ -21,6 +21,7 @@ import { routeAnalystQuery } from '@/lib/analyst/router';
 import type { AnalystScenarioCardPayload } from '@/lib/analyst/scenarioCard';
 import { looksLikeTeslaMacroScenarioPrompt } from '@/lib/analyst/scenarioCard';
 import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } from '@/lib/analyst/types';
+import type { AnalystForecastModelPayload } from '@/lib/analyst/forecastModel';
 import type { AnalystEarningsSummaryCard } from '@/lib/analyst/earningsSummary';
 import {
   buildSmartAssumptionRequestFromGeneratedModel,
@@ -46,6 +47,7 @@ type Message = {
     attachmentUsed?: string;
     dcfDemo?: AnalystDcfDemoPayload;
     generatedModel?: AnalystGeneratedModelPayload;
+    forecastModel?: AnalystForecastModelPayload;
     coreTemplateModel?: AnalystCoreTemplatePayload;
     stockLookup?: StockLookupResult;
     visualization?: AnalystVisualizationPayload;
@@ -714,6 +716,10 @@ export function AnalystChatApp() {
           generatedModel:
             payload?.generatedModel && typeof payload.generatedModel === 'object'
               ? (payload.generatedModel as AnalystGeneratedModelPayload)
+              : undefined,
+          forecastModel:
+            payload?.forecastModel && typeof payload.forecastModel === 'object'
+              ? (payload.forecastModel as AnalystForecastModelPayload)
               : undefined,
           coreTemplateModel:
             payload?.coreTemplateModel && typeof payload.coreTemplateModel === 'object'

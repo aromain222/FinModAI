@@ -111,6 +111,7 @@ import {
   deriveMarketEventAdjustment,
   type PriceForecastPayload,
 } from '@/lib/forecast/eventAdjustedForecast';
+import { labelForecastSource, type AnalystForecastModelPayload } from '@/lib/analyst/forecastModel';
 import { featureFlags } from '@/lib/env/server';
 import {
   buildComparisonVisualizationFromPrompt,
@@ -495,9 +496,7 @@ function formatPct(value: number): string {
 }
 
 function sourceLabelForForecast(source: string): string {
-  if (source === 'timesfm') return 'TimesFM online';
-  if (source === 'flat_fallback') return 'Fallback';
-  return source.replace(/_/g, ' ');
+  return labelForecastSource(source);
 }
 
 function buildForecastGrowthPath(historical: number[], forecast: number[]): number[] {
@@ -513,27 +512,20 @@ function buildForecastGrowthPath(historical: number[], forecast: number[]): numb
 }
 
 function buildLongHorizonForecastReply(payload: ForecastLayerPayload, years: number): string {
-  const horizon = Math.min(years, payload.forecast.length);
-  const lastActual = payload.historical.at(-1) ?? null;
-  const terminalForecast = payload.forecast[horizon - 1] ?? null;
-  const growthPath = buildForecastGrowthPath(payload.historical, payload.forecast).slice(0, horizon);
-  const cagr =
-    typeof lastActual === 'number' &&
-    lastActual > 0 &&
-    typeof terminalForecast === 'number' &&
-    terminalForecast > 0 &&
-    horizon > 0
-      ? (terminalForecast / lastActual) ** (1 / horizon) - 1
-      : null;
-  const source = sourceLabelForForecast(payload.source);
-  const confidence = Math.round(Math.max(0, Math.min(1, payload.confidence)) * 100);
-  const pathText = growthPath.length > 0
-    ? growthPath.map((value) => formatPct(value)).join(' / ')
+  const model = buildAnalystForecastModelPayload(payload, years);
+  const horizon = model.horizonYears;
+  const lastActual = model.latestActual;
+  const terminalForecast = model.terminalForecast;
+  const cagr = model.cagr;
+  const source = sourceLabelForForecast(model.source);
+  const confidence = Math.round(Math.max(0, Math.min(1, model.confidence)) * 100);
+  const pathText = model.growthPath.length > 0
+    ? model.growthPath.map((value) => formatPct(value)).join(' / ')
     : 'not available';
-  const attribution = payload.attribution?.explanation
-    ? ` The main driver flagged by the forecast layer is: ${payload.attribution.explanation}.`
+  const attribution = model.attributionExplanation
+    ? ` The main driver flagged by the forecast layer is: ${model.attributionExplanation}.`
     : '';
-  const warning = payload.warning ? ` Warning: ${payload.warning}` : '';
+  const warning = model.warning ? ` Warning: ${model.warning}` : '';
 
   if (typeof lastActual !== 'number' || typeof terminalForecast !== 'number' || horizon <= 0) {
     return `${payload.ticker} forecast unavailable. The forecast layer returned an incomplete revenue path, so I would not rely on a multi-year forecast from this run.`;
@@ -548,11 +540,45 @@ function buildLongHorizonForecastReply(payload: ForecastLayerPayload, years: num
   ].join('\n\n');
 }
 
+function buildAnalystForecastModelPayload(payload: ForecastLayerPayload, years: number): AnalystForecastModelPayload {
+  const horizon = Math.min(Math.max(1, years), payload.forecast.length);
+  const lastActual = payload.historical.at(-1) ?? null;
+  const terminalForecast = payload.forecast[horizon - 1] ?? null;
+  const growthPath = buildForecastGrowthPath(payload.historical, payload.forecast).slice(0, horizon);
+  const cagr =
+    typeof lastActual === 'number' &&
+    lastActual > 0 &&
+    typeof terminalForecast === 'number' &&
+    terminalForecast > 0 &&
+    horizon > 0
+      ? (terminalForecast / lastActual) ** (1 / horizon) - 1
+      : null;
+
+  return {
+    modelType: 'FORECAST_MODEL',
+    title: `${payload.ticker} Revenue Forecast Model`,
+    ticker: payload.ticker,
+    horizonYears: horizon,
+    units: 'USD millions',
+    historical: payload.historical,
+    forecast: payload.forecast.slice(0, horizon),
+    growthPath,
+    latestActual: typeof lastActual === 'number' && Number.isFinite(lastActual) ? lastActual : null,
+    terminalForecast: typeof terminalForecast === 'number' && Number.isFinite(terminalForecast) ? terminalForecast : null,
+    cagr: cagr !== null && Number.isFinite(cagr) ? cagr : null,
+    confidence: Math.max(0, Math.min(1, payload.confidence)),
+    source: payload.source,
+    attributionExplanation: payload.attribution?.explanation ?? null,
+    warning: payload.warning ?? null,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 async function buildLongHorizonForecastLayerReply(params: {
   origin: string;
   ticker: string;
   years: number;
-}): Promise<{ reply: string; sources: string[] } | null> {
+}): Promise<{ reply: string; sources: string[]; forecastModel: AnalystForecastModelPayload } | null> {
   const horizon = Math.min(10, Math.max(1, Math.round(params.years)));
   try {
     const response = await fetch(`${params.origin}/api/forecast`, {
@@ -569,8 +595,10 @@ async function buildLongHorizonForecastLayerReply(params: {
     const data = (await response.json().catch(() => null)) as unknown;
     if (!response.ok || !isForecastLayerPayload(data)) return null;
     const source = sourceLabelForForecast(data.source);
+    const forecastModel = buildAnalystForecastModelPayload(data, horizon);
     return {
       reply: buildLongHorizonForecastReply(data, horizon),
+      forecastModel,
       sources: [
         `CapitalBase forecast layer - ${source}`,
         ...(data.accuracySampleSize && data.accuracySampleSize >= 5
@@ -2290,6 +2318,7 @@ export async function POST(req: NextRequest) {
           route: 'company_question',
           sources: forecastReply.sources,
           factsCount: 0,
+          forecastModel: forecastReply.forecastModel,
           stockLookup: responseStockLookup ?? stockLookupPayload,
           earningsRetrieval: earningsAgentResult,
           earningsPackageMeta: earningsRuntimeMeta,

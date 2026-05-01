@@ -27,6 +27,7 @@ import {
   type AnalystScenarioCardPayload,
 } from '@/lib/analyst/scenarioCard';
 import type { AnalystGeneratedModelPayload, AnalystStructuredModelAdjustment } from '@/lib/analyst/types';
+import type { AnalystForecastModelPayload } from '@/lib/analyst/forecastModel';
 import type { AnalystVisualizationPayload } from '@/lib/analyst/visualization';
 import type { AnalystEarningsSummaryCard } from '@/lib/analyst/earningsSummary';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
@@ -41,6 +42,9 @@ const AnalystCoreTemplateCard = dynamic(
 );
 const AnalystModelCard = dynamic(
   () => import('@/components/analyst/AnalystModelCard').then((mod) => mod.AnalystModelCard)
+);
+const AnalystForecastModelCard = dynamic(
+  () => import('@/components/analyst/AnalystForecastModelCard').then((mod) => mod.AnalystForecastModelCard)
 );
 const AnalystStockCard = dynamic(
   () => import('@/components/analyst/AnalystStockCard').then((mod) => mod.AnalystStockCard)
@@ -65,6 +69,7 @@ type Message = {
     attachmentUsed?: string;
     dcfDemo?: AnalystDcfDemoPayload;
     generatedModel?: AnalystGeneratedModelPayload;
+    forecastModel?: AnalystForecastModelPayload;
     coreTemplateModel?: AnalystCoreTemplatePayload;
     stockLookup?: StockLookupResult;
     visualization?: AnalystVisualizationPayload;
@@ -773,6 +778,7 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
                         {message.role === 'assistant' &&
                           !message.meta?.dcfDemo &&
                           !message.meta?.generatedModel &&
+                          !message.meta?.forecastModel &&
                           !message.meta?.coreTemplateModel &&
                           !message.meta?.stockLookup &&
                           !message.meta?.visualization &&
@@ -846,6 +852,10 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
                                 : undefined
                             }
                           />
+                        )}
+
+                        {message.role === 'assistant' && message.meta?.forecastModel && (
+                          <AnalystForecastModelCard payload={message.meta.forecastModel} />
                         )}
 
                         {message.role === 'assistant' && message.meta?.coreTemplateModel && (
