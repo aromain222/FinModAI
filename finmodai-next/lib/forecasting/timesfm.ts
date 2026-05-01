@@ -94,7 +94,9 @@ function endpointUrl(): string | null {
   const explicit = process.env.TIMESFM_FORECAST_URL?.trim();
   if (explicit) return explicit;
   const backend = process.env.PYTHON_BACKEND_URL?.trim();
-  return backend ? `${backend.replace(/\/+$/, '')}/api/v1/timesfm/series` : null;
+  const localBackend = process.env.NODE_ENV === 'production' ? null : 'http://localhost:8082';
+  const baseUrl = backend || localBackend;
+  return baseUrl ? `${baseUrl.replace(/\/+$/, '')}/api/v1/timesfm/series` : null;
 }
 
 export async function forecastSeries(input: ForecastSeriesInput): Promise<ForecastSeries> {

@@ -12,9 +12,34 @@ from datetime import date, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/timesfm", tags=["timesfm"])
+
+
+class SeriesForecastRequest(BaseModel):
+    series: list[float] = Field(..., min_length=1)
+    horizon: int = Field(5, ge=1, le=128)
+    freq: int = Field(1, ge=0, le=2)
+
+    @field_validator("series")
+    @classmethod
+    def validate_series(cls, value: list[float]) -> list[float]:
+        cleaned = [float(item) for item in value if item is not None]
+        if not cleaned:
+            raise ValueError("series must include at least one numeric value")
+        if any(not _is_finite(item) for item in cleaned):
+            raise ValueError("series must only include finite numeric values")
+        return cleaned
+
+
+def _is_finite(value: float) -> bool:
+    return value == value and value not in (float("inf"), float("-inf"))
+
+
+def _to_float_list(values: list[float]) -> list[float]:
+    return [round(float(value), 4) for value in values if _is_finite(float(value))]
 
 
 def _fetch_price_history(ticker: str, days: int = 200) -> tuple[list[str], list[float]]:
@@ -78,6 +103,37 @@ def _make_forecast_dates(last_date_label: str, horizon: int, freq: str = "day") 
             target = today + timedelta(days=i)
             out.append(target.strftime("%b %d"))
     return out
+
+
+@router.post("/series")
+async def forecast_series(payload: SeriesForecastRequest):
+    """
+    Generic TimesFM endpoint used by the Next.js forecast layer.
+
+    freq follows TimesFM convention:
+    - 0: high-frequency / daily series
+    - 1: low-frequency / quarterly or monthly series
+    - 2: other / yearly style series
+    """
+    if len(payload.series) < 4:
+        raise HTTPException(status_code=422, detail="Need at least 4 data points for TimesFM series forecasting.")
+
+    try:
+        from backend.timesfm_service import _run_inference  # type: ignore
+
+        result = _run_inference(payload.series, horizon=payload.horizon, freq=payload.freq)
+        return {
+            "forecast": _to_float_list(result["forecast"]),
+            "confidence": None,
+            "lower": _to_float_list(result["lower"]),
+            "upper": _to_float_list(result["upper"]),
+            "model_source": "timesfm",
+            "timesfm_status": "used",
+            "methodology": "Google TimesFM foundation model forecast over the supplied numeric series.",
+        }
+    except Exception as exc:
+        logger.warning("[timesfm] generic series forecast failed: %s", exc)
+        raise HTTPException(status_code=503, detail=f"TimesFM unavailable: {exc}") from exc
 
 
 @router.get("/price")

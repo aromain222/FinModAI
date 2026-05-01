@@ -9,6 +9,11 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 const PYTHON_BACKEND = process.env.PYTHON_BACKEND_URL?.trim() || null;
+const LOCAL_PYTHON_BACKEND = process.env.NODE_ENV === 'production' ? null : 'http://localhost:8082';
+
+function pythonBackendUrl(): string | null {
+  return PYTHON_BACKEND || LOCAL_PYTHON_BACKEND;
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -31,11 +36,12 @@ export async function GET(req: NextRequest) {
     params.set('quarters', quarters);
   }
 
-  const timesfmStatus: 'not_configured' | 'upstream_failed' = PYTHON_BACKEND ? 'upstream_failed' : 'not_configured';
+  const backendUrl = pythonBackendUrl();
+  const timesfmStatus: 'not_configured' | 'upstream_failed' = backendUrl ? 'upstream_failed' : 'not_configured';
 
-  if (PYTHON_BACKEND) {
+  if (backendUrl) {
     try {
-      const upstream = await fetch(`${PYTHON_BACKEND}/api/v1/timesfm/${type}?${params.toString()}`, {
+      const upstream = await fetch(`${backendUrl}/api/v1/timesfm/${type}?${params.toString()}`, {
         signal: AbortSignal.timeout(4500),
         cache: 'no-store',
       });
@@ -90,7 +96,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(
     {
       error: 'Forecast unavailable',
-      detail: PYTHON_BACKEND
+      detail: backendUrl
         ? 'TimesFM service and provider-backed fallback were unavailable.'
         : 'PYTHON_BACKEND_URL is not configured and provider-backed fallback could not resolve enough data.',
     },
