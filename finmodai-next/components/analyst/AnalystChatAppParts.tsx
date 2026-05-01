@@ -165,29 +165,6 @@ function isSeededFallbackDcf(payload: AnalystDcfDemoPayload): boolean {
   return payload.source.toLowerCase() === 'demo_seed_fallback';
 }
 
-const FEATURED_PITCH_STORY = {
-  label: 'Featured pitch story',
-  title: 'Alphabet AI capex + EU search data pressure',
-  summary:
-    'A clean news-to-model demo: higher AI/cloud investment supports growth, while EU search data-sharing pressure challenges Search advantages and margin durability.',
-  eventTitle: 'Alphabet AI capex and EU search data-sharing pressure',
-  eventText:
-    'Alphabet is raising AI and cloud capex while EU regulators push Google to share search data with rivals. The event has mixed model implications: AI and cloud investment can support long-term growth, but higher capex intensity and regulatory pressure on Search data advantages may pressure free cash flow, margins, and valuation confidence.',
-  source: 'Pitch demo story',
-  prompts: [
-    {
-      label: 'Analyze story',
-      prompt:
-        'Alphabet is raising AI and cloud capex while EU regulators push Google to share search data with rivals. Analyze the event, map it into model assumptions, and explain how it affects GOOGL’s investment case.',
-    },
-    {
-      label: 'Build GOOGL case',
-      prompt:
-        'Apply this Alphabet AI capex and EU search data-sharing event to a GOOGL DCF. Show updated valuation gap, sensitivity, strategic context, event context, investment capability, target, stop loss, and position size.',
-    },
-  ],
-} as const;
-
 
 // ─── Sidebar state ───────────────────────────────────────────────────────────
 
@@ -1016,38 +993,6 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
 
           {/* Input area */}
           <div className="border-t border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-4">
-            <div className="mb-4 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-emerald-200/90">
-                    {FEATURED_PITCH_STORY.label}
-                  </div>
-                  <div className="mt-1 text-sm font-semibold text-[var(--cb-text-primary)]">
-                    {FEATURED_PITCH_STORY.title}
-                  </div>
-                  <div className="mt-1 max-w-3xl text-xs leading-5 text-[var(--cb-text-muted)]">
-                    {FEATURED_PITCH_STORY.summary}
-                  </div>
-                </div>
-                <div className="shrink-0 rounded-full border border-emerald-400/20 px-2.5 py-1 text-[10px] uppercase tracking-wide text-emerald-100/80">
-                  News → model → trade
-                </div>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {FEATURED_PITCH_STORY.prompts.map((item) => (
-                  <button
-                    key={item.label}
-                    type="button"
-                    disabled={props.isLoading}
-                    onClick={() => props.onQuickPrompt(item.prompt)}
-                    className="inline-flex items-center rounded-full border border-emerald-400/20 bg-[var(--cb-surface)] px-3 py-1.5 text-[11px] font-medium text-emerald-100 transition-colors hover:border-emerald-300/40 hover:bg-emerald-500/10 disabled:pointer-events-none disabled:opacity-40"
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {latestModelMessage ? (
               <div className="mb-4 rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] p-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -1067,21 +1012,6 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
                   <div className="rounded-full border border-[var(--cb-border-subtle)] px-2 py-1 text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
                     Active model: {latestModelMessage.payload.modelType.replace(/_/g, ' ')}
                   </div>
-                </div>
-                <div className="mt-3">
-                  <button
-                    type="button"
-                    disabled={props.quickEventApplying}
-                    onClick={() => {
-                      props.onQuickEventTitleChange(FEATURED_PITCH_STORY.eventTitle);
-                      props.onQuickEventTextChange(FEATURED_PITCH_STORY.eventText);
-                      props.onQuickEventSourceChange(FEATURED_PITCH_STORY.source);
-                      requestAnimationFrame(() => props.quickEventTextRef.current?.focus());
-                    }}
-                    className="inline-flex items-center rounded-full border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] px-3 py-1 text-[11px] font-medium text-[var(--cb-text-muted)] transition-colors hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)] disabled:pointer-events-none disabled:opacity-40"
-                  >
-                    Load featured story as event
-                  </button>
                 </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-[1fr_220px]">
                   <div className="space-y-3">

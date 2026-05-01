@@ -26,6 +26,43 @@ import type { CurrentModel } from '@/lib/applyEventMutation';
 
 type NewsItem = HeadlinePanelItem;
 
+const FEATURED_NEWS_ITEM: NewsItem = {
+  id: 'featured-googl-ai-capex-eu-search-data',
+  title: 'Alphabet raises AI and cloud capex as EU pushes Google search data-sharing remedies',
+  description:
+    'Alphabet is increasing AI and cloud infrastructure spending while European regulators press Google to share search data with rivals. The story creates a clean tension between AI growth investment, free-cash-flow pressure, and regulatory risk around Search advantages.',
+  url: 'https://capital-base.com/news',
+  source: 'CapitalBase Featured Story',
+  publishedAt: '2026-05-01T12:00:00.000Z',
+};
+
+const FEATURED_NEWS_ENRICHMENT: HeadlineEnrichment = {
+  ai_summary:
+    'Alphabet is leaning harder into AI and cloud infrastructure while EU search remedies could weaken the data advantage behind the core ads business.',
+  why_it_matters:
+    'SUMMARY\n- Alphabet is raising AI and cloud capex while EU regulators push Google to share search data with rivals.\n\nWHY IT MATTERS\n- This is a model-ready event because it pulls growth, margin, and risk assumptions in different directions: AI/cloud capex can support long-term revenue growth, but higher infrastructure spending weighs on FCF conversion and EU data-sharing remedies could pressure Search monetization durability.\n\nMARKET IMPACT\n- GOOGL: mixed, with upside if AI/cloud investment extends growth and downside if capex intensity or Search regulation compresses valuation multiples.\n- Large-cap tech: sensitive to whether investors reward AI infrastructure spend or punish higher capital intensity.\n\nTIME HORIZON\n- Medium-term, because capex decisions hit cash flow before AI monetization and regulatory remedies take time to resolve.\n\nWATCH ITEMS\n- AI capex guidance\n- Google Cloud growth and margin progression\n- EU search remedy details\n- Search monetization under AI Overviews',
+  impacted_sectors: [
+    {
+      sector: 'Communication Services',
+      direction: 'mixed',
+      rationale: 'Search and YouTube cash flows fund the AI transition, but regulatory remedies could pressure the core ad engine.',
+    },
+    {
+      sector: 'Technology',
+      direction: 'mixed',
+      rationale: 'AI infrastructure spending supports cloud and compute demand while raising capital intensity across mega-cap tech.',
+    },
+  ],
+  impacted_tickers: [
+    {
+      ticker: 'GOOGL',
+      direction: 'mixed',
+      rationale: 'Growth investment and regulatory risk offset each other, making the DCF sensitive to capex, margins, and terminal growth.',
+    },
+  ],
+  confidence: 'high',
+};
+
 type NewsSuccessResponse = {
   ok?: true;
   items: NewsItem[];
@@ -79,7 +116,7 @@ export default function HeadlinesPanel({
   const [error, setError] = useState<NewsErrorResponse | null>(
     initialHeadlines.error ? { error: initialHeadlines.error.error, details: initialHeadlines.error.details } : null
   );
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(FEATURED_NEWS_ITEM.id);
   const [enrichLoadingId, setEnrichLoadingId] = useState<string | null>(null);
   const [enrichMap, setEnrichMap] = useState<Record<string, HeadlineEnrichment>>({});
 
@@ -303,16 +340,23 @@ export default function HeadlinesPanel({
 
   useEffect(() => {
     if (items.length === 0) {
-      setSelectedId(null);
+      setSelectedId((current) => current ?? FEATURED_NEWS_ITEM.id);
       return;
     }
-    if (!selectedId || !items.some((item) => item.id === selectedId)) {
-      setSelectedId(items[0].id);
+    if (
+      !selectedId ||
+      (selectedId !== FEATURED_NEWS_ITEM.id && !items.some((item) => item.id === selectedId))
+    ) {
+      setSelectedId(FEATURED_NEWS_ITEM.id);
     }
   }, [items, selectedId]);
 
   const loadEnrichment = useCallback(
     async (headline: NewsItem) => {
+      if (headline.id === FEATURED_NEWS_ITEM.id) {
+        setEnrichMap((current) => ({ ...current, [headline.id]: FEATURED_NEWS_ENRICHMENT }));
+        return;
+      }
       if (enrichMap[headline.id]) return;
       setEnrichLoadingId(headline.id);
       try {
@@ -355,7 +399,7 @@ export default function HeadlinesPanel({
       if (alreadyStacked || impactLoadingId === item.id) return;
       setImpactLoadingId(item.id);
 
-      const enrichment = enrichMap[item.id];
+      const enrichment = item.id === FEATURED_NEWS_ITEM.id ? FEATURED_NEWS_ENRICHMENT : enrichMap[item.id];
       const ticker  = enrichment?.impacted_tickers?.[0]?.ticker ?? 'MARKET';
       const company = enrichment?.impacted_tickers?.[0]?.ticker
         ? `${enrichment.impacted_tickers[0].ticker} (${enrichment.impacted_sectors?.[0]?.sector ?? 'Market'})`
@@ -417,10 +461,14 @@ export default function HeadlinesPanel({
 
   const resolvedProviderLabel = useMemo(() => providerLabel(provider), [provider]);
   const selectedItem = useMemo(
-    () => items.find((item) => item.id === selectedId) ?? items[0] ?? null,
+    () =>
+      selectedId === FEATURED_NEWS_ITEM.id
+        ? FEATURED_NEWS_ITEM
+        : items.find((item) => item.id === selectedId) ?? FEATURED_NEWS_ITEM,
     [items, selectedId]
   );
-  const selectedEnrichment = selectedItem ? enrichMap[selectedItem.id] : null;
+  const selectedEnrichment =
+    selectedItem.id === FEATURED_NEWS_ITEM.id ? FEATURED_NEWS_ENRICHMENT : enrichMap[selectedItem.id] ?? null;
 
   useEffect(() => {
     if (!selectedItem) return;
@@ -434,6 +482,31 @@ export default function HeadlinesPanel({
     () => new Set(stack.events.map((e) => e.headline)),
     [stack.events]
   );
+  const featuredStackedEvent = useMemo(
+    () => stack.events.find((event) => event.headline === FEATURED_NEWS_ITEM.title) ?? null,
+    [stack.events]
+  );
+  const featuredImpactResult = featuredStackedEvent
+    ? {
+        company: 'GOOGL (Communication Services)',
+        ticker: featuredStackedEvent.ticker,
+        headline: featuredStackedEvent.headline,
+        current_model: stack.base_model,
+        assumption_deltas: featuredStackedEvent.deltas,
+        updated_model: featuredStackedEvent.resulting_model,
+        scenarios: {
+          base: { valuation_delta_pct: featuredStackedEvent.marginal_valuation_delta_pct },
+          upside: { valuation_delta_pct: featuredStackedEvent.marginal_valuation_delta_pct * 1.5 },
+          downside: { valuation_delta_pct: featuredStackedEvent.marginal_valuation_delta_pct * 0.5 },
+        },
+        impact_summary: featuredStackedEvent.impact_summary ?? {
+          primary_driver: '',
+          direction: 'mixed' as const,
+          magnitude: 'low' as const,
+        },
+        mechanism: [],
+      }
+    : null;
 
   return (
     <div className="space-y-5">
@@ -485,6 +558,25 @@ export default function HeadlinesPanel({
 
       <div className="space-y-3">
         <FeedSummaryBanner itemCount={items.length} />
+
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 px-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-300/80">
+            <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />
+            Featured Story
+          </div>
+          <HeadlineCard
+            item={FEATURED_NEWS_ITEM}
+            isSelected={selectedId === FEATURED_NEWS_ITEM.id}
+            enrichment={FEATURED_NEWS_ENRICHMENT}
+            enrichLoading={false}
+            onToggle={() => setSelectedId((current) => (current === FEATURED_NEWS_ITEM.id ? null : FEATURED_NEWS_ITEM.id))}
+            onRetry={() => undefined}
+            onAnalyzeImpact={featuredStackedEvent ? undefined : () => { void handleAnalyzeImpact(FEATURED_NEWS_ITEM); }}
+            impactLoading={impactLoadingId === FEATURED_NEWS_ITEM.id}
+            impactResult={featuredImpactResult}
+            onApplyToModel={handleApplyToModel}
+          />
+        </div>
 
         <div className="space-y-3">
           {loading && <LoadingState />}
