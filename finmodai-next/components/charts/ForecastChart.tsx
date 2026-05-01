@@ -78,19 +78,41 @@ export function ForecastChart({
     0.1,
   );
 
-  const rows: ChartRow[] = [
-    ...historical.map((p) => ({ date: p.date, actual: p.actual })),
-    ...(forecast ?? []).map((p, i) => ({
-      date: p.date,
-      forecast: p.forecast,
-      band: [p.lower, p.upper] as [number, number],
-      ...(eventAdjusted?.[i] != null ? { eventAdjusted: eventAdjusted[i] } : {}),
-    })),
-  ];
+  const cleanHistorical = historical.filter((point) => Number.isFinite(point.actual));
+  const cleanForecast = forecast?.filter((point) =>
+    Number.isFinite(point.forecast) &&
+    Number.isFinite(point.lower) &&
+    Number.isFinite(point.upper)
+  ) ?? null;
+  const lastActualPoint = cleanHistorical.at(-1) ?? null;
+
+  const rows: ChartRow[] = cleanHistorical.map((point) => ({ date: point.date, actual: point.actual }));
+  if (cleanForecast && cleanForecast.length > 0) {
+    if (lastActualPoint) {
+      const lastRow = rows.at(-1);
+      if (lastRow) {
+        lastRow.forecast = lastActualPoint.actual;
+        lastRow.band = [lastActualPoint.actual, lastActualPoint.actual];
+        if (eventAdjusted && eventAdjusted.length > 0) {
+          lastRow.eventAdjusted = lastActualPoint.actual;
+        }
+      }
+    }
+    rows.push(
+      ...cleanForecast.map((point, i) => ({
+        date: point.date,
+        forecast: point.forecast,
+        band: [point.lower, point.upper] as [number, number],
+        ...(eventAdjusted?.[i] != null && Number.isFinite(eventAdjusted[i])
+          ? { eventAdjusted: eventAdjusted[i] }
+          : {}),
+      })),
+    );
+  }
 
   const dividerDate = historical.at(-1)?.date;
 
-  const hasAdjusted = forecast != null && eventAdjusted != null && eventAdjusted.length > 0;
+  const hasAdjusted = cleanForecast != null && eventAdjusted != null && eventAdjusted.length > 0;
 
   const subtitle = loading
     ? 'Loading forecast…'
@@ -136,9 +158,9 @@ export function ForecastChart({
         />
 
         {/* Confidence band */}
-        {forecast && (
+        {cleanForecast && (
           <Area
-            type="monotone"
+            type="linear"
             dataKey="band"
             fill="#8b5cf6"
             fillOpacity={0.12}
@@ -151,20 +173,19 @@ export function ForecastChart({
 
         {/* Historical — solid green */}
         <Line
-          type="monotone"
+          type="linear"
           dataKey="actual"
           name="actual"
           stroke="#22c55e"
           strokeWidth={2}
           dot={false}
           activeDot={{ r: 4 }}
-          connectNulls
         />
 
         {/* Forecast baseline — dashed violet */}
-        {forecast && (
+        {cleanForecast && (
           <Line
-            type="monotone"
+            type="linear"
             dataKey="forecast"
             name="forecast"
             stroke="#8b5cf6"
@@ -172,14 +193,13 @@ export function ForecastChart({
             strokeDasharray="5 3"
             dot={false}
             activeDot={{ r: 4 }}
-            connectNulls
           />
         )}
 
         {/* Event-adjusted forecast — dashed cyan */}
         {hasAdjusted && (
           <Line
-            type="monotone"
+            type="linear"
             dataKey="eventAdjusted"
             name="eventAdjusted"
             stroke="#06b6d4"
@@ -187,12 +207,11 @@ export function ForecastChart({
             strokeDasharray="4 2"
             dot={false}
             activeDot={{ r: 4 }}
-            connectNulls
           />
         )}
 
         {/* "Today" separator */}
-        {dividerDate && forecast && (
+        {dividerDate && cleanForecast && (
           <ReferenceLine
             x={dividerDate}
             stroke="#4b5563"
