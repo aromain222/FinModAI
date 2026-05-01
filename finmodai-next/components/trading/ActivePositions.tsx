@@ -60,7 +60,7 @@ export function ActivePositions({ currentPrices = {}, refreshKey = 0 }: ActivePo
     return (
       <div className="rounded-xl border border-dashed border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-4 text-sm text-[var(--cb-text-muted)]">
         <div className="text-[10px] font-medium uppercase tracking-widest">Active Positions</div>
-        <div className="mt-1">No pending or open trades yet. Use Track Trade on a LONG or SHORT recommendation.</div>
+        <div className="mt-1">No pending or open paper setups yet. Use Track Paper Setup on a LONG or SHORT recommendation.</div>
       </div>
     );
   }

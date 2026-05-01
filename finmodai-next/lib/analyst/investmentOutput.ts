@@ -207,6 +207,25 @@ function deriveTradeHorizon(confidence: number, absGapPct: number): string {
   return '12+ months';
 }
 
+function deriveInstitutionalRiskBudgetPct(input: {
+  signal: InvestmentSignal;
+  upsidePct: number;
+  confidence: number;
+  isHighlySensitive: boolean;
+  isFallbackSource?: boolean;
+}): number | null {
+  if (input.signal === 'NEUTRAL' || input.isFallbackSource) return null;
+  const absGap = Math.abs(input.upsidePct);
+  if (!Number.isFinite(absGap) || absGap < 5) return null;
+
+  const confidenceMultiplier = clamp(input.confidence, 0.35, 0.85);
+  const rawSize = (absGap / 10) * confidenceMultiplier;
+  const directionalCap = input.signal === 'SHORT' ? 3 : 5;
+  const sensitivityCap = input.isHighlySensitive ? 2 : directionalCap;
+  const capped = clamp(rawSize, 0.5, Math.min(directionalCap, sensitivityCap));
+  return Number(capped.toFixed(1));
+}
+
 function hasLiveValuationSource(source: string): boolean {
   const normalized = source.toLowerCase();
   return (
@@ -284,9 +303,10 @@ function buildInvestmentCapabilityMemo(params: {
   }
   const sizingText = params.sizePct != null ? `${params.sizePct.toFixed(1)}%` : 'small';
   if (params.confidence < 0.55 || params.isHighlySensitive) {
-    return `Investment capability: small tracked ${params.signal.toLowerCase()} setup only. Suggested sizing is capped near ${sizingText} because the edge is sensitive to key valuation assumptions.${eventText}`;
+    return `Investment capability: institutional paper ${params.signal.toLowerCase()} setup for watchlist tracking only. Suggested risk budget is capped near ${sizingText} because the edge is sensitive to key valuation assumptions.${eventText}`;
   }
-  return `Investment capability: actionable tracked ${params.signal.toLowerCase()} setup. The model supports a ${sizingText} paper position with target, stop, and follow-up thesis monitoring.${eventText}`;
+  const signalLabel = params.signal === 'SHORT' ? 'underweight/short' : 'long';
+  return `Investment capability: institutional paper ${signalLabel} setup. The model supports a ${sizingText} risk budget with target, stop, and follow-up thesis monitoring; this is not an executed trade.${eventText}`;
 }
 
 function computeDcfEquityPrice(
@@ -379,10 +399,13 @@ export function deriveOutputFromDcf(dcf: AnalystDcfDemoPayload): AnalystOutput {
     rangeSpreadPct,
     isHighlySensitive: sensitivity.isHighlySensitive,
   });
-  const sizePct =
-    signal !== 'NEUTRAL' && !isFallbackSource
-      ? +Math.min(Math.max(Math.abs(upside) / 4, 1), 10).toFixed(1)
-      : null;
+  const sizePct = deriveInstitutionalRiskBudgetPct({
+    signal,
+    upsidePct: upside,
+    confidence,
+    isHighlySensitive: sensitivity.isHighlySensitive,
+    isFallbackSource,
+  });
   const investmentCapabilityMemo = buildInvestmentCapabilityMemo({
     companyName: dcf.companyName,
     signal,
@@ -566,8 +589,12 @@ export function deriveOutputFromGeneratedModel(
       ? `DCF target $${impliedPrice.toFixed(0)} vs market $${currentPrice.toFixed(0)}`
       : `${dcf.companyName} intrinsic value $${impliedPrice.toFixed(0)} per share`;
 
-  const sizePct =
-    signal !== 'NEUTRAL' ? +Math.min(Math.max(Math.abs(upside) / 4, 1), 10).toFixed(1) : null;
+  const sizePct = deriveInstitutionalRiskBudgetPct({
+    signal,
+    upsidePct: upside,
+    confidence,
+    isHighlySensitive: sensitivity.isHighlySensitive,
+  });
   const investmentCapabilityMemo = buildInvestmentCapabilityMemo({
     companyName: dcf.companyName,
     signal,

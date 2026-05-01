@@ -322,13 +322,13 @@ export function InvestmentOutputCard({ output, loading = false }: InvestmentOutp
           </div>
           <div className="grid gap-2 text-[var(--cb-text-primary)] sm:grid-cols-4">
             <div>
-              <span className="text-[var(--cb-text-muted)]">Suggested Position</span>
+              <span className="text-[var(--cb-text-muted)]">Risk Budget</span>
               <div className="font-medium tabular-nums">
                 {normalized.sizePct != null ? `${normalized.sizePct.toFixed(1)}%` : '—'}
               </div>
             </div>
             <div>
-              <span className="text-[var(--cb-text-muted)]">Target</span>
+              <span className="text-[var(--cb-text-muted)]">DCF Target</span>
               <div className="font-medium tabular-nums text-emerald-400/90">
                 {formatPrice(normalized.targetPrice)}
               </div>
@@ -372,11 +372,11 @@ export function InvestmentOutputCard({ output, loading = false }: InvestmentOutp
                 {trackingState === 'saving'
                   ? 'Tracking…'
                   : trackingState === 'tracked'
-                    ? 'Pending trade tracked'
-                    : 'Track Trade'}
+                    ? 'Paper setup tracked'
+                    : 'Track Paper Setup'}
               </button>
               <span className="text-[var(--cb-text-muted)]">
-                Creates a pending paper trade with desired entry at {formatPrice(normalized.currentPrice)}.
+                Adds this to paper tracking at a desired entry of {formatPrice(normalized.currentPrice)}. Pending means P&amp;L starts only after the entry is crossed; no brokerage order is placed.
               </span>
             </div>
           ) : normalized.signal !== 'NEUTRAL' ? (
