@@ -354,7 +354,7 @@ function isCompanyForecastPrompt(message: string): boolean {
 
 function isValuationOrTradeAnalysisPrompt(message: string): boolean {
   const text = message.toLowerCase();
-  return /\b(valuation impact|model impact|intrinsic value|undervalued|under valued|overvalued|over valued|worth|target price|price target|trade recommendation|position size|stop loss|margin of safety|upside|downside|buy|sell|long|short)\b/.test(text);
+  return /\b(valuation|valuation impact|model impact|intrinsic value|fair value|model value|undervalued|under valued|overvalued|over valued|worth|target price|price target|trade recommendation|position size|stop loss|margin of safety|upside|downside|buy|sell|long|short)\b/.test(text);
 }
 
 function isInvestmentValuationPrompt(message: string): boolean {

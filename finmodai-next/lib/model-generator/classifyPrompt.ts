@@ -20,11 +20,19 @@ export function classifyPrompt(prompt: string): ModelGeneratorType | null {
     /\b(?:revenue|ebitda|ebit|net income|capex|working capital|cash flow|ending cash|debt|balance sheet|income statement)\b/;
   const operatingModelPattern =
     /\b(?:\d+[-\s]?year\s+operating model|operating model)\b/;
+  const explicitlyOperatingModel =
+    threeStatementPattern.test(text) ||
+    /\b(forecast model|projection model|operating model|three[-\s]?statement|3[-\s]?statement|income statement|balance sheet|cash flow statement)\b/.test(text);
+  const explicitlyRelativeValuation =
+    /\b(comps?|comparable company|trading comps?|precedents?|precedent transactions?|football field)\b/.test(text);
+  const valuationDcfPattern =
+    /\b(valuation|valuation impact|intrinsic value|fair value|model value|undervalued|under valued|overvalued|over valued|worth|target price|price target|margin of safety|upside|downside)\b/;
   const compareCompsPattern =
     /\b(compare|comparison|versus|vs\.?|against)\b/.test(text) &&
     /\b(as investments?|investment case|valuation|valuations|multiple|multiples|peers?)\b/.test(text);
 
   if (/\bdcf\b/.test(text)) return 'DCF';
+  if (valuationDcfPattern.test(text) && !explicitlyOperatingModel && !explicitlyRelativeValuation) return 'DCF';
   if (/\blbo\b|\bleveraged buyout\b/.test(text)) return 'LBO';
   if (/\bdebt capacity\b|\bleverage headroom\b|\binterest coverage\b|\bcredit stats\b/.test(text)) return 'DEBT_CAPACITY_LITE';
   if (/\bfootball field\b|\bvaluation football field\b/.test(text)) return 'FOOTBALL_FIELD';

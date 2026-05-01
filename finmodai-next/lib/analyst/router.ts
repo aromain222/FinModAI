@@ -103,7 +103,7 @@ export function classifyIntent(message: string, tickers: string[]): AnalystInten
   const hasCompanyContext = tickers.length > 0 || Boolean(extractedCompany.ticker || extractedCompany.companyName);
   const isValuationOrTradeAnalysisRequest =
     hasCompanyContext &&
-    /\b(valuation impact|model impact|intrinsic value|undervalued|under valued|overvalued|over valued|worth|target price|price target|trade recommendation|position size|stop loss|margin of safety|upside|downside|buy|sell|long|short)\b/.test(text);
+    /\b(valuation|valuation impact|model impact|intrinsic value|fair value|model value|undervalued|under valued|overvalued|over valued|worth|target price|price target|trade recommendation|position size|stop loss|margin of safety|upside|downside|buy|sell|long|short)\b/.test(text);
   const isInvestmentAnalysisRequest =
     hasCompanyContext &&
     (

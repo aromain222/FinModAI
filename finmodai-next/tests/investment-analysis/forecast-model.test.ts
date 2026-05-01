@@ -17,6 +17,14 @@ test('forecast prompts classify into THREE_STATEMENT', () => {
   assert.equal(modelType, 'THREE_STATEMENT');
 });
 
+test('event valuation prompts classify into DCF even when forecast language is present', () => {
+  const modelType = classifyPrompt(
+    "Alphabet is raising AI and cloud capex while EU regulators push Google to share search data with rivals. Forecast how this affects Google's valuation.",
+  );
+
+  assert.equal(modelType, 'DCF');
+});
+
 test('forecast prompts build three-statement inputs with a five-year horizon', async () => {
   const result = await extractInputs(FORECAST_PROMPT, 'THREE_STATEMENT');
 
