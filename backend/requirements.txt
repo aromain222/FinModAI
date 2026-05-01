@@ -10,7 +10,7 @@ email-validator==2.1.0
 httpx==0.25.2  # Async HTTP client
 orjson==3.9.10  # Fast JSON serialization
 pandas[pyarrow]==2.1.4  # Use pyarrow backend for better performance
-numpy==1.26.2
+numpy>=1.26.4,<2
 
 # Database (minimal)
 sqlalchemy[asyncio]==2.0.23  # Enable async support
