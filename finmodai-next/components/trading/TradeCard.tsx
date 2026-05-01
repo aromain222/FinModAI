@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { Position } from '@/lib/trading/positions';
 import { closePosition } from '@/lib/trading/positions';
 import { calculatePnL, formatPnL } from '@/lib/trading/pnl';
+import { evaluateThesis } from '@/lib/trading/thesis';
 
 type TradeCardProps = {
   position: Position;
@@ -21,6 +22,18 @@ function pnlClasses(isProfit: boolean): string {
   return isProfit ? 'text-emerald-400' : 'text-rose-400';
 }
 
+function statusClasses(status: Position['status']): string {
+  if (status === 'OPEN') return 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300';
+  if (status === 'PENDING') return 'border-amber-400/30 bg-amber-500/10 text-amber-300';
+  return 'border-zinc-600/40 bg-zinc-600/20 text-zinc-400';
+}
+
+function thesisClasses(status: ReturnType<typeof evaluateThesis>): string {
+  if (status === 'Strengthening') return 'text-emerald-300';
+  if (status === 'Breaking') return 'text-rose-300';
+  return 'text-[var(--cb-text-muted)]';
+}
+
 function formatPrice(price: number | null): string {
   if (price == null) return '—';
   return `$${price.toFixed(2)}`;
@@ -30,27 +43,37 @@ function formatDollarPnL(value: number): string {
   return `${value >= 0 ? '+' : ''}$${Math.abs(value).toFixed(2)}`;
 }
 
+function daysBetween(start: number | null, end: number): number {
+  if (start == null) return 0;
+  return Math.max(0, Math.floor((end - start) / 86_400_000));
+}
+
 export function TradeCard({ position, currentPrice, onClose }: TradeCardProps) {
   const [closing, setClosing] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
-  const pnl = currentPrice != null ? calculatePnL(position, currentPrice) : null;
+  const isOpen = position.status === 'OPEN';
+  const isPending = position.status === 'PENDING';
+  const thesisStatus = evaluateThesis(position, { currentPrice });
+  const pnl = isOpen && currentPrice != null ? calculatePnL(position, currentPrice) : null;
 
   async function handleClose() {
-    if (currentPrice == null) return;
+    const closePrice = currentPrice ?? position.exitPrice ?? position.entryPrice;
     setClosing(true);
-    await closePosition(position.id, currentPrice);
+    await closePosition(position.id, closePrice);
     onClose?.(position.id);
     setClosing(false);
   }
 
-  const isOpen = position.status === 'open';
-  const displayPrice = isOpen ? currentPrice : position.exitPrice;
+  const displayPrice = position.status === 'CLOSED' ? position.exitPrice : currentPrice;
   const closedPnl =
-    position.status === 'closed' && position.exitPrice != null
+    position.status === 'CLOSED' && position.exitPrice != null && position.openedAt != null
       ? calculatePnL(position, position.exitPrice)
       : null;
   const displayPnl = isOpen ? pnl : closedPnl;
+  const dayAnchor = position.status === 'PENDING' ? position.createdAt : position.openedAt;
+  const dayEnd = position.status === 'CLOSED' ? position.closedAt ?? Date.now() : Date.now();
+  const daysInTrade = daysBetween(dayAnchor, dayEnd);
 
   return (
     <div className="relative overflow-hidden rounded-xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] p-4">
@@ -71,11 +94,9 @@ export function TradeCard({ position, currentPrice, onClose }: TradeCardProps) {
             >
               {position.direction}
             </span>
-            {position.status === 'closed' && (
-              <span className="inline-flex rounded-full border border-zinc-600/40 bg-zinc-600/20 px-2 py-0.5 text-[10px] text-zinc-400">
-                Closed
-              </span>
-            )}
+            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusClasses(position.status)}`}>
+              {position.status}
+            </span>
             {pnl?.hitTarget && (
               <span className="inline-flex rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-300">
                 Target hit
@@ -94,6 +115,8 @@ export function TradeCard({ position, currentPrice, onClose }: TradeCardProps) {
               <span className="text-xl font-semibold">{formatPnL(displayPnl)}</span>
               <span className="text-xs font-medium">{formatDollarPnL(displayPnl.unrealizedPnL)} / share</span>
             </div>
+          ) : isPending ? (
+            <div className="mt-1 text-sm text-amber-300">Waiting for entry</div>
           ) : (
             <div className="mt-1 text-sm text-[var(--cb-text-muted)]">P&L loading…</div>
           )}
@@ -119,7 +142,7 @@ export function TradeCard({ position, currentPrice, onClose }: TradeCardProps) {
           </div>
         </div>
         <div>
-          <span className="text-[var(--cb-text-muted)]">{isOpen ? 'Current' : 'Exit'}</span>
+          <span className="text-[var(--cb-text-muted)]">{position.status === 'CLOSED' ? 'Exit' : 'Current'}</span>
           <div className="font-medium tabular-nums text-[var(--cb-text-primary)]">
             {formatPrice(displayPrice ?? null)}
           </div>
@@ -142,16 +165,17 @@ export function TradeCard({ position, currentPrice, onClose }: TradeCardProps) {
       <div className="mt-2.5 flex items-center gap-3 text-xs text-[var(--cb-text-muted)]">
         <span>Size: {position.sizePct.toFixed(1)}%</span>
         {position.horizon && <span>Horizon: {position.horizon}</span>}
-        <span>{new Date(position.createdAt).toLocaleDateString()}</span>
+        <span>Days in Trade: {daysInTrade}</span>
+        <span className={thesisClasses(thesisStatus)}>Thesis: {thesisStatus}</span>
       </div>
 
       {/* Close action */}
-      {isOpen && currentPrice != null && (
+      {position.status !== 'CLOSED' && (
         <div className="mt-3">
           {showCloseConfirm ? (
             <div className="flex items-center gap-2">
               <span className="text-xs text-[var(--cb-text-muted)]">
-                Close at {formatPrice(currentPrice)}?
+                {isPending ? 'Close pending trade' : `Close at ${formatPrice(currentPrice ?? position.entryPrice)}`}?
               </span>
               <button
                 onClick={handleClose}

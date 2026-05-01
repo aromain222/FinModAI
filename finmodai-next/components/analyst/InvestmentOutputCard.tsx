@@ -297,11 +297,11 @@ export function InvestmentOutputCard({ output, loading = false }: InvestmentOutp
                 {trackingState === 'saving'
                   ? 'Tracking…'
                   : trackingState === 'tracked'
-                    ? 'Trade tracked'
+                    ? 'Pending trade tracked'
                     : 'Track Trade'}
               </button>
               <span className="text-[var(--cb-text-muted)]">
-                Creates a paper position at {formatPrice(normalized.currentPrice)}.
+                Creates a pending paper trade with desired entry at {formatPrice(normalized.currentPrice)}.
               </span>
             </div>
           ) : normalized.signal !== 'NEUTRAL' ? (

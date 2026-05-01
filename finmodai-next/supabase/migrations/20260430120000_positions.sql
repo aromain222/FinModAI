@@ -8,10 +8,12 @@ create table if not exists public.positions (
   size_pct numeric not null check (size_pct >= 0 and size_pct <= 10),
   confidence numeric not null check (confidence >= 0 and confidence <= 1),
   horizon text,
-  status text not null default 'open' check (status in ('open', 'closed')),
+  status text not null default 'PENDING' check (status in ('PENDING', 'OPEN', 'CLOSED')),
   exit_price numeric,
+  result text check (result in ('WIN', 'LOSS')),
   notes text,
   created_at timestamptz not null default now(),
+  opened_at timestamptz,
   closed_at timestamptz
 );
 

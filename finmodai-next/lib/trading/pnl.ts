@@ -39,18 +39,21 @@ export function formatPnL(pnl: PnLResult): string {
 }
 
 export function closedPnL(position: Position): PnLResult | null {
-  if (position.status !== 'closed' || position.exitPrice == null) return null;
+  if (position.status !== 'CLOSED' || position.exitPrice == null || position.openedAt == null) return null;
   return calculatePnL(position, position.exitPrice);
 }
 
 export function positionSummary(positions: Position[]): {
   totalOpen: number;
+  totalPending: number;
   totalClosed: number;
   winRate: number | null;
   avgReturn: number | null;
+  totalPnL: number | null;
 } {
-  const open = positions.filter((p) => p.status === 'open');
-  const closed = positions.filter((p) => p.status === 'closed' && p.exitPrice != null);
+  const open = positions.filter((p) => p.status === 'OPEN');
+  const pending = positions.filter((p) => p.status === 'PENDING');
+  const closed = positions.filter((p) => p.status === 'CLOSED' && p.exitPrice != null);
   const closedPnls = closed
     .map((p) => closedPnL(p))
     .filter((r): r is PnLResult => r !== null);
@@ -61,6 +64,10 @@ export function positionSummary(positions: Position[]): {
     closedPnls.length > 0
       ? closedPnls.reduce((sum, r) => sum + r.percentReturn, 0) / closedPnls.length
       : null;
+  const totalPnL =
+    closedPnls.length > 0
+      ? closedPnls.reduce((sum, r) => sum + r.unrealizedPnL, 0)
+      : null;
 
-  return { totalOpen: open.length, totalClosed: closed.length, winRate, avgReturn };
+  return { totalOpen: open.length, totalPending: pending.length, totalClosed: closed.length, winRate, avgReturn, totalPnL };
 }

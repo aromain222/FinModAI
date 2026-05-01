@@ -1,26 +1,8 @@
-// Run this SQL in your Supabase project to enable persistence:
-//
-// CREATE TABLE IF NOT EXISTS positions (
-//   id text PRIMARY KEY,
-//   ticker text NOT NULL,
-//   direction text NOT NULL CHECK (direction IN ('LONG', 'SHORT')),
-//   entry_price numeric NOT NULL,
-//   target_price numeric,
-//   stop_loss numeric,
-//   size_pct numeric NOT NULL,
-//   confidence numeric NOT NULL,
-//   horizon text,
-//   status text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')),
-//   exit_price numeric,
-//   notes text,
-//   created_at timestamptz DEFAULT now(),
-//   closed_at timestamptz
-// );
-
 import { supabase } from '@/lib/supabaseClient';
 
 export type PositionDirection = 'LONG' | 'SHORT';
-export type PositionStatus = 'open' | 'closed';
+export type PositionStatus = 'PENDING' | 'OPEN' | 'CLOSED';
+export type PositionResult = 'WIN' | 'LOSS' | null;
 
 export type Position = {
   id: string;
@@ -35,8 +17,10 @@ export type Position = {
   horizon: string | null;
   status: PositionStatus;
   exitPrice: number | null;
+  result: PositionResult;
   notes: string | null;
   createdAt: number;
+  openedAt: number | null;
   closedAt: number | null;
 };
 
@@ -70,6 +54,7 @@ type PositionInsertRow = {
   confidence: number;
   horizon: string | null;
   status: PositionStatus;
+  opened_at: string | null;
   notes: string | null;
   created_at: string;
 };
@@ -77,7 +62,13 @@ type PositionInsertRow = {
 type PositionUpdateRow = {
   status: PositionStatus;
   exit_price: number;
+  result: 'WIN' | 'LOSS' | null;
   closed_at: string;
+};
+
+type PositionLifecycleUpdateRow = {
+  status: PositionStatus;
+  opened_at: string;
 };
 
 type PositionsTableAdapter = {
@@ -91,6 +82,9 @@ type PositionsTableAdapter = {
   update(row: PositionUpdateRow): {
     eq(column: 'id', id: string): PromiseLike<{ error: SupabaseErrorLike | null }>;
   };
+  update(row: PositionLifecycleUpdateRow): {
+    eq(column: 'id', id: string): PromiseLike<{ error: SupabaseErrorLike | null }>;
+  };
 };
 
 function getPositionsTable(): PositionsTableAdapter | null {
@@ -102,6 +96,18 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function normalizeStatus(value: unknown): PositionStatus {
+  if (value === 'PENDING' || value === 'OPEN' || value === 'CLOSED') return value;
+  if (value === 'pending') return 'PENDING';
+  if (value === 'closed') return 'CLOSED';
+  return 'OPEN';
+}
+
+function normalizeResult(value: unknown): PositionResult {
+  if (value === 'WIN' || value === 'LOSS') return value;
+  return null;
+}
+
 function loadLocal(): Position[] {
   if (typeof window === 'undefined') return memoryPositions;
   try {
@@ -110,6 +116,9 @@ function loadLocal(): Position[] {
     return parsed.map((position) => ({
       ...position,
       timestamp: position.timestamp ?? position.createdAt,
+      status: normalizeStatus(position.status),
+      result: normalizeResult(position.result),
+      openedAt: position.openedAt ?? (normalizeStatus(position.status) === 'OPEN' ? position.createdAt : null),
     }));
   } catch {
     return memoryPositions;
@@ -138,10 +147,12 @@ function rowToPosition(row: Record<string, unknown>): Position {
     confidence: Number(row.confidence),
     timestamp: new Date(row.created_at as string).getTime(),
     horizon: row.horizon != null ? String(row.horizon) : null,
-    status: row.status as PositionStatus,
+    status: normalizeStatus(row.status),
     exitPrice: row.exit_price != null ? Number(row.exit_price) : null,
+    result: normalizeResult(row.result),
     notes: row.notes != null ? String(row.notes) : null,
     createdAt: new Date(row.created_at as string).getTime(),
+    openedAt: row.opened_at != null ? new Date(row.opened_at as string).getTime() : null,
     closedAt: row.closed_at != null ? new Date(row.closed_at as string).getTime() : null,
   };
 }
@@ -159,9 +170,11 @@ export async function createPosition(newPosition: NewPosition): Promise<Position
     confidence: newPosition.confidence,
     timestamp: now,
     horizon: newPosition.horizon,
-    status: 'open',
+    status: 'PENDING',
     exitPrice: null,
+    result: null,
     notes: newPosition.notes ?? null,
+    openedAt: null,
     closedAt: null,
     createdAt: now,
   };
@@ -184,6 +197,7 @@ export async function createPosition(newPosition: NewPosition): Promise<Position
         confidence: position.confidence,
         horizon: position.horizon,
         status: position.status,
+        opened_at: null,
         notes: position.notes,
         created_at: new Date(position.createdAt).toISOString(),
       })
@@ -216,19 +230,83 @@ export async function getPositions(): Promise<Position[]> {
   return loadLocal();
 }
 
-export async function closePosition(id: string, exitPrice: number): Promise<void> {
+function entryCrossed(position: Position, currentPrice: number): boolean {
+  if (position.status !== 'PENDING' || !Number.isFinite(currentPrice)) return false;
+  return position.direction === 'LONG'
+    ? currentPrice < position.entryPrice
+    : currentPrice > position.entryPrice;
+}
+
+export async function updatePendingEntries(currentPrices: Record<string, number>): Promise<Position[]> {
   const now = Date.now();
-  const positions = loadLocal().map((p) =>
-    p.id === id ? { ...p, status: 'closed' as PositionStatus, exitPrice, closedAt: now } : p,
-  );
-  saveLocal(positions);
+  const positions = loadLocal();
+  let changed = false;
+  const next = positions.map((position) => {
+    const currentPrice = currentPrices[position.ticker.toUpperCase()];
+    if (currentPrice == null || !entryCrossed(position, currentPrice)) return position;
+    changed = true;
+    return {
+      ...position,
+      status: 'OPEN' as PositionStatus,
+      openedAt: now,
+    };
+  });
+
+  if (!changed) return positions;
+  saveLocal(next);
 
   const table = getPositionsTable();
   if (table) {
+    await Promise.all(
+      next
+        .filter((position) => position.status === 'OPEN' && position.openedAt === now)
+        .map((position) =>
+          table
+            .update({
+              status: 'OPEN',
+              opened_at: new Date(now).toISOString(),
+            })
+            .eq('id', position.id)
+            .then(({ error }) => {
+              if (error && process.env.NODE_ENV !== 'production') {
+                console.warn('[positions] Supabase pending-entry update failed:', error.message);
+              }
+            }),
+        ),
+    );
+  }
+
+  return next;
+}
+
+export async function closePosition(id: string, exitPrice: number): Promise<void> {
+  const now = Date.now();
+  const positions: Position[] = loadLocal().map((p) => {
+    if (p.id !== id) return p;
+    const result: PositionResult =
+      p.status === 'OPEN'
+        ? (p.direction === 'LONG' ? exitPrice > p.entryPrice : exitPrice < p.entryPrice)
+          ? 'WIN'
+          : 'LOSS'
+        : null;
+    return {
+      ...p,
+      status: 'CLOSED',
+      exitPrice,
+      result,
+      closedAt: now,
+    };
+  });
+  saveLocal(positions);
+  const closed = positions.find((position) => position.id === id);
+
+  const table = getPositionsTable();
+  if (table && closed) {
     table
       .update({
-        status: 'closed',
+        status: 'CLOSED',
         exit_price: exitPrice,
+        result: closed.result,
         closed_at: new Date(now).toISOString(),
       })
       .eq('id', id)

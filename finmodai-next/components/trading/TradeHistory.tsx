@@ -18,6 +18,11 @@ function formatPct(value: number | null): string {
   return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 }
 
+function formatDollar(value: number | null): string {
+  if (value == null) return '—';
+  return `${value >= 0 ? '+' : ''}$${Math.abs(value).toFixed(2)}`;
+}
+
 function ClosedRow({ position }: { position: Position }) {
   const pnl = closedPnL(position);
   const dateStr = position.closedAt
@@ -79,7 +84,7 @@ export function TradeHistory({ refreshKey = 0 }: TradeHistoryProps) {
     };
   }, [refreshKey]);
 
-  const closed = positions.filter((p) => p.status === 'closed');
+  const closed = positions.filter((p) => p.status === 'CLOSED');
   const summary = positionSummary(positions);
 
   if (loading) return null;
@@ -110,6 +115,16 @@ export function TradeHistory({ refreshKey = 0 }: TradeHistoryProps) {
                 className={`font-medium ${summary.avgReturn >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}
               >
                 {formatPct(summary.avgReturn)}
+              </span>
+            </span>
+          )}
+          {summary.totalPnL != null && (
+            <span>
+              Total P&L:{' '}
+              <span
+                className={`font-medium ${summary.totalPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}
+              >
+                {formatDollar(summary.totalPnL)}
               </span>
             </span>
           )}
