@@ -190,6 +190,8 @@ function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystOut
     'secondary_drivers' in payload ||
     'analystNote' in payload ||
     'analyst_note' in payload ||
+    'investmentCapabilityMemo' in payload ||
+    'investment_capability_memo' in payload ||
     'forecast' in payload ||
     'historical' in payload ||
     'targetPrice' in payload ||
@@ -222,6 +224,12 @@ function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystOut
       ? payload.analystNote.trim()
       : typeof payload.analyst_note === 'string'
         ? payload.analyst_note.trim()
+        : '';
+  const investmentCapabilityMemo =
+    typeof payload.investmentCapabilityMemo === 'string'
+      ? payload.investmentCapabilityMemo.trim()
+      : typeof payload.investment_capability_memo === 'string'
+        ? payload.investment_capability_memo.trim()
         : '';
   const primaryDriver =
     typeof payload.primaryDriver === 'string' && payload.primaryDriver.trim().length > 0
@@ -292,6 +300,7 @@ function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystOut
     confidenceBreakdown: parseConfidenceBreakdown(confidenceBreakdownSource),
     drivers,
     analystNote: analystNote || undefined,
+    investmentCapabilityMemo: investmentCapabilityMemo || undefined,
     sizePct: parseSizePct(payload),
     forecast: parseNumberSeries(payload.forecast),
     historical: parseNumberSeries(payload.historical),

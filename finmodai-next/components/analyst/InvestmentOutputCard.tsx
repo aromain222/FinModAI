@@ -208,6 +208,12 @@ export function InvestmentOutputCard({ output, loading = false }: InvestmentOutp
         {normalized.analystNote}
       </p>
 
+      {normalized.investmentCapabilityMemo ? (
+        <div className="max-w-3xl rounded-lg border border-[var(--cb-border-subtle)] bg-black/10 px-3 py-2 text-sm leading-6 text-[var(--cb-text-muted)]">
+          {normalized.investmentCapabilityMemo}
+        </div>
+      ) : null}
+
       {/* What Needs to Be True + Sensitivity preview */}
       {showWntbt && (
         <div className="space-y-3 rounded-xl border border-[var(--cb-border-subtle)] bg-black/10 p-3">

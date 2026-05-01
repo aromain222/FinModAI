@@ -95,6 +95,7 @@ test('demo seeded DCF outputs are non-actionable in the investment card', () => 
   assert.equal(output.targetPrice, null);
   assert.equal(output.stopLoss, null);
   assert.match(output.valuationConclusion ?? '', /Non-actionable fallback model/i);
+  assert.match(output.investmentCapabilityMemo ?? '', /non-actionable scaffold/i);
 });
 
 test('normalization repairs near-value conclusion on a material valuation gap', () => {
@@ -107,4 +108,16 @@ test('normalization repairs near-value conclusion on a material valuation gap', 
   });
 
   assert.match(normalized.valuationConclusion, /Significantly overvalued/);
+});
+
+test('normalization includes an investment capability memo for incomplete price data', () => {
+  const normalized = normalizeAnalystOutput({
+    signal: 'LONG',
+    percentChange: 24,
+    confidence: 0.62,
+    analystNote: 'Attractive upside under the model.',
+    ticker: 'TEST',
+  });
+
+  assert.match(normalized.investmentCapabilityMemo, /valuation framework only/i);
 });

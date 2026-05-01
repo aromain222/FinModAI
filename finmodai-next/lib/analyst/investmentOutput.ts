@@ -39,6 +39,7 @@ export type AnalystOutput = {
   breakeven?: BreakevenData | null;
   sensitivityDeltas?: SensitivityDeltas | null;
   valuationConclusion?: string;
+  investmentCapabilityMemo?: string;
   // Trade recommendation fields
   ticker?: string;
   targetPrice?: number | null;
@@ -71,6 +72,7 @@ export type NormalizedAnalystOutput = {
   breakeven: BreakevenData | null;
   sensitivityDeltas: SensitivityDeltas | null;
   valuationConclusion: string;
+  investmentCapabilityMemo: string;
   ticker: string;
   targetPrice: number | null;
   stopLoss: number | null;
@@ -194,6 +196,17 @@ function deriveTradeHorizon(confidence: number, absGapPct: number): string {
   return '12+ months';
 }
 
+function hasLiveValuationSource(source: string): boolean {
+  const normalized = source.toLowerCase();
+  return (
+    normalized.includes('live') ||
+    normalized.includes('finnhub') ||
+    normalized.includes('fmp') ||
+    normalized.includes('sec') ||
+    normalized.includes('polygon')
+  );
+}
+
 function isFallbackDcfSource(source: string): boolean {
   const normalized = source.toLowerCase();
   return normalized.includes('demo') || normalized.includes('fallback');
@@ -209,6 +222,55 @@ function normalizedValuationConclusion(
     return trimmed;
   }
   return formatValuationConclusion({ percentGap, isHighlySensitive });
+}
+
+function computeDcfConfidence(params: {
+  source: string;
+  isFallbackSource: boolean;
+  hasCurrentPrice: boolean;
+  forecastCount: number;
+  years: number;
+  warningCount: number;
+  rangeSpreadPct: number | null;
+  isHighlySensitive: boolean;
+}): number {
+  if (params.isFallbackSource) return 0.25;
+  let confidence = 0.52;
+  if (hasLiveValuationSource(params.source)) confidence += 0.12;
+  if (params.hasCurrentPrice) confidence += 0.08;
+  if (params.forecastCount >= Math.max(2, params.years)) confidence += 0.06;
+  if (params.isHighlySensitive) confidence -= 0.18;
+  if (params.rangeSpreadPct != null && params.rangeSpreadPct > 45) confidence -= 0.08;
+  if (params.warningCount > 0) confidence -= Math.min(0.12, params.warningCount * 0.03);
+  return Number(clamp(confidence, 0.2, 0.85).toFixed(2));
+}
+
+function buildInvestmentCapabilityMemo(params: {
+  companyName: string;
+  signal: InvestmentSignal;
+  confidence: number;
+  isFallbackSource: boolean;
+  hasCurrentPrice: boolean;
+  isHighlySensitive: boolean;
+  sizePct: number | null;
+  primarySensitivity?: string;
+}): string {
+  if (params.isFallbackSource) {
+    return 'Investment capability: non-actionable scaffold only. Live company financials are required before CapitalBase can support a target, stop, or tracked trade.';
+  }
+  if (!params.hasCurrentPrice) {
+    return 'Investment capability: valuation framework only. A current market price is required before the system can size the edge or produce a trade setup.';
+  }
+  if (params.signal === 'NEUTRAL') {
+    return params.isHighlySensitive
+      ? `Investment capability: watchlist and assumption testing. The ${params.companyName} signal is neutral because valuation depends too heavily on ${formatDriver(params.primarySensitivity ?? 'valuation drivers')}.`
+      : `Investment capability: watchlist only. The modeled valuation gap is not large enough to justify a directional position.`;
+  }
+  const sizingText = params.sizePct != null ? `${params.sizePct.toFixed(1)}%` : 'small';
+  if (params.confidence < 0.55 || params.isHighlySensitive) {
+    return `Investment capability: small tracked ${params.signal.toLowerCase()} setup only. Suggested sizing is capped near ${sizingText} because the edge is sensitive to key valuation assumptions.`;
+  }
+  return `Investment capability: actionable tracked ${params.signal.toLowerCase()} setup. The model supports a ${sizingText} paper position with target, stop, and follow-up thesis monitoring.`;
 }
 
 function computeDcfEquityPrice(
@@ -268,8 +330,6 @@ export function deriveOutputFromDcf(dcf: AnalystDcfDemoPayload): AnalystOutput {
   const rawSignal: InvestmentSignal = upside > 5 ? 'LONG' : upside < -5 ? 'SHORT' : 'NEUTRAL';
   const signal: InvestmentSignal =
     isFallbackSource || (sensitivity.isHighlySensitive && rawSignal !== 'NEUTRAL') ? 'NEUTRAL' : rawSignal;
-  const baseConfidence = 0.65;
-  const confidence = sensitivity.isHighlySensitive ? baseConfidence * 0.7 : baseConfidence;
 
   const waccPct = dcf.assumptions.wacc * 100;
   const revGrowth0 = (dcf.assumptions.revenueGrowth[0] ?? 0) * 100;
@@ -285,10 +345,30 @@ export function deriveOutputFromDcf(dcf: AnalystDcfDemoPayload): AnalystOutput {
       : `${dcf.companyName} ${Math.abs(upside).toFixed(1)}% ${upside >= 0 ? 'discount' : 'premium'} to intrinsic value`;
 
   const forecastRevenues = dcf.forecast.map((row) => row.revenue);
+  const confidence = computeDcfConfidence({
+    source: dcf.source,
+    isFallbackSource,
+    hasCurrentPrice: currentPrice != null,
+    forecastCount: forecastRevenues.length,
+    years: dcf.years,
+    warningCount: dcf.warnings.length,
+    rangeSpreadPct,
+    isHighlySensitive: sensitivity.isHighlySensitive,
+  });
   const sizePct =
     signal !== 'NEUTRAL' && !isFallbackSource
       ? +Math.min(Math.max(Math.abs(upside) / 4, 1), 10).toFixed(1)
       : null;
+  const investmentCapabilityMemo = buildInvestmentCapabilityMemo({
+    companyName: dcf.companyName,
+    signal,
+    confidence,
+    isFallbackSource,
+    hasCurrentPrice: currentPrice != null,
+    isHighlySensitive: sensitivity.isHighlySensitive,
+    sizePct,
+    primarySensitivity: sensitivity.primarySensitivity,
+  });
 
   const noteText = firstSentences(dcf.memo);
   const analystNote =
@@ -330,6 +410,7 @@ export function deriveOutputFromDcf(dcf: AnalystDcfDemoPayload): AnalystOutput {
           percentGap: upside,
           isHighlySensitive: sensitivity.isHighlySensitive,
         }),
+    investmentCapabilityMemo,
     ticker: dcf.ticker,
     targetPrice: isFallbackSource ? null : targetPrice ?? null,
     stopLoss: isFallbackSource ? null : deriveStopLoss(currentPrice ?? null, signal, upside),
@@ -398,8 +479,20 @@ export function deriveOutputFromGeneratedModel(
   const rawSignal: InvestmentSignal = upside > 10 ? 'LONG' : upside < -10 ? 'SHORT' : 'NEUTRAL';
   const signal: InvestmentSignal =
     sensitivity.isHighlySensitive && rawSignal !== 'NEUTRAL' ? 'NEUTRAL' : rawSignal;
-  const baseConfidence = 0.65;
-  const confidence = sensitivity.isHighlySensitive ? baseConfidence * 0.7 : baseConfidence;
+  const provenanceSource = [
+    model.provenanceSummary.sourceType,
+    ...model.provenanceSummary.sources,
+  ].filter(Boolean).join('_') || 'generated_model';
+  const confidence = computeDcfConfidence({
+    source: provenanceSource,
+    isFallbackSource: false,
+    hasCurrentPrice: currentPrice != null,
+    forecastCount: revenues.length,
+    years: dcf.years,
+    warningCount: 0,
+    rangeSpreadPct: null,
+    isHighlySensitive: sensitivity.isHighlySensitive,
+  });
 
   // Breakeven terminal growth — solve analytically for g that equates equity to market cap
   let breakevenTerminalGrowthPct: number | null = null;
@@ -448,6 +541,16 @@ export function deriveOutputFromGeneratedModel(
 
   const sizePct =
     signal !== 'NEUTRAL' ? +Math.min(Math.max(Math.abs(upside) / 4, 1), 10).toFixed(1) : null;
+  const investmentCapabilityMemo = buildInvestmentCapabilityMemo({
+    companyName: dcf.companyName,
+    signal,
+    confidence,
+    isFallbackSource: false,
+    hasCurrentPrice: currentPrice != null,
+    isHighlySensitive: sensitivity.isHighlySensitive,
+    sizePct,
+    primarySensitivity: sensitivity.primarySensitivity,
+  });
 
   const firstNarrative = model.narrativeBlocks?.[0]?.body?.trim() ?? '';
   const analystNote =
@@ -486,6 +589,7 @@ export function deriveOutputFromGeneratedModel(
       percentGap: upside,
       isHighlySensitive: sensitivity.isHighlySensitive,
     }),
+    investmentCapabilityMemo,
     ticker: dcf.ticker ?? dcf.companyName,
     targetPrice: impliedPrice,
     stopLoss: deriveStopLoss(currentPrice, signal, upside),
@@ -512,6 +616,18 @@ export function normalizeAnalystOutput(output: AnalystOutput): NormalizedAnalyst
   const analystNote =
     output.analystNote?.trim() ||
     fallbackAnalystNote(output, percentChange, primaryDriver, confidence);
+  const investmentCapabilityMemo =
+    output.investmentCapabilityMemo?.trim() ||
+    buildInvestmentCapabilityMemo({
+      companyName: output.ticker || 'this company',
+      signal,
+      confidence,
+      isFallbackSource: false,
+      hasCurrentPrice: output.currentPrice != null,
+      isHighlySensitive: outputSensitivity?.isHighlySensitive === true,
+      sizePct: output.sizePct ?? null,
+      primarySensitivity: outputSensitivity?.primarySensitivity,
+    });
 
   return {
     signal,
@@ -541,6 +657,7 @@ export function normalizeAnalystOutput(output: AnalystOutput): NormalizedAnalyst
       percentChange,
       outputSensitivity?.isHighlySensitive === true,
     ),
+    investmentCapabilityMemo,
     ticker: output.ticker ?? '',
     targetPrice: output.targetPrice ?? null,
     stopLoss: output.stopLoss ?? null,
