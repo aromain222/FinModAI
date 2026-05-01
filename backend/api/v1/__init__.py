@@ -1,9 +1,8 @@
-"""
-API v1 Module
-Version 1 API endpoints
+"""API v1 package.
+
+Do not import route modules here. Importing this package happens before loading
+individual routers, and eager imports can pull optional legacy dependencies into
+small deployments such as the TimesFM service.
 """
 
-from .models import router as models_router
-from .auth import router as auth_router
-
-__all__ = ["models_router", "auth_router"]
+__all__: list[str] = []
