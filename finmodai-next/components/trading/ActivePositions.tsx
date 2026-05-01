@@ -80,6 +80,7 @@ export function ActivePositions({ currentPrices = {}, refreshKey = 0 }: ActivePo
           <TradeCard
             key={position.id}
             position={position}
+            portfolioPositions={positions}
             currentPrice={currentPrices[position.ticker.toUpperCase()]}
             onClose={handleClose}
           />

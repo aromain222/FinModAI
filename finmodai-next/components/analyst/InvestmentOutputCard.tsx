@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   normalizeAnalystOutput,
   getConvictionLabel,
@@ -8,7 +8,8 @@ import {
   type InvestmentSignal,
 } from '@/lib/analyst/investmentOutput';
 import { ForecastSparkline } from '@/components/analyst/ForecastSparkline';
-import { createPosition } from '@/lib/trading/positions';
+import { createPosition, getPositions } from '@/lib/trading/positions';
+import { getPortfolioWarnings, type PortfolioWarning } from '@/lib/trading/portfolio';
 
 // ─── Signal styling helpers ───────────────────────────────────────────────────
 
@@ -66,13 +67,33 @@ type InvestmentOutputCardProps = {
 };
 
 export function InvestmentOutputCard({ output, loading = false }: InvestmentOutputCardProps) {
-  const [trackingState, setTrackingState] = useState<'idle' | 'saving' | 'tracked' | 'error'>('idle');
-
-  if (loading) return <LoadingCard />;
-
   const normalized = normalizeAnalystOutput(output);
+  const [trackingState, setTrackingState] = useState<'idle' | 'saving' | 'tracked' | 'error'>('idle');
+  const [portfolioWarnings, setPortfolioWarnings] = useState<PortfolioWarning[]>([]);
 
-  if (!normalized.isComplete) return <LoadingCard />;
+  useEffect(() => {
+    let cancelled = false;
+    if (!normalized.isComplete || normalized.sizePct == null) {
+      setPortfolioWarnings([]);
+      return;
+    }
+
+    getPositions()
+      .then((positions) => {
+        if (!cancelled) {
+          setPortfolioWarnings(getPortfolioWarnings(positions, { sizePct: normalized.sizePct ?? 0 }));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPortfolioWarnings([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [normalized.isComplete, normalized.sizePct]);
+
+  if (loading || !normalized.isComplete) return <LoadingCard />;
 
   const summaryLine = `${normalized.signal} | ${formatValuationGap(normalized.percentChange)} Gap (${normalized.edgeStrength})`;
   const showAccuracy =
@@ -283,6 +304,16 @@ export function InvestmentOutputCard({ output, loading = false }: InvestmentOutp
           {normalized.sizePct != null ? (
             <div className="mt-2 text-[var(--cb-text-muted)]">
               Conviction: {getConvictionLabel(normalized.sizePct, normalized.confidence)}
+            </div>
+          ) : null}
+
+          {portfolioWarnings.length > 0 ? (
+            <div className="mt-3 space-y-1.5">
+              {portfolioWarnings.map((warning) => (
+                <div key={warning.type} className="rounded-md border border-amber-400/20 bg-amber-500/10 px-2.5 py-1.5 text-amber-200/90">
+                  {warning.message}
+                </div>
+              ))}
             </div>
           ) : null}
 

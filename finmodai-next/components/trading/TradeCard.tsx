@@ -4,10 +4,12 @@ import { useState } from 'react';
 import type { Position } from '@/lib/trading/positions';
 import { closePosition } from '@/lib/trading/positions';
 import { calculatePnL, formatPnL } from '@/lib/trading/pnl';
-import { evaluateThesis } from '@/lib/trading/thesis';
+import { buildTradeUpdate, evaluateThesis } from '@/lib/trading/thesis';
+import { getPositionRiskTags } from '@/lib/trading/portfolio';
 
 type TradeCardProps = {
   position: Position;
+  portfolioPositions?: Position[];
   currentPrice?: number;
   onClose?: (id: string) => void;
 };
@@ -28,9 +30,9 @@ function statusClasses(status: Position['status']): string {
   return 'border-zinc-600/40 bg-zinc-600/20 text-zinc-400';
 }
 
-function thesisClasses(status: ReturnType<typeof evaluateThesis>): string {
-  if (status === 'Strengthening') return 'text-emerald-300';
-  if (status === 'Breaking') return 'text-rose-300';
+function thesisClasses(status: string): string {
+  if (status.startsWith('Strengthening')) return 'text-emerald-300';
+  if (status.startsWith('Breaking')) return 'text-rose-300';
   return 'text-[var(--cb-text-muted)]';
 }
 
@@ -48,13 +50,18 @@ function daysBetween(start: number | null, end: number): number {
   return Math.max(0, Math.floor((end - start) / 86_400_000));
 }
 
-export function TradeCard({ position, currentPrice, onClose }: TradeCardProps) {
+export function TradeCard({ position, portfolioPositions = [], currentPrice, onClose }: TradeCardProps) {
   const [closing, setClosing] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
   const isOpen = position.status === 'OPEN';
   const isPending = position.status === 'PENDING';
   const thesisStatus = evaluateThesis(position, { currentPrice });
+  const tradeUpdate = buildTradeUpdate(position, { currentPrice });
+  const riskTags = getPositionRiskTags(
+    position,
+    portfolioPositions.length > 0 ? portfolioPositions : [position],
+  );
   const pnl = isOpen && currentPrice != null ? calculatePnL(position, currentPrice) : null;
 
   async function handleClose() {
@@ -107,6 +114,14 @@ export function TradeCard({ position, currentPrice, onClose }: TradeCardProps) {
                 Stop hit
               </span>
             )}
+            {riskTags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex rounded-full border border-amber-400/20 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-200/90"
+              >
+                {tag}
+              </span>
+            ))}
           </div>
 
           {/* P&L */}
@@ -167,6 +182,10 @@ export function TradeCard({ position, currentPrice, onClose }: TradeCardProps) {
         {position.horizon && <span>Horizon: {position.horizon}</span>}
         <span>Days in Trade: {daysInTrade}</span>
         <span className={thesisClasses(thesisStatus)}>Thesis: {thesisStatus}</span>
+      </div>
+
+      <div className="mt-2.5 rounded-lg border border-[var(--cb-border-subtle)] bg-black/10 px-3 py-2 text-xs leading-5 text-[var(--cb-text-muted)]">
+        {tradeUpdate}
       </div>
 
       {/* Close action */}

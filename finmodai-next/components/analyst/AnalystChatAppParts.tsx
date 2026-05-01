@@ -34,6 +34,7 @@ import type { CompanyInfoResponse } from '@/app/api/company-info/route';
 import type { AppExecutionTrace } from '@/lib/debug/executionTrace';
 import { ActivePositions } from '@/components/trading/ActivePositions';
 import { TradeHistory } from '@/components/trading/TradeHistory';
+import { PortfolioSummary } from '@/components/trading/PortfolioSummary';
 
 const AnalystDcfCard = dynamic(
   () => import('@/components/analyst/AnalystDcfCard').then((mod) => mod.AnalystDcfCard)
@@ -624,7 +625,8 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
         </CardHeader>
 
         <CardContent className="flex flex-1 flex-col gap-4 bg-[var(--cb-surface-subtle)] p-0">
-          <div className="border-b border-[var(--cb-border-subtle)] px-4 py-4">
+          <div className="space-y-4 border-b border-[var(--cb-border-subtle)] px-4 py-4">
+            <PortfolioSummary currentPrices={currentPrices} />
             <ActivePositions currentPrices={currentPrices} />
           </div>
 
