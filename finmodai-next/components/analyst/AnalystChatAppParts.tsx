@@ -32,6 +32,8 @@ import type { AnalystEarningsSummaryCard } from '@/lib/analyst/earningsSummary';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
 import type { CompanyInfoResponse } from '@/app/api/company-info/route';
 import type { AppExecutionTrace } from '@/lib/debug/executionTrace';
+import { ActivePositions } from '@/components/trading/ActivePositions';
+import { TradeHistory } from '@/components/trading/TradeHistory';
 
 const AnalystDcfCard = dynamic(
   () => import('@/components/analyst/AnalystDcfCard').then((mod) => mod.AnalystDcfCard)
@@ -182,6 +184,34 @@ function getSidebarState(messages: Message[]): SidebarState {
   }
 
   return { latestStockLookup, latestSources, latestAttachmentStatus };
+}
+
+function getLatestAnalystOutput(messages: Message[]): AnalystOutput | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const candidate = messages[index];
+    if (candidate.role === 'assistant' && candidate.meta?.analystOutput) {
+      return candidate.meta.analystOutput;
+    }
+  }
+  return null;
+}
+
+function buildCurrentPrices(
+  stockLookup: StockLookupResult | null,
+  analystOutput: AnalystOutput | null,
+): Record<string, number> {
+  const prices: Record<string, number> = {};
+  if (stockLookup?.ticker && typeof stockLookup.price === 'number' && Number.isFinite(stockLookup.price)) {
+    prices[stockLookup.ticker.toUpperCase()] = stockLookup.price;
+  }
+  if (
+    analystOutput?.ticker &&
+    typeof analystOutput.currentPrice === 'number' &&
+    Number.isFinite(analystOutput.currentPrice)
+  ) {
+    prices[analystOutput.ticker.toUpperCase()] = analystOutput.currentPrice;
+  }
+  return prices;
 }
 
 // ─── Sidebar components ───────────────────────────────────────────────────────
@@ -501,6 +531,8 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
   const latestModelMessage = props.getLatestGeneratedModelMessage();
   const latestDcfMessage = getLatestDcfMessage(props.messages);
   const sidebar = getSidebarState(props.messages);
+  const latestAnalystOutput = getLatestAnalystOutput(props.messages);
+  const currentPrices = buildCurrentPrices(sidebar.latestStockLookup, latestAnalystOutput);
   const hasSidebar =
     Boolean(sidebar.latestStockLookup) ||
     Boolean(sidebar.latestSources) ||
@@ -592,6 +624,10 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
         </CardHeader>
 
         <CardContent className="flex flex-1 flex-col gap-4 bg-[var(--cb-surface-subtle)] p-0">
+          <div className="border-b border-[var(--cb-border-subtle)] px-4 py-4">
+            <ActivePositions currentPrices={currentPrices} />
+          </div>
+
           {/* Message list */}
           <div className="flex-1 space-y-4 overflow-y-auto px-4 py-6 text-sm">
             {props.isLoading && props.loadingState
@@ -1070,6 +1106,9 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
                 </Button>
               </div>
             </form>
+          </div>
+          <div className="border-t border-[var(--cb-border-subtle)] px-4 py-4">
+            <TradeHistory />
           </div>
         </CardContent>
       </Card>

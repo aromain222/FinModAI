@@ -15,7 +15,7 @@ import {
   type AnalystDemoStep,
 } from '@/lib/analyst/demoWorkflow';
 import type { AnalystDcfAdjustment, AnalystDcfDemoPayload } from '@/lib/analyst/dcfDemo';
-import { deriveOutputFromDcf, type AnalystOutput, type InvestmentSignal } from '@/lib/analyst/investmentOutput';
+import { deriveOutputFromDcf, deriveOutputFromGeneratedModel, type AnalystOutput, type InvestmentSignal } from '@/lib/analyst/investmentOutput';
 import type { PendingModelRequest } from '@/lib/analyst/modelReadiness';
 import { routeAnalystQuery } from '@/lib/analyst/router';
 import type { AnalystScenarioCardPayload } from '@/lib/analyst/scenarioCard';
@@ -152,6 +152,14 @@ function parseSizePct(payload: Record<string, unknown>): number | null {
   return finiteNumber(payload.signal.size_pct) ?? finiteNumber(payload.signal.sizePct);
 }
 
+function firstFinite(...values: unknown[]): number | null {
+  for (const value of values) {
+    const parsed = finiteNumber(value);
+    if (parsed !== null) return parsed;
+  }
+  return null;
+}
+
 function parseNumberSeries(value: unknown): number[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -183,7 +191,13 @@ function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystOut
     'analystNote' in payload ||
     'analyst_note' in payload ||
     'forecast' in payload ||
-    'historical' in payload;
+    'historical' in payload ||
+    'targetPrice' in payload ||
+    'target_price' in payload ||
+    'stopLoss' in payload ||
+    'stop_loss' in payload ||
+    'currentPrice' in payload ||
+    'current_price' in payload;
   if (!hasStructuredOutput) return undefined;
 
   const impactSummary = isRecord(payload.impact_summary) ? payload.impact_summary : null;
@@ -193,15 +207,16 @@ function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystOut
     parseSignal(payload.direction) ??
     parseSignal(impactSummary?.direction);
   const percentChange =
-    finiteNumber(payload.percentChange) ??
-    finiteNumber(payload.percent_change) ??
-    finiteNumber(payload.valuationChange) ??
-    finiteNumber(payload.valuation_change) ??
-    finiteNumber(impactSummary?.valuation_change) ??
+    firstFinite(
+      payload.percentChange,
+      payload.percent_change,
+      payload.valuationChange,
+      payload.valuation_change,
+      impactSummary?.valuation_change,
+    ) ??
     undefined;
   const confidence =
-    finiteNumber(payload.confidence) ??
-    (isRecord(payload.signal) ? finiteNumber(payload.signal.conviction) : null);
+    firstFinite(payload.confidence, isRecord(payload.signal) ? payload.signal.conviction : null);
   const analystNote =
     typeof payload.analystNote === 'string'
       ? payload.analystNote.trim()
@@ -240,6 +255,33 @@ function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystOut
 
   const confidenceBreakdownSource =
     payload.confidence_breakdown ?? payload.confidenceBreakdown;
+  const targetPrice = firstFinite(
+    payload.targetPrice,
+    payload.target_price,
+    isRecord(payload.signal) ? payload.signal.target_price : null,
+  );
+  const stopLoss = firstFinite(
+    payload.stopLoss,
+    payload.stop_loss,
+    isRecord(payload.signal) ? payload.signal.stop_loss : null,
+  );
+  const currentPrice = firstFinite(
+    payload.currentPrice,
+    payload.current_price,
+    isRecord(payload.signal) ? payload.signal.current_price : null,
+  );
+  const ticker =
+    typeof payload.ticker === 'string' && payload.ticker.trim().length > 0
+      ? payload.ticker.trim().toUpperCase()
+      : isRecord(payload.signal) && typeof payload.signal.ticker === 'string' && payload.signal.ticker.trim().length > 0
+        ? payload.signal.ticker.trim().toUpperCase()
+      : undefined;
+  const tradeHorizon =
+    typeof payload.horizon === 'string' && payload.horizon.trim().length > 0
+      ? payload.horizon.trim()
+      : typeof payload.tradeHorizon === 'string' && payload.tradeHorizon.trim().length > 0
+        ? payload.tradeHorizon.trim()
+        : undefined;
 
   const analystOutput: AnalystOutput = {
     signal,
@@ -253,6 +295,11 @@ function parseAnalystOutput(payload: Record<string, unknown> | null): AnalystOut
     sizePct: parseSizePct(payload),
     forecast: parseNumberSeries(payload.forecast),
     historical: parseNumberSeries(payload.historical),
+    ticker,
+    targetPrice,
+    stopLoss,
+    currentPrice,
+    tradeHorizon,
   };
 
   if (!analystOutput.signal && isRecord(payload.signal)) {
@@ -648,7 +695,9 @@ export function AnalystChatApp() {
           analystOutput: parseAnalystOutput(payload) ??
             (payload?.dcfDemo && typeof payload.dcfDemo === 'object'
               ? deriveOutputFromDcf(payload.dcfDemo as AnalystDcfDemoPayload)
-              : undefined),
+              : payload?.generatedModel && typeof payload.generatedModel === 'object'
+                ? (deriveOutputFromGeneratedModel(payload.generatedModel as AnalystGeneratedModelPayload) ?? undefined)
+                : undefined),
         },
       };
       if (process.env.NODE_ENV !== 'production' && payload?.executionTrace) {
