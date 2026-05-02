@@ -705,66 +705,90 @@ function deterministicEventForecast(item: ForecastNewsWatchItem, ticker: string)
   if (item.kind === 'earnings' || text.includes('earnings')) {
     return {
       expectedResult: 'Base case is an in-line report unless guidance, AI demand, cloud growth, or ad trends surprise materially.',
+      surpriseToWatch: 'Watch forward guidance, margin commentary, and whether management raises or lowers demand expectations.',
+      transmissionPath: 'Guidance revision -> earnings expectations -> multiple and near-term price path.',
       stockImpact: `For ${ticker}, guidance and forward commentary should matter more than the reported quarter itself.`,
       direction: 'neutral',
       confidence: 0.5,
+      priceImpactPct: 0,
     };
   }
   if (/\b(cpi|inflation|pce)\b/.test(text)) {
     return {
       expectedResult: 'Base case is inflation roughly in line to slightly sticky; the key surprise is whether the print changes rate-cut expectations.',
+      surpriseToWatch: 'A cooler print is equity-positive; a hot services or core inflation print is the negative surprise.',
+      transmissionPath: 'Inflation surprise -> Treasury yields -> discount rates -> growth-stock multiple.',
       stockImpact: `Cooler inflation would support ${ticker} through lower discount rates; hotter inflation would pressure long-duration tech multiples.`,
       direction: 'neutral',
       confidence: 0.48,
+      priceImpactPct: 0,
     };
   }
   if (/\b(fomc|fed|rate|rates)\b/.test(text)) {
     return {
       expectedResult: 'Base case is no major policy shock; markets will focus on the statement tone and path for future cuts.',
+      surpriseToWatch: 'The meaningful surprise is a dovish pivot or a higher-for-longer message relative to market pricing.',
+      transmissionPath: 'Fed path -> yields and risk appetite -> large-cap tech valuation multiples.',
       stockImpact: `Dovish language would help ${ticker}; higher-for-longer language would pressure the forecast path.`,
       direction: 'neutral',
       confidence: 0.48,
+      priceImpactPct: 0,
     };
   }
   if (/\b(payroll|jobs|employment|nonfarm)\b/.test(text)) {
     return {
       expectedResult: 'Base case is a still-resilient labor market; the market reaction depends on whether strength looks inflationary.',
+      surpriseToWatch: 'Best case is soft enough to support cuts but not weak enough to imply demand risk.',
+      transmissionPath: 'Labor surprise -> rate-cut odds and macro growth expectations -> equity risk appetite.',
       stockImpact: `A soft-but-not-weak jobs print would be best for ${ticker}; a hot print raises rate risk.`,
       direction: 'neutral',
       confidence: 0.45,
+      priceImpactPct: 0,
     };
   }
   const direction = newsDirectionScore(`${item.title} ${item.impact}`);
   if (direction > 0) {
     return {
       expectedResult: 'Event read-through skews favorable if the headline is confirmed by follow-through in guidance, demand, or sentiment.',
+      surpriseToWatch: 'Watch whether follow-up reporting confirms durable growth, pricing power, or lower risk.',
+      transmissionPath: 'Company catalyst -> forward estimates and sentiment -> near-term price path.',
       stockImpact: `Likely modest positive pressure on ${ticker} if investors treat this as durable rather than one-off.`,
       direction: 'positive',
       confidence: 0.52,
+      priceImpactPct: 1.2,
     };
   }
   if (direction < 0) {
     return {
       expectedResult: 'Event read-through skews unfavorable if the issue persists or becomes a larger regulatory, margin, or demand concern.',
+      surpriseToWatch: 'Watch whether the issue is isolated or becomes a broader estimate, margin, or regulatory reset.',
+      transmissionPath: 'Negative catalyst -> lower estimates or higher risk premium -> price pressure.',
       stockImpact: `Likely modest negative pressure on ${ticker} unless management or macro data offsets the concern.`,
       direction: 'negative',
       confidence: 0.52,
+      priceImpactPct: -1.2,
     };
   }
   return {
     expectedResult: 'No clear directional result forecast from available context; monitor whether the item changes expectations.',
+    surpriseToWatch: 'No single surprise variable is strong enough to drive the forecast without new information.',
+    transmissionPath: 'Low-signal event -> limited estimate change -> small or no forecast overlay.',
     stockImpact: `Likely limited standalone effect on ${ticker} unless it changes the broader AI, cloud, Search, or rate narrative.`,
     direction: 'neutral',
     confidence: 0.35,
+    priceImpactPct: 0,
   };
 }
 
 function isForecastNewsWatchItemArray(value: unknown): value is Array<{
   title: string;
   expectedResult: string;
+  surpriseToWatch: string;
+  transmissionPath: string;
   stockImpact: string;
   direction: 'positive' | 'negative' | 'neutral';
   confidence: number;
+  priceImpactPct: number;
 }> {
   if (!Array.isArray(value)) return false;
   return value.every((item) => {
@@ -773,12 +797,21 @@ function isForecastNewsWatchItemArray(value: unknown): value is Array<{
     return (
       typeof row.title === 'string' &&
       typeof row.expectedResult === 'string' &&
+      typeof row.surpriseToWatch === 'string' &&
+      typeof row.transmissionPath === 'string' &&
       typeof row.stockImpact === 'string' &&
       (row.direction === 'positive' || row.direction === 'negative' || row.direction === 'neutral') &&
       typeof row.confidence === 'number' &&
-      Number.isFinite(row.confidence)
+      Number.isFinite(row.confidence) &&
+      typeof row.priceImpactPct === 'number' &&
+      Number.isFinite(row.priceImpactPct)
     );
   });
+}
+
+function clampEventImpactPct(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(-6, Math.min(6, value));
 }
 
 async function enrichNewsWatchWithEventForecasts(params: {
@@ -803,7 +836,15 @@ async function enrichNewsWatchWithEventForecasts(params: {
           {
             role: 'system',
             content:
-              'You are an event-forecasting analyst. Return strict JSON only: an array. For each input event, forecast the likely event result and its stock impact over the stated horizon. Do not invent exact numbers unless provided. Use qualitative ranges like in-line, hotter than expected, weaker than expected, better guidance, margin pressure. Direction must be positive, negative, or neutral for the stock.',
+              [
+                'You are a senior buy-side event-forecasting analyst for public equities.',
+                'Return strict JSON only: an array, no markdown.',
+                'For each event, forecast the most likely actual event result, the surprise variable to watch, the transmission path into the stock, and the likely stock impact over the stated horizon.',
+                'Be specific to the ticker when possible. Think like: consensus setup -> likely result -> surprise risk -> revenue/margin/rate/risk-premium channel -> stock direction.',
+                'Do not invent exact economic or earnings numbers unless provided. Use qualitative outcomes like in-line, slightly hotter, weaker guidance, capex pressure, regulatory multiple risk.',
+                'priceImpactPct is the expected direct stock effect over the forecast horizon before TimesFM trend, bounded between -6 and +6. Use 0 for low-signal events.',
+                'direction must be positive, negative, or neutral for the stock. confidence must be 0.2 to 0.85.',
+              ].join(' '),
           },
           {
             role: 'user',
@@ -821,9 +862,12 @@ async function enrichNewsWatchWithEventForecasts(params: {
                 {
                   title: 'same event title',
                   expectedResult: 'short likely event outcome',
+                  surpriseToWatch: 'specific variable that would make the event bullish or bearish',
+                  transmissionPath: 'event result -> financial driver -> stock impact',
                   stockImpact: 'short expected stock effect',
                   direction: 'positive|negative|neutral',
                   confidence: 0.2,
+                  priceImpactPct: 0,
                 },
               ],
             }),
@@ -844,9 +888,12 @@ async function enrichNewsWatchWithEventForecasts(params: {
         ...item,
         eventForecast: {
           expectedResult: ai.expectedResult.trim(),
+          surpriseToWatch: ai.surpriseToWatch.trim(),
+          transmissionPath: ai.transmissionPath.trim(),
           stockImpact: ai.stockImpact.trim(),
           direction: ai.direction,
           confidence: Math.max(0.2, Math.min(0.85, ai.confidence)),
+          priceImpactPct: clampEventImpactPct(ai.priceImpactPct),
         },
       };
     });
@@ -881,15 +928,28 @@ function buildNewsCatalystAdjustment(items: ForecastNewsWatchItem[]): EventAdjus
         item.kind === 'macro' ? 0.85 :
         item.kind === 'company_news' ? 0.7 :
         0.55;
-      return { item, direction, weight: weight * (item.eventForecast?.confidence ?? 0.5) };
+      const priceImpactPct = item.eventForecast?.priceImpactPct;
+      return {
+        item,
+        direction,
+        weight: weight * (item.eventForecast?.confidence ?? 0.5),
+        priceImpactPct: typeof priceImpactPct === 'number' && Number.isFinite(priceImpactPct)
+          ? clampEventImpactPct(priceImpactPct)
+          : null,
+      };
     })
-    .filter((item): item is { item: ForecastNewsWatchItem; direction: 1 | -1; weight: number } => item !== null)
+    .filter((item): item is { item: ForecastNewsWatchItem; direction: 1 | -1; weight: number; priceImpactPct: number | null } => item !== null)
     .slice(0, 4);
 
   if (scored.length === 0) return null;
 
-  const raw = scored.reduce((sum, item) => sum + item.direction * item.weight, 0);
-  const valuationDeltaPct = Math.max(-8, Math.min(8, raw * 1.7));
+  const raw = scored.reduce((sum, item) => {
+    if (item.priceImpactPct !== null && Math.abs(item.priceImpactPct) >= 0.1) {
+      return sum + item.priceImpactPct * item.weight;
+    }
+    return sum + item.direction * item.weight * 1.7;
+  }, 0);
+  const valuationDeltaPct = Math.max(-8, Math.min(8, raw));
   const top = scored[0];
   return {
     valuationDeltaPct,

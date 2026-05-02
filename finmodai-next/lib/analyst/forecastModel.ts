@@ -9,9 +9,12 @@ export type ForecastNewsWatchItem = {
   kind?: 'earnings' | 'macro' | 'company_news' | 'event' | 'ownership' | 'transcript';
   eventForecast?: {
     expectedResult: string;
+    surpriseToWatch?: string;
+    transmissionPath?: string;
     stockImpact: string;
     direction: 'positive' | 'negative' | 'neutral';
     confidence: number;
+    priceImpactPct?: number;
   };
 };
 

@@ -166,12 +166,28 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
                           <span className="font-medium text-[var(--cb-text-primary)]">Expected result: </span>
                           <span className="text-[var(--cb-text-muted)]">{item.eventForecast.expectedResult}</span>
                         </div>
+                        {item.eventForecast.surpriseToWatch ? (
+                          <div>
+                            <span className="font-medium text-[var(--cb-text-primary)]">Watch for: </span>
+                            <span className="text-[var(--cb-text-muted)]">{item.eventForecast.surpriseToWatch}</span>
+                          </div>
+                        ) : null}
+                        {item.eventForecast.transmissionPath ? (
+                          <div>
+                            <span className="font-medium text-[var(--cb-text-primary)]">Why it moves the stock: </span>
+                            <span className="text-[var(--cb-text-muted)]">{item.eventForecast.transmissionPath}</span>
+                          </div>
+                        ) : null}
                         <div>
                           <span className="font-medium text-[var(--cb-text-primary)]">Stock effect: </span>
                           <span className="text-[var(--cb-text-muted)]">{item.eventForecast.stockImpact}</span>
                         </div>
                         <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">
-                          {item.eventForecast.direction} · {Math.round(item.eventForecast.confidence * 100)}% confidence
+                          {item.eventForecast.direction}
+                          {typeof item.eventForecast.priceImpactPct === 'number'
+                            ? ` · ${item.eventForecast.priceImpactPct > 0 ? '+' : ''}${item.eventForecast.priceImpactPct.toFixed(1)}% est. impact`
+                            : ''}
+                          {' '}· {Math.round(item.eventForecast.confidence * 100)}% confidence
                         </div>
                       </div>
                     ) : null}
