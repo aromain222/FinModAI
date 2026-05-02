@@ -489,6 +489,7 @@ type CompanyInfoNewsItem = {
   url: string;
   source: string;
   publishedAt: string;
+  description?: string | null;
 };
 
 function isForecastLayerPayload(value: unknown): value is ForecastLayerPayload {
@@ -532,33 +533,106 @@ function timingLabel(dateValue: string | null | undefined, fallback: string | nu
 }
 
 async function loadForecastCompanyNews(origin: string, ticker: string): Promise<CompanyInfoNewsItem[]> {
+  const aliases = companyAliasesForTicker(ticker);
+  const isRelevant = (item: CompanyInfoNewsItem): boolean => {
+    const text = `${item.title} ${item.description ?? ''}`.toLowerCase();
+    return aliases.some((alias) => text.includes(alias.toLowerCase()));
+  };
+  const seen = new Set<string>();
+  const merge = (items: CompanyInfoNewsItem[]): CompanyInfoNewsItem[] => {
+    const merged: CompanyInfoNewsItem[] = [];
+    for (const item of items) {
+      if (!item.title.trim()) continue;
+      const key = item.url || item.title.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(item);
+    }
+    return merged;
+  };
+
   try {
-    const response = await fetch(`${origin}/api/company-info?ticker=${encodeURIComponent(ticker)}`, {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(3000),
-    });
-    if (!response.ok) return [];
-    const data = (await response.json().catch(() => null)) as { news?: unknown } | null;
-    if (!data || !Array.isArray(data.news)) return [];
-    return data.news
-      .map((item): CompanyInfoNewsItem | null => {
-        if (!item || typeof item !== 'object') return null;
-        const row = item as Record<string, unknown>;
-        const title = typeof row.title === 'string' ? row.title.trim() : '';
-        const url = typeof row.url === 'string' ? row.url.trim() : '';
-        if (!title) return null;
-        return {
-          title,
-          url,
-          source: typeof row.source === 'string' ? row.source.trim() : '',
-          publishedAt: typeof row.publishedAt === 'string' ? row.publishedAt : '',
-        };
+    const [companyInfo, marketHeadlines] = await Promise.all([
+      fetch(`${origin}/api/company-info?ticker=${encodeURIComponent(ticker)}`, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(3000),
       })
-      .filter((item): item is CompanyInfoNewsItem => item !== null)
-      .slice(0, 3);
+        .then((response) => (response.ok ? response.json() : null))
+        .catch(() => null),
+      fetch(`${origin}/api/news/headlines?range=1W&limit=40&topic=all`, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(3500),
+      })
+        .then((response) => (response.ok ? response.json() : null))
+        .catch(() => null),
+    ]);
+
+    const companyItems = Array.isArray(companyInfo?.news)
+      ? companyInfo.news
+          .map((item: unknown): CompanyInfoNewsItem | null => {
+            if (!item || typeof item !== 'object') return null;
+            const row = item as Record<string, unknown>;
+            const title = typeof row.title === 'string' ? row.title.trim() : '';
+            const url = typeof row.url === 'string' ? row.url.trim() : '';
+            if (!title) return null;
+            return {
+              title,
+              url,
+              source: typeof row.source === 'string' ? row.source.trim() : '',
+              publishedAt: typeof row.publishedAt === 'string' ? row.publishedAt : '',
+              description: typeof row.description === 'string' ? row.description.trim() : null,
+            };
+          })
+          .filter((item: CompanyInfoNewsItem | null): item is CompanyInfoNewsItem => item !== null)
+      : [];
+
+    const headlineItems = Array.isArray(marketHeadlines?.items)
+      ? marketHeadlines.items
+          .map((item: unknown): (CompanyInfoNewsItem & { tags?: string[] }) | null => {
+            if (!item || typeof item !== 'object') return null;
+            const row = item as Record<string, unknown>;
+            const title = typeof row.title === 'string' ? row.title.trim() : '';
+            const url = typeof row.url === 'string' ? row.url.trim() : '';
+            if (!title || !url) return null;
+            return {
+              title,
+              url,
+              source: typeof row.source === 'string' ? row.source.trim() : '',
+              publishedAt: typeof row.publishedAt === 'string'
+                ? row.publishedAt
+                : typeof row.published_at === 'string'
+                  ? row.published_at
+                  : '',
+              description: typeof row.description === 'string' ? row.description.trim() : null,
+              tags: Array.isArray(row.tags) ? row.tags.filter((tag): tag is string => typeof tag === 'string') : [],
+            };
+          })
+          .filter((item: (CompanyInfoNewsItem & { tags?: string[] }) | null): item is CompanyInfoNewsItem & { tags?: string[] } => {
+            if (!item) return false;
+            if (item.tags?.some((tag) => tag.toLowerCase() === 'demo')) return false;
+            return isRelevant(item);
+          })
+      : [];
+
+    return merge([...companyItems, ...headlineItems]).slice(0, 5);
   } catch {
     return [];
   }
+}
+
+function companyAliasesForTicker(ticker: string): string[] {
+  const normalized = ticker.trim().toUpperCase();
+  const aliases: Record<string, string[]> = {
+    GOOGL: ['GOOGL', 'GOOG', 'Alphabet', 'Google', 'Gemini', 'YouTube', 'Google Cloud', 'Search'],
+    GOOG: ['GOOG', 'GOOGL', 'Alphabet', 'Google', 'Gemini', 'YouTube', 'Google Cloud', 'Search'],
+    NVDA: ['NVDA', 'Nvidia', 'GPU', 'CUDA', 'Blackwell', 'AI chip'],
+    TSLA: ['TSLA', 'Tesla', 'EV', 'FSD', 'Cybertruck', 'robotaxi'],
+    MSFT: ['MSFT', 'Microsoft', 'Azure', 'OpenAI', 'Copilot'],
+    AAPL: ['AAPL', 'Apple', 'iPhone', 'App Store', 'Vision Pro'],
+    AMZN: ['AMZN', 'Amazon', 'AWS', 'Prime'],
+    META: ['META', 'Meta', 'Facebook', 'Instagram', 'WhatsApp', 'Reality Labs'],
+  };
+  return aliases[normalized] ?? [normalized];
 }
 
 function buildForecastNewsWatchItems(params: {
@@ -614,7 +688,8 @@ function buildForecastNewsWatchItems(params: {
     push({
       title: news.title,
       timing: news.publishedAt ? 'recent' : 'watch',
-      impact: 'Watch whether this changes sentiment, guidance expectations, or the assumptions behind the forecast path.',
+      impact: news.description?.trim() ||
+        'Watch whether this changes sentiment, guidance expectations, or the assumptions behind the forecast path.',
       source: news.source || null,
       url: news.url || null,
       kind: 'company_news',
