@@ -123,6 +123,28 @@ function inferChartSpec(payload: AnalystGeneratedModelPayload): ChartSpec | null
     }
   }
 
+  if (payload.modelType === 'DCF') {
+    const revenueGrowth = Array.isArray(inputs.revenueGrowth) ? inputs.revenueGrowth : [];
+    const ebitMargin = Array.isArray(inputs.ebitMargin) ? inputs.ebitMargin : [];
+    const years = Array.from({ length: Math.max(revenueGrowth.length, ebitMargin.length) }, (_, idx) => `Y${idx + 1}`);
+    if (years.length > 0) {
+      return {
+        kind: 'line',
+        title: 'DCF Assumption Path',
+        data: years.map((year, index) => ({
+          year,
+          revenueGrowth: typeof revenueGrowth[index] === 'number' ? Number(revenueGrowth[index]) * 100 : 0,
+          ebitMargin: typeof ebitMargin[index] === 'number' ? Number(ebitMargin[index]) * 100 : 0,
+        })),
+        lines: [
+          { key: 'revenueGrowth', label: 'Revenue Growth', color: '#38bdf8', valueType: 'percent' },
+          { key: 'ebitMargin', label: 'EBIT Margin', color: '#a78bfa', valueType: 'percent' },
+        ],
+        yType: 'percent',
+      };
+    }
+  }
+
   if (payload.modelType === 'COMPS') {
     const subject = inputs.subject && typeof inputs.subject === 'object' ? (inputs.subject as Record<string, unknown>) : null;
     const peers = Array.isArray(inputs.peers) ? (inputs.peers as Array<Record<string, unknown>>) : [];

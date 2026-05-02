@@ -60,11 +60,81 @@ function formatAbsoluteCurrencyCompact(value: number): string {
   return `$${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
+function formatModelMillionsCompact(value: number): string {
+  return formatAbsoluteCurrencyCompact(value * 1_000_000);
+}
+
+function formatPercentValue(value: number): string {
+  const percentValue = Math.abs(value) <= 1 ? value * 100 : value;
+  return `${percentValue.toLocaleString('en-US', { maximumFractionDigits: 1 })}%`;
+}
+
 function formatModelSharesMillions(value: number): string {
   const actualShares = value * 1_000_000;
   if (Math.abs(actualShares) >= 1_000_000_000) return `${(actualShares / 1_000_000_000).toFixed(1)}B`;
   if (Math.abs(actualShares) >= 1_000_000) return `${(actualShares / 1_000_000).toFixed(1)}M`;
   return actualShares.toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+
+type DcfSummaryMetric = {
+  label: string;
+  value: string;
+  helper?: string;
+};
+
+function getNumberValue(record: Record<string, unknown>, key: string): number | null {
+  const value = record[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function buildDcfPlainEnglishSummary(inputs: Record<string, unknown>): {
+  body: string;
+  metrics: DcfSummaryMetric[];
+} | null {
+  const companyName = typeof inputs.companyName === 'string' ? inputs.companyName : 'The company';
+  const baseRevenue = getNumberValue(inputs, 'baseRevenue');
+  const cash = getNumberValue(inputs, 'cash');
+  const debt = getNumberValue(inputs, 'debt');
+  const sharesOutstanding = getNumberValue(inputs, 'sharesOutstanding');
+  const sharePrice = getNumberValue(inputs, 'sharePrice');
+  const marketCap = getNumberValue(inputs, 'marketCap');
+  const wacc = getNumberValue(inputs, 'wacc');
+  const terminalGrowth = getNumberValue(inputs, 'terminalGrowth');
+  const netDebt = cash !== null && debt !== null ? debt - cash : null;
+  const netDebtLabel = netDebt !== null && netDebt < 0 ? 'Net cash' : 'Net debt';
+  const marketValue =
+    marketCap ?? (sharePrice !== null && sharesOutstanding !== null ? sharePrice * sharesOutstanding : null);
+
+  const metrics: DcfSummaryMetric[] = [];
+  if (baseRevenue !== null) metrics.push({ label: 'Revenue anchor', value: formatModelMillionsCompact(baseRevenue) });
+  if (wacc !== null) metrics.push({ label: 'Discount rate', value: formatPercentValue(wacc) });
+  if (terminalGrowth !== null) metrics.push({ label: 'Long-term growth', value: formatPercentValue(terminalGrowth) });
+  if (netDebt !== null) {
+    metrics.push({
+      label: netDebtLabel,
+      value: formatModelMillionsCompact(Math.abs(netDebt)),
+      helper: netDebt >= 0 ? 'Debt exceeds cash' : 'Cash exceeds debt',
+    });
+  }
+  if (marketValue !== null) metrics.push({ label: 'Market value', value: formatModelMillionsCompact(marketValue) });
+
+  const bodyParts = [
+    `${companyName}'s DCF starts from ${baseRevenue !== null ? formatModelMillionsCompact(baseRevenue) : 'the current revenue base'} and projects cash flow over the explicit forecast period.`,
+    wacc !== null && terminalGrowth !== null
+      ? `The biggest swing factors are the ${formatPercentValue(wacc)} discount rate and ${formatPercentValue(terminalGrowth)} long-term growth assumption.`
+      : 'The biggest swing factors are the discount rate, long-term growth, and margin path.',
+    netDebt !== null
+      ? `${netDebtLabel} is ${formatModelMillionsCompact(Math.abs(netDebt))}, so the enterprise value bridge ${netDebt >= 0 ? 'reduces' : 'increases'} equity value.`
+      : null,
+    marketValue !== null
+      ? `At the current market value of ${formatModelMillionsCompact(marketValue)}, the model needs to clear a high bar before it supports upside.`
+      : null,
+  ].filter((item): item is string => Boolean(item));
+
+  return {
+    body: bodyParts.join(' '),
+    metrics,
+  };
 }
 
 function usesMillionCurrencyDisplay(modelType: AnalystGeneratedModelPayload['modelType'], key?: string): boolean {
@@ -447,6 +517,13 @@ export function AnalystModelCard({
     const companyType = typeof inputs.companyType === 'string' ? inputs.companyType : null;
     return [companyName, ticker, companyType].filter((value): value is string => Boolean(value)).join(' • ');
   }, [payload.extractedInputs]);
+  const dcfPlainEnglishSummary = useMemo(
+    () =>
+      payload.modelType === 'DCF'
+        ? buildDcfPlainEnglishSummary(payload.extractedInputs as Record<string, unknown>)
+        : null,
+    [payload.modelType, payload.extractedInputs],
+  );
   const leadTakeaway = payload.narrativeBlocks[0]?.body?.trim() ?? null;
   const [customRevenueGrowth, setCustomRevenueGrowth] = useState(
     typeof currentAssumptions.revenue_growth === 'number' ? (currentAssumptions.revenue_growth * 100).toFixed(1) : '',
@@ -1003,7 +1080,22 @@ export function AnalystModelCard({
             {companyContextLine ? (
               <div className="text-sm font-medium text-[var(--cb-text-primary)]">{companyContextLine}</div>
             ) : null}
-            {leadTakeaway ? (
+            {dcfPlainEnglishSummary ? (
+              <>
+                <p className="mt-2 text-sm leading-6 text-[var(--cb-text-primary)]">{dcfPlainEnglishSummary.body}</p>
+                {dcfPlainEnglishSummary.metrics.length > 0 ? (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                    {dcfPlainEnglishSummary.metrics.map((metric) => (
+                      <div key={metric.label} className="rounded-lg border border-[var(--cb-border-subtle)] bg-[rgba(255,255,255,0.03)] px-3 py-2">
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">{metric.label}</div>
+                        <div className="mt-1 text-sm font-semibold text-[var(--cb-text-primary)]">{metric.value}</div>
+                        {metric.helper ? <div className="mt-0.5 text-[11px] text-[var(--cb-text-muted)]">{metric.helper}</div> : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            ) : leadTakeaway ? (
               <p className="mt-2 text-sm leading-6 text-[var(--cb-text-primary)]">{leadTakeaway}</p>
             ) : null}
           </div>
