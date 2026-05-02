@@ -196,6 +196,12 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
                             <span className="text-[var(--cb-text-muted)]">{item.eventForecast.transmissionPath}</span>
                           </div>
                         ) : null}
+                        {item.eventForecast.pmRead ? (
+                          <div>
+                            <span className="font-medium text-[var(--cb-text-primary)]">PM read: </span>
+                            <span className="text-[var(--cb-text-muted)]">{item.eventForecast.pmRead.replace(/^PM read:\s*/i, '')}</span>
+                          </div>
+                        ) : null}
                         <div>
                           <span className="font-medium text-[var(--cb-text-primary)]">Stock effect: </span>
                           <span className="text-[var(--cb-text-muted)]">{item.eventForecast.stockImpact}</span>

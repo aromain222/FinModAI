@@ -1227,6 +1227,7 @@ function isForecastNewsWatchItemArray(value: unknown): value is Array<{
   expectedResult: string;
   surpriseToWatch: string;
   transmissionPath: string;
+  pmRead: string;
   stockImpact: string;
   direction: 'positive' | 'negative' | 'neutral';
   confidence: number;
@@ -1242,6 +1243,7 @@ function isForecastNewsWatchItemArray(value: unknown): value is Array<{
       typeof row.expectedResult === 'string' &&
       typeof row.surpriseToWatch === 'string' &&
       typeof row.transmissionPath === 'string' &&
+      typeof row.pmRead === 'string' &&
       typeof row.stockImpact === 'string' &&
       (row.direction === 'positive' || row.direction === 'negative' || row.direction === 'neutral') &&
       typeof row.confidence === 'number' &&
@@ -1278,6 +1280,33 @@ function clampEventImpactRange(value: { downside: number; upside: number } | und
   };
 }
 
+function portfolioManagerRead(item: ForecastNewsWatchItem, ticker: string): string {
+  const text = `${item.title} ${item.impact}`.toLowerCase();
+  if (item.kind === 'earnings' || /\b(earnings|guidance|estimate|outlook)\b/.test(text)) {
+    return `PM read: this matters if it changes forward estimates, not because the print exists. For ${ticker}, guidance quality, margin bridge, and management tone determine whether analysts revise numbers or investors fade the move.`;
+  }
+  if (/\b(ai search|ai overviews|gemini|search monetization)\b/.test(text)) {
+    return `PM read: the stock moves if AI Search changes the durability of Search cash flow. Stable monetization supports the terminal multiple; click or ad-yield leakage forces investors to haircut the highest-quality profit pool.`;
+  }
+  if (/\b(cloud|capex|infrastructure|tpu|data center)\b/.test(text)) {
+    return `PM read: investors will underwrite AI capex only if Cloud growth and margins prove the spend has a return. The stock reacts to the spread between incremental revenue/margin and incremental capital intensity.`;
+  }
+  if (/\b(antitrust|regulat|data[-\s]?sharing|eu|doj|remed)\b/.test(text)) {
+    return `PM read: this is a multiple-risk catalyst more than a near-term revenue catalyst. The stock weakens if remedies reduce Search distribution power, data advantages, or the market's confidence in terminal economics.`;
+  }
+  if (/\b(cpi|inflation|pce|fomc|fed|rate|rates|payroll|jobs|employment|nonfarm)\b/.test(text)) {
+    return `PM read: this flows through discount rates and risk appetite. ${ticker} should react most if the release changes the path of real yields, because long-duration cash flows and mega-cap tech multiples are rate-sensitive.`;
+  }
+  const direction = newsDirectionScore(`${item.title} ${item.impact}`);
+  if (direction > 0) {
+    return `PM read: this can move ${ticker} if it creates an estimate-revision path or lowers perceived risk. One-off headlines should get a smaller overlay than catalysts that change growth, margin, or multiple assumptions.`;
+  }
+  if (direction < 0) {
+    return `PM read: this can pressure ${ticker} if it raises risk premium, threatens margins, or causes investors to question the forecast. If it does not affect estimates or positioning, the price impact should fade.`;
+  }
+  return `PM read: this is a watch item, not a full thesis change yet. It should only move ${ticker} if follow-through changes estimates, discount rates, regulation risk, or investor positioning.`;
+}
+
 async function enrichNewsWatchWithEventForecasts(params: {
   ticker: string;
   horizonLabel: string;
@@ -1285,7 +1314,10 @@ async function enrichNewsWatchWithEventForecasts(params: {
 }): Promise<ForecastNewsWatchItem[]> {
   const base = params.items.map((item) => ({
     ...item,
-    eventForecast: item.eventForecast ?? deterministicEventForecast(item, params.ticker),
+    eventForecast: {
+      ...(item.eventForecast ?? deterministicEventForecast(item, params.ticker)),
+      pmRead: item.eventForecast?.pmRead ?? portfolioManagerRead(item, params.ticker),
+    },
   }));
   if (base.length === 0) return base;
 
@@ -1301,10 +1333,12 @@ async function enrichNewsWatchWithEventForecasts(params: {
             role: 'system',
             content:
               [
-                'You are a senior buy-side event-forecasting analyst for public equities.',
+                'You are a senior hedge fund portfolio manager and buy-side event-forecasting analyst for public equities.',
                 'Return strict JSON only: an array, no markdown.',
                 'For each event, forecast the most likely actual event result, the surprise variable to watch, the transmission path into the stock, and the likely stock impact over the stated horizon.',
-                'Be specific to the ticker when possible. Think like: consensus setup -> likely result -> surprise risk -> revenue/margin/rate/risk-premium channel -> stock direction.',
+                'Be specific to the ticker when possible. Think like a PM: what is consensus already pricing, what would force estimate revisions, what changes the multiple, what affects positioning, and what matters inside the forecast window.',
+                'Use concrete financial channels: revenue growth, margin, capex/free-cash-flow conversion, discount rates, risk premium, terminal multiple, regulatory overhang, or investor positioning.',
+                'Avoid vague phrases like sentiment unless you tie them to a financial channel or positioning effect.',
                 'Do not invent exact economic or earnings numbers unless provided. Use qualitative outcomes like in-line, slightly hotter, weaker guidance, capex pressure, regulatory multiple risk.',
                 'priceImpactPct is the expected direct stock effect over the forecast horizon before TimesFM trend, bounded between -6 and +6. Use 0 for low-signal events.',
                 'direction must be positive, negative, or neutral for the stock. confidence must be 0.2 to 0.85.',
@@ -1322,6 +1356,7 @@ async function enrichNewsWatchWithEventForecasts(params: {
                 sourceType: item.sourceType,
                 impact: item.impact,
                 source: item.source,
+                deterministicPmRead: item.eventForecast?.pmRead,
                 ranking: item.rank
                   ? {
                       score: item.rank.score,
@@ -1335,6 +1370,7 @@ async function enrichNewsWatchWithEventForecasts(params: {
                   expectedResult: 'short likely event outcome',
                   surpriseToWatch: 'specific variable that would make the event bullish or bearish',
                   transmissionPath: 'event result -> financial driver -> stock impact',
+                  pmRead: 'hedge fund PM read on what is priced, what can revise estimates or the multiple, and why the stock should move',
                   stockImpact: 'short expected stock effect',
                   direction: 'positive|negative|neutral',
                   confidence: 0.2,
@@ -1362,6 +1398,7 @@ async function enrichNewsWatchWithEventForecasts(params: {
           expectedResult: ai.expectedResult.trim(),
           surpriseToWatch: ai.surpriseToWatch.trim(),
           transmissionPath: ai.transmissionPath.trim(),
+          pmRead: ai.pmRead.trim() || item.eventForecast?.pmRead,
           stockImpact: ai.stockImpact.trim(),
           direction: ai.direction,
           confidence: Math.max(0.2, Math.min(0.85, ai.confidence)),

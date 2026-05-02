@@ -16,6 +16,7 @@ export type ForecastNewsWatchItem = {
     expectedResult: string;
     surpriseToWatch?: string;
     transmissionPath?: string;
+    pmRead?: string;
     stockImpact: string;
     direction: 'positive' | 'negative' | 'neutral';
     confidence: number;
