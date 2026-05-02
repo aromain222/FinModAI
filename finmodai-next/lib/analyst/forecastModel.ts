@@ -17,6 +17,15 @@ export type ForecastNewsWatchItem = {
     surpriseToWatch?: string;
     transmissionPath?: string;
     pmRead?: string;
+    institutional?: {
+      playbook: string;
+      whatPriced: string;
+      estimateRevisionRisk: string;
+      multipleImpact: string;
+      positioningRisk: string;
+      timeHorizon: string;
+      forecastOverlay: string;
+    };
     stockImpact: string;
     direction: 'positive' | 'negative' | 'neutral';
     confidence: number;

@@ -202,6 +202,31 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
                             <span className="text-[var(--cb-text-muted)]">{item.eventForecast.pmRead.replace(/^PM read:\s*/i, '')}</span>
                           </div>
                         ) : null}
+                        {item.eventForecast.institutional ? (
+                          <div className="mt-1 grid gap-1 rounded border border-[var(--cb-border-subtle)] bg-black/10 p-2">
+                            <div className="text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
+                              Playbook: {item.eventForecast.institutional.playbook}
+                            </div>
+                            <div>
+                              <span className="font-medium text-[var(--cb-text-primary)]">Priced: </span>
+                              <span className="text-[var(--cb-text-muted)]">{item.eventForecast.institutional.whatPriced}</span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-[var(--cb-text-primary)]">Estimate risk: </span>
+                              <span className="text-[var(--cb-text-muted)]">{item.eventForecast.institutional.estimateRevisionRisk}</span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-[var(--cb-text-primary)]">Multiple/positioning: </span>
+                              <span className="text-[var(--cb-text-muted)]">
+                                {item.eventForecast.institutional.multipleImpact} {item.eventForecast.institutional.positioningRisk}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-[var(--cb-text-primary)]">Overlay: </span>
+                              <span className="text-[var(--cb-text-muted)]">{item.eventForecast.institutional.forecastOverlay}</span>
+                            </div>
+                          </div>
+                        ) : null}
                         <div>
                           <span className="font-medium text-[var(--cb-text-primary)]">Stock effect: </span>
                           <span className="text-[var(--cb-text-muted)]">{item.eventForecast.stockImpact}</span>

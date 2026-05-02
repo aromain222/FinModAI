@@ -114,6 +114,7 @@ import {
   type PriceForecastPayload,
 } from '@/lib/forecast/eventAdjustedForecast';
 import { labelForecastSource, type AnalystForecastModelPayload, type ForecastNewsWatchItem } from '@/lib/analyst/forecastModel';
+import { retrievePmPlaybookForEvent, type RetrievedPmPlaybook } from '@/lib/analyst/pmPlaybook';
 import { featureFlags, serverEnv } from '@/lib/env/server';
 import {
   buildComparisonVisualizationFromPrompt,
@@ -1228,6 +1229,7 @@ function isForecastNewsWatchItemArray(value: unknown): value is Array<{
   surpriseToWatch: string;
   transmissionPath: string;
   pmRead: string;
+  institutional: NonNullable<NonNullable<ForecastNewsWatchItem['eventForecast']>['institutional']>;
   stockImpact: string;
   direction: 'positive' | 'negative' | 'neutral';
   confidence: number;
@@ -1244,6 +1246,7 @@ function isForecastNewsWatchItemArray(value: unknown): value is Array<{
       typeof row.surpriseToWatch === 'string' &&
       typeof row.transmissionPath === 'string' &&
       typeof row.pmRead === 'string' &&
+      isInstitutionalRead(row.institutional) &&
       typeof row.stockImpact === 'string' &&
       (row.direction === 'positive' || row.direction === 'negative' || row.direction === 'neutral') &&
       typeof row.confidence === 'number' &&
@@ -1307,18 +1310,55 @@ function portfolioManagerRead(item: ForecastNewsWatchItem, ticker: string): stri
   return `PM read: this is a watch item, not a full thesis change yet. It should only move ${ticker} if follow-through changes estimates, discount rates, regulation risk, or investor positioning.`;
 }
 
+function institutionalReadFromPlaybook(playbook: RetrievedPmPlaybook): NonNullable<NonNullable<ForecastNewsWatchItem['eventForecast']>['institutional']> {
+  return {
+    playbook: playbook.label,
+    whatPriced: playbook.whatPriced,
+    estimateRevisionRisk: playbook.estimateRevisionRisk,
+    multipleImpact: playbook.multipleImpact,
+    positioningRisk: playbook.positioningRisk,
+    timeHorizon: playbook.timeHorizon,
+    forecastOverlay: playbook.forecastOverlay,
+  };
+}
+
+function isInstitutionalRead(value: unknown): value is NonNullable<NonNullable<ForecastNewsWatchItem['eventForecast']>['institutional']> {
+  if (!value || typeof value !== 'object') return false;
+  const row = value as Record<string, unknown>;
+  return (
+    typeof row.playbook === 'string' &&
+    typeof row.whatPriced === 'string' &&
+    typeof row.estimateRevisionRisk === 'string' &&
+    typeof row.multipleImpact === 'string' &&
+    typeof row.positioningRisk === 'string' &&
+    typeof row.timeHorizon === 'string' &&
+    typeof row.forecastOverlay === 'string'
+  );
+}
+
 async function enrichNewsWatchWithEventForecasts(params: {
   ticker: string;
   horizonLabel: string;
   items: ForecastNewsWatchItem[];
 }): Promise<ForecastNewsWatchItem[]> {
-  const base = params.items.map((item) => ({
-    ...item,
-    eventForecast: {
-      ...(item.eventForecast ?? deterministicEventForecast(item, params.ticker)),
-      pmRead: item.eventForecast?.pmRead ?? portfolioManagerRead(item, params.ticker),
-    },
-  }));
+  const playbookByTitle = new Map<string, RetrievedPmPlaybook>();
+  const base = params.items.map((item) => {
+    const playbook = retrievePmPlaybookForEvent({
+      ticker: params.ticker,
+      title: item.title,
+      impact: item.impact,
+      kind: item.kind,
+    });
+    playbookByTitle.set(item.title.trim().toLowerCase(), playbook);
+    return {
+      ...item,
+      eventForecast: {
+        ...(item.eventForecast ?? deterministicEventForecast(item, params.ticker)),
+        pmRead: item.eventForecast?.pmRead ?? portfolioManagerRead(item, params.ticker),
+        institutional: item.eventForecast?.institutional ?? institutionalReadFromPlaybook(playbook),
+      },
+    };
+  });
   if (base.length === 0) return base;
 
   try {
@@ -1338,6 +1378,7 @@ async function enrichNewsWatchWithEventForecasts(params: {
                 'For each event, forecast the most likely actual event result, the surprise variable to watch, the transmission path into the stock, and the likely stock impact over the stated horizon.',
                 'Be specific to the ticker when possible. Think like a PM: what is consensus already pricing, what would force estimate revisions, what changes the multiple, what affects positioning, and what matters inside the forecast window.',
                 'Use concrete financial channels: revenue growth, margin, capex/free-cash-flow conversion, discount rates, risk premium, terminal multiple, regulatory overhang, or investor positioning.',
+                'You will receive a retrieved PM playbook template for each event. Use that template. Do not ignore it. Populate institutional fields in the output: whatPriced, estimateRevisionRisk, multipleImpact, positioningRisk, timeHorizon, forecastOverlay.',
                 'Avoid vague phrases like sentiment unless you tie them to a financial channel or positioning effect.',
                 'Do not invent exact economic or earnings numbers unless provided. Use qualitative outcomes like in-line, slightly hotter, weaker guidance, capex pressure, regulatory multiple risk.',
                 'priceImpactPct is the expected direct stock effect over the forecast horizon before TimesFM trend, bounded between -6 and +6. Use 0 for low-signal events.',
@@ -1357,6 +1398,7 @@ async function enrichNewsWatchWithEventForecasts(params: {
                 impact: item.impact,
                 source: item.source,
                 deterministicPmRead: item.eventForecast?.pmRead,
+                retrievedPmPlaybook: item.eventForecast?.institutional,
                 ranking: item.rank
                   ? {
                       score: item.rank.score,
@@ -1371,6 +1413,15 @@ async function enrichNewsWatchWithEventForecasts(params: {
                   surpriseToWatch: 'specific variable that would make the event bullish or bearish',
                   transmissionPath: 'event result -> financial driver -> stock impact',
                   pmRead: 'hedge fund PM read on what is priced, what can revise estimates or the multiple, and why the stock should move',
+                  institutional: {
+                    playbook: 'closest retrieved playbook label',
+                    whatPriced: 'what the market likely already prices',
+                    estimateRevisionRisk: 'risk of analyst estimate revisions',
+                    multipleImpact: 'how valuation multiple or risk premium changes',
+                    positioningRisk: 'crowding, rotation, or squeeze/de-risking risk',
+                    timeHorizon: 'when the catalyst should matter',
+                    forecastOverlay: 'how to map it into the stock forecast overlay',
+                  },
                   stockImpact: 'short expected stock effect',
                   direction: 'positive|negative|neutral',
                   confidence: 0.2,
@@ -1392,6 +1443,17 @@ async function enrichNewsWatchWithEventForecasts(params: {
     return base.map((item) => {
       const ai = byTitle.get(item.title.trim().toLowerCase());
       if (!ai) return item;
+      const fallbackPlaybook =
+        item.eventForecast?.institutional ??
+        institutionalReadFromPlaybook(
+          playbookByTitle.get(item.title.trim().toLowerCase()) ??
+            retrievePmPlaybookForEvent({
+              ticker: params.ticker,
+              title: item.title,
+              impact: item.impact,
+              kind: item.kind,
+            }),
+        );
       return {
         ...item,
         eventForecast: {
@@ -1399,6 +1461,15 @@ async function enrichNewsWatchWithEventForecasts(params: {
           surpriseToWatch: ai.surpriseToWatch.trim(),
           transmissionPath: ai.transmissionPath.trim(),
           pmRead: ai.pmRead.trim() || item.eventForecast?.pmRead,
+          institutional: {
+            playbook: ai.institutional.playbook.trim() || fallbackPlaybook.playbook,
+            whatPriced: ai.institutional.whatPriced.trim() || fallbackPlaybook.whatPriced,
+            estimateRevisionRisk: ai.institutional.estimateRevisionRisk.trim() || fallbackPlaybook.estimateRevisionRisk,
+            multipleImpact: ai.institutional.multipleImpact.trim() || fallbackPlaybook.multipleImpact,
+            positioningRisk: ai.institutional.positioningRisk.trim() || fallbackPlaybook.positioningRisk,
+            timeHorizon: ai.institutional.timeHorizon.trim() || fallbackPlaybook.timeHorizon,
+            forecastOverlay: ai.institutional.forecastOverlay.trim() || fallbackPlaybook.forecastOverlay,
+          },
           stockImpact: ai.stockImpact.trim(),
           direction: ai.direction,
           confidence: Math.max(0.2, Math.min(0.85, ai.confidence)),
