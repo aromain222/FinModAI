@@ -700,6 +700,161 @@ function buildForecastNewsWatchItems(params: {
   return items;
 }
 
+function deterministicEventForecast(item: ForecastNewsWatchItem, ticker: string): NonNullable<ForecastNewsWatchItem['eventForecast']> {
+  const text = `${item.title} ${item.impact}`.toLowerCase();
+  if (item.kind === 'earnings' || text.includes('earnings')) {
+    return {
+      expectedResult: 'Base case is an in-line report unless guidance, AI demand, cloud growth, or ad trends surprise materially.',
+      stockImpact: `For ${ticker}, guidance and forward commentary should matter more than the reported quarter itself.`,
+      direction: 'neutral',
+      confidence: 0.5,
+    };
+  }
+  if (/\b(cpi|inflation|pce)\b/.test(text)) {
+    return {
+      expectedResult: 'Base case is inflation roughly in line to slightly sticky; the key surprise is whether the print changes rate-cut expectations.',
+      stockImpact: `Cooler inflation would support ${ticker} through lower discount rates; hotter inflation would pressure long-duration tech multiples.`,
+      direction: 'neutral',
+      confidence: 0.48,
+    };
+  }
+  if (/\b(fomc|fed|rate|rates)\b/.test(text)) {
+    return {
+      expectedResult: 'Base case is no major policy shock; markets will focus on the statement tone and path for future cuts.',
+      stockImpact: `Dovish language would help ${ticker}; higher-for-longer language would pressure the forecast path.`,
+      direction: 'neutral',
+      confidence: 0.48,
+    };
+  }
+  if (/\b(payroll|jobs|employment|nonfarm)\b/.test(text)) {
+    return {
+      expectedResult: 'Base case is a still-resilient labor market; the market reaction depends on whether strength looks inflationary.',
+      stockImpact: `A soft-but-not-weak jobs print would be best for ${ticker}; a hot print raises rate risk.`,
+      direction: 'neutral',
+      confidence: 0.45,
+    };
+  }
+  const direction = newsDirectionScore(`${item.title} ${item.impact}`);
+  if (direction > 0) {
+    return {
+      expectedResult: 'Event read-through skews favorable if the headline is confirmed by follow-through in guidance, demand, or sentiment.',
+      stockImpact: `Likely modest positive pressure on ${ticker} if investors treat this as durable rather than one-off.`,
+      direction: 'positive',
+      confidence: 0.52,
+    };
+  }
+  if (direction < 0) {
+    return {
+      expectedResult: 'Event read-through skews unfavorable if the issue persists or becomes a larger regulatory, margin, or demand concern.',
+      stockImpact: `Likely modest negative pressure on ${ticker} unless management or macro data offsets the concern.`,
+      direction: 'negative',
+      confidence: 0.52,
+    };
+  }
+  return {
+    expectedResult: 'No clear directional result forecast from available context; monitor whether the item changes expectations.',
+    stockImpact: `Likely limited standalone effect on ${ticker} unless it changes the broader AI, cloud, Search, or rate narrative.`,
+    direction: 'neutral',
+    confidence: 0.35,
+  };
+}
+
+function isForecastNewsWatchItemArray(value: unknown): value is Array<{
+  title: string;
+  expectedResult: string;
+  stockImpact: string;
+  direction: 'positive' | 'negative' | 'neutral';
+  confidence: number;
+}> {
+  if (!Array.isArray(value)) return false;
+  return value.every((item) => {
+    if (!item || typeof item !== 'object') return false;
+    const row = item as Record<string, unknown>;
+    return (
+      typeof row.title === 'string' &&
+      typeof row.expectedResult === 'string' &&
+      typeof row.stockImpact === 'string' &&
+      (row.direction === 'positive' || row.direction === 'negative' || row.direction === 'neutral') &&
+      typeof row.confidence === 'number' &&
+      Number.isFinite(row.confidence)
+    );
+  });
+}
+
+async function enrichNewsWatchWithEventForecasts(params: {
+  ticker: string;
+  horizonLabel: string;
+  items: ForecastNewsWatchItem[];
+}): Promise<ForecastNewsWatchItem[]> {
+  const base = params.items.map((item) => ({
+    ...item,
+    eventForecast: item.eventForecast ?? deterministicEventForecast(item, params.ticker),
+  }));
+  if (base.length === 0) return base;
+
+  try {
+    const result = await Promise.race([
+      generateTextWithProviderFallback({
+        clientType: 'user',
+        preferredProvider: 'anthropic',
+        temperature: 0,
+        maxTokens: 900,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are an event-forecasting analyst. Return strict JSON only: an array. For each input event, forecast the likely event result and its stock impact over the stated horizon. Do not invent exact numbers unless provided. Use qualitative ranges like in-line, hotter than expected, weaker than expected, better guidance, margin pressure. Direction must be positive, negative, or neutral for the stock.',
+          },
+          {
+            role: 'user',
+            content: JSON.stringify({
+              ticker: params.ticker,
+              horizon: params.horizonLabel,
+              events: base.map((item) => ({
+                title: item.title,
+                timing: item.timing,
+                kind: item.kind,
+                impact: item.impact,
+                source: item.source,
+              })),
+              schema: [
+                {
+                  title: 'same event title',
+                  expectedResult: 'short likely event outcome',
+                  stockImpact: 'short expected stock effect',
+                  direction: 'positive|negative|neutral',
+                  confidence: 0.2,
+                },
+              ],
+            }),
+          },
+        ],
+      }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
+    ]);
+    const text = result?.text?.trim();
+    if (!text) return base;
+    const parsed = JSON.parse(text) as unknown;
+    if (!isForecastNewsWatchItemArray(parsed)) return base;
+    const byTitle = new Map(parsed.map((item) => [item.title.trim().toLowerCase(), item]));
+    return base.map((item) => {
+      const ai = byTitle.get(item.title.trim().toLowerCase());
+      if (!ai) return item;
+      return {
+        ...item,
+        eventForecast: {
+          expectedResult: ai.expectedResult.trim(),
+          stockImpact: ai.stockImpact.trim(),
+          direction: ai.direction,
+          confidence: Math.max(0.2, Math.min(0.85, ai.confidence)),
+        },
+      };
+    });
+  } catch {
+    return base;
+  }
+}
+
 function newsDirectionScore(text: string): 1 | -1 | 0 {
   const lower = text.toLowerCase();
   if (/\b(beat|beats|raise|raises|raised|upgrade|upgraded|accelerat|strong demand|cloud growth|ai demand|partnership|approval|buyback|margin expansion|cost cuts?|dovish|rates? down|cooling inflation)\b/.test(lower)) {
@@ -714,7 +869,11 @@ function newsDirectionScore(text: string): 1 | -1 | 0 {
 function buildNewsCatalystAdjustment(items: ForecastNewsWatchItem[]): EventAdjustmentInput | null {
   const scored = items
     .map((item) => {
-      const direction = newsDirectionScore(`${item.title} ${item.impact}`);
+      const forecastDirection =
+        item.eventForecast?.direction === 'positive' ? 1 :
+        item.eventForecast?.direction === 'negative' ? -1 :
+        0;
+      const direction = forecastDirection || newsDirectionScore(`${item.title} ${item.impact} ${item.eventForecast?.stockImpact ?? ''}`);
       if (direction === 0) return null;
       const weight =
         item.kind === 'earnings' ? 1.15 :
@@ -722,7 +881,7 @@ function buildNewsCatalystAdjustment(items: ForecastNewsWatchItem[]): EventAdjus
         item.kind === 'macro' ? 0.85 :
         item.kind === 'company_news' ? 0.7 :
         0.55;
-      return { item, direction, weight };
+      return { item, direction, weight: weight * (item.eventForecast?.confidence ?? 0.5) };
     })
     .filter((item): item is { item: ForecastNewsWatchItem; direction: 1 | -1; weight: number } => item !== null)
     .slice(0, 4);
@@ -2867,12 +3026,17 @@ export async function POST(req: NextRequest) {
           macroEventsContext?.events && macroEventsContext.events.length > 0
             ? deriveMarketEventAdjustment(macroEventsContext.events, resolvedTicker)
             : null;
-        const forecastNewsWatch = buildForecastNewsWatchItems({
+        const rawForecastNewsWatch = buildForecastNewsWatchItems({
           ticker: resolvedTicker,
           horizonDays,
           events: macroEventsContext?.events,
           catalystContext,
           companyNews,
+        });
+        const forecastNewsWatch = await enrichNewsWatchWithEventForecasts({
+          ticker: resolvedTicker,
+          horizonLabel,
+          items: rawForecastNewsWatch,
         });
         const newsCatalystAdjustment = buildNewsCatalystAdjustment(forecastNewsWatch);
         const combinedForecastAdjustment = combineForecastAdjustments({

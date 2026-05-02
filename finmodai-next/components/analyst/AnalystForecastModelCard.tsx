@@ -160,6 +160,21 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
                       {item.impact}
                       {item.source ? ` Source: ${item.source}.` : ''}
                     </div>
+                    {item.eventForecast ? (
+                      <div className="mt-2 grid gap-1.5 rounded-md border border-[var(--cb-border-subtle)] bg-black/15 p-2 text-xs leading-5">
+                        <div>
+                          <span className="font-medium text-[var(--cb-text-primary)]">Expected result: </span>
+                          <span className="text-[var(--cb-text-muted)]">{item.eventForecast.expectedResult}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-[var(--cb-text-primary)]">Stock effect: </span>
+                          <span className="text-[var(--cb-text-muted)]">{item.eventForecast.stockImpact}</span>
+                        </div>
+                        <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">
+                          {item.eventForecast.direction} · {Math.round(item.eventForecast.confidence * 100)}% confidence
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               ))}

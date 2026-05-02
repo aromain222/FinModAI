@@ -7,6 +7,12 @@ export type ForecastNewsWatchItem = {
   source?: string | null;
   url?: string | null;
   kind?: 'earnings' | 'macro' | 'company_news' | 'event' | 'ownership' | 'transcript';
+  eventForecast?: {
+    expectedResult: string;
+    stockImpact: string;
+    direction: 'positive' | 'negative' | 'neutral';
+    confidence: number;
+  };
 };
 
 export type AnalystForecastModelPayload = {
