@@ -2116,6 +2116,7 @@ export async function POST(req: NextRequest) {
         looksLikeScenarioDcfWorkflowPrompt(lastUserMessage) &&
         (!resolvedTicker || resolvedTicker === 'TSLA'),
       );
+    const prioritizeShortTermPriceForecast = shouldPrioritizeShortTermPriceForecast(lastUserMessage);
 
     if (shouldRunTeslaScenarioCard) {
       addExecutionTraceService(executionTrace, 'run_ai_smart_dcf_scenario');
@@ -2357,7 +2358,12 @@ export async function POST(req: NextRequest) {
       }));
     }
 
-    if (currentDcf && !artifactTickerMismatch && looksLikeDcfValuationVerdictPrompt(lastUserMessage)) {
+    if (
+      currentDcf &&
+      !artifactTickerMismatch &&
+      looksLikeDcfValuationVerdictPrompt(lastUserMessage) &&
+      !prioritizeShortTermPriceForecast
+    ) {
       return NextResponse.json(withAttachmentStatus(withExecutionTrace({
         reply: buildDcfValuationVerdictReply(currentDcf),
         fallback: false,
@@ -2685,7 +2691,7 @@ export async function POST(req: NextRequest) {
         if (
           forecastReplyInput &&
           isCompanyForecastPrompt(lastUserMessage) &&
-          (!isValuationOrTradeAnalysisPrompt(lastUserMessage) || shouldPrioritizeShortTermPriceForecast(lastUserMessage))
+          (!isValuationOrTradeAnalysisPrompt(lastUserMessage) || prioritizeShortTermPriceForecast)
         ) {
           deterministicForecastReply = buildDeterministicForecastReply(forecastReplyInput);
         }
