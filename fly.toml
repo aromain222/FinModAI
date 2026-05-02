@@ -42,6 +42,6 @@ primary_region = "iad"
     protocol = "http"
 
 [[vm]]
-  memory = "4096mb"
+  memory = "8192mb"
   cpu_kind = "shared"
-  cpus = 2
+  cpus = 4
