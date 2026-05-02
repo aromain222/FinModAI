@@ -26,6 +26,12 @@ export type ForecastNewsWatchItem = {
       timeHorizon: string;
       forecastOverlay: string;
     };
+    pmBrain?: {
+      pmView: string;
+      forecastOverlayPct: number;
+      confidence: number;
+      invalidationSignal: string;
+    };
     stockImpact: string;
     direction: 'positive' | 'negative' | 'neutral';
     confidence: number;

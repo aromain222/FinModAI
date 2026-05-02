@@ -202,6 +202,14 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
                             <span className="text-[var(--cb-text-muted)]">{item.eventForecast.pmRead.replace(/^PM read:\s*/i, '')}</span>
                           </div>
                         ) : null}
+                        {item.eventForecast.pmBrain ? (
+                          <div>
+                            <span className="font-medium text-[var(--cb-text-primary)]">Agent brain: </span>
+                            <span className="text-[var(--cb-text-muted)]">
+                              {item.eventForecast.pmBrain.pmView} Overlay {formatPctPoint(item.eventForecast.pmBrain.forecastOverlayPct)} at {Math.round(item.eventForecast.pmBrain.confidence * 100)}% confidence. Invalidation: {item.eventForecast.pmBrain.invalidationSignal}
+                            </span>
+                          </div>
+                        ) : null}
                         {item.eventForecast.institutional ? (
                           <div className="mt-1 grid gap-1 rounded border border-[var(--cb-border-subtle)] bg-black/10 p-2">
                             <div className="text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">

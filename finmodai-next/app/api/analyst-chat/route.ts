@@ -114,6 +114,7 @@ import {
   type PriceForecastPayload,
 } from '@/lib/forecast/eventAdjustedForecast';
 import { labelForecastSource, type AnalystForecastModelPayload, type ForecastNewsWatchItem } from '@/lib/analyst/forecastModel';
+import { runPmAgentBrainForEvent, type PmAgentBrainOutput } from '@/lib/analyst/pmAgentBrain';
 import { retrievePmPlaybookForEvent, type RetrievedPmPlaybook } from '@/lib/analyst/pmPlaybook';
 import { featureFlags, serverEnv } from '@/lib/env/server';
 import {
@@ -1230,6 +1231,7 @@ function isForecastNewsWatchItemArray(value: unknown): value is Array<{
   transmissionPath: string;
   pmRead: string;
   institutional: NonNullable<NonNullable<ForecastNewsWatchItem['eventForecast']>['institutional']>;
+  pmBrain?: NonNullable<NonNullable<ForecastNewsWatchItem['eventForecast']>['pmBrain']>;
   stockImpact: string;
   direction: 'positive' | 'negative' | 'neutral';
   confidence: number;
@@ -1247,6 +1249,7 @@ function isForecastNewsWatchItemArray(value: unknown): value is Array<{
       typeof row.transmissionPath === 'string' &&
       typeof row.pmRead === 'string' &&
       isInstitutionalRead(row.institutional) &&
+      (row.pmBrain === undefined || isPmBrain(row.pmBrain)) &&
       typeof row.stockImpact === 'string' &&
       (row.direction === 'positive' || row.direction === 'negative' || row.direction === 'neutral') &&
       typeof row.confidence === 'number' &&
@@ -1336,6 +1339,28 @@ function isInstitutionalRead(value: unknown): value is NonNullable<NonNullable<F
   );
 }
 
+function pmBrainForForecast(brain: PmAgentBrainOutput): NonNullable<NonNullable<ForecastNewsWatchItem['eventForecast']>['pmBrain']> {
+  return {
+    pmView: brain.pmView,
+    forecastOverlayPct: brain.forecastOverlayPct,
+    confidence: brain.confidence,
+    invalidationSignal: brain.invalidationSignal,
+  };
+}
+
+function isPmBrain(value: unknown): value is NonNullable<NonNullable<ForecastNewsWatchItem['eventForecast']>['pmBrain']> {
+  if (!value || typeof value !== 'object') return false;
+  const row = value as Record<string, unknown>;
+  return (
+    typeof row.pmView === 'string' &&
+    typeof row.forecastOverlayPct === 'number' &&
+    Number.isFinite(row.forecastOverlayPct) &&
+    typeof row.confidence === 'number' &&
+    Number.isFinite(row.confidence) &&
+    typeof row.invalidationSignal === 'string'
+  );
+}
+
 async function enrichNewsWatchWithEventForecasts(params: {
   ticker: string;
   horizonLabel: string;
@@ -1349,13 +1374,23 @@ async function enrichNewsWatchWithEventForecasts(params: {
       impact: item.impact,
       kind: item.kind,
     });
+    const brain = runPmAgentBrainForEvent({
+      ticker: params.ticker,
+      title: item.title,
+      impact: item.impact,
+      kind: item.kind,
+      horizonLabel: params.horizonLabel,
+      rankScore: item.rank?.score,
+      playbook,
+    });
     playbookByTitle.set(item.title.trim().toLowerCase(), playbook);
     return {
       ...item,
       eventForecast: {
         ...(item.eventForecast ?? deterministicEventForecast(item, params.ticker)),
-        pmRead: item.eventForecast?.pmRead ?? portfolioManagerRead(item, params.ticker),
+        pmRead: item.eventForecast?.pmRead ?? brain.pmView ?? portfolioManagerRead(item, params.ticker),
         institutional: item.eventForecast?.institutional ?? institutionalReadFromPlaybook(playbook),
+        pmBrain: item.eventForecast?.pmBrain ?? pmBrainForForecast(brain),
       },
     };
   });
@@ -1399,6 +1434,7 @@ async function enrichNewsWatchWithEventForecasts(params: {
                 source: item.source,
                 deterministicPmRead: item.eventForecast?.pmRead,
                 retrievedPmPlaybook: item.eventForecast?.institutional,
+                pmAgentBrain: item.eventForecast?.pmBrain,
                 ranking: item.rank
                   ? {
                       score: item.rank.score,
@@ -1413,6 +1449,12 @@ async function enrichNewsWatchWithEventForecasts(params: {
                   surpriseToWatch: 'specific variable that would make the event bullish or bearish',
                   transmissionPath: 'event result -> financial driver -> stock impact',
                   pmRead: 'hedge fund PM read on what is priced, what can revise estimates or the multiple, and why the stock should move',
+                  pmBrain: {
+                    pmView: 'deterministic PM view of why the stock should move',
+                    forecastOverlayPct: 0,
+                    confidence: 0.5,
+                    invalidationSignal: 'what would make the PM view wrong',
+                  },
                   institutional: {
                     playbook: 'closest retrieved playbook label',
                     whatPriced: 'what the market likely already prices',
@@ -1443,16 +1485,27 @@ async function enrichNewsWatchWithEventForecasts(params: {
     return base.map((item) => {
       const ai = byTitle.get(item.title.trim().toLowerCase());
       if (!ai) return item;
-      const fallbackPlaybook =
-        item.eventForecast?.institutional ??
-        institutionalReadFromPlaybook(
-          playbookByTitle.get(item.title.trim().toLowerCase()) ??
-            retrievePmPlaybookForEvent({
-              ticker: params.ticker,
-              title: item.title,
-              impact: item.impact,
-              kind: item.kind,
-            }),
+      const retrievedPlaybook =
+        playbookByTitle.get(item.title.trim().toLowerCase()) ??
+        retrievePmPlaybookForEvent({
+          ticker: params.ticker,
+          title: item.title,
+          impact: item.impact,
+          kind: item.kind,
+        });
+      const fallbackPlaybook = item.eventForecast?.institutional ?? institutionalReadFromPlaybook(retrievedPlaybook);
+      const fallbackBrain =
+        item.eventForecast?.pmBrain ??
+        pmBrainForForecast(
+          runPmAgentBrainForEvent({
+            ticker: params.ticker,
+            title: item.title,
+            impact: item.impact,
+            kind: item.kind,
+            horizonLabel: params.horizonLabel,
+            rankScore: item.rank?.score,
+            playbook: retrievedPlaybook,
+          }),
         );
       return {
         ...item,
@@ -1461,6 +1514,14 @@ async function enrichNewsWatchWithEventForecasts(params: {
           surpriseToWatch: ai.surpriseToWatch.trim(),
           transmissionPath: ai.transmissionPath.trim(),
           pmRead: ai.pmRead.trim() || item.eventForecast?.pmRead,
+          pmBrain: ai.pmBrain
+            ? {
+                pmView: ai.pmBrain.pmView.trim() || fallbackBrain.pmView,
+                forecastOverlayPct: clampEventImpactPct(ai.pmBrain.forecastOverlayPct),
+                confidence: Math.max(0.2, Math.min(0.85, ai.pmBrain.confidence)),
+                invalidationSignal: ai.pmBrain.invalidationSignal.trim() || fallbackBrain.invalidationSignal,
+              }
+            : fallbackBrain,
           institutional: {
             playbook: ai.institutional.playbook.trim() || fallbackPlaybook.playbook,
             whatPriced: ai.institutional.whatPriced.trim() || fallbackPlaybook.whatPriced,
