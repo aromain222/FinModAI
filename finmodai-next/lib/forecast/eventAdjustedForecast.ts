@@ -2,7 +2,7 @@ import type { MarketEvent, MarketEventType } from '@/lib/news/marketEventsTypes'
 
 export type PriceForecastPayload = {
   ticker: string;
-  historical: { dates: string[]; prices: number[] };
+  historical: { dates: string[]; prices: number[]; volumes?: number[] };
   forecast: {
     dates: string[];
     values: number[];

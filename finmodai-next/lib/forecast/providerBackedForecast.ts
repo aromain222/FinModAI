@@ -4,7 +4,7 @@ import { fetchStooqPrices } from '@/lib/stooq';
 
 export type ProviderBackedPriceForecast = {
   ticker: string;
-  historical: { dates: string[]; prices: number[] };
+  historical: { dates: string[]; prices: number[]; volumes?: number[] };
   forecast: {
     dates: string[];
     values: number[];
@@ -34,7 +34,7 @@ export type ProviderBackedRevenueForecast = {
   warnings: string[];
 };
 
-type PriceHistory = { dates: string[]; prices: number[]; warnings: string[] };
+type PriceHistory = { dates: string[]; prices: number[]; volumes?: number[]; warnings: string[] };
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -75,10 +75,14 @@ async function fetchYahooPriceHistory(ticker: string, warnings: string[]): Promi
     const closes: Array<number | null> = Array.isArray(result?.indicators?.quote?.[0]?.close)
       ? result.indicators.quote[0].close
       : [];
+    const volumes: Array<number | null> = Array.isArray(result?.indicators?.quote?.[0]?.volume)
+      ? result.indicators.quote[0].volume
+      : [];
     const points = timestamps
       .map((timestamp, index) => ({
         date: isoDate(new Date(timestamp * 1000)),
         close: Number(closes[index]),
+        volume: Number(volumes[index]),
       }))
       .filter((point) => Number.isFinite(point.close) && point.close > 0);
 
@@ -90,6 +94,7 @@ async function fetchYahooPriceHistory(ticker: string, warnings: string[]): Promi
     return {
       dates: points.map((point) => point.date),
       prices: points.map((point) => point.close),
+      volumes: points.map((point) => Number.isFinite(point.volume) && point.volume > 0 ? point.volume : 0),
       warnings,
     };
   } catch (error) {
@@ -106,6 +111,7 @@ async function fetchPriceHistory(ticker: string): Promise<PriceHistory | null> {
     return {
       dates: fmp.data.map((point) => point.date),
       prices: fmp.data.map((point) => point.close),
+      volumes: fmp.data.map((point) => point.volume),
       warnings,
     };
   }
@@ -127,6 +133,7 @@ async function fetchPriceHistory(ticker: string): Promise<PriceHistory | null> {
       return {
         dates: ordered.map((point) => point.date),
         prices: ordered.map((point) => point.close),
+        volumes: ordered.map((point) => point.volume),
         warnings,
       };
     }
@@ -178,7 +185,7 @@ export async function buildProviderBackedPriceForecast(
 
   return {
     ticker: ticker.toUpperCase(),
-    historical: { dates, prices },
+    historical: { dates, prices, volumes: history.volumes },
     forecast: { dates: forecastDates, values, lower, upper },
     model_available: true,
     horizon_days: horizon,

@@ -1,4 +1,5 @@
 import type { ForecastBacktestSummary } from '@/lib/analyst/forecastBacktest';
+import type { TechnicalConfirmation } from '@/lib/analyst/technicalConfirmation';
 
 export type ForecastModelSource = 'timesfm' | 'flat_fallback' | string;
 
@@ -67,6 +68,7 @@ export type AnalystForecastModelPayload = {
   returnPct?: number | null;
   newsWatch?: ForecastNewsWatchItem[];
   backtest?: ForecastBacktestSummary;
+  technicals?: TechnicalConfirmation;
   confidence: number;
   source: ForecastModelSource;
   attributionExplanation?: string | null;

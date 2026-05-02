@@ -39,9 +39,26 @@ function qualityClass(quality: string): string {
   return 'border-[var(--cb-border-subtle)] bg-black/10 text-[var(--cb-text-muted)]';
 }
 
+function verdictClass(verdict: string): string {
+  if (verdict === 'confirms') return 'border-emerald-400/25 bg-emerald-400/10 text-emerald-100';
+  if (verdict === 'conflicts') return 'border-red-400/25 bg-red-400/10 text-red-100';
+  if (verdict === 'mixed') return 'border-amber-400/25 bg-amber-400/10 text-amber-100';
+  return 'border-[var(--cb-border-subtle)] bg-black/10 text-[var(--cb-text-muted)]';
+}
+
 function formatHitRate(value: number | null): string {
   if (value === null || !Number.isFinite(value)) return 'n/a';
   return `${Math.round(value * 100)}%`;
+}
+
+function formatPctStat(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return 'n/a';
+  return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
+}
+
+function formatVolStat(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return 'n/a';
+  return `${value.toFixed(1)}%`;
 }
 
 function sampledIndexes(length: number): number[] {
@@ -185,6 +202,53 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
                 </div>
               )}
             </div>
+          </div>
+        ) : null}
+
+        {isPriceForecast && payload.technicals ? (
+          <div className={`rounded-lg border p-3 ${verdictClass(payload.technicals.verdict)}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] font-medium uppercase tracking-widest opacity-80">
+                  Technical Confirmation
+                </div>
+                <div className="mt-1 text-sm font-semibold text-[var(--cb-text-primary)]">
+                  {payload.technicals.verdict === 'confirms'
+                    ? 'Technicals confirm the forecast'
+                    : payload.technicals.verdict === 'conflicts'
+                      ? 'Technicals conflict with the forecast'
+                      : payload.technicals.verdict === 'mixed'
+                        ? 'Technicals are mixed'
+                        : 'Not enough technical history'}
+                </div>
+              </div>
+              <div className="rounded-full border border-current/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest">
+                {payload.technicals.trendBias} trend
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
+              <div>
+                <div className="text-[10px] uppercase tracking-widest opacity-70">20D MA</div>
+                <div className="mt-0.5 font-semibold tabular-nums">{formatPctStat(payload.technicals.priceVsMa20Pct)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-widest opacity-70">50D MA</div>
+                <div className="mt-0.5 font-semibold tabular-nums">{formatPctStat(payload.technicals.priceVsMa50Pct)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-widest opacity-70">Momentum</div>
+                <div className="mt-0.5 font-semibold tabular-nums">{formatPctStat(payload.technicals.momentum20dPct)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-widest opacity-70">Volatility</div>
+                <div className="mt-0.5 font-semibold tabular-nums">{formatVolStat(payload.technicals.volatility30dPct)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-widest opacity-70">Volume</div>
+                <div className="mt-0.5 font-semibold tabular-nums">{formatPctStat(payload.technicals.volumeTrendPct)}</div>
+              </div>
+            </div>
+            <div className="mt-2 text-xs leading-5 opacity-85">{payload.technicals.explanation}</div>
           </div>
         ) : null}
 
