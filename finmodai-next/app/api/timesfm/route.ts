@@ -10,6 +10,7 @@ export const maxDuration = 60;
 
 const PYTHON_BACKEND = process.env.PYTHON_BACKEND_URL?.trim() || null;
 const LOCAL_PYTHON_BACKEND = process.env.NODE_ENV === 'production' ? null : 'http://localhost:8082';
+const NO_STORE_HEADERS = { 'Cache-Control': 'no-store, max-age=0' };
 
 function pythonBackendUrl(): string | null {
   return PYTHON_BACKEND || LOCAL_PYTHON_BACKEND;
@@ -55,7 +56,7 @@ export async function GET(req: NextRequest) {
             timesfm_status: 'used',
             methodology: data?.methodology ?? 'TimesFM forecast service',
           },
-          { headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=600' } },
+          { headers: NO_STORE_HEADERS },
         );
       }
     } catch {
@@ -74,7 +75,7 @@ export async function GET(req: NextRequest) {
           timesfmStatus === 'not_configured' ? 'timesfm:not_configured' : 'timesfm:upstream_failed',
         ],
       }, {
-        headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=600' },
+        headers: NO_STORE_HEADERS,
       });
     }
   } else {
@@ -88,7 +89,7 @@ export async function GET(req: NextRequest) {
           timesfmStatus === 'not_configured' ? 'timesfm:not_configured' : 'timesfm:upstream_failed',
         ],
       }, {
-        headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=600' },
+        headers: NO_STORE_HEADERS,
       });
     }
   }
