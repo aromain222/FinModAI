@@ -2568,10 +2568,18 @@ export async function POST(req: NextRequest) {
             model_source?: string;
             methodology?: string;
           };
-          if (rd.model_available && rd.forecast && rd.implied_growth_rate != null) {
+          const forecastValues = rd.forecast?.values ?? [];
+          const forecastLabels = rd.forecast?.labels ?? [];
+          const hasNtmRevenueContext =
+            revenueQuarters >= 4 &&
+            forecastValues.length >= 4 &&
+            forecastLabels.length >= 4 &&
+            rd.implied_growth_rate != null;
+          if (rd.model_available && rd.forecast && hasNtmRevenueContext) {
             const growth = (rd.implied_growth_rate * 100).toFixed(1);
-            const fwdRevenue = rd.forecast.values
-              .map((v, i) => `${rd.forecast!.labels[i]}: $${Math.round(v)}M`)
+            const fwdRevenue = forecastValues
+              .slice(0, revenueQuarters)
+              .map((v, i) => `${forecastLabels[i]}: $${Math.round(v)}M`)
               .join(', ');
             if (forecastReplyInput) {
               forecastReplyInput.revenueForecast = {
