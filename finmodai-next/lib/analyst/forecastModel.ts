@@ -7,6 +7,10 @@ export type ForecastNewsWatchItem = {
   source?: string | null;
   url?: string | null;
   kind?: 'earnings' | 'macro' | 'company_news' | 'event' | 'ownership' | 'transcript';
+  rank?: {
+    score: number;
+    reason: string;
+  };
   eventForecast?: {
     expectedResult: string;
     surpriseToWatch?: string;

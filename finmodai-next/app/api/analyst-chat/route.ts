@@ -490,6 +490,9 @@ type CompanyInfoNewsItem = {
   source: string;
   publishedAt: string;
   description?: string | null;
+  tags?: string[];
+  rankScore?: number;
+  rankReason?: string;
 };
 
 function isForecastLayerPayload(value: unknown): value is ForecastLayerPayload {
@@ -538,6 +541,118 @@ function datedTimingLabel(dateValue: string | null | undefined, displayDate: str
   return relative ? `${displayDate} (${relative})` : displayDate;
 }
 
+const STRATEGIC_NEWS_TERMS: Record<string, Array<{ pattern: RegExp; label: string; weight: number }>> = {
+  GOOGL: [
+    { pattern: /\b(ai overviews?|gemini|ai search|search generative|search monetization)\b/i, label: 'AI Search', weight: 16 },
+    { pattern: /\b(google cloud|gcp|cloud growth|cloud margin|cloud backlog)\b/i, label: 'Cloud', weight: 14 },
+    { pattern: /\b(capex|data centers?|tpu|infrastructure spend|ai infrastructure)\b/i, label: 'AI capex', weight: 12 },
+    { pattern: /\b(antitrust|doj|eu|regulat|remed(y|ies)|data[-\s]?sharing|competition)\b/i, label: 'regulatory risk', weight: 15 },
+    { pattern: /\b(youtube|ad market|advertising|search ads?|tac)\b/i, label: 'ads/Search economics', weight: 10 },
+    { pattern: /\b(earnings|guidance|estimate|margin|free cash flow|fcf)\b/i, label: 'estimate reset', weight: 9 },
+  ],
+  GOOG: [
+    { pattern: /\b(ai overviews?|gemini|ai search|search generative|search monetization)\b/i, label: 'AI Search', weight: 16 },
+    { pattern: /\b(google cloud|gcp|cloud growth|cloud margin|cloud backlog)\b/i, label: 'Cloud', weight: 14 },
+    { pattern: /\b(capex|data centers?|tpu|infrastructure spend|ai infrastructure)\b/i, label: 'AI capex', weight: 12 },
+    { pattern: /\b(antitrust|doj|eu|regulat|remed(y|ies)|data[-\s]?sharing|competition)\b/i, label: 'regulatory risk', weight: 15 },
+    { pattern: /\b(youtube|ad market|advertising|search ads?|tac)\b/i, label: 'ads/Search economics', weight: 10 },
+    { pattern: /\b(earnings|guidance|estimate|margin|free cash flow|fcf)\b/i, label: 'estimate reset', weight: 9 },
+  ],
+  NVDA: [
+    { pattern: /\b(blackwell|h100|h200|b200|gb200|gpu|cuda|accelerator)\b/i, label: 'AI accelerator demand', weight: 16 },
+    { pattern: /\b(hyperscaler|data center|ai infrastructure|networking|infiniband|ethernet)\b/i, label: 'AI infrastructure', weight: 14 },
+    { pattern: /\b(tsmc|supply|lead times?|capacity|export controls?|china)\b/i, label: 'supply/geopolitical risk', weight: 12 },
+    { pattern: /\b(amd|asic|custom silicon|broadcom|competition)\b/i, label: 'competition', weight: 12 },
+    { pattern: /\b(gross margin|pricing|guidance|earnings|estimate)\b/i, label: 'margin/estimate reset', weight: 10 },
+  ],
+  TSLA: [
+    { pattern: /\b(deliveries|production|pricing|incentives?|demand|inventory)\b/i, label: 'deliveries/pricing', weight: 15 },
+    { pattern: /\b(robotaxi|fsd|autonomy|self-driving|dojo)\b/i, label: 'autonomy narrative', weight: 14 },
+    { pattern: /\b(china|tariff|ev credit|regulat|safety|recall)\b/i, label: 'policy/regulatory risk', weight: 11 },
+    { pattern: /\b(margin|earnings|guidance|free cash flow|fcf)\b/i, label: 'margin/estimate reset', weight: 10 },
+  ],
+};
+
+const GENERAL_MARKET_MOVING_TERMS: Array<{ pattern: RegExp; label: string; weight: number }> = [
+  { pattern: /\b(beat|beats|raise|raises|raised|upgrade|upgraded|approval|partnership|buyback|margin expansion)\b/i, label: 'positive catalyst language', weight: 7 },
+  { pattern: /\b(miss|misses|cut|cuts|lowered|downgrade|downgraded|lawsuit|probe|investigation|margin pressure|warning)\b/i, label: 'negative catalyst language', weight: 7 },
+  { pattern: /\b(earnings|guidance|forecast|outlook|estimate|consensus)\b/i, label: 'estimate-sensitive', weight: 6 },
+  { pattern: /\b(regulat|antitrust|tariff|sanction|export control|litigation)\b/i, label: 'risk-premium catalyst', weight: 6 },
+];
+
+function headlineAgeDays(publishedAt: string): number | null {
+  if (!publishedAt) return null;
+  const time = new Date(publishedAt).getTime();
+  if (!Number.isFinite(time)) return null;
+  return Math.max(0, (Date.now() - time) / 86_400_000);
+}
+
+function scoreHeadlineRecency(publishedAt: string): number {
+  const age = headlineAgeDays(publishedAt);
+  if (age === null) return 1;
+  if (age <= 1) return 10;
+  if (age <= 3) return 8;
+  if (age <= 7) return 5;
+  if (age <= 14) return 3;
+  return 1;
+}
+
+function rankCompanyHeadline(item: CompanyInfoNewsItem, ticker: string, aliases: string[]): CompanyInfoNewsItem {
+  const normalizedTicker = ticker.trim().toUpperCase();
+  const text = `${item.title} ${item.description ?? ''} ${(item.tags ?? []).join(' ')}`.toLowerCase();
+  const reasons: string[] = [];
+  let score = scoreHeadlineRecency(item.publishedAt);
+
+  for (const alias of aliases) {
+    const lowerAlias = alias.toLowerCase();
+    if (!lowerAlias || !text.includes(lowerAlias)) continue;
+    score += lowerAlias === normalizedTicker.toLowerCase() ? 12 : 8;
+    if (reasons.length < 3) reasons.push(alias);
+  }
+
+  const strategicTerms = STRATEGIC_NEWS_TERMS[normalizedTicker] ?? [];
+  for (const term of strategicTerms) {
+    if (!term.pattern.test(text)) continue;
+    score += term.weight;
+    if (!reasons.includes(term.label) && reasons.length < 4) reasons.push(term.label);
+  }
+
+  for (const term of GENERAL_MARKET_MOVING_TERMS) {
+    if (!term.pattern.test(text)) continue;
+    score += term.weight;
+    if (!reasons.includes(term.label) && reasons.length < 4) reasons.push(term.label);
+  }
+
+  if (item.source && /\b(reuters|bloomberg|wsj|financial times|cnbc|marketwatch|seeking alpha|the information|verge)\b/i.test(item.source)) {
+    score += 3;
+  }
+
+  const age = headlineAgeDays(item.publishedAt);
+  const recencyReason = age === null
+    ? 'date unavailable'
+    : age <= 1
+      ? 'fresh headline'
+      : age <= 7
+        ? 'recent headline'
+        : 'older context';
+  const reason = [...reasons.slice(0, 3), recencyReason].filter(Boolean).join(' • ');
+
+  return {
+    ...item,
+    rankScore: Math.round(score * 10) / 10,
+    rankReason: reason || 'ticker-relevant headline',
+  };
+}
+
+function rankCompanyHeadlines(items: CompanyInfoNewsItem[], ticker: string): CompanyInfoNewsItem[] {
+  const aliases = companyAliasesForTicker(ticker);
+  return items
+    .map((item) => rankCompanyHeadline(item, ticker, aliases))
+    .filter((item) => (item.rankScore ?? 0) >= 10)
+    .sort((left, right) => (right.rankScore ?? 0) - (left.rankScore ?? 0))
+    .slice(0, 8);
+}
+
 async function loadForecastCompanyNews(origin: string, ticker: string): Promise<CompanyInfoNewsItem[]> {
   const aliases = companyAliasesForTicker(ticker);
   const isRelevant = (item: CompanyInfoNewsItem): boolean => {
@@ -565,7 +680,7 @@ async function loadForecastCompanyNews(origin: string, ticker: string): Promise<
       })
         .then((response) => (response.ok ? response.json() : null))
         .catch(() => null),
-      fetch(`${origin}/api/news/headlines?range=1W&limit=40&topic=all`, {
+      fetch(`${origin}/api/news/headlines?range=1M&limit=80&topic=all`, {
         cache: 'no-store',
         signal: AbortSignal.timeout(3500),
       })
@@ -587,6 +702,7 @@ async function loadForecastCompanyNews(origin: string, ticker: string): Promise<
               source: typeof row.source === 'string' ? row.source.trim() : '',
               publishedAt: typeof row.publishedAt === 'string' ? row.publishedAt : '',
               description: typeof row.description === 'string' ? row.description.trim() : null,
+              tags: Array.isArray(row.tags) ? row.tags.filter((tag): tag is string => typeof tag === 'string') : [],
             };
           })
           .filter((item: CompanyInfoNewsItem | null): item is CompanyInfoNewsItem => item !== null)
@@ -620,7 +736,7 @@ async function loadForecastCompanyNews(origin: string, ticker: string): Promise<
           })
       : [];
 
-    return merge([...companyItems, ...headlineItems]).slice(0, 5);
+    return rankCompanyHeadlines(merge([...companyItems, ...headlineItems]), ticker);
   } catch {
     return [];
   }
@@ -747,6 +863,12 @@ function buildForecastNewsWatchItems(params: {
       source: news.source || null,
       url: news.url || null,
       kind: 'company_news',
+      rank: typeof news.rankScore === 'number' && news.rankReason
+        ? {
+            score: news.rankScore,
+            reason: news.rankReason,
+          }
+        : undefined,
     });
     if (items.length >= 5) return items;
   }
@@ -1008,6 +1130,12 @@ async function enrichNewsWatchWithEventForecasts(params: {
                 kind: item.kind,
                 impact: item.impact,
                 source: item.source,
+                ranking: item.rank
+                  ? {
+                      score: item.rank.score,
+                      reason: item.rank.reason,
+                    }
+                  : undefined,
               })),
               schema: [
                 {

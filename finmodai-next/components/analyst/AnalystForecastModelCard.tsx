@@ -164,6 +164,11 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
                       {item.impact}
                       {item.source ? ` Source: ${item.source}.` : ''}
                     </div>
+                    {item.rank ? (
+                      <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">
+                        Ranked {item.rank.score.toFixed(1)} · {item.rank.reason}
+                      </div>
+                    ) : null}
                     {item.eventForecast ? (
                       <div className="mt-2 grid gap-1.5 rounded-md border border-[var(--cb-border-subtle)] bg-black/15 p-2 text-xs leading-5">
                         <div>
