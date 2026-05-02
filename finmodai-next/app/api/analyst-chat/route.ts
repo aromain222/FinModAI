@@ -114,7 +114,7 @@ import {
   type PriceForecastPayload,
 } from '@/lib/forecast/eventAdjustedForecast';
 import { labelForecastSource, type AnalystForecastModelPayload, type ForecastNewsWatchItem } from '@/lib/analyst/forecastModel';
-import { featureFlags } from '@/lib/env/server';
+import { featureFlags, serverEnv } from '@/lib/env/server';
 import {
   buildComparisonVisualizationFromPrompt,
   buildRevenueForecastVisualizationFromDcf,
@@ -491,6 +491,8 @@ type CompanyInfoNewsItem = {
   publishedAt: string;
   description?: string | null;
   tags?: string[];
+  provider?: string;
+  sourceType?: 'live_news' | 'strategic_fallback';
   rankScore?: number;
   rankReason?: string;
 };
@@ -539,6 +541,160 @@ function datedTimingLabel(dateValue: string | null | undefined, displayDate: str
   const relative = timingLabel(dateValue, fallback);
   if (!dateValue || !displayDate || displayDate === fallback) return relative;
   return relative ? `${displayDate} (${relative})` : displayDate;
+}
+
+function isoDateDaysAgo(days: number): string {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString().slice(0, 10);
+}
+
+function isoDateToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function normalizeNewsDate(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) return '';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value.trim() : parsed.toISOString();
+}
+
+function cleanNewsText(value: unknown): string {
+  return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
+}
+
+function toLiveNewsItem(params: {
+  title: unknown;
+  url: unknown;
+  source: unknown;
+  publishedAt: unknown;
+  description?: unknown;
+  provider: string;
+  tags?: string[];
+}): CompanyInfoNewsItem | null {
+  const title = cleanNewsText(params.title);
+  const url = cleanNewsText(params.url);
+  if (!title || !url || /demo|example\.com/i.test(url)) return null;
+  return {
+    title,
+    url,
+    source: cleanNewsText(params.source) || params.provider,
+    publishedAt: normalizeNewsDate(params.publishedAt),
+    description: cleanNewsText(params.description) || null,
+    tags: params.tags,
+    provider: params.provider,
+    sourceType: 'live_news',
+  };
+}
+
+async function fetchFmpCompanyNews(ticker: string): Promise<CompanyInfoNewsItem[]> {
+  if (!serverEnv.FMP_API_KEY) return [];
+  try {
+    const url = `https://financialmodelingprep.com/api/v3/stock_news?tickers=${encodeURIComponent(ticker)}&limit=20&apikey=${serverEnv.FMP_API_KEY}`;
+    const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(3500) });
+    if (!response.ok) return [];
+    const rows = (await response.json()) as unknown;
+    if (!Array.isArray(rows)) return [];
+    return rows
+      .map((row): CompanyInfoNewsItem | null => {
+        if (!row || typeof row !== 'object') return null;
+        const record = row as Record<string, unknown>;
+        return toLiveNewsItem({
+          title: record.title,
+          url: record.url,
+          source: record.site,
+          publishedAt: record.publishedDate,
+          description: record.text,
+          provider: 'fmp_stock_news',
+          tags: ['company_news', ticker],
+        });
+      })
+      .filter((item): item is CompanyInfoNewsItem => item !== null);
+  } catch {
+    return [];
+  }
+}
+
+async function fetchFinnhubCompanyNews(ticker: string): Promise<CompanyInfoNewsItem[]> {
+  if (!serverEnv.FINNHUB_API_KEY) return [];
+  try {
+    const params = new URLSearchParams({
+      symbol: ticker,
+      from: isoDateDaysAgo(30),
+      to: isoDateToday(),
+      token: serverEnv.FINNHUB_API_KEY,
+    });
+    const response = await fetch(`https://finnhub.io/api/v1/company-news?${params.toString()}`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(3500),
+    });
+    if (!response.ok) return [];
+    const rows = (await response.json()) as unknown;
+    if (!Array.isArray(rows)) return [];
+    return rows
+      .slice(0, 30)
+      .map((row): CompanyInfoNewsItem | null => {
+        if (!row || typeof row !== 'object') return null;
+        const record = row as Record<string, unknown>;
+        const datetime = typeof record.datetime === 'number' ? new Date(record.datetime * 1000).toISOString() : record.datetime;
+        return toLiveNewsItem({
+          title: record.headline,
+          url: record.url,
+          source: record.source,
+          publishedAt: datetime,
+          description: record.summary,
+          provider: 'finnhub_company_news',
+          tags: ['company_news', ticker],
+        });
+      })
+      .filter((item): item is CompanyInfoNewsItem => item !== null);
+  } catch {
+    return [];
+  }
+}
+
+async function fetchNewsApiCompanyNews(ticker: string, aliases: string[]): Promise<CompanyInfoNewsItem[]> {
+  const apiKey = process.env.NEWSAPI_KEY;
+  if (!apiKey) return [];
+  try {
+    const queryAliases = aliases.slice(0, 5).map((alias) => `"${alias.replace(/"/g, '')}"`).join(' OR ');
+    const params = new URLSearchParams({
+      q: queryAliases || ticker,
+      language: 'en',
+      sortBy: 'publishedAt',
+      from: isoDateDaysAgo(30),
+      pageSize: '20',
+      apiKey,
+    });
+    const response = await fetch(`https://newsapi.org/v2/everything?${params.toString()}`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(3500),
+    });
+    if (!response.ok) return [];
+    const payload = (await response.json()) as unknown;
+    const articles = payload && typeof payload === 'object' ? (payload as Record<string, unknown>).articles : null;
+    if (!Array.isArray(articles)) return [];
+    return articles
+      .map((row): CompanyInfoNewsItem | null => {
+        if (!row || typeof row !== 'object') return null;
+        const record = row as Record<string, unknown>;
+        const source = record.source && typeof record.source === 'object'
+          ? (record.source as Record<string, unknown>).name
+          : record.source;
+        return toLiveNewsItem({
+          title: record.title,
+          url: record.url,
+          source,
+          publishedAt: record.publishedAt,
+          description: record.description,
+          provider: 'newsapi_company_search',
+          tags: ['company_news', ticker],
+        });
+      })
+      .filter((item): item is CompanyInfoNewsItem => item !== null);
+  } catch {
+    return [];
+  }
 }
 
 const STRATEGIC_NEWS_TERMS: Record<string, Array<{ pattern: RegExp; label: string; weight: number }>> = {
@@ -602,6 +758,11 @@ function rankCompanyHeadline(item: CompanyInfoNewsItem, ticker: string, aliases:
   const text = `${item.title} ${item.description ?? ''} ${(item.tags ?? []).join(' ')}`.toLowerCase();
   const reasons: string[] = [];
   let score = scoreHeadlineRecency(item.publishedAt);
+
+  if (item.sourceType === 'live_news' && item.provider && /fmp|finnhub|newsapi|perigon|market_headlines/i.test(item.provider)) {
+    score += /fmp_stock_news|finnhub_company_news/.test(item.provider) ? 12 : 8;
+    reasons.push('live company headline');
+  }
 
   for (const alias of aliases) {
     const lowerAlias = alias.toLowerCase();
@@ -673,7 +834,7 @@ async function loadForecastCompanyNews(origin: string, ticker: string): Promise<
   };
 
   try {
-    const [companyInfo, marketHeadlines] = await Promise.all([
+    const [companyInfo, marketHeadlines, fmpDirectNews, finnhubDirectNews, newsApiDirectNews] = await Promise.all([
       fetch(`${origin}/api/company-info?ticker=${encodeURIComponent(ticker)}`, {
         cache: 'no-store',
         signal: AbortSignal.timeout(3000),
@@ -686,6 +847,9 @@ async function loadForecastCompanyNews(origin: string, ticker: string): Promise<
       })
         .then((response) => (response.ok ? response.json() : null))
         .catch(() => null),
+      fetchFmpCompanyNews(ticker),
+      fetchFinnhubCompanyNews(ticker),
+      fetchNewsApiCompanyNews(ticker, aliases),
     ]);
 
     const companyItems = Array.isArray(companyInfo?.news)
@@ -703,12 +867,15 @@ async function loadForecastCompanyNews(origin: string, ticker: string): Promise<
               publishedAt: typeof row.publishedAt === 'string' ? row.publishedAt : '',
               description: typeof row.description === 'string' ? row.description.trim() : null,
               tags: Array.isArray(row.tags) ? row.tags.filter((tag): tag is string => typeof tag === 'string') : [],
+              provider: 'fmp_company_info',
+              sourceType: 'live_news',
             };
           })
           .filter((item: CompanyInfoNewsItem | null): item is CompanyInfoNewsItem => item !== null)
       : [];
 
-    const headlineItems = Array.isArray(marketHeadlines?.items)
+    const marketProvider = typeof marketHeadlines?.provider === 'string' ? marketHeadlines.provider : null;
+    const headlineItems = marketProvider !== 'demo' && Array.isArray(marketHeadlines?.items)
       ? marketHeadlines.items
           .map((item: unknown): (CompanyInfoNewsItem & { tags?: string[] }) | null => {
             if (!item || typeof item !== 'object') return null;
@@ -727,6 +894,8 @@ async function loadForecastCompanyNews(origin: string, ticker: string): Promise<
                   : '',
               description: typeof row.description === 'string' ? row.description.trim() : null,
               tags: Array.isArray(row.tags) ? row.tags.filter((tag): tag is string => typeof tag === 'string') : [],
+              provider: marketProvider ?? 'market_headlines',
+              sourceType: 'live_news',
             };
           })
           .filter((item: (CompanyInfoNewsItem & { tags?: string[] }) | null): item is CompanyInfoNewsItem & { tags?: string[] } => {
@@ -736,7 +905,16 @@ async function loadForecastCompanyNews(origin: string, ticker: string): Promise<
           })
       : [];
 
-    return rankCompanyHeadlines(merge([...companyItems, ...headlineItems]), ticker);
+    return rankCompanyHeadlines(
+      merge([
+        ...fmpDirectNews,
+        ...finnhubDirectNews,
+        ...newsApiDirectNews,
+        ...companyItems,
+        ...headlineItems,
+      ]),
+      ticker,
+    );
   } catch {
     return [];
   }
@@ -767,6 +945,7 @@ function strategicForecastWatchItems(ticker: string): ForecastNewsWatchItem[] {
         impact: 'Watch whether AI Overviews and Gemini improve query engagement without weakening ad monetization or publisher/regulatory pressure.',
         source: 'CapitalBase strategic watchlist',
         kind: 'company_news',
+        sourceType: 'strategic_fallback',
       },
       {
         title: 'Google Cloud growth and AI capex',
@@ -774,6 +953,7 @@ function strategicForecastWatchItems(ticker: string): ForecastNewsWatchItem[] {
         impact: 'Cloud demand supports growth, but higher AI infrastructure spending can pressure free cash flow and valuation multiples.',
         source: 'CapitalBase strategic watchlist',
         kind: 'company_news',
+        sourceType: 'strategic_fallback',
       },
       {
         title: 'Search antitrust and EU data-sharing pressure',
@@ -781,6 +961,7 @@ function strategicForecastWatchItems(ticker: string): ForecastNewsWatchItem[] {
         impact: 'Regulatory remedies could pressure Search distribution advantages, data access, and the risk premium investors assign to Alphabet.',
         source: 'CapitalBase strategic watchlist',
         kind: 'company_news',
+        sourceType: 'strategic_fallback',
       },
     ],
     NVDA: [
@@ -790,6 +971,7 @@ function strategicForecastWatchItems(ticker: string): ForecastNewsWatchItem[] {
         impact: 'Hyperscaler GPU demand, Blackwell ramp execution, and networking attach rates drive the near-term AI infrastructure read-through.',
         source: 'CapitalBase strategic watchlist',
         kind: 'company_news',
+        sourceType: 'strategic_fallback',
       },
       {
         title: 'Custom silicon and GPU margin risk',
@@ -797,6 +979,7 @@ function strategicForecastWatchItems(ticker: string): ForecastNewsWatchItem[] {
         impact: 'Watch whether hyperscaler ASIC efforts or AMD competition pressure NVIDIA pricing, lead times, or gross margin expectations.',
         source: 'CapitalBase strategic watchlist',
         kind: 'company_news',
+        sourceType: 'strategic_fallback',
       },
     ],
     TSLA: [
@@ -806,6 +989,7 @@ function strategicForecastWatchItems(ticker: string): ForecastNewsWatchItem[] {
         impact: 'Deliveries, incentives, and pricing determine whether the market treats demand as stabilizing or still deteriorating.',
         source: 'CapitalBase strategic watchlist',
         kind: 'company_news',
+        sourceType: 'strategic_fallback',
       },
       {
         title: 'Tesla autonomy and robotaxi narrative',
@@ -813,6 +997,7 @@ function strategicForecastWatchItems(ticker: string): ForecastNewsWatchItem[] {
         impact: 'Autonomy progress can support the multiple, but execution gaps or regulatory delays can quickly reverse sentiment.',
         source: 'CapitalBase strategic watchlist',
         kind: 'company_news',
+        sourceType: 'strategic_fallback',
       },
     ],
   };
@@ -850,6 +1035,7 @@ function buildForecastNewsWatchItems(params: {
       impact: item.note?.trim() || 'Earnings and guidance can reset the short-term price path.',
       source: item.source,
       kind: 'earnings',
+      sourceType: 'calendar',
     });
     if (items.length >= 5) return items;
   }
@@ -863,6 +1049,7 @@ function buildForecastNewsWatchItems(params: {
       source: news.source || null,
       url: news.url || null,
       kind: 'company_news',
+      sourceType: news.sourceType ?? 'live_news',
       rank: typeof news.rankScore === 'number' && news.rankReason
         ? {
             score: news.rankScore,
@@ -873,9 +1060,11 @@ function buildForecastNewsWatchItems(params: {
     if (items.length >= 5) return items;
   }
 
-  for (const item of strategicForecastWatchItems(params.ticker)) {
-    push(item);
-    if (items.length >= 5) return items;
+  if (params.companyNews.length === 0) {
+    for (const item of strategicForecastWatchItems(params.ticker)) {
+      push(item);
+      if (items.length >= 5) return items;
+    }
   }
 
   for (const event of (params.events ?? [])
@@ -889,6 +1078,7 @@ function buildForecastNewsWatchItems(params: {
       source: event.sources[0]?.name ?? null,
       url: event.sources[0]?.url ?? null,
       kind: 'event',
+      sourceType: 'market_event',
     });
     if (items.length >= 5) return items;
   }
@@ -901,6 +1091,7 @@ function buildForecastNewsWatchItems(params: {
       impact: item.note?.trim() || 'Macro release can move rates, risk appetite, and large-cap tech multiples.',
       source: item.source,
       kind: 'macro',
+      sourceType: 'calendar',
     });
     if (items.length >= 5) return items;
   }
@@ -1128,6 +1319,7 @@ async function enrichNewsWatchWithEventForecasts(params: {
                 title: item.title,
                 timing: item.timing,
                 kind: item.kind,
+                sourceType: item.sourceType,
                 impact: item.impact,
                 source: item.source,
                 ranking: item.rank

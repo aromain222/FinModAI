@@ -7,6 +7,7 @@ export type ForecastNewsWatchItem = {
   source?: string | null;
   url?: string | null;
   kind?: 'earnings' | 'macro' | 'company_news' | 'event' | 'ownership' | 'transcript';
+  sourceType?: 'live_news' | 'strategic_fallback' | 'calendar' | 'market_event';
   rank?: {
     score: number;
     reason: string;

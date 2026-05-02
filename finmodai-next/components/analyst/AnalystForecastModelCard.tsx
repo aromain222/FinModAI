@@ -164,6 +164,15 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
                       {item.impact}
                       {item.source ? ` Source: ${item.source}.` : ''}
                     </div>
+                    {item.sourceType === 'live_news' ? (
+                      <div className="mt-1 inline-flex w-fit rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest text-emerald-200">
+                        Live headline
+                      </div>
+                    ) : item.sourceType === 'strategic_fallback' ? (
+                      <div className="mt-1 inline-flex w-fit rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest text-amber-200">
+                        Strategic fallback
+                      </div>
+                    ) : null}
                     {item.rank ? (
                       <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">
                         Ranked {item.rank.score.toFixed(1)} · {item.rank.reason}
