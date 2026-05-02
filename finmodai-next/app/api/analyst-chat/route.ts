@@ -556,6 +556,7 @@ function buildAnalystForecastModelPayload(payload: ForecastLayerPayload, years: 
 
   return {
     modelType: 'FORECAST_MODEL',
+    forecastKind: 'revenue',
     title: `${payload.ticker} Revenue Forecast Model`,
     ticker: payload.ticker,
     horizonYears: horizon,
@@ -570,6 +571,64 @@ function buildAnalystForecastModelPayload(payload: ForecastLayerPayload, years: 
     source: payload.source,
     attributionExplanation: payload.attribution?.explanation ?? null,
     warning: payload.warning ?? null,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+function buildPriceForecastModelPayload(params: {
+  ticker: string;
+  horizonDays: number;
+  horizonLabel: string;
+  payload: PriceForecastPayload;
+  confidence: number;
+  attributionExplanation: string | null;
+}): AnalystForecastModelPayload | null {
+  const forecast = params.payload.forecast;
+  const historical = params.payload.historical;
+  if (!forecast || !historical) return null;
+
+  const historicalPrices = historical.prices.filter((value) => Number.isFinite(value));
+  const forecastValues = forecast.values.filter((value) => Number.isFinite(value));
+  if (historicalPrices.length <= 1 || forecastValues.length <= 1) return null;
+
+  const latestActual = historicalPrices.at(-1) ?? null;
+  const terminalForecast = forecastValues.at(-1) ?? null;
+  const returnPct =
+    latestActual && latestActual > 0 && terminalForecast
+      ? terminalForecast / latestActual - 1
+      : null;
+  const lower =
+    forecast.lower.length === forecast.values.length && forecast.lower.every((value) => Number.isFinite(value))
+      ? forecast.lower
+      : undefined;
+  const upper =
+    forecast.upper.length === forecast.values.length && forecast.upper.every((value) => Number.isFinite(value))
+      ? forecast.upper
+      : undefined;
+
+  return {
+    modelType: 'FORECAST_MODEL',
+    forecastKind: 'price',
+    title: `${params.ticker} Stock Forecast`,
+    ticker: params.ticker,
+    horizonYears: Math.max(1, Math.round(params.horizonDays / 365)),
+    horizonLabel: params.horizonLabel,
+    units: 'USD/share',
+    historical: historicalPrices.slice(-90),
+    forecast: forecastValues,
+    lower,
+    upper,
+    historicalDates: historical.dates.slice(-90),
+    forecastDates: forecast.dates,
+    growthPath: [],
+    latestActual: typeof latestActual === 'number' && Number.isFinite(latestActual) ? latestActual : null,
+    terminalForecast: typeof terminalForecast === 'number' && Number.isFinite(terminalForecast) ? terminalForecast : null,
+    cagr: null,
+    returnPct: returnPct !== null && Number.isFinite(returnPct) ? returnPct : null,
+    confidence: Math.max(0.2, Math.min(0.95, params.confidence)),
+    source: params.payload.model_source ?? 'timesfm',
+    attributionExplanation: params.attributionExplanation,
+    warning: params.payload.methodology ?? null,
     generatedAt: new Date().toISOString(),
   };
 }
@@ -2468,6 +2527,7 @@ export async function POST(req: NextRequest) {
     let timesFMBlock: string | null = null;
     let forecastLeadSentence: string | null = null;
     let deterministicForecastReply: string | null = null;
+    let priceForecastModel: AnalystForecastModelPayload | null = null;
     const shouldInjectTimesFmForecast =
       Boolean(resolvedTicker) &&
       !isLongHorizonForecastPrompt(lastUserMessage) &&
@@ -2544,6 +2604,16 @@ export async function POST(req: NextRequest) {
                 eventSynthesis,
                 revenueForecast: null,
               };
+              priceForecastModel = buildPriceForecastModelPayload({
+                ticker: resolvedTicker,
+                horizonDays,
+                horizonLabel,
+                payload: pd,
+                confidence: pd.model_source === 'provider_trend_fallback' ? 0.45 : 0.62,
+                attributionExplanation: eventSynthesis
+                  ? `Includes active event overlay: ${eventSynthesis.event_adjustment.label ?? 'current market events'} adjusts the TimesFM baseline by ${eventSynthesis.event_adjustment.price_proxy_pct >= 0 ? '+' : ''}${eventSynthesis.event_adjustment.price_proxy_pct.toFixed(1)}%.`
+                  : 'TimesFM trend path from recent stock history. No active event overlay was strong enough to adjust this ticker forecast.',
+              });
               const eventSynthesisBlock = eventSynthesis
                 ? `\nEvent overlay: ${eventSynthesis.event_adjustment.label ?? 'active market events'} implies a ${eventSynthesis.event_adjustment.price_proxy_pct >= 0 ? '+' : ''}${eventSynthesis.event_adjustment.price_proxy_pct.toFixed(1)}% ${horizonLabel} price proxy after confidence/horizon weighting.\n` +
                   `Combined outlook: $${eventSynthesis.baseline.start_price.toFixed(2)} → $${eventSynthesis.combined.end_price.toFixed(2)} (${eventSynthesis.combined.direction}, ${eventSynthesis.combined.return_pct >= 0 ? '+' : ''}${eventSynthesis.combined.return_pct.toFixed(1)}%).\n` +
@@ -2640,6 +2710,7 @@ export async function POST(req: NextRequest) {
         stockLookup: responseStockLookup ?? stockLookupPayload,
         earningsRetrieval: earningsAgentResult,
         earningsPackageMeta: earningsRuntimeMeta,
+        forecastModel: priceForecastModel ?? undefined,
         attachmentUsed: attachmentLabel,
       }, executionTrace)));
     }
@@ -3707,6 +3778,7 @@ export async function POST(req: NextRequest) {
       stockLookup: responseStockLookup,
       earningsRetrieval: earningsAgentResult,
       earningsPackageMeta: earningsRuntimeMeta,
+      forecastModel: priceForecastModel ?? undefined,
       attachmentUsed: attachmentLabel,
     }));
   } catch (error) {

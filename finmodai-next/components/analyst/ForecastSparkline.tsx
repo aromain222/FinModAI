@@ -3,6 +3,12 @@
 type ForecastSparklineProps = {
   forecast: number[];
   historical?: number[];
+  lower?: number[];
+  upper?: number[];
+  title?: string;
+  historicalLabel?: string;
+  forecastLabel?: string;
+  forecastTone?: 'positive' | 'negative' | 'neutral';
 };
 
 type Point = {
@@ -25,9 +31,9 @@ function median(values: number[]): number {
   return sorted[midpoint];
 }
 
-function sanitizeSeries(values: number[] | undefined): number[] {
-  const finiteValues = (values ?? []).filter((value) => Number.isFinite(value));
-  if (finiteValues.length === 0) return [];
+function getDomain(values: number[]): { min: number; max: number } | null {
+  const finiteValues = values.filter((value) => Number.isFinite(value));
+  if (finiteValues.length === 0) return null;
 
   const center = median(finiteValues);
   const distances = finiteValues.map((value) => Math.abs(value - center));
@@ -36,7 +42,13 @@ function sanitizeSeries(values: number[] | undefined): number[] {
   const min = center - band;
   const max = center + band;
 
-  return finiteValues.map((value) => clamp(value, min, max));
+  return { min, max };
+}
+
+function sanitizeSeries(values: number[] | undefined, min: number, max: number): number[] {
+  return (values ?? [])
+    .filter((value) => Number.isFinite(value))
+    .map((value) => clamp(value, min, max));
 }
 
 function buildPoints(values: number[], min: number, max: number, startX: number, endX: number): Point[] {
@@ -64,28 +76,80 @@ function linePath(points: Point[]): string {
   return path;
 }
 
-export function ForecastSparkline({ forecast, historical }: ForecastSparklineProps) {
-  const cleanForecast = sanitizeSeries(forecast);
-  const cleanHistorical = sanitizeSeries(historical);
+function areaPath(upperPoints: Point[], lowerPoints: Point[]): string {
+  if (upperPoints.length === 0 || upperPoints.length !== lowerPoints.length) return '';
+  const upper = linePath(upperPoints);
+  const lower = [...lowerPoints].reverse().map((point) => `L ${point.x} ${point.y}`).join(' ');
+  return `${upper} ${lower} Z`;
+}
+
+export function ForecastSparkline({
+  forecast,
+  historical,
+  lower,
+  upper,
+  title = 'Forecast Path',
+  historicalLabel = 'Historical',
+  forecastLabel = 'Forecast',
+  forecastTone = 'positive',
+}: ForecastSparklineProps) {
+  const domainValues = [...(historical ?? []), ...forecast, ...(lower ?? []), ...(upper ?? [])];
+  const domain = getDomain(domainValues);
+  if (!domain) return null;
+
+  const cleanForecast = sanitizeSeries(forecast, domain.min, domain.max);
+  const cleanHistorical = sanitizeSeries(historical, domain.min, domain.max);
+  const cleanLower = lower && lower.length === forecast.length ? sanitizeSeries(lower, domain.min, domain.max) : [];
+  const cleanUpper = upper && upper.length === forecast.length ? sanitizeSeries(upper, domain.min, domain.max) : [];
 
   if (cleanForecast.length <= 1) return null;
 
-  const allValues = [...cleanHistorical, ...cleanForecast];
+  const allValues = [...cleanHistorical, ...cleanForecast, ...cleanLower, ...cleanUpper];
   const min = Math.min(...allValues);
   const max = Math.max(...allValues);
   const hasHistorical = cleanHistorical.length > 1;
   const historicalPoints = hasHistorical ? buildPoints(cleanHistorical, min, max, 2, 48) : [];
   const forecastPoints = buildPoints(cleanForecast, min, max, hasHistorical ? 50 : 2, 98);
+  const lowerPoints = cleanLower.length === cleanForecast.length
+    ? buildPoints(cleanLower, min, max, hasHistorical ? 50 : 2, 98)
+    : [];
+  const upperPoints = cleanUpper.length === cleanForecast.length
+    ? buildPoints(cleanUpper, min, max, hasHistorical ? 50 : 2, 98)
+    : [];
+  const bandPath = areaPath(upperPoints, lowerPoints);
+  const forecastStroke =
+    forecastTone === 'negative'
+      ? 'rgb(248,113,113)'
+      : forecastTone === 'neutral'
+        ? 'rgb(148,163,184)'
+        : 'rgb(52,211,153)';
 
   return (
     <div className="rounded-xl border border-[var(--cb-border-subtle)] bg-black/10 p-3">
-      <div className="mb-2 text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
-        Forecast Path
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
+          {title}
+        </div>
+        <div className="flex items-center gap-3 text-[10px] text-[var(--cb-text-muted)]">
+          {hasHistorical ? (
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-1.5 w-4 rounded-full bg-zinc-400/70" />
+              {historicalLabel}
+            </span>
+          ) : null}
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-1.5 w-4 rounded-full" style={{ backgroundColor: forecastStroke }} />
+            {forecastLabel}
+          </span>
+        </div>
       </div>
       <svg viewBox="0 0 100 80" role="img" aria-label="Forecast trend sparkline" className="h-20 w-full overflow-visible">
         <line x1="2" y1="68" x2="98" y2="68" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
         <line x1="2" y1="40" x2="98" y2="40" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
         <line x1="2" y1="12" x2="98" y2="12" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+        {bandPath ? (
+          <path d={bandPath} fill="rgba(52,211,153,0.12)" stroke="rgba(52,211,153,0.16)" strokeWidth="0.8" />
+        ) : null}
         {hasHistorical ? (
           <path
             d={linePath(historicalPoints)}
@@ -99,7 +163,7 @@ export function ForecastSparkline({ forecast, historical }: ForecastSparklinePro
         <path
           d={linePath(forecastPoints)}
           fill="none"
-          stroke="rgb(52,211,153)"
+          stroke={forecastStroke}
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth="2.5"

@@ -2,17 +2,24 @@ export type ForecastModelSource = 'timesfm' | 'flat_fallback' | string;
 
 export type AnalystForecastModelPayload = {
   modelType: 'FORECAST_MODEL';
+  forecastKind?: 'revenue' | 'price';
   title: string;
   ticker: string;
   companyName?: string | null;
   horizonYears: number;
-  units: 'USD millions';
+  horizonLabel?: string | null;
+  units: 'USD millions' | 'USD/share';
   historical: number[];
   forecast: number[];
+  lower?: number[];
+  upper?: number[];
+  historicalDates?: string[];
+  forecastDates?: string[];
   growthPath: number[];
   latestActual: number | null;
   terminalForecast: number | null;
   cagr: number | null;
+  returnPct?: number | null;
   confidence: number;
   source: ForecastModelSource;
   attributionExplanation?: string | null;
@@ -23,6 +30,6 @@ export type AnalystForecastModelPayload = {
 export function labelForecastSource(source: ForecastModelSource): string {
   if (source === 'timesfm') return 'TimesFM online';
   if (source === 'flat_fallback') return 'Fallback';
+  if (source === 'provider_trend_fallback') return 'Provider trend';
   return source.replace(/_/g, ' ');
 }
-
