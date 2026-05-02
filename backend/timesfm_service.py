@@ -85,42 +85,10 @@ def _load_model():
             logger.info("[timesfm] torch model ready")
             return
 
-        logger.info("[timesfm] loading legacy model google/timesfm-1.0-200m …")
-        legacy_model = timesfm.TimesFm(
-            hparams=timesfm.TimesFmHparams(
-                backend="cpu",
-                per_core_batch_size=32,
-                horizon_len=128,
-                input_patch_len=32,
-                output_patch_len=128,
-                num_layers=20,
-                model_dims=1280,
-            ),
-            checkpoint=timesfm.TimesFmCheckpoint(
-                huggingface_repo_id="google/timesfm-1.0-200m",
-            ),
+        raise RuntimeError(
+            "Installed timesfm package does not expose TimesFM_2p5_200M_torch. "
+            "Install from google-research/timesfm with torch extras."
         )
-
-        def infer_legacy(series: list[float], horizon: int, freq: int) -> dict:
-            context = np.array(series, dtype=np.float32)
-            if len(context) > 512:
-                context = context[-512:]
-            point_forecast, quantile_forecast = legacy_model.forecast(
-                inputs=[context],
-                freq=[freq],
-            )
-            h = min(horizon, point_forecast.shape[1])
-            pf = point_forecast[0, :h].tolist()
-            lower = quantile_forecast[0, :h, 0].tolist()
-            upper = quantile_forecast[0, :h, -1].tolist()
-            return {"forecast": pf, "lower": lower, "upper": upper}
-
-        _model = LoadedTimesFmModel(
-            name="google/timesfm-1.0-200m",
-            max_context=512,
-            infer=infer_legacy,
-        )
-        logger.info("[timesfm] legacy model ready")
     except Exception as exc:
         _model_load_error = str(exc)
         logger.error("[timesfm] failed to load model: %s", exc)

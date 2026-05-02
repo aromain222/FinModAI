@@ -4,6 +4,7 @@ FROM python:3.11-slim-bullseye as builder
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Create venv and install dependencies
@@ -46,4 +47,4 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Run the isolated TimesFM service. The full backend app imports optional
 # modeling/PDF modules that are not needed by the forecast deployment.
-CMD gunicorn backend.timesfm_app:app --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT} --workers ${WEB_CONCURRENCY} --timeout 180 --graceful-timeout 30
+CMD gunicorn backend.timesfm_app:app --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT} --workers ${WEB_CONCURRENCY} --timeout 600 --graceful-timeout 30

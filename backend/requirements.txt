@@ -56,5 +56,5 @@ anthropic>=0.40.0
 python-multipart>=0.0.9  # required for FastAPI file uploads
 
 # Time series forecasting
-timesfm[torch]>=1.2.0     # Google TimesFM foundation model; prefer 2.5 Torch API, fallback to legacy API
+timesfm[torch] @ git+https://github.com/google-research/timesfm.git
 yfinance>=0.2.40          # Historical price + quarterly financials
