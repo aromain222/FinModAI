@@ -274,21 +274,38 @@ const ECONOMIC_EVENT_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /retail sales/i, label: 'Retail sales' },
 ];
 
+const FALLBACK_ECONOMIC_DATES_2026: Array<{ title: string; date: string; note: string }> = [
+  { title: 'Nonfarm payrolls', date: '2026-05-08', note: 'Estimated from public release cadence; verify against the BLS calendar.' },
+  { title: 'CPI release', date: '2026-05-12', note: 'Estimated from public release cadence; verify against the BLS calendar.' },
+  { title: 'PCE inflation', date: '2026-05-29', note: 'Estimated from public release cadence; verify against the BEA calendar.' },
+  { title: 'Fed decision / FOMC', date: '2026-06-17', note: 'Scheduled FOMC decision date; verify against the Federal Reserve calendar.' },
+  { title: 'GDP release', date: '2026-05-28', note: 'Estimated from public release cadence; verify against the BEA calendar.' },
+  { title: 'Retail sales', date: '2026-05-15', note: 'Estimated from public release cadence; verify against the Census calendar.' },
+];
+
+function fallbackEconomicCalendarItems(): CatalystCalendarItem[] {
+  const today = isoToday();
+  return FALLBACK_ECONOMIC_DATES_2026
+    .filter((entry) => entry.date >= today)
+    .slice(0, 4)
+    .map((entry) => ({
+      kind: 'economic' as const,
+      title: entry.title,
+      date: entry.date,
+      displayDate: `Est. ${formatDate(entry.date)}`,
+      source: 'macro calendar fallback',
+      status: 'heuristic' as const,
+      relevance: 'monitor' as const,
+      note: entry.note,
+    }));
+}
+
 async function loadEconomicCalendar(): Promise<CatalystCalendarItem[]> {
   if (economicCalendarCache && economicCalendarCache.expiresAt > Date.now()) {
     return economicCalendarCache.value;
   }
 
-  const fallback = ECONOMIC_EVENT_PATTERNS.slice(0, 4).map((entry) => ({
-    kind: 'economic' as const,
-    title: entry.label,
-    date: null,
-    displayDate: 'Watch next scheduled release',
-    source: 'macro watchlist fallback',
-    status: 'heuristic' as const,
-    relevance: 'monitor' as const,
-    note: 'Exact date unavailable from provider in this run.',
-  }));
+  const fallback = fallbackEconomicCalendarItems();
 
   if (!serverEnv.FMP_API_KEY) {
     economicCalendarCache = { expiresAt: Date.now() + ECONOMIC_TTL_MS, value: fallback };

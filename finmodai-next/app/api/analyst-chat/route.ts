@@ -532,6 +532,12 @@ function timingLabel(dateValue: string | null | undefined, fallback: string | nu
   return `${days} days`;
 }
 
+function datedTimingLabel(dateValue: string | null | undefined, displayDate: string | null | undefined, fallback: string | null): string | null {
+  const relative = timingLabel(dateValue, fallback);
+  if (!dateValue || !displayDate || displayDate === fallback) return relative;
+  return relative ? `${displayDate} (${relative})` : displayDate;
+}
+
 async function loadForecastCompanyNews(origin: string, ticker: string): Promise<CompanyInfoNewsItem[]> {
   const aliases = companyAliasesForTicker(ticker);
   const isRelevant = (item: CompanyInfoNewsItem): boolean => {
@@ -635,6 +641,68 @@ function companyAliasesForTicker(ticker: string): string[] {
   return aliases[normalized] ?? [normalized];
 }
 
+function strategicForecastWatchItems(ticker: string): ForecastNewsWatchItem[] {
+  const normalized = ticker.trim().toUpperCase();
+  const byTicker: Record<string, ForecastNewsWatchItem[]> = {
+    GOOGL: [
+      {
+        title: 'Alphabet AI Search monetization',
+        timing: '30-day thesis watch',
+        impact: 'Watch whether AI Overviews and Gemini improve query engagement without weakening ad monetization or publisher/regulatory pressure.',
+        source: 'CapitalBase strategic watchlist',
+        kind: 'company_news',
+      },
+      {
+        title: 'Google Cloud growth and AI capex',
+        timing: '30-day thesis watch',
+        impact: 'Cloud demand supports growth, but higher AI infrastructure spending can pressure free cash flow and valuation multiples.',
+        source: 'CapitalBase strategic watchlist',
+        kind: 'company_news',
+      },
+      {
+        title: 'Search antitrust and EU data-sharing pressure',
+        timing: '30-day thesis watch',
+        impact: 'Regulatory remedies could pressure Search distribution advantages, data access, and the risk premium investors assign to Alphabet.',
+        source: 'CapitalBase strategic watchlist',
+        kind: 'company_news',
+      },
+    ],
+    NVDA: [
+      {
+        title: 'NVIDIA AI infrastructure demand',
+        timing: '30-day thesis watch',
+        impact: 'Hyperscaler GPU demand, Blackwell ramp execution, and networking attach rates drive the near-term AI infrastructure read-through.',
+        source: 'CapitalBase strategic watchlist',
+        kind: 'company_news',
+      },
+      {
+        title: 'Custom silicon and GPU margin risk',
+        timing: '30-day thesis watch',
+        impact: 'Watch whether hyperscaler ASIC efforts or AMD competition pressure NVIDIA pricing, lead times, or gross margin expectations.',
+        source: 'CapitalBase strategic watchlist',
+        kind: 'company_news',
+      },
+    ],
+    TSLA: [
+      {
+        title: 'Tesla deliveries and pricing',
+        timing: '30-day thesis watch',
+        impact: 'Deliveries, incentives, and pricing determine whether the market treats demand as stabilizing or still deteriorating.',
+        source: 'CapitalBase strategic watchlist',
+        kind: 'company_news',
+      },
+      {
+        title: 'Tesla autonomy and robotaxi narrative',
+        timing: '30-day thesis watch',
+        impact: 'Autonomy progress can support the multiple, but execution gaps or regulatory delays can quickly reverse sentiment.',
+        source: 'CapitalBase strategic watchlist',
+        kind: 'company_news',
+      },
+    ],
+  };
+  return byTicker[normalized] ?? [];
+}
+
 function buildForecastNewsWatchItems(params: {
   ticker: string;
   horizonDays: number;
@@ -654,18 +722,37 @@ function buildForecastNewsWatchItems(params: {
     items.push({ ...item, title, impact });
   };
 
-  for (const item of params.catalystContext?.calendarItems ?? []) {
+  const calendarItems = params.catalystContext?.calendarItems ?? [];
+  const earningsItems = calendarItems.filter((item) => item.kind === 'earnings');
+  const economicItems = calendarItems.filter((item) => item.kind === 'economic');
+
+  for (const item of earningsItems) {
     if (item.kind === 'earnings' && item.date && !isWithinForecastHorizon(item.date, params.horizonDays)) continue;
-    if (item.kind === 'economic' && item.date && !isWithinForecastHorizon(item.date, params.horizonDays)) continue;
     push({
-      title: item.kind === 'earnings' ? `${params.ticker} ${item.title}` : item.title,
-      timing: timingLabel(item.date, item.displayDate || item.kind),
-      impact: item.note?.trim() || (item.kind === 'earnings'
-        ? 'Earnings and guidance can reset the short-term price path.'
-        : 'Macro release can move rates, risk appetite, and large-cap tech multiples.'),
+      title: `${params.ticker} ${item.title}`,
+      timing: datedTimingLabel(item.date, item.displayDate, item.kind),
+      impact: item.note?.trim() || 'Earnings and guidance can reset the short-term price path.',
       source: item.source,
-      kind: item.kind === 'earnings' ? 'earnings' : 'macro',
+      kind: 'earnings',
     });
+    if (items.length >= 5) return items;
+  }
+
+  for (const news of params.companyNews.slice(0, 3)) {
+    push({
+      title: news.title,
+      timing: news.publishedAt ? 'recent' : 'watch',
+      impact: news.description?.trim() ||
+        'Watch whether this changes sentiment, guidance expectations, or the assumptions behind the forecast path.',
+      source: news.source || null,
+      url: news.url || null,
+      kind: 'company_news',
+    });
+    if (items.length >= 5) return items;
+  }
+
+  for (const item of strategicForecastWatchItems(params.ticker)) {
+    push(item);
     if (items.length >= 5) return items;
   }
 
@@ -684,15 +771,14 @@ function buildForecastNewsWatchItems(params: {
     if (items.length >= 5) return items;
   }
 
-  for (const news of params.companyNews) {
+  for (const item of economicItems) {
+    if (item.date && !isWithinForecastHorizon(item.date, params.horizonDays)) continue;
     push({
-      title: news.title,
-      timing: news.publishedAt ? 'recent' : 'watch',
-      impact: news.description?.trim() ||
-        'Watch whether this changes sentiment, guidance expectations, or the assumptions behind the forecast path.',
-      source: news.source || null,
-      url: news.url || null,
-      kind: 'company_news',
+      title: item.title,
+      timing: datedTimingLabel(item.date, item.displayDate, item.kind),
+      impact: item.note?.trim() || 'Macro release can move rates, risk appetite, and large-cap tech multiples.',
+      source: item.source,
+      kind: 'macro',
     });
     if (items.length >= 5) return items;
   }
@@ -711,6 +797,7 @@ function deterministicEventForecast(item: ForecastNewsWatchItem, ticker: string)
       direction: 'neutral',
       confidence: 0.5,
       priceImpactPct: 0,
+      priceImpactRangePct: { downside: -4, upside: 4 },
     };
   }
   if (/\b(cpi|inflation|pce)\b/.test(text)) {
@@ -722,6 +809,7 @@ function deterministicEventForecast(item: ForecastNewsWatchItem, ticker: string)
       direction: 'neutral',
       confidence: 0.48,
       priceImpactPct: 0,
+      priceImpactRangePct: { downside: -2.2, upside: 1.8 },
     };
   }
   if (/\b(fomc|fed|rate|rates)\b/.test(text)) {
@@ -733,6 +821,7 @@ function deterministicEventForecast(item: ForecastNewsWatchItem, ticker: string)
       direction: 'neutral',
       confidence: 0.48,
       priceImpactPct: 0,
+      priceImpactRangePct: { downside: -2, upside: 1.8 },
     };
   }
   if (/\b(payroll|jobs|employment|nonfarm)\b/.test(text)) {
@@ -744,6 +833,43 @@ function deterministicEventForecast(item: ForecastNewsWatchItem, ticker: string)
       direction: 'neutral',
       confidence: 0.45,
       priceImpactPct: 0,
+      priceImpactRangePct: { downside: -1.6, upside: 1.2 },
+    };
+  }
+  if (/\b(ai search|ai overviews|gemini|search monetization)\b/.test(text)) {
+    return {
+      expectedResult: 'Base case is gradual AI Search adoption without clear evidence yet that ad monetization is breaking.',
+      surpriseToWatch: 'The bullish surprise is stable or improving Search ad monetization; the bearish surprise is evidence that AI answers reduce paid-click economics.',
+      transmissionPath: 'Search monetization -> revenue durability and margin confidence -> Alphabet multiple.',
+      stockImpact: `For ${ticker}, durable AI Search monetization would support the multiple; monetization leakage would pressure the stock.`,
+      direction: 'neutral',
+      confidence: 0.58,
+      priceImpactPct: 0,
+      priceImpactRangePct: { downside: -3, upside: 2.5 },
+    };
+  }
+  if (/\b(cloud|capex|infrastructure|tpu|data center)\b/.test(text)) {
+    return {
+      expectedResult: 'Base case is Cloud growth remains supportive while AI capex keeps free-cash-flow conversion under scrutiny.',
+      surpriseToWatch: 'The bullish surprise is Cloud margin expansion offsetting capex; the bearish surprise is higher spending without visible revenue acceleration.',
+      transmissionPath: 'Cloud growth and capex intensity -> FCF expectations -> valuation multiple.',
+      stockImpact: `For ${ticker}, Cloud acceleration helps the growth case, but capex intensity can cap upside if investors focus on FCF drag.`,
+      direction: 'neutral',
+      confidence: 0.56,
+      priceImpactPct: 0,
+      priceImpactRangePct: { downside: -2.5, upside: 2.2 },
+    };
+  }
+  if (/\b(antitrust|regulat|data[-\s]?sharing|eu|doj|remed)\b/.test(text)) {
+    return {
+      expectedResult: 'Base case is regulatory pressure stays headline-relevant but does not immediately change near-term Search economics.',
+      surpriseToWatch: 'The bearish surprise is a remedy that weakens Search distribution, data advantages, or monetization control.',
+      transmissionPath: 'Regulatory remedy risk -> higher equity risk premium and lower terminal multiple -> stock pressure.',
+      stockImpact: `For ${ticker}, regulation is more likely to weigh on the multiple than change next-quarter revenue immediately.`,
+      direction: 'negative',
+      confidence: 0.58,
+      priceImpactPct: -1.4,
+      priceImpactRangePct: { downside: -3.5, upside: 0.8 },
     };
   }
   const direction = newsDirectionScore(`${item.title} ${item.impact}`);
@@ -756,6 +882,7 @@ function deterministicEventForecast(item: ForecastNewsWatchItem, ticker: string)
       direction: 'positive',
       confidence: 0.52,
       priceImpactPct: 1.2,
+      priceImpactRangePct: { downside: -0.8, upside: 2.5 },
     };
   }
   if (direction < 0) {
@@ -767,6 +894,7 @@ function deterministicEventForecast(item: ForecastNewsWatchItem, ticker: string)
       direction: 'negative',
       confidence: 0.52,
       priceImpactPct: -1.2,
+      priceImpactRangePct: { downside: -2.5, upside: 0.8 },
     };
   }
   return {
@@ -777,6 +905,7 @@ function deterministicEventForecast(item: ForecastNewsWatchItem, ticker: string)
     direction: 'neutral',
     confidence: 0.35,
     priceImpactPct: 0,
+    priceImpactRangePct: { downside: -0.8, upside: 0.8 },
   };
 }
 
@@ -789,6 +918,7 @@ function isForecastNewsWatchItemArray(value: unknown): value is Array<{
   direction: 'positive' | 'negative' | 'neutral';
   confidence: number;
   priceImpactPct: number;
+  priceImpactRangePct?: { downside: number; upside: number };
 }> {
   if (!Array.isArray(value)) return false;
   return value.every((item) => {
@@ -804,7 +934,18 @@ function isForecastNewsWatchItemArray(value: unknown): value is Array<{
       typeof row.confidence === 'number' &&
       Number.isFinite(row.confidence) &&
       typeof row.priceImpactPct === 'number' &&
-      Number.isFinite(row.priceImpactPct)
+      Number.isFinite(row.priceImpactPct) &&
+      (
+        row.priceImpactRangePct === undefined ||
+        (
+          typeof row.priceImpactRangePct === 'object' &&
+          row.priceImpactRangePct !== null &&
+          typeof (row.priceImpactRangePct as Record<string, unknown>).downside === 'number' &&
+          Number.isFinite((row.priceImpactRangePct as Record<string, unknown>).downside) &&
+          typeof (row.priceImpactRangePct as Record<string, unknown>).upside === 'number' &&
+          Number.isFinite((row.priceImpactRangePct as Record<string, unknown>).upside)
+        )
+      )
     );
   });
 }
@@ -812,6 +953,16 @@ function isForecastNewsWatchItemArray(value: unknown): value is Array<{
 function clampEventImpactPct(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(-6, Math.min(6, value));
+}
+
+function clampEventImpactRange(value: { downside: number; upside: number } | undefined): { downside: number; upside: number } | undefined {
+  if (!value) return undefined;
+  const downside = clampEventImpactPct(value.downside);
+  const upside = clampEventImpactPct(value.upside);
+  return {
+    downside: Math.min(downside, upside),
+    upside: Math.max(downside, upside),
+  };
 }
 
 async function enrichNewsWatchWithEventForecasts(params: {
@@ -868,6 +1019,7 @@ async function enrichNewsWatchWithEventForecasts(params: {
                   direction: 'positive|negative|neutral',
                   confidence: 0.2,
                   priceImpactPct: 0,
+                  priceImpactRangePct: { downside: -1.5, upside: 1.2 },
                 },
               ],
             }),
@@ -894,6 +1046,7 @@ async function enrichNewsWatchWithEventForecasts(params: {
           direction: ai.direction,
           confidence: Math.max(0.2, Math.min(0.85, ai.confidence)),
           priceImpactPct: clampEventImpactPct(ai.priceImpactPct),
+          priceImpactRangePct: clampEventImpactRange(ai.priceImpactRangePct) ?? item.eventForecast?.priceImpactRangePct,
         },
       };
     });
@@ -1197,12 +1350,15 @@ function buildDeterministicForecastReply(input: DeterministicForecastReplyInput)
   const revenueText = input.revenueForecast
     ? ` Revenue context: the ${input.revenueForecast.sourceLabel.toLowerCase()} revenue forecast implies ${input.revenueForecast.impliedGrowthPct >= 0 ? '+' : ''}${input.revenueForecast.impliedGrowthPct.toFixed(1)}% NTM growth, with projected quarters of ${input.revenueForecast.quarterlyProjections}.`
     : null;
+  const eventProxyPct = Math.abs(input.eventSynthesis?.event_adjustment.price_proxy_pct ?? 0);
   const read =
     input.eventSynthesis
-      ? input.eventSynthesis.combined.direction === 'up'
+      ? eventProxyPct < 1
+        ? `Net read: ${direction === 'up' ? 'constructive' : direction === 'down' ? 'cautious' : 'neutral'}, with TimesFM driving most of the forecast; events add only a small offset.`
+        : input.eventSynthesis.combined.direction === 'up'
         ? 'Net read: constructive, but only modestly so unless the event overlay strengthens.'
         : input.eventSynthesis.combined.direction === 'down'
-          ? 'Net read: cautious, because event pressure offsets or overwhelms the trend baseline.'
+          ? 'Net read: cautious, because the event overlay adds meaningful pressure on top of the trend baseline.'
           : 'Net read: neutral, because the trend baseline and event overlay mostly offset.'
       : input.direction === 'up'
         ? 'Net read: constructive on trend, with confidence limited by the forecast band.'

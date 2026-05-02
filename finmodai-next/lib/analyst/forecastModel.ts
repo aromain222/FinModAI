@@ -15,6 +15,10 @@ export type ForecastNewsWatchItem = {
     direction: 'positive' | 'negative' | 'neutral';
     confidence: number;
     priceImpactPct?: number;
+    priceImpactRangePct?: {
+      downside: number;
+      upside: number;
+    };
   };
 };
 

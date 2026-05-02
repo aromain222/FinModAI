@@ -22,6 +22,10 @@ function formatPct(value: number | null): string {
   return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}%`;
 }
 
+function formatPctPoint(value: number): string {
+  return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
+}
+
 function sourceVariant(source: string): 'default' | 'secondary' | 'outline' | 'destructive' {
   if (source === 'timesfm') return 'default';
   if (source === 'flat_fallback') return 'secondary';
@@ -185,7 +189,11 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
                         <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">
                           {item.eventForecast.direction}
                           {typeof item.eventForecast.priceImpactPct === 'number'
-                            ? ` · ${item.eventForecast.priceImpactPct > 0 ? '+' : ''}${item.eventForecast.priceImpactPct.toFixed(1)}% est. impact`
+                            ? Math.abs(item.eventForecast.priceImpactPct) >= 0.05
+                              ? ` · ${item.eventForecast.priceImpactPct > 0 ? '+' : ''}${item.eventForecast.priceImpactPct.toFixed(1)}% est. impact`
+                              : item.eventForecast.priceImpactRangePct
+                                ? ` · ${formatPctPoint(item.eventForecast.priceImpactRangePct.downside)} to ${formatPctPoint(item.eventForecast.priceImpactRangePct.upside)} scenario range`
+                                : ' · low direct impact'
                             : ''}
                           {' '}· {Math.round(item.eventForecast.confidence * 100)}% confidence
                         </div>
