@@ -111,7 +111,7 @@ import {
   deriveMarketEventAdjustment,
   type PriceForecastPayload,
 } from '@/lib/forecast/eventAdjustedForecast';
-import { labelForecastSource, type AnalystForecastModelPayload } from '@/lib/analyst/forecastModel';
+import { labelForecastSource, type AnalystForecastModelPayload, type ForecastNewsWatchItem } from '@/lib/analyst/forecastModel';
 import { featureFlags } from '@/lib/env/server';
 import {
   buildComparisonVisualizationFromPrompt,
@@ -482,6 +482,13 @@ type ForecastLayerPayload = {
   warning?: string;
 };
 
+type CompanyInfoNewsItem = {
+  title: string;
+  url: string;
+  source: string;
+  publishedAt: string;
+};
+
 function isForecastLayerPayload(value: unknown): value is ForecastLayerPayload {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
@@ -496,6 +503,124 @@ function isForecastLayerPayload(value: unknown): value is ForecastLayerPayload {
     Number.isFinite(record.confidence) &&
     typeof record.source === 'string'
   );
+}
+
+function daysUntil(dateValue: string | null | undefined): number | null {
+  if (!dateValue) return null;
+  const time = new Date(dateValue).getTime();
+  if (!Number.isFinite(time)) return null;
+  const today = new Date();
+  const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  const event = new Date(time);
+  const eventUtc = Date.UTC(event.getUTCFullYear(), event.getUTCMonth(), event.getUTCDate());
+  return Math.round((eventUtc - todayUtc) / 86_400_000);
+}
+
+function isWithinForecastHorizon(dateValue: string | null | undefined, horizonDays: number): boolean {
+  const days = daysUntil(dateValue);
+  return days !== null && days >= 0 && days <= horizonDays;
+}
+
+function timingLabel(dateValue: string | null | undefined, fallback: string | null): string | null {
+  const days = daysUntil(dateValue);
+  if (days === null) return fallback;
+  if (days === 0) return 'today';
+  if (days === 1) return 'tomorrow';
+  return `${days} days`;
+}
+
+async function loadForecastCompanyNews(origin: string, ticker: string): Promise<CompanyInfoNewsItem[]> {
+  try {
+    const response = await fetch(`${origin}/api/company-info?ticker=${encodeURIComponent(ticker)}`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!response.ok) return [];
+    const data = (await response.json().catch(() => null)) as { news?: unknown } | null;
+    if (!data || !Array.isArray(data.news)) return [];
+    return data.news
+      .map((item): CompanyInfoNewsItem | null => {
+        if (!item || typeof item !== 'object') return null;
+        const row = item as Record<string, unknown>;
+        const title = typeof row.title === 'string' ? row.title.trim() : '';
+        const url = typeof row.url === 'string' ? row.url.trim() : '';
+        if (!title) return null;
+        return {
+          title,
+          url,
+          source: typeof row.source === 'string' ? row.source.trim() : '',
+          publishedAt: typeof row.publishedAt === 'string' ? row.publishedAt : '',
+        };
+      })
+      .filter((item): item is CompanyInfoNewsItem => item !== null)
+      .slice(0, 3);
+  } catch {
+    return [];
+  }
+}
+
+function buildForecastNewsWatchItems(params: {
+  ticker: string;
+  horizonDays: number;
+  events: MarketEvent[] | undefined;
+  catalystContext: CompanyCatalystContext | null | undefined;
+  companyNews: CompanyInfoNewsItem[];
+}): ForecastNewsWatchItem[] {
+  const seen = new Set<string>();
+  const items: ForecastNewsWatchItem[] = [];
+  const push = (item: ForecastNewsWatchItem) => {
+    const title = item.title.trim();
+    const impact = item.impact.trim();
+    if (!title || !impact) return;
+    const key = `${title.toLowerCase()}|${impact.toLowerCase()}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    items.push({ ...item, title, impact });
+  };
+
+  for (const item of params.catalystContext?.calendarItems ?? []) {
+    if (item.kind === 'earnings' && item.date && !isWithinForecastHorizon(item.date, params.horizonDays)) continue;
+    if (item.kind === 'economic' && item.date && !isWithinForecastHorizon(item.date, params.horizonDays)) continue;
+    push({
+      title: item.kind === 'earnings' ? `${params.ticker} ${item.title}` : item.title,
+      timing: timingLabel(item.date, item.displayDate || item.kind),
+      impact: item.note?.trim() || (item.kind === 'earnings'
+        ? 'Earnings and guidance can reset the short-term price path.'
+        : 'Macro release can move rates, risk appetite, and large-cap tech multiples.'),
+      source: item.source,
+      kind: item.kind === 'earnings' ? 'earnings' : 'macro',
+    });
+    if (items.length >= 5) return items;
+  }
+
+  for (const event of (params.events ?? [])
+    .slice()
+    .sort((a, b) => eventRelevanceScore(b, params.ticker) - eventRelevanceScore(a, params.ticker))
+    .slice(0, 3)) {
+    push({
+      title: event.title,
+      timing: event.horizon,
+      impact: marketEventImpactSummary(event) || 'Active market event that could change the near-term forecast read-through.',
+      source: event.sources[0]?.name ?? null,
+      url: event.sources[0]?.url ?? null,
+      kind: 'event',
+    });
+    if (items.length >= 5) return items;
+  }
+
+  for (const news of params.companyNews) {
+    push({
+      title: news.title,
+      timing: news.publishedAt ? 'recent' : 'watch',
+      impact: 'Watch whether this changes sentiment, guidance expectations, or the assumptions behind the forecast path.',
+      source: news.source || null,
+      url: news.url || null,
+      kind: 'company_news',
+    });
+    if (items.length >= 5) return items;
+  }
+
+  return items;
 }
 
 function formatMillions(value: number): string {
@@ -595,6 +720,7 @@ function buildPriceForecastModelPayload(params: {
   payload: PriceForecastPayload;
   confidence: number;
   attributionExplanation: string | null;
+  newsWatch: ForecastNewsWatchItem[];
 }): AnalystForecastModelPayload | null {
   const forecast = params.payload.forecast;
   const historical = params.payload.historical;
@@ -638,6 +764,7 @@ function buildPriceForecastModelPayload(params: {
     terminalForecast: typeof terminalForecast === 'number' && Number.isFinite(terminalForecast) ? terminalForecast : null,
     cagr: null,
     returnPct: returnPct !== null && Number.isFinite(returnPct) ? returnPct : null,
+    newsWatch: params.newsWatch.slice(0, 5),
     confidence: Math.max(0.2, Math.min(0.95, params.confidence)),
     source: params.payload.model_source ?? 'timesfm',
     attributionExplanation: params.attributionExplanation,
@@ -2559,7 +2686,7 @@ export async function POST(req: NextRequest) {
         const horizonLabel = formatForecastHorizon(horizonDays);
         const revenueQuarters = Math.min(8, Math.max(1, Math.ceil(horizonDays / 90)));
 
-        const [priceRes, revRes] = await Promise.all([
+        const [priceRes, revRes, catalystContext, companyNews] = await Promise.all([
           Promise.race([
             fetch(`${origin}/api/timesfm?type=price&ticker=${resolvedTicker}&horizon=${horizonDays}`, { cache: 'no-store' }),
             timeout,
@@ -2567,6 +2694,14 @@ export async function POST(req: NextRequest) {
           Promise.race([
             fetch(`${origin}/api/timesfm?type=revenue&ticker=${resolvedTicker}&quarters=${revenueQuarters}`, { cache: 'no-store' }),
             timeout,
+          ]),
+          Promise.race([
+            loadDcfCatalystContext(resolvedTicker),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+          ]),
+          Promise.race([
+            loadForecastCompanyNews(origin, resolvedTicker),
+            new Promise<CompanyInfoNewsItem[]>((resolve) => setTimeout(() => resolve([]), 3000)),
           ]),
         ]);
 
@@ -2576,6 +2711,13 @@ export async function POST(req: NextRequest) {
           macroEventsContext?.events && macroEventsContext.events.length > 0
             ? deriveMarketEventAdjustment(macroEventsContext.events, resolvedTicker)
             : null;
+        const forecastNewsWatch = buildForecastNewsWatchItems({
+          ticker: resolvedTicker,
+          horizonDays,
+          events: macroEventsContext?.events,
+          catalystContext,
+          companyNews,
+        });
 
         // Price forecast block
         if (priceRes && priceRes instanceof Response && priceRes.ok) {
@@ -2632,6 +2774,7 @@ export async function POST(req: NextRequest) {
                 attributionExplanation: eventSynthesis
                   ? `Includes active event overlay: ${eventSynthesis.event_adjustment.label ?? 'current market events'} adjusts the TimesFM baseline by ${eventSynthesis.event_adjustment.price_proxy_pct >= 0 ? '+' : ''}${eventSynthesis.event_adjustment.price_proxy_pct.toFixed(1)}%.`
                   : 'TimesFM trend path from recent stock history. No active event overlay was strong enough to adjust this ticker forecast.',
+                newsWatch: forecastNewsWatch,
               });
               const eventSynthesisBlock = eventSynthesis
                 ? `\nEvent overlay: ${eventSynthesis.event_adjustment.label ?? 'active market events'} implies a ${eventSynthesis.event_adjustment.price_proxy_pct >= 0 ? '+' : ''}${eventSynthesis.event_adjustment.price_proxy_pct.toFixed(1)}% ${horizonLabel} price proxy after confidence/horizon weighting.\n` +

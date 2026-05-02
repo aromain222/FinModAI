@@ -1,5 +1,14 @@
 export type ForecastModelSource = 'timesfm' | 'flat_fallback' | string;
 
+export type ForecastNewsWatchItem = {
+  title: string;
+  timing: string | null;
+  impact: string;
+  source?: string | null;
+  url?: string | null;
+  kind?: 'earnings' | 'macro' | 'company_news' | 'event' | 'ownership' | 'transcript';
+};
+
 export type AnalystForecastModelPayload = {
   modelType: 'FORECAST_MODEL';
   forecastKind?: 'revenue' | 'price';
@@ -20,6 +29,7 @@ export type AnalystForecastModelPayload = {
   terminalForecast: number | null;
   cagr: number | null;
   returnPct?: number | null;
+  newsWatch?: ForecastNewsWatchItem[];
   confidence: number;
   source: ForecastModelSource;
   attributionExplanation?: string | null;

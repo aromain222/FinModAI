@@ -122,6 +122,51 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
           </div>
         ) : null}
 
+        {isPriceForecast && payload.newsWatch && payload.newsWatch.length > 0 ? (
+          <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-black/10 p-3">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
+                News to Watch
+              </div>
+              <div className="text-[10px] text-[var(--cb-text-muted)]">
+                Same forecast window
+              </div>
+            </div>
+            <div className="space-y-2">
+              {payload.newsWatch.slice(0, 5).map((item, index) => (
+                <div
+                  key={`${item.title}-${index}`}
+                  className="grid gap-2 border-t border-[var(--cb-border-subtle)] pt-2 first:border-t-0 first:pt-0 sm:grid-cols-[7rem_1fr]"
+                >
+                  <div className="text-xs font-medium text-[var(--cb-text-muted)]">
+                    {item.timing ?? item.kind?.replace(/_/g, ' ') ?? 'watch'}
+                  </div>
+                  <div>
+                    {item.url ? (
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm font-medium leading-5 text-[var(--cb-text-primary)] hover:text-emerald-200"
+                      >
+                        {item.title}
+                      </a>
+                    ) : (
+                      <div className="text-sm font-medium leading-5 text-[var(--cb-text-primary)]">
+                        {item.title}
+                      </div>
+                    )}
+                    <div className="mt-0.5 text-xs leading-5 text-[var(--cb-text-muted)]">
+                      {item.impact}
+                      {item.source ? ` Source: ${item.source}.` : ''}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <div className="overflow-hidden rounded-lg border border-[var(--cb-border-subtle)]">
           <div className="grid grid-cols-3 bg-black/20 px-3 py-2 text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
             <span>{isPriceForecast ? 'Date' : 'Period'}</span>
