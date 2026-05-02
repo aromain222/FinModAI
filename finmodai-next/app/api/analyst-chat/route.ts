@@ -358,6 +358,19 @@ function isValuationOrTradeAnalysisPrompt(message: string): boolean {
   return /\b(valuation|valuation impact|model impact|intrinsic value|fair value|model value|undervalued|under valued|overvalued|over valued|worth|target price|price target|trade recommendation|position size|stop loss|margin of safety|upside|downside|buy|sell|long|short)\b/.test(text);
 }
 
+function shouldPrioritizeShortTermPriceForecast(message: string): boolean {
+  const text = message.toLowerCase();
+  const asksShortHorizon =
+    /\b(?:next|over|for)\s+\d{1,3}\s*(?:days?|weeks?|months?)\b/.test(text) ||
+    /\b(?:next|one)\s+month\b/.test(text);
+  const asksForecastLayer =
+    /\b(online forecast layer|timesfm|forecast layer|stock price path|price path|potential stock|potential growth|show.*price path|show.*stock)\b/.test(text);
+  const asksModelArtifact =
+    /\b(dcf|intrinsic value|fair value|build.*(?:model|dcf)|trade recommendation|position size|stop loss|risk budget)\b/.test(text);
+
+  return isCompanyForecastPrompt(message) && asksShortHorizon && asksForecastLayer && !asksModelArtifact;
+}
+
 function isInvestmentValuationPrompt(message: string): boolean {
   const text = message.toLowerCase();
   return (
@@ -2672,7 +2685,7 @@ export async function POST(req: NextRequest) {
         if (
           forecastReplyInput &&
           isCompanyForecastPrompt(lastUserMessage) &&
-          !isValuationOrTradeAnalysisPrompt(lastUserMessage)
+          (!isValuationOrTradeAnalysisPrompt(lastUserMessage) || shouldPrioritizeShortTermPriceForecast(lastUserMessage))
         ) {
           deterministicForecastReply = buildDeterministicForecastReply(forecastReplyInput);
         }
