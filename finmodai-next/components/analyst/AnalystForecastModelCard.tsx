@@ -32,6 +32,18 @@ function sourceVariant(source: string): 'default' | 'secondary' | 'outline' | 'd
   return 'outline';
 }
 
+function qualityClass(quality: string): string {
+  if (quality === 'strong') return 'border-emerald-400/25 bg-emerald-400/10 text-emerald-100';
+  if (quality === 'weak') return 'border-red-400/25 bg-red-400/10 text-red-100';
+  if (quality === 'mixed') return 'border-amber-400/25 bg-amber-400/10 text-amber-100';
+  return 'border-[var(--cb-border-subtle)] bg-black/10 text-[var(--cb-text-muted)]';
+}
+
+function formatHitRate(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return 'n/a';
+  return `${Math.round(value * 100)}%`;
+}
+
 function sampledIndexes(length: number): number[] {
   if (length <= 6) return Array.from({ length }, (_, index) => index);
   return Array.from(new Set([
@@ -62,6 +74,9 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
     value,
     growth: payload.growthPath[index] ?? null,
   }));
+  const liveHeadlineCount = payload.newsWatch?.filter((item) => item.sourceType === 'live_news').length ?? 0;
+  const strategicFallbackCount = payload.newsWatch?.filter((item) => item.sourceType === 'strategic_fallback').length ?? 0;
+  const topEvent = payload.newsWatch?.find((item) => item.eventForecast?.pmBrain)?.eventForecast?.pmBrain;
 
   return (
     <Card className="mt-4 border-[var(--cb-border-subtle)] bg-[var(--cb-surface-elevated)]">
@@ -119,6 +134,59 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
           forecastLabel={isPriceForecast ? 'Projected price' : 'Forecast'}
           forecastTone={returnPct == null ? 'neutral' : returnPct < 0 ? 'negative' : returnPct > 0 ? 'positive' : 'neutral'}
         />
+
+        {isPriceForecast && payload.backtest ? (
+          <div className="grid gap-3 sm:grid-cols-[1.15fr_1fr]">
+            <div className={`rounded-lg border p-3 ${qualityClass(payload.backtest.quality)}`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-[10px] font-medium uppercase tracking-widest opacity-80">
+                  Backtest Check
+                </div>
+                <div className="rounded-full border border-current/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest">
+                  {payload.backtest.quality}
+                </div>
+              </div>
+              <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                <div>
+                  <div className="text-[10px] uppercase tracking-widest opacity-70">Hit rate</div>
+                  <div className="mt-0.5 font-semibold tabular-nums">{formatHitRate(payload.backtest.directionHitRate)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-widest opacity-70">Avg miss</div>
+                  <div className="mt-0.5 font-semibold tabular-nums">
+                    {payload.backtest.averageAbsoluteErrorPct === null ? 'n/a' : `${payload.backtest.averageAbsoluteErrorPct.toFixed(1)}%`}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-widest opacity-70">Windows</div>
+                  <div className="mt-0.5 font-semibold tabular-nums">{payload.backtest.sampleSize}</div>
+                </div>
+              </div>
+              <div className="mt-2 text-xs leading-5 opacity-85">{payload.backtest.explanation}</div>
+            </div>
+            <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-black/10 p-3">
+              <div className="text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
+                Evidence Quality
+              </div>
+              <div className="mt-2 text-sm font-medium text-[var(--cb-text-primary)]">
+                {liveHeadlineCount > 0
+                  ? `${liveHeadlineCount} live headline${liveHeadlineCount === 1 ? '' : 's'} in the overlay`
+                  : strategicFallbackCount > 0
+                    ? 'Using strategic watchlist fallback'
+                    : 'No company-specific catalyst overlay'}
+              </div>
+              {topEvent ? (
+                <div className="mt-1 text-xs leading-5 text-[var(--cb-text-muted)]">
+                  PM overlay: {formatPctPoint(topEvent.forecastOverlayPct)} at {Math.round(topEvent.confidence * 100)}% confidence.
+                </div>
+              ) : (
+                <div className="mt-1 text-xs leading-5 text-[var(--cb-text-muted)]">
+                  Forecast is mostly the price model until a stronger catalyst appears.
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
 
         {payload.attributionExplanation ? (
           <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-black/10 p-3 text-sm leading-6 text-[var(--cb-text-primary)]">

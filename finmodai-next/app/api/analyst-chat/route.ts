@@ -114,6 +114,7 @@ import {
   type PriceForecastPayload,
 } from '@/lib/forecast/eventAdjustedForecast';
 import { labelForecastSource, type AnalystForecastModelPayload, type ForecastNewsWatchItem } from '@/lib/analyst/forecastModel';
+import { computePriceForecastBacktest } from '@/lib/analyst/forecastBacktest';
 import { runPmAgentBrainForEvent, type PmAgentBrainOutput } from '@/lib/analyst/pmAgentBrain';
 import { retrievePmPlaybookForEvent, type RetrievedPmPlaybook } from '@/lib/analyst/pmPlaybook';
 import { featureFlags, serverEnv } from '@/lib/env/server';
@@ -1747,6 +1748,15 @@ function buildPriceForecastModelPayload(params: {
     latestActual && latestActual > 0 && terminalForecast
       ? terminalForecast / latestActual - 1
       : null;
+  const backtest = computePriceForecastBacktest({
+    prices: historicalPrices,
+    horizonDays: params.horizonDays,
+  });
+  const backtestConfidenceAdjustment =
+    backtest.quality === 'strong' ? 0.05 :
+    backtest.quality === 'weak' ? -0.12 :
+    backtest.quality === 'insufficient' ? -0.05 :
+    0;
   const lower =
     forecast.lower.length === forecast.values.length && forecast.lower.every((value) => Number.isFinite(value))
       ? forecast.lower
@@ -1776,7 +1786,8 @@ function buildPriceForecastModelPayload(params: {
     cagr: null,
     returnPct: returnPct !== null && Number.isFinite(returnPct) ? returnPct : null,
     newsWatch: params.newsWatch.slice(0, 5),
-    confidence: Math.max(0.2, Math.min(0.95, params.confidence)),
+    backtest,
+    confidence: Math.max(0.2, Math.min(0.95, params.confidence + backtestConfidenceAdjustment)),
     source: params.payload.model_source ?? 'timesfm',
     attributionExplanation: params.attributionExplanation,
     warning: params.adjustedForecast

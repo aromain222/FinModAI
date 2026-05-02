@@ -1,3 +1,5 @@
+import type { ForecastBacktestSummary } from '@/lib/analyst/forecastBacktest';
+
 export type ForecastModelSource = 'timesfm' | 'flat_fallback' | string;
 
 export type ForecastNewsWatchItem = {
@@ -64,6 +66,7 @@ export type AnalystForecastModelPayload = {
   cagr: number | null;
   returnPct?: number | null;
   newsWatch?: ForecastNewsWatchItem[];
+  backtest?: ForecastBacktestSummary;
   confidence: number;
   source: ForecastModelSource;
   attributionExplanation?: string | null;
