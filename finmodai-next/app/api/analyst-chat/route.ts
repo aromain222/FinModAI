@@ -2570,13 +2570,17 @@ export async function POST(req: NextRequest) {
           };
           const forecastValues = rd.forecast?.values ?? [];
           const forecastLabels = rd.forecast?.labels ?? [];
+          const impliedGrowthRate =
+            typeof rd.implied_growth_rate === 'number' && Number.isFinite(rd.implied_growth_rate)
+              ? rd.implied_growth_rate
+              : null;
           const hasNtmRevenueContext =
             revenueQuarters >= 4 &&
             forecastValues.length >= 4 &&
             forecastLabels.length >= 4 &&
-            rd.implied_growth_rate != null;
+            impliedGrowthRate != null;
           if (rd.model_available && rd.forecast && hasNtmRevenueContext) {
-            const growth = (rd.implied_growth_rate * 100).toFixed(1);
+            const growth = (impliedGrowthRate * 100).toFixed(1);
             const fwdRevenue = forecastValues
               .slice(0, revenueQuarters)
               .map((v, i) => `${forecastLabels[i]}: $${Math.round(v)}M`)
