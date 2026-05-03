@@ -426,6 +426,71 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
           ))}
         </div>
 
+        {isPriceForecast && payload.tradingSignal ? (
+          <div className={`rounded-lg border p-3 ${
+            payload.tradingSignal.signal === 'LONG'
+              ? 'border-emerald-400/25 bg-emerald-400/10'
+              : payload.tradingSignal.signal === 'SHORT'
+              ? 'border-red-400/25 bg-red-400/10'
+              : 'border-[var(--cb-border-subtle)] bg-black/10'
+          }`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">Trading Signal</div>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-bold tracking-wide ${
+                payload.tradingSignal.signal === 'LONG'
+                  ? 'bg-emerald-500/20 text-emerald-300'
+                  : payload.tradingSignal.signal === 'SHORT'
+                  ? 'bg-red-500/20 text-red-300'
+                  : 'bg-zinc-500/20 text-zinc-300'
+              }`}>
+                {payload.tradingSignal.signal}
+              </span>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-4 text-xs">
+              <div>
+                <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Conviction</div>
+                <div className="mt-0.5 font-semibold tabular-nums">{Math.round(payload.tradingSignal.conviction * 100)}%</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Position Size</div>
+                <div className="mt-0.5 font-semibold tabular-nums">{payload.tradingSignal.positionSizePct.toFixed(1)}%</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Horizon</div>
+                <div className="mt-0.5 font-semibold">{payload.tradingSignal.horizon}</div>
+              </div>
+              {payload.combinedEventImpactPct !== null && payload.combinedEventImpactPct !== undefined ? (
+                <div>
+                  <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Event Stack</div>
+                  <div className={`mt-0.5 font-semibold tabular-nums ${payload.combinedEventImpactPct >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                    {payload.combinedEventImpactPct >= 0 ? '+' : ''}{payload.combinedEventImpactPct.toFixed(1)}%
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {isPriceForecast && payload.riskProfile && payload.riskProfile.topRisks.length > 0 ? (
+          <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-3">
+            <div className="text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">Risk Profile</div>
+            <ul className="mt-2 space-y-1">
+              {payload.riskProfile.topRisks.map((risk, i) => (
+                <li key={i} className="flex gap-2 text-xs leading-5 text-[var(--cb-text-primary)]">
+                  <span className="mt-0.5 shrink-0 text-amber-400">▸</span>
+                  <span>{risk}</span>
+                </li>
+              ))}
+            </ul>
+            {payload.riskProfile.invalidationTriggers.length > 0 ? (
+              <div className="mt-2 border-t border-amber-400/15 pt-2 text-xs leading-5 text-[var(--cb-text-muted)]">
+                <span className="font-medium text-amber-300/80">Invalidation: </span>
+                {payload.riskProfile.invalidationTriggers[0]}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         {payload.warning ? (
           <div className="text-xs leading-5 text-amber-300/90">{payload.warning}</div>
         ) : null}

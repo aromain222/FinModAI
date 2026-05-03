@@ -1008,25 +1008,75 @@ function strategicForecastWatchItems(ticker: string): ForecastNewsWatchItem[] {
   return byTicker[normalized] ?? [];
 }
 
+type PortfolioAnalystResult = {
+  items: ForecastNewsWatchItem[];
+  tradingSignal?: import('@/lib/analyst/forecastModel').ForecastTradingSignal | null;
+  riskProfile?: import('@/lib/analyst/forecastModel').ForecastRiskProfile | null;
+  combinedEventImpactPct?: number | null;
+};
+
 async function discoverEventsWithLlm(params: {
   ticker: string;
   companyName: string;
-}): Promise<ForecastNewsWatchItem[]> {
+  horizonDays: number;
+  currentPrice?: number | null;
+}): Promise<PortfolioAnalystResult> {
   try {
-    const systemPrompt = [
-      'You are a senior buy-side equity analyst.',
-      'Return strict JSON only — a JSON array, no markdown, no explanation.',
-      'List the most investment-relevant ongoing situations, known events, or catalysts currently affecting this company.',
-      'Include: active litigation or regulatory proceedings, macro or sector factors specific to this company, known competitive dynamics, any major ongoing business or strategic developments.',
-      'Do not restrict to a specific time window — include anything currently material to the investment case.',
-      'Be specific. If a lawsuit is ongoing, name it. If a regulation is being enforced, name it.',
-      'Do NOT invent financial results, specific prices, or earnings dates you are not sure of.',
-    ].join(' ');
-    const userPrompt = JSON.stringify({
-      ticker: params.ticker,
-      companyName: params.companyName,
-      instructions: 'Return 3-5 items. Each item must have: title (string), timing (string, e.g. "ongoing" or "near-term"), impact (string, why it matters to the stock via specific financial channels), kind ("earnings"|"macro"|"company_news"|"event"), direction ("positive"|"negative"|"neutral"), confidence (0.2-0.85), priceImpactPct (-6 to 6).',
-    });
+    const systemPrompt = `You are an event-driven portfolio analyst embedded inside an AI-native asset management system.
+
+Your job is to take a user request for a stock forecast and transform it into a structured JSON analysis.
+
+You must think like a hedge fund analyst, not a chatbot.
+
+INPUT:
+- Ticker: ${params.ticker}
+- Company: ${params.companyName}
+- Forecast Horizon: ${params.horizonDays} days
+- Current Price: ${params.currentPrice ? `$${params.currentPrice.toFixed(2)}` : 'use your best estimate'}
+
+STEP 1 — BASE FORECAST: Use trend extrapolation, volatility context, and macro overlays to generate an expected price path. This is the baseline world assuming no major disruptions.
+
+STEP 2 — EVENT DISCOVERY: Identify ALL relevant events within the forecast window: earnings, regulatory decisions, product launches, macro releases, legal/antitrust cases, industry catalysts.
+
+STEP 3 — EVENT ANALYSIS: For EACH event output scenarios (bull/base/bear) with probabilities that sum to 1.0, % impact per scenario, and probability-weighted expected impact.
+
+STEP 4 — EVENT STACKING: Do NOT treat events independently. Adjust for interactions and sequencing.
+
+STEP 5 — FINAL FORECAST: Combine base forecast + event-adjusted impacts.
+
+STEP 6 — TRADING SIGNAL: Generate LONG / SHORT / NEUTRAL with conviction (0–1), position size (max 10% of portfolio), and time horizon.
+
+STEP 7 — RISK ANALYSIS: Top 3 risks, invalidation triggers, exit conditions.
+
+RULES:
+- No vague language. Every % must be justified.
+- Probabilities must sum to 1.0 per event.
+- Do NOT skip event analysis even if uncertain.
+- If data is missing, make the most reasonable assumption and proceed.
+
+Return ONLY valid JSON in this exact structure, no markdown:
+{
+  "forecast": { "direction": "UP|DOWN|SIDEWAYS", "confidence": 0.0, "expected_return_pct": 0.0, "price_target_range": [low, high], "drivers": [] },
+  "events": [
+    {
+      "event_name": "", "event_date": "", "event_type": "EARNINGS|LEGAL|MACRO|PRODUCT|REGULATORY|INDUSTRY",
+      "description": "",
+      "scenarios": {
+        "bull": { "probability": 0.0, "impact_pct": 0.0 },
+        "base": { "probability": 0.0, "impact_pct": 0.0 },
+        "bear": { "probability": 0.0, "impact_pct": 0.0 }
+      },
+      "expected_impact_pct": 0.0,
+      "key_driver": ""
+    }
+  ],
+  "combined_event_impact_pct": 0.0,
+  "final_forecast": { "expected_return_pct": 0.0, "price_target_range": [low, high], "volatility": "LOW|MEDIUM|HIGH" },
+  "trading_signal": { "signal": "LONG|SHORT|NEUTRAL", "conviction": 0.0, "position_size_pct": 0.0, "horizon": "" },
+  "risks": { "top_risks": [], "invalidation_triggers": [], "exit_conditions": [] }
+}`;
+
+    const userPrompt = `Analyze ${params.ticker} (${params.companyName}) over ${params.horizonDays} days. Return the JSON analysis now.`;
 
     // Tier 1: responses.create — the same API path the main chat handler uses (proven working in production).
     let text = '';
@@ -1089,68 +1139,115 @@ async function discoverEventsWithLlm(params: {
         console.info('[discoverEventsWithLlm] generateTextWithProviderFallback succeeded via', result!.provider, result!.model, 'for', params.ticker);
       } else {
         console.warn('[discoverEventsWithLlm] all providers exhausted for', params.ticker);
-        return [];
+        return { items: [] };
       }
     }
 
     console.info('[discoverEventsWithLlm] got text for', params.ticker, '— length', text.length);
-    const jsonStart = text.indexOf('[');
-    const jsonEnd = text.lastIndexOf(']');
+
+    // Parse the full portfolio analyst JSON object
+    const jsonStart = text.indexOf('{');
+    const jsonEnd = text.lastIndexOf('}');
     if (jsonStart === -1 || jsonEnd === -1) {
-      console.warn('[discoverEventsWithLlm] no JSON array in response for', params.ticker, text.slice(0, 120));
-      return [];
+      console.warn('[discoverEventsWithLlm] no JSON object in response for', params.ticker, text.slice(0, 120));
+      return { items: [] };
     }
 
-    const parsed: unknown = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
-    if (!Array.isArray(parsed)) {
-      console.warn('[discoverEventsWithLlm] parsed JSON is not an array for', params.ticker, typeof parsed);
-      return [];
-    }
+    const parsed = JSON.parse(text.slice(jsonStart, jsonEnd + 1)) as Record<string, unknown>;
 
-    const items = parsed
-      .map((item): ForecastNewsWatchItem | null => {
-        if (!item || typeof item !== 'object') return null;
-        const row = item as Record<string, unknown>;
-        const title = typeof row.title === 'string' ? row.title.trim() : '';
-        const impact = typeof row.impact === 'string' ? row.impact.trim() : '';
+    // Map event type string → ForecastNewsWatchItem kind
+    const mapKind = (t: unknown): ForecastNewsWatchItem['kind'] => {
+      const s = typeof t === 'string' ? t.toUpperCase() : '';
+      if (s === 'EARNINGS') return 'earnings';
+      if (s === 'MACRO') return 'macro';
+      if (s === 'LEGAL' || s === 'REGULATORY' || s === 'ANTITRUST') return 'event';
+      if (s === 'PRODUCT' || s === 'INDUSTRY') return 'company_news';
+      return 'company_news';
+    };
+
+    const rawEvents = Array.isArray(parsed.events) ? parsed.events : [];
+    const items: ForecastNewsWatchItem[] = rawEvents
+      .map((e: unknown): ForecastNewsWatchItem | null => {
+        if (!e || typeof e !== 'object') return null;
+        const ev = e as Record<string, unknown>;
+        const title = typeof ev.event_name === 'string' ? ev.event_name.trim() : '';
+        const impact = typeof ev.description === 'string' ? ev.description.trim() : '';
         if (!title || !impact) return null;
-        const kind = ['earnings', 'macro', 'company_news', 'event', 'ownership', 'transcript'].includes(row.kind as string)
-          ? (row.kind as ForecastNewsWatchItem['kind'])
-          : 'company_news';
-        const direction = ['positive', 'negative', 'neutral'].includes(row.direction as string)
-          ? (row.direction as string)
-          : 'neutral';
-        const confidence = typeof row.confidence === 'number' ? Math.min(0.85, Math.max(0.2, row.confidence)) : 0.45;
-        const priceImpactPct = typeof row.priceImpactPct === 'number' ? Math.min(6, Math.max(-6, row.priceImpactPct)) : 0;
+
+        const scenarios = ev.scenarios && typeof ev.scenarios === 'object'
+          ? ev.scenarios as Record<string, { probability?: number; impact_pct?: number }>
+          : null;
+        const bull = scenarios?.bull ?? {};
+        const base = scenarios?.base ?? {};
+        const bear = scenarios?.bear ?? {};
+
+        const bullImpact = typeof bull.impact_pct === 'number' ? bull.impact_pct : 0;
+        const bearImpact = typeof bear.impact_pct === 'number' ? bear.impact_pct : 0;
+        const baseProb = typeof base.probability === 'number' ? Math.min(0.85, Math.max(0.1, base.probability)) : 0.5;
+        const weightedImpact = typeof ev.expected_impact_pct === 'number' ? ev.expected_impact_pct : 0;
+        const direction: 'positive' | 'negative' | 'neutral' = weightedImpact > 0.5 ? 'positive' : weightedImpact < -0.5 ? 'negative' : 'neutral';
+
+        const bullPct = Math.round((typeof bull.probability === 'number' ? bull.probability : 0.25) * 100);
+        const basePct = Math.round(baseProb * 100);
+        const bearPct = Math.round((typeof bear.probability === 'number' ? bear.probability : 0.25) * 100);
+
         return {
           title,
-          timing: typeof row.timing === 'string' ? row.timing.trim() : null,
+          timing: typeof ev.event_date === 'string' ? ev.event_date.trim() || null : null,
           impact,
-          kind,
+          kind: mapKind(ev.event_type),
           sourceType: 'llm_discovery',
           eventForecast: {
             expectedResult: impact,
-            direction: direction as 'positive' | 'negative' | 'neutral',
-            confidence,
-            priceImpactPct,
+            surpriseToWatch: typeof ev.key_driver === 'string' ? `Key driver: ${ev.key_driver}` : undefined,
+            direction,
+            confidence: baseProb,
+            priceImpactPct: Math.min(10, Math.max(-10, weightedImpact)),
+            priceImpactRangePct: { downside: bearImpact, upside: bullImpact },
+            pmBrain: {
+              pmView: `Bull +${bullImpact > 0 ? bullImpact.toFixed(1) : bullImpact}% (${bullPct}%) · Base ${weightedImpact > 0 ? '+' : ''}${weightedImpact.toFixed(1)}% (${basePct}%) · Bear ${bearImpact.toFixed(1)}% (${bearPct}%)`,
+              forecastOverlayPct: Math.min(10, Math.max(-10, weightedImpact)),
+              confidence: baseProb,
+              invalidationSignal: typeof ev.key_driver === 'string' ? `Invalidate if ${ev.key_driver} does not shift materially` : 'Watch for estimate or multiple change',
+            },
             stockImpact: impact,
           },
         };
       })
       .filter((item): item is ForecastNewsWatchItem => item !== null)
-      .slice(0, 5);
+      .slice(0, 6);
 
-    if (items.length === 0) {
-      console.warn(
-        '[discoverEventsWithLlm] all', parsed.length, 'parsed items were filtered out (missing title/impact) for', params.ticker,
-        '— first item keys:', parsed.length > 0 && typeof parsed[0] === 'object' && parsed[0] !== null ? Object.keys(parsed[0] as object).join(',') : 'n/a',
-      );
-    }
+    console.info('[discoverEventsWithLlm] mapped', items.length, 'events for', params.ticker);
 
-    return items;
+    // Extract trading signal
+    const rawSignal = parsed.trading_signal && typeof parsed.trading_signal === 'object'
+      ? parsed.trading_signal as Record<string, unknown>
+      : null;
+    const tradingSignal = rawSignal ? {
+      signal: ['LONG', 'SHORT', 'NEUTRAL'].includes(rawSignal.signal as string)
+        ? (rawSignal.signal as 'LONG' | 'SHORT' | 'NEUTRAL')
+        : 'NEUTRAL' as const,
+      conviction: typeof rawSignal.conviction === 'number' ? Math.min(1, Math.max(0, rawSignal.conviction)) : 0.5,
+      positionSizePct: typeof rawSignal.position_size_pct === 'number' ? Math.min(10, Math.max(0, rawSignal.position_size_pct)) : 0,
+      horizon: typeof rawSignal.horizon === 'string' ? rawSignal.horizon : `${params.horizonDays}d`,
+    } : null;
+
+    // Extract risk profile
+    const rawRisks = parsed.risks && typeof parsed.risks === 'object'
+      ? parsed.risks as Record<string, unknown>
+      : null;
+    const riskProfile = rawRisks ? {
+      topRisks: Array.isArray(rawRisks.top_risks) ? (rawRisks.top_risks as unknown[]).filter((r): r is string => typeof r === 'string') : [],
+      invalidationTriggers: Array.isArray(rawRisks.invalidation_triggers) ? (rawRisks.invalidation_triggers as unknown[]).filter((r): r is string => typeof r === 'string') : [],
+      exitConditions: Array.isArray(rawRisks.exit_conditions) ? (rawRisks.exit_conditions as unknown[]).filter((r): r is string => typeof r === 'string') : [],
+    } : null;
+
+    const combinedEventImpactPct = typeof parsed.combined_event_impact_pct === 'number' ? parsed.combined_event_impact_pct : null;
+
+    return { items, tradingSignal, riskProfile, combinedEventImpactPct };
   } catch (err) {
     console.warn('[discoverEventsWithLlm] error for', params.ticker, err instanceof Error ? err.message : String(err));
-    return [];
+    return { items: [] };
   }
 }
 
@@ -3883,7 +3980,7 @@ export async function POST(req: NextRequest) {
           (stockLookupPayload as { companyName?: string | null } | null)?.companyName ||
           resolvedTicker;
 
-        const [priceRes, revRes, catalystContext, companyNews, llmDiscoveredItems] = await Promise.all([
+        const [priceRes, revRes, catalystContext, companyNews, llmResult] = await Promise.all([
           Promise.race([
             fetch(`${origin}/api/timesfm?type=price&ticker=${resolvedTicker}&horizon=${horizonDays}`, { cache: 'no-store' }),
             timeout,
@@ -3903,9 +4000,11 @@ export async function POST(req: NextRequest) {
           discoverEventsWithLlm({
             ticker: resolvedTicker,
             companyName: resolvedCompanyName,
+            horizonDays,
           }),
         ]);
-        console.info('[analyst-chat] llmDiscoveredItems for', resolvedTicker, ':', llmDiscoveredItems.length);
+        const llmDiscoveredItems = llmResult.items;
+        console.info('[analyst-chat] llmDiscoveredItems for', resolvedTicker, ':', llmDiscoveredItems.length, '| signal:', llmResult.tradingSignal?.signal ?? 'none');
 
         const parts: string[] = [];
         let forecastReplyInput: DeterministicForecastReplyInput | null = null;
@@ -3982,7 +4081,7 @@ export async function POST(req: NextRequest) {
                 eventSynthesis,
                 revenueForecast: null,
               };
-              priceForecastModel = buildPriceForecastModelPayload({
+              const basePayload = buildPriceForecastModelPayload({
                 ticker: resolvedTicker,
                 horizonDays,
                 horizonLabel,
@@ -3994,6 +4093,14 @@ export async function POST(req: NextRequest) {
                   : 'TimesFM trend path from recent stock history. News and catalysts are shown as watch items, but no directional overlay was strong enough to change the path.',
                 newsWatch: forecastNewsWatch,
               });
+              if (basePayload) {
+                priceForecastModel = {
+                  ...basePayload,
+                  tradingSignal: llmResult.tradingSignal ?? null,
+                  riskProfile: llmResult.riskProfile ?? null,
+                  combinedEventImpactPct: llmResult.combinedEventImpactPct ?? null,
+                };
+              }
               const eventSynthesisBlock = eventSynthesis
                 ? `\nEvent overlay: ${eventSynthesis.event_adjustment.label ?? 'active market events'} implies a ${eventSynthesis.event_adjustment.price_proxy_pct >= 0 ? '+' : ''}${eventSynthesis.event_adjustment.price_proxy_pct.toFixed(1)}% ${horizonLabel} price proxy after confidence/horizon weighting.\n` +
                   `Combined outlook: $${eventSynthesis.baseline.start_price.toFixed(2)} → $${eventSynthesis.combined.end_price.toFixed(2)} (${eventSynthesis.combined.direction}, ${eventSynthesis.combined.return_pct >= 0 ? '+' : ''}${eventSynthesis.combined.return_pct.toFixed(1)}%).\n` +

@@ -46,6 +46,19 @@ export type ForecastNewsWatchItem = {
   };
 };
 
+export type ForecastTradingSignal = {
+  signal: 'LONG' | 'SHORT' | 'NEUTRAL';
+  conviction: number;
+  positionSizePct: number;
+  horizon: string;
+};
+
+export type ForecastRiskProfile = {
+  topRisks: string[];
+  invalidationTriggers: string[];
+  exitConditions: string[];
+};
+
 export type AnalystForecastModelPayload = {
   modelType: 'FORECAST_MODEL';
   forecastKind?: 'revenue' | 'price';
@@ -69,6 +82,9 @@ export type AnalystForecastModelPayload = {
   newsWatch?: ForecastNewsWatchItem[];
   backtest?: ForecastBacktestSummary;
   technicals?: TechnicalConfirmation;
+  tradingSignal?: ForecastTradingSignal | null;
+  riskProfile?: ForecastRiskProfile | null;
+  combinedEventImpactPct?: number | null;
   confidence: number;
   source: ForecastModelSource;
   attributionExplanation?: string | null;
