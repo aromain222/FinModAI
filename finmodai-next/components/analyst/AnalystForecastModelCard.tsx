@@ -46,6 +46,13 @@ function verdictClass(verdict: string): string {
   return 'border-[var(--cb-border-subtle)] bg-black/10 text-[var(--cb-text-muted)]';
 }
 
+function qualityLabel(quality: string): string {
+  if (quality === 'strong') return 'Reliable';
+  if (quality === 'weak') return 'Use with caution';
+  if (quality === 'mixed') return 'Mixed track record';
+  return quality;
+}
+
 function formatHitRate(value: number | null): string {
   if (value === null || !Number.isFinite(value)) return 'n/a';
   return `${Math.round(value * 100)}%`;
@@ -72,6 +79,24 @@ function sampledIndexes(length: number): number[] {
   ]));
 }
 
+function directionLabel(d: string): string {
+  if (d === 'positive') return '↑ Positive for stock';
+  if (d === 'negative') return '↓ Negative for stock';
+  return '→ Likely neutral';
+}
+
+function signalLabel(signal: string): string {
+  if (signal === 'LONG') return 'BUY ↑';
+  if (signal === 'SHORT') return 'SELL ↓';
+  return 'HOLD →';
+}
+
+function signalExplain(signal: string): string {
+  if (signal === 'LONG') return 'The model expects the stock to rise over this period.';
+  if (signal === 'SHORT') return 'The model expects the stock to fall over this period.';
+  return 'The model does not see a strong reason to buy or sell right now.';
+}
+
 export function AnalystForecastModelCard({ payload }: { payload: AnalystForecastModelPayload }) {
   const isPriceForecast = payload.forecastKind === 'price' || payload.units === 'USD/share';
   const confidencePct = Math.round(Math.max(0, Math.min(1, payload.confidence)) * 100);
@@ -93,7 +118,6 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
   }));
   const liveHeadlineCount = payload.newsWatch?.filter((item) => item.sourceType === 'live_news').length ?? 0;
   const llmDiscoveryCount = payload.newsWatch?.filter((item) => item.sourceType === 'llm_discovery').length ?? 0;
-  const strategicFallbackCount = payload.newsWatch?.filter((item) => item.sourceType === 'strategic_fallback').length ?? 0;
   const topEvent = payload.newsWatch?.find((item) => item.eventForecast?.pmBrain)?.eventForecast?.pmBrain;
 
   return (
@@ -115,6 +139,8 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+
+        {/* Key numbers */}
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-black/10 p-3">
             <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">
@@ -134,9 +160,14 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
           </div>
           <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-black/10 p-3">
             <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">
-              {isPriceForecast ? 'Potential Move' : 'Implied CAGR'}
+              {isPriceForecast ? 'Expected Move' : 'Implied CAGR'}
             </div>
-            <div className="mt-1 text-lg font-semibold tabular-nums text-[var(--cb-text-primary)]">
+            <div className={`mt-1 text-lg font-semibold tabular-nums ${
+              returnPct == null ? 'text-[var(--cb-text-primary)]'
+              : returnPct > 0 ? 'text-emerald-300'
+              : returnPct < 0 ? 'text-red-300'
+              : 'text-[var(--cb-text-primary)]'
+            }`}>
               {formatPct(isPriceForecast ? returnPct : payload.cagr)}
             </div>
           </div>
@@ -147,36 +178,37 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
           historical={payload.historical}
           lower={payload.lower}
           upper={payload.upper}
-          title={isPriceForecast ? 'Potential Growth Path' : 'Forecast Path'}
+          title={isPriceForecast ? 'Projected Price Path' : 'Forecast Path'}
           historicalLabel={isPriceForecast ? 'Recent price' : 'Historical'}
           forecastLabel={isPriceForecast ? 'Projected price' : 'Forecast'}
           forecastTone={returnPct == null ? 'neutral' : returnPct < 0 ? 'negative' : returnPct > 0 ? 'positive' : 'neutral'}
         />
 
+        {/* Forecast accuracy + news used */}
         {isPriceForecast && payload.backtest ? (
           <div className="grid gap-3 sm:grid-cols-[1.15fr_1fr]">
             <div className={`rounded-lg border p-3 ${qualityClass(payload.backtest.quality)}`}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="text-[10px] font-medium uppercase tracking-widest opacity-80">
-                  Backtest Check
+                  Forecast Accuracy
                 </div>
                 <div className="rounded-full border border-current/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest">
-                  {payload.backtest.quality}
+                  {qualityLabel(payload.backtest.quality)}
                 </div>
               </div>
               <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
                 <div>
-                  <div className="text-[10px] uppercase tracking-widest opacity-70">Hit rate</div>
+                  <div className="text-[10px] uppercase tracking-widest opacity-70">Right direction</div>
                   <div className="mt-0.5 font-semibold tabular-nums">{formatHitRate(payload.backtest.directionHitRate)}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase tracking-widest opacity-70">Avg miss</div>
+                  <div className="text-[10px] uppercase tracking-widest opacity-70">Typical error</div>
                   <div className="mt-0.5 font-semibold tabular-nums">
                     {payload.backtest.averageAbsoluteErrorPct === null ? 'n/a' : `${payload.backtest.averageAbsoluteErrorPct.toFixed(1)}%`}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase tracking-widest opacity-70">Windows</div>
+                  <div className="text-[10px] uppercase tracking-widest opacity-70">Periods tested</div>
                   <div className="mt-0.5 font-semibold tabular-nums">{payload.backtest.sampleSize}</div>
                 </div>
               </div>
@@ -184,45 +216,44 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
             </div>
             <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-black/10 p-3">
               <div className="text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
-                Evidence Quality
+                News & Events Used
               </div>
               <div className="mt-2 text-sm font-medium text-[var(--cb-text-primary)]">
                 {liveHeadlineCount > 0
-                  ? `${liveHeadlineCount} live headline${liveHeadlineCount === 1 ? '' : 's'} in the overlay`
+                  ? `${liveHeadlineCount} live headline${liveHeadlineCount === 1 ? '' : 's'} factored in`
                   : llmDiscoveryCount > 0
-                    ? `${llmDiscoveryCount} AI-discovered catalyst${llmDiscoveryCount === 1 ? '' : 's'}`
-                    : strategicFallbackCount > 0
-                      ? 'Using strategic watchlist fallback'
-                      : 'No company-specific catalyst overlay'}
+                    ? `${llmDiscoveryCount} AI-researched event${llmDiscoveryCount === 1 ? '' : 's'} factored in`
+                    : 'Using general market themes'}
               </div>
               {topEvent ? (
                 <div className="mt-1 text-xs leading-5 text-[var(--cb-text-muted)]">
-                  PM overlay: {formatPctPoint(topEvent.forecastOverlayPct)} at {Math.round(topEvent.confidence * 100)}% confidence.
+                  AI price adjustment: {formatPctPoint(topEvent.forecastOverlayPct)} ({Math.round(topEvent.confidence * 100)}% confidence)
                 </div>
               ) : (
                 <div className="mt-1 text-xs leading-5 text-[var(--cb-text-muted)]">
-                  Forecast is mostly the price model until a stronger catalyst appears.
+                  Price model is the main driver — no strong event signal yet.
                 </div>
               )}
             </div>
           </div>
         ) : null}
 
+        {/* Chart signals */}
         {isPriceForecast && payload.technicals ? (
           <div className={`rounded-lg border p-3 ${verdictClass(payload.technicals.verdict)}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="text-[10px] font-medium uppercase tracking-widest opacity-80">
-                  Technical Confirmation
+                  Chart Signals
                 </div>
                 <div className="mt-1 text-sm font-semibold text-[var(--cb-text-primary)]">
                   {payload.technicals.verdict === 'confirms'
-                    ? 'Technicals confirm the forecast'
+                    ? 'Charts support the forecast ✓'
                     : payload.technicals.verdict === 'conflicts'
-                      ? 'Technicals conflict with the forecast'
+                      ? 'Charts point the opposite direction ⚠'
                       : payload.technicals.verdict === 'mixed'
-                        ? 'Technicals are mixed'
-                        : 'Not enough technical history'}
+                        ? 'Charts are sending mixed signals'
+                        : 'Not enough chart history'}
                 </div>
               </div>
               <div className="rounded-full border border-current/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest">
@@ -231,11 +262,11 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
               <div>
-                <div className="text-[10px] uppercase tracking-widest opacity-70">20D MA</div>
+                <div className="text-[10px] uppercase tracking-widest opacity-70">vs 20-day avg</div>
                 <div className="mt-0.5 font-semibold tabular-nums">{formatPctStat(payload.technicals.priceVsMa20Pct)}</div>
               </div>
               <div>
-                <div className="text-[10px] uppercase tracking-widest opacity-70">50D MA</div>
+                <div className="text-[10px] uppercase tracking-widest opacity-70">vs 50-day avg</div>
                 <div className="mt-0.5 font-semibold tabular-nums">{formatPctStat(payload.technicals.priceVsMa50Pct)}</div>
               </div>
               <div>
@@ -247,7 +278,7 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
                 <div className="mt-0.5 font-semibold tabular-nums">{formatVolStat(payload.technicals.volatility30dPct)}</div>
               </div>
               <div>
-                <div className="text-[10px] uppercase tracking-widest opacity-70">Volume</div>
+                <div className="text-[10px] uppercase tracking-widest opacity-70">Volume trend</div>
                 <div className="mt-0.5 font-semibold tabular-nums">{formatPctStat(payload.technicals.volumeTrendPct)}</div>
               </div>
             </div>
@@ -255,154 +286,213 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
           </div>
         ) : null}
 
+        {/* How the forecast was built */}
         {payload.attributionExplanation ? (
           <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-black/10 p-3 text-sm leading-6 text-[var(--cb-text-primary)]">
             {payload.attributionExplanation}
           </div>
         ) : null}
 
+        {/* Events to watch */}
         {isPriceForecast && payload.newsWatch && payload.newsWatch.length > 0 ? (
           <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-black/10 p-3">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <div className="text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
-                News to Watch
-              </div>
-              <div className="text-[10px] text-[var(--cb-text-muted)]">
-                Same forecast window
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
+                  Events to Watch
+                </div>
+                <div className="mt-0.5 text-xs text-[var(--cb-text-muted)]">
+                  Things that could move this stock in the forecast window
+                </div>
               </div>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {payload.newsWatch.slice(0, 5).map((item, index) => (
                 <div
                   key={`${item.title}-${index}`}
-                  className="grid gap-2 border-t border-[var(--cb-border-subtle)] pt-2 first:border-t-0 first:pt-0 sm:grid-cols-[7rem_1fr]"
+                  className="rounded-md border border-[var(--cb-border-subtle)] bg-black/10 p-3"
                 >
-                  <div className="text-xs font-medium text-[var(--cb-text-muted)]">
-                    {item.timing ?? item.kind?.replace(/_/g, ' ') ?? 'watch'}
+                  {/* Timing + badge */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {item.timing && item.timing !== 'watch' ? (
+                      <span className="text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
+                        {item.timing === 'ongoing' ? 'Ongoing' : item.timing}
+                      </span>
+                    ) : null}
+                    {item.sourceType === 'live_news' ? (
+                      <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest text-emerald-200">
+                        Live news
+                      </span>
+                    ) : item.sourceType === 'llm_discovery' ? (
+                      <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest text-sky-200">
+                        AI researched
+                      </span>
+                    ) : item.sourceType === 'calendar' ? (
+                      <span className="rounded-full border border-violet-400/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest text-violet-200">
+                        Scheduled event
+                      </span>
+                    ) : null}
                   </div>
-                  <div>
+
+                  {/* Title */}
+                  <div className="mt-1.5">
                     {item.url ? (
                       <a
                         href={item.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-sm font-medium leading-5 text-[var(--cb-text-primary)] hover:text-emerald-200"
+                        className="text-sm font-semibold leading-5 text-[var(--cb-text-primary)] hover:text-emerald-200"
                       >
                         {item.title}
                       </a>
                     ) : (
-                      <div className="text-sm font-medium leading-5 text-[var(--cb-text-primary)]">
+                      <div className="text-sm font-semibold leading-5 text-[var(--cb-text-primary)]">
                         {item.title}
                       </div>
                     )}
-                    <div className="mt-0.5 text-xs leading-5 text-[var(--cb-text-muted)]">
-                      {item.impact}
-                      {item.source ? ` Source: ${item.source}.` : ''}
-                    </div>
-                    {item.sourceType === 'live_news' ? (
-                      <div className="mt-1 inline-flex w-fit rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest text-emerald-200">
-                        Live headline
-                      </div>
-                    ) : item.sourceType === 'llm_discovery' ? (
-                      <div className="mt-1 inline-flex w-fit rounded-full border border-sky-400/20 bg-sky-400/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest text-sky-200">
-                        AI discovered
-                      </div>
-                    ) : item.sourceType === 'strategic_fallback' ? (
-                      <div className="mt-1 inline-flex w-fit rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest text-amber-200">
-                        Strategic fallback
-                      </div>
-                    ) : null}
-                    {item.rank ? (
-                      <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">
-                        Ranked {item.rank.score.toFixed(1)} · {item.rank.reason}
-                      </div>
-                    ) : null}
-                    {item.eventForecast ? (
-                      <div className="mt-2 grid gap-1.5 rounded-md border border-[var(--cb-border-subtle)] bg-black/15 p-2 text-xs leading-5">
+                  </div>
+
+                  {/* Plain-English impact */}
+                  <div className="mt-1 text-xs leading-5 text-[var(--cb-text-muted)]">
+                    {item.impact}
+                  </div>
+
+                  {/* Event forecast details */}
+                  {item.eventForecast ? (
+                    <div className="mt-2 space-y-1.5 rounded-md border border-[var(--cb-border-subtle)] bg-black/15 p-2.5 text-xs leading-5">
+
+                      {/* Scenario range (from hedge fund engine) */}
+                      {item.eventForecast.priceImpactRangePct ? (
+                        <div className="flex flex-wrap gap-3 pb-1.5 border-b border-[var(--cb-border-subtle)]">
+                          <div className="text-center">
+                            <div className="text-[10px] uppercase tracking-widest text-emerald-300/70">Best case</div>
+                            <div className="font-semibold text-emerald-300">
+                              {formatPctPoint(item.eventForecast.priceImpactRangePct.upside)}
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Most likely</div>
+                            <div className={`font-semibold ${item.eventForecast.priceImpactPct && item.eventForecast.priceImpactPct >= 0 ? 'text-emerald-200' : 'text-red-200'}`}>
+                              {typeof item.eventForecast.priceImpactPct === 'number'
+                                ? formatPctPoint(item.eventForecast.priceImpactPct)
+                                : 'n/a'}
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-[10px] uppercase tracking-widest text-red-300/70">Worst case</div>
+                            <div className="font-semibold text-red-300">
+                              {formatPctPoint(item.eventForecast.priceImpactRangePct.downside)}
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {item.eventForecast.expectedResult ? (
                         <div>
-                          <span className="font-medium text-[var(--cb-text-primary)]">Expected result: </span>
+                          <span className="font-medium text-[var(--cb-text-primary)]">What to expect: </span>
                           <span className="text-[var(--cb-text-muted)]">{item.eventForecast.expectedResult}</span>
                         </div>
-                        {item.eventForecast.surpriseToWatch ? (
-                          <div>
-                            <span className="font-medium text-[var(--cb-text-primary)]">Watch for: </span>
-                            <span className="text-[var(--cb-text-muted)]">{item.eventForecast.surpriseToWatch}</span>
-                          </div>
-                        ) : null}
-                        {item.eventForecast.transmissionPath ? (
-                          <div>
-                            <span className="font-medium text-[var(--cb-text-primary)]">Why it moves the stock: </span>
-                            <span className="text-[var(--cb-text-muted)]">{item.eventForecast.transmissionPath}</span>
-                          </div>
-                        ) : null}
-                        {item.eventForecast.pmRead ? (
-                          <div>
-                            <span className="font-medium text-[var(--cb-text-primary)]">PM read: </span>
-                            <span className="text-[var(--cb-text-muted)]">{item.eventForecast.pmRead.replace(/^PM read:\s*/i, '')}</span>
-                          </div>
-                        ) : null}
-                        {item.eventForecast.pmBrain ? (
-                          <div>
-                            <span className="font-medium text-[var(--cb-text-primary)]">Agent brain: </span>
-                            <span className="text-[var(--cb-text-muted)]">
-                              {item.eventForecast.pmBrain.pmView} Overlay {formatPctPoint(item.eventForecast.pmBrain.forecastOverlayPct)} at {Math.round(item.eventForecast.pmBrain.confidence * 100)}% confidence. Invalidation: {item.eventForecast.pmBrain.invalidationSignal}
-                            </span>
-                          </div>
-                        ) : null}
-                        {item.eventForecast.institutional ? (
-                          <div className="mt-1 grid gap-1 rounded border border-[var(--cb-border-subtle)] bg-black/10 p-2">
-                            <div className="text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
-                              Playbook: {item.eventForecast.institutional.playbook}
-                            </div>
+                      ) : null}
+
+                      {item.eventForecast.surpriseToWatch ? (
+                        <div>
+                          <span className="font-medium text-[var(--cb-text-primary)]">Watch for: </span>
+                          <span className="text-[var(--cb-text-muted)]">
+                            {item.eventForecast.surpriseToWatch.replace(/^Key driver:\s*/i, '')}
+                          </span>
+                        </div>
+                      ) : null}
+
+                      {item.eventForecast.transmissionPath ? (
+                        <div>
+                          <span className="font-medium text-[var(--cb-text-primary)]">Why it moves the stock: </span>
+                          <span className="text-[var(--cb-text-muted)]">{item.eventForecast.transmissionPath}</span>
+                        </div>
+                      ) : null}
+
+                      {item.eventForecast.pmRead ? (
+                        <div>
+                          <span className="font-medium text-[var(--cb-text-primary)]">Analyst note: </span>
+                          <span className="text-[var(--cb-text-muted)]">{item.eventForecast.pmRead.replace(/^PM read:\s*/i, '')}</span>
+                        </div>
+                      ) : null}
+
+                      {item.eventForecast.pmBrain ? (
+                        <div>
+                          <span className="font-medium text-[var(--cb-text-primary)]">AI outlook: </span>
+                          <span className="text-[var(--cb-text-muted)]">
+                            {item.eventForecast.pmBrain.pmView
+                              .replace(/Bull /g, 'Best case ')
+                              .replace(/Base /g, 'Base case ')
+                              .replace(/Bear /g, 'Worst case ')}
+                            {' '}({Math.round(item.eventForecast.pmBrain.confidence * 100)}% confidence)
+                          </span>
+                        </div>
+                      ) : null}
+
+                      {item.eventForecast.pmBrain?.invalidationSignal ? (
+                        <div>
+                          <span className="font-medium text-[var(--cb-text-primary)]">This changes if: </span>
+                          <span className="text-[var(--cb-text-muted)]">
+                            {item.eventForecast.pmBrain.invalidationSignal.replace(/^Invalidate if\s*/i, '')}
+                          </span>
+                        </div>
+                      ) : null}
+
+                      {item.eventForecast.institutional ? (
+                        <div className="mt-1 grid gap-1 rounded border border-[var(--cb-border-subtle)] bg-black/10 p-2">
+                          {item.eventForecast.institutional.whatPriced ? (
                             <div>
-                              <span className="font-medium text-[var(--cb-text-primary)]">Priced: </span>
+                              <span className="font-medium text-[var(--cb-text-primary)]">Already priced in: </span>
                               <span className="text-[var(--cb-text-muted)]">{item.eventForecast.institutional.whatPriced}</span>
                             </div>
+                          ) : null}
+                          {item.eventForecast.institutional.estimateRevisionRisk ? (
                             <div>
-                              <span className="font-medium text-[var(--cb-text-primary)]">Estimate risk: </span>
+                              <span className="font-medium text-[var(--cb-text-primary)]">Earnings impact: </span>
                               <span className="text-[var(--cb-text-muted)]">{item.eventForecast.institutional.estimateRevisionRisk}</span>
                             </div>
+                          ) : null}
+                          {item.eventForecast.stockImpact ? (
                             <div>
-                              <span className="font-medium text-[var(--cb-text-primary)]">Multiple/positioning: </span>
-                              <span className="text-[var(--cb-text-muted)]">
-                                {item.eventForecast.institutional.multipleImpact} {item.eventForecast.institutional.positioningRisk}
-                              </span>
+                              <span className="font-medium text-[var(--cb-text-primary)]">Stock effect: </span>
+                              <span className="text-[var(--cb-text-muted)]">{item.eventForecast.stockImpact}</span>
                             </div>
-                            <div>
-                              <span className="font-medium text-[var(--cb-text-primary)]">Overlay: </span>
-                              <span className="text-[var(--cb-text-muted)]">{item.eventForecast.institutional.forecastOverlay}</span>
-                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        item.eventForecast.stockImpact && !item.eventForecast.priceImpactRangePct ? (
+                          <div>
+                            <span className="font-medium text-[var(--cb-text-primary)]">Stock effect: </span>
+                            <span className="text-[var(--cb-text-muted)]">{item.eventForecast.stockImpact}</span>
                           </div>
-                        ) : null}
-                        <div>
-                          <span className="font-medium text-[var(--cb-text-primary)]">Stock effect: </span>
-                          <span className="text-[var(--cb-text-muted)]">{item.eventForecast.stockImpact}</span>
-                        </div>
-                        <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">
-                          {item.eventForecast.direction}
-                          {typeof item.eventForecast.priceImpactPct === 'number'
-                            ? Math.abs(item.eventForecast.priceImpactPct) >= 0.05
-                              ? ` · ${item.eventForecast.priceImpactPct > 0 ? '+' : ''}${item.eventForecast.priceImpactPct.toFixed(1)}% est. impact`
-                              : item.eventForecast.priceImpactRangePct
-                                ? ` · ${formatPctPoint(item.eventForecast.priceImpactRangePct.downside)} to ${formatPctPoint(item.eventForecast.priceImpactRangePct.upside)} scenario range`
-                                : ' · low direct impact'
-                            : ''}
-                          {' '}· {Math.round(item.eventForecast.confidence * 100)}% confidence
-                        </div>
+                        ) : null
+                      )}
+
+                      {/* Direction + confidence footer */}
+                      <div className="pt-1 text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">
+                        {directionLabel(item.eventForecast.direction)}
+                        {typeof item.eventForecast.priceImpactPct === 'number' && !item.eventForecast.priceImpactRangePct
+                          ? Math.abs(item.eventForecast.priceImpactPct) >= 0.05
+                            ? ` · est. ${formatPctPoint(item.eventForecast.priceImpactPct)}`
+                            : ' · low direct impact'
+                          : ''}
+                        {' '}· {Math.round(item.eventForecast.confidence * 100)}% confidence
                       </div>
-                    ) : null}
-                  </div>
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
           </div>
         ) : null}
 
+        {/* Price table */}
         <div className="overflow-hidden rounded-lg border border-[var(--cb-border-subtle)]">
           <div className="grid grid-cols-3 bg-black/20 px-3 py-2 text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
             <span>{isPriceForecast ? 'Date' : 'Period'}</span>
             <span className="text-right">{isPriceForecast ? 'Projected Price' : 'Revenue'}</span>
-            <span className="text-right">{isPriceForecast ? 'Model Band' : 'Growth'}</span>
+            <span className="text-right">{isPriceForecast ? 'Likely Range' : 'Growth'}</span>
           </div>
           {(isPriceForecast ? priceRows : revenueRows).map((row) => (
             <div
@@ -413,10 +503,10 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
               <span className="text-right tabular-nums">
                 {isPriceForecast ? formatSharePrice(row.value) : formatCurrencyMillions(row.value)}
               </span>
-              <span className="text-right tabular-nums">
+              <span className="text-right tabular-nums text-[var(--cb-text-muted)]">
                 {isPriceForecast
                   ? 'lower' in row && row.lower !== null && row.upper !== null
-                    ? `${formatSharePrice(row.lower)} - ${formatSharePrice(row.upper)}`
+                    ? `${formatSharePrice(row.lower)} – ${formatSharePrice(row.upper)}`
                     : 'n/a'
                   : 'growth' in row
                     ? formatPct(row.growth)
@@ -426,8 +516,9 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
           ))}
         </div>
 
+        {/* Recommendation */}
         {isPriceForecast && payload.tradingSignal ? (
-          <div className={`rounded-lg border p-3 ${
+          <div className={`rounded-lg border p-4 ${
             payload.tradingSignal.signal === 'LONG'
               ? 'border-emerald-400/25 bg-emerald-400/10'
               : payload.tradingSignal.signal === 'SHORT'
@@ -435,33 +526,38 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
               : 'border-[var(--cb-border-subtle)] bg-black/10'
           }`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">Trading Signal</div>
-              <span className={`rounded-full px-2 py-0.5 text-xs font-bold tracking-wide ${
+              <div className="text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
+                AI Recommendation
+              </div>
+              <span className={`rounded-full px-3 py-1 text-sm font-bold tracking-wide ${
                 payload.tradingSignal.signal === 'LONG'
                   ? 'bg-emerald-500/20 text-emerald-300'
                   : payload.tradingSignal.signal === 'SHORT'
                   ? 'bg-red-500/20 text-red-300'
                   : 'bg-zinc-500/20 text-zinc-300'
               }`}>
-                {payload.tradingSignal.signal}
+                {signalLabel(payload.tradingSignal.signal)}
               </span>
             </div>
-            <div className="mt-2 flex flex-wrap gap-4 text-xs">
+            <div className="mt-1 text-xs leading-5 text-[var(--cb-text-muted)]">
+              {signalExplain(payload.tradingSignal.signal)}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-4 text-xs">
               <div>
-                <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Conviction</div>
+                <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Confidence level</div>
                 <div className="mt-0.5 font-semibold tabular-nums">{Math.round(payload.tradingSignal.conviction * 100)}%</div>
               </div>
               <div>
-                <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Position Size</div>
-                <div className="mt-0.5 font-semibold tabular-nums">{payload.tradingSignal.positionSizePct.toFixed(1)}%</div>
+                <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Suggested portfolio allocation</div>
+                <div className="mt-0.5 font-semibold tabular-nums">{payload.tradingSignal.positionSizePct.toFixed(1)}% of portfolio</div>
               </div>
               <div>
-                <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Horizon</div>
+                <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Time horizon</div>
                 <div className="mt-0.5 font-semibold">{payload.tradingSignal.horizon}</div>
               </div>
               {payload.combinedEventImpactPct !== null && payload.combinedEventImpactPct !== undefined ? (
                 <div>
-                  <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Event Stack</div>
+                  <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Event-driven impact</div>
                   <div className={`mt-0.5 font-semibold tabular-nums ${payload.combinedEventImpactPct >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
                     {payload.combinedEventImpactPct >= 0 ? '+' : ''}{payload.combinedEventImpactPct.toFixed(1)}%
                   </div>
@@ -471,20 +567,23 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
           </div>
         ) : null}
 
+        {/* Top risks */}
         {isPriceForecast && payload.riskProfile && payload.riskProfile.topRisks.length > 0 ? (
           <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-3">
-            <div className="text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">Risk Profile</div>
-            <ul className="mt-2 space-y-1">
+            <div className="text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
+              Top Risks to Be Aware Of
+            </div>
+            <ul className="mt-2 space-y-1.5">
               {payload.riskProfile.topRisks.map((risk, i) => (
                 <li key={i} className="flex gap-2 text-xs leading-5 text-[var(--cb-text-primary)]">
-                  <span className="mt-0.5 shrink-0 text-amber-400">▸</span>
+                  <span className="mt-0.5 shrink-0 text-amber-400">⚠</span>
                   <span>{risk}</span>
                 </li>
               ))}
             </ul>
             {payload.riskProfile.invalidationTriggers.length > 0 ? (
-              <div className="mt-2 border-t border-amber-400/15 pt-2 text-xs leading-5 text-[var(--cb-text-muted)]">
-                <span className="font-medium text-amber-300/80">Invalidation: </span>
+              <div className="mt-2.5 border-t border-amber-400/15 pt-2 text-xs leading-5 text-[var(--cb-text-muted)]">
+                <span className="font-medium text-amber-300/80">When this forecast changes: </span>
                 {payload.riskProfile.invalidationTriggers[0]}
               </div>
             ) : null}
