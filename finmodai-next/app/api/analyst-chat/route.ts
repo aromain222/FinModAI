@@ -1044,9 +1044,14 @@ async function discoverEventsWithLlm(params: {
 
     const text = result?.text?.trim() ?? '';
     if (!text) {
-      console.warn('[discoverEventsWithLlm] timed out or empty response for', params.ticker);
+      if (result === null) {
+        console.warn('[discoverEventsWithLlm] TIMEOUT (>12s) for', params.ticker);
+      } else {
+        console.warn('[discoverEventsWithLlm] empty text from provider', result.provider, result.model, 'for', params.ticker);
+      }
       return [];
     }
+    console.info('[discoverEventsWithLlm] got response from', result!.provider, result!.model, 'for', params.ticker, '— text length', text.length);
     const jsonStart = text.indexOf('[');
     const jsonEnd = text.lastIndexOf(']');
     if (jsonStart === -1 || jsonEnd === -1) {
