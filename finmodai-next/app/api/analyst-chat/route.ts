@@ -1032,6 +1032,7 @@ async function discoverEventsWithLlm(params: {
       generateTextWithProviderFallback({
         clientType: 'user',
         preferredProvider: 'anthropic',
+        anthropicModels: ['claude-haiku-4-5-20251001', 'claude-3-5-haiku-latest', 'claude-sonnet-4-6'],
         temperature: 0,
         maxTokens: 600,
         messages: [
@@ -1039,18 +1040,18 @@ async function discoverEventsWithLlm(params: {
           { role: 'user', content: userPrompt },
         ],
       }),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
     ]);
 
     const text = result?.text?.trim() ?? '';
     if (!text) {
-      if (process.env.NODE_ENV !== 'production') console.debug('[discoverEventsWithLlm] timed out or empty response');
+      console.warn('[discoverEventsWithLlm] timed out or empty response for', params.ticker);
       return [];
     }
     const jsonStart = text.indexOf('[');
     const jsonEnd = text.lastIndexOf(']');
     if (jsonStart === -1 || jsonEnd === -1) {
-      if (process.env.NODE_ENV !== 'production') console.debug('[discoverEventsWithLlm] no JSON array found in response:', text.slice(0, 100));
+      console.warn('[discoverEventsWithLlm] no JSON array in response for', params.ticker, text.slice(0, 120));
       return [];
     }
 
@@ -1090,7 +1091,7 @@ async function discoverEventsWithLlm(params: {
       .filter((item): item is ForecastNewsWatchItem => item !== null)
       .slice(0, 5);
   } catch (err) {
-    if (process.env.NODE_ENV !== 'production') console.debug('[discoverEventsWithLlm] error:', err);
+    console.warn('[discoverEventsWithLlm] error for', params.ticker, err instanceof Error ? err.message : String(err));
     return [];
   }
 }
