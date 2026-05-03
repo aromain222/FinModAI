@@ -1053,13 +1053,16 @@ RULES:
 - Probabilities must sum to 1.0 per event.
 - Do NOT skip event analysis even if uncertain.
 - If data is missing, make the most reasonable assumption and proceed.
+- Today's date is ${new Date().toISOString().slice(0, 10)}. The forecast window ends ${new Date(Date.now() + params.horizonDays * 86400000).toISOString().slice(0, 10)}.
+- For event_date: use a FUTURE date within the forecast window (YYYY-MM-DD), OR use "ongoing" for active situations with no fixed date. NEVER use a past date.
+- Focus on what is happening NOW or will happen in the next ${params.horizonDays} days. Do not surface historical events that already occurred.
 
 Return ONLY valid JSON in this exact structure, no markdown:
 {
   "forecast": { "direction": "UP|DOWN|SIDEWAYS", "confidence": 0.0, "expected_return_pct": 0.0, "price_target_range": [low, high], "drivers": [] },
   "events": [
     {
-      "event_name": "", "event_date": "", "event_type": "EARNINGS|LEGAL|MACRO|PRODUCT|REGULATORY|INDUSTRY",
+      "event_name": "", "event_date": "YYYY-MM-DD or ongoing", "event_type": "EARNINGS|LEGAL|MACRO|PRODUCT|REGULATORY|INDUSTRY",
       "description": "",
       "scenarios": {
         "bull": { "probability": 0.0, "impact_pct": 0.0 },
@@ -1191,9 +1194,16 @@ Return ONLY valid JSON in this exact structure, no markdown:
         const basePct = Math.round(baseProb * 100);
         const bearPct = Math.round((typeof bear.probability === 'number' ? bear.probability : 0.25) * 100);
 
+        // Sanitize event_date — replace any past date with "ongoing"
+        const rawDate = typeof ev.event_date === 'string' ? ev.event_date.trim() : '';
+        const today = new Date().toISOString().slice(0, 10);
+        const timing = rawDate && rawDate !== 'ongoing' && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) && rawDate < today
+          ? 'ongoing'
+          : rawDate || null;
+
         return {
           title,
-          timing: typeof ev.event_date === 'string' ? ev.event_date.trim() || null : null,
+          timing,
           impact,
           kind: mapKind(ev.event_type),
           sourceType: 'llm_discovery',
