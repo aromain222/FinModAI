@@ -47,6 +47,8 @@ import * as capTableTemplate from '@/lib/model-generator/templates/capTable';
 import * as saasOperatingTemplate from '@/lib/model-generator/templates/saasOperating';
 import { DEMO_COMPANY_META } from '@/lib/demo/demoUniverse';
 import { loadDemoSnapshots, type DemoCompanySnapshot } from '@/lib/demo/demoSnapshotStore';
+import { buildDeterministicStrategicContext, generateAiStrategicContext } from '@/lib/analyst/strategicContext';
+import { getOpenAIKeyCandidates } from '@/lib/openaiKey';
 
 export { analystModelChatDeps } from '@/lib/analyst/modelChatDeps';
 export {
@@ -1440,6 +1442,29 @@ async function buildStructuredModelPayload(params: {
   const narrativeBlocks =
     (await buildClaudeNarrativeBlocks({ modelType, extractedInputs, provenanceSummary })) ?? deterministicNarrativeBlocks;
 
+  const inputs = extractedInputs as Record<string, unknown>;
+  const strategicContextFallback = buildDeterministicStrategicContext({
+    ticker: typeof inputs.ticker === 'string' ? inputs.ticker : undefined,
+    companyName: typeof inputs.companyName === 'string' ? inputs.companyName : companyLabel ?? 'The company',
+    sector: typeof inputs.companyType === 'string' ? inputs.companyType : undefined,
+    revenueGrowth0: Array.isArray(inputs.revenueGrowth) && typeof inputs.revenueGrowth[0] === 'number' ? inputs.revenueGrowth[0] : null,
+    ebitMargin0: Array.isArray(inputs.ebitMargin) && typeof inputs.ebitMargin[0] === 'number' ? inputs.ebitMargin[0] : null,
+  });
+  const strategicContext =
+    (await generateAiStrategicContext(
+      {
+        companyName: typeof inputs.companyName === 'string' ? inputs.companyName : companyLabel ?? 'The company',
+        ticker: typeof inputs.ticker === 'string' ? inputs.ticker : null,
+        sector: typeof inputs.companyType === 'string' ? inputs.companyType : null,
+        source: provenanceSummary.sourceType,
+        revenueGrowth: Array.isArray(inputs.revenueGrowth) ? inputs.revenueGrowth.filter((v): v is number => typeof v === 'number') : [],
+        ebitMargin: Array.isArray(inputs.ebitMargin) ? inputs.ebitMargin.filter((v): v is number => typeof v === 'number') : [],
+        capexPctRevenue: typeof inputs.capexPctRevenue === 'number' ? [inputs.capexPctRevenue] : null,
+        modelNotes: narrativeBlocks.slice(0, 2).map((b) => b.title),
+      },
+      getOpenAIKeyCandidates('user'),
+    )) ?? strategicContextFallback;
+
   return {
     reply: [
       replyPrefix ??
@@ -1474,6 +1499,7 @@ async function buildStructuredModelPayload(params: {
             })),
           }
         : null,
+      strategicContext,
     },
   };
 }

@@ -1008,12 +1008,100 @@ function strategicForecastWatchItems(ticker: string): ForecastNewsWatchItem[] {
   return byTicker[normalized] ?? [];
 }
 
+async function discoverEventsWithLlm(params: {
+  ticker: string;
+  companyName: string;
+}): Promise<ForecastNewsWatchItem[]> {
+  try {
+    const systemPrompt = [
+      'You are a senior buy-side equity analyst.',
+      'Return strict JSON only — a JSON array, no markdown, no explanation.',
+      'List the most investment-relevant ongoing situations, known events, or catalysts currently affecting this company.',
+      'Include: active litigation or regulatory proceedings, macro or sector factors specific to this company, known competitive dynamics, any major ongoing business or strategic developments.',
+      'Do not restrict to a specific time window — include anything currently material to the investment case.',
+      'Be specific. If a lawsuit is ongoing, name it. If a regulation is being enforced, name it.',
+      'Do NOT invent financial results, specific prices, or earnings dates you are not sure of.',
+    ].join(' ');
+    const userPrompt = JSON.stringify({
+      ticker: params.ticker,
+      companyName: params.companyName,
+      instructions: 'Return 3-5 items. Each item must have: title (string), timing (string, e.g. "ongoing" or "near-term"), impact (string, why it matters to the stock via specific financial channels), kind ("earnings"|"macro"|"company_news"|"event"), direction ("positive"|"negative"|"neutral"), confidence (0.2-0.85), priceImpactPct (-6 to 6).',
+    });
+
+    const result = await Promise.race([
+      generateTextWithProviderFallback({
+        clientType: 'user',
+        preferredProvider: 'anthropic',
+        temperature: 0,
+        maxTokens: 600,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+    ]);
+
+    const text = result?.text?.trim() ?? '';
+    if (!text) {
+      if (process.env.NODE_ENV !== 'production') console.debug('[discoverEventsWithLlm] timed out or empty response');
+      return [];
+    }
+    const jsonStart = text.indexOf('[');
+    const jsonEnd = text.lastIndexOf(']');
+    if (jsonStart === -1 || jsonEnd === -1) {
+      if (process.env.NODE_ENV !== 'production') console.debug('[discoverEventsWithLlm] no JSON array found in response:', text.slice(0, 100));
+      return [];
+    }
+
+    const parsed: unknown = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .map((item): ForecastNewsWatchItem | null => {
+        if (!item || typeof item !== 'object') return null;
+        const row = item as Record<string, unknown>;
+        const title = typeof row.title === 'string' ? row.title.trim() : '';
+        const impact = typeof row.impact === 'string' ? row.impact.trim() : '';
+        if (!title || !impact) return null;
+        const kind = ['earnings', 'macro', 'company_news', 'event', 'ownership', 'transcript'].includes(row.kind as string)
+          ? (row.kind as ForecastNewsWatchItem['kind'])
+          : 'company_news';
+        const direction = ['positive', 'negative', 'neutral'].includes(row.direction as string)
+          ? (row.direction as string)
+          : 'neutral';
+        const confidence = typeof row.confidence === 'number' ? Math.min(0.85, Math.max(0.2, row.confidence)) : 0.45;
+        const priceImpactPct = typeof row.priceImpactPct === 'number' ? Math.min(6, Math.max(-6, row.priceImpactPct)) : 0;
+        return {
+          title,
+          timing: typeof row.timing === 'string' ? row.timing.trim() : null,
+          impact,
+          kind,
+          sourceType: 'llm_discovery',
+          eventForecast: {
+            expectedResult: impact,
+            direction: direction as 'positive' | 'negative' | 'neutral',
+            confidence,
+            priceImpactPct,
+            stockImpact: impact,
+          },
+        };
+      })
+      .filter((item): item is ForecastNewsWatchItem => item !== null)
+      .slice(0, 5);
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'production') console.debug('[discoverEventsWithLlm] error:', err);
+    return [];
+  }
+}
+
 function buildForecastNewsWatchItems(params: {
   ticker: string;
   horizonDays: number;
   events: MarketEvent[] | undefined;
   catalystContext: CompanyCatalystContext | null | undefined;
   companyNews: CompanyInfoNewsItem[];
+  llmDiscoveredItems?: ForecastNewsWatchItem[];
 }): ForecastNewsWatchItem[] {
   const seen = new Set<string>();
   const items: ForecastNewsWatchItem[] = [];
@@ -1064,7 +1152,15 @@ function buildForecastNewsWatchItems(params: {
     if (items.length >= 5) return items;
   }
 
-  if (params.companyNews.length === 0) {
+  // LLM-discovered items fill any remaining slots after live news and calendar.
+  // Preferred over hardcoded strategic fallbacks because they reflect actual ongoing situations.
+  for (const item of (params.llmDiscoveredItems ?? [])) {
+    push(item);
+    if (items.length >= 5) return items;
+  }
+
+  // Hardcoded strategic fallback: only when LLM discovery also returned nothing
+  if (items.length === 0) {
     for (const item of strategicForecastWatchItems(params.ticker)) {
       push(item);
       if (items.length >= 5) return items;
@@ -3724,7 +3820,11 @@ export async function POST(req: NextRequest) {
         const horizonLabel = formatForecastHorizon(horizonDays);
         const revenueQuarters = Math.min(8, Math.max(1, Math.ceil(horizonDays / 90)));
 
-        const [priceRes, revRes, catalystContext, companyNews] = await Promise.all([
+        const resolvedCompanyName: string =
+          (stockLookupPayload as { companyName?: string | null } | null)?.companyName ||
+          resolvedTicker;
+
+        const [priceRes, revRes, catalystContext, companyNews, llmDiscoveredItems] = await Promise.all([
           Promise.race([
             fetch(`${origin}/api/timesfm?type=price&ticker=${resolvedTicker}&horizon=${horizonDays}`, { cache: 'no-store' }),
             timeout,
@@ -3741,6 +3841,10 @@ export async function POST(req: NextRequest) {
             loadForecastCompanyNews(origin, resolvedTicker),
             new Promise<CompanyInfoNewsItem[]>((resolve) => setTimeout(() => resolve([]), 3000)),
           ]),
+          discoverEventsWithLlm({
+            ticker: resolvedTicker,
+            companyName: resolvedCompanyName,
+          }),
         ]);
 
         const parts: string[] = [];
@@ -3755,6 +3859,7 @@ export async function POST(req: NextRequest) {
           events: macroEventsContext?.events,
           catalystContext,
           companyNews,
+          llmDiscoveredItems,
         });
         const forecastNewsWatch = await enrichNewsWatchWithEventForecasts({
           ticker: resolvedTicker,

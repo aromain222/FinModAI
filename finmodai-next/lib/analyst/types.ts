@@ -63,6 +63,7 @@ export type AnalystGeneratedModelPayload = {
   appliedEventDeltas?: EventLinkedModelAdjustmentResult['changedDrivers'] | null;
   smartAssumptionSummary?: PromptRunSmartAssumptionSummary | null;
   customAssumptionSummary?: PromptRunCustomAssumptionSummary | null;
+  strategicContext?: string | null;
 };
 
 export type AnalystGeneratedModelRecentRun = NonNullable<AnalystGeneratedModelPayload['recentRun']>;

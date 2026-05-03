@@ -606,13 +606,15 @@ export function deriveOutputFromGeneratedModel(
     primarySensitivity: sensitivity.primarySensitivity,
     eventCount: model.eventAdjustmentSummary ? 1 : 0,
   });
-  const strategicContext = buildDeterministicStrategicContext({
-    ticker: dcf.ticker,
-    companyName: dcf.companyName,
-    sector: dcf.companyType ?? null,
-    revenueGrowth0: dcf.revenueGrowth[0] ?? null,
-    ebitMargin0: dcf.ebitMargin[0] ?? null,
-  });
+  const strategicContext =
+    model.strategicContext?.trim() ||
+    buildDeterministicStrategicContext({
+      ticker: dcf.ticker,
+      companyName: dcf.companyName,
+      sector: dcf.companyType ?? null,
+      revenueGrowth0: dcf.revenueGrowth[0] ?? null,
+      ebitMargin0: dcf.ebitMargin[0] ?? null,
+    });
 
   const firstNarrative = model.narrativeBlocks?.[0]?.body?.trim() ?? '';
   const analystNote =

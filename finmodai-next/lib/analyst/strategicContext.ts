@@ -1,3 +1,80 @@
+import { getOpenAIKeyCandidates, getOpenAIModelCandidates } from '@/lib/openaiKey';
+import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
+
+export type AiStrategicContextParams = {
+  companyName: string;
+  ticker?: string | null;
+  sector?: string | null;
+  source?: string | null;
+  revenueLtm?: number | null;
+  ebitdaLtm?: number | null;
+  netIncomeLtm?: number | null;
+  marketCap?: number | null;
+  revenueGrowth?: number[];
+  ebitMargin?: number[];
+  capexPctRevenue?: number[] | null;
+  modelNotes?: string[];
+};
+
+export async function generateAiStrategicContext(
+  params: AiStrategicContextParams,
+  apiKeys?: string[],
+): Promise<string | null> {
+  const keys = apiKeys ?? getOpenAIKeyCandidates('user');
+  if (keys.length === 0) return null;
+
+  const models = getOpenAIModelCandidates(process.env.OPENAI_MODEL, 'gpt-5.4-pro', 'gpt-5.4');
+  const systemPrompt = [
+    'You write neutral strategic framing for buy-side investment analysis.',
+    'Return plain text only, 2 sentences maximum.',
+    'Do not give a recommendation, signal, target price, valuation conclusion, or directional opinion.',
+    'Explain what the company strategically is, what economic ecosystem it sits in, and the neutral diligence questions that matter.',
+    'Be specific to the company. Avoid generic sector boilerplate.',
+  ].join(' ');
+
+  const userPrompt = JSON.stringify(
+    {
+      company: params.companyName,
+      ticker: params.ticker,
+      sector: params.sector,
+      source: params.source,
+      baseMetrics: {
+        revenueLtm: params.revenueLtm ?? null,
+        ebitdaLtm: params.ebitdaLtm ?? null,
+        netIncomeLtm: params.netIncomeLtm ?? null,
+        marketCap: params.marketCap ?? null,
+      },
+      assumptions: {
+        revenueGrowth: params.revenueGrowth ?? [],
+        ebitMargin: params.ebitMargin ?? [],
+        capexPctRevenue: params.capexPctRevenue ?? null,
+      },
+      modelNotes: (params.modelNotes ?? []).slice(0, 4),
+    },
+    null,
+    2,
+  );
+
+  try {
+    const request = generateTextWithProviderFallback({
+      clientType: 'user',
+      preferredProvider: 'anthropic',
+      temperature: 0.25,
+      maxTokens: 170,
+      openAiModels: models,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+    });
+    const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500));
+    const response = await Promise.race([request, timeout]);
+    return sanitizeStrategicContext(response?.text);
+  } catch {
+    return null;
+  }
+}
+
 export function sanitizeStrategicContext(value: string | null | undefined): string | null {
   const trimmed = value?.replace(/\s+/g, ' ').trim() ?? '';
   if (trimmed.length < 80) return null;
