@@ -92,6 +92,7 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
     growth: payload.growthPath[index] ?? null,
   }));
   const liveHeadlineCount = payload.newsWatch?.filter((item) => item.sourceType === 'live_news').length ?? 0;
+  const llmDiscoveryCount = payload.newsWatch?.filter((item) => item.sourceType === 'llm_discovery').length ?? 0;
   const strategicFallbackCount = payload.newsWatch?.filter((item) => item.sourceType === 'strategic_fallback').length ?? 0;
   const topEvent = payload.newsWatch?.find((item) => item.eventForecast?.pmBrain)?.eventForecast?.pmBrain;
 
@@ -188,9 +189,11 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
               <div className="mt-2 text-sm font-medium text-[var(--cb-text-primary)]">
                 {liveHeadlineCount > 0
                   ? `${liveHeadlineCount} live headline${liveHeadlineCount === 1 ? '' : 's'} in the overlay`
-                  : strategicFallbackCount > 0
-                    ? 'Using strategic watchlist fallback'
-                    : 'No company-specific catalyst overlay'}
+                  : llmDiscoveryCount > 0
+                    ? `${llmDiscoveryCount} AI-discovered catalyst${llmDiscoveryCount === 1 ? '' : 's'}`
+                    : strategicFallbackCount > 0
+                      ? 'Using strategic watchlist fallback'
+                      : 'No company-specific catalyst overlay'}
               </div>
               {topEvent ? (
                 <div className="mt-1 text-xs leading-5 text-[var(--cb-text-muted)]">
