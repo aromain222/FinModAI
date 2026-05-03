@@ -1028,7 +1028,8 @@ async function discoverEventsWithLlm(params: {
       instructions: 'Return 3-5 items. Each item must have: title (string), timing (string, e.g. "ongoing" or "near-term"), impact (string, why it matters to the stock via specific financial channels), kind ("earnings"|"macro"|"company_news"|"event"), direction ("positive"|"negative"|"neutral"), confidence (0.2-0.85), priceImpactPct (-6 to 6).',
     });
 
-    const result = await Promise.race([
+    const TIMEOUT_SENTINEL = Symbol('timeout');
+    const raceResult = await Promise.race([
       generateTextWithProviderFallback({
         clientType: 'user',
         preferredProvider: 'anthropic',
@@ -1038,20 +1039,67 @@ async function discoverEventsWithLlm(params: {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
+      }).catch((err: unknown) => {
+        // Re-throw so the race receives the rejection (outer try/catch handles it).
+        // This also prevents unhandled rejections if the timeout fires first.
+        throw err;
       }),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 12000)),
+      new Promise<typeof TIMEOUT_SENTINEL>((resolve) => setTimeout(() => resolve(TIMEOUT_SENTINEL), 12000)),
     ]);
 
-    const text = result?.text?.trim() ?? '';
-    if (!text) {
-      if (result === null) {
-        console.warn('[discoverEventsWithLlm] TIMEOUT (>12s) for', params.ticker);
-      } else {
-        console.warn('[discoverEventsWithLlm] empty text from provider', result.provider, result.model, 'for', params.ticker);
-      }
-      return [];
+    if (raceResult === TIMEOUT_SENTINEL) {
+      console.warn('[discoverEventsWithLlm] TIMEOUT (>12s) for', params.ticker);
     }
-    console.info('[discoverEventsWithLlm] got response from', result!.provider, result!.model, 'for', params.ticker, '— text length', text.length);
+
+    const result = raceResult === TIMEOUT_SENTINEL ? null : raceResult;
+    let text = result?.text?.trim() ?? '';
+
+    if (!text) {
+      if (raceResult !== TIMEOUT_SENTINEL) {
+        if (result === null) {
+          const hasAnthropic = getAnthropicKeyCandidates('user').length > 0;
+          const hasOpenAI = getOpenAIKeyCandidates('user').length > 0;
+          console.warn(
+            '[discoverEventsWithLlm] no result from generateTextWithProviderFallback for', params.ticker,
+            '— anthropicKeys:', hasAnthropic, '— openAiKeys:', hasOpenAI,
+          );
+        } else {
+          console.warn('[discoverEventsWithLlm] empty text from provider', result.provider, result.model, 'for', params.ticker);
+        }
+      }
+
+      // Fallback: OpenAI responses.create — same API tier the main chat handler uses.
+      const openAiKeys = getOpenAIKeyCandidates('user');
+      for (const apiKey of openAiKeys) {
+        if (text) break;
+        try {
+          const oai = new OpenAI({ apiKey });
+          const fallback = await Promise.race([
+            oai.responses.create({
+              model: 'gpt-4o',
+              input: [
+                { role: 'user' as const, content: `${systemPrompt}\n\n${userPrompt}` },
+              ],
+              temperature: 0,
+              max_output_tokens: 800,
+            }),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000)),
+          ]);
+          const ft = fallback && typeof (fallback as { output_text?: unknown }).output_text === 'string'
+            ? ((fallback as { output_text: string }).output_text).trim()
+            : '';
+          if (ft) {
+            text = ft;
+            console.info('[discoverEventsWithLlm] responses.create fallback succeeded for', params.ticker);
+          }
+        } catch (err) {
+          console.warn('[discoverEventsWithLlm] responses.create fallback error:', err instanceof Error ? err.message : String(err));
+        }
+      }
+
+      if (!text) return [];
+    }
+    console.info('[discoverEventsWithLlm] got text for', params.ticker, '— length', text.length);
     const jsonStart = text.indexOf('[');
     const jsonEnd = text.lastIndexOf(']');
     if (jsonStart === -1 || jsonEnd === -1) {
@@ -1060,9 +1108,12 @@ async function discoverEventsWithLlm(params: {
     }
 
     const parsed: unknown = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
-    if (!Array.isArray(parsed)) return [];
+    if (!Array.isArray(parsed)) {
+      console.warn('[discoverEventsWithLlm] parsed JSON is not an array for', params.ticker, typeof parsed);
+      return [];
+    }
 
-    return parsed
+    const items = parsed
       .map((item): ForecastNewsWatchItem | null => {
         if (!item || typeof item !== 'object') return null;
         const row = item as Record<string, unknown>;
@@ -1094,6 +1145,15 @@ async function discoverEventsWithLlm(params: {
       })
       .filter((item): item is ForecastNewsWatchItem => item !== null)
       .slice(0, 5);
+
+    if (items.length === 0) {
+      console.warn(
+        '[discoverEventsWithLlm] all', parsed.length, 'parsed items were filtered out (missing title/impact) for', params.ticker,
+        '— first item keys:', parsed.length > 0 && typeof parsed[0] === 'object' && parsed[0] !== null ? Object.keys(parsed[0] as object).join(',') : 'n/a',
+      );
+    }
+
+    return items;
   } catch (err) {
     console.warn('[discoverEventsWithLlm] error for', params.ticker, err instanceof Error ? err.message : String(err));
     return [];
