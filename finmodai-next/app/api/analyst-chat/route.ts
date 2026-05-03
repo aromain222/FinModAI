@@ -1028,77 +1028,71 @@ async function discoverEventsWithLlm(params: {
       instructions: 'Return 3-5 items. Each item must have: title (string), timing (string, e.g. "ongoing" or "near-term"), impact (string, why it matters to the stock via specific financial channels), kind ("earnings"|"macro"|"company_news"|"event"), direction ("positive"|"negative"|"neutral"), confidence (0.2-0.85), priceImpactPct (-6 to 6).',
     });
 
-    const TIMEOUT_SENTINEL = Symbol('timeout');
-    const raceResult = await Promise.race([
-      generateTextWithProviderFallback({
-        clientType: 'user',
-        preferredProvider: 'anthropic',
-        temperature: 0,
-        maxTokens: 600,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-      }).catch((err: unknown) => {
-        // Re-throw so the race receives the rejection (outer try/catch handles it).
-        // This also prevents unhandled rejections if the timeout fires first.
-        throw err;
-      }),
-      new Promise<typeof TIMEOUT_SENTINEL>((resolve) => setTimeout(() => resolve(TIMEOUT_SENTINEL), 12000)),
-    ]);
-
-    if (raceResult === TIMEOUT_SENTINEL) {
-      console.warn('[discoverEventsWithLlm] TIMEOUT (>12s) for', params.ticker);
-    }
-
-    const result = raceResult === TIMEOUT_SENTINEL ? null : raceResult;
-    let text = result?.text?.trim() ?? '';
-
-    if (!text) {
-      if (raceResult !== TIMEOUT_SENTINEL) {
-        if (result === null) {
-          const hasAnthropic = getAnthropicKeyCandidates('user').length > 0;
-          const hasOpenAI = getOpenAIKeyCandidates('user').length > 0;
-          console.warn(
-            '[discoverEventsWithLlm] no result from generateTextWithProviderFallback for', params.ticker,
-            '— anthropicKeys:', hasAnthropic, '— openAiKeys:', hasOpenAI,
-          );
-        } else {
-          console.warn('[discoverEventsWithLlm] empty text from provider', result.provider, result.model, 'for', params.ticker);
-        }
-      }
-
-      // Fallback: OpenAI responses.create — same API tier the main chat handler uses.
-      const openAiKeys = getOpenAIKeyCandidates('user');
-      for (const apiKey of openAiKeys) {
+    // Tier 1: responses.create — the same API path the main chat handler uses (proven working in production).
+    let text = '';
+    const openAiKeys = getOpenAIKeyCandidates('user');
+    const openAiModels = getOpenAIModelCandidates(process.env.OPENAI_MODEL);
+    console.info('[discoverEventsWithLlm] start for', params.ticker, '— openAiKeys:', openAiKeys.length, '— models:', openAiModels.slice(0, 2).join(','));
+    for (const apiKey of openAiKeys) {
+      if (text) break;
+      for (const model of openAiModels) {
         if (text) break;
         try {
           const oai = new OpenAI({ apiKey });
-          const fallback = await Promise.race([
+          const response = await Promise.race([
             oai.responses.create({
-              model: 'gpt-4o',
+              model,
               input: [
-                { role: 'user' as const, content: `${systemPrompt}\n\n${userPrompt}` },
+                { role: 'system' as const, content: systemPrompt },
+                { role: 'user' as const, content: userPrompt },
               ],
               temperature: 0,
               max_output_tokens: 800,
             }),
-            new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000)),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 12000)),
           ]);
-          const ft = fallback && typeof (fallback as { output_text?: unknown }).output_text === 'string'
-            ? ((fallback as { output_text: string }).output_text).trim()
+          const t = response && typeof (response as { output_text?: unknown }).output_text === 'string'
+            ? ((response as { output_text: string }).output_text).trim()
             : '';
-          if (ft) {
-            text = ft;
-            console.info('[discoverEventsWithLlm] responses.create fallback succeeded for', params.ticker);
+          if (t) {
+            text = t;
+            console.info('[discoverEventsWithLlm] responses.create succeeded via', model, 'for', params.ticker);
+          } else if (response === null) {
+            console.warn('[discoverEventsWithLlm] responses.create timeout via', model, 'for', params.ticker);
+          } else {
+            console.warn('[discoverEventsWithLlm] responses.create empty response via', model, 'for', params.ticker);
           }
         } catch (err) {
-          console.warn('[discoverEventsWithLlm] responses.create fallback error:', err instanceof Error ? err.message : String(err));
+          console.warn('[discoverEventsWithLlm] responses.create error via', model, ':', err instanceof Error ? err.message : String(err));
         }
       }
-
-      if (!text) return [];
     }
+
+    // Tier 2: generateTextWithProviderFallback (Anthropic → chat.completions).
+    if (!text) {
+      console.info('[discoverEventsWithLlm] trying generateTextWithProviderFallback for', params.ticker);
+      const result = await Promise.race([
+        generateTextWithProviderFallback({
+          clientType: 'user',
+          preferredProvider: 'anthropic',
+          temperature: 0,
+          maxTokens: 800,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+        }).catch((err: unknown) => { console.warn('[discoverEventsWithLlm] generateTextWithProviderFallback threw:', err instanceof Error ? err.message : String(err)); return null; }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 12000)),
+      ]);
+      text = result?.text?.trim() ?? '';
+      if (text) {
+        console.info('[discoverEventsWithLlm] generateTextWithProviderFallback succeeded via', result!.provider, result!.model, 'for', params.ticker);
+      } else {
+        console.warn('[discoverEventsWithLlm] all providers exhausted for', params.ticker);
+        return [];
+      }
+    }
+
     console.info('[discoverEventsWithLlm] got text for', params.ticker, '— length', text.length);
     const jsonStart = text.indexOf('[');
     const jsonEnd = text.lastIndexOf(']');
@@ -3911,6 +3905,7 @@ export async function POST(req: NextRequest) {
             companyName: resolvedCompanyName,
           }),
         ]);
+        console.info('[analyst-chat] llmDiscoveredItems for', resolvedTicker, ':', llmDiscoveredItems.length);
 
         const parts: string[] = [];
         let forecastReplyInput: DeterministicForecastReplyInput | null = null;
