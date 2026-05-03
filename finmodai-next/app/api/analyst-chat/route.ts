@@ -1032,7 +1032,6 @@ async function discoverEventsWithLlm(params: {
       generateTextWithProviderFallback({
         clientType: 'user',
         preferredProvider: 'anthropic',
-        anthropicModels: ['claude-haiku-4-5-20251001', 'claude-3-5-haiku-latest', 'claude-sonnet-4-6'],
         temperature: 0,
         maxTokens: 600,
         messages: [
@@ -1040,7 +1039,7 @@ async function discoverEventsWithLlm(params: {
           { role: 'user', content: userPrompt },
         ],
       }),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 12000)),
     ]);
 
     const text = result?.text?.trim() ?? '';
