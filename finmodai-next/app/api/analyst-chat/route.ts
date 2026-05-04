@@ -1020,8 +1020,18 @@ async function discoverEventsWithLlm(params: {
   companyName: string;
   horizonDays: number;
   currentPrice?: number | null;
+  timesFMBaseline?: { currentPrice: number; endPrice: number; returnPct: number } | null;
 }): Promise<PortfolioAnalystResult> {
   try {
+    const tfm = params.timesFMBaseline;
+    const timesFMContext = tfm
+      ? `TimesFM (Google's foundation time-series model) has already produced a quantitative price forecast:
+  - Current price: $${tfm.currentPrice.toFixed(2)}
+  - ${params.horizonDays}-day forecast endpoint: $${tfm.endPrice.toFixed(2)}
+  - Baseline return: ${tfm.returnPct >= 0 ? '+' : ''}${tfm.returnPct.toFixed(2)}%
+  Your analysis MUST be anchored to this baseline. Do NOT replace it. Adjust it based on events you identify.`
+      : `No quantitative baseline is available. Use trend extrapolation, volatility context, and macro overlays to generate an expected price path.`;
+
     const systemPrompt = `You are an event-driven portfolio analyst embedded inside an AI-native asset management system.
 
 Your job is to take a user request for a stock forecast and transform it into a structured JSON analysis.
@@ -1032,9 +1042,9 @@ INPUT:
 - Ticker: ${params.ticker}
 - Company: ${params.companyName}
 - Forecast Horizon: ${params.horizonDays} days
-- Current Price: ${params.currentPrice ? `$${params.currentPrice.toFixed(2)}` : 'use your best estimate'}
+- Current Price: ${params.currentPrice ? `$${params.currentPrice.toFixed(2)}` : tfm ? `$${tfm.currentPrice.toFixed(2)}` : 'use your best estimate'}
 
-STEP 1 — BASE FORECAST: Use trend extrapolation, volatility context, and macro overlays to generate an expected price path. This is the baseline world assuming no major disruptions.
+STEP 1 — BASE FORECAST: ${timesFMContext}
 
 STEP 2 — EVENT DISCOVERY: Identify ALL relevant events within the forecast window: earnings, regulatory decisions, product launches, macro releases, legal/antitrust cases, industry catalysts.
 
@@ -4020,11 +4030,23 @@ export async function POST(req: NextRequest) {
           (stockLookupPayload as { companyName?: string | null } | null)?.companyName ||
           resolvedTicker;
 
-        const [priceRes, revRes, catalystContext, companyNews, llmResult] = await Promise.all([
-          Promise.race([
-            fetch(`${origin}/api/timesfm?type=price&ticker=${resolvedTicker}&horizon=${horizonDays}`, { cache: 'no-store' }),
-            timeout,
-          ]),
+        // Phase 1: Fetch and parse TimesFM price so the LLM can anchor its signal to it.
+        const pricePd = await Promise.race([
+          fetch(`${origin}/api/timesfm?type=price&ticker=${resolvedTicker}&horizon=${horizonDays}`, { cache: 'no-store' })
+            .then((r) => r.ok ? (r.json() as Promise<PriceForecastPayload>) : null)
+            .catch(() => null),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000)),
+        ]);
+        const timesFMBaseline = (() => {
+          if (!pricePd?.model_available || !pricePd.forecast?.values || !pricePd.historical?.prices) return null;
+          const cur = pricePd.historical.prices.at(-1);
+          const end = pricePd.forecast.values.at(-1);
+          if (cur == null || end == null) return null;
+          return { currentPrice: cur, endPrice: end, returnPct: (end - cur) / cur * 100 };
+        })();
+
+        // Phase 2: Revenue, catalysts, news, and LLM in parallel. LLM now knows the TimesFM baseline.
+        const [revRes, catalystContext, companyNews, llmResult] = await Promise.all([
           Promise.race([
             fetch(`${origin}/api/timesfm?type=revenue&ticker=${resolvedTicker}&quarters=${revenueQuarters}`, { cache: 'no-store' }),
             timeout,
@@ -4041,6 +4063,8 @@ export async function POST(req: NextRequest) {
             ticker: resolvedTicker,
             companyName: resolvedCompanyName,
             horizonDays,
+            currentPrice: timesFMBaseline?.currentPrice,
+            timesFMBaseline,
           }),
         ]);
         const llmDiscoveredItems = llmResult.items;
@@ -4072,8 +4096,8 @@ export async function POST(req: NextRequest) {
         });
 
         // Price forecast block
-        if (priceRes && priceRes instanceof Response && priceRes.ok) {
-          const pd = await priceRes.json() as PriceForecastPayload;
+        if (pricePd?.model_available && pricePd.forecast && pricePd.historical) {
+          const pd = pricePd;
           if (pd.model_available && pd.forecast && pd.historical) {
             const forecastSourceLabel =
               pd.model_source === 'provider_trend_fallback'
@@ -4135,13 +4159,13 @@ export async function POST(req: NextRequest) {
               });
               if (basePayload) {
                 const forecastConfidence = pd.model_source === 'provider_trend_fallback' ? 0.45 : 0.62;
+                // Prefer LLM signal — it is now anchored to the TimesFM baseline. Fall back to
+                // the math-derived signal only when the LLM returned nothing.
+                const tradingSignal = llmResult.tradingSignal
+                  ?? deriveTradingSignalFromForecast(displayedPctChangeValue, forecastConfidence, horizonLabel);
                 priceForecastModel = {
                   ...basePayload,
-                  tradingSignal: deriveTradingSignalFromForecast(
-                    displayedPctChangeValue,
-                    forecastConfidence,
-                    horizonLabel,
-                  ),
+                  tradingSignal,
                   riskProfile: llmResult.riskProfile ?? null,
                   combinedEventImpactPct: llmResult.combinedEventImpactPct ?? null,
                 };
