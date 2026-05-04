@@ -113,7 +113,7 @@ import {
   type EventAdjustmentInput,
   type PriceForecastPayload,
 } from '@/lib/forecast/eventAdjustedForecast';
-import { labelForecastSource, type AnalystForecastModelPayload, type ForecastNewsWatchItem } from '@/lib/analyst/forecastModel';
+import { labelForecastSource, type AnalystForecastModelPayload, type ForecastNewsWatchItem, type ForecastTradingSignal } from '@/lib/analyst/forecastModel';
 import { computePriceForecastBacktest } from '@/lib/analyst/forecastBacktest';
 import { computeTechnicalConfirmation } from '@/lib/analyst/technicalConfirmation';
 import { runPmAgentBrainForEvent, type PmAgentBrainOutput } from '@/lib/analyst/pmAgentBrain';
@@ -1983,6 +1983,36 @@ function buildAnalystForecastModelPayload(payload: ForecastLayerPayload, years: 
     attributionExplanation: payload.attribution?.explanation ?? null,
     warning: payload.warning ?? null,
     generatedAt: new Date().toISOString(),
+  };
+}
+
+function deriveTradingSignalFromForecast(
+  returnPct: number,
+  confidence: number,
+  horizonLabel: string,
+): ForecastTradingSignal {
+  const absPct = Math.abs(returnPct);
+  if (returnPct > 3) {
+    return {
+      signal: 'LONG',
+      conviction: Math.min(0.85, 0.5 + absPct / 40),
+      positionSizePct: Math.min(10, Math.max(2, absPct / 2)),
+      horizon: horizonLabel,
+    };
+  }
+  if (returnPct < -3) {
+    return {
+      signal: 'SHORT',
+      conviction: Math.min(0.85, 0.5 + absPct / 40),
+      positionSizePct: Math.min(10, Math.max(2, absPct / 2)),
+      horizon: horizonLabel,
+    };
+  }
+  return {
+    signal: 'NEUTRAL',
+    conviction: Math.round(confidence * 100) / 100,
+    positionSizePct: 0,
+    horizon: horizonLabel,
   };
 }
 
@@ -4104,9 +4134,14 @@ export async function POST(req: NextRequest) {
                 newsWatch: forecastNewsWatch,
               });
               if (basePayload) {
+                const forecastConfidence = pd.model_source === 'provider_trend_fallback' ? 0.45 : 0.62;
                 priceForecastModel = {
                   ...basePayload,
-                  tradingSignal: llmResult.tradingSignal ?? null,
+                  tradingSignal: deriveTradingSignalFromForecast(
+                    displayedPctChangeValue,
+                    forecastConfidence,
+                    horizonLabel,
+                  ),
                   riskProfile: llmResult.riskProfile ?? null,
                   combinedEventImpactPct: llmResult.combinedEventImpactPct ?? null,
                 };

@@ -91,10 +91,13 @@ function signalLabel(signal: string): string {
   return 'HOLD →';
 }
 
-function signalExplain(signal: string): string {
-  if (signal === 'LONG') return 'The model expects the stock to rise over this period.';
-  if (signal === 'SHORT') return 'The model expects the stock to fall over this period.';
-  return 'The model does not see a strong reason to buy or sell right now.';
+function signalExplain(signal: string, returnPct?: number | null): string {
+  const pctStr = returnPct != null && Number.isFinite(returnPct)
+    ? ` (${returnPct >= 0 ? '+' : ''}${returnPct.toFixed(1)}% forecast)`
+    : '';
+  if (signal === 'LONG') return `TimesFM + events forecast a rise${pctStr}. Consider buying.`;
+  if (signal === 'SHORT') return `TimesFM + events forecast a decline${pctStr}. Consider reducing exposure.`;
+  return `The combined forecast${pctStr} is small — no strong reason to buy or sell right now.`;
 }
 
 export function AnalystForecastModelCard({ payload }: { payload: AnalystForecastModelPayload }) {
@@ -527,7 +530,7 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
           }`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="text-[10px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
-                AI Recommendation
+                Forecast Recommendation
               </div>
               <span className={`rounded-full px-3 py-1 text-sm font-bold tracking-wide ${
                 payload.tradingSignal.signal === 'LONG'
@@ -540,7 +543,7 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
               </span>
             </div>
             <div className="mt-1 text-xs leading-5 text-[var(--cb-text-muted)]">
-              {signalExplain(payload.tradingSignal.signal)}
+              {signalExplain(payload.tradingSignal.signal, payload.returnPct != null ? payload.returnPct * 100 : null)}
             </div>
             <div className="mt-3 flex flex-wrap gap-4 text-xs">
               <div>
