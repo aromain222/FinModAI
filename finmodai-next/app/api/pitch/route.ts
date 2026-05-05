@@ -43,6 +43,7 @@ const breakdownSchema = z.object({
   catalystStrength: z.number(),
   momentum:         z.number(),
   earningsSetup:    z.number(),
+  valuationSignal:  z.number().optional().default(5),
   riskAdjustment:   z.number(),
 });
 
@@ -58,6 +59,12 @@ const pitchRequestSchema = z.object({
     forecastReturnPct: z.number().nullable().optional(),
     catalystCount:     z.number().optional(),
     dataSource:        z.enum(['live', 'mock']).optional(),
+    valuation: z.object({
+      impliedUpside: z.number().nullable().optional(),
+      impliedGrowth: z.number().nullable().optional(),
+      valuationSignal: z.enum(['undervalued', 'fair', 'overvalued']).optional(),
+      summary: z.string().optional(),
+    }).optional(),
   }).optional(),
 });
 
@@ -84,7 +91,9 @@ Score components (each 0–10):
 - Catalyst Strength: ${breakdown.catalystStrength.toFixed(1)}
 - Momentum: ${breakdown.momentum.toFixed(1)}
 - Earnings Setup: ${breakdown.earningsSetup.toFixed(1)}
+- Valuation Signal: ${breakdown.valuationSignal.toFixed(1)}
 - Risk Adjustment: ${breakdown.riskAdjustment.toFixed(1)}
+${meta?.valuation?.summary ? `Compressed valuation context: ${meta.valuation.summary}` : ''}
 
 ${primaryReason ? `Primary driver: ${primaryReason}` : ''}
 ${mainRisk       ? `Primary risk: ${mainRisk}`      : ''}
@@ -104,6 +113,7 @@ Rules:
 - bearCase:   exactly 2 items, each ≤ 20 words
 - catalysts:  1–3 upcoming events or triggers that could move the stock
 - positioning: one sentence, actionable (e.g. "Build a 3–5% position before next earnings; use a 7% stop.")
+- Keep valuation compressed: implied upside/downside, market-implied growth, and a one-line takeaway only.
 - Do NOT wrap in markdown fences`;
 }
 

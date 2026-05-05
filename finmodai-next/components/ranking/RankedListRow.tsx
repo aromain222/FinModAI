@@ -19,6 +19,7 @@ const COMPONENT_LABELS: Record<keyof typeof WEIGHTS, string> = {
   catalystStrength: 'Catalysts',
   momentum:         'Momentum',
   earningsSetup:    'Earnings Setup',
+  valuationSignal:  'Valuation',
   riskAdjustment:   'Risk / Vol',
 };
 
@@ -31,7 +32,25 @@ export function RankedListRow({ stock, rank }: Props) {
     horizonWeeks: String(stock.horizonWeeks),
     reason: stock.primaryReason,
     risk: stock.mainRisk,
+    forecastSignal: stock.breakdown.forecastSignal.toFixed(1),
+    catalystStrength: stock.breakdown.catalystStrength.toFixed(1),
+    momentum: stock.breakdown.momentum.toFixed(1),
+    earningsSetup: stock.breakdown.earningsSetup.toFixed(1),
+    valuationSignal: stock.breakdown.valuationSignal.toFixed(1),
+    riskAdjustment: stock.breakdown.riskAdjustment.toFixed(1),
   });
+  if (stock.meta.valuation?.summary) {
+    chatParams.set('valuationSummary', stock.meta.valuation.summary);
+  }
+  if (stock.meta.valuation?.impliedUpside != null) {
+    chatParams.set('impliedUpside', stock.meta.valuation.impliedUpside.toFixed(1));
+  }
+  if (stock.meta.valuation?.impliedGrowth != null) {
+    chatParams.set('impliedGrowth', stock.meta.valuation.impliedGrowth.toFixed(1));
+  }
+  if (stock.meta.valuation?.valuationSignal) {
+    chatParams.set('valuationSignalLabel', stock.meta.valuation.valuationSignal);
+  }
 
   const returnLine =
     stock.meta.forecastReturnPct != null

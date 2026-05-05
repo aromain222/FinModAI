@@ -28,6 +28,7 @@ const breakdownSchema = z.object({
   catalystStrength: z.number().min(0).max(10),
   momentum:         z.number().min(0).max(10),
   earningsSetup:    z.number().min(0).max(10),
+  valuationSignal:  z.number().min(0).max(10),
   riskAdjustment:   z.number().min(0).max(10),
 });
 

@@ -144,6 +144,7 @@ function serializeStockContext(ctx: OrchestratorContext): string {
       catalystStrength: 'Catalyst Strength',
       momentum:         'Momentum',
       earningsSetup:    'Earnings Setup',
+      valuationSignal:  'Valuation Signal',
       riskAdjustment:   'Risk / Volatility',
     };
     return `  ${labels[k]}: ${ctx.breakdown[k].toFixed(1)}/10  (wt ${Math.round(WEIGHTS[k] * 100)}%)`;

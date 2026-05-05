@@ -1,7 +1,7 @@
 /**
  * Stock ranking / scoring engine.
  *
- * Each of the five components is a pure function (0–10 output) so they can be
+ * Each component is a pure function (0–10 output) so they can be
  * unit-tested in isolation. scoreStock() wires them against live API data with
  * per-fetch timeouts; scoreMultiple() batches 5 tickers at a time to avoid
  * hammering upstream providers.
@@ -15,15 +15,17 @@ import type {
   EventsPayload,
 } from './types';
 import { mockFallback } from './mock';
+import { buildValuationSignal, scoreValuationSignal } from '@/lib/valuation/signal';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
 export const WEIGHTS = {
-  forecastSignal:   0.30,
-  catalystStrength: 0.25,
-  momentum:         0.20,
-  earningsSetup:    0.15,
-  riskAdjustment:   0.10,
+  forecastSignal:   0.25,
+  catalystStrength: 0.20,
+  momentum:         0.17,
+  earningsSetup:    0.13,
+  valuationSignal:  0.13,
+  riskAdjustment:   0.12,
 } as const;
 
 const FETCH_TIMEOUT_MS = 5_000;
@@ -203,6 +205,8 @@ function primaryReason(
       return 'Bullish price momentum with accelerating trend trajectory';
     case 'earningsSetup':
       return 'Favourable earnings setup — beat probability elevated';
+    case 'valuationSignal':
+      return 'Valuation support improves the risk/reward versus market expectations';
     case 'riskAdjustment':
       return 'Low volatility profile with well-controlled downside';
   }
@@ -229,6 +233,8 @@ function mainRisk(
       return 'Weak or deteriorating recent price momentum';
     case 'earningsSetup':
       return 'Earnings miss risk could compress multiple sharply';
+    case 'valuationSignal':
+      return 'Compressed valuation signal — market expectations already look demanding';
     case 'riskAdjustment':
       return 'Elevated volatility — position sizing should reflect wider stops';
   }
@@ -290,12 +296,14 @@ export async function scoreStock(
   const negativeEvents = events.filter(
     e => (e.direction ?? e.eventForecast?.direction) === 'negative',
   ).length;
+  const valuation = buildValuationSignal({ forecastReturnPct: returnPct, events });
 
   const breakdown: ScoreBreakdown = {
     forecastSignal:   round1(clamp(returnPct != null ? forecastToScore(returnPct) : 5)),
     catalystStrength: round1(clamp(catalystsToScore(events))),
     momentum:         round1(clamp(momentumFromForecast(forecastData))),
     earningsSetup:    round1(clamp(earningsSetupScore(events))),
+    valuationSignal:  round1(clamp(scoreValuationSignal(valuation))),
     riskAdjustment:   round1(clamp(riskScore(forecastData, negativeEvents))),
   };
 
@@ -304,6 +312,7 @@ export async function scoreStock(
     breakdown.catalystStrength * WEIGHTS.catalystStrength +
     breakdown.momentum         * WEIGHTS.momentum         +
     breakdown.earningsSetup    * WEIGHTS.earningsSetup    +
+    breakdown.valuationSignal  * WEIGHTS.valuationSignal  +
     breakdown.riskAdjustment   * WEIGHTS.riskAdjustment;
 
   const score = round1(clamp(raw, 1, 10));
@@ -321,6 +330,7 @@ export async function scoreStock(
       catalystCount:     events.length,
       dataSource:        isLive ? 'live' : 'mock',
       scoredAt:          new Date().toISOString(),
+      valuation,
     },
   };
 }

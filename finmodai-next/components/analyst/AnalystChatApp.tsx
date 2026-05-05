@@ -33,6 +33,7 @@ import {
   buildAnalystSmartAssumptionOverrides,
 } from '@/lib/smart-assumptions/shared';
 import type { SmartAssumptionResult } from '@/lib/smart-assumptions/types';
+import type { ScoreBreakdown, ValuationSignal } from '@/lib/ranking/types';
 
 type Message = {
   id: string;
@@ -72,6 +73,30 @@ type StockOpportunityContext = {
   horizonWeeks: number | null;
   primaryReason: string | null;
   mainRisk: string | null;
+  breakdown: ScoreBreakdown | null;
+  valuation: {
+    impliedUpside: number | null;
+    impliedGrowth: number | null;
+    valuationSignal: ValuationSignal | null;
+    summary: string | null;
+  } | null;
+};
+
+type AssumptionUpdateApiResponse = {
+  result?: {
+    adjustedScore: number;
+    delta: number;
+    plausibility: 'high' | 'medium' | 'low' | 'extreme';
+    factorDeltas: Partial<Record<keyof ScoreBreakdown, number>>;
+    adjustedBreakdown: ScoreBreakdown;
+    explanation: string;
+    pushback: string | null;
+  };
+  parsedClaim?: {
+    primaryFactor?: string;
+    direction?: 'positive' | 'negative';
+  };
+  error?: string;
 };
 
 function userExplicitlyWantsStructuredOutput(message: string): boolean {
@@ -184,6 +209,25 @@ function parseNullableFloat(value: string | null): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function readScoreBreakdown(searchParams: ReturnType<typeof useSearchParams>): ScoreBreakdown | null {
+  const breakdown = {
+    forecastSignal: parseNullableFloat(searchParams.get('forecastSignal')),
+    catalystStrength: parseNullableFloat(searchParams.get('catalystStrength')),
+    momentum: parseNullableFloat(searchParams.get('momentum')),
+    earningsSetup: parseNullableFloat(searchParams.get('earningsSetup')),
+    valuationSignal: parseNullableFloat(searchParams.get('valuationSignal')),
+    riskAdjustment: parseNullableFloat(searchParams.get('riskAdjustment')),
+  };
+  const values = Object.values(breakdown);
+  if (values.some((value) => value === null)) return null;
+  return breakdown as ScoreBreakdown;
+}
+
+function readValuationSignal(value: string | null): ValuationSignal | null {
+  if (value === 'undervalued' || value === 'fair' || value === 'overvalued') return value;
+  return null;
+}
+
 function readOpportunityContext(searchParams: ReturnType<typeof useSearchParams>): StockOpportunityContext | null {
   const tickerParam = searchParams.get('ticker')?.trim().toUpperCase();
   if (!tickerParam) return null;
@@ -194,6 +238,13 @@ function readOpportunityContext(searchParams: ReturnType<typeof useSearchParams>
     horizonWeeks: parseNullableFloat(searchParams.get('horizonWeeks')),
     primaryReason: searchParams.get('reason')?.trim() || null,
     mainRisk: searchParams.get('risk')?.trim() || null,
+    breakdown: readScoreBreakdown(searchParams),
+    valuation: {
+      impliedUpside: parseNullableFloat(searchParams.get('impliedUpside')),
+      impliedGrowth: parseNullableFloat(searchParams.get('impliedGrowth')),
+      valuationSignal: readValuationSignal(searchParams.get('valuationSignalLabel')),
+      summary: searchParams.get('valuationSummary')?.trim() || null,
+    },
   };
 }
 
@@ -203,7 +254,43 @@ function buildInitialOpportunityPrompt(context: StockOpportunityContext): string
   const reasonText = context.primaryReason ? ` Ranked reason: ${context.primaryReason}.` : '';
   const riskText = context.mainRisk ? ` Main risk: ${context.mainRisk}.` : '';
   const horizonText = context.horizonWeeks !== null ? ` Horizon: ${context.horizonWeeks} weeks.` : ' Horizon: 1-3 months.';
-  return `Here’s why this stock is ranked here. Analyze ${context.ticker} as a ranked 1-3 month stock opportunity.${scoreText}${signalText}${horizonText}${reasonText}${riskText} Explain the rank, forecast path, catalysts, valuation context, technical confirmation, what could change the score, and give a concise pitch-ready view.`;
+  const breakdownText = context.breakdown
+    ? ` Score components: forecast ${context.breakdown.forecastSignal}/10, catalysts ${context.breakdown.catalystStrength}/10, momentum ${context.breakdown.momentum}/10, earnings ${context.breakdown.earningsSetup}/10, valuation ${context.breakdown.valuationSignal}/10, risk ${context.breakdown.riskAdjustment}/10.`
+    : '';
+  const valuationText = context.valuation?.summary ? ` Valuation context: ${context.valuation.summary}` : '';
+  return `Here’s why this stock is ranked here. Analyze ${context.ticker} as a ranked 1-3 month stock opportunity.${scoreText}${signalText}${horizonText}${reasonText}${riskText}${breakdownText}${valuationText} Explain the rank, what would move the Opportunity Score higher, what would make this a bad trade, and give a concise pitch-ready view. Keep DCF/reverse DCF compressed to implied upside/downside, market-implied growth, and one takeaway only.`;
+}
+
+function looksLikeAssumptionUpdate(prompt: string): boolean {
+  return /\b(i think|i believe|i assume|assume|assuming|what if|because|my view|my assumption)\b/i.test(prompt);
+}
+
+function factorLabel(factor: string): string {
+  return factor
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, (letter) => letter.toUpperCase())
+    .trim();
+}
+
+function buildAssumptionUpdateReply(
+  ticker: string,
+  response: AssumptionUpdateApiResponse,
+): string {
+  const result = response.result;
+  if (!result) return response.error ?? 'Unable to update the score from that assumption.';
+  const sign = result.delta >= 0 ? '+' : '';
+  const deltas = Object.entries(result.factorDeltas)
+    .filter(([, value]) => typeof value === 'number' && value !== 0)
+    .map(([factor, value]) => `${factorLabel(factor)} ${value! >= 0 ? '+' : ''}${value!.toFixed(1)}`)
+    .join(', ');
+  const primary = response.parsedClaim?.primaryFactor ? factorLabel(response.parsedClaim.primaryFactor) : 'score';
+  const pushback = result.pushback ? `\n\nPushback: ${result.pushback}` : '';
+  return [
+    `${ticker} score updates to ${result.adjustedScore.toFixed(1)}/10 (${sign}${result.delta.toFixed(1)}).`,
+    `The assumption is ${result.plausibility} plausibility and mainly affects ${primary}.`,
+    deltas ? `Component changes: ${deltas}.` : 'No component moved enough to change the rounded score.',
+    result.explanation,
+  ].join(' ') + pushback;
 }
 
 function parseEventContext(value: unknown): AnalystDcfEventContext[] {
@@ -514,6 +601,8 @@ export function AnalystChatApp() {
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const quickEventTextRef = useRef<HTMLTextAreaElement>(null);
   const initialOpportunitySentRef = useRef(false);
+  const [opportunityOverride, setOpportunityOverride] = useState<StockOpportunityContext | null>(null);
+  const activeOpportunityContext = opportunityOverride ?? opportunityContext;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -538,6 +627,11 @@ export function AnalystChatApp() {
   useEffect(() => {
     if (!opportunityContext?.ticker) return;
     setTicker(opportunityContext.ticker);
+  }, [opportunityContext?.ticker]);
+
+  useEffect(() => {
+    setOpportunityOverride(null);
+    initialOpportunitySentRef.current = false;
   }, [opportunityContext?.ticker]);
 
   const focusQuickEventComposer = () => {
@@ -675,6 +769,45 @@ export function AnalystChatApp() {
     }, 1400);
 
     try {
+      if (
+        activeOpportunityContext?.breakdown &&
+        activeOpportunityContext.score !== null &&
+        looksLikeAssumptionUpdate(prompt)
+      ) {
+        const response = await fetch('/api/assumption-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ticker: activeOpportunityContext.ticker,
+            baseScore: activeOpportunityContext.score,
+            breakdown: activeOpportunityContext.breakdown,
+            assumption: prompt,
+            horizonWeeks: activeOpportunityContext.horizonWeeks ?? 6,
+          }),
+        });
+        const payload = (await response.json().catch(() => null)) as AssumptionUpdateApiResponse | null;
+        if (!response.ok || !payload?.result) {
+          throw new Error(payload?.error ?? 'Unable to update the opportunity score.');
+        }
+        const reply: Message = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: buildAssumptionUpdateReply(activeOpportunityContext.ticker, payload),
+        };
+        setOpportunityOverride({
+          ...activeOpportunityContext,
+          score: payload.result.adjustedScore,
+          breakdown: payload.result.adjustedBreakdown,
+          primaryReason:
+            payload.result.delta > 0
+              ? `User assumption improves ${factorLabel(payload.parsedClaim?.primaryFactor ?? 'score')}`
+              : activeOpportunityContext.primaryReason,
+          mainRisk: payload.result.pushback ?? activeOpportunityContext.mainRisk,
+        });
+        setMessages((prev) => [...prev, reply]);
+        return;
+      }
+
       const response = await fetch('/api/analyst-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -874,12 +1007,12 @@ export function AnalystChatApp() {
   };
 
   useEffect(() => {
-    if (!opportunityContext || initialOpportunitySentRef.current || isLoading) return;
+    if (!activeOpportunityContext || initialOpportunitySentRef.current || isLoading) return;
     initialOpportunitySentRef.current = true;
-    void submitPrompt(buildInitialOpportunityPrompt(opportunityContext));
+    void submitPrompt(buildInitialOpportunityPrompt(activeOpportunityContext));
     // Opening a ranked stock should trigger exactly one initial analyst read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opportunityContext, isLoading]);
+  }, [activeOpportunityContext, isLoading]);
 
   const handleDcfAdjustment = async (
     messageId: string,
@@ -1173,7 +1306,7 @@ export function AnalystChatApp() {
       onSubmit={handleSubmit}
       onInputChange={setInput}
       showExecutionTrace={showExecutionTrace}
-      opportunityContext={opportunityContext}
+      opportunityContext={activeOpportunityContext}
     />
   );
 }

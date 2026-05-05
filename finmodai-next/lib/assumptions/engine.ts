@@ -1,7 +1,7 @@
 /**
  * Assumption Engine
  *
- * Parses a free-text user assumption, maps it to the 5 scoring factors,
+ * Parses a free-text user assumption, maps it to the scoring factors,
  * assesses its plausibility against historical norms, and returns a
  * re-scored opportunity with a delta and explanation.
  *
@@ -101,6 +101,14 @@ const FACTOR_RULES: FactorRule[] = [
     primary:   'earningsSetup',
     secondary: 'forecastSignal',
     label:     'earnings setup',
+  },
+
+  // Valuation / DCF / expectations → valuationSignal + riskAdjustment
+  {
+    keywords: /\b(valuation|dcf|reverse dcf|fair value|intrinsic|upside|downside|cheap|expensive|undervalued|overvalued|multiple|terminal|implied growth|mispriced)\b/i,
+    primary:   'valuationSignal',
+    secondary: 'riskAdjustment',
+    label:     'valuation signal',
   },
 
   // Revenue / demand / growth → forecastSignal + catalystStrength
@@ -396,6 +404,7 @@ export function computeAdjustedScore(
     adjusted.catalystStrength * WEIGHTS.catalystStrength +
     adjusted.momentum         * WEIGHTS.momentum         +
     adjusted.earningsSetup    * WEIGHTS.earningsSetup    +
+    adjusted.valuationSignal  * WEIGHTS.valuationSignal  +
     adjusted.riskAdjustment   * WEIGHTS.riskAdjustment;
 
   const adjustedScore = round1(Math.min(10, Math.max(1, raw)));

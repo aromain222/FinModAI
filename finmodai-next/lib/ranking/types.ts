@@ -4,16 +4,27 @@
 
 export type Signal = 'green' | 'yellow' | 'red';
 
+export type ValuationSignal = 'undervalued' | 'fair' | 'overvalued';
+
+export type ValuationSignalSummary = {
+  impliedUpside: number | null;
+  impliedGrowth: number | null;
+  valuationSignal: ValuationSignal;
+  summary: string;
+};
+
 export type ScoreBreakdown = {
-  /** TimesFM price forecast return mapped to 0–10. Weight 0.30. */
+  /** TimesFM price forecast return mapped to 0–10. */
   forecastSignal: number;
-  /** Upcoming catalyst density and direction. Weight 0.25. */
+  /** Upcoming catalyst density and direction. */
   catalystStrength: number;
-  /** Trend shape of forecast + recent historical momentum. Weight 0.20. */
+  /** Trend shape of forecast + recent historical momentum. */
   momentum: number;
-  /** Earnings proximity and beat-probability setup. Weight 0.15. */
+  /** Earnings proximity and beat-probability setup. */
   earningsSetup: number;
-  /** Inverted volatility / negative event penalty. Weight 0.10. */
+  /** DCF-lite and reverse-DCF valuation context. */
+  valuationSignal: number;
+  /** Inverted volatility / negative event penalty. */
   riskAdjustment: number;
 };
 
@@ -32,6 +43,7 @@ export type RankedStock = {
     catalystCount: number;
     dataSource: 'live' | 'mock';
     scoredAt: string;
+    valuation?: ValuationSignalSummary;
   };
 };
 

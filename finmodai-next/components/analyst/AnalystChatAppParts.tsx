@@ -34,6 +34,7 @@ import type { AnalystEarningsSummaryCard } from '@/lib/analyst/earningsSummary';
 import type { StockLookupResult } from '@/lib/data/company/lookupStock';
 import type { CompanyInfoResponse } from '@/app/api/company-info/route';
 import type { AppExecutionTrace } from '@/lib/debug/executionTrace';
+import type { ScoreBreakdown, ValuationSignal } from '@/lib/ranking/types';
 
 const AnalystDcfCard = dynamic(
   () => import('@/components/analyst/AnalystDcfCard').then((mod) => mod.AnalystDcfCard)
@@ -100,6 +101,13 @@ type StockOpportunityContext = {
   horizonWeeks: number | null;
   primaryReason: string | null;
   mainRisk: string | null;
+  breakdown: ScoreBreakdown | null;
+  valuation: {
+    impliedUpside: number | null;
+    impliedGrowth: number | null;
+    valuationSignal: ValuationSignal | null;
+    summary: string | null;
+  } | null;
 };
 
 type LatestDcfMessage = {
@@ -531,6 +539,21 @@ function signalLabel(signal: string | null): string {
   return signal.replace(/_/g, ' ');
 }
 
+const SCORE_COMPONENTS: Array<{ key: keyof ScoreBreakdown; label: string; weight: string }> = [
+  { key: 'forecastSignal', label: 'Forecast', weight: '25%' },
+  { key: 'catalystStrength', label: 'Catalysts', weight: '20%' },
+  { key: 'momentum', label: 'Momentum', weight: '17%' },
+  { key: 'earningsSetup', label: 'Earnings', weight: '13%' },
+  { key: 'valuationSignal', label: 'Valuation', weight: '13%' },
+  { key: 'riskAdjustment', label: 'Risk', weight: '12%' },
+];
+
+function scoreTone(value: number): string {
+  if (value >= 7) return 'bg-emerald-400';
+  if (value >= 4) return 'bg-amber-300';
+  return 'bg-red-400';
+}
+
 function latestPriceForecast(messages: Message[]): AnalystForecastModelPayload | null {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const forecast = messages[index]?.meta?.forecastModel;
@@ -609,6 +632,40 @@ function OpportunityHeader({
             <p className="mt-1 text-sm leading-6 text-amber-200/90">
               Risk: {context.mainRisk}
             </p>
+          ) : null}
+          {context?.breakdown ? (
+            <details className="mt-4 rounded-xl border border-[var(--cb-border-subtle)] bg-black/10 p-3">
+              <summary className="cursor-pointer text-xs font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">
+                Why this score?
+              </summary>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {SCORE_COMPONENTS.map((component) => {
+                  const value = context.breakdown?.[component.key] ?? 0;
+                  return (
+                    <div key={component.key} className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="font-medium text-[var(--cb-text-primary)]">{component.label}</span>
+                        <span className="tabular-nums text-[var(--cb-text-muted)]">
+                          {value.toFixed(1)} / 10 · {component.weight}
+                        </span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                        <div
+                          className={`h-full rounded-full ${scoreTone(value)}`}
+                          style={{ width: `${Math.max(0, Math.min(100, value * 10))}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {context.valuation?.summary ? (
+                <div className="mt-3 rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface)] px-3 py-2 text-xs leading-5 text-[var(--cb-text-muted)]">
+                  <span className="font-medium text-[var(--cb-text-primary)]">Valuation context: </span>
+                  {context.valuation.summary}
+                </div>
+              ) : null}
+            </details>
           ) : null}
         </div>
         <div className="min-h-[126px]">
@@ -1159,6 +1216,27 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
                     {props.quickEventNotice}
                   </div>
                 ) : null}
+              </div>
+            ) : null}
+
+            {props.opportunityContext ? (
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                {(([
+                  { label: 'Why ranked?', prompt: `Why is ${props.opportunityContext.ticker} ranked here?` },
+                  { label: 'Move score higher', prompt: `What would move ${props.opportunityContext.ticker}'s Opportunity Score higher?` },
+                  { label: 'Bad trade?', prompt: `What would make ${props.opportunityContext.ticker} a bad trade?` },
+                  { label: 'Turn into pitch', prompt: `Turn ${props.opportunityContext.ticker} into a 60-second investment pitch.` },
+                ]) as { label: string; prompt: string }[]).map(({ label, prompt }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    disabled={props.isLoading}
+                    onClick={() => props.onQuickPrompt(prompt)}
+                    className="inline-flex items-center rounded-full border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)] px-3 py-1 text-[11px] font-medium text-[var(--cb-text-muted)] transition-colors hover:border-[var(--cb-border-strong)] hover:bg-[var(--cb-surface)] hover:text-[var(--cb-text-primary)] disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             ) : null}
 

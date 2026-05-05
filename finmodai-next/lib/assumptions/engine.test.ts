@@ -16,12 +16,13 @@ const BASE_BREAKDOWN: ScoreBreakdown = {
   catalystStrength: 6.5,
   momentum:         6.0,
   earningsSetup:    7.5,
+  valuationSignal:  5.5,
   riskAdjustment:   6.0,
 };
 
 const BASE_INPUT = {
   ticker:       'NVDA',
-  baseScore:    6.8,
+  baseScore:    6.5,
   breakdown:    BASE_BREAKDOWN,
   horizonWeeks: 6,
 };
@@ -60,6 +61,12 @@ test('parseClaim: risk keyword → riskAdjustment primary', () => {
   const c = parseClaim('Regulatory risk increases materially');
   const primary = c.affectedFactors.find(f => f.weight === 'primary');
   assert.equal(primary?.factor, 'riskAdjustment');
+});
+
+test('parseClaim: valuation keyword → valuationSignal primary', () => {
+  const c = parseClaim('The stock is undervalued on reverse DCF');
+  const primary = c.affectedFactors.find(f => f.weight === 'primary');
+  assert.equal(primary?.factor, 'valuationSignal');
 });
 
 test('parseClaim: momentum keyword → momentum primary', () => {
@@ -206,7 +213,7 @@ test('computeAdjustedScore: adjusted score stays within [1, 10]', () => {
   // Force ceiling scenario
   const maxBreakdown: ScoreBreakdown = {
     forecastSignal: 10, catalystStrength: 10, momentum: 10,
-    earningsSetup: 10, riskAdjustment: 10,
+    earningsSetup: 10, valuationSignal: 10, riskAdjustment: 10,
   };
   const claim = parseClaim('Revenue surges dramatically');
   const plaus = assessPlausibility(claim, maxBreakdown);
@@ -216,7 +223,7 @@ test('computeAdjustedScore: adjusted score stays within [1, 10]', () => {
   // Floor scenario
   const minBreakdown: ScoreBreakdown = {
     forecastSignal: 1, catalystStrength: 1, momentum: 1,
-    earningsSetup: 1, riskAdjustment: 1,
+    earningsSetup: 1, valuationSignal: 1, riskAdjustment: 1,
   };
   const claim2 = parseClaim('Earnings collapse, guidance cut');
   const plaus2 = assessPlausibility(claim2, minBreakdown);

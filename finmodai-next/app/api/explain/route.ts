@@ -27,6 +27,7 @@ const breakdownSchema = z.object({
   catalystStrength: z.number(),
   momentum:         z.number(),
   earningsSetup:    z.number(),
+  valuationSignal:  z.number().optional().default(5),
   riskAdjustment:   z.number(),
 });
 
@@ -42,6 +43,12 @@ const explainRequestSchema = z.object({
     forecastReturnPct: z.number().nullable().optional(),
     catalystCount:     z.number().optional(),
     dataSource:        z.enum(['live', 'mock']).optional(),
+    valuation: z.object({
+      impliedUpside: z.number().nullable().optional(),
+      impliedGrowth: z.number().nullable().optional(),
+      valuationSignal: z.enum(['undervalued', 'fair', 'overvalued']).optional(),
+      summary: z.string().optional(),
+    }).optional(),
   }).optional(),
 });
 
@@ -60,6 +67,7 @@ function buildExplainPrompt(req: ExplainRequest): string {
     `  • Catalyst Strength    ${breakdown.catalystStrength.toFixed(1)}/10  (weight ${(WEIGHTS.catalystStrength * 100).toFixed(0)}%)`,
     `  • Momentum             ${breakdown.momentum.toFixed(1)}/10  (weight ${(WEIGHTS.momentum * 100).toFixed(0)}%)`,
     `  • Earnings Setup       ${breakdown.earningsSetup.toFixed(1)}/10  (weight ${(WEIGHTS.earningsSetup * 100).toFixed(0)}%)`,
+    `  • Valuation Signal     ${breakdown.valuationSignal.toFixed(1)}/10  (weight ${(WEIGHTS.valuationSignal * 100).toFixed(0)}%)`,
     `  • Risk Adjustment      ${breakdown.riskAdjustment.toFixed(1)}/10  (weight ${(WEIGHTS.riskAdjustment * 100).toFixed(0)}%)`,
   ].join('\n');
 
@@ -71,9 +79,14 @@ function buildExplainPrompt(req: ExplainRequest): string {
     ? 'Note: scoring used estimated/mock data (live feed unavailable).'
     : `Catalyst events considered: ${meta?.catalystCount ?? 0}.`;
 
+  const valuationLine = meta?.valuation?.summary
+    ? `Valuation context: ${meta.valuation.summary}`
+    : 'Valuation context unavailable.';
+
   const priorContext = [
     primaryReason ? `Strongest factor: ${primaryReason}` : null,
     mainRisk       ? `Key risk: ${mainRisk}` : null,
+    valuationLine,
   ].filter(Boolean).join('\n');
 
   return `You are a senior equity analyst writing a brief investment note.
@@ -94,7 +107,8 @@ Write a concise analyst note (3–4 sentences) that:
 1. States the overall stance (${signalLabel}) and composite score.
 2. Explains the 1–2 dominant factors driving the score in plain language.
 3. Names the single biggest risk an investor should watch.
-4. Ends with a one-sentence positioning guidance for the ${horizon} horizon.
+4. Includes valuation only as a compressed signal, not a model walkthrough.
+5. Ends with a one-sentence positioning guidance for the ${horizon} horizon.
 
 Tone: direct, analytical, no fluff. Do not restate the score breakdown numerically — synthesise it.`;
 }
