@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
-  LayoutDashboard, 
-  Layers, 
-  FileText, 
-  Settings, 
+import {
+  LayoutDashboard,
+  TrendingUp,
+  Layers,
+  FileText,
+  Settings,
   MessageSquare,
   Newspaper,
   Radar,
@@ -16,13 +17,13 @@ import { APP_CONSOLE_NAME, APP_NAME } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: '/app', label: 'Overview', icon: LayoutDashboard, section: 'Workspace' },
-  { href: '/models', label: 'Models', icon: Layers, section: 'Workspace' },
-  { href: '/news', label: 'News', icon: Newspaper, section: 'Tools' },
-  { href: '/events', label: 'Events', icon: Radar, section: 'Tools' },
-  { href: '/reports', label: 'Reports', icon: FileText, section: 'Tools' },
-  { href: '/dashboard/settings', label: 'Settings', icon: Settings, section: 'Settings' },
-  { href: '/analyst-chat', label: 'Analyst Chat', icon: MessageSquare, section: 'Tools' }
+  { href: '/app',          label: 'Opportunities',  icon: TrendingUp,      section: 'Workspace' },
+  { href: '/models',       label: 'Models',          icon: Layers,          section: 'Workspace' },
+  { href: '/news',         label: 'News',            icon: Newspaper,       section: 'Tools' },
+  { href: '/events',       label: 'Events',          icon: Radar,           section: 'Tools' },
+  { href: '/analyst-chat', label: 'Analyst Chat',    icon: MessageSquare,   section: 'Tools' },
+  { href: '/reports',      label: 'Reports',         icon: FileText,        section: 'Tools' },
+  { href: '/dashboard/settings', label: 'Settings',  icon: Settings,        section: 'Settings' },
 ];
 
 /**
