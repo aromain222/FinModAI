@@ -493,6 +493,7 @@ type AnalystChatSurfaceProps = {
   quickEventError: string | null;
   quickEventNotice: string | null;
   quickEventApplying: boolean;
+  pitchQueueNotice: string | null;
   input: string;
   demoMode: boolean;
   demoStep: AnalystDemoStep | null;
@@ -518,6 +519,7 @@ type AnalystChatSurfaceProps = {
   onQuickEventSourceChange: (value: string) => void;
   onQuickEventApply: () => Promise<void>;
   onQuickPrompt: (text: string) => void;
+  onAddToPitchQueue: () => void;
   onSubmit: (event: FormEvent) => Promise<void>;
   onInputChange: (value: string) => void;
   showExecutionTrace: boolean;
@@ -566,10 +568,14 @@ function OpportunityHeader({
   context,
   fallbackTicker,
   messages,
+  onAddToPitchQueue,
+  pitchQueueNotice,
 }: {
   context: StockOpportunityContext | null;
   fallbackTicker: string;
   messages: Message[];
+  onAddToPitchQueue: () => void;
+  pitchQueueNotice: string | null;
 }) {
   const ticker = context?.ticker || fallbackTicker.trim().toUpperCase();
   if (!ticker) return null;
@@ -598,7 +604,21 @@ function OpportunityHeader({
             <div className="rounded-full border border-[var(--cb-border-subtle)] px-2.5 py-1 text-[11px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
               {horizonText} horizon
             </div>
+            {context ? (
+              <button
+                type="button"
+                onClick={onAddToPitchQueue}
+                className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-widest text-emerald-100 transition-colors hover:bg-emerald-400/15"
+              >
+                Add to Pitch Queue
+              </button>
+            ) : null}
           </div>
+          {pitchQueueNotice ? (
+            <div className="mt-3 inline-flex rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-3 py-1.5 text-xs text-emerald-100">
+              {pitchQueueNotice}
+            </div>
+          ) : null}
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
             <div>
               <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Opportunity Score</div>
@@ -706,6 +726,8 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
         context={props.opportunityContext}
         fallbackTicker={props.ticker}
         messages={props.messages}
+        onAddToPitchQueue={props.onAddToPitchQueue}
+        pitchQueueNotice={props.pitchQueueNotice}
       />
     <div className={`grid gap-4 ${hasSidebar ? 'lg:grid-cols-[minmax(0,1fr)_280px]' : ''} lg:items-start`}>
       {/* ── LEFT: primary analysis ── */}

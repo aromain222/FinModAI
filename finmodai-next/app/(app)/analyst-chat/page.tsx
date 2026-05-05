@@ -15,9 +15,14 @@ export default async function AnalystChatPage() {
               Ask anything. Add a ticker only when you want company-specific context. Attach PDFs to capture memo highlights.
             </p>
           </header>
-          <Button asChild variant="outline">
-            <Link href="/app">Back to Dashboard</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline">
+              <Link href="/pitch-queue">Pitch Queue</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/app">Back to Dashboard</Link>
+            </Button>
+          </div>
         </div>
         <AnalystChatApp />
       </div>

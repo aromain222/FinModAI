@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, ChevronUp, Zap, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronUp, Zap, AlertTriangle, Plus } from 'lucide-react';
 import type { RankedStock } from '@/lib/ranking/types';
 import { WEIGHTS } from '@/lib/ranking/score';
+import { buildPitchQueueItemFromRankedStock } from '@/lib/pitchQueue/buildPitch';
+import { upsertPitchQueueItem } from '@/lib/pitchQueue/storage';
 import { OpportunityBadge } from './OpportunityBadge';
 import { ScoreBar } from './ScoreBar';
 import { cn } from '@/lib/utils';
@@ -25,6 +27,7 @@ const COMPONENT_LABELS: Record<keyof typeof WEIGHTS, string> = {
 
 export function RankedListRow({ stock, rank }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const [queued, setQueued] = useState(false);
   const chatParams = new URLSearchParams({
     ticker: stock.ticker,
     score: stock.score.toFixed(1),
@@ -56,6 +59,12 @@ export function RankedListRow({ stock, rank }: Props) {
     stock.meta.forecastReturnPct != null
       ? `${stock.meta.forecastReturnPct >= 0 ? '+' : ''}${stock.meta.forecastReturnPct.toFixed(1)}%`
       : null;
+
+  const addToPitchQueue = () => {
+    upsertPitchQueueItem(buildPitchQueueItemFromRankedStock(stock));
+    setQueued(true);
+    window.setTimeout(() => setQueued(false), 2200);
+  };
 
   return (
     <div className="rounded-xl border border-[var(--cb-border)] bg-[var(--cb-surface)] transition-colors hover:border-[var(--cb-border-strong)]">
@@ -167,6 +176,14 @@ export function RankedListRow({ stock, rank }: Props) {
               >
                 Open Analyst Chat
               </Link>
+              <button
+                type="button"
+                onClick={addToPitchQueue}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition-colors hover:bg-emerald-400/15"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {queued ? 'Added to Pitch Queue' : 'Add to Pitch Queue'}
+              </button>
             </div>
           </div>
         </div>

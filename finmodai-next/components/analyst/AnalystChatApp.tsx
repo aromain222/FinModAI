@@ -34,6 +34,8 @@ import {
 } from '@/lib/smart-assumptions/shared';
 import type { SmartAssumptionResult } from '@/lib/smart-assumptions/types';
 import type { ScoreBreakdown, ValuationSignal } from '@/lib/ranking/types';
+import { buildPitchQueueItem, buildWeeklyPitchText } from '@/lib/pitchQueue/buildPitch';
+import { upsertPitchQueueItem } from '@/lib/pitchQueue/storage';
 
 type Message = {
   id: string;
@@ -272,18 +274,6 @@ function factorLabel(factor: string): string {
     .trim();
 }
 
-function signalPlain(signal: string | null): string {
-  if (signal === 'green') return 'Bullish';
-  if (signal === 'red') return 'Bearish';
-  return 'Neutral';
-}
-
-function tradePlain(signal: string | null): string {
-  if (signal === 'green') return 'Buy / work up';
-  if (signal === 'red') return 'Pass / avoid unless the bear case breaks';
-  return 'Wait';
-}
-
 function sortedFactors(breakdown: ScoreBreakdown): Array<[keyof ScoreBreakdown, number]> {
   return (Object.entries(breakdown) as Array<[keyof ScoreBreakdown, number]>)
     .sort((a, b) => b[1] - a[1]);
@@ -343,21 +333,15 @@ function buildBadTradeReply(context: StockOpportunityContext): string {
 }
 
 function buildPitchReply(context: StockOpportunityContext): string {
-  const signal = signalPlain(context.signal);
-  const trade = tradePlain(context.signal);
-  const marketMiss = context.valuation?.valuationSignal === 'undervalued'
-    ? 'Valuation does not look fully priced in.'
-    : context.valuation?.valuationSignal === 'overvalued'
-      ? 'The market may already be pricing too much of the upside.'
-      : 'The market appears close to fair value, so catalysts matter more than valuation.';
-  return [
-    `${context.ticker} — Weekly Pitch`,
-    `Signal: ${signal}`,
-    `Why Now: ${context.primaryReason ?? 'The near-term score is driven by forecast, catalyst, and earnings signals.'}`,
-    `Market Miss: ${marketMiss}`,
-    `Risk: ${context.mainRisk ?? 'Weak guidance or a failed catalyst would weaken the setup.'}`,
-    `Trade: ${trade}`,
-  ].join('\n');
+  return buildWeeklyPitchText({
+    ticker: context.ticker,
+    score: context.score,
+    signal: context.signal,
+    horizonWeeks: context.horizonWeeks,
+    primaryReason: context.primaryReason,
+    mainRisk: context.mainRisk,
+    valuationSignal: context.valuation?.valuationSignal ?? null,
+  });
 }
 
 function buildOpportunityIntentReply(prompt: string, context: StockOpportunityContext): string | null {
@@ -702,6 +686,7 @@ export function AnalystChatApp() {
   const [quickEventError, setQuickEventError] = useState<string | null>(null);
   const [quickEventNotice, setQuickEventNotice] = useState<string | null>(null);
   const [quickEventApplying, setQuickEventApplying] = useState(false);
+  const [pitchQueueNotice, setPitchQueueNotice] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const quickEventTextRef = useRef<HTMLTextAreaElement>(null);
@@ -744,6 +729,22 @@ export function AnalystChatApp() {
     requestAnimationFrame(() => {
       quickEventTextRef.current?.focus();
     });
+  };
+
+  const handleAddToPitchQueue = () => {
+    if (!activeOpportunityContext) return;
+    const item = buildPitchQueueItem({
+      ticker: activeOpportunityContext.ticker,
+      score: activeOpportunityContext.score,
+      signal: activeOpportunityContext.signal,
+      horizonWeeks: activeOpportunityContext.horizonWeeks,
+      primaryReason: activeOpportunityContext.primaryReason,
+      mainRisk: activeOpportunityContext.mainRisk,
+      valuationSignal: activeOpportunityContext.valuation?.valuationSignal ?? null,
+    });
+    upsertPitchQueueItem(item);
+    setPitchQueueNotice(`${activeOpportunityContext.ticker} added to Pitch Queue.`);
+    window.setTimeout(() => setPitchQueueNotice(null), 2600);
   };
 
   function getLatestGeneratedArtifact() {
@@ -1394,6 +1395,7 @@ export function AnalystChatApp() {
       quickEventError={quickEventError}
       quickEventNotice={quickEventNotice}
       quickEventApplying={quickEventApplying}
+      pitchQueueNotice={pitchQueueNotice}
       input={input}
       bottomRef={bottomRef}
       promptRef={promptRef}
@@ -1421,6 +1423,7 @@ export function AnalystChatApp() {
       onQuickEventSourceChange={setQuickEventSource}
       onQuickEventApply={handleQuickEventApply}
       onQuickPrompt={handleQuickPrompt}
+      onAddToPitchQueue={handleAddToPitchQueue}
       onSubmit={handleSubmit}
       onInputChange={setInput}
       showExecutionTrace={showExecutionTrace}
