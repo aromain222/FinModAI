@@ -13,6 +13,7 @@ import type { AttachmentStatusPayload as AnalystAttachmentStatus } from '@/lib/a
 import type { AnalystCoreTemplatePayload } from '@/lib/analyst/coreModelTemplates';
 import { type AnalystOutput } from '@/lib/analyst/investmentOutput';
 import { InvestmentOutputCard } from '@/components/analyst/InvestmentOutputCard';
+import { ForecastSparkline } from '@/components/analyst/ForecastSparkline';
 import {
   getTeslaDemoGuidedHint,
   isTeslaTicker,
@@ -91,6 +92,15 @@ type LatestGeneratedModelMessage = {
   messageId: string;
   payload: AnalystGeneratedModelPayload;
 } | null;
+
+type StockOpportunityContext = {
+  ticker: string;
+  score: number | null;
+  signal: string | null;
+  horizonWeeks: number | null;
+  primaryReason: string | null;
+  mainRisk: string | null;
+};
 
 type LatestDcfMessage = {
   messageId: string;
@@ -455,6 +465,7 @@ function AnalystEarningsSummaryCardView({ summary }: { summary: AnalystEarningsS
 
 type AnalystChatSurfaceProps = {
   ticker: string;
+  opportunityContext: StockOpportunityContext | null;
   attachment: UploadedAttachmentContext | null;
   attachmentError: string | null;
   messages: Message[];
@@ -506,6 +517,123 @@ type AnalystChatSurfaceProps = {
 
 // ─── Main surface ─────────────────────────────────────────────────────────────
 
+function signalTone(signal: string | null): string {
+  if (signal === 'green' || signal === 'long') return 'border-emerald-400/25 bg-emerald-400/10 text-emerald-100';
+  if (signal === 'red' || signal === 'short') return 'border-red-400/25 bg-red-400/10 text-red-100';
+  return 'border-amber-400/25 bg-amber-400/10 text-amber-100';
+}
+
+function signalLabel(signal: string | null): string {
+  if (signal === 'green') return 'Buy / work up';
+  if (signal === 'yellow') return 'Watch / wait';
+  if (signal === 'red') return 'Avoid / shortlist risk';
+  if (!signal) return 'Unscored';
+  return signal.replace(/_/g, ' ');
+}
+
+function latestPriceForecast(messages: Message[]): AnalystForecastModelPayload | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const forecast = messages[index]?.meta?.forecastModel;
+    if (forecast?.forecastKind === 'price' || forecast?.units === 'USD/share') return forecast;
+  }
+  return null;
+}
+
+function OpportunityHeader({
+  context,
+  fallbackTicker,
+  messages,
+}: {
+  context: StockOpportunityContext | null;
+  fallbackTicker: string;
+  messages: Message[];
+}) {
+  const ticker = context?.ticker || fallbackTicker.trim().toUpperCase();
+  if (!ticker) return null;
+
+  const forecast = latestPriceForecast(messages);
+  const returnPct =
+    forecast?.returnPct ??
+    (forecast?.latestActual && forecast.terminalForecast
+      ? forecast.terminalForecast / forecast.latestActual - 1
+      : null);
+  const scoreValue = context?.score ?? null;
+  const scoreText = scoreValue !== null ? scoreValue.toFixed(1) : '—';
+  const horizonText = context?.horizonWeeks ? `${context.horizonWeeks}w` : '1-3m';
+
+  return (
+    <section className="rounded-2xl border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-elevated)] p-4">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-2xl font-semibold tracking-tight text-[var(--cb-text-primary)]">
+              {ticker}
+            </div>
+            <div className={`rounded-full border px-2.5 py-1 text-[11px] font-medium uppercase tracking-widest ${signalTone(context?.signal ?? null)}`}>
+              {signalLabel(context?.signal ?? null)}
+            </div>
+            <div className="rounded-full border border-[var(--cb-border-subtle)] px-2.5 py-1 text-[11px] font-medium uppercase tracking-widest text-[var(--cb-text-muted)]">
+              {horizonText} horizon
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Opportunity Score</div>
+              <div className="mt-1 text-lg font-semibold tabular-nums text-[var(--cb-text-primary)]">
+                {scoreText}<span className="text-sm text-[var(--cb-text-muted)]"> / 10</span>
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Forecast Move</div>
+              <div className="mt-1 text-lg font-semibold tabular-nums text-[var(--cb-text-primary)]">
+                {returnPct === null || !Number.isFinite(returnPct)
+                  ? 'pending'
+                  : `${returnPct >= 0 ? '+' : ''}${(returnPct * 100).toFixed(1)}%`}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Primary Interface</div>
+              <div className="mt-1 text-lg font-semibold text-[var(--cb-text-primary)]">Analyst Chat</div>
+            </div>
+          </div>
+          {context?.primaryReason ? (
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--cb-text-primary)]">
+              {context.primaryReason}
+            </p>
+          ) : (
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--cb-text-muted)]">
+              Chat will explain the rank, catalysts, valuation context, and what would change the score.
+            </p>
+          )}
+          {context?.mainRisk ? (
+            <p className="mt-1 text-sm leading-6 text-amber-200/90">
+              Risk: {context.mainRisk}
+            </p>
+          ) : null}
+        </div>
+        <div className="min-h-[126px]">
+          {forecast ? (
+            <ForecastSparkline
+              forecast={forecast.forecast}
+              historical={forecast.historical}
+              lower={forecast.lower}
+              upper={forecast.upper}
+              title="Price Path"
+              historicalLabel="Recent"
+              forecastLabel="Forecast"
+              forecastTone={returnPct == null ? 'neutral' : returnPct < 0 ? 'negative' : returnPct > 0 ? 'positive' : 'neutral'}
+            />
+          ) : (
+            <div className="flex h-full min-h-[126px] items-center justify-center rounded-xl border border-[var(--cb-border-subtle)] bg-black/10 px-4 text-center text-xs leading-5 text-[var(--cb-text-muted)]">
+              Price path loads after the opening analyst read.
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
   const latestModelMessage = props.getLatestGeneratedModelMessage();
   const latestDcfMessage = getLatestDcfMessage(props.messages);
@@ -516,12 +644,18 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
     Boolean(sidebar.latestAttachmentStatus);
 
   return (
-    <div className={`grid gap-4 ${hasSidebar ? 'lg:grid-cols-[2fr_1fr]' : ''} lg:items-start`}>
+    <div className="space-y-4">
+      <OpportunityHeader
+        context={props.opportunityContext}
+        fallbackTicker={props.ticker}
+        messages={props.messages}
+      />
+    <div className={`grid gap-4 ${hasSidebar ? 'lg:grid-cols-[minmax(0,1fr)_280px]' : ''} lg:items-start`}>
       {/* ── LEFT: primary analysis ── */}
       <Card className="flex flex-col shadow-lg">
         <CardHeader className="border-b border-[var(--cb-border-subtle)] bg-[var(--cb-surface-alt)]">
           <CardTitle className="text-xl font-semibold text-[var(--cb-text-primary)]">
-            Analyst Chat
+            Ask, challenge, pitch
           </CardTitle>
           <div className="flex flex-col gap-3 text-sm text-[var(--cb-text-muted)] md:flex-row md:items-center">
             <div className="flex flex-1 flex-col gap-2 md:flex-row md:items-center">
@@ -531,7 +665,7 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
                 name="ticker-input"
                 value={props.ticker}
                 onChange={(event) => props.onTickerChange(event.target.value.toUpperCase())}
-                placeholder="Ticker (optional)"
+                placeholder="Ticker"
               />
             </div>
             <label htmlFor="pdf-upload-analyst" className="sr-only">Upload PDF</label>
@@ -1057,8 +1191,8 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
                 name="analyst-prompt"
                 placeholder={
                   props.pendingModelRequest?.clarificationField
-                    ? 'Answer the missing-input question so the model can continue...'
-                    : 'Ask about valuations, KPIs, diligence follow-ups...'
+                    ? 'Answer the missing-input question so the analysis can continue...'
+                    : 'Challenge the rank, ask what changes the score, compare names, or generate a pitch...'
                 }
                 value={props.input}
                 onChange={(event) => props.onInputChange(event.target.value)}
@@ -1078,7 +1212,7 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
                     {props.pendingModelRequest.clarificationField
                       ?.replace(/([A-Z])/g, ' $1')
                       .toLowerCase() || 'the next required input'}{' '}
-                    to continue the model build.
+                    to continue the analysis.
                   </span>
                 ) : props.attachment ? (
                   <span>
@@ -1086,13 +1220,13 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
                     {props.attachment.name}.
                   </span>
                 ) : (
-                  <span>Attach earnings reports, model files, or notes for additional context.</span>
+                  <span>Attach earnings reports, model files, or notes when they improve the pitch.</span>
                 )}
                 <Button type="submit" disabled={props.isLoading || !props.input.trim()}>
                   {props.isLoading
                     ? 'Thinking…'
                     : props.pendingModelRequest
-                      ? 'Continue Model'
+                      ? 'Continue'
                       : 'Ask'}
                 </Button>
               </div>
@@ -1115,6 +1249,7 @@ export function AnalystChatSurface(props: AnalystChatSurfaceProps) {
           )}
         </div>
       )}
+    </div>
     </div>
   );
 }

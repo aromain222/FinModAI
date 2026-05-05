@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { ChevronDown, ChevronUp, Zap, AlertTriangle } from 'lucide-react';
 import type { RankedStock } from '@/lib/ranking/types';
 import { WEIGHTS } from '@/lib/ranking/score';
@@ -23,6 +24,14 @@ const COMPONENT_LABELS: Record<keyof typeof WEIGHTS, string> = {
 
 export function RankedListRow({ stock, rank }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const chatParams = new URLSearchParams({
+    ticker: stock.ticker,
+    score: stock.score.toFixed(1),
+    signal: stock.signal,
+    horizonWeeks: String(stock.horizonWeeks),
+    reason: stock.primaryReason,
+    risk: stock.mainRisk,
+  });
 
   const returnLine =
     stock.meta.forecastReturnPct != null
@@ -133,6 +142,12 @@ export function RankedListRow({ stock, rank }: Props) {
                   {stock.meta.dataSource === 'mock' ? 'estimated data' : 'live data'}
                 </p>
               </div>
+              <Link
+                href={`/analyst-chat?${chatParams.toString()}`}
+                className="inline-flex w-full items-center justify-center rounded-lg border border-[var(--cb-border-strong)] bg-[var(--cb-surface-alt)] px-3 py-2 text-xs font-semibold text-[var(--cb-text-primary)] transition-colors hover:bg-[var(--cb-surface)]"
+              >
+                Open Analyst Chat
+              </Link>
             </div>
           </div>
         </div>

@@ -65,6 +65,15 @@ type Message = {
   };
 };
 
+type StockOpportunityContext = {
+  ticker: string;
+  score: number | null;
+  signal: string | null;
+  horizonWeeks: number | null;
+  primaryReason: string | null;
+  mainRisk: string | null;
+};
+
 function userExplicitlyWantsStructuredOutput(message: string): boolean {
   const text = message.toLowerCase();
   return /\b(bullets?|bullet points?|table|json|memo|sections?|headers?|outline|format|template|list)\b/.test(text);
@@ -167,6 +176,34 @@ function parseNumberSeries(value: unknown): number[] {
   return value
     .map((item) => finiteNumber(item))
     .filter((item): item is number => item !== null);
+}
+
+function parseNullableFloat(value: string | null): number | null {
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function readOpportunityContext(searchParams: ReturnType<typeof useSearchParams>): StockOpportunityContext | null {
+  const tickerParam = searchParams.get('ticker')?.trim().toUpperCase();
+  if (!tickerParam) return null;
+  return {
+    ticker: tickerParam,
+    score: parseNullableFloat(searchParams.get('score')),
+    signal: searchParams.get('signal')?.trim().toLowerCase() ?? null,
+    horizonWeeks: parseNullableFloat(searchParams.get('horizonWeeks')),
+    primaryReason: searchParams.get('reason')?.trim() || null,
+    mainRisk: searchParams.get('risk')?.trim() || null,
+  };
+}
+
+function buildInitialOpportunityPrompt(context: StockOpportunityContext): string {
+  const scoreText = context.score !== null ? ` Score: ${context.score.toFixed(1)}/10.` : '';
+  const signalText = context.signal ? ` Signal: ${context.signal}.` : '';
+  const reasonText = context.primaryReason ? ` Ranked reason: ${context.primaryReason}.` : '';
+  const riskText = context.mainRisk ? ` Main risk: ${context.mainRisk}.` : '';
+  const horizonText = context.horizonWeeks !== null ? ` Horizon: ${context.horizonWeeks} weeks.` : ' Horizon: 1-3 months.';
+  return `Here’s why this stock is ranked here. Analyze ${context.ticker} as a ranked 1-3 month stock opportunity.${scoreText}${signalText}${horizonText}${reasonText}${riskText} Explain the rank, forecast path, catalysts, valuation context, technical confirmation, what could change the score, and give a concise pitch-ready view.`;
 }
 
 function parseEventContext(value: unknown): AnalystDcfEventContext[] {
@@ -454,6 +491,7 @@ function getLoadingPlan(prompt: string, ticker?: string): AgentLoadingState {
 export function AnalystChatApp() {
   const searchParams = useSearchParams();
   const showExecutionTrace = searchParams.get('trace') === '1';
+  const opportunityContext = readOpportunityContext(searchParams);
   const [ticker, setTicker] = useState('');
   const [attachment, setAttachment] = useState<UploadedAttachmentContext | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
@@ -475,6 +513,7 @@ export function AnalystChatApp() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const quickEventTextRef = useRef<HTMLTextAreaElement>(null);
+  const initialOpportunitySentRef = useRef(false);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -495,6 +534,11 @@ export function AnalystChatApp() {
   useEffect(() => {
     promptRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    if (!opportunityContext?.ticker) return;
+    setTicker(opportunityContext.ticker);
+  }, [opportunityContext?.ticker]);
 
   const focusQuickEventComposer = () => {
     quickEventTextRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -829,6 +873,14 @@ export function AnalystChatApp() {
     await submitPrompt(text.trim());
   };
 
+  useEffect(() => {
+    if (!opportunityContext || initialOpportunitySentRef.current || isLoading) return;
+    initialOpportunitySentRef.current = true;
+    void submitPrompt(buildInitialOpportunityPrompt(opportunityContext));
+    // Opening a ranked stock should trigger exactly one initial analyst read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opportunityContext, isLoading]);
+
   const handleDcfAdjustment = async (
     messageId: string,
     payload: AnalystDcfDemoPayload,
@@ -1121,6 +1173,7 @@ export function AnalystChatApp() {
       onSubmit={handleSubmit}
       onInputChange={setInput}
       showExecutionTrace={showExecutionTrace}
+      opportunityContext={opportunityContext}
     />
   );
 }

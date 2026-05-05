@@ -7,6 +7,7 @@
 
 import { headers } from 'next/headers';
 import { RankedList } from '@/components/ranking/RankedList';
+import { AnalystChatApp } from '@/components/analyst/AnalystChatApp';
 import type { RankResponse } from '@/lib/ranking/types';
 import { APP_NAME } from '@/lib/branding';
 
@@ -38,20 +39,27 @@ export default async function AppHomePage() {
   const data = await fetchRankings();
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6">
       <header className="space-y-1">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--cb-text-muted)]">
           {APP_NAME}
         </p>
         <h1 className="text-2xl font-bold text-[var(--cb-text-primary)]">
-          Stock Opportunities
+          Ranked Stock Opportunities
         </h1>
         <p className="text-sm text-[var(--cb-text-muted)]">
-          Ranked by 1–3 month investment signal. Green = buy, yellow = watch, red = avoid.
+          Rank, click, understand, ask, pitch. The board surfaces 1-3 month setups; chat is the main interface.
         </p>
       </header>
 
-      <RankedList initial={data} />
+      <div className="grid gap-5 xl:grid-cols-[390px_minmax(0,1fr)] xl:items-start">
+        <aside className="xl:sticky xl:top-4">
+          <RankedList initial={data} />
+        </aside>
+        <section>
+          <AnalystChatApp />
+        </section>
+      </div>
     </div>
   );
 }
