@@ -272,6 +272,111 @@ function factorLabel(factor: string): string {
     .trim();
 }
 
+function signalPlain(signal: string | null): string {
+  if (signal === 'green') return 'Bullish';
+  if (signal === 'red') return 'Bearish';
+  return 'Neutral';
+}
+
+function tradePlain(signal: string | null): string {
+  if (signal === 'green') return 'Buy / work up';
+  if (signal === 'red') return 'Pass / avoid unless the bear case breaks';
+  return 'Wait';
+}
+
+function sortedFactors(breakdown: ScoreBreakdown): Array<[keyof ScoreBreakdown, number]> {
+  return (Object.entries(breakdown) as Array<[keyof ScoreBreakdown, number]>)
+    .sort((a, b) => b[1] - a[1]);
+}
+
+function componentSentence(context: StockOpportunityContext, factor: keyof ScoreBreakdown): string {
+  const label = factorLabel(factor);
+  const value = context.breakdown?.[factor]?.toFixed(1) ?? '—';
+  switch (factor) {
+    case 'forecastSignal':
+      return `${label} is ${value}/10, so the forecast layer is a major part of the rank.`;
+    case 'catalystStrength':
+      return `${label} is ${value}/10, meaning near-term events matter for the setup.`;
+    case 'momentum':
+      return `${label} is ${value}/10, so the stock path is either confirming or holding back the idea.`;
+    case 'earningsSetup':
+      return `${label} is ${value}/10, so earnings/guidance can move the score quickly.`;
+    case 'valuationSignal':
+      return `${label} is ${value}/10; valuation is treated as a compressed signal, not a full model workflow.`;
+    case 'riskAdjustment':
+      return `${label} is ${value}/10, so risk/volatility controls how much conviction the score deserves.`;
+  }
+}
+
+function buildWhyRankedReply(context: StockOpportunityContext): string {
+  if (!context.breakdown) return `${context.ticker} is ranked from forecast, catalysts, momentum, earnings, valuation, and risk signals.`;
+  const [first, second, third] = sortedFactors(context.breakdown);
+  const score = context.score !== null ? context.score.toFixed(1) : '—';
+  return [
+    `${context.ticker} is ranked at ${score}/10 because ${factorLabel(first[0]).toLowerCase()}, ${factorLabel(second[0]).toLowerCase()}, and ${factorLabel(third[0]).toLowerCase()} are carrying the setup.`,
+    componentSentence(context, first[0]),
+    componentSentence(context, second[0]),
+    context.valuation?.summary ? `Valuation: ${context.valuation.summary}` : '',
+    context.mainRisk ? `Main risk: ${context.mainRisk}.` : '',
+  ].filter(Boolean).join(' ');
+}
+
+function buildMoveHigherReply(context: StockOpportunityContext): string {
+  if (!context.breakdown) return `The score would move higher if forecast, catalysts, earnings, or valuation improve.`;
+  const laggards = sortedFactors(context.breakdown).slice(-3).reverse();
+  return [
+    `${context.ticker}'s score moves higher if the weakest components improve.`,
+    ...laggards.map(([factor, value]) => `${factorLabel(factor)}: currently ${value.toFixed(1)}/10; needs clearer evidence to re-rate.`),
+    `Best practical upside path: a positive catalyst that improves estimates or guidance while the forecast path confirms momentum.`,
+  ].join(' ');
+}
+
+function buildBadTradeReply(context: StockOpportunityContext): string {
+  if (!context.breakdown) return `This gets weaker if the catalyst fails, guidance disappoints, or the forecast turns negative.`;
+  const weakest = sortedFactors(context.breakdown).at(-1);
+  return [
+    `${context.ticker} becomes a bad trade if the weakest part of the score breaks further.`,
+    weakest ? `${factorLabel(weakest[0])} is the lowest component at ${weakest[1].toFixed(1)}/10.` : '',
+    context.mainRisk ? `Specific risk: ${context.mainRisk}.` : '',
+    `Invalidation: forecast direction turns down, the next catalyst fails to raise estimates, or valuation starts pricing the upside before fundamentals confirm it.`,
+  ].filter(Boolean).join(' ');
+}
+
+function buildPitchReply(context: StockOpportunityContext): string {
+  const signal = signalPlain(context.signal);
+  const trade = tradePlain(context.signal);
+  const marketMiss = context.valuation?.valuationSignal === 'undervalued'
+    ? 'Valuation does not look fully priced in.'
+    : context.valuation?.valuationSignal === 'overvalued'
+      ? 'The market may already be pricing too much of the upside.'
+      : 'The market appears close to fair value, so catalysts matter more than valuation.';
+  return [
+    `${context.ticker} — Weekly Pitch`,
+    `Signal: ${signal}`,
+    `Why Now: ${context.primaryReason ?? 'The near-term score is driven by forecast, catalyst, and earnings signals.'}`,
+    `Market Miss: ${marketMiss}`,
+    `Risk: ${context.mainRisk ?? 'Weak guidance or a failed catalyst would weaken the setup.'}`,
+    `Trade: ${trade}`,
+  ].join('\n');
+}
+
+function buildOpportunityIntentReply(prompt: string, context: StockOpportunityContext): string | null {
+  const text = prompt.toLowerCase();
+  if (/\b(turn this into a pitch|pitch|weekly pitch|investment pitch)\b/.test(text)) {
+    return buildPitchReply(context);
+  }
+  if (/\b(why.*rank|ranked here|why.*score|explain.*score)\b/.test(text)) {
+    return buildWhyRankedReply(context);
+  }
+  if (/\b(move.*score higher|score higher|what would.*higher|move.*higher|improve.*score)\b/.test(text)) {
+    return buildMoveHigherReply(context);
+  }
+  if (/\b(bad trade|make this weaker|what.*weaker|what breaks|break.*trade|invalidat)\b/.test(text)) {
+    return buildBadTradeReply(context);
+  }
+  return null;
+}
+
 function buildAssumptionUpdateReply(
   ticker: string,
   response: AssumptionUpdateApiResponse,
@@ -279,6 +384,7 @@ function buildAssumptionUpdateReply(
   const result = response.result;
   if (!result) return response.error ?? 'Unable to update the score from that assumption.';
   const sign = result.delta >= 0 ? '+' : '';
+  const baseScore = result.adjustedScore - result.delta;
   const deltas = Object.entries(result.factorDeltas)
     .filter(([, value]) => typeof value === 'number' && value !== 0)
     .map(([factor, value]) => `${factorLabel(factor)} ${value! >= 0 ? '+' : ''}${value!.toFixed(1)}`)
@@ -286,11 +392,10 @@ function buildAssumptionUpdateReply(
   const primary = response.parsedClaim?.primaryFactor ? factorLabel(response.parsedClaim.primaryFactor) : 'score';
   const pushback = result.pushback ? `\n\nPushback: ${result.pushback}` : '';
   return [
-    `${ticker} score updates to ${result.adjustedScore.toFixed(1)}/10 (${sign}${result.delta.toFixed(1)}).`,
-    `The assumption is ${result.plausibility} plausibility and mainly affects ${primary}.`,
-    deltas ? `Component changes: ${deltas}.` : 'No component moved enough to change the rounded score.',
-    result.explanation,
-  ].join(' ') + pushback;
+    `Adjusted Score: ${baseScore.toFixed(1)} → ${result.adjustedScore.toFixed(1)} (${sign}${Math.abs(result.delta).toFixed(1)}).`,
+    `Plausibility: ${result.plausibility.charAt(0).toUpperCase()}${result.plausibility.slice(1)}.`,
+    `Why: This mainly changes ${primary}${deltas ? ` (${deltas})` : ''}. ${result.explanation}`,
+  ].join('\n') + pushback;
 }
 
 function parseEventContext(value: unknown): AnalystDcfEventContext[] {
@@ -806,6 +911,19 @@ export function AnalystChatApp() {
         });
         setMessages((prev) => [...prev, reply]);
         return;
+      }
+
+      if (activeOpportunityContext) {
+        const opportunityReply = buildOpportunityIntentReply(prompt, activeOpportunityContext);
+        if (opportunityReply) {
+          const reply: Message = {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: opportunityReply,
+          };
+          setMessages((prev) => [...prev, reply]);
+          return;
+        }
       }
 
       const response = await fetch('/api/analyst-chat', {

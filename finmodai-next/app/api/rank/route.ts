@@ -23,11 +23,19 @@ export const maxDuration = 60;
 // ── Default watchlist used when no tickers are provided ────────────────────
 
 const DEFAULT_WATCHLIST = [
-  'AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN',
-  'META', 'TSLA', 'NFLX', 'AMD',   'CRM',
+  'SOFI', 'HOOD', 'COIN', 'PLTR', 'AMD',
+  'NVDA', 'TSLA', 'META', 'AMZN', 'GOOGL',
+  'MSFT', 'AAPL', 'UBER', 'SHOP', 'SNOW',
+  'NFLX', 'ROKU', 'AFRM', 'SQ', 'PYPL',
+  'CRWD', 'DDOG', 'NET', 'MDB', 'NOW',
+  'ORCL', 'AVGO', 'TSM', 'ASML', 'ARM',
+  'MU', 'INTC', 'QCOM', 'SMCI', 'PANW',
+  'ZS', 'OKTA', 'TEAM', 'ABNB', 'DASH',
+  'BKNG', 'MELI', 'SPOT', 'DIS', 'LLY',
+  'NVO', 'JPM', 'GS', 'V', 'MA',
 ];
 
-const MAX_TICKERS = 50;
+const MAX_TICKERS = 100;
 
 // ── Request schema ─────────────────────────────────────────────────────────
 
