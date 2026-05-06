@@ -438,16 +438,18 @@ function mapDefaultsFromGate(category: Exclude<GateCategory, 'REJECT'>): {
       horizon: 'Immediate',
       severity: 82,
       drivers: [
-        'Geopolitical escalation raises uncertainty and risk premia.',
-        'Cross-border trade and supply chains face disruption risk.',
+        'Security incident near a strategic trade route raises disruption and retaliation risk.',
+        'Markets price higher freight, insurance, energy, and geopolitical risk premia before fundamentals change.',
       ],
       marketImpact: {
-        equities: 'Risk-off bias with higher volatility.',
-        fx: 'Safe-haven currencies tend to strengthen.',
-        oil: 'Upward pressure if the event touches energy supply.',
-        credit: 'Spreads can widen as risk appetite fades.',
+        equities: 'Broad equities usually soften first; energy and defense can outperform while airlines, transports, and consumer cyclicals lag.',
+        fx: 'Dollar, yen, and Swiss franc can catch a safe-haven bid if escalation risk rises.',
+        oil: 'Crude risk premium rises fastest when the incident involves the Gulf, Hormuz, tankers, ports, or sanctions risk.',
+        credit: 'Spreads can widen if oil volatility or escalation risk tightens financial conditions.',
       },
-      transmissionPath: ['Geopolitical escalation -> higher risk premium -> equities softer -> safe havens bid'],
+      transmissionPath: [
+        'Security incident -> probability of shipping or energy disruption rises -> oil/freight/insurance risk premium increases -> equities de-risk and safe havens bid',
+      ],
     };
   }
   if (category === 'MACRO') {

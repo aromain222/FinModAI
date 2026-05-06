@@ -75,10 +75,32 @@ function formatImpactLabel(key: keyof MarketEvent['marketImpact']): string {
 }
 
 function shortSummary(event: MarketEvent): string {
+  const text = eventText(event);
+  if (isHormuzEnergyRouteEvent(text)) {
+    return 'This is an energy-route risk event, not just a generic geopolitical headline. The market question is whether a ship-fire or alleged attack near Hormuz raises the probability of disrupted Gulf flows, higher insurance costs, or retaliation.';
+  }
   if (event.drivers[0]) return event.drivers[0];
   const firstImpact = MARKET_IMPACT_ORDER.find((key) => Boolean(event.marketImpact[key]));
   if (firstImpact && event.marketImpact[firstImpact]) return event.marketImpact[firstImpact] as string;
   return 'No summary available.';
+}
+
+function eventText(event: MarketEvent): string {
+  return [
+    event.title,
+    event.eventType,
+    ...event.drivers,
+    ...event.transmissionPath,
+    ...event.watchNext,
+    ...event.sources.map((source) => `${source.title ?? ''} ${source.snippet ?? ''}`),
+  ]
+    .join(' ')
+    .toLowerCase();
+}
+
+function isHormuzEnergyRouteEvent(text: string): boolean {
+  return /(hormuz|persian gulf|strait|tanker|ship fire|shipping lane|vessel|iran|iranian)/i.test(text) &&
+    /(oil|crude|energy|ship|shipping|tanker|hormuz|gulf)/i.test(text);
 }
 
 function asSentence(value: string): string {
@@ -103,6 +125,11 @@ function cleanImpactText(value: string): string {
 }
 
 function buildSummaryParagraph(event: MarketEvent): string {
+  const text = eventText(event);
+  if (isHormuzEnergyRouteEvent(text)) {
+    return 'A ship incident near the Strait of Hormuz matters because the first market response is to reprice disruption risk, not to wait for confirmed supply losses. The immediate channel is crude risk premium, tanker/freight insurance, and safe-haven demand; the second-order channel is margin pressure for fuel users and lower risk appetite if Iran-linked escalation looks credible.';
+  }
+
   const lead = asSentence(shortSummary(event));
   const driverSummary = formatSeriesAsSentence(
     event.drivers.slice(1),
@@ -120,6 +147,11 @@ function buildSummaryParagraph(event: MarketEvent): string {
 }
 
 function buildWhyItMattersParagraph(event: MarketEvent): string {
+  const text = eventText(event);
+  if (isHormuzEnergyRouteEvent(text)) {
+    return 'Hormuz is a critical Gulf energy chokepoint, so even an unconfirmed attack allegation can move markets if it changes the perceived probability of shipping disruption. Investors will separate facts from rhetoric: a contained ship fire is a short-lived oil-risk premium; confirmation of Iranian involvement or retaliation risk would become a broader equity and credit problem.';
+  }
+
   const pathLead = formatSeriesAsSentence(
     event.transmissionPath,
     'The key market question is whether this changes the earnings, policy, or liquidity backdrop in a way that deserves a repricing.',
@@ -143,6 +175,11 @@ function buildWhyItMattersParagraph(event: MarketEvent): string {
 }
 
 function buildMarketImpactParagraph(event: MarketEvent): string {
+  const text = eventText(event);
+  if (isHormuzEnergyRouteEvent(text)) {
+    return 'Most exposed: crude oil, tankers, marine insurers, airlines, logistics, and energy-sensitive consumer sectors. Energy equities can outperform on a higher oil-risk premium, while airlines/transports tend to lag; broad equities only need to sell off meaningfully if the incident points to sustained escalation or actual flow disruption.';
+  }
+
   const directEffects = MARKET_IMPACT_ORDER
     .filter((key) => Boolean(event.marketImpact[key]) && key !== 'sectors')
     .slice(0, 3)
@@ -164,6 +201,11 @@ function buildMarketImpactParagraph(event: MarketEvent): string {
 }
 
 function buildImpactedSectorsParagraph(event: MarketEvent): string {
+  const text = eventText(event);
+  if (isHormuzEnergyRouteEvent(text)) {
+    return 'Likely winners are oil producers, select defense names, and safe-haven assets if escalation risk rises. Likely losers are airlines, cruise/travel, transports, and high-multiple cyclicals that are sensitive to fuel costs and risk-off positioning. Confirmation, denial, insurance-rate moves, and Brent reaction are the key checks.';
+  }
+
   if (event.marketImpact.sectors) {
     const cleaned = cleanImpactText(event.marketImpact.sectors);
     return [
@@ -420,7 +462,7 @@ export default function EventDetailScreen({
 
             <div className="mt-6 space-y-5">
               <div className="rounded-2xl border border-zinc-800/70 bg-zinc-900/40 px-4 py-4">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Summary</div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">Market Read</div>
                 <p className="mt-2 text-sm leading-7 text-zinc-200">{summaryParagraph}</p>
               </div>
 

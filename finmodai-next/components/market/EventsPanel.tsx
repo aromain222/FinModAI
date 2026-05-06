@@ -117,6 +117,44 @@ function buildModelImpactContext(event: MarketEvent): string {
     .join('\n');
 }
 
+function eventText(event: MarketEvent): string {
+  return [
+    event.title,
+    event.eventType,
+    ...event.drivers,
+    ...event.transmissionPath,
+    ...event.watchNext,
+  ]
+    .join(' ')
+    .toLowerCase();
+}
+
+function isHormuzEnergyRouteEvent(event: MarketEvent): boolean {
+  const text = eventText(event);
+  return /(hormuz|persian gulf|strait|tanker|ship fire|shipping lane|vessel|iran|iranian)/i.test(text) &&
+    /(oil|crude|energy|ship|shipping|tanker|hormuz|gulf)/i.test(text);
+}
+
+function displayDrivers(event: MarketEvent): string[] {
+  if (!isHormuzEnergyRouteEvent(event)) return event.drivers;
+  return [
+    'Oil-route risk: the market prices the chance of Gulf shipping disruption before confirmed supply losses.',
+    'Second-order risk: higher tanker insurance, freight, and fuel costs pressure airlines, transports, and consumer cyclicals.',
+    'Escalation check: confirmation of Iranian involvement or retaliation would turn a short-lived oil premium into broader risk-off.',
+  ];
+}
+
+function displayMarketImpact(event: MarketEvent): MarketEvent['marketImpact'] {
+  if (!isHormuzEnergyRouteEvent(event)) return event.marketImpact;
+  return {
+    equities: 'Risk-off only if escalation persists; energy can outperform while airlines, transports, and travel lag.',
+    fx: 'Dollar, yen, and Swiss franc can catch safe-haven demand if the incident escalates.',
+    oil: 'Brent/WTI risk premium rises first because Hormuz headlines directly affect perceived Gulf supply-route risk.',
+    credit: 'Spreads widen only if oil volatility or escalation risk starts tightening financial conditions.',
+    sectors: 'Watch oil producers, tankers, marine insurers, airlines, logistics, defense, and fuel-sensitive consumer names.',
+  };
+}
+
 export default function EventsPanel() {
   const [view, setView] = useState<MarketEventsView>('active');
   const [eventFilter, setEventFilter] = useState<MarketEvent['eventType'] | 'all'>('all');
@@ -392,6 +430,8 @@ export default function EventsPanel() {
           !error &&
           filteredEvents.map((event) => {
             const score = finalScore(event);
+            const drivers = displayDrivers(event);
+            const marketImpact = displayMarketImpact(event);
             return (
               <ExpandableCard
                 key={event.id}
@@ -435,7 +475,7 @@ export default function EventsPanel() {
                 <div>
                   <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-zinc-400/70">Drivers</div>
                   <ul className="list-disc space-y-1 pl-4 text-sm text-zinc-300">
-                    {event.drivers.map((bullet, idx) => (
+                    {drivers.map((bullet, idx) => (
                       <li key={`${event.id}-driver-${idx}`}>{bullet}</li>
                     ))}
                   </ul>
@@ -444,7 +484,7 @@ export default function EventsPanel() {
                 <div>
                   <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-zinc-400/70">Market Impact</div>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {MARKET_IMPACT_ORDER.filter((key) => Boolean(event.marketImpact[key])).map((key) => (
+                    {MARKET_IMPACT_ORDER.filter((key) => Boolean(marketImpact[key])).map((key) => (
                       <div
                         key={`${event.id}-impact-${key}`}
                         className="rounded-md border border-zinc-800/60 bg-zinc-900/40 px-2.5 py-2"
@@ -452,7 +492,7 @@ export default function EventsPanel() {
                         <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
                           {formatImpactLabel(key)}
                         </div>
-                        <div className="mt-1 text-xs leading-5 text-zinc-300">{event.marketImpact[key]}</div>
+                        <div className="mt-1 text-xs leading-5 text-zinc-300">{marketImpact[key]}</div>
                       </div>
                     ))}
                   </div>
