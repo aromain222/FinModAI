@@ -16,6 +16,7 @@ import type {
 } from './types';
 import { mockFallback } from './mock';
 import { diversifyBreakdown, tickerFactorShape } from './profileShape';
+import { compositeOpportunityScore, signalFromOpportunityScore } from './signals';
 import { buildValuationSignal, scoreValuationSignal } from '@/lib/valuation/signal';
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -331,20 +332,12 @@ export async function scoreStock(
     factorBreakdown: breakdown,
   });
 
-  const raw =
-    breakdown.forecastSignal   * WEIGHTS.forecastSignal   +
-    breakdown.catalystStrength * WEIGHTS.catalystStrength +
-    breakdown.momentum         * WEIGHTS.momentum         +
-    breakdown.earningsSetup    * WEIGHTS.earningsSetup    +
-    breakdown.valuationSignal  * WEIGHTS.valuationSignal  +
-    breakdown.riskAdjustment   * WEIGHTS.riskAdjustment;
-
-  const score = round1(clamp(raw, 1, 10));
+  const score = compositeOpportunityScore(breakdown);
 
   const ranked: RankedStock = {
     ticker: t,
     score,
-    signal: score >= 7.0 ? 'green' : score >= 4.0 ? 'yellow' : 'red',
+    signal: signalFromOpportunityScore(score),
     horizonWeeks,
     primaryReason: primaryReason(breakdown, returnPct),
     mainRisk:      mainRisk(breakdown, returnPct),

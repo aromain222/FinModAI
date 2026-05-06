@@ -16,7 +16,7 @@
  */
 
 import type { ScoreBreakdown } from '@/lib/ranking/types';
-import { WEIGHTS } from '@/lib/ranking/score';
+import { compositeOpportunityScore } from '@/lib/ranking/signals';
 
 // ── Public types ───────────────────────────────────────────────────────────
 
@@ -399,15 +399,7 @@ export function computeAdjustedScore(
     adjusted[factor]     = round1(clamped);
   }
 
-  const raw =
-    adjusted.forecastSignal   * WEIGHTS.forecastSignal   +
-    adjusted.catalystStrength * WEIGHTS.catalystStrength +
-    adjusted.momentum         * WEIGHTS.momentum         +
-    adjusted.earningsSetup    * WEIGHTS.earningsSetup    +
-    adjusted.valuationSignal  * WEIGHTS.valuationSignal  +
-    adjusted.riskAdjustment   * WEIGHTS.riskAdjustment;
-
-  const adjustedScore = round1(Math.min(10, Math.max(1, raw)));
+  const adjustedScore = compositeOpportunityScore(adjusted);
 
   return { adjustedBreakdown: adjusted, factorDeltas, adjustedScore };
 }
@@ -451,15 +443,12 @@ export function applyAssumption(input: AssumptionInput): AssumptionResult {
 
   const claim       = parseClaim(assumption);
   const plausResult = assessPlausibility(claim, breakdown);
-  const { adjustedBreakdown, factorDeltas } = computeAdjustedScore(
+  const { adjustedBreakdown, factorDeltas, adjustedScore } = computeAdjustedScore(
     breakdown,
     claim,
     plausResult,
   );
 
-  const weightedDelta = (Object.entries(factorDeltas) as Array<[ScoreFactor, number | undefined]>)
-    .reduce((sum, [factor, factorDelta]) => sum + (factorDelta ?? 0) * WEIGHTS[factor], 0);
-  const adjustedScore = round1(Math.min(10, Math.max(1, baseScore + weightedDelta)));
   const delta       = round1(adjustedScore - baseScore);
   const explanation = buildExplanation(claim, plausResult, delta, input);
 

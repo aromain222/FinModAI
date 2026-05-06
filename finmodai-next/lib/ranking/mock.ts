@@ -1,5 +1,6 @@
 import type { RankedStock, ScoreBreakdown } from './types';
 import { diversifyBreakdown, tickerFactorShape } from './profileShape';
+import { compositeOpportunityScore, signalFromOpportunityScore } from './signals';
 import { buildValuationSignal, scoreValuationSignal } from '@/lib/valuation/signal';
 
 // Realistic mock scores returned when all upstream APIs fail for a ticker.
@@ -69,18 +70,11 @@ function round1(n: number): number {
 }
 
 function computeScore(bd: ScoreBreakdown): number {
-  const raw =
-    bd.forecastSignal * 0.25 +
-    bd.catalystStrength * 0.20 +
-    bd.momentum * 0.17 +
-    bd.earningsSetup * 0.13 +
-    bd.valuationSignal * 0.13 +
-    bd.riskAdjustment * 0.12;
-  return round1(Math.min(10, Math.max(1, raw)));
+  return compositeOpportunityScore(bd);
 }
 
 function toSignal(score: number): RankedStock['signal'] {
-  return score >= 7.0 ? 'green' : score >= 4.0 ? 'yellow' : 'red';
+  return signalFromOpportunityScore(score);
 }
 
 /** Returns a mock RankedStock for a ticker, whether or not we have a profile. */

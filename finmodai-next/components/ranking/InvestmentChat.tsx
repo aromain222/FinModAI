@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { BookOpen, FileText, Loader2, Send } from 'lucide-react';
 import type { RankedStock } from '@/lib/ranking/types';
 import { getCompanyBrief } from '@/lib/ranking/companyBriefs';
+import { signalFromOpportunityScore } from '@/lib/ranking/signals';
 import { buildValuationSignal } from '@/lib/valuation/signal';
 import { cn } from '@/lib/utils';
 
@@ -86,9 +87,7 @@ function signalWord(signal: RankedStock['signal']): string {
 }
 
 function signalFromScore(score: number): RankedStock['signal'] {
-  if (score >= 7) return 'green';
-  if (score >= 4) return 'yellow';
-  return 'red';
+  return signalFromOpportunityScore(score);
 }
 
 function capitalize(value: string): string {
@@ -331,13 +330,27 @@ function buildAssumptionReply(stock: RankedStock, payload: AssumptionUpdateRespo
     .filter(([, delta]) => Math.abs(delta) > 0)
     .map(([factor, delta]) => `${SCORE_LABELS[factor]} ${delta > 0 ? '+' : ''}${delta.toFixed(1)}`)
     .join(', ');
+  const beforeValuation = stock.meta.valuation ?? buildValuationSignal({
+    ticker: stock.ticker,
+    forecastReturnPct: stock.meta.forecastReturnPct,
+    factorBreakdown: stock.breakdown,
+  });
+  const afterValuation = buildValuationSignal({
+    ticker: stock.ticker,
+    forecastReturnPct: stock.meta.forecastReturnPct,
+    factorBreakdown: result.adjustedBreakdown,
+  });
+  const valuationMove =
+    beforeValuation.impliedUpside != null && afterValuation.impliedUpside != null
+      ? ` Valuation gap ${beforeValuation.impliedUpside >= 0 ? '+' : ''}${beforeValuation.impliedUpside.toFixed(1)}% → ${afterValuation.impliedUpside >= 0 ? '+' : ''}${afterValuation.impliedUpside.toFixed(1)}%.`
+      : '';
 
   return buildDecisionReply(
     { ...stock, score: result.adjustedScore, signal: signalFromScore(result.adjustedScore), breakdown: result.adjustedBreakdown },
     {
       stanceSuffix: `(score ${fromScore.toFixed(1)} → ${result.adjustedScore.toFixed(1)})`,
       whyNow: `The assumption changes the 1-3 month thesis with ${capitalize(result.plausibility)} plausibility.`,
-      keyDriver: `${primaryFactor}${factorMoves ? ` (${factorMoves})` : ''} drove the score move.`,
+      keyDriver: `${primaryFactor}${factorMoves ? ` (${factorMoves})` : ''} drove the score move.${valuationMove}`,
       mainRisk: result.pushback ?? stock.mainRisk,
     },
   );

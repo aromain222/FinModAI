@@ -32,7 +32,7 @@ export type RankedStock = {
   ticker: string;
   /** Weighted composite, clamped [1, 10], rounded to 1 dp. */
   score: number;
-  /** green ≥ 7.0 | yellow ≥ 4.0 | red < 4.0 */
+  /** green ≥ 6.7 | yellow ≥ 5.2 | red < 5.2 */
   signal: Signal;
   horizonWeeks: number;
   primaryReason: string;
