@@ -1,10 +1,11 @@
 import { DEFAULT_BASE_MODEL, runDCF } from '@/lib/finance/dcfEngine';
-import type { EventItem, ValuationSignalSummary } from '@/lib/ranking/types';
+import type { EventItem, ScoreBreakdown, ValuationSignalSummary } from '@/lib/ranking/types';
 
 type BuildValuationSignalInput = {
   ticker?: string;
   forecastReturnPct: number | null;
   events?: EventItem[];
+  factorBreakdown?: ScoreBreakdown;
 };
 
 type ValuationProfile = {
@@ -66,6 +67,36 @@ function eventValuationTilt(events: EventItem[] = []): number {
   }, 0);
 }
 
+function factorValuationTilt(breakdown?: ScoreBreakdown): number {
+  if (!breakdown) return 0;
+  const valuationTilt = (breakdown.valuationSignal - 5) * 2.2;
+  const forecastTilt = (breakdown.forecastSignal - 5) * 0.9;
+  const earningsTilt = (breakdown.earningsSetup - 5) * 0.7;
+  const catalystTilt = (breakdown.catalystStrength - 5) * 0.5;
+  const riskTilt = (breakdown.riskAdjustment - 5) * 0.7;
+  return clamp(valuationTilt + forecastTilt + earningsTilt + catalystTilt + riskTilt, -20, 20);
+}
+
+function factorGrowthTilt(breakdown?: ScoreBreakdown): number {
+  if (!breakdown) return 0;
+  return clamp(
+    (breakdown.forecastSignal - 5) * 1.0 +
+      (breakdown.earningsSetup - 5) * 0.6 +
+      (breakdown.catalystStrength - 5) * 0.4 -
+      Math.max(0, 5 - breakdown.riskAdjustment) * 0.5,
+    -8,
+    10,
+  );
+}
+
+function factorStateText(tilt: number): string {
+  if (tilt >= 5) return 'Current score factors strengthen the valuation case';
+  if (tilt >= 1.5) return 'Current score factors modestly improve valuation support';
+  if (tilt <= -5) return 'Current score factors weaken valuation support';
+  if (tilt <= -1.5) return 'Current score factors modestly pressure valuation support';
+  return 'Current score factors do not materially change valuation support';
+}
+
 export function scoreValuationSignal(signal: ValuationSignalSummary): number {
   const upside = signal.impliedUpside ?? 0;
   if (upside >= 25) return 9;
@@ -81,10 +112,13 @@ export function buildValuationSignal({
   ticker,
   forecastReturnPct,
   events = [],
+  factorBreakdown,
 }: BuildValuationSignalInput): ValuationSignalSummary {
   const profile = ticker ? (VALUATION_PROFILES[ticker.toUpperCase()] ?? DEFAULT_PROFILE) : DEFAULT_PROFILE;
   const forecastGrowth = clamp((forecastReturnPct ?? 0) / 100, -0.25, 0.25);
   const eventTilt = eventValuationTilt(events);
+  const factorTilt = factorValuationTilt(factorBreakdown);
+  const growthTilt = factorGrowthTilt(factorBreakdown);
   const baseValue = runDCF(DEFAULT_BASE_MODEL).value;
   const scenarioValue = runDCF({
     ...DEFAULT_BASE_MODEL,
@@ -92,9 +126,9 @@ export function buildValuationSignal({
   }).value;
 
   const dcfMovePct = baseValue > 0 ? ((scenarioValue / baseValue) - 1) * 100 : 0;
-  const impliedUpside = round1(clamp(profile.baseUpside + dcfMovePct + eventTilt, -35, 35));
+  const impliedUpside = round1(clamp(profile.baseUpside + dcfMovePct + eventTilt + factorTilt, -35, 35));
   const impliedGrowth = round1(
-    clamp(profile.marketGrowth + Math.max(0, forecastGrowth) * 25, 2, 35),
+    clamp(profile.marketGrowth + Math.max(0, forecastGrowth) * 25 + growthTilt, 2, 35),
   );
   const valuationSignal =
     impliedUpside >= 8 ? 'undervalued' : impliedUpside <= -8 ? 'overvalued' : 'fair';
@@ -111,8 +145,8 @@ export function buildValuationSignal({
     valuationSignal,
     summary: `DCF-lite implies ${impliedUpside >= 0 ? '+' : ''}${impliedUpside.toFixed(
       1,
-    )}% upside/downside; reverse DCF suggests the market needs roughly ${impliedGrowth.toFixed(
+    )}% valuation gap; reverse DCF suggests the market needs roughly ${impliedGrowth.toFixed(
       1,
-    )}% growth. ${profile.description}; stock looks ${directionText}.`,
+    )}% growth. ${profile.description}. ${factorStateText(factorTilt)}; stock looks ${directionText}.`,
   };
 }

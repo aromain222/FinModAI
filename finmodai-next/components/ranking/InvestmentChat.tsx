@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { BookOpen, FileText, Loader2, Send } from 'lucide-react';
 import type { RankedStock } from '@/lib/ranking/types';
 import { getCompanyBrief } from '@/lib/ranking/companyBriefs';
+import { buildValuationSignal } from '@/lib/valuation/signal';
 import { cn } from '@/lib/utils';
 
 type Message = {
@@ -385,6 +386,14 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             score:     payload.result.adjustedScore,
             signal:    signalFromScore(payload.result.adjustedScore),
             breakdown: payload.result.adjustedBreakdown,
+            meta: {
+              ...stock.meta,
+              valuation: buildValuationSignal({
+                ticker: stock.ticker,
+                forecastReturnPct: stock.meta.forecastReturnPct,
+                factorBreakdown: payload.result.adjustedBreakdown,
+              }),
+            },
             primaryReason: payload.result.delta > 0
               ? `User assumption improves ${factorLabel(payload.parsedClaim?.primaryFactor ?? 'score')}`
               : stock.primaryReason,
@@ -533,13 +542,18 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   const thresholdChanged = Boolean(scoreChange && scoreChange.fromSignal !== scoreChange.toSignal);
   const factorSummary = scoreChange ? changedFactorSummary(scoreChange.factorDeltas) : '';
   const brief = getCompanyBrief(stock.ticker);
+  const liveValuation = buildValuationSignal({
+    ticker: stock.ticker,
+    forecastReturnPct: stock.meta.forecastReturnPct,
+    factorBreakdown: stock.breakdown,
+  });
   const sourceCards = [
     { label: 'Company file', value: brief.strategicContext },
     { label: 'Score basis', value: stock.primaryReason },
     { label: 'Risk file', value: resolvedRisk(stock) },
     {
       label: 'Valuation note',
-      value: stock.meta.valuation?.summary ?? 'No compressed valuation signal is available yet.',
+      value: liveValuation.summary,
     },
   ];
 

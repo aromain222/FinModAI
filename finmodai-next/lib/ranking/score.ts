@@ -324,6 +324,12 @@ export async function scoreStock(
   };
 
   const breakdown = diversifyBreakdown(t, rawBreakdown);
+  const displayValuation = buildValuationSignal({
+    ticker: t,
+    forecastReturnPct: returnPct,
+    events,
+    factorBreakdown: breakdown,
+  });
 
   const raw =
     breakdown.forecastSignal   * WEIGHTS.forecastSignal   +
@@ -348,7 +354,7 @@ export async function scoreStock(
       catalystCount:     events.length,
       dataSource:        isLive ? 'live' : 'mock',
       scoredAt:          new Date().toISOString(),
-      valuation,
+      valuation:         displayValuation,
     },
   };
   scoreCache.set(cacheKey, { expiresAt: Date.now() + SCORE_CACHE_TTL_MS, value: ranked });
