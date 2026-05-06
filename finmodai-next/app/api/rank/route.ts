@@ -6,7 +6,7 @@
  * Body: { tickers: string[]; horizonWeeks?: number }
  * Response: { stocks: RankedStock[]; scoredAt: string; horizonWeeks: number }
  *
- * Tickers are processed in batches of 5 concurrently.
+ * Tickers are processed in bounded concurrent batches by the scoring engine.
  * Any single-ticker failure degrades to mock data — the full list always returns.
  */
 
@@ -33,9 +33,38 @@ const DEFAULT_WATCHLIST = [
   'ZS', 'OKTA', 'TEAM', 'ABNB', 'DASH',
   'BKNG', 'MELI', 'SPOT', 'DIS', 'LLY',
   'NVO', 'JPM', 'GS', 'V', 'MA',
+
+  'CRM', 'ADBE', 'INTU', 'ADSK', 'WDAY',
+  'SNPS', 'CDNS', 'ANET', 'DELL', 'HPE',
+  'HPQ', 'STX', 'WDC', 'TXN', 'ADI',
+  'NXPI', 'MRVL', 'LRCX', 'KLAC', 'AMAT',
+  'ON', 'MPWR', 'TER', 'ENPH', 'FSLR',
+
+  'XOM', 'CVX', 'COP', 'SLB', 'EOG',
+  'OXY', 'LNG', 'NEE', 'DUK', 'SO',
+  'GE', 'HON', 'CAT', 'DE', 'ETN',
+  'EMR', 'PH', 'BA', 'LMT', 'RTX',
+
+  'WMT', 'COST', 'TGT', 'HD', 'LOW',
+  'NKE', 'SBUX', 'MCD', 'CMG', 'YUM',
+  'KO', 'PEP', 'PG', 'CL', 'EL',
+  'LULU', 'TJX', 'ULTA', 'RCL', 'CCL',
+
+  'BAC', 'C', 'MS', 'BLK', 'SCHW',
+  'AXP', 'COF', 'ALLY', 'DFS', 'KKR',
+  'BX', 'APO', 'ICE', 'CME', 'SPGI',
+  'MCO', 'BRK.B', 'TROW', 'USB', 'PNC',
+
+  'UNH', 'HUM', 'CI', 'ELV', 'CVS',
+  'ABBV', 'MRK', 'PFE', 'BMY', 'GILD',
+  'AMGN', 'REGN', 'VRTX', 'ISRG', 'SYK',
+  'MDT', 'TMO', 'DHR', 'BSX', 'ZBH',
+
+  'PDD', 'BABA', 'BIDU', 'JD', 'SE',
+  'MSTR', 'RIOT', 'MARA', 'UPST', 'LCID',
 ];
 
-const MAX_TICKERS = 100;
+const MAX_TICKERS = 200;
 const RANK_CACHE_TTL_MS = 30_000;
 const rankCache = new Map<string, { expiresAt: number; response: RankResponse }>();
 
