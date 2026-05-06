@@ -7,9 +7,9 @@ export type CompanyBrief = {
 };
 
 const DEFAULT_BRIEF: CompanyBrief = {
-  strategicContext: 'This is a ranked opportunity-board idea, so the question is whether the next catalyst changes estimates, the multiple, or positioning.',
-  nearTermFocus: 'Watch the next earnings/catalyst window and whether the stock confirms the current score.',
-  keyDriver: 'The strongest score factor is the main reason to keep working on the idea.',
+  strategicContext: 'This is a 1-3 month ranked opportunity idea, not a full investment memo.',
+  nearTermFocus: 'Watch whether the next catalyst changes estimates, valuation multiple, or investor positioning.',
+  keyDriver: 'The top score factors drive the rank.',
   mainRisk: 'The setup weakens if the catalyst does not change estimates or investor positioning.',
   watchItems: ['Upcoming catalyst', 'Forecast direction', 'Score factor changes'],
 };
@@ -98,6 +98,13 @@ const BRIEFS: Record<string, CompanyBrief> = {
     keyDriver: 'Crypto momentum and transaction revenue drive estimate risk.',
     mainRisk: 'Crypto drawdowns or regulatory pressure can reverse the trade quickly.',
     watchItems: ['Crypto prices', 'Trading volumes', 'ETF flows', 'Regulatory headlines'],
+  },
+  AFRM: {
+    strategicContext: 'Affirm is a high-beta consumer credit and BNPL platform where funding costs, credit quality, GMV growth, and merchant adoption drive the stock.',
+    nearTermFocus: 'Watch GMV growth, delinquencies, funding-cost commentary, merchant wins, and whether guidance supports profitable growth.',
+    keyDriver: 'The rank is driven by strong forecast/momentum support, but the trade only works if credit quality and guidance hold up.',
+    mainRisk: 'A weaker consumer, rising delinquencies, or higher funding costs can overwhelm growth and compress the multiple.',
+    watchItems: ['GMV growth', 'Delinquencies', 'Funding costs', 'Merchant adoption', 'Guidance'],
   },
 };
 

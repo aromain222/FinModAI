@@ -150,10 +150,20 @@ function buildDecisionReply(
   const stance = `${signalWord(stock.signal)}${options.stanceSuffix ? ` ${options.stanceSuffix}` : ''}`;
   return [
     `Current stance: ${stance}.`,
-    `Why now: ${options.whyNow ?? brief.nearTermFocus}`,
-    `Key driver: ${options.keyDriver ?? `${brief.keyDriver} ${SCORE_LABELS[factor]} scores ${value.toFixed(1)}/10`}.`,
+    `Why now: ${stripTrailingPunctuation(options.whyNow ?? brief.nearTermFocus)}.`,
+    `Key driver: ${stripTrailingPunctuation(options.keyDriver ?? `${brief.keyDriver} ${SCORE_LABELS[factor]} scores ${value.toFixed(1)}/10`)}.`,
     `Main risk: ${options.mainRisk ?? resolvedRisk(stock)}.`,
   ].join('\n');
+}
+
+function stripTrailingPunctuation(value: string): string {
+  return value.trim().replace(/[.!?\s]+$/, '');
+}
+
+function factorListWithScores(factors: Array<[keyof RankedStock['breakdown'], number]>): string {
+  return factors
+    .map(([factor, value]) => `${SCORE_LABELS[factor]} ${value.toFixed(1)}/10`)
+    .join(', ');
 }
 
 function buildExplain(stock: RankedStock): string {
@@ -161,7 +171,8 @@ function buildExplain(stock: RankedStock): string {
   const brief = getCompanyBrief(stock.ticker);
   return buildDecisionReply(stock, {
     whyNow: `${brief.strategicContext} ${brief.nearTermFocus}`,
-    keyDriver: `${brief.keyDriver} Score support comes from ${SCORE_LABELS[first[0]]}, ${SCORE_LABELS[second[0]]}, and ${SCORE_LABELS[third[0]]}.`,
+    keyDriver: `${brief.keyDriver} Top supports: ${factorListWithScores([first, second, third])}`,
+    mainRisk: resolvedRisk(stock),
   });
 }
 
