@@ -221,6 +221,36 @@ function AssetImpactCell({ marketImpact }: { marketImpact: MarketEvent['marketIm
   );
 }
 
+function firstAvailableImpact(event: MarketEvent): string {
+  const key = ASSET_KEYS.find((assetKey) => Boolean(event.marketImpact[assetKey]));
+  return key && event.marketImpact[key]
+    ? `${ASSET_LABELS[key]}: ${event.marketImpact[key]}`
+    : event.drivers[0] ?? 'Market impact absorbed; no fresh cross-asset signal.';
+}
+
+function resolvedReadThrough(event: MarketEvent): {
+  outcome: string;
+  whatChanged: string;
+  watch: string;
+} {
+  const sourceLabel = event.sources[0]?.name ? ` Source: ${event.sources[0].name}.` : '';
+  const outcome =
+    event.drivers[0] ??
+    `${event.eventType} event has moved out of the active tape; the immediate market impulse has faded.`;
+  const whatChanged =
+    firstAvailableImpact(event).replace(/\s+/g, ' ').trim() ||
+    'The market absorbed the headline without a clear new pricing channel.';
+  const watch =
+    event.watchNext[0] ??
+    'Watch whether the same theme returns with new data, policy language, or price action.';
+
+  return {
+    outcome: `${outcome}${sourceLabel}`,
+    whatChanged,
+    watch,
+  };
+}
+
 function ScenarioProbCell({ probs }: { probs: ScenarioProbabilities }) {
   const bars = [
     { label: 'B↑', color: 'bg-[#00e387]', textColor: 'text-[#00e387]', value: probs.bull_prob },
@@ -251,6 +281,40 @@ function EventMonitorRow({
   probs: ScenarioProbabilities;
   view: MarketEventsView;
 }) {
+  if (view === 'resolved') {
+    const readThrough = resolvedReadThrough(event);
+    return (
+      <Link
+        href={`/events/${encodeURIComponent(event.id)}?view=${view}`}
+        className="grid grid-cols-[80px_48px_minmax(220px,1.1fr)_minmax(220px,1fr)_minmax(180px,0.8fr)] items-center gap-2 border-b border-zinc-800/40 px-3 py-3 transition-colors hover:bg-zinc-900/30"
+      >
+        <div>
+          <span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-mono font-bold tracking-wide ${EVENT_TYPE_STYLES[event.eventType]}`}>
+            {TYPE_ABBR[event.eventType]}
+          </span>
+        </div>
+        <div className="text-right">
+          <div className={`text-xs font-mono font-semibold tabular-nums ${sevTextColor(event.severity)}`}>
+            {event.severity}
+          </div>
+          <div className="mt-0.5 h-0.5 w-full rounded-full bg-zinc-800">
+            <div className={`h-full rounded-full ${sevBarColor(event.severity)}`} style={{ width: `${event.severity}%` }} />
+          </div>
+        </div>
+        <div className="min-w-0">
+          <div className="truncate text-xs font-medium text-zinc-200">{event.title}</div>
+          <div className="mt-0.5 truncate text-[10px] text-zinc-500">{readThrough.outcome}</div>
+        </div>
+        <div className="min-w-0 text-[11px] leading-4 text-zinc-300">
+          {readThrough.whatChanged}
+        </div>
+        <div className="min-w-0 text-[10px] leading-4 text-zinc-500">
+          {readThrough.watch}
+        </div>
+      </Link>
+    );
+  }
+
   return (
     <Link
       href={`/events/${encodeURIComponent(event.id)}?view=${view}`}
@@ -297,11 +361,19 @@ function EventMonitorGrid({
 }) {
   return (
     <div className="overflow-hidden rounded-xl border border-zinc-800/60 bg-zinc-950/40">
-      <div className="grid grid-cols-[80px_48px_1fr_90px_175px_190px] gap-2 border-b border-zinc-800/60 bg-zinc-950/60 px-3 py-2">
-        {['TYPE', 'SEV', 'EVENT', 'HORIZON', 'ASSETS', 'PROBS'].map((col) => (
-          <div key={col} className="text-[9px] font-mono uppercase tracking-[0.25em] text-zinc-600">{col}</div>
-        ))}
-      </div>
+      {view === 'resolved' ? (
+        <div className="grid grid-cols-[80px_48px_minmax(220px,1.1fr)_minmax(220px,1fr)_minmax(180px,0.8fr)] gap-2 border-b border-zinc-800/60 bg-zinc-950/60 px-3 py-2">
+          {['TYPE', 'SEV', 'OUTCOME', 'WHAT CHANGED', 'WATCH NEXT'].map((col) => (
+            <div key={col} className="text-[9px] font-mono uppercase tracking-[0.25em] text-zinc-600">{col}</div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-[80px_48px_1fr_90px_175px_190px] gap-2 border-b border-zinc-800/60 bg-zinc-950/60 px-3 py-2">
+          {['TYPE', 'SEV', 'EVENT', 'HORIZON', 'ASSETS', 'PROBS'].map((col) => (
+            <div key={col} className="text-[9px] font-mono uppercase tracking-[0.25em] text-zinc-600">{col}</div>
+          ))}
+        </div>
+      )}
       {loading && (
         <div>
           {Array.from({ length: 5 }).map((_, i) => (
