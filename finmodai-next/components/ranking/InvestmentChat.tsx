@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Loader2 } from 'lucide-react';
+import { BookOpen, FileText, Loader2, Send } from 'lucide-react';
 import type { RankedStock } from '@/lib/ranking/types';
 import { getCompanyBrief } from '@/lib/ranking/companyBriefs';
 import { cn } from '@/lib/utils';
@@ -20,6 +20,13 @@ const QUICK_PROMPTS: { label: string; mode: InvestmentMode; text: string }[] = [
   { label: 'Challenge', mode: 'challenge', text: 'Push back on the bull case.' },
   { label: 'Compare',   mode: 'compare',   text: 'Compare against the other ranked stocks.' },
   { label: 'Pitch',     mode: 'pitch',     text: 'Write a structured investment pitch.' },
+];
+
+const NOTEBOOK_PROMPTS: { label: string; mode?: InvestmentMode; text: string }[] = [
+  { label: 'Setup', text: 'Give me the company notebook setup.' },
+  { label: 'Bull case', text: 'What supports the bull case?' },
+  { label: 'Breaks it', text: 'What would make this a bad trade?', mode: 'challenge' },
+  { label: 'Pitch', text: 'Turn this into a pitch.', mode: 'pitch' },
 ];
 
 type PeerStock = Pick<
@@ -152,7 +159,7 @@ function buildExplain(stock: RankedStock): string {
   const [first, second, third] = sortedFactors(stock);
   const brief = getCompanyBrief(stock.ticker);
   return buildDecisionReply(stock, {
-    whyNow: brief.nearTermFocus,
+    whyNow: `${brief.strategicContext} ${brief.nearTermFocus}`,
     keyDriver: `${brief.keyDriver} Score support comes from ${SCORE_LABELS[first[0]]}, ${SCORE_LABELS[second[0]]}, and ${SCORE_LABELS[third[0]]}.`,
   });
 }
@@ -213,6 +220,14 @@ function buildCompare(stock: RankedStock, peers: PeerStock[]): string {
 
 function buildLocalReply(stock: RankedStock, text: string, mode?: InvestmentMode): string | null {
   const normalized = text.toLowerCase();
+  if (/\b(bull case|supports the bull|why own|upside)\b/.test(normalized)) {
+    const brief = getCompanyBrief(stock.ticker);
+    return buildDecisionReply(stock, {
+      whyNow: brief.nearTermFocus,
+      keyDriver: `${brief.keyDriver} Watch ${brief.watchItems.slice(0, 2).join(' and ')} for confirmation.`,
+      mainRisk: brief.mainRisk,
+    });
+  }
   if (/\b(tell me|what is|what's|about|overview|quick read|low reasoning)\b/.test(normalized)) return buildExplain(stock);
   if (mode === 'pitch' || /\b(turn this into a pitch|pitch|weekly pitch)\b/.test(normalized)) return buildPitch(stock);
   if (mode === 'explain' || /\b(why|ranked here|score|breakdown)\b/.test(normalized)) return buildExplain(stock);
@@ -517,6 +532,16 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
     : 'bg-rose-500/15 text-rose-300 ring-rose-400/25';
   const thresholdChanged = Boolean(scoreChange && scoreChange.fromSignal !== scoreChange.toSignal);
   const factorSummary = scoreChange ? changedFactorSummary(scoreChange.factorDeltas) : '';
+  const brief = getCompanyBrief(stock.ticker);
+  const sourceCards = [
+    { label: 'Company file', value: brief.strategicContext },
+    { label: 'Score basis', value: stock.primaryReason },
+    { label: 'Risk file', value: resolvedRisk(stock) },
+    {
+      label: 'Valuation note',
+      value: stock.meta.valuation?.summary ?? 'No compressed valuation signal is available yet.',
+    },
+  ];
 
   return (
     <div className="flex h-full flex-col">
@@ -545,6 +570,69 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
         <span className="min-w-0 flex-1 truncate text-xs text-[var(--cb-text-muted)]">
           {stock.primaryReason}
         </span>
+      </div>
+
+      {/* Company notebook context */}
+      <div className="shrink-0 border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-4 py-3">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <BookOpen className="h-4 w-4 shrink-0 text-[var(--cb-text-muted)]" />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-[var(--cb-text-primary)]">
+                {stock.ticker} Company Notebook
+              </p>
+              <p className="truncate text-[11px] text-[var(--cb-text-muted)]">
+                Grounded in score factors, company context, valuation note, and risk file.
+              </p>
+            </div>
+          </div>
+          <div className="hidden shrink-0 items-center gap-1 lg:flex">
+            {NOTEBOOK_PROMPTS.map(prompt => (
+              <button
+                key={prompt.label}
+                type="button"
+                onClick={() => sendMessage(prompt.text, prompt.mode)}
+                disabled={streaming}
+                className="rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 py-1 text-[10px] font-medium text-[var(--cb-text-secondary)] transition-colors hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)] disabled:opacity-50"
+              >
+                {prompt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-2 lg:grid-cols-4">
+          {sourceCards.map(card => (
+            <div
+              key={card.label}
+              className="min-w-0 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] p-2"
+            >
+              <div className="mb-1 flex items-center gap-1.5">
+                <FileText className="h-3 w-3 shrink-0 text-[var(--cb-text-muted)]" />
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">
+                  {card.label}
+                </span>
+              </div>
+              <p className="line-clamp-3 text-[11px] leading-snug text-[var(--cb-text-secondary)]">
+                {card.value}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-2 flex flex-wrap gap-1.5 lg:hidden">
+          {NOTEBOOK_PROMPTS.map(prompt => (
+            <button
+              key={prompt.label}
+              type="button"
+              onClick={() => sendMessage(prompt.text, prompt.mode)}
+              disabled={streaming}
+              className="rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 py-1 text-[10px] font-medium text-[var(--cb-text-secondary)] transition-colors hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)] disabled:opacity-50"
+            >
+              {prompt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Small score chart */}
