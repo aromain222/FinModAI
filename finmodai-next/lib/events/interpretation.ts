@@ -14,6 +14,12 @@ export type PreReleaseSetup = {
   watchAfterRelease: string;
 };
 
+export type EventCalendarReadThrough = {
+  setup: string;
+  marketWatch: string;
+  whyItMatters: string;
+};
+
 type InterpretableEvent = MacroCalendarEntry & {
   actual?: string | null;
 };
@@ -90,6 +96,70 @@ export function preReleaseSetup(event: InterpretableEvent): PreReleaseSetup {
         upsideSurprise: 'Better growth can help cyclicals and earnings confidence if inflation detail stays contained.',
         downsideSurprise: 'Weak growth raises slowdown risk; very strong growth can still hurt if it pushes yields higher.',
         watchAfterRelease: 'Watch consumption, inflation components, 10Y yields, cyclicals, and credit spreads.',
+      };
+  }
+}
+
+export function calendarReadThrough(event: InterpretableEvent): EventCalendarReadThrough {
+  const releasedInterpretation = event.actual ? interpretEvent(event) : null;
+  if (releasedInterpretation) {
+    return {
+      setup: releasedInterpretation.summary,
+      marketWatch: expectedMarketReaction(event, releasedInterpretation),
+      whyItMatters: 'The actual print can reprice rates, factor leadership, and risk appetite immediately.',
+    };
+  }
+
+  switch (event.type) {
+    case 'CPI':
+      return {
+        setup: 'Inflation check: cooler core helps growth multiples; hot services inflation pressures rate-cut odds.',
+        marketWatch: '2Y yields, Nasdaq futures, USD',
+        whyItMatters: 'CPI is the fastest path from macro data to discount-rate pressure for long-duration equities.',
+      };
+
+    case 'PCE':
+      return {
+        setup: 'Fed inflation read: in-line is fine; sticky core PCE keeps higher-for-longer risk alive.',
+        marketWatch: 'Fed-cut odds, 2Y yields, mega-cap tech',
+        whyItMatters: 'PCE matters because it is the Fed-preferred inflation gauge and can shift policy expectations.',
+      };
+
+    case 'NFP':
+      return {
+        setup: 'Jobs setup: best case is soft enough for cuts, not weak enough to signal demand risk.',
+        marketWatch: 'Wages, unemployment, revisions',
+        whyItMatters: 'Payrolls move stocks through wage inflation, growth confidence, and front-end rates.',
+      };
+
+    case 'FOMC':
+      return {
+        setup: event.forecast?.toLowerCase() === 'hold'
+          ? 'Fed setup: headline hold is expected; statement tone, dots, and Powell matter more.'
+          : 'Fed setup: the policy path matters more than the headline move.',
+        marketWatch: 'Dot plot, press conference, 2Y yields',
+        whyItMatters: 'Fed guidance directly changes the discount rate investors apply to future earnings.',
+      };
+
+    case 'ECB':
+      return {
+        setup: 'ECB setup: watch whether guidance validates easier financial conditions or pushes back on cuts.',
+        marketWatch: 'Bund yields, EURUSD, global rates',
+        whyItMatters: 'ECB tone can spill into global rate expectations and dollar liquidity.',
+      };
+
+    case 'BOJ':
+      return {
+        setup: 'BOJ setup: the risk is yen/rates volatility if policy normalization sounds faster than expected.',
+        marketWatch: 'JPY, JGB yields, global carry trades',
+        whyItMatters: 'BOJ surprises can unwind carry positioning and tighten global risk appetite.',
+      };
+
+    case 'GDP':
+      return {
+        setup: 'Growth setup: stronger GDP helps earnings confidence unless it pushes yields higher.',
+        marketWatch: 'Consumption, inflation detail, 10Y yields',
+        whyItMatters: 'GDP changes the market’s read on earnings durability versus rate pressure.',
       };
   }
 }
