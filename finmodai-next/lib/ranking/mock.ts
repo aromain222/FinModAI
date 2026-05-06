@@ -1,5 +1,6 @@
 import type { RankedStock, ScoreBreakdown } from './types';
 import { diversifyBreakdown, tickerFactorShape } from './profileShape';
+import { getCompanyBrief } from './companyBriefs';
 import { compositeOpportunityScore, signalFromOpportunityScore } from './signals';
 import { buildValuationSignal, scoreValuationSignal } from '@/lib/valuation/signal';
 
@@ -77,6 +78,36 @@ function toSignal(score: number): RankedStock['signal'] {
   return signalFromOpportunityScore(score);
 }
 
+function buildGenericReason(ticker: string, bd: ScoreBreakdown): string {
+  type Key = keyof ScoreBreakdown;
+  const best = (Object.keys(bd) as Key[]).sort((a, b) => bd[b] - bd[a])[0];
+  const brief = getCompanyBrief(ticker);
+  const LABELS: Record<Key, string> = {
+    forecastSignal:   'forecast model signal is positive',
+    catalystStrength: 'catalyst profile shows near-term upside triggers',
+    momentum:         'price trend is constructive heading into the window',
+    earningsSetup:    'earnings setup is tilted toward a beat',
+    valuationSignal:  'valuation is supportive relative to growth expectations',
+    riskAdjustment:   'low volatility profile — attractive risk/reward',
+  };
+  return `${brief.keyDriver} Estimated: ${LABELS[best]} while live data refreshes.`;
+}
+
+function buildGenericRisk(ticker: string, bd: ScoreBreakdown): string {
+  type Key = keyof ScoreBreakdown;
+  const worst = (Object.keys(bd) as Key[]).sort((a, b) => bd[a] - bd[b])[0];
+  const brief = getCompanyBrief(ticker);
+  const LABELS: Record<Key, string> = {
+    forecastSignal:   'forecast signal is weak — no model data to confirm direction',
+    catalystStrength: 'catalyst pipeline is unverified — no live events data',
+    momentum:         'price momentum is unconfirmed without historical prices',
+    earningsSetup:    'earnings setup unknown — no event data to assess miss risk',
+    valuationSignal:  'valuation signal could shift materially once live data loads',
+    riskAdjustment:   'volatility unknown — treat as elevated until live data available',
+  };
+  return `${brief.mainRisk} Estimated fallback: ${LABELS[worst]}`;
+}
+
 /** Returns a mock RankedStock for a ticker, whether or not we have a profile. */
 export function mockFallback(ticker: string, horizonWeeks: number): RankedStock {
   const t = ticker.toUpperCase();
@@ -130,8 +161,8 @@ export function mockFallback(ticker: string, horizonWeeks: number): RankedStock 
     score,
     signal: toSignal(score),
     horizonWeeks,
-    primaryReason: 'Fallback profile uses ticker-specific factor shape while live data is unavailable',
-    mainRisk: 'No real-time forecast or catalyst data available',
+    primaryReason: buildGenericReason(t, genericBreakdown),
+    mainRisk: buildGenericRisk(t, genericBreakdown),
     breakdown: genericBreakdown,
     meta: {
       forecastReturnPct: null,

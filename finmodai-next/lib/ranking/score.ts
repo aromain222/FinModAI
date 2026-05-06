@@ -16,6 +16,7 @@ import type {
 } from './types';
 import { mockFallback } from './mock';
 import { diversifyBreakdown, tickerFactorShape } from './profileShape';
+import { getCompanyBrief } from './companyBriefs';
 import { compositeOpportunityScore, signalFromOpportunityScore } from './signals';
 import { buildValuationSignal, scoreValuationSignal } from '@/lib/valuation/signal';
 
@@ -197,60 +198,124 @@ export function riskScore(data: PriceForecastData, negativeEventCount: number): 
 
 // ── Narrative derivation ───────────────────────────────────────────────────
 
-function primaryReason(
+function topPositiveEvent(events: EventItem[]): string | null {
+  const ranked = events
+    .filter(e => (e.direction ?? e.eventForecast?.direction) === 'positive')
+    .sort((a, b) => (b.rank?.score ?? 0) - (a.rank?.score ?? 0));
+  return ranked[0]?.title ?? ranked[0]?.headline ?? null;
+}
+
+function topNegativeEvent(events: EventItem[]): string | null {
+  const ranked = events
+    .filter(e => (e.direction ?? e.eventForecast?.direction) === 'negative')
+    .sort((a, b) => (b.rank?.score ?? 0) - (a.rank?.score ?? 0));
+  return ranked[0]?.title ?? ranked[0]?.headline ?? null;
+}
+
+function factorClause(
+  factor: keyof ScoreBreakdown,
   breakdown: ScoreBreakdown,
   returnPct: number | null,
+  events: EventItem[],
+  horizonWeeks: number,
+  polarity: 'bull' | 'bear',
 ): string {
-  type Key = keyof ScoreBreakdown;
-  const best = (Object.keys(breakdown) as Key[]).reduce<Key>(
-    (a, b) => (breakdown[a] >= breakdown[b] ? a : b),
-    'forecastSignal',
-  );
+  const positiveCount = events.filter(e => (e.direction ?? e.eventForecast?.direction) === 'positive').length;
+  const negativeCount = events.filter(e => (e.direction ?? e.eventForecast?.direction) === 'negative').length;
+  const earningsEvent = events.find(e => e.kind === 'earnings' || e.kind === 'transcript');
+  const posEvent = topPositiveEvent(events);
+  const negEvent = topNegativeEvent(events);
 
-  switch (best) {
-    case 'forecastSignal':
-      return returnPct != null
-        ? `TimesFM projects ${returnPct >= 0 ? '+' : ''}${returnPct.toFixed(1)}% over the horizon`
-        : 'Quantitative forecast model showing positive signal';
-    case 'catalystStrength':
-      return 'Multiple positive near-term catalysts in the event pipeline';
-    case 'momentum':
-      return 'Bullish price momentum with accelerating trend trajectory';
-    case 'earningsSetup':
-      return 'Favourable earnings setup — beat probability elevated';
-    case 'valuationSignal':
-      return 'Valuation support improves the risk/reward versus market expectations';
-    case 'riskAdjustment':
-      return 'Low volatility profile with well-controlled downside';
+  if (polarity === 'bull') {
+    switch (factor) {
+      case 'forecastSignal':
+        return returnPct != null
+          ? `model projects ${returnPct >= 0 ? '+' : ''}${returnPct.toFixed(1)}% over ${horizonWeeks} weeks`
+          : 'quantitative forecast is net positive';
+      case 'catalystStrength':
+        if (events.length === 0) return `catalyst setup rated ${breakdown.catalystStrength.toFixed(1)}/10 (live events not yet loaded)`;
+        return posEvent
+          ? `catalyst: "${posEvent}"`
+          : `${positiveCount} positive catalyst${positiveCount !== 1 ? 's' : ''} in the pipeline`;
+      case 'momentum':
+        return 'price trend is accelerating into the forecast window';
+      case 'earningsSetup':
+        if (events.length === 0) return `earnings setup rated ${breakdown.earningsSetup.toFixed(1)}/10 (no live event data)`;
+        return earningsEvent?.title
+          ? `earnings setup favourable — ${earningsEvent.title}`
+          : 'beat probability elevated heading into earnings';
+      case 'valuationSignal':
+        return `valuation at ${breakdown.valuationSignal.toFixed(1)}/10 — asymmetric upside`;
+      case 'riskAdjustment':
+        return 'vol profile is well-controlled — risk/reward attractive';
+    }
+  } else {
+    switch (factor) {
+      case 'forecastSignal':
+        return returnPct != null && returnPct < 0
+          ? `model projects ${returnPct.toFixed(1)}% downside over ${horizonWeeks} weeks`
+          : 'forecast signal is weak or data is sparse';
+      case 'catalystStrength':
+        if (events.length === 0) return 'no live catalyst data — upside triggers unverified';
+        return negEvent
+          ? `negative catalyst on record: "${negEvent}"`
+          : negativeCount > 0
+            ? `${negativeCount} negative event${negativeCount !== 1 ? 's' : ''} weigh on the pipeline`
+            : 'catalyst pipeline is thin — limited near-term upside triggers';
+      case 'momentum':
+        return 'recent price trend is flat or deteriorating';
+      case 'earningsSetup':
+        if (events.length === 0) return 'earnings setup unverified — no live event data loaded';
+        return earningsEvent?.title
+          ? `miss risk elevated — ${earningsEvent.title}`
+          : 'earnings miss risk could compress the multiple sharply';
+      case 'valuationSignal':
+        return `valuation signal is ${breakdown.valuationSignal.toFixed(1)}/10 — market may already be pricing the upside`;
+      case 'riskAdjustment':
+        return 'elevated volatility requires wider position stops';
+    }
   }
 }
 
-function mainRisk(
+function primaryReason(
+  ticker: string,
   breakdown: ScoreBreakdown,
   returnPct: number | null,
+  events: EventItem[],
+  horizonWeeks: number,
 ): string {
   type Key = keyof ScoreBreakdown;
-  const worst = (Object.keys(breakdown) as Key[]).reduce<Key>(
-    (a, b) => (breakdown[a] <= breakdown[b] ? a : b),
-    'forecastSignal',
-  );
+  const sorted = (Object.keys(breakdown) as Key[]).sort((a, b) => breakdown[b] - breakdown[a]);
+  const best   = sorted[0];
+  const second = sorted[1];
 
-  switch (worst) {
-    case 'forecastSignal':
-      return returnPct != null && returnPct < 0
-        ? `Model projects ${returnPct.toFixed(1)}% downside over horizon`
-        : 'Forecast signal weak or model data unavailable';
-    case 'catalystStrength':
-      return 'Sparse or net-negative near-term catalyst pipeline';
-    case 'momentum':
-      return 'Weak or deteriorating recent price momentum';
-    case 'earningsSetup':
-      return 'Earnings miss risk could compress multiple sharply';
-    case 'valuationSignal':
-      return 'Compressed valuation signal — market expectations already look demanding';
-    case 'riskAdjustment':
-      return 'Elevated volatility — position sizing should reflect wider stops';
+  const primary = factorClause(best, breakdown, returnPct, events, horizonWeeks, 'bull');
+  const brief = getCompanyBrief(ticker);
+  const companyDriver = brief.keyDriver;
+
+  // Add a second clause only when the second factor is also clearly strong
+  if (second && breakdown[second] >= 6.5) {
+    const secondary = factorClause(second, breakdown, returnPct, events, horizonWeeks, 'bull');
+    // Avoid redundant duplication (e.g. same returnPct repeated)
+    if (secondary !== primary) return `${companyDriver} ${primary}; ${secondary}`;
   }
+
+  return `${companyDriver} ${primary}`;
+}
+
+function mainRisk(
+  ticker: string,
+  breakdown: ScoreBreakdown,
+  returnPct: number | null,
+  events: EventItem[],
+  horizonWeeks: number,
+): string {
+  type Key = keyof ScoreBreakdown;
+  const sorted = (Object.keys(breakdown) as Key[]).sort((a, b) => breakdown[a] - breakdown[b]);
+  const worst  = sorted[0];
+  const brief = getCompanyBrief(ticker);
+
+  return `${brief.mainRisk} ${factorClause(worst, breakdown, returnPct, events, horizonWeeks, 'bear')}`;
 }
 
 // ── Core: score a single ticker ────────────────────────────────────────────
@@ -339,8 +404,8 @@ export async function scoreStock(
     score,
     signal: signalFromOpportunityScore(score),
     horizonWeeks,
-    primaryReason: primaryReason(breakdown, returnPct),
-    mainRisk:      mainRisk(breakdown, returnPct),
+    primaryReason: primaryReason(t, breakdown, returnPct, events, horizonWeeks),
+    mainRisk:      mainRisk(t, breakdown, returnPct, events, horizonWeeks),
     breakdown,
     meta: {
       forecastReturnPct: returnPct != null ? round1(returnPct) : null,
