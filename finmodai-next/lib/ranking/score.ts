@@ -15,6 +15,7 @@ import type {
   EventsPayload,
 } from './types';
 import { mockFallback } from './mock';
+import { diversifyBreakdown, tickerFactorShape } from './profileShape';
 import { buildValuationSignal, scoreValuationSignal } from '@/lib/valuation/signal';
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -97,6 +98,14 @@ export function momentumFromForecast(data: PriceForecastData): number {
   }
 
   return clamp(forecastTrend * 0.6 + histMomentum * 0.4);
+}
+
+function hasForecastPath(data: PriceForecastData): boolean {
+  return Boolean(data.forecast?.values?.length && data.historical?.prices?.length);
+}
+
+function hasHistoricalPrices(data: PriceForecastData): boolean {
+  return Boolean(data.historical?.prices && data.historical.prices.length >= 5);
 }
 
 // ── Component 3: Catalyst Strength (weight 0.25) ──────────────────────────
@@ -303,15 +312,18 @@ export async function scoreStock(
     e => (e.direction ?? e.eventForecast?.direction) === 'negative',
   ).length;
   const valuation = buildValuationSignal({ forecastReturnPct: returnPct, events });
+  const shape = tickerFactorShape(t);
 
-  const breakdown: ScoreBreakdown = {
-    forecastSignal:   round1(clamp(returnPct != null ? forecastToScore(returnPct) : 5)),
-    catalystStrength: round1(clamp(catalystsToScore(events))),
-    momentum:         round1(clamp(momentumFromForecast(forecastData))),
-    earningsSetup:    round1(clamp(earningsSetupScore(events))),
+  const rawBreakdown: ScoreBreakdown = {
+    forecastSignal:   round1(clamp(returnPct != null ? forecastToScore(returnPct) : shape.forecastSignal)),
+    catalystStrength: round1(clamp(events.length > 0 ? catalystsToScore(events) : shape.catalystStrength)),
+    momentum:         round1(clamp(hasForecastPath(forecastData) ? momentumFromForecast(forecastData) : shape.momentum)),
+    earningsSetup:    round1(clamp(events.some(e => e.kind === 'earnings' || e.kind === 'transcript') ? earningsSetupScore(events) : shape.earningsSetup)),
     valuationSignal:  round1(clamp(scoreValuationSignal(valuation))),
-    riskAdjustment:   round1(clamp(riskScore(forecastData, negativeEvents))),
+    riskAdjustment:   round1(clamp(hasHistoricalPrices(forecastData) ? riskScore(forecastData, negativeEvents) : shape.riskAdjustment)),
   };
+
+  const breakdown = diversifyBreakdown(t, rawBreakdown);
 
   const raw =
     breakdown.forecastSignal   * WEIGHTS.forecastSignal   +

@@ -1,4 +1,5 @@
 import type { RankedStock, ScoreBreakdown } from './types';
+import { diversifyBreakdown, tickerFactorShape } from './profileShape';
 import { buildValuationSignal, scoreValuationSignal } from '@/lib/valuation/signal';
 
 // Realistic mock scores returned when all upstream APIs fail for a ticker.
@@ -88,7 +89,8 @@ export function mockFallback(ticker: string, horizonWeeks: number): RankedStock 
   const profile = MOCK_PROFILES[t];
 
   if (profile) {
-    const score = computeScore(profile.breakdown);
+    const breakdown = diversifyBreakdown(t, profile.breakdown);
+    const score = computeScore(breakdown);
     const valuation = buildValuationSignal({ forecastReturnPct: profile.forecastReturnPct });
     return {
       ticker: t,
@@ -97,7 +99,7 @@ export function mockFallback(ticker: string, horizonWeeks: number): RankedStock 
       horizonWeeks,
       primaryReason: profile.primaryReason,
       mainRisk: profile.mainRisk,
-      breakdown: profile.breakdown,
+      breakdown,
       meta: {
         forecastReturnPct: round1(profile.forecastReturnPct),
         catalystCount: 0,
@@ -109,21 +111,23 @@ export function mockFallback(ticker: string, horizonWeeks: number): RankedStock 
   }
 
   // Generic fallback for unknown tickers
-  const genericBreakdown: ScoreBreakdown = {
-    forecastSignal: 5.0,
-    catalystStrength: 5.0,
-    momentum: 5.0,
-    earningsSetup: 5.0,
-    valuationSignal: scoreValuationSignal(buildValuationSignal({ forecastReturnPct: null })),
-    riskAdjustment: 5.0,
-  };
+  const shape = tickerFactorShape(t);
   const valuation = buildValuationSignal({ forecastReturnPct: null });
+  const genericBreakdown: ScoreBreakdown = diversifyBreakdown(t, {
+    forecastSignal: shape.forecastSignal,
+    catalystStrength: shape.catalystStrength,
+    momentum: shape.momentum,
+    earningsSetup: shape.earningsSetup,
+    valuationSignal: scoreValuationSignal(buildValuationSignal({ forecastReturnPct: null })),
+    riskAdjustment: shape.riskAdjustment,
+  });
+  const score = computeScore(genericBreakdown);
   return {
     ticker: t,
-    score: 5.0,
-    signal: 'yellow',
+    score,
+    signal: toSignal(score),
     horizonWeeks,
-    primaryReason: 'Insufficient live data — baseline neutral stance',
+    primaryReason: 'Fallback profile uses ticker-specific factor shape while live data is unavailable',
     mainRisk: 'No real-time forecast or catalyst data available',
     breakdown: genericBreakdown,
     meta: {
