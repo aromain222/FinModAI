@@ -24,8 +24,9 @@ const QUICK_PROMPTS: { label: string; mode: InvestmentMode; text: string }[] = [
 ];
 
 const NOTEBOOK_PROMPTS: { label: string; mode?: InvestmentMode; text: string }[] = [
-  { label: 'Setup', text: 'Give me the company notebook setup.' },
-  { label: 'Bull case', text: 'What supports the bull case?' },
+  { label: 'Thesis', text: 'What is the thesis?' },
+  { label: 'Needs true', text: 'What needs to be true for this to work?' },
+  { label: 'Monitor', text: 'What should I monitor?' },
   { label: 'Breaks it', text: 'What would make this a bad trade?', mode: 'challenge' },
   { label: 'Pitch', text: 'Turn this into a pitch.', mode: 'pitch' },
 ];
@@ -176,6 +177,64 @@ function buildExplain(stock: RankedStock): string {
   });
 }
 
+function buildThesis(stock: RankedStock): string {
+  const brief = getCompanyBrief(stock.ticker);
+  const top = sortedFactors(stock).slice(0, 2);
+  const valuation = stock.meta.valuation ?? buildValuationSignal({
+    ticker: stock.ticker,
+    forecastReturnPct: stock.meta.forecastReturnPct,
+    factorBreakdown: stock.breakdown,
+  });
+  return buildDecisionReply(stock, {
+    whyNow: `${brief.nearTermFocus} The thesis is only actionable if it can move estimates, the multiple, or positioning inside the window`,
+    keyDriver: `${brief.keyDriver} Current evidence: ${factorListWithScores(top)}; valuation read: ${valuation.summary}`,
+    mainRisk: brief.mainRisk,
+  });
+}
+
+function buildNeedsTrue(stock: RankedStock): string {
+  const brief = getCompanyBrief(stock.ticker);
+  const weakest = sortedFactors(stock).slice(-2).reverse();
+  return buildDecisionReply(stock, {
+    whyNow: `For the thesis to work, ${brief.watchItems.slice(0, 3).join(', ')} need to confirm over the next 1-3 months`,
+    keyDriver: `The score can re-rate if the weaker links improve: ${factorListWithScores(weakest)}`,
+    mainRisk: `If ${brief.watchItems[0] ?? 'the main catalyst'} disappoints, the rank should fade because ${brief.mainRisk}`,
+  });
+}
+
+function buildEvidence(stock: RankedStock): string {
+  const brief = getCompanyBrief(stock.ticker);
+  const top = sortedFactors(stock).slice(0, 3);
+  return buildDecisionReply(stock, {
+    whyNow: `The current evidence is the score profile plus the next catalyst window, not a long-term fundamental call`,
+    keyDriver: `Evidence supporting the thesis: ${factorListWithScores(top)}; watch ${brief.watchItems.slice(0, 2).join(' and ')} for confirmation`,
+    mainRisk: resolvedRisk(stock),
+  });
+}
+
+function buildMonitor(stock: RankedStock): string {
+  const brief = getCompanyBrief(stock.ticker);
+  return buildDecisionReply(stock, {
+    whyNow: `Monitor ${brief.watchItems.slice(0, 4).join(', ')} before adding conviction`,
+    keyDriver: `A better setup needs the strongest factor to stay strong and the weakest factor to stop dragging the score`,
+    mainRisk: brief.mainRisk,
+  });
+}
+
+function buildMarketMiss(stock: RankedStock): string {
+  const brief = getCompanyBrief(stock.ticker);
+  const valuation = stock.meta.valuation ?? buildValuationSignal({
+    ticker: stock.ticker,
+    forecastReturnPct: stock.meta.forecastReturnPct,
+    factorBreakdown: stock.breakdown,
+  });
+  return buildDecisionReply(stock, {
+    whyNow: `The possible miss is whether investors are underpricing ${brief.watchItems.slice(0, 2).join(' and ')} in the next 1-3 months`,
+    keyDriver: `${valuation.summary} The trade needs that valuation read to line up with catalysts or momentum`,
+    mainRisk: brief.mainRisk,
+  });
+}
+
 function buildMoveHigher(stock: RankedStock): string {
   const weak = sortedFactors(stock).slice(-3).reverse();
   return buildDecisionReply(stock, {
@@ -232,6 +291,11 @@ function buildCompare(stock: RankedStock, peers: PeerStock[]): string {
 
 function buildLocalReply(stock: RankedStock, text: string, mode?: InvestmentMode): string | null {
   const normalized = text.toLowerCase();
+  if (/\b(what'?s priced|what is priced|priced in|market pricing|market miss|what is the market missing|underpricing|mispricing)\b/.test(normalized)) return buildMarketMiss(stock);
+  if (/\b(what needs to be true|needs to be true|what has to happen|what would make it work|underwrite|confirm the thesis)\b/.test(normalized)) return buildNeedsTrue(stock);
+  if (/\b(evidence|supporting evidence|proof|why believe|data supports|what supports this)\b/.test(normalized)) return buildEvidence(stock);
+  if (/\b(monitor|watch|track|what should i watch|signals to watch|watch items)\b/.test(normalized)) return buildMonitor(stock);
+  if (/\b(thesis|investment case|core case|stock thesis|company thesis)\b/.test(normalized)) return buildThesis(stock);
   if (/\b(bull case|supports the bull|why own|upside)\b/.test(normalized)) {
     const brief = getCompanyBrief(stock.ticker);
     return buildDecisionReply(stock, {
