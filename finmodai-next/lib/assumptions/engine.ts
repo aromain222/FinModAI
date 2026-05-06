@@ -451,12 +451,15 @@ export function applyAssumption(input: AssumptionInput): AssumptionResult {
 
   const claim       = parseClaim(assumption);
   const plausResult = assessPlausibility(claim, breakdown);
-  const { adjustedBreakdown, factorDeltas, adjustedScore } = computeAdjustedScore(
+  const { adjustedBreakdown, factorDeltas } = computeAdjustedScore(
     breakdown,
     claim,
     plausResult,
   );
 
+  const weightedDelta = (Object.entries(factorDeltas) as Array<[ScoreFactor, number | undefined]>)
+    .reduce((sum, [factor, factorDelta]) => sum + (factorDelta ?? 0) * WEIGHTS[factor], 0);
+  const adjustedScore = round1(Math.min(10, Math.max(1, baseScore + weightedDelta)));
   const delta       = round1(adjustedScore - baseScore);
   const explanation = buildExplanation(claim, plausResult, delta, input);
 

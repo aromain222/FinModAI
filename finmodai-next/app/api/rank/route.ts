@@ -36,6 +36,8 @@ const DEFAULT_WATCHLIST = [
 ];
 
 const MAX_TICKERS = 100;
+const RANK_CACHE_TTL_MS = 30_000;
+const rankCache = new Map<string, { expiresAt: number; response: RankResponse }>();
 
 // ── Request schema ─────────────────────────────────────────────────────────
 
@@ -69,15 +71,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const { tickers, horizonWeeks } = parsed.data;
   const origin = new URL(req.url).origin;
+  const normalizedTickers = tickers.map((ticker) => ticker.toUpperCase());
+  const cacheKey = `${horizonWeeks}:${normalizedTickers.join(',')}`;
+  const cached = rankCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return NextResponse.json(cached.response, {
+      headers: {
+        'Cache-Control': 'private, max-age=30',
+        'X-Ticker-Count': String(cached.response.stocks.length),
+        'X-Rank-Cache': 'hit',
+      },
+    });
+  }
 
   let stocks;
   try {
-    stocks = await scoreMultiple(tickers, origin, horizonWeeks);
+    stocks = await scoreMultiple(normalizedTickers, origin, horizonWeeks);
   } catch (err) {
     // Full engine failure — return mock data for every ticker so the UI
     // always has something to render rather than a blank state.
     console.error('[rank] scoreMultiple failed, returning full mock:', err);
-    stocks = tickers
+    stocks = normalizedTickers
       .map(t => mockFallback(t, horizonWeeks))
       .sort((a, b) => b.score - a.score);
   }
@@ -87,11 +101,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     scoredAt:    new Date().toISOString(),
     horizonWeeks,
   };
+  rankCache.set(cacheKey, { expiresAt: Date.now() + RANK_CACHE_TTL_MS, response });
 
   return NextResponse.json(response, {
     headers: {
-      'Cache-Control': 'no-store',
+      'Cache-Control': 'private, max-age=30',
       'X-Ticker-Count': String(stocks.length),
+      'X-Rank-Cache': 'miss',
     },
   });
 }

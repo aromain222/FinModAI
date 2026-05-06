@@ -28,8 +28,11 @@ export const WEIGHTS = {
   riskAdjustment:   0.12,
 } as const;
 
-const FETCH_TIMEOUT_MS = 5_000;
-const BATCH_SIZE = 5;
+const FETCH_TIMEOUT_MS = 1_800;
+const BATCH_SIZE = 50;
+const SCORE_CACHE_TTL_MS = 60_000;
+
+const scoreCache = new Map<string, { expiresAt: number; value: RankedStock }>();
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -249,6 +252,9 @@ export async function scoreStock(
 ): Promise<RankedStock> {
   const t           = ticker.toUpperCase();
   const horizonDays = horizonWeeks * 7;
+  const cacheKey = `${t}:${horizonWeeks}`;
+  const cached = scoreCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
 
   const [forecastResult, eventsResult] = await Promise.allSettled([
     fetch(`${baseUrl}/api/timesfm?type=price&ticker=${t}&horizon=${horizonDays}`, {
@@ -317,7 +323,7 @@ export async function scoreStock(
 
   const score = round1(clamp(raw, 1, 10));
 
-  return {
+  const ranked: RankedStock = {
     ticker: t,
     score,
     signal: score >= 7.0 ? 'green' : score >= 4.0 ? 'yellow' : 'red',
@@ -333,6 +339,8 @@ export async function scoreStock(
       valuation,
     },
   };
+  scoreCache.set(cacheKey, { expiresAt: Date.now() + SCORE_CACHE_TTL_MS, value: ranked });
+  return ranked;
 }
 
 // ── Score multiple tickers, batched to avoid overloading upstreams ─────────
