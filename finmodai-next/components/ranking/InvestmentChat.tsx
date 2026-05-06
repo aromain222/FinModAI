@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Loader2 } from 'lucide-react';
 import type { RankedStock } from '@/lib/ranking/types';
+import { getCompanyBrief } from '@/lib/ranking/companyBriefs';
 import { cn } from '@/lib/utils';
 
 type Message = {
@@ -118,6 +119,15 @@ function scoreChangeExplanation(change: ScoreChange): string {
   return `Score ${direction} due to ${quality} ${factorLabel(change.primaryFactor).toLowerCase()} assumption.`;
 }
 
+function isGenericReason(value: string): boolean {
+  return /forecast signal weak|model data unavailable|fallback profile|no real-time|model unavailable/i.test(value);
+}
+
+function resolvedRisk(stock: RankedStock): string {
+  const brief = getCompanyBrief(stock.ticker);
+  return isGenericReason(stock.mainRisk) ? brief.mainRisk : stock.mainRisk;
+}
+
 function buildDecisionReply(
   stock: RankedStock,
   options: {
@@ -128,20 +138,22 @@ function buildDecisionReply(
   } = {},
 ): string {
   const [factor, value] = topFactor(stock);
+  const brief = getCompanyBrief(stock.ticker);
   const stance = `${signalWord(stock.signal)}${options.stanceSuffix ? ` ${options.stanceSuffix}` : ''}`;
   return [
     `Current stance: ${stance}.`,
-    `Why now: ${options.whyNow ?? stock.primaryReason}`,
-    `Key driver: ${options.keyDriver ?? `${SCORE_LABELS[factor]} at ${value.toFixed(1)}/10`}.`,
-    `Main risk: ${options.mainRisk ?? stock.mainRisk}.`,
+    `Why now: ${options.whyNow ?? brief.nearTermFocus}`,
+    `Key driver: ${options.keyDriver ?? `${brief.keyDriver} ${SCORE_LABELS[factor]} scores ${value.toFixed(1)}/10`}.`,
+    `Main risk: ${options.mainRisk ?? resolvedRisk(stock)}.`,
   ].join('\n');
 }
 
 function buildExplain(stock: RankedStock): string {
   const [first, second, third] = sortedFactors(stock);
+  const brief = getCompanyBrief(stock.ticker);
   return buildDecisionReply(stock, {
-    whyNow: `${stock.primaryReason} over the 1-3 month setup.`,
-    keyDriver: `${SCORE_LABELS[first[0]]}, ${SCORE_LABELS[second[0]]}, and ${SCORE_LABELS[third[0]]} carry the score.`,
+    whyNow: brief.nearTermFocus,
+    keyDriver: `${brief.keyDriver} Score support comes from ${SCORE_LABELS[first[0]]}, ${SCORE_LABELS[second[0]]}, and ${SCORE_LABELS[third[0]]}.`,
   });
 }
 
@@ -156,18 +168,20 @@ function buildMoveHigher(stock: RankedStock): string {
 
 function buildBadTrade(stock: RankedStock): string {
   const weakest = sortedFactors(stock).at(-1);
+  const brief = getCompanyBrief(stock.ticker);
   return buildDecisionReply(stock, {
     whyNow: `${stock.ticker} gets weaker if the setup stops improving inside the 1-3 month window.`,
     keyDriver: weakest ? `${SCORE_LABELS[weakest[0]]} is weakest at ${weakest[1].toFixed(1)}/10.` : 'The weakest score component needs improvement.',
-    mainRisk: stock.mainRisk,
+    mainRisk: brief.mainRisk,
   });
 }
 
 function buildPitch(stock: RankedStock): string {
-  const marketMiss = 'The market appears close to fair value, so catalysts matter more than valuation.';
+  const brief = getCompanyBrief(stock.ticker);
+  const marketMiss = stock.meta.valuation?.summary ?? 'Catalysts matter more than a full model in this stock-picker view.';
   return buildDecisionReply(stock, {
-    whyNow: stock.primaryReason,
-    keyDriver: `${marketMiss} Trade: ${stock.signal === 'green' ? 'Buy / work up' : stock.signal === 'red' ? 'Pass / avoid' : 'Wait'}.`,
+    whyNow: brief.nearTermFocus,
+    keyDriver: `${brief.strategicContext} ${marketMiss} Trade: ${stock.signal === 'green' ? 'Buy / work up' : stock.signal === 'red' ? 'Pass / avoid' : 'Wait'}.`,
   });
 }
 
@@ -199,6 +213,7 @@ function buildCompare(stock: RankedStock, peers: PeerStock[]): string {
 
 function buildLocalReply(stock: RankedStock, text: string, mode?: InvestmentMode): string | null {
   const normalized = text.toLowerCase();
+  if (/\b(tell me|what is|what's|about|overview|quick read|low reasoning)\b/.test(normalized)) return buildExplain(stock);
   if (mode === 'pitch' || /\b(turn this into a pitch|pitch|weekly pitch)\b/.test(normalized)) return buildPitch(stock);
   if (mode === 'explain' || /\b(why|ranked here|score|breakdown)\b/.test(normalized)) return buildExplain(stock);
   if (mode === 'evaluate' || /\b(buy|wait|avoid|trade|recommendation|should i)\b/.test(normalized)) return buildEvaluate(stock);

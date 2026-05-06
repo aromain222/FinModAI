@@ -21,6 +21,7 @@
 
 import type { ScoreBreakdown, RankedStock, EventItem } from '@/lib/ranking/types';
 import { WEIGHTS } from '@/lib/ranking/score';
+import { getCompanyBrief } from '@/lib/ranking/companyBriefs';
 
 // ── Public types ───────────────────────────────────────────────────────────
 
@@ -133,6 +134,7 @@ export function detectMode(
 
 function serializeStockContext(ctx: OrchestratorContext): string {
   const signalLabel = ctx.signal === 'green' ? 'BUY' : ctx.signal === 'yellow' ? 'WATCH' : 'AVOID';
+  const brief = getCompanyBrief(ctx.primaryTicker);
   const returnLine  =
     ctx.forecastReturnPct != null
       ? `Quantitative model: ${ctx.forecastReturnPct >= 0 ? '+' : ''}${ctx.forecastReturnPct.toFixed(1)}% projected over ${ctx.horizonWeeks} weeks.`
@@ -167,6 +169,8 @@ function serializeStockContext(ctx: OrchestratorContext): string {
     'Score breakdown:',
     bdLines.join('\n'),
     '',
+    `Company context: ${brief.strategicContext}`,
+    `Near-term focus: ${brief.nearTermFocus}`,
     `Primary driver: ${ctx.primaryReason}`,
     `Key risk: ${ctx.mainRisk}`,
     '',
@@ -349,21 +353,22 @@ function modeTemperature(mode: InvestmentMode): number {
  */
 function staticFallback(mode: InvestmentMode, ctx: OrchestratorContext): string {
   const { primaryTicker: t, score, signal, horizonWeeks: hw, primaryReason, mainRisk, forecastReturnPct } = ctx;
+  const brief = getCompanyBrief(t);
   const stance = signal === 'green' ? 'Bullish' : signal === 'yellow' ? 'Neutral' : 'Bearish';
   const returnLine  =
     forecastReturnPct != null
       ? `Forecast adds ${forecastReturnPct >= 0 ? '+' : ''}${forecastReturnPct.toFixed(1)}% over ${hw} weeks.`
       : `The ${hw}-week setup depends on the next catalyst.`;
   const modeDriver = mode === 'challenge'
-    ? `Weakest point is whether ${mainRisk}`
+    ? `Weakest point is whether ${brief.mainRisk}`
     : mode === 'compare'
       ? 'Relative rank versus peers depends on catalyst quality and risk'
-      : primaryReason;
+      : `${brief.keyDriver} ${primaryReason}`;
 
   return [
     `Current stance: ${stance} (${t}, ${score.toFixed(1)}/10).`,
-    `Why now: ${returnLine}`,
+    `Why now: ${brief.nearTermFocus} ${returnLine}`,
     `Key driver: ${modeDriver}.`,
-    `Main risk: ${mainRisk}.`,
+    `Main risk: ${brief.mainRisk || mainRisk}.`,
   ].join('\n');
 }
