@@ -10,6 +10,7 @@ import {
   computeEventSurprise,
   expectedMarketReaction,
   interpretEvent,
+  preReleaseSetup,
 } from '@/lib/events/interpretation';
 import {
   marketEventsApiResponseSchema,
@@ -102,8 +103,12 @@ function formatCalendarValue(value: string | null | undefined): string {
   return value && value.trim().length > 0 ? value : '—';
 }
 
+function formatCalendarDetailValue(value: string | null | undefined, fallback: string): string {
+  return value && value.trim().length > 0 ? value : fallback;
+}
+
 function formatSurprise(event: MacroCalendarEntry): string {
-  if (!event.actual) return 'Awaiting release';
+  if (!event.actual) return 'Watch actual vs forecast';
   const surprise = computeEventSurprise(event);
   if (surprise === null) return 'Not comparable';
   const sign = surprise > 0 ? '+' : '';
@@ -349,6 +354,7 @@ function EconomicCalendar({ today }: { today: Date }) {
         const interpretation = interpretEvent(entry);
         const marketReaction = expectedMarketReaction(entry, interpretation);
         const hasActual = Boolean(entry.actual);
+        const setup = hasActual ? null : preReleaseSetup(entry);
         return (
           <div
             key={entry.id}
@@ -396,9 +402,9 @@ function EconomicCalendar({ today }: { today: Date }) {
                   <div className="mx-2 mb-2 rounded-lg border border-zinc-700/50 bg-zinc-900/70 p-4">
                     <div className="grid gap-3 sm:grid-cols-4">
                       {[
-                        ['Actual', hasActual ? formatCalendarValue(entry.actual) : 'Awaiting release'],
-                        ['Forecast', formatCalendarValue(entry.forecast)],
-                        ['Prior', formatCalendarValue(entry.prior)],
+                        ['Actual', hasActual ? formatCalendarValue(entry.actual) : 'Not released yet'],
+                        ['Forecast', formatCalendarDetailValue(entry.forecast, 'Consensus pending')],
+                        ['Prior', formatCalendarDetailValue(entry.prior, 'Prior unavailable')],
                         ['Surprise', formatSurprise(entry)],
                       ].map(([label, value]) => (
                         <div key={`${entry.id}-${label}`} className="rounded-md border border-zinc-800/60 bg-zinc-950/45 px-3 py-2">
@@ -407,6 +413,22 @@ function EconomicCalendar({ today }: { today: Date }) {
                         </div>
                       ))}
                     </div>
+
+                    {setup && (
+                      <div className="mt-3 grid gap-2 lg:grid-cols-4">
+                        {[
+                          ['Base case', setup.baseCase],
+                          ['Bullish surprise', setup.upsideSurprise],
+                          ['Bearish surprise', setup.downsideSurprise],
+                          ['Watch after', setup.watchAfterRelease],
+                        ].map(([label, value]) => (
+                          <div key={`${entry.id}-${label}`} className="rounded-md border border-zinc-800/50 bg-zinc-950/35 px-3 py-2">
+                            <div className="text-[9px] font-mono uppercase tracking-[0.16em] text-zinc-600">{label}</div>
+                            <div className="mt-1 text-[11px] leading-4 text-zinc-300">{value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr]">
                       <div className="rounded-md border border-zinc-800/60 bg-zinc-950/35 px-3 py-3">

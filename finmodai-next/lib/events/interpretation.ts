@@ -7,6 +7,13 @@ export type EventInterpretation = {
   bias: EventBias;
 };
 
+export type PreReleaseSetup = {
+  baseCase: string;
+  upsideSurprise: string;
+  downsideSurprise: string;
+  watchAfterRelease: string;
+};
+
 type InterpretableEvent = MacroCalendarEntry & {
   actual?: string | null;
 };
@@ -46,19 +53,55 @@ function directionFromSurprise(surprise: number | null): 'higher' | 'lower' | 'i
   return surprise > 0 ? 'higher' : 'lower';
 }
 
+export function preReleaseSetup(event: InterpretableEvent): PreReleaseSetup {
+  switch (event.type) {
+    case 'CPI':
+    case 'PCE':
+      return {
+        baseCase: 'Market base case is inflation near consensus; the important read is whether core/services inflation changes rate-cut odds.',
+        upsideSurprise: 'Cooler inflation should pull yields lower and support growth stocks through lower discount-rate pressure.',
+        downsideSurprise: 'Hotter core inflation would push higher-for-longer risk and pressure long-duration equity multiples.',
+        watchAfterRelease: 'Watch 2Y Treasury yields, Nasdaq futures, USD, and whether the move fades after the first hour.',
+      };
+
+    case 'NFP':
+      return {
+        baseCase: 'Market base case is resilient jobs growth without a wage/inflation scare.',
+        upsideSurprise: 'Soft-but-not-weak payrolls would support rate-cut odds while avoiding a growth scare.',
+        downsideSurprise: 'A very hot jobs or wage print raises rate risk; a very weak print shifts the problem to demand risk.',
+        watchAfterRelease: 'Watch wage growth, unemployment rate, revisions, 2Y yields, and mega-cap tech breadth.',
+      };
+
+    case 'FOMC':
+    case 'ECB':
+    case 'BOJ':
+      return {
+        baseCase: event.forecast?.toLowerCase() === 'hold'
+          ? 'Base case is no rate change; the market will trade guidance, statement language, and the press conference tone.'
+          : 'Base case is the expected policy move; the market will trade the forward path more than the headline rate.',
+        upsideSurprise: 'More dovish guidance supports duration assets and growth equities through lower expected policy rates.',
+        downsideSurprise: 'Higher-for-longer guidance or inflation concern would pressure equity multiples and tighten financial conditions.',
+        watchAfterRelease: 'Watch front-end yields, rate-cut probabilities, USD, and leadership between defensives and growth.',
+      };
+
+    case 'GDP':
+      return {
+        baseCase: 'Market base case is steady growth without forcing a hawkish rate repricing.',
+        upsideSurprise: 'Better growth can help cyclicals and earnings confidence if inflation detail stays contained.',
+        downsideSurprise: 'Weak growth raises slowdown risk; very strong growth can still hurt if it pushes yields higher.',
+        watchAfterRelease: 'Watch consumption, inflation components, 10Y yields, cyclicals, and credit spreads.',
+      };
+  }
+}
+
 export function interpretEvent(event: InterpretableEvent): EventInterpretation {
   const surprise = computeEventSurprise(event);
   const direction = directionFromSurprise(surprise);
 
   if (!event.actual) {
-    if (event.type === 'FOMC' && event.forecast?.toLowerCase() === 'hold') {
-      return {
-        summary: 'Markets expect no policy-rate change; the risk is in guidance, dots, and the press conference tone.',
-        bias: 'neutral',
-      };
-    }
+    const setup = preReleaseSetup(event);
     return {
-      summary: 'Awaiting release; market impact depends on the gap between actual and forecast.',
+      summary: setup.baseCase,
       bias: 'neutral',
     };
   }
@@ -142,7 +185,10 @@ export function interpretEvent(event: InterpretableEvent): EventInterpretation {
 }
 
 export function expectedMarketReaction(event: InterpretableEvent, interpretation: EventInterpretation): string {
-  if (!event.actual) return 'Awaiting release; rates, equity futures, and USD reaction will confirm the market read.';
+  if (!event.actual) {
+    const setup = preReleaseSetup(event);
+    return `Bullish surprise: ${setup.upsideSurprise} Bearish surprise: ${setup.downsideSurprise}`;
+  }
 
   if (interpretation.bias === 'hawkish') {
     if (event.type === 'NFP') return 'Rates likely rise -> mixed/negative for tech and long-duration growth stocks.';
