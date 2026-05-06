@@ -311,7 +311,7 @@ export async function scoreStock(
   const negativeEvents = events.filter(
     e => (e.direction ?? e.eventForecast?.direction) === 'negative',
   ).length;
-  const valuation = buildValuationSignal({ forecastReturnPct: returnPct, events });
+  const valuation = buildValuationSignal({ ticker: t, forecastReturnPct: returnPct, events });
   const shape = tickerFactorShape(t);
 
   const rawBreakdown: ScoreBreakdown = {

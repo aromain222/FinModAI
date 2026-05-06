@@ -91,7 +91,7 @@ export function mockFallback(ticker: string, horizonWeeks: number): RankedStock 
   if (profile) {
     const breakdown = diversifyBreakdown(t, profile.breakdown);
     const score = computeScore(breakdown);
-    const valuation = buildValuationSignal({ forecastReturnPct: profile.forecastReturnPct });
+    const valuation = buildValuationSignal({ ticker: t, forecastReturnPct: profile.forecastReturnPct });
     return {
       ticker: t,
       score,
@@ -112,13 +112,13 @@ export function mockFallback(ticker: string, horizonWeeks: number): RankedStock 
 
   // Generic fallback for unknown tickers
   const shape = tickerFactorShape(t);
-  const valuation = buildValuationSignal({ forecastReturnPct: null });
+  const valuation = buildValuationSignal({ ticker: t, forecastReturnPct: null });
   const genericBreakdown: ScoreBreakdown = diversifyBreakdown(t, {
     forecastSignal: shape.forecastSignal,
     catalystStrength: shape.catalystStrength,
     momentum: shape.momentum,
     earningsSetup: shape.earningsSetup,
-    valuationSignal: scoreValuationSignal(buildValuationSignal({ forecastReturnPct: null })),
+    valuationSignal: scoreValuationSignal(buildValuationSignal({ ticker: t, forecastReturnPct: null })),
     riskAdjustment: shape.riskAdjustment,
   });
   const score = computeScore(genericBreakdown);
