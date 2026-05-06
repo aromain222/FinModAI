@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { RefreshCw, Search, X } from 'lucide-react';
 import type { RankedStock, RankResponse } from '@/lib/ranking/types';
 import { InvestmentChat } from './InvestmentChat';
@@ -12,6 +12,7 @@ type Props = {
 
 const SIGNAL_FILTERS = ['all', 'green', 'yellow', 'red'] as const;
 type SignalFilter = (typeof SIGNAL_FILTERS)[number];
+type MovedStock = { ticker: string; delta: number };
 
 const SIGNAL_DOT: Record<string, string> = {
   green:  'bg-emerald-400',
@@ -26,14 +27,26 @@ export function RankedList({ initial }: Props) {
   const [filter,   setFilter]   = useState<SignalFilter>('all');
   const [query,    setQuery]    = useState('');
   const [selected, setSelected] = useState<RankedStock | null>(initial.stocks[0] ?? null);
+  const [movedStock, setMovedStock] = useState<MovedStock | null>(null);
+  const highlightTimeout = useRef<number | null>(null);
 
   const updateStock = useCallback((updated: RankedStock) => {
+    const previousScore = stocks.find(stock => stock.ticker === updated.ticker)?.score ?? updated.score;
     setStocks(prev =>
       prev
         .map(stock => stock.ticker === updated.ticker ? updated : stock)
         .sort((a, b) => b.score - a.score),
     );
     setSelected(updated);
+    setMovedStock({ ticker: updated.ticker, delta: updated.score - previousScore });
+    if (highlightTimeout.current !== null) window.clearTimeout(highlightTimeout.current);
+    highlightTimeout.current = window.setTimeout(() => setMovedStock(null), 1800);
+  }, [stocks]);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimeout.current !== null) window.clearTimeout(highlightTimeout.current);
+    };
   }, []);
 
   const refresh = useCallback(async () => {
@@ -148,16 +161,21 @@ export function RankedList({ initial }: Props) {
             visible.map(stock => {
               const rank     = stocks.indexOf(stock) + 1;
               const isActive = selected?.ticker === stock.ticker;
+              const justMoved = movedStock?.ticker === stock.ticker;
+              const movedUp = (movedStock?.delta ?? 0) >= 0;
               return (
                 <button
                   key={stock.ticker}
                   type="button"
                   onClick={() => setSelected(stock)}
                   className={cn(
-                    'flex w-full items-start gap-2 border-l-2 px-3 py-2.5 text-left transition-colors',
+                    'flex w-full items-start gap-2 border-l-2 px-3 py-2.5 text-left transition-all duration-300',
                     isActive
                       ? 'border-l-[var(--cb-green)] bg-[var(--cb-surface)]'
                       : 'border-l-transparent hover:bg-[var(--cb-surface)]',
+                    justMoved && (movedUp
+                      ? 'bg-emerald-500/10 ring-1 ring-inset ring-emerald-400/30'
+                      : 'bg-rose-500/10 ring-1 ring-inset ring-rose-400/30'),
                   )}
                 >
                   {/* Rank number */}
@@ -182,6 +200,14 @@ export function RankedList({ initial }: Props) {
                       <span className="text-[10px] tabular-nums text-[var(--cb-text-muted)]">
                         {stock.score.toFixed(1)}
                       </span>
+                      {justMoved && (
+                        <span className={cn(
+                          'rounded px-1 text-[9px] font-semibold',
+                          movedUp ? 'bg-emerald-400/15 text-emerald-300' : 'bg-rose-400/15 text-rose-300',
+                        )}>
+                          {movedUp ? 'moved up' : 'moved down'}
+                        </span>
+                      )}
                     </span>
                     <span className="truncate text-[10px] leading-tight text-[var(--cb-text-muted)]">
                       {stock.primaryReason}
@@ -212,7 +238,7 @@ export function RankedList({ initial }: Props) {
 
       {/* ── Right: Investment Chat ── */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <InvestmentChat stock={selected} peers={peers} />
+        <InvestmentChat stock={selected} peers={peers} onStockUpdate={updateStock} />
       </div>
 
     </div>

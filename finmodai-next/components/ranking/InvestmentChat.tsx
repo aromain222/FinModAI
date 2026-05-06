@@ -11,6 +11,7 @@ type Message = {
 };
 
 type InvestmentMode = 'explain' | 'evaluate' | 'challenge' | 'compare' | 'pitch';
+type ScoreFactor = keyof RankedStock['breakdown'];
 
 const QUICK_PROMPTS: { label: string; mode: InvestmentMode; text: string }[] = [
   { label: 'Explain',   mode: 'explain',   text: 'Why is this stock ranked here?' },
@@ -57,6 +58,15 @@ type AssumptionUpdateResponse = {
   error?: string;
 };
 
+type ScoreChange = {
+  fromScore: number;
+  toScore: number;
+  delta: number;
+  factorDeltas: Partial<Record<ScoreFactor, number>>;
+  primaryFactor: string;
+  explanation: string;
+};
+
 function signalWord(signal: RankedStock['signal']): string {
   if (signal === 'green') return 'Bullish';
   if (signal === 'red') return 'Bearish';
@@ -81,6 +91,12 @@ function factorLabel(factor: string): string {
 function sortedFactors(stock: RankedStock): Array<[keyof RankedStock['breakdown'], number]> {
   return (Object.entries(stock.breakdown) as Array<[keyof RankedStock['breakdown'], number]>)
     .sort((a, b) => b[1] - a[1]);
+}
+
+function changedFactorTone(delta: number): string {
+  if (delta > 0) return 'border-emerald-400/40 bg-emerald-500/10';
+  if (delta < 0) return 'border-rose-400/40 bg-rose-500/10';
+  return 'border-transparent';
 }
 
 function buildExplain(stock: RankedStock): string {
@@ -188,6 +204,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   const [messages,  setMessages]  = useState<Message[]>([]);
   const [input,     setInput]     = useState('');
   const [streaming, setStreaming] = useState(false);
+  const [scoreChange, setScoreChange] = useState<ScoreChange | null>(null);
   const scrollRef  = useRef<HTMLDivElement>(null);
   const abortRef   = useRef<AbortController | null>(null);
   const prevTicker = useRef<string | null>(null);
@@ -202,6 +219,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       ] : []);
       setInput('');
       setStreaming(false);
+      setScoreChange(null);
       prevTicker.current = stock?.ticker ?? null;
     }
   }, [stock]);
@@ -256,6 +274,14 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
               : stock.primaryReason,
             mainRisk: payload.result.pushback ?? stock.mainRisk,
           };
+          setScoreChange({
+            fromScore: stock.score,
+            toScore: payload.result.adjustedScore,
+            delta: payload.result.delta,
+            factorDeltas: payload.result.factorDeltas,
+            primaryFactor: payload.parsedClaim?.primaryFactor ?? 'score',
+            explanation: payload.result.explanation,
+          });
           onStockUpdate?.(updated);
           setMessages([...history, { role: 'assistant', content: buildAssumptionReply(stock, payload) }]);
           return;
@@ -383,15 +409,23 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
     stock.signal === 'green'  ? 'bg-emerald-500/15 text-emerald-400' :
     stock.signal === 'yellow' ? 'bg-amber-500/15 text-amber-400'     :
                                 'bg-rose-500/15 text-rose-400';
+  const scoreDeltaTone = scoreChange && scoreChange.delta >= 0
+    ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-400/25'
+    : 'bg-rose-500/15 text-rose-300 ring-rose-400/25';
 
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex shrink-0 items-center gap-2.5 border-b border-[var(--cb-border)] px-4 py-3">
         <span className="text-sm font-bold text-[var(--cb-text-primary)]">{stock.ticker}</span>
-        <span className={cn('rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums', signalColor)}>
+        <span className={cn('rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums transition-all duration-300', signalColor, scoreChange && 'scale-105 ring-1 ring-white/20')}>
           {stock.score.toFixed(1)}
         </span>
+        {scoreChange && (
+          <span className={cn('rounded-md px-2 py-0.5 text-[10px] font-semibold tabular-nums ring-1 transition-all duration-300', scoreDeltaTone)}>
+            {scoreChange.fromScore.toFixed(1)} → {scoreChange.toScore.toFixed(1)}
+          </span>
+        )}
         <span className="min-w-0 flex-1 truncate text-xs text-[var(--cb-text-muted)]">
           {stock.primaryReason}
         </span>
@@ -401,17 +435,33 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       <div className="shrink-0 border-b border-[var(--cb-border)] px-4 py-3">
         <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
           {(Object.entries(stock.breakdown) as Array<[keyof RankedStock['breakdown'], number]>).map(([key, value]) => (
-            <div key={key} className="min-w-0">
+            <div
+              key={key}
+              className={cn(
+                'min-w-0 rounded-md border border-transparent p-1 transition-all duration-300',
+                scoreChange?.factorDeltas[key] && changedFactorTone(scoreChange.factorDeltas[key] ?? 0),
+              )}
+            >
               <div className="mb-1 flex items-center justify-between gap-2">
                 <span className="truncate text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
                   {SCORE_LABELS[key]}
                 </span>
-                <span className="text-[10px] tabular-nums text-[var(--cb-text-muted)]">{value.toFixed(1)}</span>
+                <span className="flex items-center gap-1 text-[10px] tabular-nums text-[var(--cb-text-muted)]">
+                  {scoreChange?.factorDeltas[key] ? (
+                    <span className={cn(
+                      'font-semibold',
+                      (scoreChange.factorDeltas[key] ?? 0) > 0 ? 'text-emerald-300' : 'text-rose-300',
+                    )}>
+                      {(scoreChange.factorDeltas[key] ?? 0) > 0 ? '+' : ''}{(scoreChange.factorDeltas[key] ?? 0).toFixed(1)}
+                    </span>
+                  ) : null}
+                  {value.toFixed(1)}
+                </span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
                 <div
                   className={cn(
-                    'h-full rounded-full',
+                    'h-full rounded-full transition-all duration-500 ease-out',
                     value >= 7 ? 'bg-emerald-400' : value >= 4 ? 'bg-amber-400' : 'bg-rose-400',
                   )}
                   style={{ width: `${Math.max(4, Math.min(100, value * 10))}%` }}
@@ -420,6 +470,14 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             </div>
           ))}
         </div>
+        {scoreChange && (
+          <div className="mt-3 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 py-2 text-xs text-[var(--cb-text-secondary)]">
+            <span className="font-semibold text-[var(--cb-text-primary)]">
+              Thesis changed:
+            </span>{' '}
+            {factorLabel(scoreChange.primaryFactor)} drove a {scoreChange.delta >= 0 ? '+' : ''}{scoreChange.delta.toFixed(1)} score move.
+          </div>
+        )}
       </div>
 
       {/* Messages */}
