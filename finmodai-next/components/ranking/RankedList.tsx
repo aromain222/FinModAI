@@ -12,7 +12,12 @@ type Props = {
 
 const SIGNAL_FILTERS = ['all', 'green', 'yellow', 'red'] as const;
 type SignalFilter = (typeof SIGNAL_FILTERS)[number];
-type MovedStock = { ticker: string; delta: number };
+type MovedStock = {
+  ticker: string;
+  delta: number;
+  fromSignal: RankedStock['signal'];
+  toSignal: RankedStock['signal'];
+};
 
 const SIGNAL_DOT: Record<string, string> = {
   green:  'bg-emerald-400',
@@ -31,16 +36,23 @@ export function RankedList({ initial }: Props) {
   const highlightTimeout = useRef<number | null>(null);
 
   const updateStock = useCallback((updated: RankedStock) => {
-    const previousScore = stocks.find(stock => stock.ticker === updated.ticker)?.score ?? updated.score;
+    const previous = stocks.find(stock => stock.ticker === updated.ticker);
+    const previousScore = previous?.score ?? updated.score;
+    const previousSignal = previous?.signal ?? updated.signal;
     setStocks(prev =>
       prev
         .map(stock => stock.ticker === updated.ticker ? updated : stock)
         .sort((a, b) => b.score - a.score),
     );
     setSelected(updated);
-    setMovedStock({ ticker: updated.ticker, delta: updated.score - previousScore });
+    setMovedStock({
+      ticker: updated.ticker,
+      delta: updated.score - previousScore,
+      fromSignal: previousSignal,
+      toSignal: updated.signal,
+    });
     if (highlightTimeout.current !== null) window.clearTimeout(highlightTimeout.current);
-    highlightTimeout.current = window.setTimeout(() => setMovedStock(null), 1800);
+    highlightTimeout.current = window.setTimeout(() => setMovedStock(null), 2400);
   }, [stocks]);
 
   useEffect(() => {
@@ -162,7 +174,11 @@ export function RankedList({ initial }: Props) {
               const rank     = stocks.indexOf(stock) + 1;
               const isActive = selected?.ticker === stock.ticker;
               const justMoved = movedStock?.ticker === stock.ticker;
-              const movedUp = (movedStock?.delta ?? 0) >= 0;
+              const movedDelta = movedStock?.delta ?? 0;
+              const movedUp = movedDelta >= 0;
+              const signalChanged = Boolean(
+                justMoved && movedStock && movedStock.fromSignal !== movedStock.toSignal,
+              );
               return (
                 <button
                   key={stock.ticker}
@@ -176,6 +192,8 @@ export function RankedList({ initial }: Props) {
                     justMoved && (movedUp
                       ? 'bg-emerald-500/10 ring-1 ring-inset ring-emerald-400/30'
                       : 'bg-rose-500/10 ring-1 ring-inset ring-rose-400/30'),
+                    signalChanged && movedUp && 'animate-pulse shadow-[0_0_28px_rgba(52,211,153,0.16)]',
+                    signalChanged && !movedUp && 'animate-pulse shadow-[0_0_28px_rgba(251,113,133,0.16)]',
                   )}
                 >
                   {/* Rank number */}
@@ -197,7 +215,14 @@ export function RankedList({ initial }: Props) {
                       <span className="text-xs font-bold text-[var(--cb-text-primary)]">
                         {stock.ticker}
                       </span>
-                      <span className="text-[10px] tabular-nums text-[var(--cb-text-muted)]">
+                      <span className={cn(
+                        'rounded px-1 text-[10px] tabular-nums transition-all duration-300',
+                        justMoved
+                          ? movedUp
+                            ? 'bg-emerald-400/15 font-semibold text-emerald-300'
+                            : 'bg-rose-400/15 font-semibold text-rose-300'
+                          : 'text-[var(--cb-text-muted)]',
+                      )}>
                         {stock.score.toFixed(1)}
                       </span>
                       {justMoved && (
@@ -205,7 +230,12 @@ export function RankedList({ initial }: Props) {
                           'rounded px-1 text-[9px] font-semibold',
                           movedUp ? 'bg-emerald-400/15 text-emerald-300' : 'bg-rose-400/15 text-rose-300',
                         )}>
-                          {movedUp ? 'moved up' : 'moved down'}
+                          {movedDelta >= 0 ? '+' : ''}{movedDelta.toFixed(1)}
+                        </span>
+                      )}
+                      {signalChanged && (
+                        <span className="rounded bg-white/10 px-1 text-[9px] font-semibold text-[var(--cb-text-primary)] ring-1 ring-white/15">
+                          signal changed
                         </span>
                       )}
                     </span>

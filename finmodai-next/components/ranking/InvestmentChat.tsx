@@ -62,6 +62,8 @@ type ScoreChange = {
   fromScore: number;
   toScore: number;
   delta: number;
+  fromSignal: RankedStock['signal'];
+  toSignal: RankedStock['signal'];
   factorDeltas: Partial<Record<ScoreFactor, number>>;
   primaryFactor: string;
   explanation: string;
@@ -98,9 +100,22 @@ function topFactor(stock: RankedStock): [keyof RankedStock['breakdown'], number]
 }
 
 function changedFactorTone(delta: number): string {
-  if (delta > 0) return 'border-emerald-400/40 bg-emerald-500/10';
-  if (delta < 0) return 'border-rose-400/40 bg-rose-500/10';
+  if (delta > 0) return 'animate-pulse border-emerald-400/60 bg-emerald-500/15 shadow-[0_0_18px_rgba(52,211,153,0.16)]';
+  if (delta < 0) return 'animate-pulse border-rose-400/60 bg-rose-500/15 shadow-[0_0_18px_rgba(251,113,133,0.16)]';
   return 'border-transparent';
+}
+
+function changedFactorSummary(factorDeltas: Partial<Record<ScoreFactor, number>>): string {
+  return (Object.entries(factorDeltas) as Array<[ScoreFactor, number | undefined]>)
+    .filter(([, delta]) => delta != null && Math.abs(delta) > 0)
+    .map(([factor, delta]) => `${SCORE_LABELS[factor]} ${delta! > 0 ? '↑' : '↓'}`)
+    .join(', ');
+}
+
+function scoreChangeExplanation(change: ScoreChange): string {
+  const direction = change.delta >= 0 ? 'increased' : 'decreased';
+  const quality = change.delta >= 0 ? 'stronger' : 'weaker';
+  return `Score ${direction} due to ${quality} ${factorLabel(change.primaryFactor).toLowerCase()} assumption.`;
 }
 
 function buildDecisionReply(
@@ -239,9 +254,11 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   const [input,     setInput]     = useState('');
   const [streaming, setStreaming] = useState(false);
   const [scoreChange, setScoreChange] = useState<ScoreChange | null>(null);
+  const [displayedScore, setDisplayedScore] = useState(stock?.score ?? 0);
   const scrollRef  = useRef<HTMLDivElement>(null);
   const abortRef   = useRef<AbortController | null>(null);
   const prevTicker = useRef<string | null>(null);
+  const scoreAnimationRef = useRef<number | null>(null);
 
   // Reset conversation when selected stock changes
   useEffect(() => {
@@ -254,9 +271,44 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       setInput('');
       setStreaming(false);
       setScoreChange(null);
+      setDisplayedScore(stock?.score ?? 0);
       prevTicker.current = stock?.ticker ?? null;
     }
   }, [stock]);
+
+  useEffect(() => {
+    return () => {
+      if (scoreAnimationRef.current !== null) cancelAnimationFrame(scoreAnimationRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!scoreChange) {
+      setDisplayedScore(stock?.score ?? 0);
+      return;
+    }
+
+    if (scoreAnimationRef.current !== null) cancelAnimationFrame(scoreAnimationRef.current);
+    const startedAt = performance.now();
+    const durationMs = 700;
+
+    const step = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / durationMs);
+      const eased = 1 - (1 - progress) ** 3;
+      const next = scoreChange.fromScore + (scoreChange.toScore - scoreChange.fromScore) * eased;
+      setDisplayedScore(Math.round(next * 10) / 10);
+
+      if (progress < 1) {
+        scoreAnimationRef.current = requestAnimationFrame(step);
+      } else {
+        setDisplayedScore(scoreChange.toScore);
+        scoreAnimationRef.current = null;
+      }
+    };
+
+    setDisplayedScore(scoreChange.fromScore);
+    scoreAnimationRef.current = requestAnimationFrame(step);
+  }, [scoreChange, stock?.score]);
 
   // Auto-scroll to latest message
   useEffect(() => {
@@ -312,6 +364,8 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             fromScore: stock.score,
             toScore: payload.result.adjustedScore,
             delta: payload.result.delta,
+            fromSignal: stock.signal,
+            toSignal: signalFromScore(payload.result.adjustedScore),
             factorDeltas: payload.result.factorDeltas,
             primaryFactor: payload.parsedClaim?.primaryFactor ?? 'score',
             explanation: payload.result.explanation,
@@ -446,18 +500,31 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   const scoreDeltaTone = scoreChange && scoreChange.delta >= 0
     ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-400/25'
     : 'bg-rose-500/15 text-rose-300 ring-rose-400/25';
+  const thresholdChanged = Boolean(scoreChange && scoreChange.fromSignal !== scoreChange.toSignal);
+  const factorSummary = scoreChange ? changedFactorSummary(scoreChange.factorDeltas) : '';
 
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex shrink-0 items-center gap-2.5 border-b border-[var(--cb-border)] px-4 py-3">
         <span className="text-sm font-bold text-[var(--cb-text-primary)]">{stock.ticker}</span>
-        <span className={cn('rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums transition-all duration-300', signalColor, scoreChange && 'scale-105 ring-1 ring-white/20')}>
-          {stock.score.toFixed(1)}
+        <span className={cn(
+          'rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums transition-all duration-300',
+          signalColor,
+          scoreChange && 'scale-110 ring-1 ring-white/25',
+          thresholdChanged && 'animate-pulse',
+        )}>
+          {displayedScore.toFixed(1)}
         </span>
         {scoreChange && (
           <span className={cn('rounded-md px-2 py-0.5 text-[10px] font-semibold tabular-nums ring-1 transition-all duration-300', scoreDeltaTone)}>
-            {scoreChange.fromScore.toFixed(1)} → {scoreChange.toScore.toFixed(1)}
+            {scoreChange.delta >= 0 ? '+' : ''}{scoreChange.delta.toFixed(1)}
+            {factorSummary ? ` (${factorSummary})` : ''}
+          </span>
+        )}
+        {thresholdChanged && scoreChange && (
+          <span className="rounded-md bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--cb-text-primary)] ring-1 ring-white/15">
+            {capitalize(scoreChange.fromSignal)} → {capitalize(scoreChange.toSignal)}
           </span>
         )}
         <span className="min-w-0 flex-1 truncate text-xs text-[var(--cb-text-muted)]">
@@ -505,11 +572,26 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
           ))}
         </div>
         {scoreChange && (
-          <div className="mt-3 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 py-2 text-xs text-[var(--cb-text-secondary)]">
-            <span className="font-semibold text-[var(--cb-text-primary)]">
-              Thesis changed:
-            </span>{' '}
-            {factorLabel(scoreChange.primaryFactor)} drove a {scoreChange.delta >= 0 ? '+' : ''}{scoreChange.delta.toFixed(1)} score move.
+          <div className={cn(
+            'mt-3 rounded-lg border px-3 py-2 text-xs transition-all duration-300',
+            scoreChange.delta >= 0
+              ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-100'
+              : 'border-rose-400/25 bg-rose-500/10 text-rose-100',
+          )}>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-[var(--cb-text-primary)]">
+                Thesis changed
+              </span>
+              <span className="font-semibold tabular-nums">
+                {scoreChange.fromScore.toFixed(1)} → {scoreChange.toScore.toFixed(1)}
+              </span>
+              <span className="font-semibold tabular-nums">
+                {scoreChange.delta >= 0 ? '+' : ''}{scoreChange.delta.toFixed(1)}
+              </span>
+            </div>
+            <p className="mt-1 text-[11px] text-[var(--cb-text-secondary)]">
+              {scoreChangeExplanation(scoreChange)}
+            </p>
           </div>
         )}
       </div>
