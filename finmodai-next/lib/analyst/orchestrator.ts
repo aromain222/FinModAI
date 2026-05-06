@@ -64,12 +64,12 @@ export type DetectionResult = {
 
 const HOUSE_STYLE = `
 Write like a serious early-career buy-side analyst.
-- Start with the judgment; support it with the mechanism.
-- Tie every point to the 1–3 month investment window — not the long-term story.
-- Name specific catalysts and risks; never use "investors will be watching."
-- Numbers sharpen; omit them when they blur.
-- Short paragraphs, no throat-clearing openings.
-- Avoid: "well positioned," "meaningful opportunity," "significant upside," "strong long-term story."
+Every answer must be exactly four lines using these labels:
+Current stance: Bullish / Neutral / Bearish.
+Why now: what matters in the next 1-3 months.
+Key driver: the single most important factor.
+Main risk: what breaks the thesis.
+Keep each line short. No markdown bullets, no extra paragraphs, no descriptive setup without a decision.
 `.trim();
 
 // ── Mode detection ─────────────────────────────────────────────────────────
@@ -210,10 +210,12 @@ function buildSystemPrompt(mode: InvestmentMode, ctx: OrchestratorContext): stri
     `Current task: ${modeInstruction[mode]}`,
     '',
     'Hard output constraints:',
-    '- Every response must reference: (a) the 1–3 month horizon, (b) at least one specific catalyst, (c) the key risk.',
-    '- Do not write more than 250 words unless the mode is "pitch" (cap: 350 words).',
-    '- Do not repeat the score numerically more than once.',
-    '- Do not use "investors will be watching," "well positioned," or "meaningful upside" without a mechanism attached.',
+    '- Output exactly 4 lines, no more.',
+    '- Line 1 starts with "Current stance:" and must be Bullish, Neutral, or Bearish.',
+    '- Line 2 starts with "Why now:" and must reference the next 1-3 months.',
+    '- Line 3 starts with "Key driver:" and names the most important factor.',
+    '- Line 4 starts with "Main risk:" and names what breaks the thesis.',
+    '- No markdown bullets. No preamble. No long explanations.',
   ].join('\n');
 }
 
@@ -279,8 +281,7 @@ export async function streamOrchestratorResponse(params: {
   const { message, mode, ctx, openai, models } = params;
   const messages = buildOrchestratorMessages(mode, message, ctx);
 
-  // Max tokens per mode
-  const maxTokens = mode === 'pitch' ? 550 : 350;
+  const maxTokens = 140;
 
   let stream: Awaited<ReturnType<typeof openai.chat.completions.create>> | null = null;
   let lastErr: unknown;
@@ -348,35 +349,21 @@ function modeTemperature(mode: InvestmentMode): number {
  */
 function staticFallback(mode: InvestmentMode, ctx: OrchestratorContext): string {
   const { primaryTicker: t, score, signal, horizonWeeks: hw, primaryReason, mainRisk, forecastReturnPct } = ctx;
-  const signalLabel = signal === 'green' ? 'BUY' : signal === 'yellow' ? 'WATCH' : 'AVOID';
+  const stance = signal === 'green' ? 'Bullish' : signal === 'yellow' ? 'Neutral' : 'Bearish';
   const returnLine  =
     forecastReturnPct != null
-      ? ` Model projects ${forecastReturnPct >= 0 ? '+' : ''}${forecastReturnPct.toFixed(1)}% over the ${hw}-week window.`
-      : '';
+      ? `Forecast adds ${forecastReturnPct >= 0 ? '+' : ''}${forecastReturnPct.toFixed(1)}% over ${hw} weeks.`
+      : `The ${hw}-week setup depends on the next catalyst.`;
+  const modeDriver = mode === 'challenge'
+    ? `Weakest point is whether ${mainRisk}`
+    : mode === 'compare'
+      ? 'Relative rank versus peers depends on catalyst quality and risk'
+      : primaryReason;
 
-  switch (mode) {
-    case 'explain':
-      return `${t} scores ${score.toFixed(1)}/10 — ${signalLabel}.${returnLine} The dominant driver is: ${primaryReason}. Main risk: ${mainRisk}. Horizon: ${hw} weeks.`;
-
-    case 'evaluate':
-      return `Verdict: ${signalLabel} at current levels over the ${hw}-week window (score ${score.toFixed(1)}/10). The case rests on ${primaryReason}. The position invalidates if ${mainRisk}.`;
-
-    case 'challenge':
-      return `Pushback on the ${signalLabel} call for ${t}: the model may be underweighting "${mainRisk}." If that risk materialises, the ${score.toFixed(1)} score is too generous. The catalyst pipeline (${ctx.catalystCount} events) is the key variable to watch over the next ${hw} weeks.`;
-
-    case 'compare':
-      return `${t} (${signalLabel}, ${score.toFixed(1)}) vs peers: relative ranking shown in the scored list. Catalyst and risk comparison requires AI provider access.`;
-
-    case 'pitch':
-      return [
-        `**${t} — ${signalLabel}** | Score: ${score.toFixed(1)}/10 | ${hw}w horizon`,
-        '',
-        `**Thesis:** ${primaryReason}${returnLine}`,
-        '',
-        `**Bull case:** Catalyst pipeline intact (${ctx.catalystCount} events); quantitative model in positive territory.`,
-        `**Bear case:** ${mainRisk}`,
-        '',
-        `**Positioning:** Size proportional to conviction (score ${score.toFixed(1)}/10); reassess after next catalyst.`,
-      ].join('\n');
-  }
+  return [
+    `Current stance: ${stance} (${t}, ${score.toFixed(1)}/10).`,
+    `Why now: ${returnLine}`,
+    `Key driver: ${modeDriver}.`,
+    `Main risk: ${mainRisk}.`,
+  ].join('\n');
 }

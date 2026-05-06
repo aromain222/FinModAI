@@ -70,7 +70,7 @@ type ScoreChange = {
 function signalWord(signal: RankedStock['signal']): string {
   if (signal === 'green') return 'Bullish';
   if (signal === 'red') return 'Bearish';
-  return 'Watch';
+  return 'Neutral';
 }
 
 function signalFromScore(score: number): RankedStock['signal'] {
@@ -93,50 +93,67 @@ function sortedFactors(stock: RankedStock): Array<[keyof RankedStock['breakdown'
     .sort((a, b) => b[1] - a[1]);
 }
 
+function topFactor(stock: RankedStock): [keyof RankedStock['breakdown'], number] {
+  return sortedFactors(stock)[0] ?? ['forecastSignal', stock.breakdown.forecastSignal];
+}
+
 function changedFactorTone(delta: number): string {
   if (delta > 0) return 'border-emerald-400/40 bg-emerald-500/10';
   if (delta < 0) return 'border-rose-400/40 bg-rose-500/10';
   return 'border-transparent';
 }
 
+function buildDecisionReply(
+  stock: RankedStock,
+  options: {
+    whyNow?: string;
+    keyDriver?: string;
+    mainRisk?: string;
+    stanceSuffix?: string;
+  } = {},
+): string {
+  const [factor, value] = topFactor(stock);
+  const stance = `${signalWord(stock.signal)}${options.stanceSuffix ? ` ${options.stanceSuffix}` : ''}`;
+  return [
+    `Current stance: ${stance}.`,
+    `Why now: ${options.whyNow ?? stock.primaryReason}`,
+    `Key driver: ${options.keyDriver ?? `${SCORE_LABELS[factor]} at ${value.toFixed(1)}/10`}.`,
+    `Main risk: ${options.mainRisk ?? stock.mainRisk}.`,
+  ].join('\n');
+}
+
 function buildExplain(stock: RankedStock): string {
   const [first, second, third] = sortedFactors(stock);
-  return [
-    `${stock.ticker} is ranked ${stock.score.toFixed(1)}/10 because ${SCORE_LABELS[first[0]].toLowerCase()}, ${SCORE_LABELS[second[0]].toLowerCase()}, and ${SCORE_LABELS[third[0]].toLowerCase()} carry the setup.`,
-    `${stock.primaryReason}.`,
-    `Main risk: ${stock.mainRisk}.`,
-  ].filter(Boolean).join(' ');
+  return buildDecisionReply(stock, {
+    whyNow: `${stock.primaryReason} over the 1-3 month setup.`,
+    keyDriver: `${SCORE_LABELS[first[0]]}, ${SCORE_LABELS[second[0]]}, and ${SCORE_LABELS[third[0]]} carry the score.`,
+  });
 }
 
 function buildMoveHigher(stock: RankedStock): string {
   const weak = sortedFactors(stock).slice(-3).reverse();
-  return [
-    `${stock.ticker}'s score moves higher if the lagging components improve:`,
-    ...weak.map(([factor, value]) => `${SCORE_LABELS[factor]} is ${value.toFixed(1)}/10 and needs clearer evidence.`),
-    'The highest-quality upgrade would be a catalyst that lifts estimates while the forecast path and momentum confirm.',
-  ].join('\n');
+  return buildDecisionReply(stock, {
+    whyNow: 'The next 1-3 months need confirmation from catalysts, estimates, or price action.',
+    keyDriver: `Score moves higher if ${weak.map(([factor]) => SCORE_LABELS[factor].toLowerCase()).join(', ')} improve.`,
+    mainRisk: stock.mainRisk,
+  });
 }
 
 function buildBadTrade(stock: RankedStock): string {
   const weakest = sortedFactors(stock).at(-1);
-  return [
-    `${stock.ticker} gets weaker if the setup stops improving inside the 1-3 month window.`,
-    weakest ? `${SCORE_LABELS[weakest[0]]} is the weakest component at ${weakest[1].toFixed(1)}/10.` : null,
-    `Bad-trade trigger: ${stock.mainRisk}.`,
-    'Pass if guidance fails to support the catalyst, the forecast turns negative, or valuation starts pricing the upside before fundamentals confirm it.',
-  ].filter(Boolean).join(' ');
+  return buildDecisionReply(stock, {
+    whyNow: `${stock.ticker} gets weaker if the setup stops improving inside the 1-3 month window.`,
+    keyDriver: weakest ? `${SCORE_LABELS[weakest[0]]} is weakest at ${weakest[1].toFixed(1)}/10.` : 'The weakest score component needs improvement.',
+    mainRisk: stock.mainRisk,
+  });
 }
 
 function buildPitch(stock: RankedStock): string {
   const marketMiss = 'The market appears close to fair value, so catalysts matter more than valuation.';
-  return [
-    `${stock.ticker} — Weekly Pitch`,
-    `Signal: ${signalWord(stock.signal)}`,
-    `Why Now: ${stock.primaryReason}`,
-    `Market Miss: ${marketMiss}`,
-    `Risk: ${stock.mainRisk}`,
-    `Trade: ${stock.signal === 'green' ? 'Buy / work up' : stock.signal === 'red' ? 'Pass / avoid' : 'Wait'}`,
-  ].join('\n');
+  return buildDecisionReply(stock, {
+    whyNow: stock.primaryReason,
+    keyDriver: `${marketMiss} Trade: ${stock.signal === 'green' ? 'Buy / work up' : stock.signal === 'red' ? 'Pass / avoid' : 'Wait'}.`,
+  });
 }
 
 function buildEvaluate(stock: RankedStock): string {
@@ -146,21 +163,23 @@ function buildEvaluate(stock: RankedStock): string {
       ? 'Avoid unless the setup changes'
       : 'Wait';
   const best = sortedFactors(stock)[0];
-  return [
-    `Decision: ${trade}.`,
-    `${stock.ticker} scores ${stock.score.toFixed(1)}/10 with ${best ? SCORE_LABELS[best[0]].toLowerCase() : 'the score'} as the strongest input.`,
-    `Use a 1-3 month horizon. The main thing to monitor is: ${stock.mainRisk}.`,
-  ].join(' ');
+  return buildDecisionReply(stock, {
+    stanceSuffix: `(${trade})`,
+    whyNow: `${stock.primaryReason} over the 1-3 month window.`,
+    keyDriver: best ? `${SCORE_LABELS[best[0]]} is strongest at ${best[1].toFixed(1)}/10.` : 'The score is the strongest input.',
+  });
 }
 
 function buildCompare(stock: RankedStock, peers: PeerStock[]): string {
   const ranked = [stock, ...peers]
     .sort((a, b) => b.score - a.score)
     .slice(0, 5);
-  return [
-    `${stock.ticker} ranks ${ranked.findIndex(s => s.ticker === stock.ticker) + 1} of ${ranked.length} in this view.`,
-    ...ranked.map(s => `${s.ticker}: ${s.score.toFixed(1)} (${signalWord(s.signal)}) — ${s.primaryReason}`),
-  ].join('\n');
+  const rank = ranked.findIndex(s => s.ticker === stock.ticker) + 1;
+  const bestPeer = ranked.find(s => s.ticker !== stock.ticker);
+  return buildDecisionReply(stock, {
+    whyNow: `${stock.ticker} ranks ${rank} of ${ranked.length} for the current 1-3 month setup.`,
+    keyDriver: bestPeer ? `Nearest peer: ${bestPeer.ticker} at ${bestPeer.score.toFixed(1)} because ${bestPeer.primaryReason}.` : 'No peer comparison is available.',
+  });
 }
 
 function buildLocalReply(stock: RankedStock, text: string, mode?: InvestmentMode): string | null {
@@ -175,7 +194,13 @@ function buildLocalReply(stock: RankedStock, text: string, mode?: InvestmentMode
 
 function buildAssumptionReply(stock: RankedStock, payload: AssumptionUpdateResponse): string {
   const result = payload.result;
-  if (!result) return 'I could not apply that assumption to the score. Try making the driver more specific.';
+  if (!result) {
+    return buildDecisionReply(stock, {
+      whyNow: 'No score change was applied in this 1-3 month setup.',
+      keyDriver: 'The assumption was not specific enough to map to a scoring factor.',
+      mainRisk: 'The ranking is unchanged until the driver is clearer.',
+    });
+  }
 
   const fromScore = result.adjustedScore - result.delta;
   const primaryFactor = payload.parsedClaim?.primaryFactor
@@ -186,14 +211,23 @@ function buildAssumptionReply(stock: RankedStock, payload: AssumptionUpdateRespo
     .map(([factor, delta]) => `${SCORE_LABELS[factor]} ${delta > 0 ? '+' : ''}${delta.toFixed(1)}`)
     .join(', ');
 
-  return [
-    `Adjusted Score: ${fromScore.toFixed(1)} → ${result.adjustedScore.toFixed(1)} (${result.delta >= 0 ? '+' : ''}${result.delta.toFixed(1)}).`,
-    `Plausibility: ${capitalize(result.plausibility)}.`,
-    `Why: This mainly changes ${primaryFactor}${factorMoves ? ` (${factorMoves})` : ''}.`,
-    result.explanation,
-    result.pushback ? `Pushback: ${result.pushback}` : null,
-    `Updated read: ${signalWord(signalFromScore(result.adjustedScore))} for ${stock.ticker}.`,
-  ].filter(Boolean).join('\n');
+  return buildDecisionReply(
+    { ...stock, score: result.adjustedScore, signal: signalFromScore(result.adjustedScore), breakdown: result.adjustedBreakdown },
+    {
+      stanceSuffix: `(score ${fromScore.toFixed(1)} → ${result.adjustedScore.toFixed(1)})`,
+      whyNow: `The assumption changes the 1-3 month thesis with ${capitalize(result.plausibility)} plausibility.`,
+      keyDriver: `${primaryFactor}${factorMoves ? ` (${factorMoves})` : ''} drove the score move.`,
+      mainRisk: result.pushback ?? stock.mainRisk,
+    },
+  );
+}
+
+function buildInputErrorReply(stock: RankedStock, reason: string): string {
+  return buildDecisionReply(stock, {
+    whyNow: 'The 1-3 month thesis is unchanged because the assumption update failed.',
+    keyDriver: reason,
+    mainRisk: stock.mainRisk,
+  });
 }
 
 function looksLikeAssumptionUpdate(text: string): boolean {
@@ -287,11 +321,11 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
           return;
         } catch (err) {
           if ((err as Error).name === 'AbortError') {
-            setMessages([...history, { role: 'assistant', content: 'I could not update the score within 2 seconds. The current ranking is unchanged.' }]);
+            setMessages([...history, { role: 'assistant', content: buildInputErrorReply(stock, 'The score update timed out after 2 seconds.') }]);
             return;
           }
           console.error('[InvestmentChat assumption-update]', err);
-          setMessages([...history, { role: 'assistant', content: 'I could not apply that assumption cleanly. Try naming the driver, such as earnings, growth, valuation, momentum, or risk.' }]);
+          setMessages([...history, { role: 'assistant', content: buildInputErrorReply(stock, 'The assumption needs a clearer driver such as earnings, growth, valuation, momentum, or risk.') }]);
           return;
         } finally {
           window.clearTimeout(timeoutId);
@@ -374,7 +408,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
           if (last?.role === 'assistant' && last.content === '') {
             return [
               ...prev.slice(0, -1),
-              { role: 'assistant', content: 'Analysis unavailable — AI provider may be offline.' },
+              { role: 'assistant', content: buildInputErrorReply(stock, 'AI provider unavailable; using current score context only.') },
             ];
           }
           return prev;
