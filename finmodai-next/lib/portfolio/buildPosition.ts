@@ -18,6 +18,7 @@ function computeStatus(score: number, daysSinceEntry: number): ActivePosition['s
 export function buildPositionFromRankedStock(
   stock: RankedStock,
   entryPrice: number,
+  notionalUsd?: number | null,
 ): ActivePosition {
   const brief = getCompanyBrief(stock.ticker);
   const now   = new Date();
@@ -34,6 +35,7 @@ export function buildPositionFromRankedStock(
     entryDate:     now.toISOString(),
     entryPrice,
     currentPrice:  entryPrice,
+    notionalUsd:   typeof notionalUsd === 'number' && Number.isFinite(notionalUsd) && notionalUsd > 0 ? notionalUsd : null,
     entryScore:    stock.score,
     currentScore:  stock.score,
     entrySignal:   stock.signal,
@@ -49,7 +51,7 @@ export function buildPositionFromRankedStock(
       {
         id:          `${id}-entry`,
         date:        now.toISOString(),
-        description: `Position opened at $${entryPrice.toFixed(2)}. ${stock.primaryReason}`,
+        description: `Position opened at $${entryPrice.toFixed(2)}${typeof notionalUsd === 'number' && Number.isFinite(notionalUsd) && notionalUsd > 0 ? ` with $${Math.round(notionalUsd).toLocaleString('en-US')} tracked` : ''}. ${stock.primaryReason}`,
         kind:        'entry',
       },
     ],

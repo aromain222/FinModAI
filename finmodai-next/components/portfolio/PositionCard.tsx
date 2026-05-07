@@ -30,6 +30,11 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+function formatMoney(value: number | null | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
+  return `$${Math.round(value).toLocaleString('en-US')}`;
+}
+
 type Props = {
   position: ActivePosition;
   onUpdatePrice: (id: string, price: number) => void;
@@ -43,6 +48,9 @@ export function PositionCard({ position, onUpdatePrice, onExit, onRemove }: Prop
   const [priceInput,       setPriceInput]       = useState('');
 
   const pctChange = ((position.currentPrice - position.entryPrice) / position.entryPrice) * 100;
+  const dollarPnL = typeof position.notionalUsd === 'number' && Number.isFinite(position.notionalUsd)
+    ? position.notionalUsd * (pctChange / 100)
+    : null;
   const scoreDelta = position.currentScore - position.entryScore;
   const drift      = driftBadge(position.thesisDrift);
 
@@ -68,6 +76,11 @@ export function PositionCard({ position, onUpdatePrice, onExit, onRemove }: Prop
           <span className={cn('text-lg font-bold tabular-nums', pctChangeColor(pctChange))}>
             {pctChange >= 0 ? '+' : ''}{pctChange.toFixed(1)}%
           </span>
+          {dollarPnL !== null && (
+            <span className={cn('text-sm font-semibold tabular-nums', pctChangeColor(dollarPnL))}>
+              {dollarPnL >= 0 ? '+' : ''}{formatMoney(dollarPnL)}
+            </span>
+          )}
           <button
             type="button"
             onClick={() => onExit(position.id)}
@@ -91,6 +104,9 @@ export function PositionCard({ position, onUpdatePrice, onExit, onRemove }: Prop
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--cb-text-muted)]">
         <span>Entry <span className="tabular-nums text-[var(--cb-text-primary)]">${position.entryPrice.toFixed(2)}</span></span>
         <span>Now <span className="tabular-nums text-[var(--cb-text-primary)]">${position.currentPrice.toFixed(2)}</span></span>
+        {position.notionalUsd ? (
+          <span>Amount <span className="tabular-nums text-[var(--cb-text-primary)]">{formatMoney(position.notionalUsd)}</span></span>
+        ) : null}
         <span>Score <span className="tabular-nums text-[var(--cb-text-primary)]">{position.entryScore.toFixed(1)} → {position.currentScore.toFixed(1)}</span>
           {' '}<span className={scoreDelta >= 0 ? 'text-emerald-300' : 'text-rose-300'}>({scoreDelta >= 0 ? '+' : ''}{scoreDelta.toFixed(1)})</span>
         </span>

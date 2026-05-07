@@ -21,6 +21,7 @@ export type ActivePosition = {
   entryDate: string;
   entryPrice: number;
   currentPrice: number;
+  notionalUsd?: number | null;
   entryScore: number;
   currentScore: number;
   entrySignal: 'green' | 'yellow' | 'red';

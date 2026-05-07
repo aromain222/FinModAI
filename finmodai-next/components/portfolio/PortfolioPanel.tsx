@@ -12,6 +12,7 @@ import {
 } from '@/lib/portfolio/storage';
 import type { ActivePosition } from '@/lib/portfolio/types';
 import { PositionCard } from './PositionCard';
+import { PortfolioNewsWatch } from './PortfolioNewsWatch';
 
 export function PortfolioPanel() {
   const [positions, setPositions] = useState<ActivePosition[]>([]);
@@ -69,6 +70,7 @@ export function PortfolioPanel() {
         </div>
       ) : (
         <div className="space-y-3">
+          <PortfolioNewsWatch positions={active} />
           {visible.map(position => (
             <PositionCard
               key={position.id}

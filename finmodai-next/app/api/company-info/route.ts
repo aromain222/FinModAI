@@ -9,7 +9,14 @@ export type CompanyInfoResponse = {
   website: string | null;
   employees: number | null;
   founded: string | null;
-  news: Array<{ title: string; url: string; source: string; publishedAt: string }>;
+  news: Array<{
+    title: string;
+    url: string;
+    source: string;
+    publishedAt: string;
+    description?: string | null;
+    provider?: string;
+  }>;
 };
 
 async function fetchFmpProfile(ticker: string, apiKey: string) {
@@ -41,7 +48,83 @@ async function fetchFmpNews(ticker: string, apiKey: string) {
     url: item.url ?? '',
     source: item.site ?? '',
     publishedAt: item.publishedDate ?? '',
+    provider: 'fmp',
   }));
+}
+
+function companyAliasesForTicker(ticker: string): string[] {
+  const aliases: Record<string, string[]> = {
+    GOOGL: ['Alphabet', 'Google', 'GOOGL', 'GOOG', 'Gemini', 'YouTube', 'Google Cloud'],
+    GOOG: ['Alphabet', 'Google', 'GOOG', 'GOOGL', 'Gemini', 'YouTube', 'Google Cloud'],
+    NVDA: ['Nvidia', 'NVDA', 'Blackwell', 'CUDA', 'GPU'],
+    UBER: ['Uber', 'UBER', 'ride-sharing', 'rideshare'],
+    TSLA: ['Tesla', 'TSLA', 'FSD', 'robotaxi'],
+    AMZN: ['Amazon', 'AMZN', 'AWS'],
+    META: ['Meta', 'META', 'Facebook', 'Instagram'],
+    MSFT: ['Microsoft', 'MSFT', 'Azure', 'Copilot'],
+    AAPL: ['Apple', 'AAPL', 'iPhone'],
+  };
+  return aliases[ticker] ?? [ticker];
+}
+
+async function fetchPerigonNews(ticker: string, apiKey: string) {
+  const aliases = companyAliasesForTicker(ticker)
+    .slice(0, 6)
+    .map((alias) => `"${alias.replace(/"/g, '')}"`);
+  const q = aliases.length > 0 ? aliases.join(' OR ') : ticker;
+  const from = new Date();
+  from.setDate(from.getDate() - 30);
+  const params = new URLSearchParams({
+    apiKey,
+    q,
+    from: from.toISOString(),
+    sortBy: 'date',
+    size: '12',
+    language: 'en',
+  });
+  const res = await fetch(`https://api.goperigon.com/v1/all?${params.toString()}`, {
+    cache: 'no-store',
+    signal: AbortSignal.timeout(6000),
+  });
+  if (!res.ok) return [];
+  const payload = (await res.json()) as { articles?: unknown[] };
+  const rows = Array.isArray(payload.articles) ? payload.articles : [];
+  return rows
+    .map((row): CompanyInfoResponse['news'][number] | null => {
+      if (!row || typeof row !== 'object') return null;
+      const item = row as Record<string, unknown>;
+      const title = typeof item.title === 'string' ? item.title.trim() : '';
+      const url = typeof item.url === 'string' ? item.url.trim() : '';
+      if (!title || !url) return null;
+      const source =
+        typeof item.source === 'string' ? item.source :
+        typeof item.sourceDomain === 'string' ? item.sourceDomain :
+        'Perigon';
+      return {
+        title,
+        url,
+        source,
+        publishedAt: typeof item.publishedAt === 'string' ? item.publishedAt : new Date().toISOString(),
+        description:
+          typeof item.summary === 'string' ? item.summary :
+          typeof item.description === 'string' ? item.description :
+          null,
+        provider: 'perigon',
+      };
+    })
+    .filter((item): item is CompanyInfoResponse['news'][number] => item !== null);
+}
+
+function dedupeNews(items: CompanyInfoResponse['news']): CompanyInfoResponse['news'] {
+  const seen = new Set<string>();
+  const output: CompanyInfoResponse['news'] = [];
+  for (const item of items) {
+    const key = item.url || item.title.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(item);
+  }
+  return output.slice(0, 12);
 }
 
 export async function GET(req: NextRequest) {
@@ -76,6 +159,11 @@ export async function GET(req: NextRequest) {
     if (newsItems.status === 'fulfilled') {
       news = newsItems.value.filter((n) => n.title && n.url);
     }
+  }
+
+  if (process.env.PERIGON_API_KEY) {
+    const perigonNews = await fetchPerigonNews(ticker, process.env.PERIGON_API_KEY).catch(() => []);
+    news = dedupeNews([...perigonNews, ...news]);
   }
 
   const result: CompanyInfoResponse = { ticker, description, website, employees, founded, news };

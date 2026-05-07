@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { BookOpen, CheckCircle, FileText, Loader2, Plus, Send, TrendingUp } from 'lucide-react';
+import { TradeReadinessStrip } from '@/components/ranking/TradeReadinessStrip';
+import { ScoreBacktestPanel } from '@/components/ranking/ScoreBacktestPanel';
+import { ConvictionMeter, parseConvictionLevel } from '@/components/ranking/ConvictionMeter';
 import { getPitchQueue, upsertPitchQueueItem } from '@/lib/pitchQueue/storage';
 import { buildPitchQueueItemFromRankedStock } from '@/lib/pitchQueue/buildPitch';
 import {
@@ -717,6 +720,9 @@ function buildInputErrorReply(stock: RankedStock, reason: string): string {
 function buildPositionEvolution(stock: RankedStock, position: ActivePosition): string {
   const daysSince = Math.floor((Date.now() - new Date(position.entryDate).getTime()) / 86400000);
   const pctChange = ((position.currentPrice - position.entryPrice) / position.entryPrice) * 100;
+  const dollarPnL = typeof position.notionalUsd === 'number' && Number.isFinite(position.notionalUsd)
+    ? position.notionalUsd * (pctChange / 100)
+    : null;
   const scoreDelta = position.currentScore - position.entryScore;
   const recentEvents = position.timeline.slice(-3).reverse();
   const eventStr = recentEvents.length > 0
@@ -726,7 +732,7 @@ function buildPositionEvolution(stock: RankedStock, position: ActivePosition): s
     : '';
   return [
     `Position: ${stock.ticker} (${daysSince}d open)`,
-    `P&L: ${pctChange >= 0 ? '+' : ''}${pctChange.toFixed(1)}% · Entry: $${position.entryPrice.toFixed(2)} · Current: $${position.currentPrice.toFixed(2)}`,
+    `P&L: ${pctChange >= 0 ? '+' : ''}${pctChange.toFixed(1)}%${dollarPnL !== null ? ` (${dollarPnL >= 0 ? '+' : ''}$${Math.round(dollarPnL).toLocaleString('en-US')})` : ''} · Entry: $${position.entryPrice.toFixed(2)} · Current: $${position.currentPrice.toFixed(2)}${position.notionalUsd ? ` · Amount: $${Math.round(position.notionalUsd).toLocaleString('en-US')}` : ''}`,
     `Score: ${position.entryScore.toFixed(1)} → ${position.currentScore.toFixed(1)} (${scoreDelta >= 0 ? '+' : ''}${scoreDelta.toFixed(1)}) · Drift: ${capitalize(position.thesisDrift)}`,
     `Stance: ${position.currentStance}`,
     `Next: ${position.nextCatalyst}`,
@@ -808,6 +814,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   const [currentPosition,   setCurrentPosition]   = useState<ActivePosition | null>(null);
   const [showEnterForm,     setShowEnterForm]     = useState(false);
   const [entryPriceInput,   setEntryPriceInput]   = useState('');
+  const [positionAmountInput, setPositionAmountInput] = useState('');
   const [positionConfirmed, setPositionConfirmed] = useState(false);
   const scrollRef         = useRef<HTMLDivElement>(null);
   const abortRef          = useRef<AbortController | null>(null);
@@ -836,6 +843,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       setDisplayedScore(stock?.score ?? 0);
       setShowEnterForm(false);
       setEntryPriceInput('');
+      setPositionAmountInput('');
       setPositionConfirmed(false);
       setCurrentPosition(
         stock ? (getActivePositions().find(p => p.ticker === stock.ticker) ?? null) : null,
@@ -1103,16 +1111,18 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   const handleEnterPosition = useCallback(() => {
     if (!stock) return;
     const price = parseFloat(entryPriceInput);
+    const amount = parseFloat(positionAmountInput);
     if (isNaN(price) || price <= 0) return;
-    const position = buildPositionFromRankedStock(stock, price);
+    const position = buildPositionFromRankedStock(stock, price, !isNaN(amount) && amount > 0 ? amount : null);
     const updated  = addPosition(position);
     setCurrentPosition(updated.find(p => p.id === position.id) ?? null);
     setShowEnterForm(false);
     setEntryPriceInput('');
+    setPositionAmountInput('');
     if (positionTimeoutRef.current !== null) window.clearTimeout(positionTimeoutRef.current);
     setPositionConfirmed(true);
     positionTimeoutRef.current = window.setTimeout(() => setPositionConfirmed(false), 2400);
-  }, [stock, entryPriceInput]);
+  }, [stock, entryPriceInput, positionAmountInput]);
 
   // ── Empty state ──────────────────────────────────────────────────────────
 
@@ -1169,7 +1179,6 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
     ...(cryptoTape ? [{ label: 'Crypto tape', value: cryptoTape, prompt: 'Run the forecast agent: what does the forecast, momentum, and market tape imply?' }] : []),
     { label: 'Risk file',     value: resolvedRisk(stock),   prompt: 'What are the biggest risk factors that could break this trade?', mode: 'challenge' as InvestmentMode },
     { label: 'Valuation note', value: liveValuation.summary, prompt: 'Is this stock overpriced relative to its growth expectations?', mode: 'evaluate' as InvestmentMode },
-    { label: 'Score backtest', value: scoreBacktestContext(stock), prompt: 'When score > 7, what happened over next 30 days?' },
   ];
 
   return (
@@ -1204,21 +1213,8 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       {/* Trade Snapshot */}
       <div className="shrink-0 border-b border-[var(--cb-border)] px-4 py-3">
         <div className="flex items-start gap-4">
-          {/* Dominant action block */}
-          <div className={cn(
-            'shrink-0 rounded-lg border-l-2 pl-3 pr-4 py-1',
-            stock.signal === 'green'  ? 'border-emerald-400 bg-emerald-500/8'  :
-            stock.signal === 'yellow' ? 'border-amber-400 bg-amber-500/8'      :
-                                        'border-rose-400 bg-rose-500/8',
-          )}>
-            <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Trade Readiness</div>
-            <div className={cn('text-sm font-bold leading-tight', signalTextColor)}>
-              {readiness.label}
-            </div>
-            <div className="mt-0.5 text-[10px] text-[var(--cb-text-muted)]">
-              {readiness.label === 'Ready' ? `because ${actionDriver(topKey)}` : readiness.reason}
-            </div>
-          </div>
+          {/* Trade Readiness strip */}
+          <TradeReadinessStrip ticker={stock.ticker} computed={readiness} />
 
           {/* Metadata strip */}
           <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -1271,6 +1267,14 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
               </a>
             ) : showEnterForm ? (
               <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  value={positionAmountInput}
+                  onChange={e => setPositionAmountInput(e.target.value)}
+                  placeholder="$ amount"
+                  className="w-24 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 py-1 text-[11px] text-[var(--cb-text-primary)] focus:outline-none"
+                  onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
+                />
                 <input
                   type="number"
                   value={entryPriceInput}
@@ -1409,6 +1413,12 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             </button>
           ))}
         </div>
+
+        <ScoreBacktestPanel
+          stock={stock}
+          onClick={() => sendMessage('When score > 7, what happened over next 30 days?')}
+          disabled={streaming}
+        />
       </div>
 
       {/* Small score chart */}
@@ -1495,29 +1505,43 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
         ref={scrollRef}
         className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4"
       >
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}
-          >
+        {messages.map((msg, i) => {
+          const convictionLevel =
+            msg.role === 'assistant' && msg.content
+              ? parseConvictionLevel(msg.content)
+              : null;
+          return (
             <div
+              key={i}
               className={cn(
-                'max-w-[85%] rounded-xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap',
-                msg.role === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-[var(--cb-surface)] text-[var(--cb-text-body)] ring-1 ring-[var(--cb-border)]',
+                'flex flex-col',
+                msg.role === 'user' ? 'items-end' : 'items-start',
               )}
             >
-              {msg.content || (
-                <span className="flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current" />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:0.1s]" />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:0.2s]" />
-                </span>
+              <div
+                className={cn(
+                  'max-w-[85%] rounded-xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap',
+                  msg.role === 'user'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-[var(--cb-surface)] text-[var(--cb-text-body)] ring-1 ring-[var(--cb-border)]',
+                )}
+              >
+                {msg.content || (
+                  <span className="flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:0.1s]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:0.2s]" />
+                  </span>
+                )}
+              </div>
+              {convictionLevel && (
+                <div className="mt-1 w-full max-w-[85%] px-1">
+                  <ConvictionMeter level={convictionLevel} />
+                </div>
               )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Suggested prompts — always visible above input */}
