@@ -113,6 +113,7 @@ import {
   type EventAdjustmentInput,
   type PriceForecastPayload,
 } from '@/lib/forecast/eventAdjustedForecast';
+import { buildProviderBackedPriceForecast } from '@/lib/forecast/providerBackedForecast';
 import { labelForecastSource, type AnalystForecastModelPayload, type ForecastNewsWatchItem, type ForecastTradingSignal } from '@/lib/analyst/forecastModel';
 import { computePriceForecastBacktest } from '@/lib/analyst/forecastBacktest';
 import { computeTechnicalConfirmation } from '@/lib/analyst/technicalConfirmation';
@@ -4062,12 +4063,19 @@ export async function POST(req: NextRequest) {
           resolvedTicker;
 
         // Phase 1: Fetch and parse TimesFM price so the LLM can anchor its signal to it.
-        const pricePd = await Promise.race([
+        const priceFetchTimeoutMs = isCompanyForecastPrompt(lastUserMessage) ? 12000 : 6000;
+        const pricePdFromApi = await Promise.race([
           fetch(`${origin}/api/timesfm?type=price&ticker=${resolvedTicker}&horizon=${horizonDays}`, { cache: 'no-store' })
             .then((r) => r.ok ? (r.json() as Promise<PriceForecastPayload>) : null)
             .catch(() => null),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000)),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), priceFetchTimeoutMs)),
         ]);
+        const pricePd =
+          pricePdFromApi ??
+          await Promise.race([
+            buildProviderBackedPriceForecast(resolvedTicker, horizonDays),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 3500)),
+          ]);
         const timesFMBaseline = (() => {
           if (!pricePd?.model_available || !pricePd.forecast?.values || !pricePd.historical?.prices) return null;
           const cur = pricePd.historical.prices.at(-1);
@@ -4275,6 +4283,7 @@ export async function POST(req: NextRequest) {
             `lead with the supplied ${horizonLabel} forecast baseline, then layer in any event or news signals you know about ` +
             `(earnings, macro events, rate decisions, geopolitical risk) as adjustments on top of that baseline. ` +
             (forecastLeadSentence ? `The first sentence must be exactly: "${forecastLeadSentence}" ` : '') +
+            `Do not refuse short-term forecasting when this block is present; use directional expected-move ranges instead of exact price-target precision. ` +
             `If a combined outlook is provided, use that as the primary net view. ` +
             `Do not say no internal forecast model is loaded when this forecast block is present. ` +
             `Do not present baseline and event signals as unrelated bullets; synthesize baseline + overlay into one conclusion.`
