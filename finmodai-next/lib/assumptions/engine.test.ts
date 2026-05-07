@@ -160,15 +160,15 @@ test('assessPlausibility: "slightly improves" → high', () => {
   assert.equal(result.level, 'high');
 });
 
-test('assessPlausibility: ceiling check fires when factor near max', () => {
+test('assessPlausibility: strong but realistic claim is not dampened by factor ceiling', () => {
   const highBreakdown: ScoreBreakdown = {
     ...BASE_BREAKDOWN,
     earningsSetup: 9.2, // near ceiling
   };
   const claim  = parseClaim('Earnings beat significantly');
   const result = assessPlausibility(claim, highBreakdown);
-  assert.ok(result.level === 'low' || result.level === 'medium');
-  assert.ok(result.pushback !== null);
+  assert.equal(result.level, 'medium');
+  assert.equal(result.pushback, null);
 });
 
 test('assessPlausibility: high magnitude without extreme keywords → low', () => {

@@ -62,6 +62,15 @@ type AssumptionUpdateResponse = {
     explanation: string;
     pushback: string | null;
   };
+  financialImpact?: {
+    beforeValuation: NonNullable<RankedStock['meta']['valuation']>;
+    afterValuation: NonNullable<RankedStock['meta']['valuation']>;
+    valuationGapDelta: number | null;
+    expectedMoveDeltaPct: number;
+    riskScoreBefore: number;
+    riskScoreAfter: number;
+    riskRead: string;
+  };
   parsedClaim?: {
     direction: 'positive' | 'negative';
     primaryFactor: keyof RankedStock['breakdown'] | string;
@@ -179,12 +188,21 @@ function signalContext(stock: RankedStock): string {
   return `${forecast}; ${catalysts}; ${valuation}; momentum ${stock.breakdown.momentum.toFixed(1)}/10`;
 }
 
+function catalystContext(stock: RankedStock): string {
+  const catalysts = stock.meta.catalysts ?? [];
+  if (catalysts.length === 0) return 'No ranked live catalyst is loaded yet; use forecast, momentum, valuation, and company watch items until news refreshes.';
+  return catalysts
+    .slice(0, 3)
+    .map((catalyst) => `${catalyst.title} (${catalyst.channel}, ${catalyst.direction}, ${catalyst.impactPct >= 0 ? '+' : ''}${catalyst.impactPct.toFixed(1)}%)`)
+    .join('; ');
+}
+
 function buildExplain(stock: RankedStock): string {
   const [first, second, third] = sortedFactors(stock);
   const brief = getCompanyBrief(stock.ticker);
   return buildDecisionReply(stock, {
     whyNow: `${brief.strategicContext} ${brief.nearTermFocus}`,
-    keyDriver: `${brief.keyDriver} Top supports: ${factorListWithScores([first, second, third])}; ${signalContext(stock)}`,
+    keyDriver: `${brief.keyDriver} Top supports: ${factorListWithScores([first, second, third])}; ${signalContext(stock)}; catalysts: ${catalystContext(stock)}`,
     mainRisk: resolvedRisk(stock),
   });
 }
@@ -227,7 +245,7 @@ function buildEvidence(stock: RankedStock): string {
 function buildMonitor(stock: RankedStock): string {
   const brief = getCompanyBrief(stock.ticker);
   return buildDecisionReply(stock, {
-    whyNow: `Monitor ${brief.watchItems.slice(0, 4).join(', ')} before adding conviction`,
+    whyNow: `Monitor ${brief.watchItems.slice(0, 4).join(', ')} plus ranked catalysts: ${catalystContext(stock)}`,
     keyDriver: `A better setup needs the strongest factor to stay strong and the weakest factor to stop dragging the score`,
     mainRisk: brief.mainRisk,
   });
@@ -349,13 +367,16 @@ function buildAssumptionReply(stock: RankedStock, payload: AssumptionUpdateRespo
     forecastReturnPct: stock.meta.forecastReturnPct,
     factorBreakdown: stock.breakdown,
   });
-  const afterValuation = buildValuationSignal({
+  const afterValuation = payload.financialImpact?.afterValuation ?? buildValuationSignal({
     ticker: stock.ticker,
     forecastReturnPct: stock.meta.forecastReturnPct,
     factorBreakdown: result.adjustedBreakdown,
   });
+  const valuationGapDelta = payload.financialImpact?.valuationGapDelta;
   const valuationMove =
-    beforeValuation.impliedUpside != null && afterValuation.impliedUpside != null
+    payload.financialImpact
+      ? ` Valuation gap ${beforeValuation.impliedUpside != null && beforeValuation.impliedUpside >= 0 ? '+' : ''}${beforeValuation.impliedUpside?.toFixed(1) ?? 'n/a'}% → ${afterValuation.impliedUpside != null && afterValuation.impliedUpside >= 0 ? '+' : ''}${afterValuation.impliedUpside?.toFixed(1) ?? 'n/a'}%${valuationGapDelta != null ? ` (${valuationGapDelta >= 0 ? '+' : ''}${valuationGapDelta.toFixed(1)} pts)` : ''}; expected move proxy ${payload.financialImpact.expectedMoveDeltaPct >= 0 ? '+' : ''}${payload.financialImpact.expectedMoveDeltaPct.toFixed(1)}%. ${payload.financialImpact.riskRead}`
+      : beforeValuation.impliedUpside != null && afterValuation.impliedUpside != null
       ? ` Valuation gap ${beforeValuation.impliedUpside >= 0 ? '+' : ''}${beforeValuation.impliedUpside.toFixed(1)}% → ${afterValuation.impliedUpside >= 0 ? '+' : ''}${afterValuation.impliedUpside.toFixed(1)}%.`
       : '';
 
@@ -476,6 +497,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
               breakdown:    stock.breakdown,
               assumption:   trimmed,
               horizonWeeks: stock.horizonWeeks,
+              forecastReturnPct: stock.meta.forecastReturnPct,
             }),
             signal: controller.signal,
           });
@@ -490,7 +512,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             breakdown: payload.result.adjustedBreakdown,
             meta: {
               ...stock.meta,
-              valuation: buildValuationSignal({
+              valuation: payload.financialImpact?.afterValuation ?? buildValuationSignal({
                 ticker: stock.ticker,
                 forecastReturnPct: stock.meta.forecastReturnPct,
                 factorBreakdown: payload.result.adjustedBreakdown,
@@ -654,6 +676,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   const sourceCards = [
     { label: 'Company file', value: brief.strategicContext },
     { label: 'Score basis', value: stock.primaryReason },
+    { label: 'Catalyst tape', value: catalystContext(stock) },
     { label: 'Risk file', value: resolvedRisk(stock) },
     {
       label: 'Valuation note',
@@ -719,7 +742,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
           </div>
         </div>
 
-        <div className="grid gap-2 lg:grid-cols-4">
+        <div className="grid gap-2 lg:grid-cols-5">
           {sourceCards.map(card => (
             <div
               key={card.label}

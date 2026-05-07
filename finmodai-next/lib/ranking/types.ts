@@ -28,6 +28,29 @@ export type ScoreBreakdown = {
   riskAdjustment: number;
 };
 
+export type CatalystChannel = 'estimate' | 'multiple' | 'positioning' | 'risk' | 'macro';
+
+export type CatalystDirection = 'positive' | 'negative' | 'neutral';
+
+export type RankedCatalyst = {
+  title: string;
+  source: string | null;
+  url: string | null;
+  publishedAt: string | null;
+  kind: 'company_news' | 'macro' | 'earnings' | 'event';
+  channel: CatalystChannel;
+  direction: CatalystDirection;
+  impactPct: number;
+  confidence: number;
+  rankScore: number;
+  reason: string;
+  priced: string;
+  estimateRisk: string;
+  multipleImpact: string;
+  positioningRisk: string;
+  horizon: string;
+};
+
 export type RankedStock = {
   ticker: string;
   /** Weighted composite, clamped [1, 10], rounded to 1 dp. */
@@ -41,9 +64,12 @@ export type RankedStock = {
   meta: {
     forecastReturnPct: number | null;
     catalystCount: number;
+    companyCatalystCount?: number;
+    macroCatalystCount?: number;
     dataSource: 'live' | 'mock';
     scoredAt: string;
     valuation?: ValuationSignalSummary;
+    catalysts?: RankedCatalyst[];
   };
 };
 
@@ -71,11 +97,24 @@ export type PriceForecastData = {
 export type EventItem = {
   title?: string;
   headline?: string;
+  what_happened?: string;
+  why_it_matters?: string;
+  published_at?: string;
   kind?: 'earnings' | 'macro' | 'company_news' | 'event' | 'ownership' | 'transcript' | string;
   direction?: 'positive' | 'negative' | 'neutral' | string;
   magnitude?: 'low' | 'medium' | 'high' | string;
   impact?: string;
   timing?: string | null;
+  sources?: Array<{ source?: string; title?: string; url?: string; published_at?: string }>;
+  impacted_tickers?: Array<{ ticker?: string; direction?: string; rationale?: string }>;
+  impacted_sectors?: Array<{ sector?: string; direction?: string; rationale?: string }>;
+  model_impact?: {
+    impact_summary?: {
+      direction?: string;
+      primary_driver?: string;
+      valuation_change?: number;
+    };
+  };
   eventForecast?: {
     direction?: 'positive' | 'negative' | 'neutral';
     confidence?: number;

@@ -3,7 +3,7 @@
  *
  * Each component is a pure function (0–10 output) so they can be
  * unit-tested in isolation. scoreStock() wires them against live API data with
- * per-fetch timeouts; scoreMultiple() batches 5 tickers at a time to avoid
+ * per-fetch timeouts; scoreMultiple() batches tickers to avoid
  * hammering upstream providers.
  */
 
@@ -17,6 +17,12 @@ import type {
 import { mockFallback } from './mock';
 import { diversifyBreakdown, tickerFactorShape } from './profileShape';
 import { getCompanyBrief } from './companyBriefs';
+import {
+  catalystsToRankingEvents,
+  companyHeadlinesToCatalysts,
+  macroEventsToCatalysts,
+  rankCatalysts,
+} from './catalysts';
 import { compositeOpportunityScore, signalFromOpportunityScore } from './signals';
 import { buildValuationSignal, scoreValuationSignal } from '@/lib/valuation/signal';
 
@@ -36,6 +42,15 @@ const BATCH_SIZE = 50;
 const SCORE_CACHE_TTL_MS = 60_000;
 
 const scoreCache = new Map<string, { expiresAt: number; value: RankedStock }>();
+
+type CompanyInfoPayload = {
+  news?: Array<{
+    title?: string;
+    url?: string;
+    source?: string;
+    publishedAt?: string;
+  }>;
+};
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -331,7 +346,7 @@ export async function scoreStock(
   const cached = scoreCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
-  const [forecastResult, eventsResult] = await Promise.allSettled([
+  const [forecastResult, eventsResult, companyInfoResult] = await Promise.allSettled([
     fetch(`${baseUrl}/api/timesfm?type=price&ticker=${t}&horizon=${horizonDays}`, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       cache:  'no-store',
@@ -345,6 +360,13 @@ export async function scoreStock(
     })
       .then(r => (r.ok ? (r.json() as Promise<EventsPayload>) : null))
       .catch(() => null),
+
+    fetch(`${baseUrl}/api/company-info?ticker=${t}`, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      cache:  'no-store',
+    })
+      .then(r => (r.ok ? (r.json() as Promise<CompanyInfoPayload>) : null))
+      .catch(() => null),
   ]);
 
   const forecastData: PriceForecastData =
@@ -357,10 +379,24 @@ export async function scoreStock(
       ? eventsResult.value
       : {};
 
-  const events: EventItem[] = eventsPayload.events ?? eventsPayload.items ?? [];
+  const macroEvents: EventItem[] = eventsPayload.events ?? eventsPayload.items ?? [];
+  const companyInfo: CompanyInfoPayload =
+    companyInfoResult.status === 'fulfilled' && companyInfoResult.value != null
+      ? companyInfoResult.value
+      : {};
+  const companyNews = Array.isArray(companyInfo.news)
+    ? companyInfo.news
+        .filter((item): item is { title: string; url?: string; source?: string; publishedAt?: string } => typeof item.title === 'string' && item.title.trim().length > 0)
+    : [];
+  const catalysts = rankCatalysts([
+    ...companyHeadlinesToCatalysts(t, companyNews),
+    ...macroEventsToCatalysts(t, macroEvents),
+  ], 6);
+  const events: EventItem[] = catalystsToRankingEvents(catalysts);
   const isLive =
     (forecastResult.status === 'fulfilled' && forecastResult.value != null) ||
-    (eventsResult.status === 'fulfilled' && eventsResult.value != null);
+    (eventsResult.status === 'fulfilled' && eventsResult.value != null) ||
+    (companyInfoResult.status === 'fulfilled' && companyInfoResult.value != null);
 
   // Derive returnPct from forecast vs current price
   let returnPct: number | null = null;
@@ -410,9 +446,12 @@ export async function scoreStock(
     meta: {
       forecastReturnPct: returnPct != null ? round1(returnPct) : null,
       catalystCount:     events.length,
+      companyCatalystCount: catalysts.filter((catalyst) => catalyst.kind === 'company_news').length,
+      macroCatalystCount: catalysts.filter((catalyst) => catalyst.kind === 'macro').length,
       dataSource:        isLive ? 'live' : 'mock',
       scoredAt:          new Date().toISOString(),
       valuation:         displayValuation,
+      catalysts:         catalysts.slice(0, 3),
     },
   };
   scoreCache.set(cacheKey, { expiresAt: Date.now() + SCORE_CACHE_TTL_MS, value: ranked });
