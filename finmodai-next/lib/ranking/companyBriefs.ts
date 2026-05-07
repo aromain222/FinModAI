@@ -113,6 +113,13 @@ const BRIEFS: Record<string, CompanyBrief> = {
     mainRisk: 'Consumer softness, merchant churn, payments take-rate pressure, or renewed investment spend can pressure margins and the multiple.',
     watchItems: ['Merchant GMV', 'Payments attach', 'Take rate', 'Operating leverage', 'AI merchant tools'],
   },
+  UBER: {
+    strategicContext: 'Uber is a mobility, delivery, and logistics platform where bookings growth, take rate, driver supply, insurance costs, and margin conversion drive revisions.',
+    nearTermFocus: 'Watch gross bookings, trip frequency, delivery profitability, mobility margins, insurance/legal costs, and autonomous-vehicle or regulation headlines.',
+    keyDriver: 'The PM question is whether bookings growth converts into EBITDA and free-cash-flow upside without regulatory or insurance-cost pressure.',
+    mainRisk: 'Gig-worker regulation, insurance inflation, weaker consumer mobility/delivery demand, or pricing pressure can hit margins and the multiple.',
+    watchItems: ['Gross bookings', 'Trip growth', 'Delivery margin', 'Insurance costs', 'Gig-worker regulation'],
+  },
 };
 
 const GROUPS = {

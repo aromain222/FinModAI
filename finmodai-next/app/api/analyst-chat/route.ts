@@ -2160,6 +2160,7 @@ function buildDeterministicForecastReply(input: DeterministicForecastReplyInput)
       : returnPct + 6;
   const baseLow = Math.max(-25, Math.min(returnPct - 1.5, Math.min(lowerPct, returnPct) * 0.45));
   const baseHigh = Math.min(25, Math.max(returnPct + 1.5, Math.max(upperPct, returnPct) * 0.45));
+  const rangeCrossesZero = baseLow < 0 && baseHigh > 0;
   const eventProxyPct = Math.abs(input.eventSynthesis?.event_adjustment.price_proxy_pct ?? 0);
   const topEvent = input.newsWatch?.find((item) => item.eventForecast) ?? input.newsWatch?.[0] ?? null;
   const topEventImpact = topEvent?.eventForecast?.priceImpactPct ?? 0;
@@ -2168,6 +2169,7 @@ function buildDeterministicForecastReply(input: DeterministicForecastReplyInput)
   const confidenceValue = input.confidence ?? 0.5;
   const conviction = confidenceValue >= 0.68 ? 'High' : confidenceValue >= 0.48 ? 'Medium' : 'Low';
   const signal =
+    rangeCrossesZero ? 'NEUTRAL / wait' :
     returnPct > 3 ? 'LONG bias' :
     returnPct < -3 ? 'SHORT / underweight bias' :
     'NEUTRAL / wait';
@@ -2208,7 +2210,7 @@ function buildDeterministicForecastReply(input: DeterministicForecastReplyInput)
     `Key Catalyst: ${keyCatalyst}. Importance: ${eventImportance}; stock sensitivity: ${stockSensitivity}.`,
     `Bull Case: trend holds and the catalyst improves estimates, multiple, or positioning.`,
     `Risk: forecast band is wide; negative surprises can overwhelm a small baseline move.`,
-    `Trade View: ${Math.abs(returnPct) < 3 ? 'No chase; wait for catalyst confirmation.' : returnPct > 0 ? 'Constructive only while momentum and event tape confirm.' : 'Defensive unless event tape improves.'}`,
+    `Trade View: ${rangeCrossesZero || Math.abs(returnPct) < 3 ? 'No chase; wait for catalyst confirmation.' : returnPct > 0 ? 'Constructive only while momentum and event tape confirm.' : 'Defensive unless event tape improves.'}`,
     `Conviction Level: ${conviction}.`,
     `Thesis Drift: ${drift}`,
     `Basis: ${input.sourceLabel}${isCombined ? ' + event overlay' : ''}. ${eventProxyPct < 1 ? 'TimesFM drives most of the view; events are a small offset.' : 'Events materially adjust the baseline.'}`,

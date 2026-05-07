@@ -162,7 +162,11 @@ function convictionGrade(payload: AnalystForecastModelPayload): string {
   const base = payload.tradingSignal?.conviction ?? payload.confidence ?? 0.5;
   const technicalPenalty = payload.technicals?.verdict === 'conflicts' ? -0.12 : 0;
   const catalystBoost = payload.newsWatch?.some((item) => eventImportance(item) === 'High') ? 0.08 : 0;
-  const adjusted = Math.max(0, Math.min(1, base + technicalPenalty + catalystBoost));
+  const bounds = expectedMoveBounds(payload);
+  const rangeCrossesZero = bounds.low < 0 && bounds.high > 0;
+  const sourcePenalty = payload.source === 'provider_trend_fallback' ? -0.1 : 0;
+  const rangePenalty = rangeCrossesZero ? -0.22 : 0;
+  const adjusted = Math.max(0, Math.min(1, base + technicalPenalty + catalystBoost + sourcePenalty + rangePenalty));
   if (adjusted >= 0.72) return 'High';
   if (adjusted >= 0.5) return 'Medium';
   return 'Low';
@@ -186,7 +190,24 @@ function expectedMoveView(payload: AnalystForecastModelPayload): { base: string;
   };
 }
 
+function expectedMoveBounds(payload: AnalystForecastModelPayload): { low: number; high: number } {
+  const move = (payload.returnPct ?? 0) * 100;
+  const lower = payload.lower?.at(-1);
+  const upper = payload.upper?.at(-1);
+  const start = payload.latestActual;
+  const lowerMove = lower != null && start && start > 0 ? ((lower - start) / start) * 100 : move - 6;
+  const upperMove = upper != null && start && start > 0 ? ((upper - start) / start) * 100 : move + 6;
+  return {
+    low: clampPct(Math.min(move - 1.5, lowerMove * 0.35)),
+    high: clampPct(Math.max(move + 1.5, upperMove * 0.35)),
+  };
+}
+
 function tradeView(payload: AnalystForecastModelPayload, movePct: number | null): string {
+  const bounds = expectedMoveBounds(payload);
+  if (bounds.low < 0 && bounds.high > 0) {
+    return 'Wait for confirmation; the expected move range crosses zero.';
+  }
   const signal = payload.tradingSignal?.signal;
   const move = movePct ?? 0;
   if (signal === 'LONG' || move >= 4) return 'Constructive, but only if catalyst tape and momentum keep confirming.';
@@ -195,6 +216,8 @@ function tradeView(payload: AnalystForecastModelPayload, movePct: number | null)
 }
 
 function thesisDrift(payload: AnalystForecastModelPayload): string {
+  const bounds = expectedMoveBounds(payload);
+  if (bounds.low < 0 && bounds.high > 0) return 'Mixed - expected move range crosses zero.';
   const eventImpact = payload.combinedEventImpactPct ?? 0;
   const technicals = payload.technicals?.verdict;
   const move = (payload.returnPct ?? 0) * 100;
@@ -239,6 +262,8 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
   if (isPriceForecast) {
     const movePct = returnPct == null ? null : returnPct * 100;
     const expectedMove = expectedMoveView(payload);
+    const expectedBounds = expectedMoveBounds(payload);
+    const rangeCrossesZero = expectedBounds.low < 0 && expectedBounds.high > 0;
     const keyCatalyst = pickKeyCatalyst(payload.newsWatch);
     const catalystStack = (payload.newsWatch ?? [])
       .slice()
@@ -256,7 +281,9 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
       })
       .slice(0, 3);
     const signal =
-      payload.tradingSignal?.signal === 'LONG' || (movePct ?? 0) >= 4
+      rangeCrossesZero
+        ? 'Neutral'
+        : payload.tradingSignal?.signal === 'LONG' || (movePct ?? 0) >= 4
         ? 'Bullish'
         : payload.tradingSignal?.signal === 'SHORT' || (movePct ?? 0) <= -4
           ? 'Bearish'

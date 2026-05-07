@@ -122,9 +122,28 @@ function contextPrompt(
   return                         { label: 'What needs to change?',                text: 'What needs to happen for this to become a buy?' };
 }
 
-function suggestedAction(signal: RankedStock['signal']): string {
-  if (signal === 'green') return 'Build position';
-  if (signal === 'red')   return 'Avoid';
+function hasLiveConfirmation(stock: RankedStock): boolean {
+  return (
+    stock.meta.forecastReturnPct !== null ||
+    (stock.meta.companyCatalystCount ?? 0) > 0 ||
+    (stock.meta.catalysts ?? []).some((catalyst) => catalyst.kind === 'company_news' || catalyst.kind === 'earnings')
+  );
+}
+
+function hasForecastConflict(stock: RankedStock): boolean {
+  const forecast = stock.meta.forecastReturnPct;
+  if (forecast === null) return false;
+  return (
+    (stock.signal === 'green' && forecast <= -2) ||
+    (stock.signal === 'red' && forecast >= 2)
+  );
+}
+
+function suggestedAction(stock: RankedStock): string {
+  if (hasForecastConflict(stock)) return 'Wait';
+  if (stock.signal === 'green' && !hasLiveConfirmation(stock)) return 'Work up';
+  if (stock.signal === 'green') return 'Build position';
+  if (stock.signal === 'red')   return 'Avoid';
   return 'Watch';
 }
 
@@ -265,6 +284,29 @@ function expectedMoveStr(stock: RankedStock): string {
   return `Forecast signal ${stock.breakdown.forecastSignal.toFixed(1)}/10 — no price target from model`;
 }
 
+function expectedMoveForDisplay(stock: RankedStock): ReturnType<typeof buildExpectedMoveContext> {
+  const base = buildExpectedMoveContext(stock);
+  if (!hasLiveConfirmation(stock)) {
+    return {
+      baseLowPct: -4,
+      baseHighPct: 6,
+      bullPct: Math.max(8, Math.min(14, base.bullPct)),
+      riskPct: Math.min(-6, base.riskPct),
+      summary: 'Scenario range until live forecast or headline catalyst confirms.',
+    };
+  }
+  if (hasForecastConflict(stock)) {
+    return {
+      baseLowPct: Math.min(base.baseLowPct, -3),
+      baseHighPct: Math.max(Math.min(base.baseHighPct, 6), 2),
+      bullPct: Math.min(base.bullPct, 10),
+      riskPct: Math.min(base.riskPct, -8),
+      summary: 'Score and forecast conflict; treat this as a wait-for-confirmation setup.',
+    };
+  }
+  return base;
+}
+
 function keyCatalystStr(stock: RankedStock): string {
   const catalysts = stock.meta.catalysts ?? [];
   if (catalysts.length === 0) {
@@ -278,6 +320,12 @@ function keyCatalystStr(stock: RankedStock): string {
 
 function tradeViewStr(stock: RankedStock): string {
   const brief = getCompanyBrief(stock.ticker);
+  if (hasForecastConflict(stock)) {
+    return `Wait — opportunity score and forecast tape conflict; do not enter until ${brief.watchItems[0]?.toLowerCase() ?? 'the setup'} confirms`;
+  }
+  if (stock.signal === 'green' && !hasLiveConfirmation(stock)) {
+    return 'Work up — score is constructive, but wait for live forecast or headline confirmation before building';
+  }
   if (stock.signal === 'green') {
     const watch = brief.watchItems[0] ?? 'catalyst confirmation';
     return `Build position — scale into dips; add on ${watch.toLowerCase()}`;
@@ -1010,18 +1058,15 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
     forecastReturnPct: stock.meta.forecastReturnPct,
     factorBreakdown: stock.breakdown,
   });
-  const expectedMove = buildExpectedMoveContext(stock);
+  const expectedMove = expectedMoveForDisplay(stock);
   const cryptoTape = cryptoTapeContext(stock);
   const sourceCards = [
-    { label: 'Company file', value: brief.strategicContext },
-    { label: 'Score basis', value: stock.primaryReason },
-    { label: 'Catalyst tape', value: catalystContext(stock) },
-    ...(cryptoTape ? [{ label: 'Crypto tape', value: cryptoTape }] : []),
-    { label: 'Risk file', value: resolvedRisk(stock) },
-    {
-      label: 'Valuation note',
-      value: liveValuation.summary,
-    },
+    { label: 'Company file',  value: brief.strategicContext, prompt: 'Tell me about this company and why it is in the ranked universe.' },
+    { label: 'Score basis',   value: stock.primaryReason,   prompt: 'Why is this stock ranked here and what drives the score?', mode: 'explain' as InvestmentMode },
+    { label: 'Catalyst tape', value: catalystContext(stock), prompt: 'Run the catalyst agent: what events or headlines matter most over the next 1-3 months?' },
+    ...(cryptoTape ? [{ label: 'Crypto tape', value: cryptoTape, prompt: 'Run the forecast agent: what does the forecast, momentum, and market tape imply?' }] : []),
+    { label: 'Risk file',     value: resolvedRisk(stock),   prompt: 'What are the biggest risk factors that could break this trade?', mode: 'challenge' as InvestmentMode },
+    { label: 'Valuation note', value: liveValuation.summary, prompt: 'Is this stock overpriced relative to its growth expectations?', mode: 'evaluate' as InvestmentMode },
   ];
 
   return (
@@ -1065,10 +1110,14 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
           )}>
             <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Action</div>
             <div className={cn('text-sm font-bold leading-tight', signalTextColor)}>
-              {suggestedAction(stock.signal)}
+              {suggestedAction(stock)}
             </div>
             <div className="mt-0.5 text-[10px] text-[var(--cb-text-muted)]">
-              because {actionDriver(topKey)}
+              {hasForecastConflict(stock)
+                ? 'forecast tape conflicts with the score'
+                : !hasLiveConfirmation(stock)
+                  ? 'needs live confirmation'
+                  : `because ${actionDriver(topKey)}`}
             </div>
           </div>
 
@@ -1220,9 +1269,12 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
 
         <div className="grid gap-2 lg:grid-cols-5 xl:grid-cols-6">
           {sourceCards.map(card => (
-            <div
+            <button
               key={card.label}
-              className="min-w-0 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] p-2"
+              type="button"
+              onClick={() => sendMessage(card.prompt, 'mode' in card ? card.mode : undefined)}
+              disabled={streaming}
+              className="min-w-0 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] p-2 text-left transition-colors hover:border-[var(--cb-border-strong)] hover:bg-[var(--cb-surface-subtle)] disabled:opacity-50"
             >
               <div className="mb-1 flex items-center gap-1.5">
                 <FileText className="h-3 w-3 shrink-0 text-[var(--cb-text-muted)]" />
@@ -1233,7 +1285,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
               <p className="line-clamp-3 text-[11px] leading-snug text-[var(--cb-text-secondary)]">
                 {card.value}
               </p>
-            </div>
+            </button>
           ))}
         </div>
 
