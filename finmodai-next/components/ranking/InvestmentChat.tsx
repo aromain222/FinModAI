@@ -1,9 +1,17 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { BookOpen, CheckCircle, FileText, Loader2, Plus, Send } from 'lucide-react';
+import { BookOpen, CheckCircle, FileText, Loader2, Plus, Send, TrendingUp } from 'lucide-react';
 import { getPitchQueue, upsertPitchQueueItem } from '@/lib/pitchQueue/storage';
 import { buildPitchQueueItemFromRankedStock } from '@/lib/pitchQueue/buildPitch';
+import {
+  getActivePositions,
+  addPosition,
+  updatePositionThesis,
+  PORTFOLIO_EVENT,
+} from '@/lib/portfolio/storage';
+import { buildPositionFromRankedStock } from '@/lib/portfolio/buildPosition';
+import type { ActivePosition } from '@/lib/portfolio/types';
 import type { RankedStock } from '@/lib/ranking/types';
 import { getCompanyBrief } from '@/lib/ranking/companyBriefs';
 import { signalFromOpportunityScore } from '@/lib/ranking/signals';
@@ -169,12 +177,6 @@ function factorInterpretation(stock: RankedStock, key: keyof RankedStock['breakd
   return '';
 }
 
-function stanceAction(signal: RankedStock['signal']): string {
-  if (signal === 'green') return 'Bullish / work up for swing entry';
-  if (signal === 'red') return 'Bearish / avoid or underweight';
-  return 'Neutral / wait for confirmation';
-}
-
 function signalFromScore(score: number): RankedStock['signal'] {
   return signalFromOpportunityScore(score);
 }
@@ -233,47 +235,83 @@ function resolvedRisk(stock: RankedStock): string {
   return isGenericReason(stock.mainRisk) ? brief.mainRisk : stock.mainRisk;
 }
 
-function buildDecisionReply(
+function convictionGrade(score: number, signal: RankedStock['signal']): { level: string; read: string } {
+  if (signal === 'green' && score >= 8.0)  return { level: 'High',          read: 'strong multi-factor alignment' };
+  if (signal === 'green' && score >= 7.0)  return { level: 'Moderate-High', read: 'green signal with room to improve' };
+  if (signal === 'yellow' && score >= 6.0) return { level: 'Moderate',      read: 'constructive but not confirmed' };
+  if (signal === 'yellow')                 return { level: 'Low-Moderate',  read: 'waiting for a clearer trigger' };
+  if (score < 4.0)                         return { level: 'Low',           read: 'setup favors avoiding or underweighting' };
+  return                                          { level: 'Low',           read: 'weak factor alignment' };
+}
+
+function thesisDrift(stock: RankedStock): string {
+  const sorted = sortedFactors(stock);
+  const top    = sorted[0];
+  const bottom = sorted[sorted.length - 1];
+  if (!top || !bottom) return 'Insufficient data.';
+  const spread = top[1] - bottom[1];
+  if (spread < 1.5) return 'Aligned — factors are balanced across the board.';
+  if (stock.signal === 'green' && bottom[1] >= 5.5) return 'Aligned — all factors constructive; setup is stable.';
+  if (stock.signal === 'green') return `Mild drift — ${SCORE_LABELS[bottom[0]]} (${bottom[1].toFixed(1)}) is the weak link; watch it.`;
+  if (stock.signal === 'yellow') return `Cautious — ${SCORE_LABELS[top[0]]} leads (${top[1].toFixed(1)}) but ${SCORE_LABELS[bottom[0]]} lags (${bottom[1].toFixed(1)}).`;
+  return `Drifting negative — ${SCORE_LABELS[bottom[0]]} (${bottom[1].toFixed(1)}) is dragging the score.`;
+}
+
+function expectedMoveStr(stock: RankedStock): string {
+  if (stock.meta.forecastReturnPct != null) {
+    const sign = stock.meta.forecastReturnPct >= 0 ? '+' : '';
+    return `${sign}${stock.meta.forecastReturnPct.toFixed(1)}% (${stock.horizonWeeks} wk forecast)`;
+  }
+  return `Forecast signal ${stock.breakdown.forecastSignal.toFixed(1)}/10 — no price target from model`;
+}
+
+function keyCatalystStr(stock: RankedStock): string {
+  const catalysts = stock.meta.catalysts ?? [];
+  if (catalysts.length === 0) {
+    const brief = getCompanyBrief(stock.ticker);
+    return `Watch ${brief.watchItems[0] ?? 'upcoming catalyst'} — no live headline loaded yet.`;
+  }
+  const top  = catalysts[0];
+  const sign = top.impactPct >= 0 ? '+' : '';
+  return `${top.title} (${top.direction}, ${sign}${top.impactPct.toFixed(1)}%)`;
+}
+
+function tradeViewStr(stock: RankedStock): string {
+  const brief = getCompanyBrief(stock.ticker);
+  if (stock.signal === 'green') {
+    const watch = brief.watchItems[0] ?? 'catalyst confirmation';
+    return `Build position — scale into dips; add on ${watch.toLowerCase()}`;
+  }
+  if (stock.signal === 'red') {
+    return `Avoid — wait for ${brief.watchItems[0]?.toLowerCase() ?? 'thesis improvement'} before re-engaging`;
+  }
+  return `Watch — hold off until ${brief.watchItems[0]?.toLowerCase() ?? 'the setup clarifies'}`;
+}
+
+function buildSwingThesis(
   stock: RankedStock,
   options: {
-    whyNow?: string;
-    keyDriver?: string;
-    mainRisk?: string;
-    stanceSuffix?: string;
+    bullCase?: string;
+    risk?: string;
+    tradeView?: string;
+    whatMattersMost?: string;
+    keyCatalyst?: string;
   } = {},
 ): string {
-  const [factor, value] = topFactor(stock);
-  const brief = getCompanyBrief(stock.ticker);
-  const stance = `${stanceAction(stock.signal)}${options.stanceSuffix ? ` ${options.stanceSuffix}` : ''}`;
+  const [topK, topV] = topFactor(stock);
+  const conviction   = convictionGrade(stock.score, stock.signal);
+  const signalWord   = stock.signal === 'green' ? 'GREEN' : stock.signal === 'yellow' ? 'YELLOW' : 'RED';
   return [
-    `Current stance: ${stance}.`,
-    `Why now: ${stripTrailingPunctuation(options.whyNow ?? brief.nearTermFocus)}.`,
-    `Key driver: ${stripTrailingPunctuation(options.keyDriver ?? `${brief.keyDriver} ${SCORE_LABELS[factor]} scores ${value.toFixed(1)}/10`)}.`,
-    `Main risk: ${options.mainRisk ?? resolvedRisk(stock)}.`,
+    `Signal: ${signalWord} · ${stock.score.toFixed(1)}/10`,
+    `Expected Move: ${expectedMoveStr(stock)}`,
+    `What Matters Most: ${options.whatMattersMost ?? `${SCORE_LABELS[topK]} (${topV.toFixed(1)}) — ${factorInterpretation(stock, topK, topV)}`}`,
+    `Key Catalyst: ${options.keyCatalyst ?? keyCatalystStr(stock)}`,
+    `Bull Case: ${options.bullCase ?? stock.primaryReason}`,
+    `Risk: ${options.risk ?? resolvedRisk(stock)}`,
+    `Trade View: ${options.tradeView ?? tradeViewStr(stock)}`,
+    `Conviction: ${conviction.level} — ${conviction.read}`,
+    `Thesis Drift: ${thesisDrift(stock)}`,
   ].join('\n');
-}
-
-function stripTrailingPunctuation(value: string): string {
-  return value.trim().replace(/[.!?\s]+$/, '');
-}
-
-function factorListWithScores(factors: Array<[keyof RankedStock['breakdown'], number]>): string {
-  return factors
-    .map(([factor, value]) => `${SCORE_LABELS[factor]} ${value.toFixed(1)}/10`)
-    .join(', ');
-}
-
-function signalContext(stock: RankedStock): string {
-  const forecast = stock.meta.forecastReturnPct != null
-    ? `forecast ${stock.meta.forecastReturnPct >= 0 ? '+' : ''}${stock.meta.forecastReturnPct.toFixed(1)}%`
-    : `forecast fallback ${stock.breakdown.forecastSignal.toFixed(1)}/10`;
-  const catalysts = stock.meta.catalystCount > 0
-    ? `${stock.meta.catalystCount} catalyst${stock.meta.catalystCount === 1 ? '' : 's'}`
-    : 'no confirmed catalyst count';
-  const valuation = stock.meta.valuation?.impliedUpside != null
-    ? `valuation ${stock.meta.valuation.impliedUpside >= 0 ? '+' : ''}${stock.meta.valuation.impliedUpside.toFixed(1)}%`
-    : 'valuation context pending';
-  return `${forecast}; ${catalysts}; ${valuation}; momentum ${stock.breakdown.momentum.toFixed(1)}/10`;
 }
 
 function catalystContext(stock: RankedStock): string {
@@ -295,159 +333,156 @@ function cryptoTapeContext(stock: RankedStock): string | null {
 }
 
 function buildExplain(stock: RankedStock): string {
-  const [first, second, third] = sortedFactors(stock);
-  const brief = getCompanyBrief(stock.ticker);
-  const cryptoTape = cryptoTapeContext(stock);
-  return buildDecisionReply(stock, {
-    whyNow: `${brief.strategicContext} ${brief.nearTermFocus}`,
-    keyDriver: `${brief.keyDriver} Top supports: ${factorListWithScores([first, second, third])}; ${signalContext(stock)}; catalysts: ${catalystContext(stock)}${cryptoTape ? `; ${cryptoTape}` : ''}`,
-    mainRisk: resolvedRisk(stock),
+  const brief        = getCompanyBrief(stock.ticker);
+  const cryptoTape   = cryptoTapeContext(stock);
+  const [topK, topV] = topFactor(stock);
+  return buildSwingThesis(stock, {
+    bullCase:        `${brief.strategicContext} ${brief.nearTermFocus}`,
+    whatMattersMost: `${SCORE_LABELS[topK]} (${topV.toFixed(1)}) — ${factorInterpretation(stock, topK, topV)}${cryptoTape ? `; ${cryptoTape}` : ''}`,
   });
 }
 
 function buildThesis(stock: RankedStock): string {
-  const brief = getCompanyBrief(stock.ticker);
-  const top = sortedFactors(stock).slice(0, 2);
-  const valuation = stock.meta.valuation ?? buildValuationSignal({
+  const brief      = getCompanyBrief(stock.ticker);
+  const valuation  = stock.meta.valuation ?? buildValuationSignal({
     ticker: stock.ticker,
     forecastReturnPct: stock.meta.forecastReturnPct,
-    factorBreakdown: stock.breakdown,
+    factorBreakdown:   stock.breakdown,
   });
-  return buildDecisionReply(stock, {
-    whyNow: `${brief.nearTermFocus} The thesis is only actionable if it can move estimates, the multiple, or positioning inside the window`,
-    keyDriver: `${brief.keyDriver} Current evidence: ${factorListWithScores(top)}; valuation read: ${valuation.summary}`,
-    mainRisk: brief.mainRisk,
+  const [topK, topV] = topFactor(stock);
+  return buildSwingThesis(stock, {
+    bullCase:        `${brief.nearTermFocus} Actionable if it moves estimates, multiple, or positioning.`,
+    risk:            brief.mainRisk,
+    whatMattersMost: `${SCORE_LABELS[topK]} (${topV.toFixed(1)}) — ${valuation.summary}`,
   });
 }
 
 function buildNeedsTrue(stock: RankedStock): string {
-  const brief = getCompanyBrief(stock.ticker);
+  const brief   = getCompanyBrief(stock.ticker);
   const weakest = sortedFactors(stock).slice(-2).reverse();
-  return buildDecisionReply(stock, {
-    whyNow: `For the thesis to work, ${brief.watchItems.slice(0, 3).join(', ')} need to confirm over the next 1-3 months`,
-    keyDriver: `The score can re-rate if the weaker links improve: ${factorListWithScores(weakest)}`,
-    mainRisk: `If ${brief.watchItems[0] ?? 'the main catalyst'} disappoints, the rank should fade because ${brief.mainRisk}`,
+  return buildSwingThesis(stock, {
+    bullCase:        `${brief.watchItems.slice(0, 3).join(', ')} must confirm over the next 1-3 months.`,
+    whatMattersMost: weakest[0] ? `${SCORE_LABELS[weakest[0][0]]} (${weakest[0][1].toFixed(1)}) — score re-rates if this improves` : undefined,
+    risk:            `If ${brief.watchItems[0] ?? 'the main catalyst'} disappoints: ${brief.mainRisk}`,
   });
 }
 
 function buildEvidence(stock: RankedStock): string {
   const brief = getCompanyBrief(stock.ticker);
-  const top = sortedFactors(stock).slice(0, 3);
-  return buildDecisionReply(stock, {
-    whyNow: `The current evidence is the score profile plus the next catalyst window, not a long-term fundamental call`,
-    keyDriver: `Evidence supporting the thesis: ${factorListWithScores(top)}; watch ${brief.watchItems.slice(0, 2).join(' and ')} for confirmation`,
-    mainRisk: resolvedRisk(stock),
+  const top   = sortedFactors(stock)[0];
+  return buildSwingThesis(stock, {
+    bullCase: top
+      ? `${SCORE_LABELS[top[0]]} (${top[1].toFixed(1)}) leads; watch ${brief.watchItems.slice(0, 2).join(' and ')} for confirmation.`
+      : stock.primaryReason,
+    risk: resolvedRisk(stock),
   });
 }
 
 function buildMonitor(stock: RankedStock): string {
-  const brief = getCompanyBrief(stock.ticker);
+  const brief      = getCompanyBrief(stock.ticker);
   const cryptoTape = cryptoTapeContext(stock);
-  return buildDecisionReply(stock, {
-    whyNow: `Monitor ${brief.watchItems.slice(0, 4).join(', ')} plus ranked catalysts: ${catalystContext(stock)}${cryptoTape ? `; crypto market tape: ${cryptoTape}` : ''}`,
-    keyDriver: `A better setup needs the strongest factor to stay strong and the weakest factor to stop dragging the score`,
-    mainRisk: brief.mainRisk,
+  return buildSwingThesis(stock, {
+    bullCase:    `Watch ${brief.watchItems.slice(0, 4).join(', ')}.`,
+    keyCatalyst: `${catalystContext(stock)}${cryptoTape ? `; ${cryptoTape}` : ''}`,
+    risk:        brief.mainRisk,
   });
 }
 
 function buildCatalystAgent(stock: RankedStock): string {
   const brief = getCompanyBrief(stock.ticker);
-  const catalysts = catalystContext(stock);
-  return buildDecisionReply(stock, {
-    whyNow: `The catalyst agent is focused on whether events can move estimates, the multiple, or positioning inside ${stock.horizonWeeks} weeks`,
-    keyDriver: `${brief.keyDriver} Top catalyst context: ${catalysts}. Watch ${brief.watchItems.slice(0, 2).join(' and ')}`,
-    mainRisk: `A headline is not enough; it needs to change estimates, valuation multiple, risk premium, or positioning. ${brief.mainRisk}`,
+  return buildSwingThesis(stock, {
+    keyCatalyst: catalystContext(stock),
+    bullCase:    `${brief.keyDriver} Catalyst window: ${stock.horizonWeeks} weeks.`,
+    risk:        `A headline needs to move estimates, multiple, risk premium, or positioning. ${brief.mainRisk}`,
   });
 }
 
 function buildForecastAgent(stock: RankedStock): string {
-  const cryptoTape = cryptoTapeContext(stock);
-  const forecast = stock.meta.forecastReturnPct != null
-    ? `${stock.meta.forecastReturnPct >= 0 ? '+' : ''}${stock.meta.forecastReturnPct.toFixed(1)}% forecast move`
-    : 'forecast path unavailable';
-  return buildDecisionReply(stock, {
-    whyNow: `The forecast agent reads the next ${stock.horizonWeeks} weeks through TimesFM, momentum, market tape, and catalyst confirmation`,
-    keyDriver: `${forecast}; momentum ${stock.breakdown.momentum.toFixed(1)}/10; forecast score ${stock.breakdown.forecastSignal.toFixed(1)}/10${cryptoTape ? `; ${cryptoTape}` : ''}`,
-    mainRisk: `Forecasts are directional, not precise; the setup weakens if price action diverges from the factor score or catalysts fail to confirm.`,
+  const cryptoTape   = cryptoTapeContext(stock);
+  const momentumRead = stock.breakdown.momentum >= 7 ? 'strong' : stock.breakdown.momentum >= 5 ? 'mixed' : 'weak';
+  return buildSwingThesis(stock, {
+    bullCase:    `Forecast score ${stock.breakdown.forecastSignal.toFixed(1)}/10; momentum ${momentumRead} at ${stock.breakdown.momentum.toFixed(1)}/10.`,
+    keyCatalyst: cryptoTape ?? keyCatalystStr(stock),
+    risk:        'Forecasts are directional; weakens if price action diverges from factors or catalysts fail to confirm.',
   });
 }
 
 function buildAssumptionAgent(stock: RankedStock): string {
-  const weak = sortedFactors(stock).slice(-2).reverse();
-  const brief = getCompanyBrief(stock.ticker);
-  return buildDecisionReply(stock, {
-    whyNow: `The assumption agent is for changing the thesis, not just asking for a summary`,
-    keyDriver: `Best test: state a specific view on ${brief.watchItems[0] ?? SCORE_LABELS[weak[0]?.[0] ?? 'forecastSignal']} because it should move ${factorListWithScores(weak)}. Example: "I think ${stock.ticker} beats because demand is stronger than expected."`,
-    mainRisk: `If the assumption is too broad or unrealistic, the score update will be discounted and the system should push back.`,
+  const weak        = sortedFactors(stock).slice(-2).reverse();
+  const brief       = getCompanyBrief(stock.ticker);
+  const watchTarget = brief.watchItems[0] ?? SCORE_LABELS[weak[0]?.[0] ?? 'forecastSignal'];
+  return buildSwingThesis(stock, {
+    bullCase:        `State a specific view on ${watchTarget} to test the score. E.g., "I think ${stock.ticker} beats because demand is stronger than expected."`,
+    whatMattersMost: weak[0] ? `${SCORE_LABELS[weak[0][0]]} (${weak[0][1].toFixed(1)}) — weakest link; most sensitive to assumption changes` : undefined,
+    risk:            'Broad or unrealistic assumptions are discounted and pushed back.',
   });
 }
 
 function buildMarketMiss(stock: RankedStock): string {
-  const brief = getCompanyBrief(stock.ticker);
+  const brief     = getCompanyBrief(stock.ticker);
   const valuation = stock.meta.valuation ?? buildValuationSignal({
     ticker: stock.ticker,
     forecastReturnPct: stock.meta.forecastReturnPct,
-    factorBreakdown: stock.breakdown,
+    factorBreakdown:   stock.breakdown,
   });
-  return buildDecisionReply(stock, {
-    whyNow: `The possible miss is whether investors are underpricing ${brief.watchItems.slice(0, 2).join(' and ')} in the next 1-3 months`,
-    keyDriver: `${valuation.summary} The trade needs that valuation read to line up with catalysts or momentum`,
-    mainRisk: brief.mainRisk,
+  return buildSwingThesis(stock, {
+    bullCase: `Market may be underpricing ${brief.watchItems.slice(0, 2).join(' and ')}: ${valuation.summary}`,
+    risk:     brief.mainRisk,
   });
 }
 
 function buildMoveHigher(stock: RankedStock): string {
-  const brief = getCompanyBrief(stock.ticker);
-  const weak = sortedFactors(stock).slice(-3).reverse();
-  return buildDecisionReply(stock, {
-    whyNow: `The rank moves up if ${brief.watchItems.slice(0, 2).join(' and ')} confirm inside the next 1-3 months`,
-    keyDriver: `Upgrade path: improve ${weak.map(([factor]) => SCORE_LABELS[factor].toLowerCase()).join(', ')} while keeping ${signalContext(stock)}`,
-    mainRisk: resolvedRisk(stock),
+  const brief   = getCompanyBrief(stock.ticker);
+  const weak    = sortedFactors(stock).slice(-3).reverse();
+  const weakStr = weak.map(([factor]) => SCORE_LABELS[factor].toLowerCase()).join(', ');
+  return buildSwingThesis(stock, {
+    bullCase:        `Rank moves up if ${brief.watchItems.slice(0, 2).join(' and ')} confirm inside 1-3 months.`,
+    whatMattersMost: weak[0] ? `${SCORE_LABELS[weak[0][0]]} (${weak[0][1].toFixed(1)}) — upgrade path: improve ${weakStr}` : undefined,
+    risk:            resolvedRisk(stock),
   });
 }
 
 function buildBadTrade(stock: RankedStock): string {
   const weakest = sortedFactors(stock).at(-1);
-  const brief = getCompanyBrief(stock.ticker);
-  return buildDecisionReply(stock, {
-    whyNow: `${stock.ticker} becomes a bad swing setup if the next catalyst fails to improve estimates, multiple, or positioning`,
-    keyDriver: weakest ? `Break point: ${SCORE_LABELS[weakest[0]]} is weakest at ${weakest[1].toFixed(1)}/10; watch ${brief.watchItems.slice(0, 2).join(' and ')}` : 'The weakest score component needs improvement.',
-    mainRisk: brief.mainRisk,
+  const brief   = getCompanyBrief(stock.ticker);
+  return buildSwingThesis(stock, {
+    bullCase:        stock.primaryReason,
+    whatMattersMost: weakest ? `${SCORE_LABELS[weakest[0]]} (${weakest[1].toFixed(1)}) — break point if this fails to improve` : undefined,
+    risk:            `${brief.mainRisk} Next catalyst must move estimates, multiple, or positioning or trade fails.`,
+    tradeView:       stock.signal === 'green' ? 'Consider trimming — conviction weakens if weakest factor deteriorates' : tradeViewStr(stock),
   });
 }
 
 function buildPitch(stock: RankedStock): string {
-  const brief = getCompanyBrief(stock.ticker);
-  const marketMiss = stock.meta.valuation?.summary ?? 'Catalysts matter more than a full model in this stock-picker view.';
-  return buildDecisionReply(stock, {
-    whyNow: brief.nearTermFocus,
-    keyDriver: `${brief.strategicContext} ${marketMiss} Trade: ${stock.signal === 'green' ? 'Buy / work up' : stock.signal === 'red' ? 'Pass / avoid' : 'Wait'}.`,
+  const brief      = getCompanyBrief(stock.ticker);
+  const marketMiss = stock.meta.valuation?.summary ?? 'Catalyst-driven upside within the 1-3 month window.';
+  return buildSwingThesis(stock, {
+    bullCase:  `${brief.strategicContext} ${marketMiss}`,
+    risk:      brief.mainRisk,
+    tradeView: stock.signal === 'green'
+      ? `Build position — ${brief.nearTermFocus}`
+      : stock.signal === 'red'
+        ? `Pass / avoid — ${brief.mainRisk}`
+        : `Wait — ${brief.nearTermFocus}`,
   });
 }
 
 function buildEvaluate(stock: RankedStock): string {
-  const trade = stock.signal === 'green'
-    ? 'Buy / work up'
-    : stock.signal === 'red'
-      ? 'Avoid unless the setup changes'
-      : 'Wait';
   const best = sortedFactors(stock)[0];
-  return buildDecisionReply(stock, {
-    stanceSuffix: `(${trade})`,
-    whyNow: `${stock.primaryReason} over the 1-3 month window.`,
-    keyDriver: best ? `${SCORE_LABELS[best[0]]} is strongest at ${best[1].toFixed(1)}/10; ${signalContext(stock)}` : signalContext(stock),
+  return buildSwingThesis(stock, {
+    bullCase: `${stock.primaryReason}${best ? ` Strongest factor: ${SCORE_LABELS[best[0]]} (${best[1].toFixed(1)}).` : ''}`,
+    risk:     resolvedRisk(stock),
   });
 }
 
 function buildCompare(stock: RankedStock, peers: PeerStock[]): string {
-  const ranked = [stock, ...peers]
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5);
-  const rank = ranked.findIndex(s => s.ticker === stock.ticker) + 1;
+  const ranked   = [stock, ...peers].sort((a, b) => b.score - a.score).slice(0, 5);
+  const rank     = ranked.findIndex(s => s.ticker === stock.ticker) + 1;
   const bestPeer = ranked.find(s => s.ticker !== stock.ticker);
-  return buildDecisionReply(stock, {
-    whyNow: `${stock.ticker} ranks ${rank} of ${ranked.length} for the current 1-3 month setup.`,
-    keyDriver: bestPeer ? `Nearest peer: ${bestPeer.ticker} at ${bestPeer.score.toFixed(1)} because ${bestPeer.primaryReason}.` : 'No peer comparison is available.',
+  return buildSwingThesis(stock, {
+    bullCase:        `${stock.ticker} ranks ${rank} of ${ranked.length}. ${stock.primaryReason}`,
+    whatMattersMost: bestPeer ? `Score vs nearest peer ${bestPeer.ticker} (${bestPeer.score.toFixed(1)}): ${bestPeer.primaryReason}` : undefined,
+    risk:            resolvedRisk(stock),
   });
 }
 
@@ -466,10 +501,10 @@ function buildLocalReply(stock: RankedStock, text: string, mode?: InvestmentMode
   if (mode === 'challenge' || /\b(bad trade|make this weaker|what.*weaker|what breaks|invalidat|risk|push back|bear case|challenge)\b/.test(normalized)) return buildBadTrade(stock);
   if (/\b(bull case|supports the bull|why own|upside)\b/.test(normalized)) {
     const brief = getCompanyBrief(stock.ticker);
-    return buildDecisionReply(stock, {
-      whyNow: brief.nearTermFocus,
-      keyDriver: `${brief.keyDriver} Watch ${brief.watchItems.slice(0, 2).join(' and ')} for confirmation.`,
-      mainRisk: brief.mainRisk,
+    return buildSwingThesis(stock, {
+      bullCase:    `${brief.nearTermFocus} ${brief.keyDriver}`,
+      risk:        brief.mainRisk,
+      keyCatalyst: `Watch ${brief.watchItems.slice(0, 2).join(' and ')} for confirmation`,
     });
   }
   if (/\b(tell me|what is|what's|about|overview|quick read|low reasoning)\b/.test(normalized)) return buildExplain(stock);
@@ -482,14 +517,13 @@ function buildLocalReply(stock: RankedStock, text: string, mode?: InvestmentMode
 function buildAssumptionReply(stock: RankedStock, payload: AssumptionUpdateResponse): string {
   const result = payload.result;
   if (!result) {
-    return buildDecisionReply(stock, {
-      whyNow: 'No score change was applied in this 1-3 month setup.',
-      keyDriver: 'The assumption was not specific enough to map to a scoring factor.',
-      mainRisk: 'The ranking is unchanged until the driver is clearer.',
+    return buildSwingThesis(stock, {
+      bullCase: stock.primaryReason,
+      risk:     'Assumption was not specific enough to map to a scoring factor — ranking unchanged.',
     });
   }
 
-  const fromScore = result.adjustedScore - result.delta;
+  const fromScore     = result.adjustedScore - result.delta;
   const primaryFactor = payload.parsedClaim?.primaryFactor
     ? factorLabel(payload.parsedClaim.primaryFactor)
     : 'the setup';
@@ -500,37 +534,115 @@ function buildAssumptionReply(stock: RankedStock, payload: AssumptionUpdateRespo
   const beforeValuation = stock.meta.valuation ?? buildValuationSignal({
     ticker: stock.ticker,
     forecastReturnPct: stock.meta.forecastReturnPct,
-    factorBreakdown: stock.breakdown,
+    factorBreakdown:   stock.breakdown,
   });
   const afterValuation = payload.financialImpact?.afterValuation ?? buildValuationSignal({
     ticker: stock.ticker,
     forecastReturnPct: stock.meta.forecastReturnPct,
-    factorBreakdown: result.adjustedBreakdown,
+    factorBreakdown:   result.adjustedBreakdown,
   });
   const valuationGapDelta = payload.financialImpact?.valuationGapDelta;
-  const valuationMove =
-    payload.financialImpact
-      ? ` Valuation gap ${beforeValuation.impliedUpside != null && beforeValuation.impliedUpside >= 0 ? '+' : ''}${beforeValuation.impliedUpside?.toFixed(1) ?? 'n/a'}% → ${afterValuation.impliedUpside != null && afterValuation.impliedUpside >= 0 ? '+' : ''}${afterValuation.impliedUpside?.toFixed(1) ?? 'n/a'}%${valuationGapDelta != null ? ` (${valuationGapDelta >= 0 ? '+' : ''}${valuationGapDelta.toFixed(1)} pts)` : ''}; expected move proxy ${payload.financialImpact.expectedMoveDeltaPct >= 0 ? '+' : ''}${payload.financialImpact.expectedMoveDeltaPct.toFixed(1)}%. ${payload.financialImpact.riskRead}`
-      : beforeValuation.impliedUpside != null && afterValuation.impliedUpside != null
-      ? ` Valuation gap ${beforeValuation.impliedUpside >= 0 ? '+' : ''}${beforeValuation.impliedUpside.toFixed(1)}% → ${afterValuation.impliedUpside >= 0 ? '+' : ''}${afterValuation.impliedUpside.toFixed(1)}%.`
-      : '';
+  const valuationLine = payload.financialImpact
+    ? `Valuation gap ${beforeValuation.impliedUpside != null && beforeValuation.impliedUpside >= 0 ? '+' : ''}${beforeValuation.impliedUpside?.toFixed(1) ?? 'n/a'}% → ${afterValuation.impliedUpside != null && afterValuation.impliedUpside >= 0 ? '+' : ''}${afterValuation.impliedUpside?.toFixed(1) ?? 'n/a'}%${valuationGapDelta != null ? ` (${valuationGapDelta >= 0 ? '+' : ''}${valuationGapDelta.toFixed(1)} pts)` : ''}; expected move ${payload.financialImpact.expectedMoveDeltaPct >= 0 ? '+' : ''}${payload.financialImpact.expectedMoveDeltaPct.toFixed(1)}%.`
+    : beforeValuation.impliedUpside != null && afterValuation.impliedUpside != null
+    ? `Valuation gap ${beforeValuation.impliedUpside >= 0 ? '+' : ''}${beforeValuation.impliedUpside.toFixed(1)}% → ${afterValuation.impliedUpside >= 0 ? '+' : ''}${afterValuation.impliedUpside.toFixed(1)}%.`
+    : '';
 
-  return buildDecisionReply(
-    { ...stock, score: result.adjustedScore, signal: signalFromScore(result.adjustedScore), breakdown: result.adjustedBreakdown },
-    {
-      stanceSuffix: `(score ${fromScore.toFixed(1)} → ${result.adjustedScore.toFixed(1)})`,
-      whyNow: `The assumption changes the 1-3 month thesis with ${capitalize(result.plausibility)} plausibility.`,
-      keyDriver: `${primaryFactor}${factorMoves ? ` (${factorMoves})` : ''} drove the score move.${valuationMove}`,
-      mainRisk: result.pushback ?? stock.mainRisk,
-    },
-  );
+  const updatedStock: RankedStock = {
+    ...stock,
+    score:     result.adjustedScore,
+    signal:    signalFromScore(result.adjustedScore),
+    breakdown: result.adjustedBreakdown,
+  };
+  return buildSwingThesis(updatedStock, {
+    bullCase: `${primaryFactor}${factorMoves ? ` (${factorMoves})` : ''} drove score from ${fromScore.toFixed(1)} → ${result.adjustedScore.toFixed(1)} (${capitalize(result.plausibility)} plausibility).${valuationLine ? ` ${valuationLine}` : ''}`,
+    risk:     result.pushback ?? stock.mainRisk,
+  });
 }
 
 function buildInputErrorReply(stock: RankedStock, reason: string): string {
-  return buildDecisionReply(stock, {
-    whyNow: 'The 1-3 month thesis is unchanged because the assumption update failed.',
-    keyDriver: reason,
-    mainRisk: stock.mainRisk,
+  return buildSwingThesis(stock, {
+    bullCase: stock.primaryReason,
+    risk:     reason,
+  });
+}
+
+function buildPositionEvolution(stock: RankedStock, position: ActivePosition): string {
+  const daysSince = Math.floor((Date.now() - new Date(position.entryDate).getTime()) / 86400000);
+  const pctChange = ((position.currentPrice - position.entryPrice) / position.entryPrice) * 100;
+  const scoreDelta = position.currentScore - position.entryScore;
+  const recentEvents = position.timeline.slice(-3).reverse();
+  const eventStr = recentEvents.length > 0
+    ? '\n\nTimeline:\n' + recentEvents.map(e =>
+        `  ${new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} → ${e.description}`
+      ).join('\n')
+    : '';
+  return [
+    `Position: ${stock.ticker} (${daysSince}d open)`,
+    `P&L: ${pctChange >= 0 ? '+' : ''}${pctChange.toFixed(1)}% · Entry: $${position.entryPrice.toFixed(2)} · Current: $${position.currentPrice.toFixed(2)}`,
+    `Score: ${position.entryScore.toFixed(1)} → ${position.currentScore.toFixed(1)} (${scoreDelta >= 0 ? '+' : ''}${scoreDelta.toFixed(1)}) · Drift: ${capitalize(position.thesisDrift)}`,
+    `Stance: ${position.currentStance}`,
+    `Next: ${position.nextCatalyst}`,
+    `Risk: ${position.keyRisks}`,
+  ].join('\n') + eventStr;
+}
+
+function buildPositionChanges(stock: RankedStock, position: ActivePosition): string {
+  const scoreDelta    = position.currentScore - position.entryScore;
+  const recentEvents  = position.timeline.slice(-5).reverse();
+  const eventStr = recentEvents.map(e =>
+    `  ${new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} → ${e.description}`
+  ).join('\n');
+  return [
+    `Changes since entry — ${stock.ticker}`,
+    `Score: ${position.entryScore.toFixed(1)} → ${position.currentScore.toFixed(1)} (${scoreDelta >= 0 ? '+' : ''}${scoreDelta.toFixed(1)}) · Drift: ${capitalize(position.thesisDrift)}`,
+    `Thesis: ${position.thesisSummary}`,
+    '',
+    'Timeline:',
+    eventStr || '  No logged updates yet.',
+  ].join('\n');
+}
+
+function buildHoldDecision(stock: RankedStock, position: ActivePosition): string {
+  const scoreDelta = position.currentScore - position.entryScore;
+  let rec: string;
+  if (position.thesisDrift === 'strengthening' || scoreDelta > 0.5) {
+    rec = 'Hold and consider adding — thesis is strengthening.';
+  } else if (position.thesisDrift === 'weakening' || scoreDelta < -1.0) {
+    rec = 'Consider trimming — thesis drift is negative.';
+  } else {
+    rec = 'Hold — thesis is stable; no action needed yet.';
+  }
+  return buildSwingThesis(stock, {
+    bullCase:  `${rec} ${stock.primaryReason}`,
+    risk:      position.keyRisks,
+    tradeView: `${position.currentStance} — entered $${position.entryPrice.toFixed(2)}`,
+  });
+}
+
+function buildWhatMattersNext(stock: RankedStock, position: ActivePosition): string {
+  const watchStr = position.watchItems.length > 0 ? position.watchItems.join(', ') : undefined;
+  return buildSwingThesis(stock, {
+    bullCase:        stock.primaryReason,
+    keyCatalyst:     position.nextCatalyst,
+    whatMattersMost: watchStr ? `Watch: ${watchStr}` : undefined,
+    risk:            position.keyRisks,
+  });
+}
+
+function isStrongerThesis(stock: RankedStock, position: ActivePosition): boolean {
+  return position.thesisDrift === 'strengthening' || stock.score > position.entryScore + 0.5;
+}
+
+function buildThesisStrength(stock: RankedStock, position: ActivePosition): string {
+  const scoreDelta = position.currentScore - position.entryScore;
+  const stronger   = isStrongerThesis(stock, position);
+  return buildSwingThesis(stock, {
+    bullCase: stronger
+      ? `Thesis is strengthening. Score moved ${scoreDelta >= 0 ? '+' : ''}${scoreDelta.toFixed(1)} since entry. ${stock.primaryReason}`
+      : `Thesis is ${position.thesisDrift}. Score: ${position.entryScore.toFixed(1)} → ${position.currentScore.toFixed(1)}. Monitor closely.`,
+    risk:      position.keyRisks,
+    tradeView: `${position.currentStance} — entered $${position.entryPrice.toFixed(2)}`,
   });
 }
 
@@ -546,19 +658,25 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   const [displayedScore, setDisplayedScore] = useState(stock?.score ?? 0);
   const [queued,     setQueued]     = useState(false);
   const [isInQueue,  setIsInQueue]  = useState(false);
+  const [currentPosition,   setCurrentPosition]   = useState<ActivePosition | null>(null);
+  const [showEnterForm,     setShowEnterForm]     = useState(false);
+  const [entryPriceInput,   setEntryPriceInput]   = useState('');
+  const [positionConfirmed, setPositionConfirmed] = useState(false);
   const scrollRef         = useRef<HTMLDivElement>(null);
   const abortRef          = useRef<AbortController | null>(null);
   const prevTicker        = useRef<string | null>(null);
   const scoreAnimationRef = useRef<number | null>(null);
   const clearScoreRef     = useRef<number | null>(null);
   const queuedTimeoutRef  = useRef<number | null>(null);
+  const positionTimeoutRef = useRef<number | null>(null);
 
   // Reset conversation when selected stock changes
   useEffect(() => {
     if (stock?.ticker !== prevTicker.current) {
       abortRef.current?.abort();
-      if (clearScoreRef.current !== null) { window.clearTimeout(clearScoreRef.current); clearScoreRef.current = null; }
+      if (clearScoreRef.current    !== null) { window.clearTimeout(clearScoreRef.current);    clearScoreRef.current    = null; }
       if (queuedTimeoutRef.current !== null) { window.clearTimeout(queuedTimeoutRef.current); queuedTimeoutRef.current = null; }
+      if (positionTimeoutRef.current !== null) { window.clearTimeout(positionTimeoutRef.current); positionTimeoutRef.current = null; }
       setMessages(stock ? [
         { role: 'user', content: "Here's why this stock is ranked here..." },
         { role: 'assistant', content: buildExplain(stock) },
@@ -569,15 +687,22 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       setQueued(false);
       setIsInQueue(stock ? getPitchQueue().some(item => item.ticker === stock.ticker) : false);
       setDisplayedScore(stock?.score ?? 0);
+      setShowEnterForm(false);
+      setEntryPriceInput('');
+      setPositionConfirmed(false);
+      setCurrentPosition(
+        stock ? (getActivePositions().find(p => p.ticker === stock.ticker) ?? null) : null,
+      );
       prevTicker.current = stock?.ticker ?? null;
     }
   }, [stock]);
 
   useEffect(() => {
     return () => {
-      if (scoreAnimationRef.current !== null) cancelAnimationFrame(scoreAnimationRef.current);
-      if (clearScoreRef.current !== null) window.clearTimeout(clearScoreRef.current);
-      if (queuedTimeoutRef.current !== null) window.clearTimeout(queuedTimeoutRef.current);
+      if (scoreAnimationRef.current  !== null) cancelAnimationFrame(scoreAnimationRef.current);
+      if (clearScoreRef.current      !== null) window.clearTimeout(clearScoreRef.current);
+      if (queuedTimeoutRef.current   !== null) window.clearTimeout(queuedTimeoutRef.current);
+      if (positionTimeoutRef.current !== null) window.clearTimeout(positionTimeoutRef.current);
     };
   }, []);
 
@@ -628,6 +753,29 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       setMessages([...history, { role: 'assistant', content: '' }]);
       setInput('');
       setStreaming(true);
+
+      // Position-aware queries handled locally
+      if (currentPosition) {
+        const norm = trimmed.toLowerCase();
+        let positionReply: string | null = null;
+        if (/\b(how is this evolving|position evolving|evolving)\b/.test(norm))
+          positionReply = buildPositionEvolution(stock, currentPosition);
+        else if (/\b(changed since|what changed|since entry)\b/.test(norm))
+          positionReply = buildPositionChanges(stock, currentPosition);
+        else if (/\b(should.*hold|still hold|hold this)\b/.test(norm))
+          positionReply = buildHoldDecision(stock, currentPosition);
+        else if (/\b(matters next|what.*next|what event|catalyst next)\b/.test(norm))
+          positionReply = buildWhatMattersNext(stock, currentPosition);
+        else if (/\b(thesis.*stronger|getting stronger|is the thesis|thesis improving)\b/.test(norm))
+          positionReply = buildThesisStrength(stock, currentPosition);
+        if (positionReply) {
+          window.setTimeout(() => {
+            setMessages([...history, { role: 'assistant', content: positionReply! }]);
+            setStreaming(false);
+          }, 120);
+          return;
+        }
+      }
 
       if (looksLikeAssumptionUpdate(trimmed)) {
         const controller = new AbortController();
@@ -683,6 +831,11 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             explanation: payload.result.explanation,
           });
           onStockUpdate?.(updated);
+          if (currentPosition) {
+            const note = `Score updated: ${stock.score.toFixed(1)} → ${payload.result.adjustedScore.toFixed(1)} via assumption — ${payload.result.explanation}`;
+            updatePositionThesis(currentPosition.id, payload.result.adjustedScore, signalFromScore(payload.result.adjustedScore), note);
+            setCurrentPosition(prev => prev ? { ...prev, currentScore: payload.result!.adjustedScore, currentSignal: signalFromScore(payload.result!.adjustedScore) } : prev);
+          }
           setMessages([...history, { role: 'assistant', content: buildAssumptionReply(stock, payload) }]);
           return;
         } catch (err) {
@@ -799,6 +952,20 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
     setQueued(true);
     queuedTimeoutRef.current = window.setTimeout(() => setQueued(false), 2000);
   }, [stock]);
+
+  const handleEnterPosition = useCallback(() => {
+    if (!stock) return;
+    const price = parseFloat(entryPriceInput);
+    if (isNaN(price) || price <= 0) return;
+    const position = buildPositionFromRankedStock(stock, price);
+    const updated  = addPosition(position);
+    setCurrentPosition(updated.find(p => p.id === position.id) ?? null);
+    setShowEnterForm(false);
+    setEntryPriceInput('');
+    if (positionTimeoutRef.current !== null) window.clearTimeout(positionTimeoutRef.current);
+    setPositionConfirmed(true);
+    positionTimeoutRef.current = window.setTimeout(() => setPositionConfirmed(false), 2400);
+  }, [stock, entryPriceInput]);
 
   // ── Empty state ──────────────────────────────────────────────────────────
 
@@ -920,8 +1087,8 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             <p className="truncate text-[11px] text-[var(--cb-text-muted)]">{stock.primaryReason}</p>
           </div>
 
-          {/* Queue button (3-state) */}
-          <div className="flex shrink-0 flex-col items-end gap-1">
+          {/* Queue + Enter Position buttons */}
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
             <button
               type="button"
               onClick={isInQueue ? undefined : handleAddToQueue}
@@ -940,12 +1107,48 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
               }
             </button>
             {queued && (
-              <a
-                href="/pitch-queue"
-                className="text-[10px] text-emerald-400 hover:underline"
-              >
+              <a href="/pitch-queue" className="text-[10px] text-emerald-400 hover:underline">
                 View Queue →
               </a>
+            )}
+
+            {/* Enter Position */}
+            {currentPosition ? (
+              <a
+                href="/portfolio"
+                className="flex items-center gap-1.5 rounded-lg border border-blue-400/30 bg-blue-500/10 px-2.5 py-1 text-[11px] font-medium text-blue-300 hover:underline"
+              >
+                <TrendingUp className="h-3 w-3" />
+                In Portfolio ↗
+              </a>
+            ) : showEnterForm ? (
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  value={entryPriceInput}
+                  onChange={e => setEntryPriceInput(e.target.value)}
+                  placeholder="Price"
+                  className="w-20 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 py-1 text-[11px] text-[var(--cb-text-primary)] focus:outline-none"
+                  onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
+                  autoFocus
+                />
+                <button type="button" onClick={handleEnterPosition} className="rounded-lg bg-blue-600 px-2 py-1 text-[11px] font-semibold text-white">✓</button>
+                <button type="button" onClick={() => setShowEnterForm(false)} className="rounded-lg border border-[var(--cb-border)] px-2 py-1 text-[11px] text-[var(--cb-text-muted)]">✕</button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowEnterForm(true)}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors',
+                  positionConfirmed
+                    ? 'cursor-default border-blue-400/30 bg-blue-500/10 text-blue-300'
+                    : 'border-[var(--cb-border)] text-[var(--cb-text-muted)] hover:border-blue-400/30 hover:text-blue-300',
+                )}
+              >
+                <TrendingUp className="h-3 w-3" />
+                {positionConfirmed ? 'Position Entered' : 'Enter Position'}
+              </button>
             )}
           </div>
         </div>
@@ -1160,6 +1363,32 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
 
       {/* Suggested prompts — always visible above input */}
       <div className="shrink-0 border-t border-[var(--cb-border)] px-4 py-2">
+        {currentPosition && (
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-[10px] font-semibold uppercase tracking-widest text-blue-400/70">
+              Position
+            </span>
+            {(
+              [
+                { label: 'Evolving?',     text: 'How is this position evolving?' },
+                { label: 'What changed?', text: 'What changed since entry?' },
+                { label: 'Still hold?',   text: 'Should we still hold this?' },
+                { label: 'Next event?',   text: 'What event matters next for this position?' },
+                { label: 'Thesis?',       text: 'Is the thesis getting stronger?' },
+              ] as const
+            ).map(p => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => sendMessage(p.text)}
+                disabled={streaming}
+                className="rounded-lg border border-blue-400/20 bg-blue-500/8 px-2 py-1 text-[10px] font-medium text-blue-300 transition-colors hover:border-blue-300/40 hover:bg-blue-500/12 disabled:opacity-50"
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
           <span className="mr-1 text-[10px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">
             Agents
