@@ -80,10 +80,10 @@ type ScoreChange = {
   explanation: string;
 };
 
-function signalWord(signal: RankedStock['signal']): string {
-  if (signal === 'green') return 'Bullish';
-  if (signal === 'red') return 'Bearish';
-  return 'Neutral';
+function stanceAction(signal: RankedStock['signal']): string {
+  if (signal === 'green') return 'Bullish / work up for swing entry';
+  if (signal === 'red') return 'Bearish / avoid or underweight';
+  return 'Neutral / wait for confirmation';
 }
 
 function signalFromScore(score: number): RankedStock['signal'] {
@@ -147,7 +147,7 @@ function buildDecisionReply(
 ): string {
   const [factor, value] = topFactor(stock);
   const brief = getCompanyBrief(stock.ticker);
-  const stance = `${signalWord(stock.signal)}${options.stanceSuffix ? ` ${options.stanceSuffix}` : ''}`;
+  const stance = `${stanceAction(stock.signal)}${options.stanceSuffix ? ` ${options.stanceSuffix}` : ''}`;
   return [
     `Current stance: ${stance}.`,
     `Why now: ${stripTrailingPunctuation(options.whyNow ?? brief.nearTermFocus)}.`,
@@ -166,12 +166,25 @@ function factorListWithScores(factors: Array<[keyof RankedStock['breakdown'], nu
     .join(', ');
 }
 
+function signalContext(stock: RankedStock): string {
+  const forecast = stock.meta.forecastReturnPct != null
+    ? `forecast ${stock.meta.forecastReturnPct >= 0 ? '+' : ''}${stock.meta.forecastReturnPct.toFixed(1)}%`
+    : 'forecast unavailable';
+  const catalysts = stock.meta.catalystCount > 0
+    ? `${stock.meta.catalystCount} catalyst${stock.meta.catalystCount === 1 ? '' : 's'}`
+    : 'no confirmed catalyst count';
+  const valuation = stock.meta.valuation?.impliedUpside != null
+    ? `valuation ${stock.meta.valuation.impliedUpside >= 0 ? '+' : ''}${stock.meta.valuation.impliedUpside.toFixed(1)}%`
+    : 'valuation context pending';
+  return `${forecast}; ${catalysts}; ${valuation}; momentum ${stock.breakdown.momentum.toFixed(1)}/10`;
+}
+
 function buildExplain(stock: RankedStock): string {
   const [first, second, third] = sortedFactors(stock);
   const brief = getCompanyBrief(stock.ticker);
   return buildDecisionReply(stock, {
     whyNow: `${brief.strategicContext} ${brief.nearTermFocus}`,
-    keyDriver: `${brief.keyDriver} Top supports: ${factorListWithScores([first, second, third])}`,
+    keyDriver: `${brief.keyDriver} Top supports: ${factorListWithScores([first, second, third])}; ${signalContext(stock)}`,
     mainRisk: resolvedRisk(stock),
   });
 }
@@ -235,11 +248,12 @@ function buildMarketMiss(stock: RankedStock): string {
 }
 
 function buildMoveHigher(stock: RankedStock): string {
+  const brief = getCompanyBrief(stock.ticker);
   const weak = sortedFactors(stock).slice(-3).reverse();
   return buildDecisionReply(stock, {
-    whyNow: 'The next 1-3 months need confirmation from catalysts, estimates, or price action.',
-    keyDriver: `Score moves higher if ${weak.map(([factor]) => SCORE_LABELS[factor].toLowerCase()).join(', ')} improve.`,
-    mainRisk: stock.mainRisk,
+    whyNow: `The rank moves up if ${brief.watchItems.slice(0, 2).join(' and ')} confirm inside the next 1-3 months`,
+    keyDriver: `Upgrade path: improve ${weak.map(([factor]) => SCORE_LABELS[factor].toLowerCase()).join(', ')} while keeping ${signalContext(stock)}`,
+    mainRisk: resolvedRisk(stock),
   });
 }
 
@@ -247,8 +261,8 @@ function buildBadTrade(stock: RankedStock): string {
   const weakest = sortedFactors(stock).at(-1);
   const brief = getCompanyBrief(stock.ticker);
   return buildDecisionReply(stock, {
-    whyNow: `${stock.ticker} gets weaker if the setup stops improving inside the 1-3 month window.`,
-    keyDriver: weakest ? `${SCORE_LABELS[weakest[0]]} is weakest at ${weakest[1].toFixed(1)}/10.` : 'The weakest score component needs improvement.',
+    whyNow: `${stock.ticker} becomes a bad swing setup if the next catalyst fails to improve estimates, multiple, or positioning`,
+    keyDriver: weakest ? `Break point: ${SCORE_LABELS[weakest[0]]} is weakest at ${weakest[1].toFixed(1)}/10; watch ${brief.watchItems.slice(0, 2).join(' and ')}` : 'The weakest score component needs improvement.',
     mainRisk: brief.mainRisk,
   });
 }
@@ -272,7 +286,7 @@ function buildEvaluate(stock: RankedStock): string {
   return buildDecisionReply(stock, {
     stanceSuffix: `(${trade})`,
     whyNow: `${stock.primaryReason} over the 1-3 month window.`,
-    keyDriver: best ? `${SCORE_LABELS[best[0]]} is strongest at ${best[1].toFixed(1)}/10.` : 'The score is the strongest input.',
+    keyDriver: best ? `${SCORE_LABELS[best[0]]} is strongest at ${best[1].toFixed(1)}/10; ${signalContext(stock)}` : signalContext(stock),
   });
 }
 
@@ -295,6 +309,8 @@ function buildLocalReply(stock: RankedStock, text: string, mode?: InvestmentMode
   if (/\b(evidence|supporting evidence|proof|why believe|data supports|what supports this)\b/.test(normalized)) return buildEvidence(stock);
   if (/\b(monitor|watch|track|what should i watch|signals to watch|watch items)\b/.test(normalized)) return buildMonitor(stock);
   if (/\b(thesis|investment case|core case|stock thesis|company thesis)\b/.test(normalized)) return buildThesis(stock);
+  if (/\b(move.*higher|score higher|improve.*score|what would.*higher)\b/.test(normalized)) return buildMoveHigher(stock);
+  if (mode === 'challenge' || /\b(bad trade|make this weaker|what.*weaker|what breaks|invalidat|risk|push back|bear case|challenge)\b/.test(normalized)) return buildBadTrade(stock);
   if (/\b(bull case|supports the bull|why own|upside)\b/.test(normalized)) {
     const brief = getCompanyBrief(stock.ticker);
     return buildDecisionReply(stock, {
@@ -307,8 +323,6 @@ function buildLocalReply(stock: RankedStock, text: string, mode?: InvestmentMode
   if (mode === 'pitch' || /\b(turn this into a pitch|pitch|weekly pitch)\b/.test(normalized)) return buildPitch(stock);
   if (mode === 'explain' || /\b(why|ranked here|score|breakdown)\b/.test(normalized)) return buildExplain(stock);
   if (mode === 'evaluate' || /\b(buy|wait|avoid|trade|recommendation|should i)\b/.test(normalized)) return buildEvaluate(stock);
-  if (/\b(move.*higher|score higher|improve.*score|what would.*higher)\b/.test(normalized)) return buildMoveHigher(stock);
-  if (mode === 'challenge' || /\b(bad trade|make this weaker|what.*weaker|what breaks|invalidat|risk|push back|bear case|challenge)\b/.test(normalized)) return buildBadTrade(stock);
   return null;
 }
 
@@ -483,8 +497,10 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
               }),
             },
             primaryReason: payload.result.delta > 0
-              ? `User assumption improves ${factorLabel(payload.parsedClaim?.primaryFactor ?? 'score')}`
-              : stock.primaryReason,
+              ? `User assumption strengthens ${factorLabel(payload.parsedClaim?.primaryFactor ?? 'score')}`
+              : payload.result.delta < 0
+                ? `User assumption weakens ${factorLabel(payload.parsedClaim?.primaryFactor ?? 'score')}`
+                : stock.primaryReason,
             mainRisk: payload.result.pushback ?? stock.mainRisk,
           };
           setScoreChange({

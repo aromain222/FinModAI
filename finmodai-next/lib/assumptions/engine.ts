@@ -340,29 +340,7 @@ export function assessPlausibility(
     };
   }
 
-  // 3. Consistency check: are we trying to push a factor that's already at its ceiling?
-  const primaryFactor = claim.affectedFactors.find(f => f.weight === 'primary')?.factor;
-  if (primaryFactor) {
-    const currentScore = breakdown[primaryFactor];
-    if (claim.direction === 'positive' && currentScore >= 8.5) {
-      return {
-        level:    'low',
-        scalar:   PLAUSIBILITY_SCALAR.low,
-        pushback: `${primaryFactor} is already scored ${currentScore.toFixed(1)}/10 — further upside from this assumption has limited incremental impact. The model caps marginal plausibility at "low" when the component is near ceiling.`,
-        normRef:  'Score ceiling consistency check',
-      };
-    }
-    if (claim.direction === 'negative' && currentScore <= 2.0) {
-      return {
-        level:    'low',
-        scalar:   PLAUSIBILITY_SCALAR.low,
-        pushback: `${primaryFactor} is already scored ${currentScore.toFixed(1)}/10 — the component is near floor and further negative pressure has limited incremental impact.`,
-        normRef:  'Score floor consistency check',
-      };
-    }
-  }
-
-  // 4. Magnitude → plausibility mapping (default path)
+  // 3. Magnitude → plausibility mapping (default path)
   if (mag <= 0.5)  return { level: 'high',   scalar: PLAUSIBILITY_SCALAR.high,   pushback: null, normRef: 'Magnitude within normal range' };
   if (mag <= 1.5)  return { level: 'high',   scalar: PLAUSIBILITY_SCALAR.high,   pushback: null, normRef: 'Magnitude within normal range' };
   if (mag <= 2.0)  return { level: 'medium', scalar: PLAUSIBILITY_SCALAR.medium, pushback: null, normRef: 'Magnitude moderately above historical median' };
