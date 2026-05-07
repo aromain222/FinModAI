@@ -251,9 +251,9 @@ function factorClause(
       case 'forecastSignal':
         return returnPct != null
           ? `model projects ${returnPct >= 0 ? '+' : ''}${returnPct.toFixed(1)}% over ${horizonWeeks} weeks`
-          : 'quantitative forecast is net positive';
+          : `forecast profile is constructive at ${breakdown.forecastSignal.toFixed(1)}/10, but live price forecast has not refreshed`;
       case 'catalystStrength':
-        if (events.length === 0) return `catalyst setup rated ${breakdown.catalystStrength.toFixed(1)}/10 (live events not yet loaded)`;
+        if (events.length === 0) return `watchlist catalyst setup rates ${breakdown.catalystStrength.toFixed(1)}/10, but no live headline catalyst is loaded`;
         return posEvent
           ? `catalyst: "${posEvent}"`
           : `${positiveCount} positive catalyst${positiveCount !== 1 ? 's' : ''} in the pipeline`;

@@ -106,6 +106,13 @@ const BRIEFS: Record<string, CompanyBrief> = {
     mainRisk: 'A weaker consumer, rising delinquencies, or higher funding costs can overwhelm growth and compress the multiple.',
     watchItems: ['GMV growth', 'Delinquencies', 'Funding costs', 'Merchant adoption', 'Guidance'],
   },
+  SHOP: {
+    strategicContext: 'Shopify is a commerce-infrastructure and merchant-services platform where GMV growth, attach rate, payments penetration, and operating leverage drive revisions.',
+    nearTermFocus: 'Watch merchant GMV, Shopify Payments penetration, take-rate commentary, fulfillment/opex discipline, and whether AI tools improve merchant conversion.',
+    keyDriver: 'The PM question is whether merchant growth and services attach can lift estimates without forcing heavier reinvestment.',
+    mainRisk: 'Consumer softness, merchant churn, payments take-rate pressure, or renewed investment spend can pressure margins and the multiple.',
+    watchItems: ['Merchant GMV', 'Payments attach', 'Take rate', 'Operating leverage', 'AI merchant tools'],
+  },
 };
 
 const GROUPS = {

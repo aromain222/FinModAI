@@ -132,20 +132,22 @@ function actionDriver(key: keyof RankedStock['breakdown'] | undefined): string {
   return DRIVERS[key];
 }
 
-function factorInterpretation(key: keyof RankedStock['breakdown'], value: number): string {
+function factorInterpretation(stock: RankedStock, key: keyof RankedStock['breakdown'], value: number): string {
   if (key === 'forecastSignal') {
+    if (stock.meta.forecastReturnPct == null) return 'Fallback forecast profile until live price path refreshes.';
     if (value >= 7.5) return 'Model signals strong price upside.';
     if (value >= 5)   return 'Model leans constructive; not confirmed.';
     return 'Weak signal — no clear price catalyst.';
   }
   if (key === 'catalystStrength') {
+    if (stock.meta.catalystCount === 0) return 'Watchlist catalyst setup; no live headline confirmation yet.';
     if (value >= 7.5) return 'Strong catalyst density near-term.';
     if (value >= 5)   return 'Some catalysts; mix is unresolved.';
     return 'Thin pipeline — no clear near-term trigger.';
   }
   if (key === 'momentum') {
-    if (value >= 7.5) return 'Trend is constructive into the window.';
-    if (value >= 5)   return 'Mixed momentum — no clean trend.';
+    if (value >= 7.0) return 'Trend is constructive into the window.';
+    if (value >= 5)   return 'Mixed momentum — needs confirmation.';
     return 'Negative or absent price momentum.';
   }
   if (key === 'earningsSetup') {
@@ -263,7 +265,7 @@ function factorListWithScores(factors: Array<[keyof RankedStock['breakdown'], nu
 function signalContext(stock: RankedStock): string {
   const forecast = stock.meta.forecastReturnPct != null
     ? `forecast ${stock.meta.forecastReturnPct >= 0 ? '+' : ''}${stock.meta.forecastReturnPct.toFixed(1)}%`
-    : 'forecast unavailable';
+    : `forecast fallback ${stock.breakdown.forecastSignal.toFixed(1)}/10`;
   const catalysts = stock.meta.catalystCount > 0
     ? `${stock.meta.catalystCount} catalyst${stock.meta.catalystCount === 1 ? '' : 's'}`
     : 'no confirmed catalyst count';
@@ -275,7 +277,10 @@ function signalContext(stock: RankedStock): string {
 
 function catalystContext(stock: RankedStock): string {
   const catalysts = stock.meta.catalysts ?? [];
-  if (catalysts.length === 0) return 'No ranked live catalyst is loaded yet; use forecast, momentum, valuation, and company watch items until news refreshes.';
+  if (catalysts.length === 0) {
+    const brief = getCompanyBrief(stock.ticker);
+    return `No live headline catalyst is loaded yet; watch ${brief.watchItems.slice(0, 3).join(', ')} for confirmation.`;
+  }
   return catalysts
     .slice(0, 3)
     .map((catalyst) => `${catalyst.title} (${catalyst.channel}, ${catalyst.direction}, ${catalyst.impactPct >= 0 ? '+' : ''}${catalyst.impactPct.toFixed(1)}%)`)
@@ -1055,7 +1060,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
                   />
                 </div>
                 <p className="mt-1 line-clamp-2 text-[9px] leading-tight text-[var(--cb-text-muted)]">
-                  {factorInterpretation(key, value)}
+                  {factorInterpretation(stock, key, value)}
                 </p>
               </div>
             );
