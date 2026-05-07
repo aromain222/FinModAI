@@ -354,17 +354,30 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
 
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-lg border border-[var(--cb-border-subtle)] bg-black/10 p-3">
-              <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Base View</div>
+              <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">TimesFM Base View</div>
               <div className="mt-1 text-base font-semibold tabular-nums text-[var(--cb-text-primary)]">{expectedMove.base}</div>
+              <div className="mt-1 text-[11px] leading-4 text-[var(--cb-text-muted)]">
+                Base tape path from recent price history.
+              </div>
             </div>
             <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/5 p-3">
-              <div className="text-[10px] uppercase tracking-widest text-emerald-200/75">Bull Scenario</div>
+              <div className="text-[10px] uppercase tracking-widest text-emerald-200/75">PM Bull Case</div>
               <div className="mt-1 text-base font-semibold tabular-nums text-emerald-200">{expectedMove.bull}</div>
+              <div className="mt-1 text-[11px] leading-4 text-emerald-100/70">
+                Catalyst upside if estimates, multiple, or positioning re-rate.
+              </div>
             </div>
             <div className="rounded-lg border border-red-400/20 bg-red-400/5 p-3">
               <div className="text-[10px] uppercase tracking-widest text-red-200/75">Risk Scenario</div>
               <div className="mt-1 text-base font-semibold tabular-nums text-red-200">{expectedMove.risk}</div>
+              <div className="mt-1 text-[11px] leading-4 text-red-100/70">
+                Downside if the catalyst fails or tape breaks.
+              </div>
             </div>
+          </div>
+
+          <div className="rounded-lg border border-sky-400/20 bg-sky-400/5 px-3 py-2 text-xs leading-5 text-sky-100/85">
+            TimesFM is the base tape model. The PM bull case is a scenario overlay, so it can be higher when catalysts could force estimate revisions, multiple expansion, or a positioning squeeze.
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">

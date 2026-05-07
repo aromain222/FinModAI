@@ -1215,13 +1215,13 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             </div>
           </div>
           <div>
-            <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Base View</div>
+            <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">TimesFM Base</div>
             <div className="text-xs font-semibold tabular-nums text-[var(--cb-text-primary)]">
               {formatExpectedMoveRange(expectedMove.baseLowPct, expectedMove.baseHighPct)}
             </div>
           </div>
           <div>
-            <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Bull Scenario</div>
+            <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">PM Bull Case</div>
             <div className="text-xs font-semibold tabular-nums text-emerald-300">
               {expectedMove.bullPct >= 0 ? '+' : ''}{expectedMove.bullPct}%
             </div>
@@ -1233,7 +1233,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             </div>
           </div>
           <p className="min-w-[180px] flex-1 text-[11px] leading-snug text-[var(--cb-text-muted)]">
-            {expectedMove.summary}
+            TimesFM is the base tape path; PM bull case is catalyst upside if estimates, multiple, or positioning re-rate. {expectedMove.summary}
           </p>
         </div>
       </div>
