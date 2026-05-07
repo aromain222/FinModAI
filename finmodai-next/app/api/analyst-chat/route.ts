@@ -469,6 +469,8 @@ type DeterministicForecastReplyInput = {
     quarterlyProjections: string;
     sourceLabel: string;
   } | null;
+  newsWatch?: ForecastNewsWatchItem[];
+  confidence?: number;
 };
 
 type ForecastLayerPayload = {
@@ -2145,41 +2147,70 @@ async function buildLongHorizonForecastLayerReply(params: {
 
 function buildDeterministicForecastReply(input: DeterministicForecastReplyInput): string {
   const isCombined = input.eventSynthesis !== null;
-  const endPrice = input.eventSynthesis?.combined.end_price ?? input.endForecast;
   const returnPct = input.eventSynthesis?.combined.return_pct ?? input.returnPct;
   const direction = input.eventSynthesis?.combined.direction ?? input.direction;
-  const directionText = direction === 'flat' ? 'flat move' : `move ${direction}`;
-  const band =
-    input.lower !== null && input.upper !== null
-      ? ` The 90% baseline model band is $${input.lower.toFixed(2)} to $${input.upper.toFixed(2)}, so treat the point estimate as directional rather than precise.`
-      : '';
-  const eventText = input.eventSynthesis
-    ? ` TimesFM alone pointed to $${input.eventSynthesis.baseline.end_price.toFixed(2)} (${input.eventSynthesis.baseline.return_pct >= 0 ? '+' : ''}${input.eventSynthesis.baseline.return_pct.toFixed(1)}%). The news/event overlay (${input.eventSynthesis.event_adjustment.label ?? 'current market events'}) adds a ${input.eventSynthesis.event_adjustment.price_proxy_pct >= 0 ? '+' : ''}${input.eventSynthesis.event_adjustment.price_proxy_pct.toFixed(1)}% price proxy, so the displayed forecast is the combined view.`
-    : ' I do not have a strong event overlay loaded for this ticker in the active market-event context, so the clean baseline is the trend forecast.';
-  const revenueText = input.revenueForecast
-    ? ` Revenue context: the ${input.revenueForecast.sourceLabel.toLowerCase()} revenue forecast implies ${input.revenueForecast.impliedGrowthPct >= 0 ? '+' : ''}${input.revenueForecast.impliedGrowthPct.toFixed(1)}% NTM growth, with projected quarters of ${input.revenueForecast.quarterlyProjections}.`
-    : null;
+  const lowerPct =
+    input.lower !== null && input.startPrice > 0
+      ? ((input.lower - input.startPrice) / input.startPrice) * 100
+      : returnPct - 6;
+  const upperPct =
+    input.upper !== null && input.startPrice > 0
+      ? ((input.upper - input.startPrice) / input.startPrice) * 100
+      : returnPct + 6;
+  const baseLow = Math.max(-25, Math.min(returnPct - 1.5, Math.min(lowerPct, returnPct) * 0.45));
+  const baseHigh = Math.min(25, Math.max(returnPct + 1.5, Math.max(upperPct, returnPct) * 0.45));
   const eventProxyPct = Math.abs(input.eventSynthesis?.event_adjustment.price_proxy_pct ?? 0);
-  const read =
-    input.eventSynthesis
-      ? eventProxyPct < 1
-        ? `Net read: ${direction === 'up' ? 'constructive' : direction === 'down' ? 'cautious' : 'neutral'}, with TimesFM driving most of the forecast; events add only a small offset.`
-        : input.eventSynthesis.combined.direction === 'up'
-        ? 'Net read: constructive, but only modestly so unless the event overlay strengthens.'
-        : input.eventSynthesis.combined.direction === 'down'
-          ? 'Net read: cautious, because the event overlay adds meaningful pressure on top of the trend baseline.'
-          : 'Net read: neutral, because the trend baseline and event overlay mostly offset.'
-      : input.direction === 'up'
-        ? 'Net read: constructive on trend, with confidence limited by the forecast band.'
-        : input.direction === 'down'
-          ? 'Net read: cautious on trend, with confidence limited by the forecast band.'
-      : 'Net read: neutral, with the forecast not showing a meaningful directional edge.';
+  const topEvent = input.newsWatch?.find((item) => item.eventForecast) ?? input.newsWatch?.[0] ?? null;
+  const topEventImpact = topEvent?.eventForecast?.priceImpactPct ?? 0;
+  const bullScenario = Math.max(baseHigh + 2, returnPct + Math.max(2, Math.abs(topEventImpact) * 1.5));
+  const riskScenario = Math.min(baseLow - 2, returnPct - Math.max(3, Math.abs(topEventImpact) * 1.7));
+  const confidenceValue = input.confidence ?? 0.5;
+  const conviction = confidenceValue >= 0.68 ? 'High' : confidenceValue >= 0.48 ? 'Medium' : 'Low';
+  const signal =
+    returnPct > 3 ? 'LONG bias' :
+    returnPct < -3 ? 'SHORT / underweight bias' :
+    'NEUTRAL / wait';
+  const whatMatters =
+    topEvent?.eventForecast?.surpriseToWatch?.replace(/^Key driver:\s*/i, '') ||
+    topEvent?.impact ||
+    (direction === 'up'
+      ? 'Momentum confirmation and catalyst follow-through.'
+      : direction === 'down'
+        ? 'Whether weakness becomes estimate pressure.'
+        : 'Whether a catalyst creates a real estimate or multiple change.');
+  const keyCatalyst = topEvent
+    ? `${topEvent.title}${topEvent.eventForecast ? ` (${topEvent.eventForecast.direction}, ${Math.round(topEvent.eventForecast.confidence * 100)}% confidence)` : ''}`
+    : 'No high-signal catalyst loaded';
+  const eventImportance =
+    topEvent?.eventForecast?.priceImpactRangePct
+      ? Math.max(Math.abs(topEvent.eventForecast.priceImpactRangePct.downside), Math.abs(topEvent.eventForecast.priceImpactRangePct.upside)) >= 3
+        ? 'High'
+        : 'Medium'
+      : topEvent ? 'Medium' : 'Low';
+  const stockSensitivity =
+    Math.abs(returnPct) >= 5 || eventProxyPct >= 1.5
+      ? 'High'
+      : Math.abs(returnPct) >= 2 || eventProxyPct >= 0.5
+        ? 'Medium'
+        : 'Low';
+  const drift =
+    eventProxyPct >= 1 && (input.eventSynthesis?.event_adjustment.price_proxy_pct ?? 0) > 0
+      ? 'Improving if catalyst confirmation follows.'
+      : eventProxyPct >= 1 && (input.eventSynthesis?.event_adjustment.price_proxy_pct ?? 0) < 0
+        ? 'Deteriorating if event pressure persists.'
+        : 'Stable; no major thesis break in the current overlay.';
 
   return [
-    `For ${input.ticker}, the ${input.horizonLabel} ${isCombined ? 'combined forecast' : 'forecast'} is $${input.startPrice.toFixed(2)} to $${endPrice.toFixed(2)}, a ${returnPct >= 0 ? '+' : ''}${returnPct.toFixed(1)}% ${directionText}.${band}`,
-    `${input.sourceLabel} basis: ${input.methodology}${eventText}`,
-    ...(revenueText ? [revenueText] : []),
-    read,
+    `Signal: ${signal}.`,
+    `Expected Move: base view ${baseLow >= 0 ? '+' : ''}${baseLow.toFixed(1)}% to ${baseHigh >= 0 ? '+' : ''}${baseHigh.toFixed(1)}%; bull ${bullScenario >= 0 ? '+' : ''}${bullScenario.toFixed(1)}%; risk ${riskScenario.toFixed(1)}%.`,
+    `What Matters Most: ${whatMatters}`,
+    `Key Catalyst: ${keyCatalyst}. Importance: ${eventImportance}; stock sensitivity: ${stockSensitivity}.`,
+    `Bull Case: trend holds and the catalyst improves estimates, multiple, or positioning.`,
+    `Risk: forecast band is wide; negative surprises can overwhelm a small baseline move.`,
+    `Trade View: ${Math.abs(returnPct) < 3 ? 'No chase; wait for catalyst confirmation.' : returnPct > 0 ? 'Constructive only while momentum and event tape confirm.' : 'Defensive unless event tape improves.'}`,
+    `Conviction Level: ${conviction}.`,
+    `Thesis Drift: ${drift}`,
+    `Basis: ${input.sourceLabel}${isCombined ? ' + event overlay' : ''}. ${eventProxyPct < 1 ? 'TimesFM drives most of the view; events are a small offset.' : 'Events materially adjust the baseline.'}`,
   ].join('\n\n');
 }
 
@@ -4116,14 +4147,16 @@ export async function POST(req: NextRequest) {
               const pctChangeValue = (endForecast - lastActual) / lastActual * 100;
               const pctChange = pctChangeValue.toFixed(1);
               const direction = endForecast > lastActual ? 'up' : endForecast < lastActual ? 'down' : 'flat';
-              const bandStr = (endLower != null && endUpper != null)
-                ? ` (90% confidence band: $${endLower.toFixed(2)}–$${endUpper.toFixed(2)})`
+              const lowerPctValue = endLower != null ? (endLower - lastActual) / lastActual * 100 : null;
+              const upperPctValue = endUpper != null ? (endUpper - lastActual) / lastActual * 100 : null;
+              const bandStr = (lowerPctValue != null && upperPctValue != null)
+                ? ` (90% scenario band: ${lowerPctValue >= 0 ? '+' : ''}${lowerPctValue.toFixed(1)}% to ${upperPctValue >= 0 ? '+' : ''}${upperPctValue.toFixed(1)}%)`
                 : '';
-              const bandSentence = (endLower != null && endUpper != null)
-                ? ` The 90% model band is $${endLower.toFixed(2)} to $${endUpper.toFixed(2)}.`
+              const bandSentence = (lowerPctValue != null && upperPctValue != null)
+                ? ` Risk band: ${lowerPctValue >= 0 ? '+' : ''}${lowerPctValue.toFixed(1)}% to ${upperPctValue >= 0 ? '+' : ''}${upperPctValue.toFixed(1)}%.`
                 : '';
               forecastLeadSentence =
-                `For ${resolvedTicker}, the ${horizonLabel} forecast is $${lastActual.toFixed(2)} to $${endForecast.toFixed(2)}, a ${pctChangeValue >= 0 ? '+' : ''}${pctChange}% ${direction === 'flat' ? 'move' : `move ${direction}`}.${bandSentence}`;
+                `${resolvedTicker} ${horizonLabel} signal is ${direction === 'up' ? 'constructive' : direction === 'down' ? 'cautious' : 'neutral'}, with an expected move of ${pctChangeValue >= 0 ? '+' : ''}${pctChange}%.${bandSentence}`;
               const eventSynthesis = combinedForecastAdjustment
                 ? buildEventAdjustedForecast(pd, combinedForecastAdjustment, 'market_events')
                 : null;
@@ -4144,6 +4177,8 @@ export async function POST(req: NextRequest) {
                 upper: endUpper ?? null,
                 eventSynthesis,
                 revenueForecast: null,
+                newsWatch: forecastNewsWatch,
+                confidence: pd.model_source === 'provider_trend_fallback' ? 0.45 : 0.62,
               };
               const basePayload = buildPriceForecastModelPayload({
                 ticker: resolvedTicker,
@@ -4172,12 +4207,12 @@ export async function POST(req: NextRequest) {
               }
               const eventSynthesisBlock = eventSynthesis
                 ? `\nEvent overlay: ${eventSynthesis.event_adjustment.label ?? 'active market events'} implies a ${eventSynthesis.event_adjustment.price_proxy_pct >= 0 ? '+' : ''}${eventSynthesis.event_adjustment.price_proxy_pct.toFixed(1)}% ${horizonLabel} price proxy after confidence/horizon weighting.\n` +
-                  `Combined outlook: $${eventSynthesis.baseline.start_price.toFixed(2)} → $${eventSynthesis.combined.end_price.toFixed(2)} (${eventSynthesis.combined.direction}, ${eventSynthesis.combined.return_pct >= 0 ? '+' : ''}${eventSynthesis.combined.return_pct.toFixed(1)}%).\n` +
+                  `Combined expected move: ${eventSynthesis.combined.direction}, ${eventSynthesis.combined.return_pct >= 0 ? '+' : ''}${eventSynthesis.combined.return_pct.toFixed(1)}%.\n` +
                   `Caveat: ${eventSynthesis.caveat}`
                 : '';
               parts.push(
                 `${forecastSourceLabel} ${horizonLabel.toUpperCase()} PRICE FORECAST (${forecastMethodology}):\n` +
-                `Current price: $${lastActual.toFixed(2)} → ${horizonLabel} ${eventSynthesis ? 'combined forecast' : 'forecast'}: $${displayedEndForecast.toFixed(2)} (${displayedDirection}, ${displayedPctChangeValue >= 0 ? '+' : ''}${displayedPctChangeValue.toFixed(1)}%)${bandStr}\n` +
+                `${horizonLabel} expected move: ${displayedDirection}, ${displayedPctChangeValue >= 0 ? '+' : ''}${displayedPctChangeValue.toFixed(1)}%${bandStr}\n` +
                 `Note: the displayed forecast uses TimesFM as the baseline and applies a news/event overlay when the current catalyst set has directional signal.` +
                 eventSynthesisBlock
               );
@@ -4231,6 +4266,7 @@ export async function POST(req: NextRequest) {
           (!isValuationOrTradeAnalysisPrompt(lastUserMessage) || prioritizeShortTermPriceForecast)
         ) {
           deterministicForecastReply = buildDeterministicForecastReply(forecastReplyInput);
+          forecastLeadSentence = null;
         }
 
         if (parts.length > 0) {
