@@ -23,6 +23,11 @@ import {
   macroEventsToCatalysts,
   rankCatalysts,
 } from './catalysts';
+import {
+  applyCryptoRegimeToBreakdown,
+  fetchCryptoMarketRegime,
+  isCryptoSensitiveTicker,
+} from './cryptoRegime';
 import { compositeOpportunityScore, signalFromOpportunityScore } from './signals';
 import { buildValuationSignal, scoreValuationSignal } from '@/lib/valuation/signal';
 
@@ -346,7 +351,7 @@ export async function scoreStock(
   const cached = scoreCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
-  const [forecastResult, eventsResult, companyInfoResult] = await Promise.allSettled([
+  const [forecastResult, eventsResult, companyInfoResult, cryptoRegimeResult] = await Promise.allSettled([
     fetch(`${baseUrl}/api/timesfm?type=price&ticker=${t}&horizon=${horizonDays}`, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       cache:  'no-store',
@@ -367,6 +372,10 @@ export async function scoreStock(
     })
       .then(r => (r.ok ? (r.json() as Promise<CompanyInfoPayload>) : null))
       .catch(() => null),
+
+    isCryptoSensitiveTicker(t)
+      ? fetchCryptoMarketRegime(AbortSignal.timeout(FETCH_TIMEOUT_MS))
+      : Promise.resolve(null),
   ]);
 
   const forecastData: PriceForecastData =
@@ -393,10 +402,15 @@ export async function scoreStock(
     ...macroEventsToCatalysts(t, macroEvents),
   ], 6);
   const events: EventItem[] = catalystsToRankingEvents(catalysts);
+  const cryptoRegime =
+    cryptoRegimeResult.status === 'fulfilled' && cryptoRegimeResult.value != null
+      ? cryptoRegimeResult.value
+      : null;
   const isLive =
     (forecastResult.status === 'fulfilled' && forecastResult.value != null) ||
     (eventsResult.status === 'fulfilled' && eventsResult.value != null) ||
-    (companyInfoResult.status === 'fulfilled' && companyInfoResult.value != null);
+    (companyInfoResult.status === 'fulfilled' && companyInfoResult.value != null) ||
+    cryptoRegime != null;
 
   // Derive returnPct from forecast vs current price
   let returnPct: number | null = null;
@@ -425,7 +439,7 @@ export async function scoreStock(
     riskAdjustment:   round1(clamp(hasHistoricalPrices(forecastData) ? riskScore(forecastData, negativeEvents) : shape.riskAdjustment)),
   };
 
-  const breakdown = diversifyBreakdown(t, rawBreakdown);
+  const breakdown = applyCryptoRegimeToBreakdown(diversifyBreakdown(t, rawBreakdown), cryptoRegime);
   const displayValuation = buildValuationSignal({
     ticker: t,
     forecastReturnPct: returnPct,
@@ -452,6 +466,7 @@ export async function scoreStock(
       scoredAt:          new Date().toISOString(),
       valuation:         displayValuation,
       catalysts:         catalysts.slice(0, 3),
+      cryptoRegime,
     },
   };
   scoreCache.set(cacheKey, { expiresAt: Date.now() + SCORE_CACHE_TTL_MS, value: ranked });

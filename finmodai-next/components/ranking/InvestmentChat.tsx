@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { BookOpen, FileText, Loader2, Send } from 'lucide-react';
+import { BookOpen, CheckCircle, FileText, Loader2, Plus, Send } from 'lucide-react';
+import { upsertPitchQueueItem } from '@/lib/pitchQueue/storage';
+import { buildPitchQueueItemFromRankedStock } from '@/lib/pitchQueue/buildPitch';
 import type { RankedStock } from '@/lib/ranking/types';
 import { getCompanyBrief } from '@/lib/ranking/companyBriefs';
 import { signalFromOpportunityScore } from '@/lib/ranking/signals';
@@ -16,12 +18,11 @@ type Message = {
 type InvestmentMode = 'explain' | 'evaluate' | 'challenge' | 'compare' | 'pitch';
 type ScoreFactor = keyof RankedStock['breakdown'];
 
-const QUICK_PROMPTS: { label: string; mode: InvestmentMode; text: string }[] = [
-  { label: 'Explain',   mode: 'explain',   text: 'Why is this stock ranked here?' },
-  { label: 'Evaluate',  mode: 'evaluate',  text: 'Should I buy, wait, or avoid?' },
-  { label: 'Challenge', mode: 'challenge', text: 'Push back on the bull case.' },
-  { label: 'Compare',   mode: 'compare',   text: 'Compare against the other ranked stocks.' },
-  { label: 'Pitch',     mode: 'pitch',     text: 'Write a structured investment pitch.' },
+const STANDARD_PROMPTS: { label: string; mode: InvestmentMode; text: string }[] = [
+  { label: 'Explain thesis',     mode: 'explain',   text: 'Why is this stock ranked here?' },
+  { label: 'Evaluate risk',      mode: 'evaluate',  text: 'Should I buy, wait, or avoid?' },
+  { label: 'Make the bear case', mode: 'challenge', text: 'Push back on the bull case.' },
+  { label: 'Compare to peers',   mode: 'compare',   text: 'Compare against the other ranked stocks.' },
 ];
 
 const NOTEBOOK_PROMPTS: { label: string; mode?: InvestmentMode; text: string }[] = [
@@ -88,6 +89,18 @@ type ScoreChange = {
   primaryFactor: string;
   explanation: string;
 };
+
+function contextPrompt(signal: RankedStock['signal']): { label: string; mode?: InvestmentMode; text: string } {
+  if (signal === 'green') return { label: 'Build a pitch',        mode: 'pitch', text: 'Write a structured investment pitch.' };
+  if (signal === 'red')   return { label: 'When does this recover?',             text: 'What would make this a bad trade improve?' };
+  return                         { label: 'What needs to change?',               text: 'What needs to happen for this to become a buy?' };
+}
+
+function suggestedAction(signal: RankedStock['signal']): string {
+  if (signal === 'green') return 'Build position';
+  if (signal === 'red')   return 'Avoid';
+  return 'Watch';
+}
 
 function stanceAction(signal: RankedStock['signal']): string {
   if (signal === 'green') return 'Bullish / work up for swing entry';
@@ -197,12 +210,19 @@ function catalystContext(stock: RankedStock): string {
     .join('; ');
 }
 
+function cryptoTapeContext(stock: RankedStock): string | null {
+  const regime = stock.meta.cryptoRegime;
+  if (!regime) return null;
+  return `${regime.regime.toUpperCase()} crypto tape: BTC 7D ${regime.btc7dPct >= 0 ? '+' : ''}${regime.btc7dPct.toFixed(1)}%, BTC 30D ${regime.btc30dPct >= 0 ? '+' : ''}${regime.btc30dPct.toFixed(1)}%, ETH 7D ${regime.eth7dPct >= 0 ? '+' : ''}${regime.eth7dPct.toFixed(1)}%, vol ${regime.dailyVolPct.toFixed(1)}%. ${regime.pmRead}`;
+}
+
 function buildExplain(stock: RankedStock): string {
   const [first, second, third] = sortedFactors(stock);
   const brief = getCompanyBrief(stock.ticker);
+  const cryptoTape = cryptoTapeContext(stock);
   return buildDecisionReply(stock, {
     whyNow: `${brief.strategicContext} ${brief.nearTermFocus}`,
-    keyDriver: `${brief.keyDriver} Top supports: ${factorListWithScores([first, second, third])}; ${signalContext(stock)}; catalysts: ${catalystContext(stock)}`,
+    keyDriver: `${brief.keyDriver} Top supports: ${factorListWithScores([first, second, third])}; ${signalContext(stock)}; catalysts: ${catalystContext(stock)}${cryptoTape ? `; ${cryptoTape}` : ''}`,
     mainRisk: resolvedRisk(stock),
   });
 }
@@ -244,8 +264,9 @@ function buildEvidence(stock: RankedStock): string {
 
 function buildMonitor(stock: RankedStock): string {
   const brief = getCompanyBrief(stock.ticker);
+  const cryptoTape = cryptoTapeContext(stock);
   return buildDecisionReply(stock, {
-    whyNow: `Monitor ${brief.watchItems.slice(0, 4).join(', ')} plus ranked catalysts: ${catalystContext(stock)}`,
+    whyNow: `Monitor ${brief.watchItems.slice(0, 4).join(', ')} plus ranked catalysts: ${catalystContext(stock)}${cryptoTape ? `; crypto market tape: ${cryptoTape}` : ''}`,
     keyDriver: `A better setup needs the strongest factor to stay strong and the weakest factor to stop dragging the score`,
     mainRisk: brief.mainRisk,
   });
@@ -409,22 +430,28 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   const [streaming, setStreaming] = useState(false);
   const [scoreChange, setScoreChange] = useState<ScoreChange | null>(null);
   const [displayedScore, setDisplayedScore] = useState(stock?.score ?? 0);
-  const scrollRef  = useRef<HTMLDivElement>(null);
-  const abortRef   = useRef<AbortController | null>(null);
-  const prevTicker = useRef<string | null>(null);
+  const [queued, setQueued] = useState(false);
+  const scrollRef         = useRef<HTMLDivElement>(null);
+  const abortRef          = useRef<AbortController | null>(null);
+  const prevTicker        = useRef<string | null>(null);
   const scoreAnimationRef = useRef<number | null>(null);
+  const clearScoreRef     = useRef<number | null>(null);
+  const queuedTimeoutRef  = useRef<number | null>(null);
 
   // Reset conversation when selected stock changes
   useEffect(() => {
     if (stock?.ticker !== prevTicker.current) {
       abortRef.current?.abort();
+      if (clearScoreRef.current !== null) { window.clearTimeout(clearScoreRef.current); clearScoreRef.current = null; }
+      if (queuedTimeoutRef.current !== null) { window.clearTimeout(queuedTimeoutRef.current); queuedTimeoutRef.current = null; }
       setMessages(stock ? [
-        { role: 'user', content: "Here’s why this stock is ranked here..." },
+        { role: 'user', content: "Here's why this stock is ranked here..." },
         { role: 'assistant', content: buildExplain(stock) },
       ] : []);
       setInput('');
       setStreaming(false);
       setScoreChange(null);
+      setQueued(false);
       setDisplayedScore(stock?.score ?? 0);
       prevTicker.current = stock?.ticker ?? null;
     }
@@ -433,6 +460,8 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   useEffect(() => {
     return () => {
       if (scoreAnimationRef.current !== null) cancelAnimationFrame(scoreAnimationRef.current);
+      if (clearScoreRef.current !== null) window.clearTimeout(clearScoreRef.current);
+      if (queuedTimeoutRef.current !== null) window.clearTimeout(queuedTimeoutRef.current);
     };
   }, []);
 
@@ -457,6 +486,8 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       } else {
         setDisplayedScore(scoreChange.toScore);
         scoreAnimationRef.current = null;
+        if (clearScoreRef.current !== null) window.clearTimeout(clearScoreRef.current);
+        clearScoreRef.current = window.setTimeout(() => setScoreChange(null), 2400);
       }
     };
 
@@ -640,6 +671,18 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
     [stock, peers, messages, streaming, onStockUpdate],
   );
 
+  const handleAddToQueue = useCallback(() => {
+    if (!stock) return;
+    try {
+      upsertPitchQueueItem(buildPitchQueueItemFromRankedStock(stock));
+    } catch {
+      // localStorage unavailable — silent no-op
+    }
+    if (queuedTimeoutRef.current !== null) window.clearTimeout(queuedTimeoutRef.current);
+    setQueued(true);
+    queuedTimeoutRef.current = window.setTimeout(() => setQueued(false), 1500);
+  }, [stock]);
+
   // ── Empty state ──────────────────────────────────────────────────────────
 
   if (!stock) {
@@ -658,10 +701,20 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
 
   // ── Chat ─────────────────────────────────────────────────────────────────
 
+  const factorsSorted = sortedFactors(stock);
+  const topKey        = factorsSorted[0]?.[0];
+  const bottomKey     = factorsSorted[factorsSorted.length - 1]?.[0];
+  const hasDistinctPoles = topKey !== undefined && bottomKey !== undefined && topKey !== bottomKey;
+  const cp = contextPrompt(stock.signal);
+
   const signalColor =
     stock.signal === 'green'  ? 'bg-emerald-500/15 text-emerald-400' :
     stock.signal === 'yellow' ? 'bg-amber-500/15 text-amber-400'     :
                                 'bg-rose-500/15 text-rose-400';
+  const signalTextColor =
+    stock.signal === 'green'  ? 'text-emerald-400' :
+    stock.signal === 'yellow' ? 'text-amber-400'   :
+                                'text-rose-400';
   const scoreDeltaTone = scoreChange && scoreChange.delta >= 0
     ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-400/25'
     : 'bg-rose-500/15 text-rose-300 ring-rose-400/25';
@@ -673,10 +726,12 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
     forecastReturnPct: stock.meta.forecastReturnPct,
     factorBreakdown: stock.breakdown,
   });
+  const cryptoTape = cryptoTapeContext(stock);
   const sourceCards = [
     { label: 'Company file', value: brief.strategicContext },
     { label: 'Score basis', value: stock.primaryReason },
     { label: 'Catalyst tape', value: catalystContext(stock) },
+    ...(cryptoTape ? [{ label: 'Crypto tape', value: cryptoTape }] : []),
     { label: 'Risk file', value: resolvedRisk(stock) },
     {
       label: 'Valuation note',
@@ -713,6 +768,43 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
         </span>
       </div>
 
+      {/* Trade Snapshot */}
+      <div className="shrink-0 border-b border-[var(--cb-border)] px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Signal</span>
+            <span className={cn('text-xs font-bold', signalTextColor)}>{capitalize(stock.signal)}</span>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Horizon</span>
+            <span className="text-xs font-semibold text-[var(--cb-text-primary)]">{stock.horizonWeeks} wk</span>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Action</span>
+            <span className={cn('text-xs font-bold', signalTextColor)}>{suggestedAction(stock.signal)}</span>
+          </div>
+          <div className="min-w-0 flex-1 flex flex-col gap-0.5">
+            <span className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Why</span>
+            <p className="truncate text-[11px] text-[var(--cb-text-secondary)]">{stock.primaryReason}</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleAddToQueue}
+            className={cn(
+              'flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors',
+              queued
+                ? 'border-emerald-400/30 bg-emerald-500/15 text-emerald-300'
+                : 'border-[var(--cb-border)] text-[var(--cb-text-muted)] hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)]',
+            )}
+          >
+            {queued
+              ? <><CheckCircle className="h-3 w-3" />&nbsp;Added</>
+              : <><Plus className="h-3 w-3" />&nbsp;Queue</>
+            }
+          </button>
+        </div>
+      </div>
+
       {/* Company notebook context */}
       <div className="shrink-0 border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-4 py-3">
         <div className="mb-2 flex items-center justify-between gap-3">
@@ -742,7 +834,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
           </div>
         </div>
 
-        <div className="grid gap-2 lg:grid-cols-5">
+        <div className="grid gap-2 lg:grid-cols-5 xl:grid-cols-6">
           {sourceCards.map(card => (
             <div
               key={card.label}
@@ -779,41 +871,53 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       {/* Small score chart */}
       <div className="shrink-0 border-b border-[var(--cb-border)] px-4 py-3">
         <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
-          {(Object.entries(stock.breakdown) as Array<[keyof RankedStock['breakdown'], number]>).map(([key, value]) => (
-            <div
-              key={key}
-              className={cn(
-                'min-w-0 rounded-md border border-transparent p-1 transition-all duration-300',
-                scoreChange?.factorDeltas[key] && changedFactorTone(scoreChange.factorDeltas[key] ?? 0),
-              )}
-            >
-              <div className="mb-1 flex items-center justify-between gap-2">
-                <span className="truncate text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
-                  {SCORE_LABELS[key]}
-                </span>
-                <span className="flex items-center gap-1 text-[10px] tabular-nums text-[var(--cb-text-muted)]">
-                  {scoreChange?.factorDeltas[key] ? (
-                    <span className={cn(
-                      'font-semibold',
-                      (scoreChange.factorDeltas[key] ?? 0) > 0 ? 'text-emerald-300' : 'text-rose-300',
-                    )}>
-                      {(scoreChange.factorDeltas[key] ?? 0) > 0 ? '+' : ''}{(scoreChange.factorDeltas[key] ?? 0).toFixed(1)}
+          {(Object.entries(stock.breakdown) as Array<[keyof RankedStock['breakdown'], number]>).map(([key, value]) => {
+            const factorDelta = scoreChange?.factorDeltas[key];
+            const isTop    = hasDistinctPoles && key === topKey && !factorDelta;
+            const isBottom = hasDistinctPoles && key === bottomKey && !factorDelta;
+            return (
+              <div
+                key={key}
+                className={cn(
+                  'min-w-0 rounded-md border p-1 transition-all duration-300',
+                  factorDelta   && changedFactorTone(factorDelta ?? 0),
+                  !factorDelta  && isTop    && 'border-emerald-400/40 bg-emerald-500/10',
+                  !factorDelta  && isBottom && 'border-amber-400/40 bg-amber-500/10',
+                  !factorDelta  && !isTop && !isBottom && 'border-transparent',
+                )}
+              >
+                <div className="mb-1 flex items-center justify-between gap-1">
+                  <div className="flex min-w-0 items-center gap-1">
+                    <span className="truncate text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
+                      {SCORE_LABELS[key]}
                     </span>
-                  ) : null}
-                  {value.toFixed(1)}
-                </span>
+                    {isTop    && <span className="shrink-0 rounded bg-emerald-500/20 px-1 text-[8px] font-semibold uppercase tracking-wide text-emerald-300">Leads</span>}
+                    {isBottom && <span className="shrink-0 rounded bg-amber-500/20  px-1 text-[8px] font-semibold uppercase tracking-wide text-amber-300">Drag</span>}
+                  </div>
+                  <span className="flex shrink-0 items-center gap-1 text-[10px] tabular-nums text-[var(--cb-text-muted)]">
+                    {factorDelta ? (
+                      <span className={cn(
+                        'font-semibold',
+                        factorDelta > 0 ? 'text-emerald-300' : 'text-rose-300',
+                      )}>
+                        {factorDelta > 0 ? '+' : ''}{factorDelta.toFixed(1)}
+                      </span>
+                    ) : null}
+                    {value.toFixed(1)}
+                  </span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className={cn(
+                      'h-full rounded-full transition-all duration-500 ease-out',
+                      value >= 7 ? 'bg-emerald-400' : value >= 4 ? 'bg-amber-400' : 'bg-rose-400',
+                    )}
+                    style={{ width: `${Math.max(4, Math.min(100, value * 10))}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                <div
-                  className={cn(
-                    'h-full rounded-full transition-all duration-500 ease-out',
-                    value >= 7 ? 'bg-emerald-400' : value >= 4 ? 'bg-amber-400' : 'bg-rose-400',
-                  )}
-                  style={{ width: `${Math.max(4, Math.min(100, value * 10))}%` }}
-                />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         {scoreChange && (
           <div className={cn(
@@ -845,23 +949,6 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
         ref={scrollRef}
         className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4"
       >
-        {/* Quick-prompt buttons shown until the first message */}
-        {messages.length === 0 && (
-          <div className="flex flex-wrap gap-2 pb-1">
-            {QUICK_PROMPTS.map(qp => (
-              <button
-                key={qp.mode}
-                type="button"
-                onClick={() => sendMessage(qp.text, qp.mode)}
-                disabled={streaming}
-                className="rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 py-1.5 text-xs font-medium text-[var(--cb-text-secondary)] transition-colors hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)] disabled:opacity-50"
-              >
-                {qp.label}
-              </button>
-            ))}
-          </div>
-        )}
-
         {messages.map((msg, i) => (
           <div
             key={i}
@@ -885,6 +972,38 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Suggested prompts — always visible above input */}
+      <div className="shrink-0 border-t border-[var(--cb-border)] px-4 py-2">
+        <div className="flex flex-wrap gap-1.5">
+          {STANDARD_PROMPTS.map(qp => (
+            <button
+              key={qp.mode}
+              type="button"
+              onClick={() => sendMessage(qp.text, qp.mode)}
+              disabled={streaming}
+              className="rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 py-1 text-[10px] font-medium text-[var(--cb-text-secondary)] transition-colors hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)] disabled:opacity-50"
+            >
+              {qp.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => sendMessage(cp.text, cp.mode)}
+            disabled={streaming}
+            className={cn(
+              'rounded-lg border px-2 py-1 text-[10px] font-medium transition-colors disabled:opacity-50',
+              stock.signal === 'green'
+                ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15'
+                : stock.signal === 'red'
+                  ? 'border-rose-400/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/15'
+                  : 'border-amber-400/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15',
+            )}
+          >
+            {cp.label}
+          </button>
+        </div>
       </div>
 
       {/* Input */}

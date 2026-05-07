@@ -51,6 +51,20 @@ export type RankedCatalyst = {
   horizon: string;
 };
 
+export type CryptoMarketRegime = {
+  regime: 'risk-on' | 'neutral' | 'risk-off';
+  btc7dPct: number;
+  btc30dPct: number;
+  eth7dPct: number;
+  eth30dPct: number;
+  dailyVolPct: number;
+  leader: 'BTC' | 'ETH' | 'mixed';
+  confidence: number;
+  source: 'binance' | 'fallback';
+  asOf: string;
+  pmRead: string;
+};
+
 export type RankedStock = {
   ticker: string;
   /** Weighted composite, clamped [1, 10], rounded to 1 dp. */
@@ -70,6 +84,7 @@ export type RankedStock = {
     scoredAt: string;
     valuation?: ValuationSignalSummary;
     catalysts?: RankedCatalyst[];
+    cryptoRegime?: CryptoMarketRegime | null;
   };
 };
 
