@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { BookOpen, CheckCircle, FileText, Loader2, Plus, Send } from 'lucide-react';
-import { upsertPitchQueueItem } from '@/lib/pitchQueue/storage';
+import { getPitchQueue, upsertPitchQueueItem } from '@/lib/pitchQueue/storage';
 import { buildPitchQueueItemFromRankedStock } from '@/lib/pitchQueue/buildPitch';
 import type { RankedStock } from '@/lib/ranking/types';
 import { getCompanyBrief } from '@/lib/ranking/companyBriefs';
@@ -31,6 +31,14 @@ const NOTEBOOK_PROMPTS: { label: string; mode?: InvestmentMode; text: string }[]
   { label: 'Monitor', text: 'What should I monitor?' },
   { label: 'Breaks it', text: 'What would make this a bad trade?', mode: 'challenge' },
   { label: 'Pitch', text: 'Turn this into a pitch.', mode: 'pitch' },
+];
+
+const AGENT_PROMPTS: { label: string; mode?: InvestmentMode; text: string }[] = [
+  { label: 'PM', text: 'Run the PM brain: why is this ranked here and what is the decision?' },
+  { label: 'Catalyst', text: 'Run the catalyst agent: what events or headlines matter most over the next 1-3 months?' },
+  { label: 'Forecast', text: 'Run the forecast agent: what does the forecast, momentum, and market tape imply?' },
+  { label: 'Assumption', text: 'Show me the best assumption to test that would change the score and valuation.' },
+  { label: 'Pitch', mode: 'pitch', text: 'Turn this into a pitch.' },
 ];
 
 type PeerStock = Pick<
@@ -90,16 +98,72 @@ type ScoreChange = {
   explanation: string;
 };
 
-function contextPrompt(signal: RankedStock['signal']): { label: string; mode?: InvestmentMode; text: string } {
-  if (signal === 'green') return { label: 'Build a pitch',        mode: 'pitch', text: 'Write a structured investment pitch.' };
-  if (signal === 'red')   return { label: 'When does this recover?',             text: 'What would make this a bad trade improve?' };
-  return                         { label: 'What needs to change?',               text: 'What needs to happen for this to become a buy?' };
+function contextPrompt(
+  signal: RankedStock['signal'],
+  breakdown: RankedStock['breakdown'],
+): { label: string; mode?: InvestmentMode; text: string } {
+  if (breakdown.catalystStrength >= 7.5)
+    return { label: 'Will the catalyst hit?', mode: 'challenge', text: 'Will the catalyst actually hit and change the investment thesis?' };
+  if (breakdown.valuationSignal < 4.5)
+    return { label: 'Is this overpriced?', mode: 'evaluate', text: 'Is this stock overpriced relative to its growth expectations?' };
+  if (breakdown.riskAdjustment < 4.5)
+    return { label: 'What could go wrong?', mode: 'challenge', text: 'What are the biggest risk factors that could break this trade?' };
+  if (signal === 'green') return { label: 'Build a pitch',          mode: 'pitch', text: 'Write a structured investment pitch.' };
+  if (signal === 'red')   return { label: 'When does this recover?',              text: 'What would make this a bad trade improve?' };
+  return                         { label: 'What needs to change?',                text: 'What needs to happen for this to become a buy?' };
 }
 
 function suggestedAction(signal: RankedStock['signal']): string {
   if (signal === 'green') return 'Build position';
   if (signal === 'red')   return 'Avoid';
   return 'Watch';
+}
+
+function actionDriver(key: keyof RankedStock['breakdown'] | undefined): string {
+  if (!key) return 'current factor profile';
+  const DRIVERS: Record<keyof RankedStock['breakdown'], string> = {
+    forecastSignal:   'price model signal is strong',
+    catalystStrength: 'catalyst setup is dense near-term',
+    momentum:         'price trend is constructive',
+    earningsSetup:    'earnings setup favors a beat',
+    valuationSignal:  'stock looks undervalued vs. expectations',
+    riskAdjustment:   'risk/reward profile is attractive',
+  };
+  return DRIVERS[key];
+}
+
+function factorInterpretation(key: keyof RankedStock['breakdown'], value: number): string {
+  if (key === 'forecastSignal') {
+    if (value >= 7.5) return 'Model signals strong price upside.';
+    if (value >= 5)   return 'Model leans constructive; not confirmed.';
+    return 'Weak signal — no clear price catalyst.';
+  }
+  if (key === 'catalystStrength') {
+    if (value >= 7.5) return 'Strong catalyst density near-term.';
+    if (value >= 5)   return 'Some catalysts; mix is unresolved.';
+    return 'Thin pipeline — no clear near-term trigger.';
+  }
+  if (key === 'momentum') {
+    if (value >= 7.5) return 'Trend is constructive into the window.';
+    if (value >= 5)   return 'Mixed momentum — no clean trend.';
+    return 'Negative or absent price momentum.';
+  }
+  if (key === 'earningsSetup') {
+    if (value >= 7.5) return 'Setup tilts toward a beat.';
+    if (value >= 5)   return 'Neutral — modest beat/miss risk.';
+    return 'Setup tilts toward disappointment.';
+  }
+  if (key === 'valuationSignal') {
+    if (value >= 7.5) return 'Undervalued vs. growth — room to re-rate.';
+    if (value >= 5)   return 'Near fair value — upside needs execution.';
+    return 'Stretched — limited room for disappointment.';
+  }
+  if (key === 'riskAdjustment') {
+    if (value >= 7.5) return 'Low volatility; favorable risk/reward.';
+    if (value >= 5)   return 'Moderate risk — manageable if thesis holds.';
+    return 'Elevated — volatility could overwhelm the upside.';
+  }
+  return '';
 }
 
 function stanceAction(signal: RankedStock['signal']): string {
@@ -144,9 +208,17 @@ function changedFactorSummary(factorDeltas: Partial<Record<ScoreFactor, number>>
 }
 
 function scoreChangeExplanation(change: ScoreChange): string {
-  const direction = change.delta >= 0 ? 'increased' : 'decreased';
-  const quality = change.delta >= 0 ? 'stronger' : 'weaker';
-  return `Score ${direction} due to ${quality} ${factorLabel(change.primaryFactor).toLowerCase()} assumption.`;
+  const direction = change.delta >= 0 ? 'moved up' : 'moved down';
+  const sign = change.delta >= 0 ? '+' : '';
+  const changedFactors = (Object.entries(change.factorDeltas) as Array<[ScoreFactor, number | undefined]>)
+    .filter(([, d]) => d != null && Math.abs(d) > 0.05)
+    .sort((a, b) => Math.abs(b[1] ?? 0) - Math.abs(a[1] ?? 0))
+    .map(([f]) => SCORE_LABELS[f]);
+  const factorStr = changedFactors.length > 0
+    ? changedFactors.join(' and ')
+    : factorLabel(change.primaryFactor);
+  const verb = change.delta >= 0 ? 'improved' : 'weakened';
+  return `Score ${direction} ${sign}${change.delta.toFixed(1)} because ${factorStr} ${verb}.`;
 }
 
 function isGenericReason(value: string): boolean {
@@ -272,6 +344,38 @@ function buildMonitor(stock: RankedStock): string {
   });
 }
 
+function buildCatalystAgent(stock: RankedStock): string {
+  const brief = getCompanyBrief(stock.ticker);
+  const catalysts = catalystContext(stock);
+  return buildDecisionReply(stock, {
+    whyNow: `The catalyst agent is focused on whether events can move estimates, the multiple, or positioning inside ${stock.horizonWeeks} weeks`,
+    keyDriver: `${brief.keyDriver} Top catalyst context: ${catalysts}. Watch ${brief.watchItems.slice(0, 2).join(' and ')}`,
+    mainRisk: `A headline is not enough; it needs to change estimates, valuation multiple, risk premium, or positioning. ${brief.mainRisk}`,
+  });
+}
+
+function buildForecastAgent(stock: RankedStock): string {
+  const cryptoTape = cryptoTapeContext(stock);
+  const forecast = stock.meta.forecastReturnPct != null
+    ? `${stock.meta.forecastReturnPct >= 0 ? '+' : ''}${stock.meta.forecastReturnPct.toFixed(1)}% forecast move`
+    : 'forecast path unavailable';
+  return buildDecisionReply(stock, {
+    whyNow: `The forecast agent reads the next ${stock.horizonWeeks} weeks through TimesFM, momentum, market tape, and catalyst confirmation`,
+    keyDriver: `${forecast}; momentum ${stock.breakdown.momentum.toFixed(1)}/10; forecast score ${stock.breakdown.forecastSignal.toFixed(1)}/10${cryptoTape ? `; ${cryptoTape}` : ''}`,
+    mainRisk: `Forecasts are directional, not precise; the setup weakens if price action diverges from the factor score or catalysts fail to confirm.`,
+  });
+}
+
+function buildAssumptionAgent(stock: RankedStock): string {
+  const weak = sortedFactors(stock).slice(-2).reverse();
+  const brief = getCompanyBrief(stock.ticker);
+  return buildDecisionReply(stock, {
+    whyNow: `The assumption agent is for changing the thesis, not just asking for a summary`,
+    keyDriver: `Best test: state a specific view on ${brief.watchItems[0] ?? SCORE_LABELS[weak[0]?.[0] ?? 'forecastSignal']} because it should move ${factorListWithScores(weak)}. Example: "I think ${stock.ticker} beats because demand is stronger than expected."`,
+    mainRisk: `If the assumption is too broad or unrealistic, the score update will be discounted and the system should push back.`,
+  });
+}
+
 function buildMarketMiss(stock: RankedStock): string {
   const brief = getCompanyBrief(stock.ticker);
   const valuation = stock.meta.valuation ?? buildValuationSignal({
@@ -343,6 +447,10 @@ function buildCompare(stock: RankedStock, peers: PeerStock[]): string {
 
 function buildLocalReply(stock: RankedStock, text: string, mode?: InvestmentMode): string | null {
   const normalized = text.toLowerCase();
+  if (/\b(pm brain|run the pm|decision agent|ranked here.*decision)\b/.test(normalized)) return buildExplain(stock);
+  if (/\b(catalyst agent|events? matter|headlines? matter|catalyst)\b/.test(normalized)) return buildCatalystAgent(stock);
+  if (/\b(forecast agent|forecast.*momentum|market tape|timesfm|price path)\b/.test(normalized)) return buildForecastAgent(stock);
+  if (/\b(assumption agent|best assumption|assumption to test|change the score|change.*valuation)\b/.test(normalized)) return buildAssumptionAgent(stock);
   if (/\b(what'?s priced|what is priced|priced in|market pricing|market miss|what is the market missing|underpricing|mispricing)\b/.test(normalized)) return buildMarketMiss(stock);
   if (/\b(what needs to be true|needs to be true|what has to happen|what would make it work|underwrite|confirm the thesis)\b/.test(normalized)) return buildNeedsTrue(stock);
   if (/\b(evidence|supporting evidence|proof|why believe|data supports|what supports this)\b/.test(normalized)) return buildEvidence(stock);
@@ -430,7 +538,8 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   const [streaming, setStreaming] = useState(false);
   const [scoreChange, setScoreChange] = useState<ScoreChange | null>(null);
   const [displayedScore, setDisplayedScore] = useState(stock?.score ?? 0);
-  const [queued, setQueued] = useState(false);
+  const [queued,     setQueued]     = useState(false);
+  const [isInQueue,  setIsInQueue]  = useState(false);
   const scrollRef         = useRef<HTMLDivElement>(null);
   const abortRef          = useRef<AbortController | null>(null);
   const prevTicker        = useRef<string | null>(null);
@@ -452,6 +561,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       setStreaming(false);
       setScoreChange(null);
       setQueued(false);
+      setIsInQueue(stock ? getPitchQueue().some(item => item.ticker === stock.ticker) : false);
       setDisplayedScore(stock?.score ?? 0);
       prevTicker.current = stock?.ticker ?? null;
     }
@@ -675,12 +785,13 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
     if (!stock) return;
     try {
       upsertPitchQueueItem(buildPitchQueueItemFromRankedStock(stock));
+      setIsInQueue(true);
     } catch {
       // localStorage unavailable — silent no-op
     }
     if (queuedTimeoutRef.current !== null) window.clearTimeout(queuedTimeoutRef.current);
     setQueued(true);
-    queuedTimeoutRef.current = window.setTimeout(() => setQueued(false), 1500);
+    queuedTimeoutRef.current = window.setTimeout(() => setQueued(false), 2000);
   }, [stock]);
 
   // ── Empty state ──────────────────────────────────────────────────────────
@@ -705,7 +816,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   const topKey        = factorsSorted[0]?.[0];
   const bottomKey     = factorsSorted[factorsSorted.length - 1]?.[0];
   const hasDistinctPoles = topKey !== undefined && bottomKey !== undefined && topKey !== bottomKey;
-  const cp = contextPrompt(stock.signal);
+  const cp = contextPrompt(stock.signal, stock.breakdown);
 
   const signalColor =
     stock.signal === 'green'  ? 'bg-emerald-500/15 text-emerald-400' :
@@ -769,39 +880,67 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       </div>
 
       {/* Trade Snapshot */}
-      <div className="shrink-0 border-b border-[var(--cb-border)] px-4 py-2.5">
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Signal</span>
-            <span className={cn('text-xs font-bold', signalTextColor)}>{capitalize(stock.signal)}</span>
+      <div className="shrink-0 border-b border-[var(--cb-border)] px-4 py-3">
+        <div className="flex items-start gap-4">
+          {/* Dominant action block */}
+          <div className={cn(
+            'shrink-0 rounded-lg border-l-2 pl-3 pr-4 py-1',
+            stock.signal === 'green'  ? 'border-emerald-400 bg-emerald-500/8'  :
+            stock.signal === 'yellow' ? 'border-amber-400 bg-amber-500/8'      :
+                                        'border-rose-400 bg-rose-500/8',
+          )}>
+            <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Action</div>
+            <div className={cn('text-sm font-bold leading-tight', signalTextColor)}>
+              {suggestedAction(stock.signal)}
+            </div>
+            <div className="mt-0.5 text-[10px] text-[var(--cb-text-muted)]">
+              because {actionDriver(topKey)}
+            </div>
           </div>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Horizon</span>
-            <span className="text-xs font-semibold text-[var(--cb-text-primary)]">{stock.horizonWeeks} wk</span>
+
+          {/* Metadata strip */}
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5">
+              <div>
+                <span className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Signal </span>
+                <span className={cn('text-[11px] font-semibold', signalTextColor)}>{capitalize(stock.signal)}</span>
+              </div>
+              <div>
+                <span className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Horizon </span>
+                <span className="text-[11px] font-semibold text-[var(--cb-text-primary)]">{stock.horizonWeeks} wk</span>
+              </div>
+            </div>
+            <p className="truncate text-[11px] text-[var(--cb-text-muted)]">{stock.primaryReason}</p>
           </div>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Action</span>
-            <span className={cn('text-xs font-bold', signalTextColor)}>{suggestedAction(stock.signal)}</span>
-          </div>
-          <div className="min-w-0 flex-1 flex flex-col gap-0.5">
-            <span className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Why</span>
-            <p className="truncate text-[11px] text-[var(--cb-text-secondary)]">{stock.primaryReason}</p>
-          </div>
-          <button
-            type="button"
-            onClick={handleAddToQueue}
-            className={cn(
-              'flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors',
-              queued
-                ? 'border-emerald-400/30 bg-emerald-500/15 text-emerald-300'
-                : 'border-[var(--cb-border)] text-[var(--cb-text-muted)] hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)]',
+
+          {/* Queue button (3-state) */}
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <button
+              type="button"
+              onClick={isInQueue ? undefined : handleAddToQueue}
+              className={cn(
+                'flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors',
+                queued || isInQueue
+                  ? 'cursor-default border-emerald-400/30 bg-emerald-500/15 text-emerald-300'
+                  : 'border-[var(--cb-border)] text-[var(--cb-text-muted)] hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)]',
+              )}
+            >
+              {queued
+                ? <><CheckCircle className="h-3 w-3" />&nbsp;Added to Pitch Queue</>
+                : isInQueue
+                  ? <><CheckCircle className="h-3 w-3" />&nbsp;In Queue</>
+                  : <><Plus className="h-3 w-3" />&nbsp;Queue</>
+              }
+            </button>
+            {queued && (
+              <a
+                href="/pitch-queue"
+                className="text-[10px] text-emerald-400 hover:underline"
+              >
+                View Queue →
+              </a>
             )}
-          >
-            {queued
-              ? <><CheckCircle className="h-3 w-3" />&nbsp;Added</>
-              : <><Plus className="h-3 w-3" />&nbsp;Queue</>
-            }
-          </button>
+          </div>
         </div>
       </div>
 
@@ -915,6 +1054,9 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
                     style={{ width: `${Math.max(4, Math.min(100, value * 10))}%` }}
                   />
                 </div>
+                <p className="mt-1 line-clamp-2 text-[9px] leading-tight text-[var(--cb-text-muted)]">
+                  {factorInterpretation(key, value)}
+                </p>
               </div>
             );
           })}
@@ -976,6 +1118,22 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
 
       {/* Suggested prompts — always visible above input */}
       <div className="shrink-0 border-t border-[var(--cb-border)] px-4 py-2">
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[10px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">
+            Agents
+          </span>
+          {AGENT_PROMPTS.map(agent => (
+            <button
+              key={agent.label}
+              type="button"
+              onClick={() => sendMessage(agent.text, agent.mode)}
+              disabled={streaming}
+              className="rounded-lg border border-blue-400/20 bg-blue-500/10 px-2 py-1 text-[10px] font-semibold text-blue-200 transition-colors hover:border-blue-300/40 hover:bg-blue-500/15 disabled:opacity-50"
+            >
+              {agent.label}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap gap-1.5">
           {STANDARD_PROMPTS.map(qp => (
             <button

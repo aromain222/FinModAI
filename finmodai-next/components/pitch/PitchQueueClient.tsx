@@ -18,6 +18,18 @@ function signalTone(signal: string): string {
   return 'text-amber-200';
 }
 
+function queuedAction(signal: string): string {
+  if (signal === 'green') return 'Build position';
+  if (signal === 'red')   return 'Avoid';
+  return 'Watch';
+}
+
+function actionBadgeTone(signal: string): string {
+  if (signal === 'green') return 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300';
+  if (signal === 'red')   return 'border-rose-400/30 bg-rose-500/10 text-rose-300';
+  return 'border-amber-400/30 bg-amber-500/10 text-amber-300';
+}
+
 function voteTone(status: PitchVoteStatus): string {
   if (status === 'approved') return 'border-emerald-400/30 bg-emerald-400/10 text-emerald-100';
   if (status === 'rejected') return 'border-red-400/30 bg-red-400/10 text-red-100';
@@ -82,6 +94,9 @@ export function PitchQueueClient() {
                       <h2 className="text-xl font-semibold text-[var(--cb-text-primary)]">{item.ticker}</h2>
                       <span className={cn('text-xs font-semibold uppercase tracking-widest', signalTone(item.signal))}>
                         {item.signal}
+                      </span>
+                      <span className={cn('rounded-md border px-2 py-0.5 text-[11px] font-semibold', actionBadgeTone(item.signal))}>
+                        {queuedAction(item.signal)}
                       </span>
                       <span className={cn('rounded-full border px-2 py-0.5 text-[11px] font-medium', voteTone(item.voteStatus))}>
                         {item.voteStatus}

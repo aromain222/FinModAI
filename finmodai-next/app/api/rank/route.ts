@@ -62,9 +62,36 @@ const DEFAULT_WATCHLIST = [
 
   'PDD', 'BABA', 'BIDU', 'JD', 'SE',
   'MSTR', 'RIOT', 'MARA', 'UPST', 'LCID',
+
+  'RBLX', 'PINS', 'SNAP', 'ZM', 'DOCU',
+  'FVRR', 'UPWK', 'ETSY', 'EBAY', 'W',
+  'CVNA', 'CAR', 'GME', 'AMC', 'CHWY',
+  'CAVA', 'SG', 'WING', 'DPZ', 'BROS',
+  'CELH', 'MNST', 'KDP', 'TAP', 'STZ',
+  'PM', 'MO', 'BTI', 'AI', 'PATH',
+  'GTLB', 'CFLT', 'ESTC', 'DT', 'S',
+  'PCOR', 'BILL', 'PAYC', 'TOST', 'FOUR',
+  'GDDY', 'HUBS', 'APP', 'TTD', 'DOCS',
+  'TEM', 'DUOL', 'U', 'TTWO', 'EA',
+
+  'MRNA', 'BNTX', 'BIIB', 'ILMN', 'ALNY',
+  'CRSP', 'BEAM', 'NTLA', 'VCYT', 'EXAS',
+  'GH', 'NVCR', 'IOVA', 'VKTX', 'RXRX',
+  'SDGR', 'WAL', 'FITB', 'KEY', 'RF',
+  'TFC', 'HBAN', 'CMA', 'ZION', 'MTB',
+  'PLD', 'AMT', 'CCI', 'EQIX', 'O',
+  'SPG', 'VICI', 'PSA', 'FCX', 'NEM',
+  'GOLD', 'AA', 'NUE', 'STLD', 'CLF',
+  'X', 'SCCO', 'ALB', 'LAC', 'HAL',
+  'BKR', 'DVN', 'FANG', 'EQT', 'CTRA',
+  'WMB', 'KMI', 'ENB', 'TRP', 'NOC',
+  'GD', 'HII', 'TDG', 'DAL', 'UAL',
+  'AAL', 'LUV', 'FDX', 'UPS', 'CSX',
+  'UNP', 'NSC', 'GM', 'F', 'RIVN',
+  'NIO', 'LI', 'XPEV',
 ];
 
-const MAX_TICKERS = 200;
+const MAX_TICKERS = 300;
 const RANK_CACHE_TTL_MS = 30_000;
 const rankCache = new Map<string, { expiresAt: number; response: RankResponse }>();
 

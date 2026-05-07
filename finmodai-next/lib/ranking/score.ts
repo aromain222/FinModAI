@@ -43,7 +43,7 @@ export const WEIGHTS = {
 } as const;
 
 const FETCH_TIMEOUT_MS = 1_800;
-const BATCH_SIZE = 50;
+const BATCH_SIZE = 72;
 const SCORE_CACHE_TTL_MS = 60_000;
 
 const scoreCache = new Map<string, { expiresAt: number; value: RankedStock }>();
