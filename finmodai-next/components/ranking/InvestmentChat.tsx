@@ -7,6 +7,7 @@ import { buildPitchQueueItemFromRankedStock } from '@/lib/pitchQueue/buildPitch'
 import type { RankedStock } from '@/lib/ranking/types';
 import { getCompanyBrief } from '@/lib/ranking/companyBriefs';
 import { signalFromOpportunityScore } from '@/lib/ranking/signals';
+import { buildExpectedMoveContext, formatExpectedMoveRange } from '@/lib/ranking/expectedMove';
 import { buildValuationSignal } from '@/lib/valuation/signal';
 import { cn } from '@/lib/utils';
 
@@ -842,6 +843,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
     forecastReturnPct: stock.meta.forecastReturnPct,
     factorBreakdown: stock.breakdown,
   });
+  const expectedMove = buildExpectedMoveContext(stock);
   const cryptoTape = cryptoTapeContext(stock);
   const sourceCards = [
     { label: 'Company file', value: brief.strategicContext },
@@ -946,6 +948,41 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
               </a>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Expected Move */}
+      <div className="shrink-0 border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+          <div className="mr-1">
+            <div className="text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">
+              Expected Move
+            </div>
+            <div className="text-[10px] text-[var(--cb-text-muted)]">
+              range, not target
+            </div>
+          </div>
+          <div>
+            <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Base View</div>
+            <div className="text-xs font-semibold tabular-nums text-[var(--cb-text-primary)]">
+              {formatExpectedMoveRange(expectedMove.baseLowPct, expectedMove.baseHighPct)}
+            </div>
+          </div>
+          <div>
+            <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Bull Scenario</div>
+            <div className="text-xs font-semibold tabular-nums text-emerald-300">
+              {expectedMove.bullPct >= 0 ? '+' : ''}{expectedMove.bullPct}%
+            </div>
+          </div>
+          <div>
+            <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Risk Scenario</div>
+            <div className="text-xs font-semibold tabular-nums text-rose-300">
+              {expectedMove.riskPct >= 0 ? '+' : ''}{expectedMove.riskPct}%
+            </div>
+          </div>
+          <p className="min-w-[180px] flex-1 text-[11px] leading-snug text-[var(--cb-text-muted)]">
+            {expectedMove.summary}
+          </p>
         </div>
       </div>
 
