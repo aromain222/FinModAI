@@ -139,12 +139,38 @@ function hasForecastConflict(stock: RankedStock): boolean {
   );
 }
 
-function suggestedAction(stock: RankedStock): string {
-  if (hasForecastConflict(stock)) return 'Wait';
-  if (stock.signal === 'green' && !hasLiveConfirmation(stock)) return 'Work up';
-  if (stock.signal === 'green') return 'Build position';
-  if (stock.signal === 'red')   return 'Avoid';
-  return 'Watch';
+type TradeReadinessLabel = 'Ready' | 'Work up' | 'Wait for catalyst';
+
+function tradeReadiness(stock: RankedStock): { label: TradeReadinessLabel; reason: string } {
+  const brief = getCompanyBrief(stock.ticker);
+  if (hasForecastConflict(stock)) {
+    return {
+      label: 'Wait for catalyst',
+      reason: `score is strong but the TimesFM tape conflicts; wait for ${brief.watchItems[0]?.toLowerCase() ?? 'the next catalyst'} to confirm`,
+    };
+  }
+  if (stock.signal === 'green' && hasLiveConfirmation(stock)) {
+    return {
+      label: 'Ready',
+      reason: `score and live forecast/catalyst context are aligned; size still depends on risk`,
+    };
+  }
+  if (stock.signal === 'green') {
+    return {
+      label: 'Work up',
+      reason: `green opportunity, but needs live headline or forecast confirmation before sizing`,
+    };
+  }
+  if (stock.signal === 'yellow') {
+    return {
+      label: 'Work up',
+      reason: `interesting but needs ${brief.watchItems[0]?.toLowerCase() ?? 'one catalyst'} to improve the setup`,
+    };
+  }
+  return {
+    label: 'Wait for catalyst',
+    reason: 'risk/reward is not ready; wait for score factors to repair',
+  };
 }
 
 function actionDriver(key: keyof RankedStock['breakdown'] | undefined): string {
@@ -307,6 +333,32 @@ function expectedMoveForDisplay(stock: RankedStock): ReturnType<typeof buildExpe
   return base;
 }
 
+function timesFmRead(stock: RankedStock): string {
+  const forecast = stock.meta.forecastReturnPct;
+  if (forecast == null) return 'Pending';
+  if (forecast >= 4) return 'Bullish';
+  if (forecast <= -4) return 'Bearish';
+  return 'Neutral';
+}
+
+function pmBullCaseRead(expectedMove: ReturnType<typeof buildExpectedMoveContext>): string {
+  if (expectedMove.bullPct >= 20) return 'High';
+  if (expectedMove.bullPct >= 12) return 'Medium';
+  return 'Low';
+}
+
+function forecastReconciliation(stock: RankedStock, expectedMove: ReturnType<typeof buildExpectedMoveContext>): string {
+  return `Score: ${capitalize(stock.signal)} | TimesFM: ${timesFmRead(stock)} | PM Bull Case: ${pmBullCaseRead(expectedMove)}`;
+}
+
+function finalPmRead(stock: RankedStock, expectedMove: ReturnType<typeof buildExpectedMoveContext>): string {
+  const readiness = tradeReadiness(stock);
+  if (readiness.label === 'Ready') {
+    return `${readiness.label}: work the idea now; ${SCORE_LABELS[topFactor(stock)[0]].toLowerCase()} leads and PM upside is ${pmBullCaseRead(expectedMove).toLowerCase()}.`;
+  }
+  return `${readiness.label}: ${readiness.reason}.`;
+}
+
 function keyCatalystStr(stock: RankedStock): string {
   const catalysts = stock.meta.catalysts ?? [];
   if (catalysts.length === 0) {
@@ -320,6 +372,8 @@ function keyCatalystStr(stock: RankedStock): string {
 
 function tradeViewStr(stock: RankedStock): string {
   const brief = getCompanyBrief(stock.ticker);
+  const readiness = tradeReadiness(stock);
+  if (readiness.label !== 'Ready') return `${readiness.label} - ${readiness.reason}`;
   if (hasForecastConflict(stock)) {
     return `Wait — opportunity score and forecast tape conflict; do not enter until ${brief.watchItems[0]?.toLowerCase() ?? 'the setup'} confirms`;
   }
@@ -328,7 +382,7 @@ function tradeViewStr(stock: RankedStock): string {
   }
   if (stock.signal === 'green') {
     const watch = brief.watchItems[0] ?? 'catalyst confirmation';
-    return `Build position — scale into dips; add on ${watch.toLowerCase()}`;
+    return `Ready - track idea; add only if ${watch.toLowerCase()} confirms`;
   }
   if (stock.signal === 'red') {
     return `Avoid — wait for ${brief.watchItems[0]?.toLowerCase() ?? 'thesis improvement'} before re-engaging`;
@@ -372,6 +426,23 @@ function catalystContext(stock: RankedStock): string {
     .slice(0, 3)
     .map((catalyst) => `${catalyst.title} (${catalyst.channel}, ${catalyst.direction}, ${catalyst.impactPct >= 0 ? '+' : ''}${catalyst.impactPct.toFixed(1)}%)`)
     .join('; ');
+}
+
+function catalystDetailedContext(stock: RankedStock): string {
+  const catalysts = stock.meta.catalysts ?? [];
+  if (catalysts.length === 0) return catalystContext(stock);
+  const top = catalysts[0];
+  const channel = factorLabel(top.channel);
+  return `${channel}: ${top.title}. ${top.reason} ${top.estimateRisk}`;
+}
+
+function scoreBacktestContext(stock: RankedStock): string {
+  const forecast = stock.meta.forecastReturnPct;
+  const signal = stock.score >= 7 ? 'high-score' : stock.score >= 4 ? 'watchlist' : 'low-score';
+  const forecastLine = forecast == null
+    ? 'No live TimesFM return is loaded yet.'
+    : `Current forward check is ${forecast >= 0 ? '+' : ''}${forecast.toFixed(1)}% over the forecast window.`;
+  return `Lightweight rank check: ${signal} profile (${stock.score.toFixed(1)}/10). ${forecastLine} Use this as a forward score audit, not a fully validated historical edge yet.`;
 }
 
 function cryptoTapeContext(stock: RankedStock): string | null {
@@ -429,10 +500,14 @@ function buildEvidence(stock: RankedStock): string {
 function buildMonitor(stock: RankedStock): string {
   const brief      = getCompanyBrief(stock.ticker);
   const cryptoTape = cryptoTapeContext(stock);
+  const catalysts  = stock.meta.catalysts ?? [];
+  const liveItems   = catalysts.slice(0, 2).map(c => `${c.title} (${c.channel})`);
+  const watchItems  = [...liveItems, ...brief.watchItems].slice(0, 4);
   return buildSwingThesis(stock, {
-    bullCase:    `Watch ${brief.watchItems.slice(0, 4).join(', ')}.`,
-    keyCatalyst: `${catalystContext(stock)}${cryptoTape ? `; ${cryptoTape}` : ''}`,
+    bullCase:    `This week, monitor ${watchItems.join(', ')}.`,
+    keyCatalyst: `${catalystDetailedContext(stock)}${cryptoTape ? `; ${cryptoTape}` : ''}`,
     risk:        brief.mainRisk,
+    tradeView:   tradeViewStr(stock),
   });
 }
 
@@ -496,8 +571,30 @@ function buildBadTrade(stock: RankedStock): string {
   return buildSwingThesis(stock, {
     bullCase:        stock.primaryReason,
     whatMattersMost: weakest ? `${SCORE_LABELS[weakest[0]]} (${weakest[1].toFixed(1)}) — break point if this fails to improve` : undefined,
-    risk:            `${brief.mainRisk} Next catalyst must move estimates, multiple, or positioning or trade fails.`,
-    tradeView:       stock.signal === 'green' ? 'Consider trimming — conviction weakens if weakest factor deteriorates' : tradeViewStr(stock),
+    risk:            `${brief.mainRisk} Wrong if the next catalyst fails to move estimates, multiple, or positioning and price action confirms the failure.`,
+    tradeView:       tradeViewStr(stock),
+  });
+}
+
+function buildNotBuyYet(stock: RankedStock): string {
+  const readiness = tradeReadiness(stock);
+  const brief = getCompanyBrief(stock.ticker);
+  return buildSwingThesis(stock, {
+    bullCase: `${stock.ticker} can still be a strong opportunity without being ready today. The green/yellow/red score ranks opportunity quality; Trade Readiness tells you whether to act now.`,
+    whatMattersMost: forecastReconciliation(stock, expectedMoveForDisplay(stock)),
+    keyCatalyst: `Needs confirmation from ${brief.watchItems.slice(0, 2).join(' or ')}.`,
+    risk: resolvedRisk(stock),
+    tradeView: `${readiness.label} - ${readiness.reason}`,
+  });
+}
+
+function buildScoreBacktest(stock: RankedStock): string {
+  return buildSwingThesis(stock, {
+    bullCase: scoreBacktestContext(stock),
+    whatMattersMost: forecastReconciliation(stock, expectedMoveForDisplay(stock)),
+    keyCatalyst: catalystDetailedContext(stock),
+    risk: 'Historical rank edge is still being audited; do not treat the score as a standalone trading system.',
+    tradeView: tradeViewStr(stock),
   });
 }
 
@@ -541,6 +638,8 @@ function buildLocalReply(stock: RankedStock, text: string, mode?: InvestmentMode
   if (/\b(forecast agent|forecast.*momentum|market tape|timesfm|price path)\b/.test(normalized)) return buildForecastAgent(stock);
   if (/\b(assumption agent|best assumption|assumption to test|change the score|change.*valuation)\b/.test(normalized)) return buildAssumptionAgent(stock);
   if (/\b(what'?s priced|what is priced|priced in|market pricing|market miss|what is the market missing|underpricing|mispricing)\b/.test(normalized)) return buildMarketMiss(stock);
+  if (/\b(backtest|historical check|score.*7|when score|next 30 days)\b/.test(normalized)) return buildScoreBacktest(stock);
+  if (/\b(not a buy yet|why.*not.*buy|why.*wait|why.*work up|trade readiness|ready to buy)\b/.test(normalized)) return buildNotBuyYet(stock);
   if (/\b(what needs to be true|needs to be true|what has to happen|what would make it work|underwrite|confirm the thesis)\b/.test(normalized)) return buildNeedsTrue(stock);
   if (/\b(evidence|supporting evidence|proof|why believe|data supports|what supports this)\b/.test(normalized)) return buildEvidence(stock);
   if (/\b(monitor|watch|track|what should i watch|signals to watch|watch items)\b/.test(normalized)) return buildMonitor(stock);
@@ -985,7 +1084,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
         setStreaming(false);
       }
     },
-    [stock, peers, messages, streaming, onStockUpdate],
+    [stock, peers, messages, streaming, onStockUpdate, currentPosition],
   );
 
   const handleAddToQueue = useCallback(() => {
@@ -1059,14 +1158,18 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
     factorBreakdown: stock.breakdown,
   });
   const expectedMove = expectedMoveForDisplay(stock);
+  const readiness = tradeReadiness(stock);
+  const reconciliation = forecastReconciliation(stock, expectedMove);
+  const pmRead = finalPmRead(stock, expectedMove);
   const cryptoTape = cryptoTapeContext(stock);
   const sourceCards = [
     { label: 'Company file',  value: brief.strategicContext, prompt: 'Tell me about this company and why it is in the ranked universe.' },
     { label: 'Score basis',   value: stock.primaryReason,   prompt: 'Why is this stock ranked here and what drives the score?', mode: 'explain' as InvestmentMode },
-    { label: 'Catalyst tape', value: catalystContext(stock), prompt: 'Run the catalyst agent: what events or headlines matter most over the next 1-3 months?' },
+    { label: 'Catalyst tape', value: catalystDetailedContext(stock), prompt: 'Run the catalyst agent: what events or headlines matter most over the next 1-3 months?' },
     ...(cryptoTape ? [{ label: 'Crypto tape', value: cryptoTape, prompt: 'Run the forecast agent: what does the forecast, momentum, and market tape imply?' }] : []),
     { label: 'Risk file',     value: resolvedRisk(stock),   prompt: 'What are the biggest risk factors that could break this trade?', mode: 'challenge' as InvestmentMode },
     { label: 'Valuation note', value: liveValuation.summary, prompt: 'Is this stock overpriced relative to its growth expectations?', mode: 'evaluate' as InvestmentMode },
+    { label: 'Score backtest', value: scoreBacktestContext(stock), prompt: 'When score > 7, what happened over next 30 days?' },
   ];
 
   return (
@@ -1108,16 +1211,12 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             stock.signal === 'yellow' ? 'border-amber-400 bg-amber-500/8'      :
                                         'border-rose-400 bg-rose-500/8',
           )}>
-            <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Action</div>
+            <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Trade Readiness</div>
             <div className={cn('text-sm font-bold leading-tight', signalTextColor)}>
-              {suggestedAction(stock)}
+              {readiness.label}
             </div>
             <div className="mt-0.5 text-[10px] text-[var(--cb-text-muted)]">
-              {hasForecastConflict(stock)
-                ? 'forecast tape conflicts with the score'
-                : !hasLiveConfirmation(stock)
-                  ? 'needs live confirmation'
-                  : `because ${actionDriver(topKey)}`}
+              {readiness.label === 'Ready' ? `because ${actionDriver(topKey)}` : readiness.reason}
             </div>
           </div>
 
@@ -1136,7 +1235,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             <p className="truncate text-[11px] text-[var(--cb-text-muted)]">{stock.primaryReason}</p>
           </div>
 
-          {/* Queue + Enter Position buttons */}
+          {/* Queue + paper tracking buttons */}
           <div className="flex shrink-0 flex-col items-end gap-1.5">
             <button
               type="button"
@@ -1161,14 +1260,14 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
               </a>
             )}
 
-            {/* Enter Position */}
+            {/* Paper tracking */}
             {currentPosition ? (
               <a
                 href="/portfolio"
                 className="flex items-center gap-1.5 rounded-lg border border-blue-400/30 bg-blue-500/10 px-2.5 py-1 text-[11px] font-medium text-blue-300 hover:underline"
               >
                 <TrendingUp className="h-3 w-3" />
-                In Portfolio ↗
+                Tracked Idea ↗
               </a>
             ) : showEnterForm ? (
               <div className="flex items-center gap-1">
@@ -1176,7 +1275,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
                   type="number"
                   value={entryPriceInput}
                   onChange={e => setEntryPriceInput(e.target.value)}
-                  placeholder="Price"
+                  placeholder="Ref price"
                   className="w-20 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 py-1 text-[11px] text-[var(--cb-text-primary)] focus:outline-none"
                   onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
                   autoFocus
@@ -1196,7 +1295,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
                 )}
               >
                 <TrendingUp className="h-3 w-3" />
-                {positionConfirmed ? 'Position Entered' : 'Enter Position'}
+                {positionConfirmed ? 'Idea Tracked' : 'Paper Track'}
               </button>
             )}
           </div>
@@ -1205,6 +1304,14 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
 
       {/* Expected Move */}
       <div className="shrink-0 border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-4 py-2.5">
+        <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+          <span className="rounded-md bg-[var(--cb-surface)] px-2 py-1 font-semibold text-[var(--cb-text-primary)] ring-1 ring-[var(--cb-border)]">
+            {reconciliation}
+          </span>
+          <span className="min-w-[180px] flex-1 text-[var(--cb-text-muted)]">
+            PM Read: {pmRead}
+          </span>
+        </div>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
           <div className="mr-1">
             <div className="text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">

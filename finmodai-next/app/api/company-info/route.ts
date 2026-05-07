@@ -26,7 +26,7 @@ async function fetchFmpProfile(ticker: string, apiKey: string) {
 }
 
 async function fetchFmpNews(ticker: string, apiKey: string) {
-  const url = `https://financialmodelingprep.com/api/v3/stock_news?tickers=${ticker}&limit=5&apikey=${apiKey}`;
+  const url = `https://financialmodelingprep.com/api/v3/stock_news?tickers=${ticker}&limit=12&apikey=${apiKey}`;
   const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(6000) });
   if (!res.ok) return [];
   const data = (await res.json()) as Array<{
@@ -36,7 +36,7 @@ async function fetchFmpNews(ticker: string, apiKey: string) {
     publishedDate?: string;
   }>;
   if (!Array.isArray(data)) return [];
-  return data.slice(0, 5).map((item) => ({
+  return data.slice(0, 12).map((item) => ({
     title: item.title ?? '',
     url: item.url ?? '',
     source: item.site ?? '',

@@ -157,11 +157,11 @@ function templateFor(channel: CatalystChannel, direction: CatalystDirection): Pi
 
 function reasonFor(channel: CatalystChannel, direction: CatalystDirection, ticker: string): string {
   const directionText = direction === 'positive' ? 'supports' : direction === 'negative' ? 'pressures' : 'could swing';
-  if (channel === 'macro') return `Macro catalyst ${directionText} ${ticker} through rates, risk appetite, and factor positioning.`;
-  if (channel === 'estimate') return `Operating catalyst ${directionText} ${ticker} through estimate revisions.`;
-  if (channel === 'multiple') return `Moat/risk catalyst ${directionText} ${ticker} through the valuation multiple.`;
-  if (channel === 'positioning') return `Flow catalyst ${directionText} ${ticker} through positioning and sentiment.`;
-  return `Risk catalyst ${directionText} ${ticker} through risk premium.`;
+  if (channel === 'macro') return `This headline changes the score because it ${directionText} ${ticker} through rates, risk appetite, and factor positioning.`;
+  if (channel === 'estimate') return `This headline changes the score because it ${directionText} ${ticker} through estimate revisions.`;
+  if (channel === 'multiple') return `This headline changes the score because it ${directionText} ${ticker} through the valuation multiple.`;
+  if (channel === 'positioning') return `This headline changes the score because it ${directionText} ${ticker} through positioning and sentiment.`;
+  return `This headline changes the score because it ${directionText} ${ticker} through risk premium.`;
 }
 
 export function classifyCatalyst(input: ClassifyInput): RankedCatalyst {
