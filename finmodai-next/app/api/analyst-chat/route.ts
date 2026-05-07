@@ -474,6 +474,60 @@ type DeterministicForecastReplyInput = {
   confidence?: number;
 };
 
+function cleanForecastCatalystTitle(item: ForecastNewsWatchItem | null): string {
+  const title = item?.title?.trim();
+  if (!title) return 'No high-signal catalyst loaded';
+  const genericEarnings =
+    /^(q[1-4]\s+)?earnings\s+(release|report)$/i.test(title) ||
+    /^q[1-4]\s+earnings$/i.test(title);
+  const timing = item?.timing ?? null;
+  const source = item?.source ?? null;
+  if (genericEarnings && (item?.sourceType === 'llm_discovery' || !source)) {
+    return timing && timing !== 'ongoing'
+      ? `Next earnings window (${timing})`
+      : 'Next earnings window';
+  }
+  return title;
+}
+
+function forecastTradeReadiness(params: {
+  returnPct: number;
+  baseLow: number;
+  baseHigh: number;
+  eventProxyPct: number;
+  confidence: number;
+}): { label: 'Ready' | 'Work up' | 'Wait for catalyst'; reason: string } {
+  const rangeCrossesZero = params.baseLow < 0 && params.baseHigh > 0;
+  if (rangeCrossesZero) {
+    return {
+      label: 'Work up',
+      reason: 'base range crosses zero, so the forecast needs catalyst or price confirmation before action',
+    };
+  }
+  if (Math.abs(params.returnPct) < 3) {
+    return {
+      label: 'Wait for catalyst',
+      reason: 'expected move is too small to force a trade',
+    };
+  }
+  if (params.confidence < 0.48) {
+    return {
+      label: 'Work up',
+      reason: 'direction is usable but model confidence is still low',
+    };
+  }
+  if (params.eventProxyPct >= 1 || Math.abs(params.returnPct) >= 5) {
+    return {
+      label: 'Ready',
+      reason: 'directional forecast is meaningful and the event tape is not just noise',
+    };
+  }
+  return {
+    label: 'Work up',
+    reason: 'TimesFM gives the base direction, but the event overlay is still modest',
+  };
+}
+
 type ForecastLayerPayload = {
   ticker: string;
   type: 'revenue' | 'macro';
@@ -1063,6 +1117,7 @@ STEP 7 — RISK ANALYSIS: Top 3 risks, invalidation triggers, exit conditions.
 
 RULES:
 - No vague language. Every % must be justified.
+- Do not invent generic event titles like "Q2 Earnings Release". If the exact date/source is unknown, use "Next earnings window" and explain the setup.
 - Probabilities must sum to 1.0 per event.
 - Do NOT skip event analysis even if uncertain.
 - If data is missing, make the most reasonable assumption and proceed.
@@ -2168,11 +2223,18 @@ function buildDeterministicForecastReply(input: DeterministicForecastReplyInput)
   const riskScenario = Math.min(baseLow - 2, returnPct - Math.max(3, Math.abs(topEventImpact) * 1.7));
   const confidenceValue = input.confidence ?? 0.5;
   const conviction = confidenceValue >= 0.68 ? 'High' : confidenceValue >= 0.48 ? 'Medium' : 'Low';
+  const readiness = forecastTradeReadiness({
+    returnPct,
+    baseLow,
+    baseHigh,
+    eventProxyPct,
+    confidence: confidenceValue,
+  });
   const signal =
-    rangeCrossesZero ? 'NEUTRAL / wait' :
+    rangeCrossesZero ? 'NEUTRAL / wait for confirmation' :
     returnPct > 3 ? 'LONG bias' :
     returnPct < -3 ? 'SHORT / underweight bias' :
-    'NEUTRAL / wait';
+    'NEUTRAL / wait for confirmation';
   const whatMatters =
     topEvent?.eventForecast?.surpriseToWatch?.replace(/^Key driver:\s*/i, '') ||
     topEvent?.impact ||
@@ -2182,7 +2244,7 @@ function buildDeterministicForecastReply(input: DeterministicForecastReplyInput)
         ? 'Whether weakness becomes estimate pressure.'
         : 'Whether a catalyst creates a real estimate or multiple change.');
   const keyCatalyst = topEvent
-    ? `${topEvent.title}${topEvent.eventForecast ? ` (${topEvent.eventForecast.direction}, ${Math.round(topEvent.eventForecast.confidence * 100)}% confidence)` : ''}`
+    ? `${cleanForecastCatalystTitle(topEvent)}${topEvent.eventForecast ? ` (${topEvent.eventForecast.direction}, ${Math.round(topEvent.eventForecast.confidence * 100)}% confidence)` : ''}`
     : 'No high-signal catalyst loaded';
   const eventImportance =
     topEvent?.eventForecast?.priceImpactRangePct
@@ -2206,11 +2268,12 @@ function buildDeterministicForecastReply(input: DeterministicForecastReplyInput)
   return [
     `Signal: ${signal}.`,
     `Expected Move: base view ${baseLow >= 0 ? '+' : ''}${baseLow.toFixed(1)}% to ${baseHigh >= 0 ? '+' : ''}${baseHigh.toFixed(1)}%; bull ${bullScenario >= 0 ? '+' : ''}${bullScenario.toFixed(1)}%; risk ${riskScenario.toFixed(1)}%.`,
+    `Trade Readiness: ${readiness.label} — ${readiness.reason}.`,
     `What Matters Most: ${whatMatters}`,
     `Key Catalyst: ${keyCatalyst}. Importance: ${eventImportance}; stock sensitivity: ${stockSensitivity}.`,
     `Bull Case: trend holds and the catalyst improves estimates, multiple, or positioning.`,
     `Risk: forecast band is wide; negative surprises can overwhelm a small baseline move.`,
-    `Trade View: ${rangeCrossesZero || Math.abs(returnPct) < 3 ? 'No chase; wait for catalyst confirmation.' : returnPct > 0 ? 'Constructive only while momentum and event tape confirm.' : 'Defensive unless event tape improves.'}`,
+    `Trade View: ${readiness.label === 'Ready' ? (returnPct > 0 ? 'Constructive only while momentum and event tape confirm.' : 'Defensive unless event tape improves.') : 'No chase; wait for catalyst confirmation.'}`,
     `Conviction Level: ${conviction}.`,
     `Thesis Drift: ${drift}`,
     `Basis: ${input.sourceLabel}${isCombined ? ' + event overlay' : ''}. ${eventProxyPct < 1 ? 'TimesFM drives most of the view; events are a small offset.' : 'Events materially adjust the baseline.'}`,

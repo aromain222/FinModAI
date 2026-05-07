@@ -138,6 +138,22 @@ function pickKeyCatalyst(items: ForecastNewsWatchItem[] | undefined): ForecastNe
   })[0] ?? null;
 }
 
+function displayCatalystTitle(item: ForecastNewsWatchItem | null): string {
+  const title = item?.title?.trim();
+  if (!title) return 'No high-signal catalyst loaded';
+  const genericEarnings =
+    /^(q[1-4]\s+)?earnings\s+(release|report)$/i.test(title) ||
+    /^q[1-4]\s+earnings$/i.test(title);
+  const timing = item?.timing ?? null;
+  const source = item?.source ?? null;
+  if (genericEarnings && (item?.sourceType === 'llm_discovery' || !source)) {
+    return timing && timing !== 'ongoing'
+      ? `Next earnings window (${timing})`
+      : 'Next earnings window';
+  }
+  return title;
+}
+
 function eventImportance(item: ForecastNewsWatchItem | null): 'High' | 'Medium' | 'Low' {
   if (!item) return 'Low';
   const range = item.eventForecast?.priceImpactRangePct;
@@ -204,6 +220,8 @@ function expectedMoveBounds(payload: AnalystForecastModelPayload): { low: number
 }
 
 function tradeView(payload: AnalystForecastModelPayload, movePct: number | null): string {
+  const readiness = tradeReadiness(payload, movePct);
+  if (readiness.label !== 'Ready') return 'No chase; wait for catalyst confirmation.';
   const bounds = expectedMoveBounds(payload);
   if (bounds.low < 0 && bounds.high > 0) {
     return 'Wait for confirmation; the expected move range crosses zero.';
@@ -213,6 +231,46 @@ function tradeView(payload: AnalystForecastModelPayload, movePct: number | null)
   if (signal === 'LONG' || move >= 4) return 'Constructive, but only if catalyst tape and momentum keep confirming.';
   if (signal === 'SHORT' || move <= -4) return 'Defensive or underweight until price action or events improve.';
   return 'Wait for confirmation; expected move is not large enough to force action.';
+}
+
+function tradeReadiness(
+  payload: AnalystForecastModelPayload,
+  movePct: number | null,
+): { label: 'Ready' | 'Work up' | 'Wait for catalyst'; reason: string } {
+  const bounds = expectedMoveBounds(payload);
+  const rangeCrossesZero = bounds.low < 0 && bounds.high > 0;
+  const move = movePct ?? 0;
+  const confidence = payload.confidence ?? 0.5;
+  const eventImpact = Math.abs(payload.combinedEventImpactPct ?? pickKeyCatalyst(payload.newsWatch)?.eventForecast?.priceImpactPct ?? 0);
+
+  if (rangeCrossesZero) {
+    return {
+      label: 'Work up',
+      reason: 'Base range crosses zero, so the idea needs catalyst or price confirmation.',
+    };
+  }
+  if (Math.abs(move) < 3) {
+    return {
+      label: 'Wait for catalyst',
+      reason: 'Expected move is too small to force a trade.',
+    };
+  }
+  if (confidence < 0.48) {
+    return {
+      label: 'Work up',
+      reason: 'Direction is usable, but model confidence is still low.',
+    };
+  }
+  if (eventImpact >= 1 || Math.abs(move) >= 5) {
+    return {
+      label: 'Ready',
+      reason: 'Directional forecast is meaningful and the event tape is not just noise.',
+    };
+  }
+  return {
+    label: 'Work up',
+    reason: 'TimesFM gives the base direction, but the event overlay is still modest.',
+  };
 }
 
 function thesisDrift(payload: AnalystForecastModelPayload): string {
@@ -265,6 +323,7 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
     const expectedBounds = expectedMoveBounds(payload);
     const rangeCrossesZero = expectedBounds.low < 0 && expectedBounds.high > 0;
     const keyCatalyst = pickKeyCatalyst(payload.newsWatch);
+    const readiness = tradeReadiness(payload, movePct);
     const catalystStack = (payload.newsWatch ?? [])
       .slice()
       .sort((a, b) => {
@@ -336,7 +395,7 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
         </CardHeader>
         <CardContent className="space-y-4">
           <div className={`rounded-lg border p-4 ${signalClass}`}>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-4">
               <div>
                 <div className="text-[10px] uppercase tracking-widest opacity-75">Signal</div>
                 <div className="mt-1 text-xl font-semibold">{signal}</div>
@@ -346,9 +405,16 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
                 <div className="mt-1 text-xl font-semibold tabular-nums">{expectedMove.base}</div>
               </div>
               <div>
+                <div className="text-[10px] uppercase tracking-widest opacity-75">Trade Readiness</div>
+                <div className="mt-1 text-xl font-semibold">{readiness.label}</div>
+              </div>
+              <div>
                 <div className="text-[10px] uppercase tracking-widest opacity-75">Conviction Level</div>
                 <div className="mt-1 text-xl font-semibold">{convictionGrade(payload)}</div>
               </div>
+            </div>
+            <div className="mt-3 rounded-md border border-current/15 bg-black/10 px-3 py-2 text-xs leading-5 opacity-90">
+              {readiness.reason}
             </div>
           </div>
 
@@ -394,7 +460,7 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
                 Key Catalyst
               </div>
               <div className="mt-1 text-sm font-semibold leading-6 text-[var(--cb-text-primary)]">
-                {keyCatalyst?.title ?? 'No high-signal catalyst loaded'}
+                {displayCatalystTitle(keyCatalyst)}
               </div>
               <div className="mt-1 text-xs leading-5 text-[var(--cb-text-muted)]">
                 Importance: {eventImportance(keyCatalyst)} · Stock sensitivity: {stockSensitivity(payload, keyCatalyst)}
@@ -471,9 +537,9 @@ export function AnalystForecastModelCard({ payload }: { payload: AnalystForecast
                       <div className="text-sm font-semibold leading-5 text-[var(--cb-text-primary)]">
                         {item.url ? (
                           <a href={item.url} target="_blank" rel="noreferrer" className="hover:text-emerald-200">
-                            {item.title}
+                            {displayCatalystTitle(item)}
                           </a>
-                        ) : item.title}
+                        ) : displayCatalystTitle(item)}
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         <span className="rounded-full border border-[var(--cb-border-subtle)] px-2 py-0.5 text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">
