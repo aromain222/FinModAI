@@ -114,11 +114,10 @@ export function RankedList({ initial }: Props) {
   }, [scoredAt]);
 
   return (
-    // Escape ConsoleShell main's px-4/py-6/md:px-8 padding so we fill the full height
-    <div className="-mx-4 -my-6 flex h-full min-h-0 overflow-hidden md:-mx-8">
+    <div className="flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded-xl border border-[var(--cb-border)] bg-[var(--cb-surface)] lg:flex-row">
 
       {/* ── Left: compact ranked list ── */}
-      <div className="flex w-64 shrink-0 flex-col overflow-hidden border-r border-[var(--cb-border)] bg-[var(--cb-surface-subtle)]">
+      <div className="flex max-h-[34vh] w-full shrink-0 flex-col overflow-hidden border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] lg:max-h-none lg:w-60 lg:border-b-0 lg:border-r xl:w-64">
 
         {/* Toolbar */}
         <div className="shrink-0 space-y-2 border-b border-[var(--cb-border)] px-3 py-3">
@@ -215,6 +214,15 @@ export function RankedList({ initial }: Props) {
                       <span className="text-xs font-bold text-[var(--cb-text-primary)]">
                         {stock.ticker}
                       </span>
+                      {/* Momentum arrow */}
+                      <span className={cn(
+                        'text-[10px] font-semibold tabular-nums leading-none',
+                        stock.breakdown.momentum >= 6.5 ? 'text-emerald-400'
+                          : stock.breakdown.momentum <= 3.5 ? 'text-rose-400'
+                          : 'text-[var(--cb-text-muted)]',
+                      )}>
+                        {stock.breakdown.momentum >= 6.5 ? '↑' : stock.breakdown.momentum <= 3.5 ? '↓' : '→'}
+                      </span>
                       <span className={cn(
                         'rounded px-1 text-[10px] tabular-nums transition-all duration-300',
                         justMoved
@@ -235,12 +243,24 @@ export function RankedList({ initial }: Props) {
                       )}
                       {signalChanged && (
                         <span className="rounded bg-white/10 px-1 text-[9px] font-semibold text-[var(--cb-text-primary)] ring-1 ring-white/15">
-                          signal changed
+                          signal
                         </span>
                       )}
                     </span>
-                    <span className="truncate text-[10px] leading-tight text-[var(--cb-text-muted)]">
-                      {stock.primaryReason}
+                    <span className="flex items-center gap-1.5">
+                      {stock.meta.forecastReturnPct != null && (
+                        <span className={cn(
+                          'shrink-0 rounded px-1 text-[9px] font-semibold tabular-nums',
+                          stock.meta.forecastReturnPct >= 4  ? 'bg-emerald-500/10 text-emerald-300'
+                            : stock.meta.forecastReturnPct <= -4 ? 'bg-rose-500/10 text-rose-300'
+                            : 'bg-white/5 text-[var(--cb-text-muted)]',
+                        )}>
+                          {stock.meta.forecastReturnPct >= 0 ? '+' : ''}{stock.meta.forecastReturnPct.toFixed(1)}%
+                        </span>
+                      )}
+                      <span className="truncate text-[10px] leading-tight text-[var(--cb-text-muted)]">
+                        {stock.primaryReason}
+                      </span>
                     </span>
                   </span>
                 </button>

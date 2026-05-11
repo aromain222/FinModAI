@@ -10,6 +10,8 @@ from datetime import datetime
 from backend.models_data.company_analyzer import UniversalAnalyzer
 from backend.api.v1.pdf_analysis import router as pdf_router
 from backend.api.v1.timesfm import router as timesfm_router
+from backend.api.v1.tradingagents import router as tradingagents_router
+from backend.api.v1.hedge_fund import router as hedge_fund_router
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -34,6 +36,8 @@ app.add_middleware(
 # Mount routers
 app.include_router(pdf_router)
 app.include_router(timesfm_router)
+app.include_router(tradingagents_router)
+app.include_router(hedge_fund_router)
 
 # Initialize analyzer
 analyzer = UniversalAnalyzer({})  # Add API keys here if available

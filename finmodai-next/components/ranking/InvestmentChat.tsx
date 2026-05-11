@@ -1,9 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { BookOpen, CheckCircle, FileText, Loader2, Plus, Send, TrendingUp } from 'lucide-react';
-import { TradeReadinessStrip } from '@/components/ranking/TradeReadinessStrip';
-import { ScoreBacktestPanel } from '@/components/ranking/ScoreBacktestPanel';
+import { CheckCircle, Loader2, Plus, Send, TrendingUp } from 'lucide-react';
+import { PMDecisionStrip } from '@/components/ranking/PMDecisionStrip';
+import { TradeStructurePanel } from '@/components/ranking/TradeStructurePanel';
+import { ScenarioEngine } from '@/components/ranking/ScenarioEngine';
+import { CatalystTimeline } from '@/components/ranking/CatalystTimeline';
+import { DeepResearchPanel } from '@/components/ranking/DeepResearchPanel';
+import { TradingAgentsPanel } from '@/components/ranking/TradingAgentsPanel';
+import { DexterPanel } from '@/components/ranking/DexterPanel';
+import { HedgeFundPanel } from '@/components/ranking/HedgeFundPanel';
 import { ConvictionMeter, parseConvictionLevel } from '@/components/ranking/ConvictionMeter';
 import { getPitchQueue, upsertPitchQueueItem } from '@/lib/pitchQueue/storage';
 import { buildPitchQueueItemFromRankedStock } from '@/lib/pitchQueue/buildPitch';
@@ -17,18 +23,21 @@ import { buildPositionFromRankedStock } from '@/lib/portfolio/buildPosition';
 import type { ActivePosition } from '@/lib/portfolio/types';
 import type { RankedStock } from '@/lib/ranking/types';
 import { getCompanyBrief } from '@/lib/ranking/companyBriefs';
-import { signalFromOpportunityScore } from '@/lib/ranking/signals';
-import { buildExpectedMoveContext, formatExpectedMoveRange } from '@/lib/ranking/expectedMove';
 import { buildValuationSignal } from '@/lib/valuation/signal';
+import {
+  type InvestmentMode, type ScoreFactor, SCORE_LABELS,
+  capitalize, factorLabel, sortedFactors, topFactor,
+  isGenericReason, resolvedRisk, hasLiveConfirmation, hasForecastConflict,
+  tradeReadiness, factorInterpretation, convictionGrade, expectedMoveForDisplay,
+  keyCatalystStr, signalFromScore, pmBullCaseRead, finalPmRead,
+  tradeViewStr, thesisDrift, forecastReconciliation, contextPrompt,
+} from '@/lib/ranking/chatHelpers';
 import { cn } from '@/lib/utils';
 
 type Message = {
   role:    'user' | 'assistant';
   content: string;
 };
-
-type InvestmentMode = 'explain' | 'evaluate' | 'challenge' | 'compare' | 'pitch';
-type ScoreFactor = keyof RankedStock['breakdown'];
 
 const STANDARD_PROMPTS: { label: string; mode: InvestmentMode; text: string }[] = [
   { label: 'Explain thesis',     mode: 'explain',   text: 'Why is this stock ranked here?' },
@@ -62,15 +71,6 @@ type Props = {
   stock: RankedStock | null;
   peers: PeerStock[];
   onStockUpdate?: (stock: RankedStock) => void;
-};
-
-const SCORE_LABELS: Record<keyof RankedStock['breakdown'], string> = {
-  forecastSignal:   'Forecast',
-  catalystStrength: 'Catalysts',
-  momentum:         'Momentum',
-  earningsSetup:    'Earnings',
-  valuationSignal:  'Valuation',
-  riskAdjustment:   'Risk',
 };
 
 type AssumptionUpdateResponse = {
@@ -110,143 +110,6 @@ type ScoreChange = {
   explanation: string;
 };
 
-function contextPrompt(
-  signal: RankedStock['signal'],
-  breakdown: RankedStock['breakdown'],
-): { label: string; mode?: InvestmentMode; text: string } {
-  if (breakdown.catalystStrength >= 7.5)
-    return { label: 'Will the catalyst hit?', mode: 'challenge', text: 'Will the catalyst actually hit and change the investment thesis?' };
-  if (breakdown.valuationSignal < 4.5)
-    return { label: 'Is this overpriced?', mode: 'evaluate', text: 'Is this stock overpriced relative to its growth expectations?' };
-  if (breakdown.riskAdjustment < 4.5)
-    return { label: 'What could go wrong?', mode: 'challenge', text: 'What are the biggest risk factors that could break this trade?' };
-  if (signal === 'green') return { label: 'Build a pitch',          mode: 'pitch', text: 'Write a structured investment pitch.' };
-  if (signal === 'red')   return { label: 'When does this recover?',              text: 'What would make this a bad trade improve?' };
-  return                         { label: 'What needs to change?',                text: 'What needs to happen for this to become a buy?' };
-}
-
-function hasLiveConfirmation(stock: RankedStock): boolean {
-  return (
-    stock.meta.forecastReturnPct !== null ||
-    (stock.meta.companyCatalystCount ?? 0) > 0 ||
-    (stock.meta.catalysts ?? []).some((catalyst) => catalyst.kind === 'company_news' || catalyst.kind === 'earnings')
-  );
-}
-
-function hasForecastConflict(stock: RankedStock): boolean {
-  const forecast = stock.meta.forecastReturnPct;
-  if (forecast === null) return false;
-  return (
-    (stock.signal === 'green' && forecast <= -2) ||
-    (stock.signal === 'red' && forecast >= 2)
-  );
-}
-
-type TradeReadinessLabel = 'Ready' | 'Work up' | 'Wait for catalyst';
-
-function tradeReadiness(stock: RankedStock): { label: TradeReadinessLabel; reason: string } {
-  const brief = getCompanyBrief(stock.ticker);
-  if (hasForecastConflict(stock)) {
-    return {
-      label: 'Wait for catalyst',
-      reason: `score is strong but the TimesFM tape conflicts; wait for ${brief.watchItems[0]?.toLowerCase() ?? 'the next catalyst'} to confirm`,
-    };
-  }
-  if (stock.signal === 'green' && hasLiveConfirmation(stock)) {
-    return {
-      label: 'Ready',
-      reason: `score and live forecast/catalyst context are aligned; size still depends on risk`,
-    };
-  }
-  if (stock.signal === 'green') {
-    return {
-      label: 'Work up',
-      reason: `green opportunity, but needs live headline or forecast confirmation before sizing`,
-    };
-  }
-  if (stock.signal === 'yellow') {
-    return {
-      label: 'Work up',
-      reason: `interesting but needs ${brief.watchItems[0]?.toLowerCase() ?? 'one catalyst'} to improve the setup`,
-    };
-  }
-  return {
-    label: 'Wait for catalyst',
-    reason: 'risk/reward is not ready; wait for score factors to repair',
-  };
-}
-
-function actionDriver(key: keyof RankedStock['breakdown'] | undefined): string {
-  if (!key) return 'current factor profile';
-  const DRIVERS: Record<keyof RankedStock['breakdown'], string> = {
-    forecastSignal:   'price model signal is strong',
-    catalystStrength: 'catalyst setup is dense near-term',
-    momentum:         'price trend is constructive',
-    earningsSetup:    'earnings setup favors a beat',
-    valuationSignal:  'stock looks undervalued vs. expectations',
-    riskAdjustment:   'risk/reward profile is attractive',
-  };
-  return DRIVERS[key];
-}
-
-function factorInterpretation(stock: RankedStock, key: keyof RankedStock['breakdown'], value: number): string {
-  if (key === 'forecastSignal') {
-    if (stock.meta.forecastReturnPct == null) return 'Fallback forecast profile until live price path refreshes.';
-    if (value >= 7.5) return 'Model signals strong price upside.';
-    if (value >= 5)   return 'Model leans constructive; not confirmed.';
-    return 'Weak signal — no clear price catalyst.';
-  }
-  if (key === 'catalystStrength') {
-    if (stock.meta.catalystCount === 0) return 'Watchlist catalyst setup; no live headline confirmation yet.';
-    if (value >= 7.5) return 'Strong catalyst density near-term.';
-    if (value >= 5)   return 'Some catalysts; mix is unresolved.';
-    return 'Thin pipeline — no clear near-term trigger.';
-  }
-  if (key === 'momentum') {
-    if (value >= 7.0) return 'Trend is constructive into the window.';
-    if (value >= 5)   return 'Mixed momentum — needs confirmation.';
-    return 'Negative or absent price momentum.';
-  }
-  if (key === 'earningsSetup') {
-    if (value >= 7.5) return 'Setup tilts toward a beat.';
-    if (value >= 5)   return 'Neutral — modest beat/miss risk.';
-    return 'Setup tilts toward disappointment.';
-  }
-  if (key === 'valuationSignal') {
-    if (value >= 7.5) return 'Undervalued vs. growth — room to re-rate.';
-    if (value >= 5)   return 'Near fair value — upside needs execution.';
-    return 'Stretched — limited room for disappointment.';
-  }
-  if (key === 'riskAdjustment') {
-    if (value >= 7.5) return 'Low volatility; favorable risk/reward.';
-    if (value >= 5)   return 'Moderate risk — manageable if thesis holds.';
-    return 'Elevated — volatility could overwhelm the upside.';
-  }
-  return '';
-}
-
-function signalFromScore(score: number): RankedStock['signal'] {
-  return signalFromOpportunityScore(score);
-}
-
-function capitalize(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-function factorLabel(factor: string): string {
-  if (factor in SCORE_LABELS) return SCORE_LABELS[factor as keyof RankedStock['breakdown']];
-  return factor.replace(/([A-Z])/g, ' $1').replace(/[_-]+/g, ' ').trim().replace(/^./, c => c.toUpperCase());
-}
-
-function sortedFactors(stock: RankedStock): Array<[keyof RankedStock['breakdown'], number]> {
-  return (Object.entries(stock.breakdown) as Array<[keyof RankedStock['breakdown'], number]>)
-    .sort((a, b) => b[1] - a[1]);
-}
-
-function topFactor(stock: RankedStock): [keyof RankedStock['breakdown'], number] {
-  return sortedFactors(stock)[0] ?? ['forecastSignal', stock.breakdown.forecastSignal];
-}
-
 function changedFactorTone(delta: number): string {
   if (delta > 0) return 'animate-pulse border-emerald-400/60 bg-emerald-500/15 shadow-[0_0_18px_rgba(52,211,153,0.16)]';
   if (delta < 0) return 'animate-pulse border-rose-400/60 bg-rose-500/15 shadow-[0_0_18px_rgba(251,113,133,0.16)]';
@@ -272,125 +135,6 @@ function scoreChangeExplanation(change: ScoreChange): string {
     : factorLabel(change.primaryFactor);
   const verb = change.delta >= 0 ? 'improved' : 'weakened';
   return `Score ${direction} ${sign}${change.delta.toFixed(1)} because ${factorStr} ${verb}.`;
-}
-
-function isGenericReason(value: string): boolean {
-  return /forecast signal weak|model data unavailable|fallback profile|no real-time|model unavailable/i.test(value);
-}
-
-function resolvedRisk(stock: RankedStock): string {
-  const brief = getCompanyBrief(stock.ticker);
-  return isGenericReason(stock.mainRisk) ? brief.mainRisk : stock.mainRisk;
-}
-
-function convictionGrade(score: number, signal: RankedStock['signal']): { level: string; read: string } {
-  if (signal === 'green' && score >= 8.0)  return { level: 'High',          read: 'strong multi-factor alignment' };
-  if (signal === 'green' && score >= 7.0)  return { level: 'Moderate-High', read: 'green signal with room to improve' };
-  if (signal === 'yellow' && score >= 6.0) return { level: 'Moderate',      read: 'constructive but not confirmed' };
-  if (signal === 'yellow')                 return { level: 'Low-Moderate',  read: 'waiting for a clearer trigger' };
-  if (score < 4.0)                         return { level: 'Low',           read: 'setup favors avoiding or underweighting' };
-  return                                          { level: 'Low',           read: 'weak factor alignment' };
-}
-
-function thesisDrift(stock: RankedStock): string {
-  const sorted = sortedFactors(stock);
-  const top    = sorted[0];
-  const bottom = sorted[sorted.length - 1];
-  if (!top || !bottom) return 'Insufficient data.';
-  const spread = top[1] - bottom[1];
-  if (spread < 1.5) return 'Aligned — factors are balanced across the board.';
-  if (stock.signal === 'green' && bottom[1] >= 5.5) return 'Aligned — all factors constructive; setup is stable.';
-  if (stock.signal === 'green') return `Mild drift — ${SCORE_LABELS[bottom[0]]} (${bottom[1].toFixed(1)}) is the weak link; watch it.`;
-  if (stock.signal === 'yellow') return `Cautious — ${SCORE_LABELS[top[0]]} leads (${top[1].toFixed(1)}) but ${SCORE_LABELS[bottom[0]]} lags (${bottom[1].toFixed(1)}).`;
-  return `Drifting negative — ${SCORE_LABELS[bottom[0]]} (${bottom[1].toFixed(1)}) is dragging the score.`;
-}
-
-function expectedMoveStr(stock: RankedStock): string {
-  if (stock.meta.forecastReturnPct != null) {
-    const sign = stock.meta.forecastReturnPct >= 0 ? '+' : '';
-    return `${sign}${stock.meta.forecastReturnPct.toFixed(1)}% (${stock.horizonWeeks} wk forecast)`;
-  }
-  return `Forecast signal ${stock.breakdown.forecastSignal.toFixed(1)}/10 — no price target from model`;
-}
-
-function expectedMoveForDisplay(stock: RankedStock): ReturnType<typeof buildExpectedMoveContext> {
-  const base = buildExpectedMoveContext(stock);
-  if (!hasLiveConfirmation(stock)) {
-    return {
-      baseLowPct: -4,
-      baseHighPct: 6,
-      bullPct: Math.max(8, Math.min(14, base.bullPct)),
-      riskPct: Math.min(-6, base.riskPct),
-      summary: 'Scenario range until live forecast or headline catalyst confirms.',
-    };
-  }
-  if (hasForecastConflict(stock)) {
-    return {
-      baseLowPct: Math.min(base.baseLowPct, -3),
-      baseHighPct: Math.max(Math.min(base.baseHighPct, 6), 2),
-      bullPct: Math.min(base.bullPct, 10),
-      riskPct: Math.min(base.riskPct, -8),
-      summary: 'Score and forecast conflict; treat this as a wait-for-confirmation setup.',
-    };
-  }
-  return base;
-}
-
-function timesFmRead(stock: RankedStock): string {
-  const forecast = stock.meta.forecastReturnPct;
-  if (forecast == null) return 'Pending';
-  if (forecast >= 4) return 'Bullish';
-  if (forecast <= -4) return 'Bearish';
-  return 'Neutral';
-}
-
-function pmBullCaseRead(expectedMove: ReturnType<typeof buildExpectedMoveContext>): string {
-  if (expectedMove.bullPct >= 20) return 'High';
-  if (expectedMove.bullPct >= 12) return 'Medium';
-  return 'Low';
-}
-
-function forecastReconciliation(stock: RankedStock, expectedMove: ReturnType<typeof buildExpectedMoveContext>): string {
-  return `Score: ${capitalize(stock.signal)} | TimesFM: ${timesFmRead(stock)} | PM Bull Case: ${pmBullCaseRead(expectedMove)}`;
-}
-
-function finalPmRead(stock: RankedStock, expectedMove: ReturnType<typeof buildExpectedMoveContext>): string {
-  const readiness = tradeReadiness(stock);
-  if (readiness.label === 'Ready') {
-    return `${readiness.label}: work the idea now; ${SCORE_LABELS[topFactor(stock)[0]].toLowerCase()} leads and PM upside is ${pmBullCaseRead(expectedMove).toLowerCase()}.`;
-  }
-  return `${readiness.label}: ${readiness.reason}.`;
-}
-
-function keyCatalystStr(stock: RankedStock): string {
-  const catalysts = stock.meta.catalysts ?? [];
-  if (catalysts.length === 0) {
-    const brief = getCompanyBrief(stock.ticker);
-    return `Watch ${brief.watchItems[0] ?? 'upcoming catalyst'} — no live headline loaded yet.`;
-  }
-  const top  = catalysts[0];
-  const sign = top.impactPct >= 0 ? '+' : '';
-  return `${top.title} (${top.direction}, ${sign}${top.impactPct.toFixed(1)}%)`;
-}
-
-function tradeViewStr(stock: RankedStock): string {
-  const brief = getCompanyBrief(stock.ticker);
-  const readiness = tradeReadiness(stock);
-  if (readiness.label !== 'Ready') return `${readiness.label} - ${readiness.reason}`;
-  if (hasForecastConflict(stock)) {
-    return `Wait — opportunity score and forecast tape conflict; do not enter until ${brief.watchItems[0]?.toLowerCase() ?? 'the setup'} confirms`;
-  }
-  if (stock.signal === 'green' && !hasLiveConfirmation(stock)) {
-    return 'Work up — score is constructive, but wait for live forecast or headline confirmation before building';
-  }
-  if (stock.signal === 'green') {
-    const watch = brief.watchItems[0] ?? 'catalyst confirmation';
-    return `Ready - track idea; add only if ${watch.toLowerCase()} confirms`;
-  }
-  if (stock.signal === 'red') {
-    return `Avoid — wait for ${brief.watchItems[0]?.toLowerCase() ?? 'thesis improvement'} before re-engaging`;
-  }
-  return `Watch — hold off until ${brief.watchItems[0]?.toLowerCase() ?? 'the setup clarifies'}`;
 }
 
 function buildSwingThesis(
@@ -446,6 +190,14 @@ function scoreBacktestContext(stock: RankedStock): string {
     ? 'No live TimesFM return is loaded yet.'
     : `Current forward check is ${forecast >= 0 ? '+' : ''}${forecast.toFixed(1)}% over the forecast window.`;
   return `Lightweight rank check: ${signal} profile (${stock.score.toFixed(1)}/10). ${forecastLine} Use this as a forward score audit, not a fully validated historical edge yet.`;
+}
+
+function expectedMoveStr(stock: RankedStock): string {
+  if (stock.meta.forecastReturnPct != null) {
+    const sign = stock.meta.forecastReturnPct >= 0 ? '+' : '';
+    return `${sign}${stock.meta.forecastReturnPct.toFixed(1)}% (${stock.horizonWeeks} wk forecast)`;
+  }
+  return `Forecast signal ${stock.breakdown.forecastSignal.toFixed(1)}/10 — no price target from model`;
 }
 
 function cryptoTapeContext(stock: RankedStock): string | null {
@@ -623,6 +375,29 @@ function buildEvaluate(stock: RankedStock): string {
   });
 }
 
+function looksLikeStockQuestion(text: string, stock: RankedStock): boolean {
+  const normalized = text.toLowerCase();
+  const ticker = stock.ticker.toLowerCase();
+  return (
+    normalized.includes('?') ||
+    normalized.includes(ticker) ||
+    /\b(why|what|how|when|where|should|could|would|is|are|does|do|can|tell me|explain|view|thoughts|setup|thesis|stock|company|opportunity|rank|score|buy|sell|hold|wait|risk|catalyst|earnings|valuation|forecast|momentum|news)\b/.test(normalized)
+  );
+}
+
+function buildGeneralStockQuestion(stock: RankedStock, question: string): string {
+  const brief = getCompanyBrief(stock.ticker);
+  const expectedMove = expectedMoveForDisplay(stock);
+  const top = topFactor(stock);
+  return buildSwingThesis(stock, {
+    bullCase: `${brief.nearTermFocus} The answer depends on whether ${brief.watchItems.slice(0, 2).join(' and ')} can change estimates, the multiple, or positioning in the next 1-3 months.`,
+    whatMattersMost: `${SCORE_LABELS[top[0]]} (${top[1].toFixed(1)}) — ${factorInterpretation(stock, top[0], top[1])}`,
+    keyCatalyst: `${keyCatalystStr(stock)}. ${forecastReconciliation(stock, expectedMove)}`,
+    risk: resolvedRisk(stock),
+    tradeView: `${tradeViewStr(stock)} Question asked: "${question.slice(0, 120)}${question.length > 120 ? '...' : ''}"`,
+  });
+}
+
 function buildCompare(stock: RankedStock, peers: PeerStock[]): string {
   const ranked   = [stock, ...peers].sort((a, b) => b.score - a.score).slice(0, 5);
   const rank     = ranked.findIndex(s => s.ticker === stock.ticker) + 1;
@@ -661,6 +436,7 @@ function buildLocalReply(stock: RankedStock, text: string, mode?: InvestmentMode
   if (mode === 'pitch' || /\b(turn this into a pitch|pitch|weekly pitch)\b/.test(normalized)) return buildPitch(stock);
   if (mode === 'explain' || /\b(why|ranked here|score|breakdown)\b/.test(normalized)) return buildExplain(stock);
   if (mode === 'evaluate' || /\b(buy|wait|avoid|trade|recommendation|should i)\b/.test(normalized)) return buildEvaluate(stock);
+  if (looksLikeStockQuestion(text, stock)) return buildGeneralStockQuestion(stock, text);
   return null;
 }
 
@@ -824,7 +600,6 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   const queuedTimeoutRef  = useRef<number | null>(null);
   const positionTimeoutRef = useRef<number | null>(null);
 
-  // Reset conversation when selected stock changes
   useEffect(() => {
     if (stock?.ticker !== prevTicker.current) {
       abortRef.current?.abort();
@@ -891,7 +666,6 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
     scoreAnimationRef.current = requestAnimationFrame(step);
   }, [scoreChange, stock?.score]);
 
-  // Auto-scroll to latest message
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -909,7 +683,6 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       setInput('');
       setStreaming(true);
 
-      // Position-aware queries handled locally
       if (currentPosition) {
         const norm = trimmed.toLowerCase();
         let positionReply: string | null = null;
@@ -1142,35 +915,13 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
 
   // ── Chat ─────────────────────────────────────────────────────────────────
 
-  const factorsSorted = sortedFactors(stock);
-  const topKey        = factorsSorted[0]?.[0];
-  const bottomKey     = factorsSorted[factorsSorted.length - 1]?.[0];
-  const hasDistinctPoles = topKey !== undefined && bottomKey !== undefined && topKey !== bottomKey;
   const cp = contextPrompt(stock.signal, stock.breakdown);
-
-  const signalColor =
-    stock.signal === 'green'  ? 'bg-emerald-500/15 text-emerald-400' :
-    stock.signal === 'yellow' ? 'bg-amber-500/15 text-amber-400'     :
-                                'bg-rose-500/15 text-rose-400';
-  const signalTextColor =
-    stock.signal === 'green'  ? 'text-emerald-400' :
-    stock.signal === 'yellow' ? 'text-amber-400'   :
-                                'text-rose-400';
-  const scoreDeltaTone = scoreChange && scoreChange.delta >= 0
-    ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-400/25'
-    : 'bg-rose-500/15 text-rose-300 ring-rose-400/25';
-  const thresholdChanged = Boolean(scoreChange && scoreChange.fromSignal !== scoreChange.toSignal);
-  const factorSummary = scoreChange ? changedFactorSummary(scoreChange.factorDeltas) : '';
   const brief = getCompanyBrief(stock.ticker);
   const liveValuation = buildValuationSignal({
     ticker: stock.ticker,
     forecastReturnPct: stock.meta.forecastReturnPct,
     factorBreakdown: stock.breakdown,
   });
-  const expectedMove = expectedMoveForDisplay(stock);
-  const readiness = tradeReadiness(stock);
-  const reconciliation = forecastReconciliation(stock, expectedMove);
-  const pmRead = finalPmRead(stock, expectedMove);
   const cryptoTape = cryptoTapeContext(stock);
   const sourceCards = [
     { label: 'Company file',  value: brief.strategicContext, prompt: 'Tell me about this company and why it is in the ranked universe.' },
@@ -1182,323 +933,111 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   ];
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex shrink-0 items-center gap-2.5 border-b border-[var(--cb-border)] px-4 py-3">
-        <span className="text-sm font-bold text-[var(--cb-text-primary)]">{stock.ticker}</span>
-        <span className={cn(
-          'rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums transition-all duration-300',
-          signalColor,
-          scoreChange && 'scale-110 ring-1 ring-white/25',
-          thresholdChanged && 'animate-pulse',
-        )}>
-          {displayedScore.toFixed(1)}
-        </span>
-        {scoreChange && (
-          <span className={cn('rounded-md px-2 py-0.5 text-[10px] font-semibold tabular-nums ring-1 transition-all duration-300', scoreDeltaTone)}>
-            {scoreChange.delta >= 0 ? '+' : ''}{scoreChange.delta.toFixed(1)}
-            {factorSummary ? ` (${factorSummary})` : ''}
-          </span>
-        )}
-        {thresholdChanged && scoreChange && (
-          <span className="rounded-md bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--cb-text-primary)] ring-1 ring-white/15">
-            {capitalize(scoreChange.fromSignal)} → {capitalize(scoreChange.toSignal)}
-          </span>
-        )}
-        <span className="min-w-0 flex-1 truncate text-xs text-[var(--cb-text-muted)]">
-          {stock.primaryReason}
-        </span>
-      </div>
+    <div className="flex h-full min-w-0 flex-col overflow-hidden">
+      {/* Layer 1: PM Decision Strip */}
+      <PMDecisionStrip stock={stock} displayedScore={displayedScore} scoreChange={scoreChange} />
 
-      {/* Trade Snapshot */}
-      <div className="shrink-0 border-b border-[var(--cb-border)] px-4 py-3">
-        <div className="flex items-start gap-4">
-          {/* Trade Readiness strip */}
-          <TradeReadinessStrip ticker={stock.ticker} computed={readiness} />
+      {/* Action buttons: Queue + Paper Track */}
+      <div className="shrink-0 flex flex-wrap items-center gap-2 border-b border-[var(--cb-border)] px-4 py-2">
+        <button
+          type="button"
+          onClick={isInQueue ? undefined : handleAddToQueue}
+          className={cn(
+            'flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors',
+            queued || isInQueue
+              ? 'cursor-default border-emerald-400/30 bg-emerald-500/15 text-emerald-300'
+              : 'border-[var(--cb-border)] text-[var(--cb-text-muted)] hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)]',
+          )}
+        >
+          {queued
+            ? <><CheckCircle className="h-3 w-3" />&nbsp;Added to Pitch Queue</>
+            : isInQueue
+              ? <><CheckCircle className="h-3 w-3" />&nbsp;In Queue</>
+              : <><Plus className="h-3 w-3" />&nbsp;Queue</>
+          }
+        </button>
+        {queued && (
+          <a href="/pitch-queue" className="text-[10px] text-emerald-400 hover:underline">
+            View Queue →
+          </a>
+        )}
 
-          {/* Metadata strip */}
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5">
-              <div>
-                <span className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Signal </span>
-                <span className={cn('text-[11px] font-semibold', signalTextColor)}>{capitalize(stock.signal)}</span>
-              </div>
-              <div>
-                <span className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Horizon </span>
-                <span className="text-[11px] font-semibold text-[var(--cb-text-primary)]">{stock.horizonWeeks} wk</span>
-              </div>
-            </div>
-            <p className="truncate text-[11px] text-[var(--cb-text-muted)]">{stock.primaryReason}</p>
+        {currentPosition ? (
+          <a
+            href="/portfolio"
+            className="flex items-center gap-1.5 rounded-lg border border-blue-400/30 bg-blue-500/10 px-2.5 py-1 text-[11px] font-medium text-blue-300 hover:underline"
+          >
+            <TrendingUp className="h-3 w-3" />
+            Tracked Idea ↗
+          </a>
+        ) : showEnterForm ? (
+          <div className="flex flex-wrap items-center gap-1">
+            <input
+              type="number"
+              value={positionAmountInput}
+              onChange={e => setPositionAmountInput(e.target.value)}
+              placeholder="$ amount"
+              className="w-24 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 py-1 text-[11px] text-[var(--cb-text-primary)] focus:outline-none"
+              onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
+            />
+            <input
+              type="number"
+              value={entryPriceInput}
+              onChange={e => setEntryPriceInput(e.target.value)}
+              placeholder="Ref price"
+              className="w-20 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 py-1 text-[11px] text-[var(--cb-text-primary)] focus:outline-none"
+              onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
+              autoFocus
+            />
+            <button type="button" onClick={handleEnterPosition} className="rounded-lg bg-blue-600 px-2 py-1 text-[11px] font-semibold text-white">✓</button>
+            <button type="button" onClick={() => setShowEnterForm(false)} className="rounded-lg border border-[var(--cb-border)] px-2 py-1 text-[11px] text-[var(--cb-text-muted)]">✕</button>
           </div>
-
-          {/* Queue + paper tracking buttons */}
-          <div className="flex shrink-0 flex-col items-end gap-1.5">
-            <button
-              type="button"
-              onClick={isInQueue ? undefined : handleAddToQueue}
-              className={cn(
-                'flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors',
-                queued || isInQueue
-                  ? 'cursor-default border-emerald-400/30 bg-emerald-500/15 text-emerald-300'
-                  : 'border-[var(--cb-border)] text-[var(--cb-text-muted)] hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)]',
-              )}
-            >
-              {queued
-                ? <><CheckCircle className="h-3 w-3" />&nbsp;Added to Pitch Queue</>
-                : isInQueue
-                  ? <><CheckCircle className="h-3 w-3" />&nbsp;In Queue</>
-                  : <><Plus className="h-3 w-3" />&nbsp;Queue</>
-              }
-            </button>
-            {queued && (
-              <a href="/pitch-queue" className="text-[10px] text-emerald-400 hover:underline">
-                View Queue →
-              </a>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowEnterForm(true)}
+            className={cn(
+              'flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors',
+              positionConfirmed
+                ? 'cursor-default border-blue-400/30 bg-blue-500/10 text-blue-300'
+                : 'border-[var(--cb-border)] text-[var(--cb-text-muted)] hover:border-blue-400/30 hover:text-blue-300',
             )}
-
-            {/* Paper tracking */}
-            {currentPosition ? (
-              <a
-                href="/portfolio"
-                className="flex items-center gap-1.5 rounded-lg border border-blue-400/30 bg-blue-500/10 px-2.5 py-1 text-[11px] font-medium text-blue-300 hover:underline"
-              >
-                <TrendingUp className="h-3 w-3" />
-                Tracked Idea ↗
-              </a>
-            ) : showEnterForm ? (
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  value={positionAmountInput}
-                  onChange={e => setPositionAmountInput(e.target.value)}
-                  placeholder="$ amount"
-                  className="w-24 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 py-1 text-[11px] text-[var(--cb-text-primary)] focus:outline-none"
-                  onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
-                />
-                <input
-                  type="number"
-                  value={entryPriceInput}
-                  onChange={e => setEntryPriceInput(e.target.value)}
-                  placeholder="Ref price"
-                  className="w-20 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 py-1 text-[11px] text-[var(--cb-text-primary)] focus:outline-none"
-                  onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
-                  autoFocus
-                />
-                <button type="button" onClick={handleEnterPosition} className="rounded-lg bg-blue-600 px-2 py-1 text-[11px] font-semibold text-white">✓</button>
-                <button type="button" onClick={() => setShowEnterForm(false)} className="rounded-lg border border-[var(--cb-border)] px-2 py-1 text-[11px] text-[var(--cb-text-muted)]">✕</button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowEnterForm(true)}
-                className={cn(
-                  'flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors',
-                  positionConfirmed
-                    ? 'cursor-default border-blue-400/30 bg-blue-500/10 text-blue-300'
-                    : 'border-[var(--cb-border)] text-[var(--cb-text-muted)] hover:border-blue-400/30 hover:text-blue-300',
-                )}
-              >
-                <TrendingUp className="h-3 w-3" />
-                {positionConfirmed ? 'Idea Tracked' : 'Paper Track'}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Expected Move */}
-      <div className="shrink-0 border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-4 py-2.5">
-        <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
-          <span className="rounded-md bg-[var(--cb-surface)] px-2 py-1 font-semibold text-[var(--cb-text-primary)] ring-1 ring-[var(--cb-border)]">
-            {reconciliation}
-          </span>
-          <span className="min-w-[180px] flex-1 text-[var(--cb-text-muted)]">
-            PM Read: {pmRead}
-          </span>
-        </div>
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
-          <div className="mr-1">
-            <div className="text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">
-              Expected Move
-            </div>
-            <div className="text-[10px] text-[var(--cb-text-muted)]">
-              range, not target
-            </div>
-          </div>
-          <div>
-            <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">TimesFM Base</div>
-            <div className="text-xs font-semibold tabular-nums text-[var(--cb-text-primary)]">
-              {formatExpectedMoveRange(expectedMove.baseLowPct, expectedMove.baseHighPct)}
-            </div>
-          </div>
-          <div>
-            <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">PM Bull Case</div>
-            <div className="text-xs font-semibold tabular-nums text-emerald-300">
-              {expectedMove.bullPct >= 0 ? '+' : ''}{expectedMove.bullPct}%
-            </div>
-          </div>
-          <div>
-            <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Risk Scenario</div>
-            <div className="text-xs font-semibold tabular-nums text-rose-300">
-              {expectedMove.riskPct >= 0 ? '+' : ''}{expectedMove.riskPct}%
-            </div>
-          </div>
-          <p className="min-w-[180px] flex-1 text-[11px] leading-snug text-[var(--cb-text-muted)]">
-            TimesFM is the base tape path; PM bull case is catalyst upside if estimates, multiple, or positioning re-rate. {expectedMove.summary}
-          </p>
-        </div>
-      </div>
-
-      {/* Company notebook context */}
-      <div className="shrink-0 border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-4 py-3">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <BookOpen className="h-4 w-4 shrink-0 text-[var(--cb-text-muted)]" />
-            <div className="min-w-0">
-              <p className="text-xs font-semibold text-[var(--cb-text-primary)]">
-                {stock.ticker} Company Notebook
-              </p>
-              <p className="truncate text-[11px] text-[var(--cb-text-muted)]">
-                Grounded in score factors, company context, valuation note, and risk file.
-              </p>
-            </div>
-          </div>
-          <div className="hidden shrink-0 items-center gap-1 lg:flex">
-            {NOTEBOOK_PROMPTS.map(prompt => (
-              <button
-                key={prompt.label}
-                type="button"
-                onClick={() => sendMessage(prompt.text, prompt.mode)}
-                disabled={streaming}
-                className="rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 py-1 text-[10px] font-medium text-[var(--cb-text-secondary)] transition-colors hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)] disabled:opacity-50"
-              >
-                {prompt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid gap-2 lg:grid-cols-5 xl:grid-cols-6">
-          {sourceCards.map(card => (
-            <button
-              key={card.label}
-              type="button"
-              onClick={() => sendMessage(card.prompt, 'mode' in card ? card.mode : undefined)}
-              disabled={streaming}
-              className="min-w-0 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] p-2 text-left transition-colors hover:border-[var(--cb-border-strong)] hover:bg-[var(--cb-surface-subtle)] disabled:opacity-50"
-            >
-              <div className="mb-1 flex items-center gap-1.5">
-                <FileText className="h-3 w-3 shrink-0 text-[var(--cb-text-muted)]" />
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)]">
-                  {card.label}
-                </span>
-              </div>
-              <p className="line-clamp-3 text-[11px] leading-snug text-[var(--cb-text-secondary)]">
-                {card.value}
-              </p>
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-2 flex flex-wrap gap-1.5 lg:hidden">
-          {NOTEBOOK_PROMPTS.map(prompt => (
-            <button
-              key={prompt.label}
-              type="button"
-              onClick={() => sendMessage(prompt.text, prompt.mode)}
-              disabled={streaming}
-              className="rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 py-1 text-[10px] font-medium text-[var(--cb-text-secondary)] transition-colors hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)] disabled:opacity-50"
-            >
-              {prompt.label}
-            </button>
-          ))}
-        </div>
-
-        <ScoreBacktestPanel
-          stock={stock}
-          onClick={() => sendMessage('When score > 7, what happened over next 30 days?')}
-          disabled={streaming}
-        />
-      </div>
-
-      {/* Small score chart */}
-      <div className="shrink-0 border-b border-[var(--cb-border)] px-4 py-3">
-        <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
-          {(Object.entries(stock.breakdown) as Array<[keyof RankedStock['breakdown'], number]>).map(([key, value]) => {
-            const factorDelta = scoreChange?.factorDeltas[key];
-            const isTop    = hasDistinctPoles && key === topKey && !factorDelta;
-            const isBottom = hasDistinctPoles && key === bottomKey && !factorDelta;
-            return (
-              <div
-                key={key}
-                className={cn(
-                  'min-w-0 rounded-md border p-1 transition-all duration-300',
-                  factorDelta   && changedFactorTone(factorDelta ?? 0),
-                  !factorDelta  && isTop    && 'border-emerald-400/40 bg-emerald-500/10',
-                  !factorDelta  && isBottom && 'border-amber-400/40 bg-amber-500/10',
-                  !factorDelta  && !isTop && !isBottom && 'border-transparent',
-                )}
-              >
-                <div className="mb-1 flex items-center justify-between gap-1">
-                  <div className="flex min-w-0 items-center gap-1">
-                    <span className="truncate text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
-                      {SCORE_LABELS[key]}
-                    </span>
-                    {isTop    && <span className="shrink-0 rounded bg-emerald-500/20 px-1 text-[8px] font-semibold uppercase tracking-wide text-emerald-300">Leads</span>}
-                    {isBottom && <span className="shrink-0 rounded bg-amber-500/20  px-1 text-[8px] font-semibold uppercase tracking-wide text-amber-300">Drag</span>}
-                  </div>
-                  <span className="flex shrink-0 items-center gap-1 text-[10px] tabular-nums text-[var(--cb-text-muted)]">
-                    {factorDelta ? (
-                      <span className={cn(
-                        'font-semibold',
-                        factorDelta > 0 ? 'text-emerald-300' : 'text-rose-300',
-                      )}>
-                        {factorDelta > 0 ? '+' : ''}{factorDelta.toFixed(1)}
-                      </span>
-                    ) : null}
-                    {value.toFixed(1)}
-                  </span>
-                </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className={cn(
-                      'h-full rounded-full transition-all duration-500 ease-out',
-                      value >= 7 ? 'bg-emerald-400' : value >= 4 ? 'bg-amber-400' : 'bg-rose-400',
-                    )}
-                    style={{ width: `${Math.max(4, Math.min(100, value * 10))}%` }}
-                  />
-                </div>
-                <p className="mt-1 line-clamp-2 text-[9px] leading-tight text-[var(--cb-text-muted)]">
-                  {factorInterpretation(stock, key, value)}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-        {scoreChange && (
-          <div className={cn(
-            'mt-3 rounded-lg border px-3 py-2 text-xs transition-all duration-300',
-            scoreChange.delta >= 0
-              ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-100'
-              : 'border-rose-400/25 bg-rose-500/10 text-rose-100',
-          )}>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold text-[var(--cb-text-primary)]">
-                Thesis changed
-              </span>
-              <span className="font-semibold tabular-nums">
-                {scoreChange.fromScore.toFixed(1)} → {scoreChange.toScore.toFixed(1)}
-              </span>
-              <span className="font-semibold tabular-nums">
-                {scoreChange.delta >= 0 ? '+' : ''}{scoreChange.delta.toFixed(1)}
-              </span>
-            </div>
-            <p className="mt-1 text-[11px] text-[var(--cb-text-secondary)]">
-              {scoreChangeExplanation(scoreChange)}
-            </p>
-          </div>
+          >
+            <TrendingUp className="h-3 w-3" />
+            {positionConfirmed ? 'Idea Tracked' : 'Paper Track'}
+          </button>
         )}
       </div>
+
+      {/* Layer 2: Trade Structure */}
+      <TradeStructurePanel stock={stock} />
+
+      {/* Layer 3: Scenario Engine */}
+      <ScenarioEngine
+        stock={stock}
+        onScenarioClick={text => sendMessage(text)}
+        disabled={streaming}
+      />
+
+      {/* Layer 4: Catalyst Timeline */}
+      <CatalystTimeline
+        stock={stock}
+        onCatalystClick={text => sendMessage(text)}
+        disabled={streaming}
+      />
+
+      {/* Layer 5: Deep Research (collapsible) */}
+      <DeepResearchPanel
+        stock={stock}
+        scoreChange={scoreChange}
+        sourceCards={sourceCards}
+        onPrompt={(text, mode) => sendMessage(text, mode as InvestmentMode | undefined)}
+        disabled={streaming}
+      />
+
+      <HedgeFundPanel ticker={stock.ticker} />
+      <TradingAgentsPanel ticker={stock.ticker} />
+      <DexterPanel ticker={stock.ticker} />
 
       {/* Messages */}
       <div
@@ -1520,7 +1059,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             >
               <div
                 className={cn(
-                  'max-w-[85%] rounded-xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap',
+                  'max-w-[92%] overflow-hidden rounded-xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words',
                   msg.role === 'user'
                     ? 'bg-blue-600 text-white'
                     : 'bg-[var(--cb-surface)] text-[var(--cb-text-body)] ring-1 ring-[var(--cb-border)]',
@@ -1544,7 +1083,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
         })}
       </div>
 
-      {/* Suggested prompts — always visible above input */}
+      {/* Suggested prompts */}
       <div className="shrink-0 border-t border-[var(--cb-border)] px-4 py-2">
         {currentPosition && (
           <div className="mb-2 flex flex-wrap items-center gap-1.5">
