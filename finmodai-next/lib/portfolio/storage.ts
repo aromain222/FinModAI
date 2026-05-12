@@ -1,4 +1,10 @@
-import type { ActivePosition, PositionEvent, PositionStatus, ThesisDrift } from './types';
+import type {
+  ActivePosition,
+  PositionEvent,
+  PositionMonitorResult,
+  PositionStatus,
+  ThesisDrift,
+} from './types';
 
 const STORAGE_KEY = 'capitalbase:portfolio:v1';
 const PORTFOLIO_EVENT = 'capitalbase:portfolio-updated';
@@ -62,6 +68,16 @@ export function removePosition(id: string): ActivePosition[] {
   return save(getPositions().filter(p => p.id !== id));
 }
 
+export function batchUpdatePrices(updates: Record<string, number>): ActivePosition[] {
+  return save(
+    getPositions().map(p =>
+      p.status !== 'exited' && typeof updates[p.ticker] === 'number'
+        ? { ...p, currentPrice: updates[p.ticker] }
+        : p,
+    ),
+  );
+}
+
 export function addPositionEvent(id: string, event: PositionEvent): ActivePosition[] {
   return save(
     getPositions().map(p =>
@@ -104,6 +120,45 @@ export function updatePositionThesis(
     positions.map(p =>
       p.id === id
         ? { ...p, currentScore: newScore, currentSignal: newSignal, thesisDrift: drift, status, timeline: [...p.timeline, event] }
+        : p,
+    ),
+  );
+}
+
+export function updatePositionMonitor(id: string, monitor: PositionMonitorResult): ActivePosition[] {
+  const positions = getPositions();
+  const position  = positions.find(p => p.id === id);
+  if (!position) return positions;
+
+  let status: PositionStatus = position.status;
+  if (status !== 'exited') {
+    if (monitor.action === 'Exit')       status = 'broken';
+    else if (monitor.action === 'Trim')  status = 'extended';
+    else if (monitor.thesisDrift === 'weakening') status = 'weakening';
+    else if (monitor.updatedScore >= 8.5) status = 'extended';
+    else status = 'working';
+  }
+
+  const event: PositionEvent = {
+    id:          `${id}-monitor-${Date.now()}`,
+    date:        monitor.asOf,
+    description: `Monitor: ${monitor.action}. ${monitor.exitTrigger}`,
+    kind:        monitor.action === 'Exit' ? 'risk' : 'thesis_update',
+  };
+
+  return save(
+    positions.map(p =>
+      p.id === id
+        ? {
+            ...p,
+            currentScore:  monitor.updatedScore,
+            currentSignal: monitor.updatedSignal,
+            thesisDrift:   monitor.thesisDrift,
+            currentStance: monitor.action,
+            status,
+            latestMonitor: monitor,
+            timeline:      [...p.timeline, event],
+          }
         : p,
     ),
   );

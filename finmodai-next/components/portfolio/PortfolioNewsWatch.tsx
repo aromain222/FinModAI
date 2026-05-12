@@ -2,72 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { ActivePosition } from '@/lib/portfolio/types';
+import type { ClassifiedNewsItem, NewsItem } from '@/lib/portfolio/newsClassify';
+import { classifyHeadline, sortByPriority, LABEL_STYLE } from '@/lib/portfolio/newsClassify';
 import { cn } from '@/lib/utils';
-
-type NewsItem = {
-  title: string;
-  url: string;
-  source: string;
-  publishedAt: string;
-  description?: string | null;
-  provider?: string;
-};
-
-type LabelKey = 'Estimate' | 'Risk' | 'Positioning' | 'Multiple' | 'Watch';
-
-const LABEL_STYLE: Record<LabelKey, { border: string; text: string; bg: string }> = {
-  Estimate:    { border: 'border-amber-400/30',   text: 'text-amber-300',  bg: 'bg-amber-500/10' },
-  Risk:        { border: 'border-rose-400/30',    text: 'text-rose-300',   bg: 'bg-rose-500/10' },
-  Positioning: { border: 'border-blue-400/30',    text: 'text-blue-300',   bg: 'bg-blue-500/10' },
-  Multiple:    { border: 'border-purple-400/30',  text: 'text-purple-300', bg: 'bg-purple-500/10' },
-  Watch:       { border: 'border-[var(--cb-border)]', text: 'text-[var(--cb-text-muted)]', bg: '' },
-};
-
-const LABEL_PRIORITY: LabelKey[] = ['Estimate', 'Risk', 'Positioning', 'Multiple', 'Watch'];
-
-type Classification = { label: LabelKey; reason: string };
-
-function classifyHeadline(item: NewsItem): Classification {
-  const text = `${item.title} ${item.description ?? ''}`.toLowerCase();
-
-  if (/\b(earnings|guidance|revenue|margin|bookings|orders|gmv|growth rate|forecast|outlook|estimate|beat|miss|consensus|eps|sales|shipments)\b/.test(text)) {
-    return {
-      label: 'Estimate',
-      reason: 'Why this matters: Changes to revenue, margin, or EPS guidance can re-rate the score and trigger position reassessment.',
-    };
-  }
-  if (/\b(regulat|antitrust|lawsuit|probe|investigation|ban|tariff|policy|labor ruling|court|fine|sec|ftc|doj|penalty|compliance)\b/.test(text)) {
-    return {
-      label: 'Risk',
-      reason: 'Why this matters: Regulatory or legal risk can compress the multiple before numbers change — monitor for escalation.',
-    };
-  }
-  if (/\b(upgrade|downgrade|price target|overweight|underweight|stake|flows|etf|short interest|rotation|activist|fund|position|held|owns|bought|sold)\b/.test(text)) {
-    return {
-      label: 'Positioning',
-      reason: 'Why this matters: Fast-money flows and analyst re-ratings can move the stock independently of fundamentals.',
-    };
-  }
-  if (/\b(valuation|multiple|p\/e|ev\/ebitda|moat|competition|market share|pricing power|competitive|disruptive|alternative|substitute)\b/.test(text)) {
-    return {
-      label: 'Multiple',
-      reason: 'Why this matters: Changes to the competitive moat or pricing power can reset what the market pays for earnings.',
-    };
-  }
-  return {
-    label: 'Watch',
-    reason: 'Why this matters: Monitor whether this develops into an estimate, multiple, or risk catalyst.',
-  };
-}
-
-function priorityScore(label: LabelKey): number {
-  return LABEL_PRIORITY.indexOf(label);
-}
 
 type TickerNews = {
   ticker: string;
   notionalUsd: number | null;
-  items: NewsItem[];
+  items: ClassifiedNewsItem[];
 };
 
 function formatDate(value: string): string {
@@ -112,12 +54,7 @@ export function PortfolioNewsWatch({ positions }: { positions: ActivePosition[] 
               return typeof row.title === 'string' && typeof row.url === 'string';
             })
           : [];
-        // Sort by priority then take top 3
-        const items = raw
-          .map(item => ({ item, cls: classifyHeadline(item) }))
-          .sort((a, b) => priorityScore(a.cls.label) - priorityScore(b.cls.label))
-          .slice(0, 3)
-          .map(({ item }) => item);
+        const items = sortByPriority(raw.map(classifyHeadline)).slice(0, 3);
         return { ticker, notionalUsd: position?.notionalUsd ?? null, items };
       }),
     )
@@ -167,7 +104,7 @@ export function PortfolioNewsWatch({ positions }: { positions: ActivePosition[] 
               ) : (
                 <div className="space-y-2">
                   {row.items.map(item => {
-                    const { label, reason } = classifyHeadline(item);
+                    const { label, reason } = item;
                     const style = LABEL_STYLE[label];
                     return (
                       <a

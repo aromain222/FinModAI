@@ -15,6 +15,32 @@ export type PositionEvent = {
   kind: 'entry' | 'catalyst' | 'thesis_update' | 'risk' | 'exit';
 };
 
+export type PositionMonitorAction = 'Add' | 'Hold' | 'Trim' | 'Exit' | 'Watch';
+
+export type PositionMonitorAgentRead = {
+  source: 'hedge_fund' | 'tradingagents' | 'dexter';
+  stance: string;
+  read: string;
+  confidence?: number | null;
+};
+
+export type PositionMonitorResult = {
+  action: PositionMonitorAction;
+  confidence: number;
+  asOf: string;
+  priceRead: string;
+  scoreRead: string;
+  newsRead: string;
+  agentRead: string;
+  exitTrigger: string;
+  holdTrigger: string;
+  riskFlags: string[];
+  updatedScore: number;
+  updatedSignal: 'green' | 'yellow' | 'red';
+  thesisDrift: ThesisDrift;
+  agentReads: PositionMonitorAgentRead[];
+};
+
 export type ActivePosition = {
   id: string;
   ticker: string;
@@ -34,6 +60,7 @@ export type ActivePosition = {
   keyRisks: string;
   watchItems: string[];
   timeline: PositionEvent[];
+  latestMonitor?: PositionMonitorResult;
   addedAt: string;
   exitedAt?: string;
 };
