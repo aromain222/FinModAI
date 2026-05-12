@@ -47,6 +47,21 @@ generated_models/*.xlsx
 uploads/*
 !generated_models/.gitkeep
 !uploads/.gitkeep
+node_modules/
+frontend/
+shopai-mvp/
+TradingAgents/
+ai-hedge-fund/
+cache/
+output/
+finmodai-next/output/
+finmodai-next/tsconfig.tsbuildinfo
+tsconfig.tsbuildinfo
+.claude-flow/
+finmodai-next/.claude-flow/
+.next/
+finmodai-next/.next/
+finmodai-next/node_modules/
 
 # Logs
 *.log

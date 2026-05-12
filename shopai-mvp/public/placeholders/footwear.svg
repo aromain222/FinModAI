@@ -1,9 +1,0 @@
-<svg width="1200" height="800" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="1200" height="800" fill="#F7F8F5"/>
-  <circle cx="960" cy="180" r="220" fill="#D6EFE9"/>
-  <circle cx="170" cy="620" r="170" fill="#E6ECCF"/>
-  <path d="M236 472C344 472 452 470 560 466C612 464 670 441 714 405L801 334L900 419C951 462 1018 487 1088 490V568H236V472Z" fill="#111827"/>
-  <path d="M822 368L904 425C935 446 969 462 1005 472H878C832 472 794 434 794 388V347L822 368Z" fill="#2563EB"/>
-  <path d="M236 568H1088V612H236V568Z" fill="#E5E7EB"/>
-  <text x="600" y="706" text-anchor="middle" fill="#111827" font-size="42" font-family="Avenir Next, Segoe UI, sans-serif">Performance Footwear</text>
-</svg>
