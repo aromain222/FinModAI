@@ -26,6 +26,20 @@ const SIGNAL_DOT: Record<string, string> = {
   red:    'bg-rose-400',
 };
 
+const AI_ACTION_STYLE: Record<string, string> = {
+  buy:   'bg-emerald-500/20 text-emerald-300 ring-emerald-400/40',
+  cover: 'bg-emerald-500/15 text-emerald-300 ring-emerald-400/30',
+  hold:  'bg-amber-500/15  text-amber-300   ring-amber-400/30',
+  short: 'bg-rose-500/20   text-rose-300    ring-rose-400/40',
+  sell:  'bg-rose-500/20   text-rose-300    ring-rose-400/40',
+};
+
+function parseAiAction(reason: string): string | null {
+  if (!reason.startsWith('AI: ')) return null;
+  const word = reason.slice(4).split(/[\s(]/)[0]?.toLowerCase() ?? '';
+  return AI_ACTION_STYLE[word] ? word : null;
+}
+
 export function RankedList({ initial }: Props) {
   const [stocks,   setStocks]   = useState<RankedStock[]>(initial.stocks);
   const [loading,  setLoading]  = useState(false);
@@ -272,6 +286,19 @@ export function RankedList({ initial }: Props) {
                           {movedDelta >= 0 ? '+' : ''}{movedDelta.toFixed(1)}
                         </span>
                       )}
+                      {/* AI verdict badge — shown when hedge fund has run */}
+                      {(() => {
+                        const action = parseAiAction(stock.primaryReason);
+                        if (!action) return null;
+                        return (
+                          <span className={cn(
+                            'rounded px-1 text-[9px] font-bold uppercase tracking-wide ring-1',
+                            AI_ACTION_STYLE[action],
+                          )}>
+                            {action}
+                          </span>
+                        );
+                      })()}
                       {signalChanged && (
                         <span className="rounded bg-white/10 px-1 text-[9px] font-semibold text-[var(--cb-text-primary)] ring-1 ring-white/15">
                           signal
