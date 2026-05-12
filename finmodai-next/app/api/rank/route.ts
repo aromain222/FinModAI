@@ -89,9 +89,60 @@ const DEFAULT_WATCHLIST = [
   'AAL', 'LUV', 'FDX', 'UPS', 'CSX',
   'UNP', 'NSC', 'GM', 'F', 'RIVN',
   'NIO', 'LI', 'XPEV',
+
+  // Telecom & Cable
+  'T', 'VZ', 'TMUS', 'CHTR', 'CMCSA', 'LBRDK', 'WBD', 'PARA',
+
+  // Healthcare — large-cap pharma & devices
+  'JNJ', 'ABT', 'ZTS', 'GEHC', 'BAX', 'BDX', 'WAT', 'A',
+  'PODD', 'DXCM', 'INSP', 'IRTC', 'ALGN', 'HOLX', 'IDXX',
+  'MTD', 'IQV', 'CRL', 'LH', 'DGX', 'HSIC', 'PDCO',
+
+  // Financials — insurance, alt asset, fintech
+  'TRV', 'CB', 'ALL', 'AIG', 'AFL', 'MET', 'PRU', 'HIG',
+  'RE', 'CINF', 'RNR', 'ACGL', 'LPLA', 'IBKR', 'MKTX', 'VIRT',
+  'WFC', 'STT', 'BK', 'NTRS', 'SIVB',
+
+  // Industrials — automation, defense, logistics
+  'ITW', 'IR', 'GRMN', 'ROP', 'FTV', 'AME', 'XYL', 'OTIS',
+  'CARR', 'TT', 'AXON', 'LDOS', 'SAIC', 'BAH', 'KTOS', 'HEI',
+  'TDY', 'BWA', 'LEA', 'MGA', 'APTV',
+
+  // Materials & Chemicals
+  'LIN', 'APD', 'ECL', 'SHW', 'PPG', 'CE', 'EMN', 'IFF',
+  'RPM', 'HUN', 'FMC', 'MOS', 'CF', 'NTR',
+
+  // Utilities
+  'AEP', 'EXC', 'PCG', 'XEL', 'ES', 'AWK', 'CNP', 'WEC',
+  'CMS', 'DTE', 'PPL', 'AES', 'FE', 'D',
+
+  // Consumer — specialty retail, food, beverages
+  'FIVE', 'DG', 'DLTR', 'BBWI', 'RL', 'PVH', 'CPRI', 'FL',
+  'GPS', 'ANF', 'AEO', 'URBN',
+  'QSR', 'TXRH', 'DNUT', 'SHAK', 'DPZ',
+  'KHC', 'GIS', 'CPB', 'SJM', 'MKC', 'HSY', 'MDLZ', 'CAG',
+  'WBA', 'RAD', 'HLT', 'MAR', 'H', 'IHG',
+
+  // Real Estate — REITs
+  'WPC', 'NNN', 'STAG', 'REXR', 'ELS', 'SUI', 'INVH', 'LXP',
+  'ARE', 'CBRE', 'JLL', 'CWK',
+
+  // Software / SaaS — additions
+  'ZI', 'BRZE', 'NTNX', 'PSTG', 'RAMP', 'CWAN', 'NCNO',
+  'MSCI', 'VRSK', 'FDS', 'FICO', 'TYL', 'BLKB', 'MANH',
+  'VEEV', 'MEDP', 'PRGS', 'ALRM', 'SPSC',
+
+  // Semiconductors — additional
+  'ENTG', 'ONTO', 'ACLS', 'FORM', 'AMBA', 'SWKS', 'QRVO',
+  'MCHP', 'MTSI', 'POWI', 'DIOD', 'SITM',
+
+  // International ADRs
+  'SAP', 'AZN', 'GSK', 'SNY', 'NVS', 'RHHBY', 'UL', 'BP',
+  'SHEL', 'TTE', 'VALE', 'RIO', 'BHP', 'TM', 'HMC', 'SONY',
+  'NTES', 'TCEHY', 'GRAB', 'DKNG', 'WIX',
 ];
 
-const MAX_TICKERS = 300;
+const MAX_TICKERS = 500;
 const RANK_CACHE_TTL_MS = 30_000;
 const rankCache = new Map<string, { expiresAt: number; response: RankResponse }>();
 
