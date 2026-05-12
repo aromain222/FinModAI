@@ -69,10 +69,10 @@ export async function readCronOffset(): Promise<number> {
   if (!sb) return 0;
   const { data } = await sb
     .from('rank_cron_state')
-    .select('offset')
+    .select('next_offset')
     .eq('id', 1)
     .maybeSingle();
-  return (data as { offset?: number } | null)?.offset ?? 0;
+  return (data as { next_offset?: number } | null)?.next_offset ?? 0;
 }
 
 /** Advance the cron offset, wrapping at totalTickers. */
@@ -81,5 +81,5 @@ export async function writeCronOffset(next: number): Promise<void> {
   if (!sb) return;
   await sb
     .from('rank_cron_state')
-    .upsert({ id: 1, offset: next }, { onConflict: 'id' });
+    .upsert({ id: 1, next_offset: next }, { onConflict: 'id' });
 }
