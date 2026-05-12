@@ -4,13 +4,14 @@ import {
   getIncomeStatements, getCashFlowStatements,
   getKeyMetrics, getFilings, getInsiderTransactions,
 } from '@/lib/dexter/client';
+import { getOpenAIKey } from '@/lib/openaiKey';
 
 export const dynamic     = 'force-dynamic';
 export const runtime     = 'nodejs';
 export const maxDuration = 90;
 
 function openAIClient(): OpenAI | null {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = getOpenAIKey('user');
   return apiKey ? new OpenAI({ apiKey }) : null;
 }
 
@@ -135,7 +136,7 @@ export async function POST(req: NextRequest) {
 
   const openai = openAIClient();
   if (!openai) {
-    return NextResponse.json({ error: 'OPENAI_API_KEY not configured' }, { status: 503 });
+    return NextResponse.json({ error: 'OpenAI key not configured. Set OPENAI_API_KEY or OPENAI_SERVICE_API_KEY.' }, { status: 503 });
   }
 
   const userMsg = ticker

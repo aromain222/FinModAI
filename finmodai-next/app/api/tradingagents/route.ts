@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { getOpenAIKey } from '@/lib/openaiKey';
 
 export const dynamic     = 'force-dynamic';
 export const runtime     = 'nodejs';
@@ -25,7 +26,7 @@ type AnalysisResult = {
 };
 
 function openAIClient(): OpenAI | null {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = getOpenAIKey('user');
   return apiKey ? new OpenAI({ apiKey }) : null;
 }
 
@@ -164,7 +165,7 @@ export async function POST(req: NextRequest) {
     const client = openAIClient();
     if (!client) {
       return NextResponse.json({
-        error: 'Agent backend unavailable and OPENAI_API_KEY not configured',
+        error: 'Agent backend unavailable and OpenAI key not configured. Set OPENAI_API_KEY or OPENAI_SERVICE_API_KEY.',
       }, { status: 503 });
     }
 
