@@ -2235,6 +2235,9 @@ function buildDeterministicForecastReply(input: DeterministicForecastReplyInput)
     returnPct > 3 ? 'LONG bias' :
     returnPct < -3 ? 'SHORT / underweight bias' :
     'NEUTRAL / wait for confirmation';
+  const expectedMoveText = `${baseLow >= 0 ? '+' : ''}${baseLow.toFixed(1)}% to ${baseHigh >= 0 ? '+' : ''}${baseHigh.toFixed(1)}%`;
+  const bullScenarioText = `${bullScenario >= 0 ? '+' : ''}${bullScenario.toFixed(1)}%`;
+  const riskScenarioText = `${riskScenario.toFixed(1)}%`;
   const whatMatters =
     topEvent?.eventForecast?.surpriseToWatch?.replace(/^Key driver:\s*/i, '') ||
     topEvent?.impact ||
@@ -2266,9 +2269,8 @@ function buildDeterministicForecastReply(input: DeterministicForecastReplyInput)
         : 'Stable; no major thesis break in the current overlay.';
 
   return [
-    `Signal: ${signal}.`,
-    `Expected Move: base view ${baseLow >= 0 ? '+' : ''}${baseLow.toFixed(1)}% to ${baseHigh >= 0 ? '+' : ''}${baseHigh.toFixed(1)}%; bull ${bullScenario >= 0 ? '+' : ''}${bullScenario.toFixed(1)}%; risk ${riskScenario.toFixed(1)}%.`,
-    `Trade Readiness: ${readiness.label} — ${readiness.reason}.`,
+    `Signal: ${signal} | Trade Readiness: ${readiness.label} | Expected Move: ${expectedMoveText}. ${readiness.reason}.`,
+    `Scenario Range: bull ${bullScenarioText}; risk ${riskScenarioText}.`,
     `What Matters Most: ${whatMatters}`,
     `Key Catalyst: ${keyCatalyst}. Importance: ${eventImportance}; stock sensitivity: ${stockSensitivity}.`,
     `Bull Case: trend holds and the catalyst improves estimates, multiple, or positioning.`,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ChevronDown, ChevronRight, Loader2, Play, RotateCcw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -84,11 +84,12 @@ function SignalCard({ s }: { s: Signal }) {
 
 const LOADING_NAMES = ['Warren Buffett','Ben Graham','Charlie Munger','Peter Lynch','Nassim Taleb','Michael Burry','Cathie Wood','Aswath Damodaran','Stanley Druckenmiller','Technical Analyst','Valuation Analyst'];
 
-export function HedgeFundPanel({ ticker }: { ticker: string }) {
+export function HedgeFundPanel({ ticker, autoRun = false, onResult }: { ticker: string; autoRun?: boolean; onResult?: (result: AnalysisResult) => void }) {
   const [open,    setOpen]    = useState(false);
   const [loading, setLoading] = useState(false);
   const [result,  setResult]  = useState<AnalysisResult | null>(null);
   const [error,   setError]   = useState<string | null>(null);
+  const ranForRef = useRef<string | null>(null);
 
   async function run() {
     setLoading(true); setError(null); setOpen(true);
@@ -96,10 +97,21 @@ export function HedgeFundPanel({ ticker }: { ticker: string }) {
       const res  = await fetch('/api/hedge-fund', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticker }) });
       const data = await res.json();
       if (!res.ok) { setError(data?.error ?? `Error ${res.status}`); return; }
-      setResult(data as AnalysisResult);
+      const typed = data as AnalysisResult;
+      setResult(typed);
+      onResult?.(typed);
     } catch (e) { setError(e instanceof Error ? e.message : 'Request failed'); }
     finally { setLoading(false); }
   }
+
+  useEffect(() => {
+    if (!autoRun) return;
+    if (ranForRef.current === ticker) return;
+    ranForRef.current = ticker;
+    setResult(null); setError(null); setOpen(false);
+    run();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticker, autoRun]);
 
   const total    = result ? result.consensus.bullish + result.consensus.bearish + result.consensus.neutral : 0;
   const personas = result?.signals.filter(s => s.group === 'persona') ?? [];

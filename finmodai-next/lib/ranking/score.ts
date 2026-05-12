@@ -42,7 +42,7 @@ export const WEIGHTS = {
   riskAdjustment:   0.12,
 } as const;
 
-const FETCH_TIMEOUT_MS = 1_800;
+const FETCH_TIMEOUT_MS = 4_500;
 const BATCH_SIZE = 72;
 const SCORE_CACHE_TTL_MS = 60_000;
 

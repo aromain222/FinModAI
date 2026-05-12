@@ -403,9 +403,39 @@ function EventMonitorGrid({
   );
 }
 
+type CalendarActual = { actual: string; estimate: string | null; surpriseNum: number | null };
+
+function surpriseLabel(
+  surpriseNum: number | null,
+  type: MacroCalendarEntry['type'],
+): string {
+  if (surpriseNum === null) return 'Not comparable';
+  if (Math.abs(surpriseNum) < 0.005) return 'In-line';
+  const sign = surpriseNum > 0 ? '+' : '';
+  if (type === 'NFP') return `${sign}${Math.round(surpriseNum)}K vs consensus`;
+  return `${sign}${surpriseNum.toFixed(2)}ppt vs consensus`;
+}
+
+function surprisePillClass(surpriseNum: number | null, type: MacroCalendarEntry['type']): string {
+  if (surpriseNum === null) return 'border-zinc-700/40 text-zinc-500';
+  // For inflation/rates, higher = hawkish = bad for equities → amber; lower = dovish = good → emerald
+  const hawkishOnHigher = type === 'CPI' || type === 'PCE' || type === 'FOMC' || type === 'ECB' || type === 'BOJ';
+  if (Math.abs(surpriseNum) < 0.005) return 'border-zinc-600/40 text-zinc-400';
+  if (hawkishOnHigher) {
+    return surpriseNum > 0
+      ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+      : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300';
+  }
+  // For NFP / GDP: higher = positive
+  return surpriseNum > 0
+    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+    : 'border-rose-500/30 bg-rose-500/10 text-rose-300';
+}
+
 function EconomicCalendar({ today }: { today: Date }) {
   const fmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
   const in7Days = useMemo(() => new Date(today.getTime() + 7 * 86_400_000), [today]);
+
   const defaultExpandedId = useMemo(() => {
     const upcomingHigh = MACRO_CALENDAR.find((entry) => {
       const entryDate = new Date(entry.date + 'T12:00:00');
@@ -413,36 +443,86 @@ function EconomicCalendar({ today }: { today: Date }) {
     });
     return upcomingHigh?.id ?? null;
   }, [in7Days, today]);
+
   const [expandedEntryId, setExpandedEntryId] = useState<string | null>(defaultExpandedId);
+  const [actuals, setActuals]     = useState<Record<string, CalendarActual>>({});
+  const [actualsLoaded, setActualsLoaded] = useState(false);
 
   useEffect(() => {
     setExpandedEntryId((current) => current ?? defaultExpandedId);
   }, [defaultExpandedId]);
 
+  useEffect(() => {
+    fetch('/api/economic-calendar', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() as Promise<{ actuals: Record<string, CalendarActual> }> : { actuals: {} })
+      .then(data => setActuals(data.actuals ?? {}))
+      .catch(() => setActuals({}))
+      .finally(() => setActualsLoaded(true));
+  }, []);
+
+  // Merge static calendar with API actuals
+  const enrichedCalendar = useMemo(() =>
+    MACRO_CALENDAR.map(entry => {
+      const fetched = actuals[entry.id];
+      return fetched
+        ? { ...entry, actual: entry.actual ?? fetched.actual, _apiActual: fetched }
+        : { ...entry, _apiActual: null as CalendarActual | null };
+    }),
+    [actuals],
+  );
+
   return (
     <div className="overflow-hidden rounded-xl border border-zinc-800/60 bg-zinc-950/40">
-      <div className="border-b border-zinc-800/50 px-4 py-2">
+      <div className="flex items-center justify-between border-b border-zinc-800/50 px-4 py-2">
         <span className="text-[9px] font-mono uppercase tracking-[0.25em] text-zinc-500">Economic Calendar</span>
+        {!actualsLoaded && (
+          <span className="text-[9px] font-mono text-zinc-700 animate-pulse">Loading results…</span>
+        )}
       </div>
       <div className="grid grid-cols-[80px_1fr_minmax(220px,1.25fr)_170px_90px] gap-2 border-b border-zinc-800/50 bg-zinc-950/60 px-4 py-2">
-        {['DATE', 'EVENT', 'SETUP', 'WATCH', 'IMPORTANCE'].map((col) => (
+        {['DATE', 'EVENT', 'SETUP / RESULT', 'WATCH', 'IMPORTANCE'].map((col) => (
           <div key={col} className="text-[9px] font-mono uppercase tracking-[0.25em] text-zinc-600">{col}</div>
         ))}
       </div>
-      {MACRO_CALENDAR.map((entry) => {
-        const entryDate = new Date(entry.date + 'T12:00:00');
-        const isPast = isPastEntry(entry, today);
-        const isUpcoming = !isPast && entryDate <= in7Days;
-        const isOpen = expandedEntryId === entry.id;
+
+      {enrichedCalendar.map((entry) => {
+        const entryDate   = new Date(entry.date + 'T12:00:00');
+        const isPast      = isPastEntry(entry, today);
+        const isUpcoming  = !isPast && entryDate <= in7Days;
+        const isOpen      = expandedEntryId === entry.id;
+        const apiActual   = entry._apiActual;
+        const hasActual   = Boolean(entry.actual);
+        const setup       = hasActual ? null : preReleaseSetup(entry);
+        const readThrough = calendarReadThrough(entry);
         const interpretation = interpretEvent(entry);
         const marketReaction = expectedMarketReaction(entry, interpretation);
-        const hasActual = Boolean(entry.actual);
-        const setup = hasActual ? null : preReleaseSetup(entry);
-        const readThrough = calendarReadThrough(entry);
+
+        // Surprise display logic
+        const surpriseDisplay = (() => {
+          if (apiActual?.surpriseNum !== null && apiActual?.surpriseNum !== undefined) {
+            return surpriseLabel(apiActual.surpriseNum, entry.type);
+          }
+          return formatSurpriseStatus(entry, isPast);
+        })();
+
+        const actualDisplay = (() => {
+          if (entry.actual) return formatCalendarValue(entry.actual);
+          if (apiActual?.actual) return apiActual.actual;
+          if (isPast && actualsLoaded) return 'Result not loaded';
+          if (isPast) return 'Loading…';
+          return 'Not yet released';
+        })();
+
+        const forecastDisplay = (() => {
+          if (entry.forecast) return formatCalendarValue(entry.forecast);
+          if (apiActual?.estimate) return apiActual.estimate;
+          return 'Consensus pending';
+        })();
+
         return (
           <div
             key={entry.id}
-            className={`border-b border-zinc-800/30 px-2 py-1.5 last:border-b-0 ${isPast ? 'opacity-55' : ''}`}
+            className={`border-b border-zinc-800/30 px-2 py-1.5 last:border-b-0 ${isPast && !hasActual ? 'opacity-60' : ''}`}
           >
             <div className={`overflow-hidden rounded-lg border transition-colors duration-200 ${calendarImportanceClass(entry.importance, isOpen)}`}>
               <button
@@ -451,6 +531,7 @@ function EconomicCalendar({ today }: { today: Date }) {
                 aria-expanded={isOpen}
                 className="grid w-full grid-cols-[80px_1fr_minmax(220px,1.25fr)_170px_90px] items-center gap-2 px-2 py-2 text-left"
               >
+                {/* Date */}
                 <div className="flex items-center gap-1">
                   <span className={`text-[10px] text-zinc-500 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}>
                     ▸
@@ -458,29 +539,56 @@ function EconomicCalendar({ today }: { today: Date }) {
                   {isUpcoming && <span className="text-[8px] text-amber-400">★</span>}
                   <span className="text-[10px] font-mono tabular-nums text-zinc-400">{fmt.format(entryDate)}</span>
                 </div>
+
+                {/* Event name + result pill for past */}
                 <div className="min-w-0">
-                  <span className="text-xs font-medium text-zinc-200">{entry.event}</span>
-                  {entry.notes && (
-                    <span className="ml-2 text-[9px] text-zinc-600">{entry.notes}</span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs font-medium text-zinc-200">{entry.event}</span>
+                    {entry.notes && (
+                      <span className="text-[9px] text-zinc-600">{entry.notes}</span>
+                    )}
+                    {entry.importance === 'high' && (
+                      <span className="rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wide text-amber-300">
+                        high signal
+                      </span>
+                    )}
+                  </div>
+                  {/* Result badges for past events */}
+                  {isPast && (entry.actual ?? apiActual?.actual) && (
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                      <span className="rounded border border-zinc-700/50 bg-zinc-800/60 px-1.5 py-0.5 text-[9px] font-mono text-zinc-200">
+                        {entry.actual ?? apiActual!.actual}
+                      </span>
+                      {apiActual?.surpriseNum !== null && apiActual?.surpriseNum !== undefined && (
+                        <span className={`rounded border px-1.5 py-0.5 text-[9px] font-mono ${surprisePillClass(apiActual.surpriseNum, entry.type)}`}>
+                          {surpriseLabel(apiActual.surpriseNum, entry.type)}
+                        </span>
+                      )}
+                    </div>
                   )}
-                  {entry.importance === 'high' && (
-                    <span className="ml-2 rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wide text-amber-300">
-                      high signal
-                    </span>
+                  {isPast && !entry.actual && !apiActual?.actual && actualsLoaded && (
+                    <div className="mt-0.5 text-[9px] font-mono text-zinc-700">result not loaded</div>
                   )}
                 </div>
+
+                {/* Setup / Post-release read */}
                 <div className="min-w-0 pr-2 text-[11px] leading-4 text-zinc-300">
                   {readThrough.setup}
                 </div>
+
+                {/* Watch */}
                 <div className="text-[10px] leading-4 text-zinc-500">
                   {readThrough.marketWatch}
                 </div>
+
+                {/* Importance */}
                 <div className="flex items-center gap-1.5">
                   <span className={`h-1.5 w-1.5 rounded-full ${IMPORTANCE_DOT[entry.importance]}`} />
                   <span className="text-[9px] font-mono uppercase tracking-wide text-zinc-500">{entry.importance}</span>
                 </div>
               </button>
 
+              {/* Expanded detail */}
               <div
                 className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
                   isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
@@ -488,27 +596,41 @@ function EconomicCalendar({ today }: { today: Date }) {
               >
                 <div className="min-h-0 overflow-hidden">
                   <div className="mx-2 mb-2 rounded-lg border border-zinc-700/50 bg-zinc-900/70 p-4">
+
+                    {/* Actual / Forecast / Prior / Surprise grid */}
                     <div className="grid gap-3 sm:grid-cols-4">
                       {[
-                        ['Actual', formatActualStatus(entry, isPast)],
-                        ['Forecast', formatCalendarDetailValue(entry.forecast, 'Consensus pending')],
-                        ['Prior', formatCalendarDetailValue(entry.prior, 'Prior unavailable')],
-                        ['Surprise', formatSurpriseStatus(entry, isPast)],
+                        ['Actual',   actualDisplay],
+                        ['Forecast', forecastDisplay],
+                        ['Prior',    formatCalendarDetailValue(entry.prior, 'Prior unavailable')],
+                        ['Surprise', surpriseDisplay],
                       ].map(([label, value]) => (
-                        <div key={`${entry.id}-${label}`} className="rounded-md border border-zinc-800/60 bg-zinc-950/45 px-3 py-2">
+                        <div
+                          key={`${entry.id}-${label}`}
+                          className={`rounded-md border px-3 py-2 ${
+                            label === 'Actual' && hasActual
+                              ? 'border-emerald-800/50 bg-emerald-950/30'
+                              : 'border-zinc-800/60 bg-zinc-950/45'
+                          }`}
+                        >
                           <div className="text-[9px] font-mono uppercase tracking-[0.18em] text-zinc-600">{label}</div>
-                          <div className="mt-1 text-xs font-mono tabular-nums text-zinc-200">{value}</div>
+                          <div className={`mt-1 text-xs font-mono tabular-nums ${
+                            label === 'Actual' && hasActual ? 'text-emerald-200' : 'text-zinc-200'
+                          }`}>
+                            {value}
+                          </div>
                         </div>
                       ))}
                     </div>
 
+                    {/* Pre-release setup (future/no-actual events only) */}
                     {setup && (
                       <div className="mt-3 grid gap-2 lg:grid-cols-4">
                         {[
-                          ['Base case', setup.baseCase],
+                          ['Base case',        setup.baseCase],
                           ['Bullish surprise', setup.upsideSurprise],
                           ['Bearish surprise', setup.downsideSurprise],
-                          ['Watch after', setup.watchAfterRelease],
+                          ['Watch after',      setup.watchAfterRelease],
                         ].map(([label, value]) => (
                           <div key={`${entry.id}-${label}`} className="rounded-md border border-zinc-800/50 bg-zinc-950/35 px-3 py-2">
                             <div className="text-[9px] font-mono uppercase tracking-[0.16em] text-zinc-600">{label}</div>
@@ -518,16 +640,18 @@ function EconomicCalendar({ today }: { today: Date }) {
                       </div>
                     )}
 
+                    {/* Why it matters */}
                     <div className="mt-3 rounded-md border border-zinc-800/50 bg-zinc-950/35 px-3 py-2">
                       <div className="text-[9px] font-mono uppercase tracking-[0.16em] text-zinc-600">Why it matters</div>
                       <div className="mt-1 text-xs leading-5 text-zinc-300">{readThrough.whyItMatters}</div>
                     </div>
 
+                    {/* Interpretation + Market Impact */}
                     <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr]">
                       <div className="rounded-md border border-zinc-800/60 bg-zinc-950/35 px-3 py-3">
                         <div className="mb-2 flex items-center justify-between gap-2">
                           <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-zinc-500">
-                            Interpretation
+                            {hasActual ? 'Post-release read' : 'Interpretation'}
                           </div>
                           <span className={`rounded-full border px-2 py-0.5 text-[9px] font-mono uppercase tracking-wide ${calendarBiasClass(interpretation.bias)}`}>
                             {interpretation.bias}
@@ -538,7 +662,7 @@ function EconomicCalendar({ today }: { today: Date }) {
 
                       <div className="rounded-md border border-zinc-800/60 bg-zinc-950/35 px-3 py-3">
                         <div className="mb-2 text-[10px] font-mono uppercase tracking-[0.16em] text-zinc-500">
-                          Market Impact
+                          {hasActual ? 'Market read-through' : 'Market Impact'}
                         </div>
                         <div className="text-xs leading-5 text-zinc-300">{marketReaction}</div>
                       </div>

@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { RefreshCw, Search, X } from 'lucide-react';
 import type { RankedStock, RankResponse } from '@/lib/ranking/types';
+import type { StockQuote } from '@/app/api/quotes/route';
 import { InvestmentChat } from './InvestmentChat';
 import { cn } from '@/lib/utils';
 
@@ -33,6 +34,7 @@ export function RankedList({ initial }: Props) {
   const [query,    setQuery]    = useState('');
   const [selected, setSelected] = useState<RankedStock | null>(initial.stocks[0] ?? null);
   const [movedStock, setMovedStock] = useState<MovedStock | null>(null);
+  const [quotes,   setQuotes]   = useState<Map<string, StockQuote>>(new Map());
   const highlightTimeout = useRef<number | null>(null);
 
   const updateStock = useCallback((updated: RankedStock) => {
@@ -60,6 +62,30 @@ export function RankedList({ initial }: Props) {
       if (highlightTimeout.current !== null) window.clearTimeout(highlightTimeout.current);
     };
   }, []);
+
+  // Fetch real-time Yahoo Finance quotes for all stocks, refreshed every 60s
+  useEffect(() => {
+    if (stocks.length === 0) return;
+
+    async function fetchQuotes() {
+      const CHUNK = 50;
+      const map = new Map<string, StockQuote>();
+      for (let i = 0; i < stocks.length; i += CHUNK) {
+        const syms = stocks.slice(i, i + CHUNK).map(s => s.ticker).join(',');
+        try {
+          const res = await fetch(`/api/quotes?symbols=${syms}`);
+          if (!res.ok) continue;
+          const data = await res.json() as { quotes: StockQuote[] };
+          for (const q of data.quotes) map.set(q.ticker, q);
+        } catch { /* silent */ }
+      }
+      setQuotes(map);
+    }
+
+    fetchQuotes();
+    const interval = window.setInterval(fetchQuotes, 60_000);
+    return () => window.clearInterval(interval);
+  }, [stocks.length]); // re-run only when stock count changes
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -117,7 +143,7 @@ export function RankedList({ initial }: Props) {
     <div className="flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded-xl border border-[var(--cb-border)] bg-[var(--cb-surface)] lg:flex-row">
 
       {/* ── Left: compact ranked list ── */}
-      <div className="flex max-h-[34vh] w-full shrink-0 flex-col overflow-hidden border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] lg:max-h-none lg:w-60 lg:border-b-0 lg:border-r xl:w-64">
+      <div className="flex max-h-[40vh] w-full shrink-0 flex-col overflow-hidden border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] lg:max-h-none lg:w-72 lg:border-b-0 lg:border-r xl:w-80">
 
         {/* Toolbar */}
         <div className="shrink-0 space-y-2 border-b border-[var(--cb-border)] px-3 py-3">
@@ -140,25 +166,30 @@ export function RankedList({ initial }: Props) {
             ))}
           </div>
 
-          {/* Ticker search */}
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--cb-text-muted)]" />
-            <input
-              type="text"
-              placeholder="Search…"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              className="h-7 w-full rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] pl-6 pr-6 text-xs text-[var(--cb-text-primary)] placeholder:text-[var(--cb-text-muted)] focus:border-[var(--cb-border-strong)] focus:outline-none"
-            />
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery('')}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[var(--cb-text-muted)] hover:text-[var(--cb-text-secondary)]"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            )}
+          {/* Ticker search + count */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--cb-text-muted)]" />
+              <input
+                type="text"
+                placeholder="Search…"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                className="h-7 w-full rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] pl-6 pr-6 text-xs text-[var(--cb-text-primary)] placeholder:text-[var(--cb-text-muted)] focus:border-[var(--cb-border-strong)] focus:outline-none"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery('')}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[var(--cb-text-muted)] hover:text-[var(--cb-text-secondary)]"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+            <span className="shrink-0 rounded bg-[var(--cb-surface)] px-1.5 py-0.5 text-[10px] tabular-nums text-[var(--cb-text-muted)]">
+              {visible.length}/{stocks.length}
+            </span>
           </div>
         </div>
 
@@ -246,6 +277,24 @@ export function RankedList({ initial }: Props) {
                           signal
                         </span>
                       )}
+                      {/* Real-time price */}
+                      {(() => {
+                        const q = quotes.get(stock.ticker);
+                        if (!q?.price) return null;
+                        const up = (q.changePct ?? 0) >= 0;
+                        return (
+                          <span className="ml-auto flex shrink-0 items-baseline gap-1">
+                            <span className="text-[10px] font-semibold tabular-nums text-[var(--cb-text-primary)]">
+                              ${q.price.toFixed(2)}
+                            </span>
+                            {q.changePct != null && (
+                              <span className={cn('text-[9px] tabular-nums font-medium', up ? 'text-emerald-400' : 'text-rose-400')}>
+                                {up ? '+' : ''}{q.changePct.toFixed(2)}%
+                              </span>
+                            )}
+                          </span>
+                        );
+                      })()}
                     </span>
                     <span className="flex items-center gap-1.5">
                       {stock.meta.forecastReturnPct != null && (

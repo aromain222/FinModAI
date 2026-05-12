@@ -592,6 +592,8 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   const [entryPriceInput,   setEntryPriceInput]   = useState('');
   const [positionAmountInput, setPositionAmountInput] = useState('');
   const [positionConfirmed, setPositionConfirmed] = useState(false);
+  const [aiVerdict, setAiVerdict] = useState<{ action: string; bullish: number; bearish: number; neutral: number; confidence: number } | null>(null);
+  const [panelTab, setPanelTab] = useState<'analysis' | 'agents' | 'chat'>('agents');
   const scrollRef         = useRef<HTMLDivElement>(null);
   const abortRef          = useRef<AbortController | null>(null);
   const prevTicker        = useRef<string | null>(null);
@@ -620,6 +622,8 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       setEntryPriceInput('');
       setPositionAmountInput('');
       setPositionConfirmed(false);
+      setAiVerdict(null);
+      setPanelTab('agents');
       setCurrentPosition(
         stock ? (getActivePositions().find(p => p.ticker === stock.ticker) ?? null) : null,
       );
@@ -934,10 +938,43 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
 
   return (
     <div className="flex h-full min-w-0 flex-col overflow-hidden">
-      {/* Layer 1: PM Decision Strip */}
+
+      {/* ── Sticky header: score strip + action buttons ── */}
       <PMDecisionStrip stock={stock} displayedScore={displayedScore} scoreChange={scoreChange} />
 
-      {/* Action buttons: Queue + Paper Track */}
+      {/* AI Verdict banner */}
+      {aiVerdict && (() => {
+        const total = aiVerdict.bullish + aiVerdict.bearish + aiVerdict.neutral;
+        const bullPct = total > 0 ? Math.round((aiVerdict.bullish / total) * 100) : 0;
+        const act = aiVerdict.action.toLowerCase();
+        const isBull = act === 'buy' || act === 'cover';
+        const isBear = act === 'sell' || act === 'short';
+        const bannerClasses = isBull
+          ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200'
+          : isBear
+          ? 'border-rose-400/40 bg-rose-500/15 text-rose-200'
+          : 'border-amber-400/30 bg-amber-500/12 text-amber-200';
+        const dotClass = isBull ? 'bg-emerald-400' : isBear ? 'bg-rose-400' : 'bg-amber-400';
+        const glowClass = isBull
+          ? 'shadow-[0_2px_16px_rgba(52,211,153,0.18)]'
+          : isBear ? 'shadow-[0_2px_16px_rgba(251,113,133,0.18)]' : '';
+        return (
+          <div className={cn('shrink-0 flex items-center gap-3 border-b px-4 py-2', bannerClasses, glowClass)}>
+            <span className={cn('h-2 w-2 shrink-0 rounded-full animate-pulse', dotClass)} />
+            <span className="text-[10px] font-bold uppercase tracking-widest">AI Hedge Fund</span>
+            <span className="text-[11px] font-black capitalize tracking-tight">{aiVerdict.action}</span>
+            <span className="text-[10px] opacity-70">{aiVerdict.confidence}% confidence</span>
+            <div className="mx-2 h-3 w-px bg-current opacity-20" />
+            <span className="text-[10px]">
+              <span className="font-semibold">{aiVerdict.bullish}</span><span className="opacity-60"> bull · </span>
+              <span className="font-semibold">{aiVerdict.bearish}</span><span className="opacity-60"> bear · </span>
+              <span className="opacity-60">{bullPct}% bullish</span>
+            </span>
+          </div>
+        );
+      })()}
+
+      {/* Action buttons */}
       <div className="shrink-0 flex flex-wrap items-center gap-2 border-b border-[var(--cb-border)] px-4 py-2">
         <button
           type="button"
@@ -1009,41 +1046,115 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
         )}
       </div>
 
-      {/* Layer 2: Trade Structure */}
-      <TradeStructurePanel stock={stock} />
+      {/* ── Tab bar ── */}
+      <div className="shrink-0 flex border-b border-[var(--cb-border)] bg-[var(--cb-surface)]">
+        {([ ['agents', 'AI Agents'], ['analysis', 'Analysis'], ['chat', 'Chat'] ] as const).map(([tab, label]) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setPanelTab(tab)}
+            className={cn(
+              'flex-1 py-2 text-[11px] font-semibold tracking-wide transition-colors relative',
+              panelTab === tab
+                ? 'text-[var(--cb-text-primary)]'
+                : 'text-[var(--cb-text-muted)] hover:text-[var(--cb-text-secondary)]',
+            )}
+          >
+            {label}
+            {tab === 'agents' && aiVerdict && (
+              <span className={cn(
+                'ml-1.5 inline-block h-1.5 w-1.5 rounded-full',
+                aiVerdict.action.toLowerCase() === 'buy' || aiVerdict.action.toLowerCase() === 'cover'
+                  ? 'bg-emerald-400' : aiVerdict.action.toLowerCase() === 'sell' || aiVerdict.action.toLowerCase() === 'short'
+                  ? 'bg-rose-400' : 'bg-amber-400',
+              )} />
+            )}
+            {panelTab === tab && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--cb-text-primary)]" />
+            )}
+          </button>
+        ))}
+      </div>
 
-      {/* Layer 3: Scenario Engine */}
-      <ScenarioEngine
-        stock={stock}
-        onScenarioClick={text => sendMessage(text)}
-        disabled={streaming}
-      />
+      {/* ── Analysis tab ── */}
+      {panelTab === 'analysis' && (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <TradeStructurePanel stock={stock} />
+          <ScenarioEngine stock={stock} onScenarioClick={text => sendMessage(text)} disabled={streaming} />
+          <CatalystTimeline stock={stock} onCatalystClick={text => sendMessage(text)} disabled={streaming} />
+          <DeepResearchPanel
+            stock={stock}
+            scoreChange={scoreChange}
+            sourceCards={sourceCards}
+            onPrompt={(text, mode) => sendMessage(text, mode as InvestmentMode | undefined)}
+            disabled={streaming}
+          />
+        </div>
+      )}
 
-      {/* Layer 4: Catalyst Timeline */}
-      <CatalystTimeline
-        stock={stock}
-        onCatalystClick={text => sendMessage(text)}
-        disabled={streaming}
-      />
+      {/* ── AI Agents tab — the three integrated repos ── */}
+      {panelTab === 'agents' && (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {/* Repo labels */}
+          <div className="px-4 pt-3 pb-1 flex flex-wrap gap-2">
+            {[
+              { label: 'virattt/ai-hedge-fund', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-400/30' },
+              { label: 'tauricresearch/TradingAgents', color: 'text-blue-400 bg-blue-500/10 border-blue-400/30' },
+              { label: 'virattt/dexter', color: 'text-violet-400 bg-violet-500/10 border-violet-400/30' },
+            ].map(r => (
+              <span key={r.label} className={cn('rounded border px-2 py-0.5 text-[9px] font-mono font-semibold', r.color)}>
+                {r.label}
+              </span>
+            ))}
+          </div>
+          <HedgeFundPanel
+            ticker={stock.ticker}
+            autoRun
+            onResult={r => {
+              if (!r.decision) return;
 
-      {/* Layer 5: Deep Research (collapsible) */}
-      <DeepResearchPanel
-        stock={stock}
-        scoreChange={scoreChange}
-        sourceCards={sourceCards}
-        onPrompt={(text, mode) => sendMessage(text, mode as InvestmentMode | undefined)}
-        disabled={streaming}
-      />
+              // ── Dynamic ranking: AI consensus adjusts the live score ──────
+              const total = r.consensus.bullish + r.consensus.bearish + r.consensus.neutral;
+              const bullPct = total > 0 ? r.consensus.bullish / total : 0.5;
+              // Maps 0% bull → -1.5, 50% → 0, 100% → +1.5
+              const consensusAdj = (bullPct - 0.5) * 3;
+              // Action override: buy/cover add 0.4, sell/short subtract 0.4
+              const act = r.decision.action.toLowerCase();
+              const actionAdj = (act === 'buy' || act === 'cover') ? 0.4
+                : (act === 'sell' || act === 'short') ? -0.4 : 0;
 
-      <HedgeFundPanel ticker={stock.ticker} />
-      <TradingAgentsPanel ticker={stock.ticker} />
-      <DexterPanel ticker={stock.ticker} />
+              const rawNew = stock.score + consensusAdj + actionAdj;
+              const newScore = Math.round(Math.max(0, Math.min(10, rawNew)) * 10) / 10;
+              const newSignal = signalFromScore(newScore);
 
-      {/* Messages */}
-      <div
-        ref={scrollRef}
-        className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4"
-      >
+              onStockUpdate?.({
+                ...stock,
+                score: newScore,
+                signal: newSignal,
+                primaryReason: `AI: ${r.decision.action} (${r.consensus.bullish}↑ ${r.consensus.bearish}↓) — ${stock.primaryReason}`,
+                meta: { ...stock.meta, dataSource: 'live' },
+              });
+
+              setAiVerdict({
+                action: r.decision.action,
+                bullish: r.consensus.bullish,
+                bearish: r.consensus.bearish,
+                neutral: r.consensus.neutral,
+                confidence: r.decision.confidence,
+              });
+            }}
+          />
+          <TradingAgentsPanel ticker={stock.ticker} />
+          <DexterPanel ticker={stock.ticker} />
+        </div>
+      )}
+
+      {/* ── Chat tab ── */}
+      {panelTab === 'chat' && (
+        <div
+          ref={scrollRef}
+          className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4"
+        >
         {messages.map((msg, i) => {
           const convictionLevel =
             msg.role === 'assistant' && msg.content
@@ -1081,10 +1192,11 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
 
-      {/* Suggested prompts */}
-      <div className="shrink-0 border-t border-[var(--cb-border)] px-4 py-2">
+      {/* Suggested prompts + input — only on chat tab */}
+      {panelTab === 'chat' && <div className="shrink-0 border-t border-[var(--cb-border)] px-4 py-2">
         {currentPosition && (
           <div className="mb-2 flex flex-wrap items-center gap-1.5">
             <span className="mr-1 text-[10px] font-semibold uppercase tracking-widest text-blue-400/70">
@@ -1155,10 +1267,9 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             {cp.label}
           </button>
         </div>
-      </div>
+      </div>}
 
-      {/* Input */}
-      <div className="shrink-0 border-t border-[var(--cb-border)] px-4 py-3">
+      {panelTab === 'chat' && <div className="shrink-0 border-t border-[var(--cb-border)] px-4 py-3">
         <form
           onSubmit={e => { e.preventDefault(); sendMessage(input); }}
           className="flex gap-2"
@@ -1182,7 +1293,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             }
           </button>
         </form>
-      </div>
+      </div>}
     </div>
   );
 }

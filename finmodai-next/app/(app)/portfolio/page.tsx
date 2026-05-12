@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { PortfolioPanel } from '@/components/portfolio/PortfolioPanel';
 
 export const metadata: Metadata = {
-  title: 'Portfolio | CapitalBase',
+  title: 'PM Watch | CapitalBase',
 };
 
 export default function PortfolioPage() {
@@ -12,9 +12,9 @@ export default function PortfolioPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--cb-text-muted)]">
           Swing-trade workflow
         </p>
-        <h1 className="text-2xl font-bold text-[var(--cb-text-primary)]">Active Positions</h1>
+        <h1 className="text-2xl font-bold text-[var(--cb-text-primary)]">PM Watch</h1>
         <p className="max-w-2xl text-sm text-[var(--cb-text-muted)]">
-          Track positions by thesis, not price. Each card shows conviction, drift, catalyst pipeline, and watch items — so you always know why you own it and whether the thesis is holding.
+          Track ideas by thesis, not price. Each card shows conviction, drift, catalyst pipeline, and risk — so you always know why you own it and whether the thesis is holding.
         </p>
       </header>
       <PortfolioPanel />
