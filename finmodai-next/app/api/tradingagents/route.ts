@@ -21,9 +21,36 @@ type AnalysisResult = {
   price_target: number | null;
   time_horizon: string | null;
   reports: AnalystReports;
+  source?: 'python_backend' | 'openai_fallback';
 };
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+function pythonBackendUrl(): string | null {
+  const raw = process.env.AI_AGENT_BACKEND_URL || process.env.PYTHON_BACKEND_URL;
+  return raw ? raw.replace(/\/+$/, '') : null;
+}
+
+async function tryPythonBackend(ticker: string): Promise<AnalysisResult | null> {
+  const backend = pythonBackendUrl();
+  if (!backend) return null;
+
+  try {
+    const res = await fetch(`${backend}/api/v1/tradingagents/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker }),
+      signal: AbortSignal.timeout(45_000),
+      cache: 'no-store',
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json() as AnalysisResult;
+    return { ...data, source: 'python_backend' };
+  } catch {
+    return null;
+  }
+}
 
 async function runAnalysts(ticker: string): Promise<AnalystReports> {
   const resp = await client.chat.completions.create({
@@ -107,10 +134,6 @@ async function runDebateAndDecision(ticker: string, reports: AnalystReports): Pr
 }
 
 export async function POST(req: NextRequest) {
-  if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json({ error: 'OPENAI_API_KEY not configured' }, { status: 503 });
-  }
-
   let body: unknown;
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 }); }
@@ -125,6 +148,22 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const pythonResult = await tryPythonBackend(ticker);
+    if (pythonResult) {
+      return NextResponse.json(pythonResult, {
+        headers: {
+          'Cache-Control': 'no-store',
+          'X-CapitalBase-Agent-Source': 'python_backend',
+        },
+      });
+    }
+
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json({
+        error: 'Agent backend unavailable and OPENAI_API_KEY not configured',
+      }, { status: 503 });
+    }
+
     const reports = await runAnalysts(ticker);
     const debateResult = await runDebateAndDecision(ticker, reports);
 
@@ -137,10 +176,14 @@ export async function POST(req: NextRequest) {
       price_target: debateResult.price_target,
       time_horizon: debateResult.time_horizon,
       reports,
+      source: 'openai_fallback',
     };
 
     return NextResponse.json(result, {
-      headers: { 'Cache-Control': 'no-store' },
+      headers: {
+        'Cache-Control': 'no-store',
+        'X-CapitalBase-Agent-Source': 'openai_fallback',
+      },
     });
   } catch (err) {
     return NextResponse.json(

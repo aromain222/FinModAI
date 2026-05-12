@@ -10,7 +10,14 @@ type Signal = {
 };
 type Consensus  = { bullish: number; bearish: number; neutral: number };
 type Decision   = { action: string; quantity: number; confidence: number; reasoning: string };
-type AnalysisResult = { ticker: string; date: string; decision: Decision | null; signals: Signal[]; consensus: Consensus };
+type AnalysisResult = {
+  ticker: string;
+  date: string;
+  decision: Decision | null;
+  signals: Signal[];
+  consensus: Consensus;
+  source?: 'python_backend' | 'openai_fallback';
+};
 
 const SIGNAL_STYLE = {
   bullish: { bg: 'bg-emerald-500/20', border: 'border-emerald-400/30', text: 'text-emerald-300', bar: 'bg-emerald-400', dot: 'bg-emerald-400', glow: 'shadow-[0_0_8px_rgba(52,211,153,0.2)]' },
@@ -89,6 +96,10 @@ function SignalCard({ s }: { s: Signal }) {
 }
 
 const LOADING_NAMES = ['Warren Buffett','Ben Graham','Charlie Munger','Peter Lynch','Nassim Taleb','Michael Burry','Cathie Wood','Aswath Damodaran','Stanley Druckenmiller','Technical Analyst','Valuation Analyst'];
+
+function sourceLabel(source?: AnalysisResult['source']): string {
+  return source === 'python_backend' ? 'Real repo backend' : 'OpenAI fallback';
+}
 
 export function HedgeFundPanel({ ticker, autoRun = false, onResult }: { ticker: string; autoRun?: boolean; onResult?: (result: AnalysisResult) => void }) {
   const [open,    setOpen]    = useState(false);
@@ -197,7 +208,7 @@ export function HedgeFundPanel({ ticker, autoRun = false, onResult }: { ticker: 
           {/* Consensus */}
           <div>
             <p className="mb-2 text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">
-              Analyst Consensus — {total} signals
+              Analyst Consensus — {total} signals · {sourceLabel(result.source)}
             </p>
             <ConsensusBar c={result.consensus} total={total} />
           </div>

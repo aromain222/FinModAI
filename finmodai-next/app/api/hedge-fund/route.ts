@@ -54,9 +54,43 @@ type AnalysisResult = {
   decision: { action: string; quantity: number; confidence: number; reasoning: string } | null;
   signals: { key: string; name: string; group: string; signal: 'bullish' | 'bearish' | 'neutral'; confidence: number; reasoning: string; thesis: string }[];
   consensus: { bullish: number; bearish: number; neutral: number };
+  source?: 'python_backend' | 'openai_fallback';
 };
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+function pythonBackendUrl(): string | null {
+  const raw = process.env.AI_AGENT_BACKEND_URL || process.env.PYTHON_BACKEND_URL;
+  return raw ? raw.replace(/\/+$/, '') : null;
+}
+
+async function tryPythonBackend(ticker: string): Promise<AnalysisResult | null> {
+  const backend = pythonBackendUrl();
+  if (!backend) return null;
+
+  try {
+    const res = await fetch(`${backend}/api/v1/hedge-fund/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker }),
+      signal: AbortSignal.timeout(45_000),
+      cache: 'no-store',
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json() as AnalysisResult;
+    return {
+      ...data,
+      source: 'python_backend',
+      signals: (data.signals ?? []).map(signal => ({
+        ...signal,
+        thesis: signal.thesis ?? signal.reasoning,
+      })),
+    };
+  } catch {
+    return null;
+  }
+}
 
 async function fetchMarketContext(ticker: string): Promise<MarketContext | null> {
   try {
@@ -162,10 +196,6 @@ async function runPortfolioManager(ticker: string, signals: RawSignal[], consens
 }
 
 export async function POST(req: NextRequest) {
-  if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json({ error: 'OPENAI_API_KEY not configured' }, { status: 503 });
-  }
-
   let body: unknown;
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 }); }
@@ -180,6 +210,22 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const pythonResult = await tryPythonBackend(ticker);
+    if (pythonResult) {
+      return NextResponse.json(pythonResult, {
+        headers: {
+          'Cache-Control': 'no-store',
+          'X-CapitalBase-Agent-Source': 'python_backend',
+        },
+      });
+    }
+
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json({
+        error: 'Agent backend unavailable and OPENAI_API_KEY not configured',
+      }, { status: 503 });
+    }
+
     const ctx = await fetchMarketContext(ticker);
     const rawSignals = await runPersonaSignals(ticker, ctx);
 
@@ -211,10 +257,14 @@ export async function POST(req: NextRequest) {
       decision,
       signals,
       consensus,
+      source: 'openai_fallback',
     };
 
     return NextResponse.json(result, {
-      headers: { 'Cache-Control': 'no-store' },
+      headers: {
+        'Cache-Control': 'no-store',
+        'X-CapitalBase-Agent-Source': 'openai_fallback',
+      },
     });
   } catch (err) {
     return NextResponse.json(

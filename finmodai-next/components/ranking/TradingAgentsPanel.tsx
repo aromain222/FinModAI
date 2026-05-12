@@ -5,7 +5,17 @@ import { ChevronDown, ChevronRight, Loader2, Play, RotateCcw } from 'lucide-reac
 import { cn } from '@/lib/utils';
 
 type AnalystReports = { market: string | null; fundamentals: string | null; sentiment: string | null; news: string | null };
-type AnalysisResult = { ticker: string; date: string; decision: string; summary: string | null; thesis: string | null; price_target: number | null; time_horizon: string | null; reports: AnalystReports };
+type AnalysisResult = {
+  ticker: string;
+  date: string;
+  decision: string;
+  summary: string | null;
+  thesis: string | null;
+  price_target: number | null;
+  time_horizon: string | null;
+  reports: AnalystReports;
+  source?: 'python_backend' | 'openai_fallback';
+};
 
 const DECISION_STYLE: Record<string, { bg: string; text: string; ring: string; glow: string }> = {
   Buy:         { bg: 'bg-emerald-500/20', text: 'text-emerald-200', ring: 'ring-emerald-400/50', glow: 'shadow-[0_0_20px_rgba(52,211,153,0.25)]' },
@@ -40,6 +50,10 @@ function ReportCard({ label, text }: { label: string; text: string }) {
 
 const PIPELINE_STAGES = ['4 Analysts', 'Bull Researcher', 'Bear Researcher', 'Risk Manager', 'PM Decision'];
 
+function sourceLabel(source?: AnalysisResult['source']): string {
+  return source === 'python_backend' ? 'Real repo backend' : 'OpenAI fallback';
+}
+
 export function TradingAgentsPanel({ ticker }: { ticker: string }) {
   const [open,    setOpen]    = useState(false);
   const [loading, setLoading] = useState(false);
@@ -68,6 +82,11 @@ export function TradingAgentsPanel({ ticker }: { ticker: string }) {
           {result ? (open ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--cb-text-muted)]" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--cb-text-muted)]" />) : <span className="h-3.5 w-3.5 shrink-0" />}
           <span className="font-bold uppercase tracking-widest text-[9px] text-[var(--cb-text-secondary)]">TradingAgents</span>
           <span className="text-[9px] text-[var(--cb-text-muted)]">· Debate Pipeline</span>
+          {result && (
+            <span className="hidden rounded border border-[var(--cb-border)] px-1.5 py-0.5 text-[8px] text-[var(--cb-text-muted)] sm:inline">
+              {sourceLabel(result.source)}
+            </span>
+          )}
           {result && (
             <span className={cn('rounded px-2 py-0.5 text-[10px] font-bold ring-1', dStyle.bg, dStyle.text, dStyle.ring)}>{decision}</span>
           )}
