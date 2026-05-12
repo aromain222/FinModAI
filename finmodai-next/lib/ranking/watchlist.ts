@@ -95,7 +95,7 @@ export const WATCHLIST = [
   // Consumer — specialty retail, food, beverages
   'FIVE', 'DG', 'DLTR', 'BBWI', 'RL', 'PVH', 'CPRI', 'FL',
   'GPS', 'ANF', 'AEO', 'URBN',
-  'QSR', 'TXRH', 'DNUT', 'SHAK', 'DPZ',
+  'QSR', 'TXRH', 'DNUT', 'SHAK',
   'KHC', 'GIS', 'CPB', 'SJM', 'MKC', 'HSY', 'MDLZ', 'CAG',
   'WBA', 'RAD', 'HLT', 'MAR', 'H', 'IHG',
 
@@ -116,4 +116,53 @@ export const WATCHLIST = [
   'SAP', 'AZN', 'GSK', 'SNY', 'NVS', 'RHHBY', 'UL', 'BP',
   'SHEL', 'TTE', 'VALE', 'RIO', 'BHP', 'TM', 'HMC', 'SONY',
   'NTES', 'TCEHY', 'GRAB', 'DKNG', 'WIX',
+
+  // AI infrastructure derivatives — storage, memory, networking, optical
+  'SNDK', 'NTAP', 'SIMO', 'RMBS', 'GFS', 'UMC', 'ASX',
+  'COHR', 'LITE', 'CIEN', 'JNPR', 'CSCO', 'ERIC', 'NOK',
+  'EXTR', 'COMM', 'HLIT', 'VSAT', 'IRDM', 'ASTS', 'GSAT',
+
+  // AI servers, electronics manufacturing, thermal/power supply chain
+  'VRT', 'CLS', 'FLEX', 'JBL', 'SANM', 'ARW', 'AVT',
+  'AEIS', 'POWL', 'HUBB', 'FIX', 'MOD', 'AAON', 'WTS',
+  'ATKR', 'DY', 'MTZ', 'PRIM', 'IESC', 'GVA',
+
+  // Data-center power, grid, nuclear, electrification
+  'CEG', 'VST', 'NRG', 'TLN', 'GEV', 'BWXT', 'LEU',
+  'SMR', 'OKLO', 'NNE', 'BE', 'BLDP', 'PLUG', 'FCEL',
+  'RUN', 'ARRY', 'NXT', 'SHLS', 'SEDG', 'BEPC', 'CWEN',
+
+  // Robotics, automation, industrial software, sensors
+  'ROK', 'CGNX', 'ZBRA', 'TRMB', 'KEYS', 'NATI',
+  'NOVT', 'AZTA', 'HLX', 'FELE', 'NDSN', 'DOV', 'PNR',
+  'GGG', 'ITT', 'MIDD', 'BMI', 'KAI', 'TEX', 'OSK',
+
+  // Physical AI, autonomy, drones, space, advanced mobility
+  'SERV', 'RR', 'AUR', 'MBLY', 'LAZR', 'OUST', 'AEVA',
+  'INVZ', 'ARBE', 'INDI', 'HSAI',
+  'ACHR', 'JOBY', 'EVTL', 'EH', 'RKLB', 'LUNR', 'SPIR',
+  'BKSY', 'PL', 'RDW', 'SIDU', 'AVAV', 'RCAT', 'PDYN',
+
+  // AI application software, data platforms, observability, security
+  'SOUN', 'BBAI', 'INOD', 'AISP', 'CXAI', 'VERI', 'LPSN',
+  'IOT', 'INFA', 'ALKT', 'ASAN', 'MNDY', 'SMAR', 'FRSH',
+  'DBX', 'BOX', 'PD', 'FROG', 'BASE', 'DOCN',
+  'TENB', 'VRNS', 'CYBR', 'QLYS', 'RPD', 'GEN', 'SAIL',
+  'APPF', 'PAYO', 'ENV', 'WK', 'AVDX', 'KVYO',
+
+  // Semicap, EDA, testing, specialty chips
+  'COHU', 'AEHR', 'VECO', 'NVMI', 'CAMT', 'UCTT', 'ICHR',
+  'MKSI', 'IPGP', 'OLED', 'ACMR', 'AMKR', 'SLAB',
+  'ALGM', 'LSCC', 'CRUS', 'WOLF', 'SKYT', 'NVTS', 'SMTC',
+  'TSEM', 'VSH',
+
+  // Quantum, edge compute, speculative AI moonshots
+  'IONQ', 'RGTI', 'QBTS', 'QUBT', 'ARQQ', 'QMCO',
+  'GFAI', 'REKR', 'SSTI', 'SST', 'WULF', 'IREN', 'CIFR',
+  'HUT', 'BTDR', 'CLSK', 'CORZ',
+
+  // Cloud, infrastructure software, marketplaces, high-growth compounders
+  'TWLO', 'AYX',
+  'FLYW', 'DLO', 'NU', 'STNE', 'GLBE',
+  'ONON', 'BIRK', 'HIMS', 'OSCR', 'TDOC', 'BMBL', 'MTCH',
 ] as const;
