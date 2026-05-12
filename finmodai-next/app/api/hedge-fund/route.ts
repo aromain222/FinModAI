@@ -34,28 +34,91 @@ type RawSignal = {
   signal: 'bullish' | 'bearish' | 'neutral';
   confidence: number;
   reasoning: string;
+  thesis: string;
+};
+
+type MarketContext = {
+  price: number | null;
+  changePct: number | null;
+  marketCap: number | null;
+  pe: number | null;
+  forwardPe: number | null;
+  high52w: number | null;
+  low52w: number | null;
+  name: string | null;
 };
 
 type AnalysisResult = {
   ticker: string;
   date: string;
   decision: { action: string; quantity: number; confidence: number; reasoning: string } | null;
-  signals: { key: string; name: string; group: string; signal: 'bullish' | 'bearish' | 'neutral'; confidence: number; reasoning: string }[];
+  signals: { key: string; name: string; group: string; signal: 'bullish' | 'bearish' | 'neutral'; confidence: number; reasoning: string; thesis: string }[];
   consensus: { bullish: number; bearish: number; neutral: number };
 };
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-async function runPersonaSignals(ticker: string): Promise<RawSignal[]> {
+async function fetchMarketContext(ticker: string): Promise<MarketContext | null> {
+  try {
+    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ticker)}&fields=regularMarketPrice,regularMarketChangePercent,regularMarketChange,regularMarketVolume,marketCap,fiftyTwoWeekHigh,fiftyTwoWeekLow,trailingPE,forwardPE,shortName`;
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(6000),
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as {
+      quoteResponse?: {
+        result?: Array<{
+          regularMarketPrice?: number;
+          regularMarketChangePercent?: number;
+          marketCap?: number;
+          trailingPE?: number;
+          forwardPE?: number;
+          fiftyTwoWeekHigh?: number;
+          fiftyTwoWeekLow?: number;
+          shortName?: string;
+        }>;
+      };
+    };
+    const q = data?.quoteResponse?.result?.[0];
+    if (!q) return null;
+    return {
+      price:     q.regularMarketPrice ?? null,
+      changePct: q.regularMarketChangePercent ?? null,
+      marketCap: q.marketCap ?? null,
+      pe:        q.trailingPE ?? null,
+      forwardPe: q.forwardPE ?? null,
+      high52w:   q.fiftyTwoWeekHigh ?? null,
+      low52w:    q.fiftyTwoWeekLow ?? null,
+      name:      q.shortName ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function runPersonaSignals(ticker: string, ctx: MarketContext | null): Promise<RawSignal[]> {
   const personaList = PERSONAS.map((p, i) =>
     `${i + 1}. ${p.name} [key: ${p.key}] — ${p.style}`,
   ).join('\n');
+
+  const dataStr = ctx ? [
+    ctx.name ? `Company: ${ctx.name}` : '',
+    ctx.price != null ? `Price: $${ctx.price.toFixed(2)}` : '',
+    ctx.changePct != null ? `Daily change: ${ctx.changePct >= 0 ? '+' : ''}${ctx.changePct.toFixed(2)}%` : '',
+    ctx.marketCap != null ? `Market cap: $${(ctx.marketCap / 1e9).toFixed(1)}B` : '',
+    ctx.pe != null ? `Trailing P/E: ${ctx.pe.toFixed(1)}` : '',
+    ctx.forwardPe != null ? `Forward P/E: ${ctx.forwardPe.toFixed(1)}` : '',
+    ctx.high52w != null && ctx.low52w != null && ctx.price != null
+      ? `52-week range: $${ctx.low52w.toFixed(2)} – $${ctx.high52w.toFixed(2)} (currently at ${(((ctx.price - ctx.low52w) / (ctx.high52w - ctx.low52w)) * 100).toFixed(0)}% of range)`
+      : '',
+  ].filter(Boolean).join(' | ') : '';
 
   const resp = await client.chat.completions.create({
     model: 'gpt-4o-mini',
     response_format: { type: 'json_object' },
     temperature: 0.75,
-    max_tokens: 3000,
+    max_tokens: 5000,
     messages: [
       {
         role: 'system',
@@ -63,7 +126,7 @@ async function runPersonaSignals(ticker: string): Promise<RawSignal[]> {
       },
       {
         role: 'user',
-        content: `Analyze ${ticker} from the perspective of each investor/analyst below. For each, provide a JSON signal reflecting their philosophy applied to ${ticker}'s current business position, valuation, growth, and market context.\n\nPersonas:\n${personaList}\n\nReturn JSON: { "signals": [ { "key": string, "signal": "bullish"|"bearish"|"neutral", "confidence": 0-100, "reasoning": "1-2 sentences in that persona's voice" }, ... ] }`,
+        content: `Analyze ${ticker} from the perspective of each investor/analyst below.\n${dataStr ? `\nCurrent market data:\n${dataStr}` : ''}\n\nFor each persona, apply their specific philosophy to these actual numbers. Return JSON:\n{ "signals": [ { "key": string, "signal": "bullish"|"bearish"|"neutral", "confidence": 0-100, "reasoning": "1-2 sentences summarizing the signal", "thesis": "3-5 sentence full investment thesis written in that persona's voice, referencing specific data points where relevant" }, ... ] }\n\nPersonas:\n${personaList}`,
       },
     ],
   });
@@ -117,7 +180,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const rawSignals = await runPersonaSignals(ticker);
+    const ctx = await fetchMarketContext(ticker);
+    const rawSignals = await runPersonaSignals(ticker, ctx);
 
     // Merge with persona metadata
     const signals = rawSignals.map(s => {
@@ -129,6 +193,7 @@ export async function POST(req: NextRequest) {
         signal: s.signal,
         confidence: Math.round(Math.max(0, Math.min(100, s.confidence))),
         reasoning: s.reasoning,
+        thesis: s.thesis ?? s.reasoning,
       };
     });
 

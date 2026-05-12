@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 
 type Signal = {
   key: string; name: string; group: 'persona' | 'quant' | string;
-  signal: 'bullish' | 'bearish' | 'neutral'; confidence: number; reasoning: string;
+  signal: 'bullish' | 'bearish' | 'neutral'; confidence: number; reasoning: string; thesis?: string;
 };
 type Consensus  = { bullish: number; bearish: number; neutral: number };
 type Decision   = { action: string; quantity: number; confidence: number; reasoning: string };
@@ -72,10 +72,16 @@ function SignalCard({ s }: { s: Signal }) {
           </div>
           <span className={cn('shrink-0 text-[9px] font-bold tabular-nums', style.text)}>{s.confidence}%</span>
         </div>
+        {!expanded && s.thesis && (
+          <span className="text-[8px] text-[var(--cb-text-muted)] opacity-50">▼ thesis</span>
+        )}
       </button>
-      {expanded && s.reasoning && (
-        <div className="border-t border-white/8 px-2.5 pb-2.5 pt-2">
-          <p className="text-[10px] leading-snug text-[var(--cb-text-secondary)]">{s.reasoning}</p>
+      {expanded && (
+        <div className="border-t border-white/8 px-2.5 pb-2.5 pt-2 space-y-1.5">
+          {s.thesis && s.thesis !== s.reasoning && (
+            <p className="text-[10px] leading-snug text-[var(--cb-text-secondary)]">{s.thesis}</p>
+          )}
+          <p className="text-[9px] leading-snug text-[var(--cb-text-muted)] italic">{s.reasoning}</p>
         </div>
       )}
     </div>
