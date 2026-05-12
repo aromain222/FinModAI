@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import {
   getIncomeStatements, getCashFlowStatements,
@@ -9,7 +9,10 @@ export const dynamic     = 'force-dynamic';
 export const runtime     = 'nodejs';
 export const maxDuration = 90;
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+function openAIClient(): OpenAI | null {
+  const apiKey = process.env.OPENAI_API_KEY;
+  return apiKey ? new OpenAI({ apiKey }) : null;
+}
 
 const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
@@ -119,9 +122,21 @@ When answering, always:
 5. Apply a margin-of-safety lens: focus on downside risks as much as upside.`;
 
 export async function POST(req: NextRequest) {
-  const { question, ticker } = await req.json() as { question: string; ticker?: string };
+  let body: { question?: string; ticker?: string };
+  try {
+    body = await req.json() as { question?: string; ticker?: string };
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
 
-  if (!question) return new Response('question required', { status: 400 });
+  const { question, ticker } = body;
+
+  if (!question) return NextResponse.json({ error: 'question required' }, { status: 400 });
+
+  const openai = openAIClient();
+  if (!openai) {
+    return NextResponse.json({ error: 'OPENAI_API_KEY not configured' }, { status: 503 });
+  }
 
   const userMsg = ticker
     ? `[Context: analyzing ${ticker}]\n\n${question}`

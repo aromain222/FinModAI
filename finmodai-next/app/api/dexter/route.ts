@@ -38,12 +38,25 @@ export async function GET(req: NextRequest) {
           getFilings(ticker, undefined, 6),
           getInsiderTransactions(ticker, 8),
         ]);
+        const errors = [
+          ['income', income],
+          ['cashflow', cashflow],
+          ['metrics', metrics],
+          ['filings', filings],
+          ['insider', insider],
+        ].flatMap(([key, result]) => {
+          const settled = result as PromiseSettledResult<unknown>;
+          return settled.status === 'rejected'
+            ? [{ source: key, error: settled.reason instanceof Error ? settled.reason.message : 'failed' }]
+            : [];
+        });
         return NextResponse.json({
           income:   income.status   === 'fulfilled' ? income.value   : [],
           cashflow: cashflow.status === 'fulfilled' ? cashflow.value : [],
           metrics:  metrics.status  === 'fulfilled' ? metrics.value  : [],
           filings:  filings.status  === 'fulfilled' ? filings.value  : [],
           insider:  insider.status  === 'fulfilled' ? insider.value  : [],
+          errors,
         });
       }
       default:

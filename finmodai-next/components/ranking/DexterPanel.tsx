@@ -46,7 +46,18 @@ type OverviewData = {
   metrics:  KeyMetrics[];
   filings:  SecFiling[];
   insider:  InsiderTransaction[];
+  errors?: Array<{ source: string; error: string }>;
 };
+
+async function readJsonResponse(res: Response): Promise<unknown> {
+  const text = await res.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    const preview = text.trim().slice(0, 180) || `HTTP ${res.status}`;
+    throw new Error(`Dexter returned non-JSON: ${preview}`);
+  }
+}
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -234,7 +245,11 @@ function ResearchTab({ ticker }: { ticker: string }) {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ question: q, ticker }),
       });
-      if (!res.ok || !res.body) { setResponse('[Error: ' + res.status + ']'); return; }
+      if (!res.ok || !res.body) {
+        const text = await res.text().catch(() => '');
+        setResponse(`[Error: ${text.trim().slice(0, 180) || res.status}]`);
+        return;
+      }
       const reader  = res.body.getReader();
       const decoder = new TextDecoder();
       let text = '';
@@ -324,8 +339,18 @@ export function DexterPanel({ ticker }: Props) {
     setLoading(true);
     setError(null);
     fetch(`/api/dexter?action=overview&ticker=${ticker}`)
-      .then(r => r.json())
-      .then((d: OverviewData) => setData(d))
+      .then(async r => {
+        const d = await readJsonResponse(r) as Partial<OverviewData> & { error?: string };
+        if (!r.ok) throw new Error(d.error ?? `Dexter overview failed (${r.status})`);
+        setData({
+          income:   Array.isArray(d.income)   ? d.income   : [],
+          cashflow: Array.isArray(d.cashflow) ? d.cashflow : [],
+          metrics:  Array.isArray(d.metrics)  ? d.metrics  : [],
+          filings:  Array.isArray(d.filings)  ? d.filings  : [],
+          insider:  Array.isArray(d.insider)  ? d.insider  : [],
+          errors:   Array.isArray(d.errors)   ? d.errors   : [],
+        });
+      })
       .catch(err => setError(err.message ?? 'Failed to load'))
       .finally(() => setLoading(false));
   }, [open, ticker]);
@@ -381,7 +406,14 @@ export function DexterPanel({ ticker }: Props) {
               <p className="text-[10px] text-rose-300">{error}</p>
             )}
             {!loading && !error && data && tab === 'financials' && (
-              <FinancialsTab income={data.income} cashflow={data.cashflow} metrics={data.metrics} />
+              <>
+                {data.errors && data.errors.length > 0 && (
+                  <p className="mb-2 rounded border border-amber-400/20 bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-200">
+                    Partial Dexter data: {data.errors.slice(0, 2).map(e => `${e.source} ${e.error}`).join(' · ')}
+                  </p>
+                )}
+                <FinancialsTab income={data.income} cashflow={data.cashflow} metrics={data.metrics} />
+              </>
             )}
             {!loading && !error && data && tab === 'filings' && (
               <FilingsTab filings={data.filings} />
