@@ -105,3 +105,5 @@ SUPABASE_URL=https://thvbhrzavzjnwecwhbgj.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=REDACTED
 SUPABASE_ANON_KEY=REDACTED
 .gitignore.save
+.vercel
+.env*.local

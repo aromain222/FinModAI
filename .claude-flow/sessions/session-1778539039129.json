@@ -1,0 +1,14 @@
+{
+  "id": "session-1778539039129",
+  "startedAt": "2026-05-11T22:37:19.129Z",
+  "cwd": "/Users/averyromain/FinModAI",
+  "context": {},
+  "metrics": {
+    "edits": 12,
+    "commands": 0,
+    "tasks": 0,
+    "errors": 0
+  },
+  "endedAt": "2026-05-12T03:44:00.243Z",
+  "duration": 18401120
+}
