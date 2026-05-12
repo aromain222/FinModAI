@@ -165,4 +165,73 @@ export const WATCHLIST = [
   'TWLO', 'AYX',
   'FLYW', 'DLO', 'NU', 'STNE', 'GLBE',
   'ONON', 'BIRK', 'HIMS', 'OSCR', 'TDOC', 'BMBL', 'MTCH',
+
+  // AI infrastructure, accelerated networking, data-center suppliers
+  'ALAB', 'CRDO', 'PSTL', 'DLR', 'IRM', 'DBRG', 'EQC',
+  'UNIT', 'AKAM', 'FFIV', 'CALX', 'LUMN', 'ZETA', 'MIR',
+  'AGX', 'FLR', 'EME', 'PWR', 'ACM', 'J', 'KBR',
+  'CDW', 'NSIT', 'RXT', 'VYX',
+
+  // Robotics, automation, autonomy, industrial AI
+  'SYM', 'IRBT', 'ATS', 'FARO', 'VLD', 'NNOX', 'DM',
+  'SSYS', 'DDD', 'FANUY', 'FANHF', 'OMCL', 'KNSL', 'KMT',
+  'TTC', 'ALG', 'AGCO', 'CNH', 'WAB', 'TRN', 'GBX',
+  'MRCY', 'TXT', 'DRS', 'CW', 'WWD', 'AIR', 'KRMN',
+
+  // High-growth software, AI apps, data, cyber, workflow
+  'RBRK', 'RDDT', 'CART', 'CXM', 'AMPL', 'SPT', 'YEXT',
+  'EGHT', 'DOMO', 'BIGC', 'VTEX', 'COUR', 'TWKS', 'ALIT',
+  'BL', 'PAY', 'PCTY', 'GWRE', 'CARG', 'ACIW', 'PAYX',
+  'DAY', 'PEGA', 'PLUS', 'SEMR', 'SPNS', 'TTAN',
+  'OSPN', 'DJT', 'HCP', 'JAMF', 'CINT', 'BLND', 'OPEN',
+  'COMP', 'RDFN', 'SSTK', 'GETY', 'TRIP', 'EXPE', 'TCOM',
+
+  // Semiconductors, sensors, optical, specialty electronics
+  'MRAM', 'QUIK', 'AXTI', 'IMOS', 'KLIC', 'SGH', 'PI',
+  'SYNA', 'CEVA', 'NVEC', 'MX', 'SMTX', 'PLAB', 'DAKT',
+  'VICR', 'BELFA', 'BELFB', 'CTS', 'ROG', 'KN',
+  'VIAV', 'IIVI', 'AOSL', 'MXL', 'ASYS', 'KOPN', 'UEIC',
+
+  // Crypto, digital assets, market structure, fintech beta
+  'APLD', 'HIVE', 'BITF', 'BTBT', 'CAN', 'GREE', 'ANY',
+  'GLXY', 'BKKT', 'FRGE', 'HYLN', 'RKT', 'UWMC', 'TREE',
+  'LDI', 'NAVI', 'SLM', 'PAGS', 'TIGR', 'FUTU', 'LU',
+  'QFIN', 'FINV', 'OPFI', 'ENVA', 'PRAA', 'AX', 'LC',
+  'OLO', 'RELY', 'MOGO', 'ML',
+
+  // Biotech, life sciences, healthcare growth
+  'DNA', 'TWST', 'PACB', 'TXG', 'CDNA', 'DNLI', 'ARWR',
+  'EDIT', 'PRME', 'VERV', 'BLUE', 'FATE', 'KYMR', 'ARVN',
+  'KURA', 'TGTX', 'HALO', 'IONS', 'RARE', 'SWTX', 'ACLX',
+  'MIRM', 'IMVT', 'MDGL', 'AKRO', 'ETNB', 'ALT', 'ADMA',
+  'APLS', 'BPMC', 'CGEM', 'CRNX', 'DAWN', 'EYPT', 'GERN',
+  'GPCR', 'INCY', 'ITCI', 'KRYS', 'LEGN', 'MRTX',
+  'NBIX', 'NUVL', 'PTCT', 'QURE', 'ROIV', 'SAGE', 'SRPT',
+  'TARS', 'VRNA', 'XNCR',
+
+  // Healthcare services, diagnostics, medtech and health platforms
+  'NTRA', 'ADPT', 'VIR', 'ENSG', 'OPCH', 'ADUS', 'HQY',
+  'OMI', 'CAH', 'MCK', 'COR', 'BMRN', 'TECH', 'BIO',
+
+  // Energy, power, industrial capex, commodities
+  'ET', 'EPD', 'MPLX', 'OKE', 'PSX', 'VLO', 'MPC',
+  'HES', 'APA', 'MUR', 'SM', 'PR', 'VNOM', 'AR', 'RRC',
+  'CNX', 'CHRD', 'MTDR', 'CIVI', 'CRC', 'PBF', 'DK',
+  'PAA', 'AM', 'DTM', 'TRGP', 'LNT', 'OGE', 'IDA', 'POR',
+  'ORA', 'CWEN.A', 'AY', 'NEP', 'NFE', 'REX', 'GPRE',
+
+  // Metals, mining, battery materials, reshoring supply chain
+  'MP', 'PLL', 'SGML', 'LITM', 'ATLX', 'TMQ', 'TECK',
+  'CCJ', 'UUUU', 'UEC', 'URG', 'DNN', 'NXE', 'FCUUF',
+  'ERO', 'HBM', 'IVPAF', 'KGC', 'AG', 'PAAS', 'HL',
+  'CDE', 'SAND', 'TFPM', 'WPM', 'RGLD', 'ATI', 'CRS',
+  'CMC', 'GGB', 'TX', 'MT',
+
+  // International ADRs and global growth pockets
+  'INFY', 'WIT', 'HDB', 'IBN', 'TTM', 'MMYT', 'YTRA',
+  'STM', 'LOGI', 'ASR', 'PAC', 'OMAB',
+  'FMX', 'CIB', 'BAP', 'PBR', 'EC', 'YPF', 'GGAL',
+  'ERJ', 'ZK', 'YMM', 'BILI', 'TME', 'VIPS', 'EDU',
+  'TAL', 'BZ', 'ZTO', 'WB', 'ATHM', 'HUYA', 'DOYU',
+  'GDS', 'KC', 'TUYA', 'API', 'MOMO',
 ] as const;
