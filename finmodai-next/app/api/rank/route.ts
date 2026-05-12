@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { scoreMultiple } from '@/lib/ranking/score';
 import { mockFallback } from '@/lib/ranking/mock';
+import { readCache } from '@/lib/ranking/rankCache';
 import type { RankResponse } from '@/lib/ranking/types';
 
 export const dynamic    = 'force-dynamic';
@@ -219,16 +220,38 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   });
 }
 
-// ── GET convenience: rank the default watchlist ───────────────────────────
+// ── GET: serve from Supabase cache, fall back to live scoring ─────────────
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
+  // Try Supabase cache first (max 4 hours old)
+  try {
+    const cached = await readCache(4 * 60 * 60 * 1000);
+    if (cached.length > 0) {
+      const response: RankResponse = {
+        stocks: cached,
+        scoredAt: cached[0]?.meta.scoredAt ?? new Date().toISOString(),
+        horizonWeeks: 6,
+      };
+      return NextResponse.json(response, {
+        headers: {
+          'Cache-Control': 'private, max-age=60',
+          'X-Ticker-Count': String(cached.length),
+          'X-Rank-Source': 'supabase-cache',
+        },
+      });
+    }
+  } catch {
+    // Supabase unavailable — fall through to live scoring
+  }
+
+  // Cold start or Supabase unavailable: score top tickers live
   const { searchParams } = req.nextUrl;
   const tickerParam  = searchParams.get('tickers');
   const horizonParam = searchParams.get('horizonWeeks');
 
   const tickers = tickerParam
     ? tickerParam.split(',').map(t => t.trim().toUpperCase()).filter(Boolean)
-    : DEFAULT_WATCHLIST;
+    : DEFAULT_WATCHLIST.slice(0, 100); // limit live fallback
 
   const horizonWeeks = horizonParam ? parseInt(horizonParam, 10) : 6;
 
