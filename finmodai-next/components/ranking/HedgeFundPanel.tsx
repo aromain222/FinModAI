@@ -101,6 +101,16 @@ function sourceLabel(source?: AnalysisResult['source']): string {
   return source === 'python_backend' ? 'Real repo backend' : 'OpenAI fallback';
 }
 
+async function readJsonResponse(res: Response): Promise<unknown> {
+  const text = await res.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    const preview = text.trim().slice(0, 180) || `HTTP ${res.status}`;
+    throw new Error(`Agent route returned non-JSON: ${preview}`);
+  }
+}
+
 export function HedgeFundPanel({ ticker, autoRun = false, onResult }: { ticker: string; autoRun?: boolean; onResult?: (result: AnalysisResult) => void }) {
   const [open,    setOpen]    = useState(false);
   const [loading, setLoading] = useState(false);
@@ -112,8 +122,12 @@ export function HedgeFundPanel({ ticker, autoRun = false, onResult }: { ticker: 
     setLoading(true); setError(null); setOpen(true);
     try {
       const res  = await fetch('/api/hedge-fund', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticker }) });
-      const data = await res.json();
+      const data = await readJsonResponse(res) as Partial<AnalysisResult> & { error?: string };
       if (!res.ok) { setError(data?.error ?? `Error ${res.status}`); return; }
+      if (!data || !Array.isArray(data.signals) || !data.consensus) {
+        setError('Agent route returned an incomplete hedge-fund result.');
+        return;
+      }
       const typed = data as AnalysisResult;
       setResult(typed);
       onResult?.(typed);

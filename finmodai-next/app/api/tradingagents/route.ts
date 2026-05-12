@@ -24,7 +24,10 @@ type AnalysisResult = {
   source?: 'python_backend' | 'openai_fallback';
 };
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+function openAIClient(): OpenAI | null {
+  const apiKey = process.env.OPENAI_API_KEY;
+  return apiKey ? new OpenAI({ apiKey }) : null;
+}
 
 function pythonBackendUrl(): string | null {
   const raw = process.env.AI_AGENT_BACKEND_URL || process.env.PYTHON_BACKEND_URL;
@@ -52,7 +55,7 @@ async function tryPythonBackend(ticker: string): Promise<AnalysisResult | null> 
   }
 }
 
-async function runAnalysts(ticker: string): Promise<AnalystReports> {
+async function runAnalysts(client: OpenAI, ticker: string): Promise<AnalystReports> {
   const resp = await client.chat.completions.create({
     model: 'gpt-4o-mini',
     response_format: { type: 'json_object' },
@@ -88,7 +91,7 @@ Return JSON: { "market": "...", "fundamentals": "...", "sentiment": "...", "news
   };
 }
 
-async function runDebateAndDecision(ticker: string, reports: AnalystReports): Promise<{
+async function runDebateAndDecision(client: OpenAI, ticker: string, reports: AnalystReports): Promise<{
   decision: string;
   summary: string;
   thesis: string;
@@ -158,14 +161,15 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
+    const client = openAIClient();
+    if (!client) {
       return NextResponse.json({
         error: 'Agent backend unavailable and OPENAI_API_KEY not configured',
       }, { status: 503 });
     }
 
-    const reports = await runAnalysts(ticker);
-    const debateResult = await runDebateAndDecision(ticker, reports);
+    const reports = await runAnalysts(client, ticker);
+    const debateResult = await runDebateAndDecision(client, ticker, reports);
 
     const result: AnalysisResult = {
       ticker,

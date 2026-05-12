@@ -54,6 +54,16 @@ function sourceLabel(source?: AnalysisResult['source']): string {
   return source === 'python_backend' ? 'Real repo backend' : 'OpenAI fallback';
 }
 
+async function readJsonResponse(res: Response): Promise<unknown> {
+  const text = await res.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    const preview = text.trim().slice(0, 180) || `HTTP ${res.status}`;
+    throw new Error(`Agent route returned non-JSON: ${preview}`);
+  }
+}
+
 export function TradingAgentsPanel({ ticker }: { ticker: string }) {
   const [open,    setOpen]    = useState(false);
   const [loading, setLoading] = useState(false);
@@ -64,8 +74,12 @@ export function TradingAgentsPanel({ ticker }: { ticker: string }) {
     setLoading(true); setError(null);
     try {
       const res  = await fetch('/api/tradingagents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticker }) });
-      const data = await res.json();
+      const data = await readJsonResponse(res) as Partial<AnalysisResult> & { error?: string };
       if (!res.ok) { setError(data?.error ?? `Error ${res.status}`); return; }
+      if (!data || !data.decision || !data.reports) {
+        setError('Agent route returned an incomplete TradingAgents result.');
+        return;
+      }
       setResult(data as AnalysisResult); setOpen(true);
     } catch (e) { setError(e instanceof Error ? e.message : 'Request failed'); }
     finally { setLoading(false); }

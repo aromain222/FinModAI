@@ -57,7 +57,10 @@ type AnalysisResult = {
   source?: 'python_backend' | 'openai_fallback';
 };
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+function openAIClient(): OpenAI | null {
+  const apiKey = process.env.OPENAI_API_KEY;
+  return apiKey ? new OpenAI({ apiKey }) : null;
+}
 
 function pythonBackendUrl(): string | null {
   const raw = process.env.AI_AGENT_BACKEND_URL || process.env.PYTHON_BACKEND_URL;
@@ -131,7 +134,7 @@ async function fetchMarketContext(ticker: string): Promise<MarketContext | null>
   }
 }
 
-async function runPersonaSignals(ticker: string, ctx: MarketContext | null): Promise<RawSignal[]> {
+async function runPersonaSignals(client: OpenAI, ticker: string, ctx: MarketContext | null): Promise<RawSignal[]> {
   const personaList = PERSONAS.map((p, i) =>
     `${i + 1}. ${p.name} [key: ${p.key}] — ${p.style}`,
   ).join('\n');
@@ -169,7 +172,7 @@ async function runPersonaSignals(ticker: string, ctx: MarketContext | null): Pro
   return Array.isArray(parsed.signals) ? parsed.signals : [];
 }
 
-async function runPortfolioManager(ticker: string, signals: RawSignal[], consensus: { bullish: number; bearish: number; neutral: number }): Promise<AnalysisResult['decision']> {
+async function runPortfolioManager(client: OpenAI, ticker: string, signals: RawSignal[], consensus: { bullish: number; bearish: number; neutral: number }): Promise<AnalysisResult['decision']> {
   const signalSummary = signals
     .map(s => `${s.key}: ${s.signal} (${s.confidence}%) — ${s.reasoning}`)
     .join('\n');
@@ -220,14 +223,15 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
+    const client = openAIClient();
+    if (!client) {
       return NextResponse.json({
         error: 'Agent backend unavailable and OPENAI_API_KEY not configured',
       }, { status: 503 });
     }
 
     const ctx = await fetchMarketContext(ticker);
-    const rawSignals = await runPersonaSignals(ticker, ctx);
+    const rawSignals = await runPersonaSignals(client, ticker, ctx);
 
     // Merge with persona metadata
     const signals = rawSignals.map(s => {
@@ -249,7 +253,7 @@ export async function POST(req: NextRequest) {
       neutral: signals.filter(s => s.signal === 'neutral').length,
     };
 
-    const decision = await runPortfolioManager(ticker, rawSignals, consensus);
+    const decision = await runPortfolioManager(client, ticker, rawSignals, consensus);
 
     const result: AnalysisResult = {
       ticker,
