@@ -3,13 +3,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronDown, ChevronRight, Loader2, Play, RotateCcw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { InvestorAvatar, InvestorAvatarStack, INVESTOR_META } from './InvestorAvatar';
 
 type Signal = {
   key: string; name: string; group: 'persona' | 'quant' | string;
   signal: 'bullish' | 'bearish' | 'neutral'; confidence: number; reasoning: string; thesis?: string;
 };
 type Consensus  = { bullish: number; bearish: number; neutral: number };
-type Decision   = { action: string; quantity: number; confidence: number; reasoning: string };
+type Decision   = { action: string; confidence: number; reasoning: string; sizing?: string };
 type AnalysisResult = {
   ticker: string;
   date: string;
@@ -68,23 +69,32 @@ function ConsensusBar({ c, total }: { c: Consensus; total: number }) {
 function SignalCard({ s }: { s: Signal }) {
   const [expanded, setExpanded] = useState(false);
   const style = SIGNAL_STYLE[s.signal as keyof typeof SIGNAL_STYLE] ?? SIGNAL_STYLE.neutral;
+  const meta = INVESTOR_META[s.name];
   return (
-    <div className={cn('rounded-lg border transition-all duration-200', style.bg, style.border, expanded && style.glow)}>
-      <button type="button" onClick={() => setExpanded(v => !v)} className="flex w-full items-center gap-2 px-2.5 py-2 text-left">
-        <SignalIcon signal={s.signal} />
-        <span className="flex-1 truncate text-[10px] font-semibold text-[var(--cb-text-primary)]">{s.name}</span>
-        <div className="flex items-center gap-1.5">
-          <div className="h-1.5 w-14 overflow-hidden rounded-full bg-white/10">
-            <div className={cn('h-full rounded-full', style.bar)} style={{ width: `${s.confidence}%` }} />
+    <div className={cn('rounded-xl border transition-all duration-200', style.bg, style.border, expanded && style.glow)}>
+      <button type="button" onClick={() => setExpanded(v => !v)} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left cursor-pointer">
+        <InvestorAvatar name={s.name} signal={s.signal} size="sm" />
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="truncate text-[11px] font-bold text-[var(--cb-text-primary)] leading-tight">{s.name}</span>
+          {meta && (
+            <span className={cn('text-[8px] font-medium leading-tight', style.text, 'opacity-70')}>{meta.style}</span>
+          )}
+        </span>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <div className="flex items-center gap-1">
+            <SignalIcon signal={s.signal} />
+            <span className={cn('text-[10px] font-bold capitalize', style.text)}>{s.signal}</span>
           </div>
-          <span className={cn('shrink-0 text-[9px] font-bold tabular-nums', style.text)}>{s.confidence}%</span>
+          <div className="flex items-center gap-1">
+            <div className="h-1 w-12 overflow-hidden rounded-full bg-white/10">
+              <div className={cn('h-full rounded-full transition-all duration-700', style.bar)} style={{ width: `${s.confidence}%` }} />
+            </div>
+            <span className={cn('shrink-0 text-[9px] font-bold tabular-nums', style.text)}>{s.confidence}%</span>
+          </div>
         </div>
-        {!expanded && s.thesis && (
-          <span className="text-[8px] text-[var(--cb-text-muted)] opacity-50">▼ thesis</span>
-        )}
       </button>
       {expanded && (
-        <div className="border-t border-white/8 px-2.5 pb-2.5 pt-2 space-y-1.5">
+        <div className="border-t border-white/8 px-3 pb-3 pt-2 space-y-1.5">
           {s.thesis && s.thesis !== s.reasoning && (
             <p className="text-[10px] leading-snug text-[var(--cb-text-secondary)]">{s.thesis}</p>
           )}
@@ -95,7 +105,7 @@ function SignalCard({ s }: { s: Signal }) {
   );
 }
 
-const LOADING_NAMES = ['Warren Buffett','Ben Graham','Charlie Munger','Peter Lynch','Nassim Taleb','Michael Burry','Cathie Wood','Aswath Damodaran','Stanley Druckenmiller','Technical Analyst','Valuation Analyst'];
+const LOADING_NAMES = ['Warren Buffett','Ben Graham','Charlie Munger','Peter Lynch','Nassim Taleb','Michael Burry','Cathie Wood','Aswath Damodaran','Stanley Druckenmiller','Technical Analyst','Valuation Analyst','Momentum Analyst'];
 
 function sourceLabel(source?: AnalysisResult['source']): string {
   return source === 'python_backend' ? 'Real repo backend' : 'OpenAI fallback';
@@ -182,17 +192,26 @@ export function HedgeFundPanel({ ticker, autoRun = false, onResult }: { ticker: 
         </button>
       </div>
 
-      {/* Loading */}
+      {/* Loading — trading-floor avatar grid */}
       {loading && (
-        <div className="border-t border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-4 py-3">
-          <div className="mb-2.5 flex items-center gap-2">
-            <Loader2 className="h-3 w-3 animate-spin text-emerald-400" />
-            <span className="text-[10px] font-medium text-emerald-300">Running 19 analysts in parallel…</span>
+        <div className="border-t border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-4 py-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" />
+            <span className="text-[10px] font-semibold text-emerald-300">Consulting 19 analysts in parallel…</span>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {LOADING_NAMES.map((n, i) => (
-              <span key={n} className="animate-pulse rounded bg-white/5 px-1.5 py-0.5 text-[9px] text-[var(--cb-text-muted)]"
-                style={{ animationDelay: `${i * 150}ms` }}>{n}</span>
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+            {LOADING_NAMES.map((name, i) => (
+              <div
+                key={name}
+                className="flex flex-col items-center gap-1.5"
+                style={{ animationDelay: `${i * 120}ms` }}
+              >
+                <InvestorAvatar name={name} size="md" pulse className="opacity-60" />
+                <span className="text-center text-[8px] leading-tight text-[var(--cb-text-muted)] line-clamp-2 max-w-[56px]">
+                  {name.split(' ')[0]}
+                  {name.includes(' ') && <><br />{name.split(' ').slice(1).join(' ')}</>}
+                </span>
+              </div>
             ))}
           </div>
         </div>
@@ -212,7 +231,7 @@ export function HedgeFundPanel({ ticker, autoRun = false, onResult }: { ticker: 
               <p className="mb-1 text-[8px] font-bold uppercase tracking-widest opacity-60">PM Decision</p>
               <div className="flex items-center gap-3">
                 <span className="text-2xl font-black capitalize tracking-tight">{dec.action}</span>
-                {dec.quantity > 0 && <span className="text-sm font-semibold opacity-75">{dec.quantity} shares</span>}
+                {dec.sizing && <span className="text-sm font-semibold opacity-75">{dec.sizing}</span>}
                 <span className="ml-auto text-sm font-bold">{dec.confidence}%</span>
               </div>
               {dec.reasoning && <p className="mt-1.5 text-[10px] leading-snug opacity-70">{dec.reasoning}</p>}
@@ -221,10 +240,26 @@ export function HedgeFundPanel({ ticker, autoRun = false, onResult }: { ticker: 
 
           {/* Consensus */}
           <div>
-            <p className="mb-2 text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">
-              Analyst Consensus — {total} signals · {sourceLabel(result.source)}
-            </p>
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">
+                Analyst Consensus — {total} signals
+              </p>
+              <span className="text-[9px] text-[var(--cb-text-muted)] opacity-60">{sourceLabel(result.source)}</span>
+            </div>
             <ConsensusBar c={result.consensus} total={total} />
+            {/* Face stacks: bullish vs bearish */}
+            <div className="mt-2.5 flex items-center justify-between">
+              <InvestorAvatarStack
+                names={result.signals.filter(s => s.signal === 'bullish').map(s => s.name)}
+                signal="bullish"
+                max={6}
+              />
+              <InvestorAvatarStack
+                names={result.signals.filter(s => s.signal === 'bearish').map(s => s.name)}
+                signal="bearish"
+                max={6}
+              />
+            </div>
           </div>
 
           {/* Personas */}

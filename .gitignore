@@ -50,8 +50,6 @@ uploads/*
 node_modules/
 frontend/
 shopai-mvp/
-TradingAgents/
-ai-hedge-fund/
 cache/
 output/
 finmodai-next/output/
