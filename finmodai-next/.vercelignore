@@ -1,11 +1,11 @@
 .next
 node_modules
-data
-output
+/data
+/output
 .claude-flow
 tsconfig.tsbuildinfo
 *.log
 .DS_Store
-coverage
-playwright-report
-test-results
+/coverage
+/playwright-report
+/test-results

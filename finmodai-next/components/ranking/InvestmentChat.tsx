@@ -11,6 +11,7 @@ import { TradingAgentsPanel } from '@/components/ranking/TradingAgentsPanel';
 import { DexterPanel } from '@/components/ranking/DexterPanel';
 import { HedgeFundPanel } from '@/components/ranking/HedgeFundPanel';
 import { ConvictionMeter, parseConvictionLevel } from '@/components/ranking/ConvictionMeter';
+import { TradeReadinessStrip } from '@/components/ranking/TradeReadinessStrip';
 import { getPitchQueue, upsertPitchQueueItem } from '@/lib/pitchQueue/storage';
 import { buildPitchQueueItemFromRankedStock } from '@/lib/pitchQueue/buildPitch';
 import {
@@ -26,7 +27,7 @@ import { getCompanyBrief } from '@/lib/ranking/companyBriefs';
 import { buildValuationSignal } from '@/lib/valuation/signal';
 import {
   type InvestmentMode, type ScoreFactor, SCORE_LABELS,
-  capitalize, factorLabel, resolvedRisk, signalFromScore, contextPrompt,
+  capitalize, factorLabel, resolvedRisk, signalFromScore, contextPrompt, tradeReadiness,
 } from '@/lib/ranking/chatHelpers';
 import { cn } from '@/lib/utils';
 import { PeerStock, buildSwingThesis, buildExplain, buildLocalReply, buildCompare, buildCatalystAgent, buildForecastAgent, buildAssumptionAgent, buildPitch, buildEvaluate, buildThesis, buildNeedsTrue, buildMonitor, buildBadTrade, buildScoreBacktest, expectedMoveStr, catalystContext, catalystDetailedContext, scoreBacktestContext, cryptoTapeContext, buildGeneralStockQuestion, looksLikeStockQuestion, buildMoveHigher, buildMarketMiss, buildNotBuyYet, buildEvidence } from '@/lib/ranking/chatBuilders';
@@ -630,6 +631,11 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
 
       {/* ── Sticky header: score strip + action buttons ── */}
       <PMDecisionStrip stock={stock} displayedScore={displayedScore} scoreChange={scoreChange} />
+
+      {/* Trade Readiness strip */}
+      <div className="shrink-0 border-b border-[var(--cb-border)] px-4 pb-2 pt-1">
+        <TradeReadinessStrip ticker={stock.ticker} computed={tradeReadiness(stock)} />
+      </div>
 
       {/* AI Verdict banner */}
       {aiVerdict && (() => {
