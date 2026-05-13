@@ -790,18 +790,6 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       {/* ── AI Agents tab — the three integrated repos ── */}
       {panelTab === 'agents' && (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {/* Repo labels */}
-          <div className="px-4 pt-3 pb-1 flex flex-wrap gap-2">
-            {[
-              { label: 'virattt/ai-hedge-fund', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-400/30' },
-              { label: 'tauricresearch/TradingAgents', color: 'text-blue-400 bg-blue-500/10 border-blue-400/30' },
-              { label: 'virattt/dexter', color: 'text-violet-400 bg-violet-500/10 border-violet-400/30' },
-            ].map(r => (
-              <span key={r.label} className={cn('rounded border px-2 py-0.5 text-[9px] font-mono font-semibold', r.color)}>
-                {r.label}
-              </span>
-            ))}
-          </div>
           <HedgeFundPanel
             ticker={stock.ticker}
             autoRun
