@@ -17,6 +17,7 @@ import type { StockQuote } from '@/app/api/quotes/route';
 import type { ClassifiedNewsItem, NewsItem } from '@/lib/portfolio/newsClassify';
 import { classifyHeadline, sortByPriority } from '@/lib/portfolio/newsClassify';
 import { PositionCard } from './PositionCard';
+import { PortfolioAlerts } from './PortfolioAlerts';
 import { PortfolioRiskDashboard } from './PortfolioRiskDashboard';
 
 export function PortfolioPanel() {
@@ -146,6 +147,14 @@ export function PortfolioPanel() {
 
   return (
     <div className="space-y-4">
+      <PortfolioAlerts
+        positions={positions}
+        quotes={quotes}
+        newsMap={newsMap}
+        monitoring={monitoring}
+        onRefreshMonitor={handleRefreshMonitor}
+      />
+
       <PortfolioRiskDashboard positions={positions} quotes={quotes} newsMap={newsMap} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">

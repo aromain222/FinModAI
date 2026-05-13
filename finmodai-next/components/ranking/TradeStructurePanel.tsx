@@ -2,7 +2,7 @@
 
 import {
   sortedFactors, SCORE_LABELS, convictionGrade,
-  tradeReadiness, expectedMoveForDisplay, pmBullCaseRead, capitalize,
+  tradeReadiness, expectedMoveForDisplay, pmBullCaseRead, setupLabel, setupRead,
 } from '@/lib/ranking/chatHelpers';
 import type { RankedStock } from '@/lib/ranking/types';
 import { cn } from '@/lib/utils';
@@ -79,11 +79,6 @@ export function TradeStructurePanel({ stock }: { stock: RankedStock }) {
   const topKey     = factors[0]?.[0] ?? 'forecastSignal';
   const bottomKey  = factors[factors.length - 1]?.[0] ?? 'riskAdjustment';
 
-  const signalRead =
-    stock.signal === 'green'  ? 'Actionable setup' :
-    stock.signal === 'yellow' ? 'Work it up' :
-                                'Avoid / wait';
-
   const timingRead =
     readiness.label === 'Ready'               ? 'Enter if catalyst confirms' :
     readiness.label === 'Work up'             ? 'Interesting — not there yet' :
@@ -105,9 +100,9 @@ export function TradeStructurePanel({ stock }: { stock: RankedStock }) {
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-3">
         <Module
           group="opportunity"
-          label="Signal"
-          value={capitalize(stock.signal)}
-          read={signalRead}
+          label="Setup"
+          value={setupLabel(stock.signal)}
+          read={setupRead(stock.signal)}
           barPct={stock.score * 10}
           valueColor={
             stock.signal === 'green'  ? 'text-emerald-300' :

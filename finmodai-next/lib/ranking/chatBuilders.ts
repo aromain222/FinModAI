@@ -7,7 +7,7 @@ import {
   isGenericReason, resolvedRisk, hasLiveConfirmation, hasForecastConflict,
   tradeReadiness, factorInterpretation, convictionGrade, expectedMoveForDisplay,
   keyCatalystStr, signalFromScore, pmBullCaseRead, finalPmRead,
-  tradeViewStr, thesisDrift, forecastReconciliation, contextPrompt,
+  tradeViewStr, thesisDrift, forecastReconciliation, contextPrompt, setupLabel,
 } from '@/lib/ranking/chatHelpers';
 
 export type PeerStock = Pick<
@@ -27,9 +27,9 @@ export function buildSwingThesis(
 ): string {
   const [topK, topV] = topFactor(stock);
   const conviction   = convictionGrade(stock);
-  const signalWord   = stock.signal === 'green' ? 'GREEN' : stock.signal === 'yellow' ? 'YELLOW' : 'RED';
+  const signalWord   = setupLabel(stock.signal).toUpperCase();
   return [
-    `Signal: ${signalWord} · ${stock.score.toFixed(1)}/10`,
+    `Setup: ${signalWord} · ${stock.score.toFixed(1)}/10`,
     `Expected Move: ${expectedMoveStr(stock)}`,
     `What Matters Most: ${options.whatMattersMost ?? `${SCORE_LABELS[topK]} (${topV.toFixed(1)}) — ${factorInterpretation(stock, topK, topV)}`}`,
     `Key Catalyst: ${options.keyCatalyst ?? keyCatalystStr(stock)}`,
@@ -214,7 +214,7 @@ export function buildNotBuyYet(stock: RankedStock): string {
   const readiness = tradeReadiness(stock);
   const brief = getCompanyBrief(stock.ticker);
   return buildSwingThesis(stock, {
-    bullCase: `${stock.ticker} can still be a strong opportunity without being ready today. The green/yellow/red score ranks opportunity quality; Trade Readiness tells you whether to act now.`,
+    bullCase: `${stock.ticker} can still be a strong company or opportunity without being action-ready today. Ready / Work Up / Repair ranks setup quality; Trade Readiness tells you whether to act now.`,
     whatMattersMost: forecastReconciliation(stock, expectedMoveForDisplay(stock)),
     keyCatalyst: `Needs confirmation from ${brief.watchItems.slice(0, 2).join(' or ')}.`,
     risk: resolvedRisk(stock),

@@ -47,6 +47,8 @@ export type ActivePosition = {
   entryDate: string;
   entryPrice: number;
   currentPrice: number;
+  shares?: number | null;
+  costBasis?: number | null;
   notionalUsd?: number | null;
   entryScore: number;
   currentScore: number;

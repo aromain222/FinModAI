@@ -52,7 +52,7 @@ type MarketContext = {
 type AnalysisResult = {
   ticker: string;
   date: string;
-  decision: { action: string; quantity: number; confidence: number; reasoning: string } | null;
+  decision: { action: string; confidence: number; reasoning: string; sizing?: string } | null;
   signals: { key: string; name: string; group: string; signal: 'bullish' | 'bearish' | 'neutral'; confidence: number; reasoning: string; thesis: string }[];
   consensus: { bullish: number; bearish: number; neutral: number };
   source?: 'python_backend' | 'openai_fallback';
@@ -186,17 +186,24 @@ async function runPortfolioManager(client: OpenAI, ticker: string, signals: RawS
     messages: [
       {
         role: 'system',
-        content: 'You are a portfolio manager synthesizing analyst signals into a single trading decision. Be decisive. Choose one action.',
+        content: 'You are a portfolio manager synthesizing analyst signals into a single trading posture. Be decisive, but do not generate brokerage orders, share quantities, or exact position sizes.',
       },
       {
         role: 'user',
-        content: `Ticker: ${ticker}\nConsensus: ${consensus.bullish} bullish, ${consensus.bearish} bearish, ${consensus.neutral} neutral\n\nAnalyst signals:\n${signalSummary}\n\nReturn JSON: { "action": "buy"|"sell"|"hold"|"short"|"cover", "quantity": 100, "confidence": 0-100, "reasoning": "2-3 sentence synthesis" }`,
+        content: `Ticker: ${ticker}\nConsensus: ${consensus.bullish} bullish, ${consensus.bearish} bearish, ${consensus.neutral} neutral\n\nAnalyst signals:\n${signalSummary}\n\nReturn JSON: { "action": "buy"|"sell"|"hold"|"short"|"cover", "confidence": 0-100, "sizing": "Track / Build / Trim / Exit watch / Avoid", "reasoning": "2-3 sentence synthesis" }`,
       },
     ],
   });
 
   const parsed = JSON.parse(resp.choices[0].message.content ?? '{}') as AnalysisResult['decision'];
-  return parsed ?? null;
+  if (!parsed) return null;
+  const { action, confidence, reasoning, sizing } = parsed;
+  return {
+    action,
+    confidence,
+    reasoning,
+    sizing,
+  };
 }
 
 export async function POST(req: NextRequest) {

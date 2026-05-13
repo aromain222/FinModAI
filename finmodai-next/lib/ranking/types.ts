@@ -94,6 +94,10 @@ export type RankedStock = {
     macroCatalystCount?: number;
     dataSource: 'live' | 'mock';
     scoredAt: string;
+    sector?: string | null;
+    subsector?: string | null;
+    companyName?: string | null;
+    exchange?: string | null;
     valuation?: ValuationSignalSummary;
     catalysts?: RankedCatalyst[];
     cryptoRegime?: CryptoMarketRegime | null;

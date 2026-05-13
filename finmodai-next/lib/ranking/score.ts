@@ -30,6 +30,7 @@ import {
 } from './cryptoRegime';
 import { compositeOpportunityScore, signalFromOpportunityScore } from './signals';
 import { buildValuationSignal, scoreValuationSignal } from '@/lib/valuation/signal';
+import { classifyTicker } from '@/lib/ranking/tickerClassification';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -440,6 +441,7 @@ export async function scoreStock(
   };
 
   const breakdown = applyCryptoRegimeToBreakdown(diversifyBreakdown(t, rawBreakdown), cryptoRegime);
+  const classification = classifyTicker(t);
   const displayValuation = buildValuationSignal({
     ticker: t,
     forecastReturnPct: returnPct,
@@ -464,6 +466,8 @@ export async function scoreStock(
       macroCatalystCount: catalysts.filter((catalyst) => catalyst.kind === 'macro').length,
       dataSource:        isLive ? 'live' : 'mock',
       scoredAt:          new Date().toISOString(),
+      sector:            classification.sector,
+      subsector:         classification.subsector,
       valuation:         displayValuation,
       catalysts:         catalysts.slice(0, 3),
       cryptoRegime,

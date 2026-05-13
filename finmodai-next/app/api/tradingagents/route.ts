@@ -43,7 +43,11 @@ async function tryPythonBackend(ticker: string): Promise<AnalysisResult | null> 
     const res = await fetch(`${backend}/api/v1/tradingagents/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticker }),
+      body: JSON.stringify({
+        ticker,
+        analysts: ['market', 'news'],
+        timeout_seconds: 35,
+      }),
       signal: AbortSignal.timeout(45_000),
       cache: 'no-store',
     });

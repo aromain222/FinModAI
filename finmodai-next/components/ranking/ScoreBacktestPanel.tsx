@@ -39,13 +39,13 @@ const TIER_META: Record<
     text:        'text-emerald-300',
     bg:          'border-emerald-400/20 bg-emerald-500/5',
     badge:       'bg-emerald-500/15 text-emerald-300',
-    description: 'Above the green threshold with broad factor support. Solid setup quality — needs a catalyst trigger to size.',
+    description: 'Ready-tier score with broad factor support. Solid setup quality — still needs a catalyst trigger to size.',
   },
   Constructive: {
     text:        'text-amber-300',
     bg:          'border-amber-400/20 bg-amber-500/5',
     badge:       'bg-amber-500/15 text-amber-300',
-    description: 'Interesting setup in development — above watchlist floor but short of confirmed buy range.',
+    description: 'Quality setup in development — not bad, just short of action-ready confirmation.',
   },
   Watchlist: {
     text:        'text-[var(--cb-text-muted)]',

@@ -5,7 +5,7 @@ import { getTRState, defaultTRState, TR_STATES } from '@/lib/tradeReadiness/stor
 import {
   sortedFactors, SCORE_LABELS, factorInterpretation,
   convictionGrade, expectedMoveForDisplay, finalPmRead,
-  keyCatalystStr, tradeReadiness, capitalize, coreDebate,
+  keyCatalystStr, tradeReadiness, setupLabel, coreDebate,
 } from '@/lib/ranking/chatHelpers';
 import { formatExpectedMoveRange } from '@/lib/ranking/expectedMove';
 import type { RankedStock } from '@/lib/ranking/types';
@@ -78,7 +78,7 @@ export function PMDecisionStrip({ stock, displayedScore, scoreChange }: Props) {
           SIGNAL_BADGE[stock.signal],
           signalChanged && 'animate-pulse',
         )}>
-          {capitalize(stock.signal)} · {displayedScore.toFixed(1)}
+          {setupLabel(stock.signal)} · {displayedScore.toFixed(1)}
         </span>
         {trLabel && (
           <span className="rounded-full border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-2 py-0.5 text-[10px] font-medium text-[var(--cb-text-muted)]">

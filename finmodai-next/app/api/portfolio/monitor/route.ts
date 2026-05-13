@@ -49,6 +49,22 @@ function parsePosition(value: unknown): ActivePosition | null {
   return row as ActivePosition;
 }
 
+function positionShares(position: ActivePosition): number | null {
+  if (typeof position.shares === 'number' && Number.isFinite(position.shares) && position.shares > 0) return position.shares;
+  if (typeof position.notionalUsd === 'number' && Number.isFinite(position.notionalUsd) && position.notionalUsd > 0 && position.entryPrice > 0) {
+    return position.notionalUsd / position.entryPrice;
+  }
+  return null;
+}
+
+function positionCostBasis(position: ActivePosition): number | null {
+  if (typeof position.costBasis === 'number' && Number.isFinite(position.costBasis) && position.costBasis > 0) return position.costBasis;
+  const shares = positionShares(position);
+  if (shares !== null) return shares * position.entryPrice;
+  if (typeof position.notionalUsd === 'number' && Number.isFinite(position.notionalUsd) && position.notionalUsd > 0) return position.notionalUsd;
+  return null;
+}
+
 async function fetchJson<T>(url: string, init: RequestInit, timeoutMs: number): Promise<T | null> {
   try {
     const res = await fetch(url, {
@@ -170,7 +186,12 @@ function buildMonitor(params: {
 }): PositionMonitorResult {
   const { position, quote, news, rank, agentReads } = params;
   const livePrice = quote?.price ?? position.currentPrice;
-  const pnlPct = ((livePrice - position.entryPrice) / position.entryPrice) * 100;
+  const shares = positionShares(position);
+  const costBasis = positionCostBasis(position);
+  const pnlUsd = shares !== null && costBasis !== null ? shares * livePrice - costBasis : null;
+  const pnlPct = costBasis !== null && costBasis > 0 && pnlUsd !== null
+    ? (pnlUsd / costBasis) * 100
+    : ((livePrice - position.entryPrice) / position.entryPrice) * 100;
   const updatedScore = round1(rank?.score ?? position.currentScore);
   const scoreDelta = updatedScore - position.entryScore;
   const scoreChange = updatedScore - position.currentScore;

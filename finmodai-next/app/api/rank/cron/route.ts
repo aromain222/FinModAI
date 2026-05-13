@@ -14,7 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { scoreMultiple } from '@/lib/ranking/score';
 import { writeCache, readCronOffset, writeCronOffset } from '@/lib/ranking/rankCache';
 import { mockFallback } from '@/lib/ranking/mock';
-import { WATCHLIST } from '@/lib/ranking/watchlist';
+import { attachClassification, buildRankUniverse, DEFAULT_RANK_UNIVERSE_SIZE } from '@/lib/ranking/universe';
 
 export const dynamic     = 'force-dynamic';
 export const runtime     = 'nodejs';
@@ -31,19 +31,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   const origin = new URL(req.url).origin;
-  const total  = WATCHLIST.length;
+  const universe = await buildRankUniverse(DEFAULT_RANK_UNIVERSE_SIZE);
+  const total  = universe.tickers.length;
 
   // Read current offset, score next slice, advance
   const offset = await readCronOffset();
   const end    = Math.min(offset + BATCH_PER_RUN, total);
-  const batch  = WATCHLIST.slice(offset, end);
+  const batch  = universe.tickers.slice(offset, end);
   const next   = end >= total ? 0 : end;
 
   let scored;
   try {
-    scored = await scoreMultiple(batch, origin, 6);
+    scored = attachClassification(await scoreMultiple(batch, origin, 6), universe.metaByTicker);
   } catch {
-    scored = batch.map(t => mockFallback(t, 6));
+    scored = attachClassification(batch.map(t => mockFallback(t, 6)), universe.metaByTicker);
   }
 
   await writeCache(scored);

@@ -3,6 +3,7 @@ import { diversifyBreakdown, tickerFactorShape } from './profileShape';
 import { getCompanyBrief } from './companyBriefs';
 import { compositeOpportunityScore, signalFromOpportunityScore } from './signals';
 import { buildValuationSignal, scoreValuationSignal } from '@/lib/valuation/signal';
+import { classifyTicker } from '@/lib/ranking/tickerClassification';
 
 // Realistic mock scores returned when all upstream APIs fail for a ticker.
 // Values are plausible mid-cycle estimates, not random — ensures the UI
@@ -112,6 +113,7 @@ function buildGenericRisk(ticker: string, bd: ScoreBreakdown): string {
 export function mockFallback(ticker: string, horizonWeeks: number): RankedStock {
   const t = ticker.toUpperCase();
   const profile = MOCK_PROFILES[t];
+  const classification = classifyTicker(t);
 
   if (profile) {
     const breakdown = diversifyBreakdown(t, profile.breakdown);
@@ -134,6 +136,8 @@ export function mockFallback(ticker: string, horizonWeeks: number): RankedStock 
         catalystCount: 0,
         dataSource: 'mock',
         scoredAt: new Date().toISOString(),
+        sector: classification.sector,
+        subsector: classification.subsector,
         valuation,
       },
     };
@@ -169,6 +173,8 @@ export function mockFallback(ticker: string, horizonWeeks: number): RankedStock 
       catalystCount: 0,
       dataSource: 'mock',
       scoredAt: new Date().toISOString(),
+      sector: classification.sector,
+      subsector: classification.subsector,
       valuation,
     },
   };

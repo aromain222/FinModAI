@@ -16,15 +16,33 @@ import { scoreMultiple } from '@/lib/ranking/score';
 import { mockFallback } from '@/lib/ranking/mock';
 import { readCache } from '@/lib/ranking/rankCache';
 import { WATCHLIST } from '@/lib/ranking/watchlist';
-import type { RankResponse } from '@/lib/ranking/types';
+import {
+  attachClassification,
+  buildRankUniverse,
+  DEFAULT_RANK_UNIVERSE_SIZE,
+  MAX_RANK_UNIVERSE_SIZE,
+} from '@/lib/ranking/universe';
+import type { RankedStock, RankResponse } from '@/lib/ranking/types';
 
 export const dynamic     = 'force-dynamic';
 export const runtime     = 'nodejs';
 export const maxDuration = 60;
 
-const MAX_TICKERS = 500;
+const MAX_TICKERS = MAX_RANK_UNIVERSE_SIZE;
+const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const LIVE_FALLBACK_LIMIT = 240;
 const RANK_CACHE_TTL_MS = 30_000;
 const rankCache = new Map<string, { expiresAt: number; response: RankResponse }>();
+
+function fullUniverseWithFallback(
+  cached: RankedStock[],
+  horizonWeeks: number,
+  universe: readonly string[] = WATCHLIST,
+): RankedStock[] {
+  const byTicker = new Map(cached.map(stock => [stock.ticker.toUpperCase(), stock]));
+  const filled = universe.map(ticker => byTicker.get(ticker) ?? mockFallback(ticker, horizonWeeks));
+  return filled.sort((a, b) => b.score - a.score);
+}
 
 // ── Request schema ─────────────────────────────────────────────────────────
 
@@ -58,7 +76,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const { tickers, horizonWeeks } = parsed.data;
   const origin = new URL(req.url).origin;
-  const normalizedTickers = tickers.map((ticker) => ticker.toUpperCase());
+  const normalizedTickers = tickers.map((ticker) => ticker.toUpperCase().replace(/-/g, '.'));
   const cacheKey = `${horizonWeeks}:${normalizedTickers.join(',')}`;
   const cached = rankCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
@@ -102,20 +120,41 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 // ── GET: serve from Supabase cache, fall back to live scoring ─────────────
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  // Try Supabase cache first (max 4 hours old)
+  const { searchParams } = req.nextUrl;
+  const tickerParam  = searchParams.get('tickers');
+  const horizonParam = searchParams.get('horizonWeeks');
+  const limitParam   = searchParams.get('limit');
+  const horizonWeeks = horizonParam ? parseInt(horizonParam, 10) : 6;
+  const requestedLimit = limitParam ? parseInt(limitParam, 10) : DEFAULT_RANK_UNIVERSE_SIZE;
+  const universe = tickerParam
+    ? {
+        tickers: tickerParam.split(',').map(t => t.trim().toUpperCase().replace(/-/g, '.')).filter(Boolean),
+        metaByTicker: new Map(),
+        source: 'watchlist' as const,
+      }
+    : await buildRankUniverse(requestedLimit);
+
+  // Try Supabase cache first and fill any stale/missing names with deterministic
+  // fallback rows so the opportunity board can display the full 2,000-3,000 stock universe.
   try {
-    const cached = await readCache(4 * 60 * 60 * 1000);
+    const cached = await readCache(CACHE_MAX_AGE_MS);
     if (cached.length > 0) {
+      const stocks = attachClassification(
+        fullUniverseWithFallback(cached, horizonWeeks, universe.tickers),
+        universe.metaByTicker,
+      );
       const response: RankResponse = {
-        stocks: cached,
+        stocks,
         scoredAt: cached[0]?.meta.scoredAt ?? new Date().toISOString(),
-        horizonWeeks: 6,
+        horizonWeeks,
       };
       return NextResponse.json(response, {
         headers: {
           'Cache-Control': 'private, max-age=60',
-          'X-Ticker-Count': String(cached.length),
-          'X-Rank-Source': 'supabase-cache',
+          'X-Ticker-Count': String(stocks.length),
+          'X-Rank-Source': cached.length >= universe.tickers.length ? 'supabase-cache' : 'supabase-cache-plus-fallback',
+          'X-Universe-Source': universe.source,
+          'X-Cached-Ticker-Count': String(cached.length),
         },
       });
     }
@@ -124,22 +163,37 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   // Cold start or Supabase unavailable: score top tickers live
-  const { searchParams } = req.nextUrl;
-  const tickerParam  = searchParams.get('tickers');
-  const horizonParam = searchParams.get('horizonWeeks');
+  const tickers = universe.tickers;
 
-  const tickers = tickerParam
-    ? tickerParam.split(',').map(t => t.trim().toUpperCase()).filter(Boolean)
-    : WATCHLIST.slice(0, 100); // limit live fallback
+  const liveTickers = tickers.slice(0, tickerParam ? Math.min(tickers.length, MAX_TICKERS) : LIVE_FALLBACK_LIMIT);
+  const fallbackTickers = tickers.slice(liveTickers.length);
 
-  const horizonWeeks = horizonParam ? parseInt(horizonParam, 10) : 6;
+  let liveStocks;
+  try {
+    liveStocks = await scoreMultiple(liveTickers, new URL(req.url).origin, horizonWeeks);
+  } catch (err) {
+    console.error('[rank] live GET fallback failed:', err);
+    liveStocks = liveTickers.map(ticker => mockFallback(ticker, horizonWeeks));
+  }
 
-  const syntheticBody = JSON.stringify({ tickers, horizonWeeks });
-  const syntheticReq  = new NextRequest(req.url, {
-    method:  'POST',
-    body:    syntheticBody,
-    headers: { 'content-type': 'application/json' },
+  const fallbackStocks = fallbackTickers.map(ticker => mockFallback(ticker, horizonWeeks));
+  const stocks = attachClassification(
+    [...liveStocks, ...fallbackStocks].sort((a, b) => b.score - a.score),
+    universe.metaByTicker,
+  );
+  const response: RankResponse = {
+    stocks,
+    scoredAt: new Date().toISOString(),
+    horizonWeeks,
+  };
+
+  return NextResponse.json(response, {
+    headers: {
+      'Cache-Control': 'private, max-age=30',
+      'X-Ticker-Count': String(stocks.length),
+      'X-Rank-Source': fallbackTickers.length > 0 ? 'live-plus-fallback' : 'live',
+      'X-Universe-Source': universe.source,
+      'X-Live-Ticker-Count': String(liveStocks.length),
+    },
   });
-
-  return POST(syntheticReq);
 }

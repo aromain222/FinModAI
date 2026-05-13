@@ -19,6 +19,18 @@ export function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+export function setupLabel(signal: RankedStock['signal']): 'Ready' | 'Work Up' | 'Repair' {
+  if (signal === 'green') return 'Ready';
+  if (signal === 'yellow') return 'Work Up';
+  return 'Repair';
+}
+
+export function setupRead(signal: RankedStock['signal']): string {
+  if (signal === 'green') return 'confirmed enough to act if risk sizing works';
+  if (signal === 'yellow') return 'quality idea, but it needs a catalyst, forecast, or price trigger';
+  return 'not actionable until the thesis repairs';
+}
+
 export function factorLabel(factor: string): string {
   if (factor in SCORE_LABELS) return SCORE_LABELS[factor as ScoreFactor];
   return factor.replace(/([A-Z])/g, ' $1').replace(/[_-]+/g, ' ').trim().replace(/^./, c => c.toUpperCase());
@@ -120,7 +132,7 @@ export function pmConfidence(stock: RankedStock): { pct: number; level: string; 
 
   const finalPct = clampPct(pct);
   if (finalPct >= 78) return { pct: finalPct, level: 'High', read: aiRead ? 'score and AI Hedge Fund sentiment align' : 'strong multi-factor alignment', aiRead };
-  if (finalPct >= 66) return { pct: finalPct, level: 'Moderate-High', read: aiRead ? 'agent sentiment supports the setup with some caveats' : 'green signal with room to improve', aiRead };
+  if (finalPct >= 66) return { pct: finalPct, level: 'Moderate-High', read: aiRead ? 'agent sentiment supports the setup with some caveats' : 'ready setup with room to improve', aiRead };
   if (finalPct >= 54) return { pct: finalPct, level: 'Moderate', read: aiRead ? 'AI sentiment is not decisive enough for high confidence' : 'constructive but not confirmed', aiRead };
   if (finalPct >= 42) return { pct: finalPct, level: 'Low-Moderate', read: aiRead ? 'agent sentiment or factor spread limits confidence' : 'waiting for a clearer trigger', aiRead };
   return { pct: finalPct, level: 'Low', read: aiRead ? 'AI Hedge Fund sentiment conflicts with the setup' : 'weak factor alignment', aiRead };
@@ -148,10 +160,10 @@ export function tradeReadiness(stock: RankedStock): {
     return { label: 'Ready', reason: 'score and live forecast/catalyst context are aligned; size still depends on risk' };
   }
   if (stock.signal === 'green') {
-    return { label: 'Work up', reason: 'green opportunity, but needs live headline or forecast confirmation before sizing' };
+    return { label: 'Work up', reason: 'high-quality opportunity, but needs live headline or forecast confirmation before sizing' };
   }
   if (stock.signal === 'yellow') {
-    return { label: 'Work up', reason: `interesting but needs ${brief.watchItems[0]?.toLowerCase() ?? 'one catalyst'} to improve the setup` };
+    return { label: 'Work up', reason: `quality idea in development; needs ${brief.watchItems[0]?.toLowerCase() ?? 'one catalyst'} to become action-ready` };
   }
   return { label: 'Wait for catalyst', reason: 'risk/reward is not ready; wait for score factors to repair' };
 }
@@ -199,7 +211,7 @@ export function convictionGrade(stockOrScore: RankedStock | number, signal?: Ran
   const score = stockOrScore;
   const resolvedSignal = signal ?? signalFromOpportunityScore(score);
   if (resolvedSignal === 'green' && score >= 8.0)  return { level: 'High',          read: 'strong multi-factor alignment' };
-  if (resolvedSignal === 'green' && score >= 7.0)  return { level: 'Moderate-High', read: 'green signal with room to improve' };
+  if (resolvedSignal === 'green' && score >= 7.0)  return { level: 'Moderate-High', read: 'ready setup with room to improve' };
   if (resolvedSignal === 'yellow' && score >= 6.0) return { level: 'Moderate',      read: 'constructive but not confirmed' };
   if (resolvedSignal === 'yellow')                 return { level: 'Low-Moderate',  read: 'waiting for a clearer trigger' };
   if (score < 4.0)                         return { level: 'Low',           read: 'setup favors avoiding' };
@@ -294,7 +306,7 @@ export function thesisDrift(stock: RankedStock): string {
 export function forecastReconciliation(stock: RankedStock, expectedMove: ExpectedMoveContext): string {
   const timesfm = stock.meta.forecastReturnPct;
   const fmRead = timesfm == null ? 'Pending' : timesfm >= 4 ? 'Bullish' : timesfm <= -4 ? 'Bearish' : 'Neutral';
-  return `Score: ${capitalize(stock.signal)} | TimesFM: ${fmRead} | PM Bull: ${pmBullCaseRead(expectedMove)}`;
+  return `Setup: ${setupLabel(stock.signal)} | TimesFM: ${fmRead} | PM Bull: ${pmBullCaseRead(expectedMove)}`;
 }
 
 export function contextPrompt(
@@ -325,11 +337,11 @@ export function coreDebate(stock: RankedStock): string {
   if (stock.signal === 'green' && hasGap)
     return `${capitalize(topStr)} (${topVal.toFixed(1)}) drives the setup — does it hold before ${bottomStr} (${bottomVal.toFixed(1)}) limits the move?`;
   if (stock.signal === 'green')
-    return `Aligned green setup — trade needs ${watch} to confirm before sizing.`;
+    return `Ready setup — trade still needs ${watch} to confirm before sizing.`;
   if (stock.signal === 'yellow' && hasGap)
     return `${capitalize(topStr)} is constructive at ${topVal.toFixed(1)}, but ${bottomStr} (${bottomVal.toFixed(1)}) keeps this in work-up territory.`;
   if (stock.signal === 'yellow')
-    return `Interesting setup — not ready until ${watch} confirms the opportunity.`;
+    return `Work-up setup — this can still be a strong company, but the trade needs ${watch} to confirm.`;
   if (stock.signal === 'red' && hasGap)
     return `${capitalize(bottomStr)} (${bottomVal.toFixed(1)}) is dragging the score — recovery depends on ${topStr} (${topVal.toFixed(1)}) repair.`;
   return `Weak setup — avoid until factors repair and ${watch} confirms.`;

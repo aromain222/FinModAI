@@ -48,6 +48,14 @@ function fmtUsd(value: number | null | undefined): string {
   return `${sign}$${Math.round(Math.abs(value)).toLocaleString('en-US')}`;
 }
 
+function positionShares(position: ActivePosition): number | null {
+  if (typeof position.shares === 'number' && Number.isFinite(position.shares) && position.shares > 0) return position.shares;
+  if (typeof position.notionalUsd === 'number' && Number.isFinite(position.notionalUsd) && position.notionalUsd > 0 && position.entryPrice > 0) {
+    return position.notionalUsd / position.entryPrice;
+  }
+  return null;
+}
+
 type Props = {
   position: ActivePosition;
   quote?: StockQuote;
@@ -107,11 +115,19 @@ export function PositionCard({
   const [priceInput,   setPriceInput]   = useState('');
 
   const livePrice   = quote?.price ?? position.currentPrice;
-  const pctChange   = ((livePrice - position.entryPrice) / position.entryPrice) * 100;
-  const dollarPnL   =
-    typeof position.notionalUsd === 'number' && Number.isFinite(position.notionalUsd)
-      ? position.notionalUsd * (pctChange / 100)
-      : null;
+  const shares      = positionShares(position);
+  const costBasis   = typeof position.costBasis === 'number' && Number.isFinite(position.costBasis) && position.costBasis > 0
+    ? position.costBasis
+    : shares !== null
+      ? shares * position.entryPrice
+      : typeof position.notionalUsd === 'number' && Number.isFinite(position.notionalUsd) && position.notionalUsd > 0
+        ? position.notionalUsd
+        : null;
+  const marketValue = shares !== null ? shares * livePrice : null;
+  const dollarPnL   = marketValue !== null && costBasis !== null ? marketValue - costBasis : null;
+  const pctChange   = costBasis !== null && costBasis > 0 && dollarPnL !== null
+    ? (dollarPnL / costBasis) * 100
+    : ((livePrice - position.entryPrice) / position.entryPrice) * 100;
   const scoreDelta  = position.currentScore - position.entryScore;
   const drift       = driftBadge(position.thesisDrift);
   const todayPct    = quote?.changePct ?? null;
@@ -135,9 +151,14 @@ export function PositionCard({
             {STATUS_LABELS[position.status]}
           </span>
           <span className={cn('text-[11px] font-medium', drift.cls)}>{drift.label}</span>
-          {typeof position.notionalUsd === 'number' && Number.isFinite(position.notionalUsd) && position.notionalUsd > 0 && (
+          {costBasis !== null && (
             <span className="rounded-full border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-2 py-0.5 text-[10px] font-medium text-[var(--cb-text-muted)]">
-              {fmtUsd(position.notionalUsd)} tracked
+              {fmtUsd(costBasis)} cost basis
+            </span>
+          )}
+          {shares !== null && (
+            <span className="rounded-full border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-2 py-0.5 text-[10px] font-medium text-[var(--cb-text-muted)]">
+              {shares.toFixed(4)} sh
             </span>
           )}
           {isLive && (
@@ -200,6 +221,11 @@ export function PositionCard({
             ${livePrice.toFixed(2)}
           </span>
         </span>
+        {marketValue !== null && (
+          <span className="text-[var(--cb-text-muted)]">
+            Market value <span className="tabular-nums font-semibold text-[var(--cb-text-primary)]">{fmtUsd(marketValue)}</span>
+          </span>
+        )}
         <span className="text-[var(--cb-text-muted)]">
           Score{' '}
           <span className="tabular-nums text-[var(--cb-text-primary)]">

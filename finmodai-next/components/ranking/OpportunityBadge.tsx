@@ -10,9 +10,9 @@ type Props = {
 };
 
 const CONFIG: Record<Signal, { label: string; classes: string; dot: string }> = {
-  green:  { label: 'BUY',   classes: 'bg-emerald-500/15 text-emerald-400 ring-emerald-500/30',  dot: 'bg-emerald-400' },
-  yellow: { label: 'WATCH', classes: 'bg-amber-500/15   text-amber-400   ring-amber-500/30',    dot: 'bg-amber-400'   },
-  red:    { label: 'AVOID', classes: 'bg-rose-500/15    text-rose-400    ring-rose-500/30',      dot: 'bg-rose-400'    },
+  green:  { label: 'READY',   classes: 'bg-emerald-500/15 text-emerald-400 ring-emerald-500/30',  dot: 'bg-emerald-400' },
+  yellow: { label: 'WORK UP', classes: 'bg-amber-500/15   text-amber-400   ring-amber-500/30',    dot: 'bg-amber-400'   },
+  red:    { label: 'REPAIR',  classes: 'bg-rose-500/15    text-rose-400    ring-rose-500/30',      dot: 'bg-rose-400'    },
 };
 
 const SIZE = {

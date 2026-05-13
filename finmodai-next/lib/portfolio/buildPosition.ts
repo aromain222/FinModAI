@@ -3,9 +3,9 @@ import { getCompanyBrief } from '@/lib/ranking/companyBriefs';
 import type { ActivePosition } from './types';
 
 function stanceFromSignal(signal: RankedStock['signal']): string {
-  if (signal === 'green') return 'Build position';
-  if (signal === 'red')   return 'Avoid';
-  return 'Watch';
+  if (signal === 'green') return 'Ready to build';
+  if (signal === 'red')   return 'Repair before adding';
+  return 'Work up before sizing';
 }
 
 function computeStatus(score: number, daysSinceEntry: number): ActivePosition['status'] {
@@ -19,6 +19,7 @@ export function buildPositionFromRankedStock(
   stock: RankedStock,
   entryPrice: number,
   notionalUsd?: number | null,
+  sharesInput?: number | null,
 ): ActivePosition {
   const brief = getCompanyBrief(stock.ticker);
   const now   = new Date();
@@ -28,6 +29,16 @@ export function buildPositionFromRankedStock(
   const nextCatalyst = topCatalyst
     ? `${topCatalyst.title} (${topCatalyst.direction})`
     : `Watch ${brief.watchItems[0] ?? 'upcoming catalyst'}`;
+  const shares = typeof sharesInput === 'number' && Number.isFinite(sharesInput) && sharesInput > 0
+    ? sharesInput
+    : typeof notionalUsd === 'number' && Number.isFinite(notionalUsd) && notionalUsd > 0 && entryPrice > 0
+      ? notionalUsd / entryPrice
+      : null;
+  const costBasis = shares !== null
+    ? shares * entryPrice
+    : typeof notionalUsd === 'number' && Number.isFinite(notionalUsd) && notionalUsd > 0
+      ? notionalUsd
+      : null;
 
   return {
     id,
@@ -35,7 +46,9 @@ export function buildPositionFromRankedStock(
     entryDate:     now.toISOString(),
     entryPrice,
     currentPrice:  entryPrice,
-    notionalUsd:   typeof notionalUsd === 'number' && Number.isFinite(notionalUsd) && notionalUsd > 0 ? notionalUsd : null,
+    shares,
+    costBasis,
+    notionalUsd:   costBasis,
     entryScore:    stock.score,
     currentScore:  stock.score,
     entrySignal:   stock.signal,
@@ -51,7 +64,7 @@ export function buildPositionFromRankedStock(
       {
         id:          `${id}-entry`,
         date:        now.toISOString(),
-        description: `Position opened at $${entryPrice.toFixed(2)}${typeof notionalUsd === 'number' && Number.isFinite(notionalUsd) && notionalUsd > 0 ? ` with $${Math.round(notionalUsd).toLocaleString('en-US')} tracked` : ''}. ${stock.primaryReason}`,
+        description: `Position opened at $${entryPrice.toFixed(2)}${shares !== null ? ` for ${shares.toFixed(4)} shares` : ''}${costBasis !== null ? ` ($${Math.round(costBasis).toLocaleString('en-US')} cost basis)` : ''}. ${stock.primaryReason}`,
         kind:        'entry',
       },
     ],

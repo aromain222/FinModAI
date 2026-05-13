@@ -16,6 +16,7 @@ class AnalyzeRequest(BaseModel):
     ticker: str
     date: Optional[str] = None
     analysts: Optional[list[str]] = None
+    timeout_seconds: Optional[int] = 40
 
 
 class AnalystReports(BaseModel):
@@ -123,8 +124,14 @@ async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
 
     try:
         loop = asyncio.get_event_loop()
-        state, decision = await loop.run_in_executor(
-            None, _run_analysis, ticker, date_str, analysts
+        state, decision = await asyncio.wait_for(
+            loop.run_in_executor(None, _run_analysis, ticker, date_str, analysts),
+            timeout=max(10, min(req.timeout_seconds or 40, 120)),
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=504,
+            detail="TradingAgents analysis timed out. Use fewer analysts or run as an async/background job.",
         )
     except Exception as exc:
         logger.exception("TradingAgents analysis failed for %s", ticker)

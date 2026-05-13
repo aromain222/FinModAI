@@ -6,6 +6,7 @@ import type { ActivePosition } from '@/lib/portfolio/types';
 import type { StockQuote } from '@/app/api/quotes/route';
 import type { ClassifiedNewsItem, LabelKey } from '@/lib/portfolio/newsClassify';
 import { LABEL_STYLE } from '@/lib/portfolio/newsClassify';
+import { setupLabel } from '@/lib/ranking/chatHelpers';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -67,20 +68,37 @@ function topNewsLabel(items: ClassifiedNewsItem[] | undefined): LabelKey | null 
   return null;
 }
 
+function positionShares(position: ActivePosition): number | null {
+  if (typeof position.shares === 'number' && Number.isFinite(position.shares) && position.shares > 0) return position.shares;
+  if (typeof position.notionalUsd === 'number' && Number.isFinite(position.notionalUsd) && position.notionalUsd > 0 && position.entryPrice > 0) {
+    return position.notionalUsd / position.entryPrice;
+  }
+  return null;
+}
+
+function costBasis(position: ActivePosition): number {
+  if (typeof position.costBasis === 'number' && Number.isFinite(position.costBasis) && position.costBasis > 0) return position.costBasis;
+  const shares = positionShares(position);
+  if (shares !== null) return shares * position.entryPrice;
+  return typeof position.notionalUsd === 'number' && Number.isFinite(position.notionalUsd) ? (position.notionalUsd ?? 0) : 0;
+}
+
 export function PortfolioRiskDashboard({ positions, quotes, newsMap }: Props) {
   const active = useMemo(() => positions.filter(p => p.status !== 'exited'), [positions]);
 
   const m = useMemo(() => {
     const withCap = active.filter(
-      p => typeof p.notionalUsd === 'number' && Number.isFinite(p.notionalUsd) && (p.notionalUsd ?? 0) > 0,
+      p => costBasis(p) > 0,
     );
-    const totalCapital = withCap.reduce((s, p) => s + (p.notionalUsd ?? 0), 0);
+    const totalCapital = withCap.reduce((s, p) => s + costBasis(p), 0);
 
     const rows = active.map(p => {
       const livePrice = quotes.get(p.ticker)?.price ?? p.currentPrice;
-      const pct = ((livePrice - p.entryPrice) / p.entryPrice) * 100;
-      const notional = typeof p.notionalUsd === 'number' && Number.isFinite(p.notionalUsd) ? (p.notionalUsd ?? 0) : 0;
-      const dollarPnl = notional > 0 ? notional * (pct / 100) : null;
+      const shares = positionShares(p);
+      const notional = costBasis(p);
+      const marketValue = shares !== null ? shares * livePrice : notional > 0 ? notional * (livePrice / p.entryPrice) : 0;
+      const dollarPnl = notional > 0 ? marketValue - notional : null;
+      const pct = notional > 0 && dollarPnl !== null ? (dollarPnl / notional) * 100 : ((livePrice - p.entryPrice) / p.entryPrice) * 100;
       const todayPct = quotes.get(p.ticker)?.changePct ?? null;
       const pctOfBook = totalCapital > 0 && notional > 0 ? (notional / totalCapital) * 100 : null;
       return { p, pct, dollarPnl, todayPct, notional, pctOfBook };
@@ -92,7 +110,7 @@ export function PortfolioRiskDashboard({ positions, quotes, newsMap }: Props) {
     const dailyPnl = withCap.reduce((s, p) => {
       const q = quotes.get(p.ticker);
       if (!q?.price || !q.changePct) return s;
-      const notional = typeof p.notionalUsd === 'number' && Number.isFinite(p.notionalUsd) ? (p.notionalUsd ?? 0) : 0;
+      const notional = costBasis(p);
       const prevPrice = q.price / (1 + q.changePct / 100);
       return s + notional * ((q.price - prevPrice) / prevPrice);
     }, 0);
@@ -168,7 +186,7 @@ export function PortfolioRiskDashboard({ positions, quotes, newsMap }: Props) {
             {(['green', 'yellow', 'red'] as const).map(sig =>
               m.signalCounts[sig] > 0 ? (
                 <div key={sig} className="text-center">
-                  <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)] capitalize">{sig}</div>
+                  <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">{setupLabel(sig)}</div>
                   <div className={cn('text-lg font-bold tabular-nums', signalColor(sig))}>{m.signalCounts[sig]}</div>
                 </div>
               ) : null,
@@ -251,7 +269,7 @@ export function PortfolioRiskDashboard({ positions, quotes, newsMap }: Props) {
             <thead>
               <tr className="border-b border-[var(--cb-border)] text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">
                 <th className="px-4 py-2 text-left">Ticker</th>
-                <th className="px-3 py-2 text-center">Signal</th>
+                <th className="px-3 py-2 text-center">Setup</th>
                 <th className="px-3 py-2 text-center">PM Action</th>
                 <th className="px-3 py-2 text-right">Score</th>
                 <th className="px-3 py-2 text-right">P&amp;L</th>
@@ -268,8 +286,8 @@ export function PortfolioRiskDashboard({ positions, quotes, newsMap }: Props) {
                   <tr key={p.id} className="border-b border-[var(--cb-border)] last:border-0 transition-colors hover:bg-[var(--cb-surface-subtle)]">
                     <td className="px-4 py-2.5 font-bold text-[var(--cb-text-primary)]">{p.ticker}</td>
                     <td className="px-3 py-2.5 text-center">
-                      <span className={cn('rounded-full border px-1.5 py-0.5 text-[9px] font-semibold capitalize', signalBadge(p.currentSignal))}>
-                        {p.currentSignal}
+                      <span className={cn('rounded-full border px-1.5 py-0.5 text-[9px] font-semibold', signalBadge(p.currentSignal))}>
+                        {setupLabel(p.currentSignal)}
                       </span>
                     </td>
                     <td className="px-3 py-2.5 text-center">
