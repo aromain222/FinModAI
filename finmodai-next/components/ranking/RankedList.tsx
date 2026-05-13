@@ -288,14 +288,14 @@ export function RankedList({ initial }: Props) {
                       )}
                       {/* AI verdict badge — shown when hedge fund has run */}
                       {(() => {
-                        const action = parseAiAction(stock.primaryReason);
+                        const action = stock.meta.aiHedgeFund?.action.toLowerCase() ?? parseAiAction(stock.primaryReason);
                         if (!action) return null;
                         return (
                           <span className={cn(
                             'rounded px-1 text-[9px] font-bold uppercase tracking-wide ring-1',
                             AI_ACTION_STYLE[action],
                           )}>
-                            {action}
+                            AI {action}
                           </span>
                         );
                       })()}

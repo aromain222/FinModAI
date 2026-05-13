@@ -52,7 +52,7 @@ export function PMDecisionStrip({ stock, displayedScore, scoreChange }: Props) {
   }, [stock]);
 
   const expectedMove = expectedMoveForDisplay(stock);
-  const conviction   = convictionGrade(stock.score, stock.signal);
+  const conviction   = convictionGrade(stock);
   const pmView       = finalPmRead(stock, expectedMove);
   const nextCatalyst = keyCatalystStr(stock);
   const factors      = sortedFactors(stock);
@@ -121,12 +121,18 @@ export function PMDecisionStrip({ stock, displayedScore, scoreChange }: Props) {
           </span>
         </div>
         <div className="ml-auto flex items-center gap-1 text-[10px] text-[var(--cb-text-muted)]">
-          Conviction
+          Confidence
           <span className={cn('font-semibold', CONV_COLOR[conviction.level] ?? 'text-[var(--cb-text-secondary)]')}>
-            {conviction.level}
+            {conviction.pct ?? '--'}%
           </span>
         </div>
       </div>
+
+      {conviction.aiRead && (
+        <div className="mb-3 rounded-lg border border-blue-400/20 bg-blue-500/8 px-3 py-2 text-[11px] leading-snug text-blue-100/85">
+          <span className="font-semibold text-blue-200">Confidence link:</span> {conviction.aiRead}
+        </div>
+      )}
 
       {/* What matters / drag / next catalyst */}
       <div className={cn('grid gap-x-5 gap-y-2 text-[11px]', showDrag ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>

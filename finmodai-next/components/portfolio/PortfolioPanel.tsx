@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,6 +25,7 @@ export function PortfolioPanel() {
   const [newsMap,    setNewsMap]    = useState<Map<string, ClassifiedNewsItem[]>>(new Map());
   const [monitoring, setMonitoring] = useState<Set<string>>(new Set());
   const [showExited, setShowExited] = useState(false);
+  const autoMonitorRef = useRef<Set<string>>(new Set());
 
   // Sync from storage
   useEffect(() => {
@@ -42,6 +43,7 @@ export function PortfolioPanel() {
     () => positions.filter(p => p.status !== 'exited').map(p => p.ticker),
     [positions],
   );
+  const activeTickerKey = activeTickers.join(',');
 
   // Auto-fetch live quotes every 60s
   useEffect(() => {
@@ -66,7 +68,7 @@ export function PortfolioPanel() {
     fetchLivePrices();
     const interval = window.setInterval(fetchLivePrices, 60_000);
     return () => window.clearInterval(interval);
-  }, [activeTickers.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTickerKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch news for active tickers (once per ticker, no polling)
   useEffect(() => {
@@ -91,16 +93,16 @@ export function PortfolioPanel() {
     }
 
     fetchAllNews();
-  }, [activeTickers.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTickerKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const active  = positions.filter(p => p.status !== 'exited');
-  const exited  = positions.filter(p => p.status === 'exited');
+  const active  = useMemo(() => positions.filter(p => p.status !== 'exited'), [positions]);
+  const exited  = useMemo(() => positions.filter(p => p.status === 'exited'), [positions]);
   const visible = showExited ? positions : active;
 
   const handleUpdatePrice = (id: string, price: number) => setPositions(updateCurrentPrice(id, price));
   const handleExit        = (id: string) => setPositions(exitPosition(id));
   const handleRemove      = (id: string) => setPositions(removePosition(id));
-  const handleRefreshMonitor = async (position: ActivePosition) => {
+  const handleRefreshMonitor = useCallback(async (position: ActivePosition) => {
     setMonitoring(prev => new Set(prev).add(position.id));
     try {
       const res = await fetch('/api/portfolio/monitor', {
@@ -123,7 +125,24 @@ export function PortfolioPanel() {
         return next;
       });
     }
-  };
+  }, [newsMap, quotes]);
+
+  useEffect(() => {
+    if (active.length === 0) return;
+    const now = Date.now();
+    const staleAfterMs = 30 * 60 * 1000;
+    for (const position of active) {
+      if (autoMonitorRef.current.has(position.id)) continue;
+      if (!newsMap.has(position.ticker)) continue;
+      const monitorAt = position.latestMonitor?.asOf
+        ? new Date(position.latestMonitor.asOf).getTime()
+        : 0;
+      const isStale = !monitorAt || Number.isNaN(monitorAt) || now - monitorAt > staleAfterMs;
+      if (!isStale) continue;
+      autoMonitorRef.current.add(position.id);
+      void handleRefreshMonitor(position);
+    }
+  }, [active, handleRefreshMonitor, newsMap]);
 
   return (
     <div className="space-y-4">

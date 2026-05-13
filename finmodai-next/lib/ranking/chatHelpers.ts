@@ -56,11 +56,88 @@ export function hasForecastConflict(stock: RankedStock): boolean {
   return (stock.signal === 'green' && forecast <= -2) || (stock.signal === 'red' && forecast >= 2);
 }
 
+function clampPct(n: number): number {
+  return Math.min(92, Math.max(25, Math.round(n)));
+}
+
+function aiActionDirection(action: string): 'bullish' | 'bearish' | 'neutral' {
+  const normalized = action.toLowerCase();
+  if (normalized === 'buy' || normalized === 'cover') return 'bullish';
+  if (normalized === 'sell' || normalized === 'short') return 'bearish';
+  return 'neutral';
+}
+
+function stockSignalDirection(signal: RankedStock['signal']): 'bullish' | 'bearish' | 'neutral' {
+  if (signal === 'green') return 'bullish';
+  if (signal === 'red') return 'bearish';
+  return 'neutral';
+}
+
+export function aiHedgeFundAlignment(stock: RankedStock): 'confirms' | 'conflicts' | 'mixed' | null {
+  const ai = stock.meta.aiHedgeFund;
+  if (!ai) return null;
+  const aiDirection = aiActionDirection(ai.action);
+  const stockDirection = stockSignalDirection(stock.signal);
+  if (aiDirection === 'neutral' || stockDirection === 'neutral') return 'mixed';
+  return aiDirection === stockDirection ? 'confirms' : 'conflicts';
+}
+
+export function aiHedgeFundRead(stock: RankedStock): string | null {
+  const ai = stock.meta.aiHedgeFund;
+  if (!ai) return null;
+  const alignment = aiHedgeFundAlignment(stock) ?? ai.alignment;
+  const bullPct = Math.round(ai.bullPct * 100);
+  const verb = alignment === 'confirms'
+    ? 'confirms'
+    : alignment === 'conflicts'
+      ? 'pushes against'
+      : 'is mixed on';
+  return `AI Hedge Fund ${verb} the score: ${ai.action.toUpperCase()} at ${ai.confidence}% confidence (${bullPct}% bull, ${ai.bearish} bear).`;
+}
+
+export function pmConfidence(stock: RankedStock): { pct: number; level: string; read: string; aiRead: string | null } {
+  const factorSpread = sortedFactors(stock);
+  const top = factorSpread[0]?.[1] ?? stock.score;
+  const bottom = factorSpread[factorSpread.length - 1]?.[1] ?? stock.score;
+  const factorPenalty = Math.max(0, top - bottom - 2) * 3;
+  let pct = 34 + stock.score * 5.2 - factorPenalty;
+  const ai = stock.meta.aiHedgeFund;
+  let aiRead: string | null = null;
+
+  if (ai) {
+    const total = Math.max(1, ai.bullish + ai.bearish + ai.neutral);
+    const directionalStrength = Math.abs(ai.bullish - ai.bearish) / total;
+    const confidenceEdge = Math.max(0, ai.confidence - 50) / 50;
+    const alignment = aiHedgeFundAlignment(stock) ?? ai.alignment;
+    const impact = 7 + directionalStrength * 10 + confidenceEdge * 6;
+
+    if (alignment === 'confirms') pct += impact;
+    else if (alignment === 'conflicts') pct -= impact * 1.35;
+    else pct -= 3;
+
+    aiRead = aiHedgeFundRead(stock);
+  }
+
+  const finalPct = clampPct(pct);
+  if (finalPct >= 78) return { pct: finalPct, level: 'High', read: aiRead ? 'score and AI Hedge Fund sentiment align' : 'strong multi-factor alignment', aiRead };
+  if (finalPct >= 66) return { pct: finalPct, level: 'Moderate-High', read: aiRead ? 'agent sentiment supports the setup with some caveats' : 'green signal with room to improve', aiRead };
+  if (finalPct >= 54) return { pct: finalPct, level: 'Moderate', read: aiRead ? 'AI sentiment is not decisive enough for high confidence' : 'constructive but not confirmed', aiRead };
+  if (finalPct >= 42) return { pct: finalPct, level: 'Low-Moderate', read: aiRead ? 'agent sentiment or factor spread limits confidence' : 'waiting for a clearer trigger', aiRead };
+  return { pct: finalPct, level: 'Low', read: aiRead ? 'AI Hedge Fund sentiment conflicts with the setup' : 'weak factor alignment', aiRead };
+}
+
 export function tradeReadiness(stock: RankedStock): {
   label: 'Ready' | 'Work up' | 'Wait for catalyst';
   reason: string;
 } {
   const brief = getCompanyBrief(stock.ticker);
+  const aiAlignment = aiHedgeFundAlignment(stock);
+  if (aiAlignment === 'conflicts') {
+    return {
+      label: 'Wait for catalyst',
+      reason: 'AI Hedge Fund sentiment conflicts with the opportunity score; wait for price, news, or estimates to resolve the disagreement',
+    };
+  }
   if (hasForecastConflict(stock)) {
     return {
       label: 'Wait for catalyst',
@@ -115,11 +192,16 @@ export function factorInterpretation(stock: RankedStock, key: ScoreFactor, value
   return '';
 }
 
-export function convictionGrade(score: number, signal: RankedStock['signal']): { level: string; read: string } {
-  if (signal === 'green' && score >= 8.0)  return { level: 'High',          read: 'strong multi-factor alignment' };
-  if (signal === 'green' && score >= 7.0)  return { level: 'Moderate-High', read: 'green signal with room to improve' };
-  if (signal === 'yellow' && score >= 6.0) return { level: 'Moderate',      read: 'constructive but not confirmed' };
-  if (signal === 'yellow')                 return { level: 'Low-Moderate',  read: 'waiting for a clearer trigger' };
+export function convictionGrade(stockOrScore: RankedStock | number, signal?: RankedStock['signal']): { level: string; read: string; pct?: number; aiRead?: string | null } {
+  if (typeof stockOrScore !== 'number') {
+    return pmConfidence(stockOrScore);
+  }
+  const score = stockOrScore;
+  const resolvedSignal = signal ?? signalFromOpportunityScore(score);
+  if (resolvedSignal === 'green' && score >= 8.0)  return { level: 'High',          read: 'strong multi-factor alignment' };
+  if (resolvedSignal === 'green' && score >= 7.0)  return { level: 'Moderate-High', read: 'green signal with room to improve' };
+  if (resolvedSignal === 'yellow' && score >= 6.0) return { level: 'Moderate',      read: 'constructive but not confirmed' };
+  if (resolvedSignal === 'yellow')                 return { level: 'Low-Moderate',  read: 'waiting for a clearer trigger' };
   if (score < 4.0)                         return { level: 'Low',           read: 'setup favors avoiding' };
   return                                          { level: 'Low',           read: 'weak factor alignment' };
 }

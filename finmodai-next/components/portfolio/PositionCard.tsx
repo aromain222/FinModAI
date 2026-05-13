@@ -67,6 +67,31 @@ function actionBadge(action: NonNullable<ActivePosition['latestMonitor']>['actio
   return 'border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] text-[var(--cb-text-muted)]';
 }
 
+function actionTone(action: NonNullable<ActivePosition['latestMonitor']>['action']): string {
+  if (action === 'Add')  return 'border-emerald-400/30 bg-emerald-500/10';
+  if (action === 'Hold') return 'border-blue-400/30 bg-blue-500/10';
+  if (action === 'Trim') return 'border-amber-400/30 bg-amber-500/10';
+  if (action === 'Exit') return 'border-rose-400/30 bg-rose-500/10';
+  return 'border-[var(--cb-border-subtle)] bg-black/10';
+}
+
+function actionLabel(action: NonNullable<ActivePosition['latestMonitor']>['action']): string {
+  if (action === 'Add') return 'Add / press';
+  if (action === 'Hold') return 'Hold';
+  if (action === 'Trim') return 'Trim risk';
+  if (action === 'Exit') return 'Exit watch';
+  return 'Watch';
+}
+
+function monitorSummary(monitor: ActivePosition['latestMonitor']): string {
+  if (!monitor) return 'Checking whether price, score, news, and agents still support the original thesis.';
+  if (monitor.action === 'Add') return 'Thesis is improving and risk checks are not blocking.';
+  if (monitor.action === 'Hold') return 'Thesis is intact; keep monitoring the next catalyst.';
+  if (monitor.action === 'Trim') return 'Upside is less clean or the position is extended; harvest some risk.';
+  if (monitor.action === 'Exit') return 'Original thesis is no longer supported by score, news, or agents.';
+  return 'No clean add or exit signal yet; wait for confirmation.';
+}
+
 export function PositionCard({
   position,
   quote,
@@ -218,13 +243,13 @@ export function PositionCard({
       </div>
 
       {/* Position monitor */}
-      <div className="mt-3 rounded-xl border border-[var(--cb-border-subtle)] bg-black/10 p-3">
+      <div className={cn('mt-3 rounded-xl border p-3 transition-colors', monitor ? actionTone(monitor.action) : 'border-[var(--cb-border-subtle)] bg-black/10')}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-blue-300" />
             <div>
-              <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">Position Monitor</div>
-              <div className="text-xs text-[var(--cb-text-muted)]">Price + score + news + agent checks</div>
+              <div className="text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">PM Monitor</div>
+              <div className="text-xs text-[var(--cb-text-muted)]">Price + score + news + AI agent checks</div>
             </div>
           </div>
           <button
@@ -234,7 +259,7 @@ export function PositionCard({
             className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--cb-border)] px-2.5 py-1 text-[11px] font-semibold text-[var(--cb-text-secondary)] transition-colors hover:border-blue-400/40 hover:text-blue-300 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <RefreshCw className={cn('h-3 w-3', isRefreshingMonitor && 'animate-spin')} />
-            {isRefreshingMonitor ? 'Checking' : 'Refresh monitor'}
+            {isRefreshingMonitor ? 'Checking' : monitor ? 'Recheck thesis' : 'Check thesis'}
           </button>
         </div>
 
@@ -242,18 +267,31 @@ export function PositionCard({
           <div className="mt-3 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide', actionBadge(monitor.action))}>
-                {monitor.action}
+                {actionLabel(monitor.action)}
               </span>
               <span className="text-[11px] text-[var(--cb-text-muted)]">
                 {monitor.confidence}% confidence · {new Date(monitor.asOf).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
               </span>
             </div>
-            <p className="text-sm font-medium text-[var(--cb-text-primary)]">{monitor.exitTrigger}</p>
+            <p className="text-sm font-semibold text-[var(--cb-text-primary)]">{monitorSummary(monitor)}</p>
+            <p className="text-[11px] leading-snug text-[var(--cb-text-muted)]">{monitor.exitTrigger}</p>
             <div className="grid gap-2 text-[11px] text-[var(--cb-text-muted)] sm:grid-cols-2">
-              <p>{monitor.priceRead}</p>
-              <p>{monitor.scoreRead}</p>
-              <p>{monitor.newsRead}</p>
-              <p>{monitor.agentRead}</p>
+              <div>
+                <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Price</div>
+                <p>{monitor.priceRead}</p>
+              </div>
+              <div>
+                <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Score</div>
+                <p>{monitor.scoreRead}</p>
+              </div>
+              <div>
+                <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">News</div>
+                <p>{monitor.newsRead}</p>
+              </div>
+              <div>
+                <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Agents</div>
+                <p>{monitor.agentRead}</p>
+              </div>
             </div>
             {monitor.riskFlags.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
@@ -279,7 +317,9 @@ export function PositionCard({
           </div>
         ) : (
           <p className="mt-3 text-[11px] text-[var(--cb-text-muted)]">
-            Run this after adding a position to judge whether the original thesis is still intact or if it is time to trim/exit.
+            {isRefreshingMonitor
+              ? 'Running the first thesis check now.'
+              : 'This will auto-check after news and price context load, or run it now to judge whether the original thesis is still intact.'}
           </p>
         )}
       </div>

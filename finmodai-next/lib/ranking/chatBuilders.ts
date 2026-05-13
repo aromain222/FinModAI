@@ -26,7 +26,7 @@ export function buildSwingThesis(
   } = {},
 ): string {
   const [topK, topV] = topFactor(stock);
-  const conviction   = convictionGrade(stock.score, stock.signal);
+  const conviction   = convictionGrade(stock);
   const signalWord   = stock.signal === 'green' ? 'GREEN' : stock.signal === 'yellow' ? 'YELLOW' : 'RED';
   return [
     `Signal: ${signalWord} · ${stock.score.toFixed(1)}/10`,
@@ -37,6 +37,7 @@ export function buildSwingThesis(
     `Risk: ${options.risk ?? resolvedRisk(stock)}`,
     `Trade View: ${options.tradeView ?? tradeViewStr(stock)}`,
     `Conviction: ${conviction.level} — ${conviction.read}`,
+    ...(conviction.aiRead ? [`AI Sentiment: ${conviction.aiRead}`] : []),
     `Thesis Drift: ${thesisDrift(stock)}`,
   ].join('\n');
 }

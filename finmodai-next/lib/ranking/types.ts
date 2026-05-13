@@ -65,6 +65,18 @@ export type CryptoMarketRegime = {
   pmRead: string;
 };
 
+export type AiHedgeFundSentiment = {
+  action: string;
+  bullish: number;
+  bearish: number;
+  neutral: number;
+  confidence: number;
+  bullPct: number;
+  netBias: number;
+  alignment: 'confirms' | 'conflicts' | 'mixed';
+  updatedAt: string;
+};
+
 export type RankedStock = {
   ticker: string;
   /** Weighted composite, clamped [1, 10], rounded to 1 dp. */
@@ -85,6 +97,7 @@ export type RankedStock = {
     valuation?: ValuationSignalSummary;
     catalysts?: RankedCatalyst[];
     cryptoRegime?: CryptoMarketRegime | null;
+    aiHedgeFund?: AiHedgeFundSentiment;
   };
 };
 

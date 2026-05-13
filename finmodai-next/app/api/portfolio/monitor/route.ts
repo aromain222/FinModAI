@@ -134,6 +134,14 @@ function agentBias(reads: PositionMonitorAgentRead[]): number {
   }, 0);
 }
 
+function stanceDirection(read: PositionMonitorAgentRead | undefined): 'positive' | 'negative' | 'neutral' {
+  if (!read) return 'neutral';
+  const text = `${read.stance} ${read.read}`.toLowerCase();
+  if (/\b(buy|bull|bullish|overweight|add|positive)\b/.test(text)) return 'positive';
+  if (/\b(sell|bear|bearish|underweight|short|exit|negative)\b/.test(text)) return 'negative';
+  return 'neutral';
+}
+
 function newsRead(news: ClassifiedNewsItem[]): { read: string; riskCount: number; estimateCount: number; positioningCount: number } {
   const riskCount = news.filter(item => item.label === 'Risk').length;
   const estimateCount = news.filter(item => item.label === 'Estimate').length;
@@ -169,6 +177,8 @@ function buildMonitor(params: {
   const updatedSignal = rank?.signal ?? signalFromScore(updatedScore);
   const newsState = newsRead(news);
   const bias = agentBias(agentReads);
+  const hedgeRead = agentReads.find(read => read.source === 'hedge_fund');
+  const hedgeDirection = stanceDirection(hedgeRead);
 
   const riskFlags: string[] = [];
   if (pnlPct >= 15) riskFlags.push('position is extended versus entry');
@@ -193,14 +203,28 @@ function buildMonitor(params: {
     action = 'Watch';
   }
 
+  const actionWantsNegativeEvidence = action === 'Trim' || action === 'Exit';
+  const agentSupport =
+    action === 'Watch'
+      ? Math.max(0, 1 - Math.abs(bias))
+      : actionWantsNegativeEvidence
+        ? -bias
+        : bias;
+  const hedgeConflict =
+    hedgeDirection === 'negative' && (action === 'Add' || action === 'Hold') ||
+    hedgeDirection === 'positive' && (action === 'Trim' || action === 'Exit');
   const confidence = clamp(
-    48 +
-      Math.min(18, Math.abs(scoreDelta) * 7) +
-      Math.min(12, Math.abs(pnlPct) * 0.8) +
-      agentReads.length * 4 +
-      newsState.riskCount * 3,
-    35,
-    88,
+    46 +
+      Math.min(16, Math.abs(scoreDelta) * 6) +
+      Math.min(10, Math.abs(pnlPct) * 0.65) +
+      Math.max(0, agentSupport) * 8 -
+      Math.max(0, -agentSupport) * 7 +
+      Math.min(8, agentReads.length * 2.5) +
+      (hedgeRead?.confidence ? Math.max(0, hedgeRead.confidence - 55) * 0.18 : 0) +
+      (hedgeConflict ? -12 : 0) +
+      (newsState.riskCount > 0 && actionWantsNegativeEvidence ? 5 : 0),
+    32,
+    90,
   );
 
   const priceRead =
@@ -217,8 +241,11 @@ function buildMonitor(params: {
         ? `Score faded from ${position.entryScore.toFixed(1)} to ${updatedScore.toFixed(1)}; original setup is weaker.`
         : `Score is near entry (${position.entryScore.toFixed(1)} -> ${updatedScore.toFixed(1)}); no major thesis drift.`;
 
+  const hedgeLine = hedgeRead
+    ? `AI Hedge Fund ${hedgeConflict ? 'conflicts with' : hedgeDirection === 'neutral' ? 'is neutral on' : 'supports'} this monitor action (${hedgeRead.stance}${hedgeRead.confidence != null ? `, ${hedgeRead.confidence}%` : ''}).`
+    : null;
   const agentRead = agentReads.length > 0
-    ? `${agentReads.length} agent check${agentReads.length === 1 ? '' : 's'} loaded; bias is ${bias > 0 ? 'supportive' : bias < 0 ? 'cautious' : 'mixed'}.`
+    ? `${hedgeLine ? `${hedgeLine} ` : ''}${agentReads.length} agent check${agentReads.length === 1 ? '' : 's'} loaded; total bias is ${bias > 0 ? 'supportive' : bias < 0 ? 'cautious' : 'mixed'}.`
     : 'Agent checks unavailable; monitor is using score, price, and news only.';
 
   const exitTrigger =

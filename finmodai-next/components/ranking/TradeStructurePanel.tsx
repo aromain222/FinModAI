@@ -73,7 +73,7 @@ const CONV_COLOR: Record<string, string> = {
 
 export function TradeStructurePanel({ stock }: { stock: RankedStock }) {
   const factors    = sortedFactors(stock);
-  const conviction = convictionGrade(stock.score, stock.signal);
+  const conviction = convictionGrade(stock);
   const readiness  = tradeReadiness(stock);
   const em         = expectedMoveForDisplay(stock);
   const topKey     = factors[0]?.[0] ?? 'forecastSignal';
@@ -160,12 +160,18 @@ export function TradeStructurePanel({ stock }: { stock: RankedStock }) {
         />
         <Module
           group="readiness"
-          label="Conviction"
-          value={conviction.level}
+          label="Confidence"
+          value={conviction.pct != null ? `${conviction.pct}%` : conviction.level}
           read={conviction.read}
           valueColor={CONV_COLOR[conviction.level]}
         />
       </div>
+
+      {conviction.aiRead && (
+        <div className="mt-2 rounded-lg border border-blue-400/20 bg-blue-500/8 px-3 py-2 text-[10px] leading-tight text-blue-100/80">
+          {conviction.aiRead}
+        </div>
+      )}
 
       {topKey !== bottomKey && (
         <div className="mt-2 flex items-center gap-3 text-[10px] text-[var(--cb-text-muted)]">

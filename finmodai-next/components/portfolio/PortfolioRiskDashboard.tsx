@@ -37,6 +37,14 @@ function signalBadge(signal: 'green' | 'yellow' | 'red'): string {
   return 'border-rose-400/30 bg-rose-500/10 text-rose-300';
 }
 
+function actionBadge(action: string): string {
+  if (action === 'Add') return 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300';
+  if (action === 'Hold') return 'border-blue-400/30 bg-blue-500/10 text-blue-300';
+  if (action === 'Trim') return 'border-amber-400/30 bg-amber-500/10 text-amber-300';
+  if (action === 'Exit') return 'border-rose-400/30 bg-rose-500/10 text-rose-300';
+  return 'border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] text-[var(--cb-text-muted)]';
+}
+
 function driftIcon(drift: string): string {
   if (drift === 'strengthening') return '↑';
   if (drift === 'weakening') return '↓';
@@ -244,6 +252,7 @@ export function PortfolioRiskDashboard({ positions, quotes, newsMap }: Props) {
               <tr className="border-b border-[var(--cb-border)] text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">
                 <th className="px-4 py-2 text-left">Ticker</th>
                 <th className="px-3 py-2 text-center">Signal</th>
+                <th className="px-3 py-2 text-center">PM Action</th>
                 <th className="px-3 py-2 text-right">Score</th>
                 <th className="px-3 py-2 text-right">P&amp;L</th>
                 <th className="px-3 py-2 text-right">Today</th>
@@ -261,6 +270,11 @@ export function PortfolioRiskDashboard({ positions, quotes, newsMap }: Props) {
                     <td className="px-3 py-2.5 text-center">
                       <span className={cn('rounded-full border px-1.5 py-0.5 text-[9px] font-semibold capitalize', signalBadge(p.currentSignal))}>
                         {p.currentSignal}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <span className={cn('rounded-full border px-1.5 py-0.5 text-[9px] font-semibold', actionBadge(p.latestMonitor?.action ?? 'Watch'))}>
+                        {p.latestMonitor?.action ?? 'Checking'}
                       </span>
                     </td>
                     <td className={cn('px-3 py-2.5 text-right font-semibold tabular-nums', signalColor(p.currentSignal))}>

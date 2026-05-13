@@ -312,7 +312,13 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       setEntryPriceInput('');
       setPositionAmountInput('');
       setPositionConfirmed(false);
-      setAiVerdict(null);
+      setAiVerdict(stock?.meta.aiHedgeFund ? {
+        action: stock.meta.aiHedgeFund.action,
+        bullish: stock.meta.aiHedgeFund.bullish,
+        bearish: stock.meta.aiHedgeFund.bearish,
+        neutral: stock.meta.aiHedgeFund.neutral,
+        confidence: stock.meta.aiHedgeFund.confidence,
+      } : null);
       setPanelTab('chat');
       setCurrentPosition(
         stock ? (getActivePositions().find(p => p.ticker === stock.ticker) ?? null) : null,
@@ -700,7 +706,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             className="flex items-center gap-1.5 rounded-lg border border-blue-400/30 bg-blue-500/10 px-2.5 py-1 text-[11px] font-medium text-blue-300 hover:underline"
           >
             <TrendingUp className="h-3 w-3" />
-            Tracked Idea ↗
+            Tracked Thesis ↗
           </a>
         ) : showEnterForm ? (
           <div className="flex flex-wrap items-center gap-1">
@@ -736,7 +742,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             )}
           >
             <TrendingUp className="h-3 w-3" />
-            {positionConfirmed ? 'Idea Tracked' : 'Paper Track'}
+            {positionConfirmed ? 'Thesis Tracked' : 'Track Thesis'}
           </button>
         )}
       </div>
@@ -799,6 +805,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
               // ── Dynamic ranking: AI consensus adjusts the live score ──────
               const total = r.consensus.bullish + r.consensus.bearish + r.consensus.neutral;
               const bullPct = total > 0 ? r.consensus.bullish / total : 0.5;
+              const bearPct = total > 0 ? r.consensus.bearish / total : 0.5;
               // Maps 0% bull → -1.5, 50% → 0, 100% → +1.5
               const consensusAdj = (bullPct - 0.5) * 3;
               // Action override: buy/cover add 0.4, sell/short subtract 0.4
@@ -809,13 +816,42 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
               const rawNew = stock.score + consensusAdj + actionAdj;
               const newScore = Math.round(Math.max(0, Math.min(10, rawNew)) * 10) / 10;
               const newSignal = signalFromScore(newScore);
+              const actionDirection =
+                act === 'buy' || act === 'cover' ? 'bullish' :
+                act === 'sell' || act === 'short' ? 'bearish' : 'neutral';
+              const scoreDirection = newSignal === 'green' ? 'bullish' : newSignal === 'red' ? 'bearish' : 'neutral';
+              const alignment = actionDirection === 'neutral' || scoreDirection === 'neutral'
+                ? 'mixed'
+                : actionDirection === scoreDirection ? 'confirms' : 'conflicts';
+              const aiHedgeFund = {
+                action: r.decision.action,
+                bullish: r.consensus.bullish,
+                bearish: r.consensus.bearish,
+                neutral: r.consensus.neutral,
+                confidence: r.decision.confidence,
+                bullPct,
+                netBias: bullPct - bearPct,
+                alignment,
+                updatedAt: new Date().toISOString(),
+              } as const;
+
+              setScoreChange({
+                fromScore: stock.score,
+                toScore: newScore,
+                delta: newScore - stock.score,
+                fromSignal: stock.signal,
+                toSignal: newSignal,
+                factorDeltas: {},
+                primaryFactor: 'AI Hedge Fund',
+                explanation: `AI Hedge Fund ${alignment === 'confirms' ? 'confirmed' : alignment === 'conflicts' ? 'challenged' : 'mixed on'} the setup.`,
+              });
 
               onStockUpdate?.({
                 ...stock,
                 score: newScore,
                 signal: newSignal,
                 primaryReason: `AI: ${r.decision.action} (${r.consensus.bullish}↑ ${r.consensus.bearish}↓) — ${stock.primaryReason}`,
-                meta: { ...stock.meta, dataSource: 'live' },
+                meta: { ...stock.meta, dataSource: 'live', aiHedgeFund },
               });
 
               setAiVerdict({
