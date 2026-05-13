@@ -74,9 +74,15 @@ function FinancialsTab({ income, cashflow, metrics }: {
       label:       'Gross Margin',
       values:      income.map((r, i) => {
         const m = metrics[i];
-        return fmt(m?.gross_profit_margin ?? null, 'pct');
+        const gpm = m?.gross_profit_margin ??
+          (r.gross_profit != null && r.revenue ? r.gross_profit / r.revenue : null);
+        return fmt(gpm, 'pct');
       }),
-      colorValues: metrics.map(m => m.gross_profit_margin),
+      colorValues: income.map((r, i) => {
+        const m = metrics[i];
+        return m?.gross_profit_margin ??
+          (r.gross_profit != null && r.revenue ? r.gross_profit / r.revenue : null);
+      }),
     },
     {
       label:       'Net Income',
@@ -95,7 +101,9 @@ function FinancialsTab({ income, cashflow, metrics }: {
     },
   ];
 
-  const years = income.slice(0, 4).map(r => `FY${r.calendar_year}`);
+  const years = income.slice(0, 4).map((r, i) =>
+    r.calendar_year > 0 ? `FY${r.calendar_year}` : `Y-${income.length - 1 - i}`
+  );
 
   // Hero metrics — most recent year, big display
   const latest = income[0];

@@ -122,10 +122,19 @@ function year(value: string | number | undefined): number {
 export async function getIncomeStatements(ticker: string, limit = 4) {
   return withFmpFallback(
     async () => {
-      const d = await get<{ income_statements: IncomeStatement[] }>(
+      const d = await get<{ income_statements: Record<string, unknown>[] }>(
         `/financials/income-statements/?ticker=${ticker}&period=annual&limit=${limit}`
       );
-      return d.income_statements ?? [];
+      return (d.income_statements ?? []).map((r): IncomeStatement => ({
+        ticker:           String(r['ticker']          ?? ticker),
+        period:           String(r['period']          ?? 'FY'),
+        calendar_year:    Number(r['calendar_year']   ?? r['fiscal_year'] ?? 0) || 0,
+        revenue:          (r['revenue']          as number | null) ?? null,
+        gross_profit:     (r['gross_profit']     as number | null) ?? null,
+        operating_income: (r['operating_income'] as number | null) ?? null,
+        net_income:       (r['net_income']       as number | null) ?? null,
+        eps_diluted:      (r['eps_diluted']      as number | null) ?? null,
+      }));
     },
     async () => {
       const rows = await fmpGet<FmpIncomeStatement[]>(
@@ -148,10 +157,17 @@ export async function getIncomeStatements(ticker: string, limit = 4) {
 export async function getCashFlowStatements(ticker: string, limit = 4) {
   return withFmpFallback(
     async () => {
-      const d = await get<{ cash_flow_statements: CashFlowStatement[] }>(
+      const d = await get<{ cash_flow_statements: Record<string, unknown>[] }>(
         `/financials/cash-flow-statements/?ticker=${ticker}&period=annual&limit=${limit}`
       );
-      return d.cash_flow_statements ?? [];
+      return (d.cash_flow_statements ?? []).map((r): CashFlowStatement => ({
+        ticker:               String(r['ticker']              ?? ticker),
+        period:               String(r['period']              ?? 'FY'),
+        calendar_year:        Number(r['calendar_year']       ?? r['fiscal_year'] ?? 0) || 0,
+        operating_cash_flow:  (r['operating_cash_flow']  as number | null) ?? null,
+        capital_expenditures: (r['capital_expenditures'] as number | null) ?? null,
+        free_cash_flow:       (r['free_cash_flow']       as number | null) ?? null,
+      }));
     },
     async () => {
       const rows = await fmpGet<FmpCashFlowStatement[]>(
@@ -172,10 +188,21 @@ export async function getCashFlowStatements(ticker: string, limit = 4) {
 export async function getKeyMetrics(ticker: string, limit = 4) {
   return withFmpFallback(
     async () => {
-      const d = await get<{ key_metrics: KeyMetrics[] }>(
+      const d = await get<{ key_metrics: Record<string, unknown>[] }>(
         `/financials/key-metrics/?ticker=${ticker}&period=annual&limit=${limit}`
       );
-      return d.key_metrics ?? [];
+      return (d.key_metrics ?? []).map((r): KeyMetrics => ({
+        ticker:             String(r['ticker']              ?? ticker),
+        period:             String(r['period']              ?? 'FY'),
+        calendar_year:      Number(r['calendar_year']       ?? r['fiscal_year'] ?? 0) || 0,
+        pe_ratio:           (r['pe_ratio']           as number | null) ?? null,
+        price_to_book:      (r['price_to_book']      as number | null) ?? null,
+        ev_to_ebitda:       (r['ev_to_ebitda']       as number | null) ?? null,
+        gross_profit_margin:(r['gross_profit_margin'] as number | null) ?? null,
+        net_profit_margin:  (r['net_profit_margin']  as number | null) ?? null,
+        return_on_equity:   (r['return_on_equity']   as number | null) ?? null,
+        debt_to_equity:     (r['debt_to_equity']     as number | null) ?? null,
+      }));
     },
     async () => {
       const rows = await fmpGet<FmpKeyMetric[]>(
