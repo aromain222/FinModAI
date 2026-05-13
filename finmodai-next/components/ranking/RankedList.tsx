@@ -5,6 +5,7 @@ import { RefreshCw, Search, X } from 'lucide-react';
 import type { RankedStock, RankResponse } from '@/lib/ranking/types';
 import type { StockQuote } from '@/app/api/quotes/route';
 import { InvestmentChat } from './InvestmentChat';
+import { setupLabel } from '@/lib/ranking/chatHelpers';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -26,6 +27,19 @@ const SIGNAL_DOT: Record<string, string> = {
   red:    'bg-rose-400',
 };
 
+const SIGNAL_CHIP: Record<string, string> = {
+  green:  'bg-emerald-500/10 text-emerald-300 ring-emerald-400/20',
+  yellow: 'bg-amber-500/10 text-amber-300 ring-amber-400/20',
+  red:    'bg-rose-500/10 text-rose-300 ring-rose-400/20',
+};
+
+const FILTER_LABEL: Record<SignalFilter, string> = {
+  all:    'All',
+  green:  'Ready',
+  yellow: 'Work Up',
+  red:    'Repair',
+};
+
 const AI_ACTION_STYLE: Record<string, string> = {
   buy:   'bg-emerald-500/20 text-emerald-300 ring-emerald-400/40',
   cover: 'bg-emerald-500/15 text-emerald-300 ring-emerald-400/30',
@@ -45,6 +59,8 @@ export function RankedList({ initial }: Props) {
   const [loading,  setLoading]  = useState(false);
   const [scoredAt, setScoredAt] = useState(initial.scoredAt);
   const [filter,   setFilter]   = useState<SignalFilter>('all');
+  const [sectorFilter, setSectorFilter] = useState('all');
+  const [subsectorFilter, setSubsectorFilter] = useState('all');
   const [query,    setQuery]    = useState('');
   const [selected, setSelected] = useState<RankedStock | null>(initial.stocks[0] ?? null);
   const [movedStock, setMovedStock] = useState<MovedStock | null>(null);
@@ -77,30 +93,6 @@ export function RankedList({ initial }: Props) {
     };
   }, []);
 
-  // Fetch real-time Yahoo Finance quotes for all stocks, refreshed every 60s
-  useEffect(() => {
-    if (stocks.length === 0) return;
-
-    async function fetchQuotes() {
-      const CHUNK = 50;
-      const map = new Map<string, StockQuote>();
-      for (let i = 0; i < stocks.length; i += CHUNK) {
-        const syms = stocks.slice(i, i + CHUNK).map(s => s.ticker).join(',');
-        try {
-          const res = await fetch(`/api/quotes?symbols=${syms}`);
-          if (!res.ok) continue;
-          const data = await res.json() as { quotes: StockQuote[] };
-          for (const q of data.quotes) map.set(q.ticker, q);
-        } catch { /* silent */ }
-      }
-      setQuotes(map);
-    }
-
-    fetchQuotes();
-    const interval = window.setInterval(fetchQuotes, 60_000);
-    return () => window.clearInterval(interval);
-  }, [stocks.length]); // re-run only when stock count changes
-
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
@@ -126,14 +118,67 @@ export function RankedList({ initial }: Props) {
     () =>
       stocks.filter(s => {
         if (filter !== 'all' && s.signal !== filter) return false;
+        if (sectorFilter !== 'all' && (s.meta.sector ?? 'Other') !== sectorFilter) return false;
+        if (subsectorFilter !== 'all' && (s.meta.subsector ?? 'General') !== subsectorFilter) return false;
         if (query) {
           const q = query.toUpperCase();
-          return s.ticker.includes(q) || s.primaryReason.toUpperCase().includes(q);
+          return (
+            s.ticker.includes(q) ||
+            s.primaryReason.toUpperCase().includes(q) ||
+            (s.meta.sector ?? '').toUpperCase().includes(q) ||
+            (s.meta.subsector ?? '').toUpperCase().includes(q) ||
+            (s.meta.companyName ?? '').toUpperCase().includes(q)
+          );
         }
         return true;
       }),
-    [stocks, filter, query],
+    [stocks, filter, sectorFilter, subsectorFilter, query],
   );
+
+  const sectorOptions = useMemo(() => (
+    Array.from(new Set(stocks.map(s => s.meta.sector ?? 'Other')))
+      .filter(Boolean)
+      .sort()
+  ), [stocks]);
+
+  const subsectorOptions = useMemo(() => (
+    Array.from(new Set(stocks
+      .filter(s => sectorFilter === 'all' || (s.meta.sector ?? 'Other') === sectorFilter)
+      .map(s => s.meta.subsector ?? 'General')))
+      .filter(Boolean)
+      .sort()
+  ), [stocks, sectorFilter]);
+
+  const quoteSymbols = useMemo(() => {
+    const symbols = new Set<string>();
+    for (const stock of visible.slice(0, 200)) symbols.add(stock.ticker);
+    if (selected?.ticker) symbols.add(selected.ticker);
+    return Array.from(symbols);
+  }, [visible, selected?.ticker]);
+
+  // Fetch quotes only for the visible slice, not the full 2,000-3,000 name universe.
+  useEffect(() => {
+    if (quoteSymbols.length === 0) return;
+
+    async function fetchQuotes() {
+      const CHUNK = 50;
+      const map = new Map<string, StockQuote>();
+      for (let i = 0; i < quoteSymbols.length; i += CHUNK) {
+        const syms = quoteSymbols.slice(i, i + CHUNK).join(',');
+        try {
+          const res = await fetch(`/api/quotes?symbols=${syms}`);
+          if (!res.ok) continue;
+          const data = await res.json() as { quotes: StockQuote[] };
+          for (const q of data.quotes) map.set(q.ticker, q);
+        } catch { /* silent */ }
+      }
+      setQuotes(prev => new Map([...prev, ...map]));
+    }
+
+    fetchQuotes();
+    const interval = window.setInterval(fetchQuotes, 60_000);
+    return () => window.clearInterval(interval);
+  }, [quoteSymbols]);
 
   const peers = useMemo(
     () =>
@@ -169,13 +214,13 @@ export function RankedList({ initial }: Props) {
                 type="button"
                 onClick={() => setFilter(f)}
                 className={cn(
-                  'flex-1 py-1 text-[10px] font-medium capitalize transition-colors',
+                  'flex-1 py-1 text-[10px] font-medium transition-colors',
                   filter === f
                     ? 'bg-[var(--cb-surface-alt)] text-[var(--cb-text-primary)]'
                     : 'text-[var(--cb-text-muted)] hover:text-[var(--cb-text-secondary)]',
                 )}
               >
-                {f}
+                {FILTER_LABEL[f]}
               </button>
             ))}
           </div>
@@ -204,6 +249,32 @@ export function RankedList({ initial }: Props) {
             <span className="shrink-0 rounded bg-[var(--cb-surface)] px-1.5 py-0.5 text-[10px] tabular-nums text-[var(--cb-text-muted)]">
               {visible.length}/{stocks.length}
             </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={sectorFilter}
+              onChange={(event) => {
+                setSectorFilter(event.target.value);
+                setSubsectorFilter('all');
+              }}
+              className="h-7 min-w-0 rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 text-[10px] font-medium text-[var(--cb-text-secondary)] focus:border-[var(--cb-border-strong)] focus:outline-none"
+            >
+              <option value="all">All sectors</option>
+              {sectorOptions.map(sector => (
+                <option key={sector} value={sector}>{sector}</option>
+              ))}
+            </select>
+            <select
+              value={subsectorFilter}
+              onChange={(event) => setSubsectorFilter(event.target.value)}
+              className="h-7 min-w-0 rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 text-[10px] font-medium text-[var(--cb-text-secondary)] focus:border-[var(--cb-border-strong)] focus:outline-none"
+            >
+              <option value="all">All subsectors</option>
+              {subsectorOptions.map(subsector => (
+                <option key={subsector} value={subsector}>{subsector}</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -256,8 +327,15 @@ export function RankedList({ initial }: Props) {
                   {/* Ticker + score + reason */}
                   <span className="flex min-w-0 flex-col gap-0.5">
                     <span className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-[var(--cb-text-primary)]">
-                        {stock.ticker}
+                      <span className="flex items-baseline gap-1">
+                        <span className="text-xs font-bold text-[var(--cb-text-primary)]">
+                          {stock.ticker}
+                        </span>
+                        {stock.meta.companyName && (
+                          <span className="max-w-[72px] truncate text-[9px] text-[var(--cb-text-muted)]">
+                            {stock.meta.companyName.replace(/, Inc\.$/, '').replace(/ Inc\.$/, '').replace(/ Corp\.$/, '').replace(/ Corporation$/, '').replace(/ Technologies$/, ' Tech').replace(/ Holdings$/, '')}
+                          </span>
+                        )}
                       </span>
                       {/* Momentum arrow */}
                       <span className={cn(
@@ -277,6 +355,12 @@ export function RankedList({ initial }: Props) {
                           : 'text-[var(--cb-text-muted)]',
                       )}>
                         {stock.score.toFixed(1)}
+                      </span>
+                      <span className={cn(
+                        'rounded px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide ring-1',
+                        SIGNAL_CHIP[stock.signal],
+                      )}>
+                        {setupLabel(stock.signal)}
                       </span>
                       {justMoved && (
                         <span className={cn(
@@ -301,7 +385,7 @@ export function RankedList({ initial }: Props) {
                       })()}
                       {signalChanged && (
                         <span className="rounded bg-white/10 px-1 text-[9px] font-semibold text-[var(--cb-text-primary)] ring-1 ring-white/15">
-                          signal
+                          {setupLabel(stock.signal)}
                         </span>
                       )}
                       {/* Real-time price */}
@@ -324,6 +408,11 @@ export function RankedList({ initial }: Props) {
                       })()}
                     </span>
                     <span className="flex items-center gap-1.5">
+                      {(stock.meta.subsector || stock.meta.sector) && (
+                        <span className="shrink-0 rounded px-1 text-[8px] font-medium text-[var(--cb-text-muted)] ring-1 ring-[var(--cb-border)]">
+                          {stock.meta.subsector ?? stock.meta.sector}
+                        </span>
+                      )}
                       {stock.meta.forecastReturnPct != null && (
                         <span className={cn(
                           'shrink-0 rounded px-1 text-[9px] font-semibold tabular-nums',

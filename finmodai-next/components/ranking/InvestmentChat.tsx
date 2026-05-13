@@ -22,12 +22,13 @@ import {
 } from '@/lib/portfolio/storage';
 import { buildPositionFromRankedStock } from '@/lib/portfolio/buildPosition';
 import type { ActivePosition } from '@/lib/portfolio/types';
+import type { StockQuote } from '@/app/api/quotes/route';
 import type { RankedStock } from '@/lib/ranking/types';
 import { getCompanyBrief } from '@/lib/ranking/companyBriefs';
 import { buildValuationSignal } from '@/lib/valuation/signal';
 import {
   type InvestmentMode, type ScoreFactor, SCORE_LABELS,
-  capitalize, factorLabel, resolvedRisk, signalFromScore, contextPrompt, tradeReadiness,
+  capitalize, factorLabel, resolvedRisk, signalFromScore, contextPrompt, tradeReadiness, setupLabel,
 } from '@/lib/ranking/chatHelpers';
 import { cn } from '@/lib/utils';
 import { PeerStock, buildSwingThesis, buildExplain, buildLocalReply, buildCompare, buildCatalystAgent, buildForecastAgent, buildAssumptionAgent, buildPitch, buildEvaluate, buildThesis, buildNeedsTrue, buildMonitor, buildBadTrade, buildScoreBacktest, expectedMoveStr, catalystContext, catalystDetailedContext, scoreBacktestContext, cryptoTapeContext, buildGeneralStockQuestion, looksLikeStockQuestion, buildMoveHigher, buildMarketMiss, buildNotBuyYet, buildEvidence } from '@/lib/ranking/chatBuilders';
@@ -281,9 +282,12 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   const [showEnterForm,     setShowEnterForm]     = useState(false);
   const [entryPriceInput,   setEntryPriceInput]   = useState('');
   const [positionAmountInput, setPositionAmountInput] = useState('');
+  const [shareCountInput, setShareCountInput] = useState('');
   const [positionConfirmed, setPositionConfirmed] = useState(false);
+  const [entryQuote, setEntryQuote] = useState<StockQuote | null>(null);
+  const [entryQuoteLoading, setEntryQuoteLoading] = useState(false);
   const [aiVerdict, setAiVerdict] = useState<{ action: string; bullish: number; bearish: number; neutral: number; confidence: number } | null>(null);
-  const [panelTab, setPanelTab] = useState<'analysis' | 'agents' | 'chat'>('chat');
+  const [panelTab, setPanelTab] = useState<'analysis' | 'agents' | 'chat'>('agents');
   const scrollRef         = useRef<HTMLDivElement>(null);
   const abortRef          = useRef<AbortController | null>(null);
   const prevTicker        = useRef<string | null>(null);
@@ -311,7 +315,10 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       setShowEnterForm(false);
       setEntryPriceInput('');
       setPositionAmountInput('');
+      setShareCountInput('');
       setPositionConfirmed(false);
+      setEntryQuote(null);
+      setEntryQuoteLoading(false);
       setAiVerdict(stock?.meta.aiHedgeFund ? {
         action: stock.meta.aiHedgeFund.action,
         bullish: stock.meta.aiHedgeFund.bullish,
@@ -326,6 +333,27 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       prevTicker.current = stock?.ticker ?? null;
     }
   }, [stock]);
+
+  useEffect(() => {
+    if (!stock || !showEnterForm) return;
+    let alive = true;
+    setEntryQuoteLoading(true);
+    fetch(`/api/quotes?symbols=${encodeURIComponent(stock.ticker)}`, { cache: 'no-store' })
+      .then(res => res.ok ? res.json() as Promise<{ quotes?: StockQuote[] }> : null)
+      .then(data => {
+        if (!alive) return;
+        const quote = data?.quotes?.[0] ?? null;
+        setEntryQuote(quote);
+        if (quote?.price && !entryPriceInput) setEntryPriceInput(quote.price.toFixed(2));
+      })
+      .catch(() => {
+        if (alive) setEntryQuote(null);
+      })
+      .finally(() => {
+        if (alive) setEntryQuoteLoading(false);
+      });
+    return () => { alive = false; };
+  }, [stock, showEnterForm, entryPriceInput]);
 
   useEffect(() => {
     return () => {
@@ -585,17 +613,29 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
     if (!stock) return;
     const price = parseFloat(entryPriceInput);
     const amount = parseFloat(positionAmountInput);
+    const shares = parseFloat(shareCountInput);
     if (isNaN(price) || price <= 0) return;
-    const position = buildPositionFromRankedStock(stock, price, !isNaN(amount) && amount > 0 ? amount : null);
+    const resolvedAmount = !isNaN(amount) && amount > 0
+      ? amount
+      : !isNaN(shares) && shares > 0
+        ? shares * price
+        : null;
+    const position = buildPositionFromRankedStock(
+      stock,
+      price,
+      resolvedAmount,
+      !isNaN(shares) && shares > 0 ? shares : null,
+    );
     const updated  = addPosition(position);
     setCurrentPosition(updated.find(p => p.id === position.id) ?? null);
     setShowEnterForm(false);
     setEntryPriceInput('');
     setPositionAmountInput('');
+    setShareCountInput('');
     if (positionTimeoutRef.current !== null) window.clearTimeout(positionTimeoutRef.current);
     setPositionConfirmed(true);
     positionTimeoutRef.current = window.setTimeout(() => setPositionConfirmed(false), 2400);
-  }, [stock, entryPriceInput, positionAmountInput]);
+  }, [stock, entryPriceInput, positionAmountInput, shareCountInput]);
 
   // ── Empty state ──────────────────────────────────────────────────────────
 
@@ -623,6 +663,25 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
     factorBreakdown: stock.breakdown,
   });
   const cryptoTape = cryptoTapeContext(stock);
+  const parsedEntryPrice = parseFloat(entryPriceInput);
+  const parsedAmount = parseFloat(positionAmountInput);
+  const parsedShares = parseFloat(shareCountInput);
+  const resolvedShares =
+    Number.isFinite(parsedShares) && parsedShares > 0
+      ? parsedShares
+      : Number.isFinite(parsedEntryPrice) && parsedEntryPrice > 0 &&
+        Number.isFinite(parsedAmount) && parsedAmount > 0
+        ? parsedAmount / parsedEntryPrice
+        : null;
+  const resolvedCostBasis =
+    resolvedShares !== null && Number.isFinite(parsedEntryPrice) && parsedEntryPrice > 0
+      ? resolvedShares * parsedEntryPrice
+      : Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : null;
+  const estimatedShares =
+    Number.isFinite(parsedEntryPrice) && parsedEntryPrice > 0 &&
+    Number.isFinite(parsedAmount) && parsedAmount > 0
+      ? parsedAmount / parsedEntryPrice
+      : null;
   const sourceCards = [
     { label: 'Company file',  value: brief.strategicContext, prompt: 'Tell me about this company and why it is in the ranked universe.' },
     { label: 'Score basis',   value: stock.primaryReason,   prompt: 'Why is this stock ranked here and what drives the score?', mode: 'explain' as InvestmentMode },
@@ -709,26 +768,85 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             Tracked Thesis ↗
           </a>
         ) : showEnterForm ? (
-          <div className="flex flex-wrap items-center gap-1">
-            <input
-              type="number"
-              value={positionAmountInput}
-              onChange={e => setPositionAmountInput(e.target.value)}
-              placeholder="$ amount"
-              className="w-24 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 py-1 text-[11px] text-[var(--cb-text-primary)] focus:outline-none"
-              onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
-            />
-            <input
-              type="number"
-              value={entryPriceInput}
-              onChange={e => setEntryPriceInput(e.target.value)}
-              placeholder="Ref price"
-              className="w-20 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 py-1 text-[11px] text-[var(--cb-text-primary)] focus:outline-none"
-              onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
-              autoFocus
-            />
-            <button type="button" onClick={handleEnterPosition} className="rounded-lg bg-blue-600 px-2 py-1 text-[11px] font-semibold text-white">✓</button>
-            <button type="button" onClick={() => setShowEnterForm(false)} className="rounded-lg border border-[var(--cb-border)] px-2 py-1 text-[11px] text-[var(--cb-text-muted)]">✕</button>
+          <div className="w-full rounded-xl border border-blue-400/25 bg-blue-500/8 p-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-blue-300">Track Thesis</div>
+                <div className="text-[11px] text-[var(--cb-text-muted)]">
+                  Add {stock.ticker} to Thesis Watch with a reference price and position size.
+                </div>
+              </div>
+              <div className="text-right text-[10px] text-[var(--cb-text-muted)]">
+                {entryQuoteLoading
+                  ? 'Loading quote...'
+                  : entryQuote?.price
+                    ? <>Live ref <span className="font-semibold text-[var(--cb-text-primary)]">${entryQuote.price.toFixed(2)}</span></>
+                    : 'Manual ref price'}
+              </div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]">
+              <label className="space-y-1">
+                <span className="block text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Shares</span>
+                <input
+                  type="number"
+                  value={shareCountInput}
+                  onChange={e => setShareCountInput(e.target.value)}
+                  placeholder="10"
+                  className="h-9 w-full rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2.5 text-sm text-[var(--cb-text-primary)] focus:border-blue-400/40 focus:outline-none"
+                  onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
+                  autoFocus
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="block text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Cost basis</span>
+                <input
+                  type="number"
+                  value={positionAmountInput}
+                  onChange={e => setPositionAmountInput(e.target.value)}
+                  placeholder="3000"
+                  className="h-9 w-full rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2.5 text-sm text-[var(--cb-text-primary)] focus:border-blue-400/40 focus:outline-none"
+                  onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="block text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Entry / ref price</span>
+                <input
+                  type="number"
+                  value={entryPriceInput}
+                  onChange={e => setEntryPriceInput(e.target.value)}
+                  placeholder={entryQuote?.price ? entryQuote.price.toFixed(2) : 'Price'}
+                  className="h-9 w-full rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2.5 text-sm text-[var(--cb-text-primary)] focus:border-blue-400/40 focus:outline-none"
+                  onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
+                />
+              </label>
+              <div className="flex items-end gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleEnterPosition}
+                  disabled={!Number.isFinite(parsedEntryPrice) || parsedEntryPrice <= 0}
+                  className="h-9 rounded-lg bg-blue-600 px-3 text-[11px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Add
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEnterForm(false)}
+                  className="h-9 rounded-lg border border-[var(--cb-border)] px-3 text-[11px] text-[var(--cb-text-muted)] hover:text-[var(--cb-text-primary)]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] text-[var(--cb-text-muted)]">
+              <span>Setup <span className="font-semibold text-[var(--cb-text-primary)]">{setupLabel(stock.signal)}</span></span>
+              <span>Score <span className="font-semibold text-[var(--cb-text-primary)]">{stock.score.toFixed(1)}</span></span>
+              {resolvedShares !== null && (
+                <span>Shares <span className="font-semibold text-[var(--cb-text-primary)]">{resolvedShares.toFixed(4)}</span>{estimatedShares !== null && !shareCountInput ? ' est.' : ''}</span>
+              )}
+              {resolvedCostBasis !== null && (
+                <span>Cost basis <span className="font-semibold text-[var(--cb-text-primary)]">${Math.round(resolvedCostBasis).toLocaleString('en-US')}</span></span>
+              )}
+            </div>
           </div>
         ) : (
           <button
@@ -748,14 +866,14 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       </div>
 
       {/* ── Tab bar ── */}
-      <div className="shrink-0 flex border-b border-[var(--cb-border)] bg-[var(--cb-surface)]">
-        {([ ['agents', 'AI Agents'], ['analysis', 'Analysis'], ['chat', 'Chat'] ] as const).map(([tab, label]) => (
+      <div className="shrink-0 flex border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)]">
+        {([ ['agents', 'Hedge Fund'], ['analysis', 'Deep Analysis'], ['chat', 'Chat'] ] as const).map(([tab, label]) => (
           <button
             key={tab}
             type="button"
             onClick={() => setPanelTab(tab)}
             className={cn(
-              'flex-1 py-2 text-[11px] font-semibold tracking-wide transition-colors relative',
+              'flex-1 cursor-pointer py-3 text-[11px] font-semibold tracking-wide transition-colors relative',
               panelTab === tab
                 ? 'text-[var(--cb-text-primary)]'
                 : 'text-[var(--cb-text-muted)] hover:text-[var(--cb-text-secondary)]',
@@ -764,14 +882,14 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             {label}
             {tab === 'agents' && aiVerdict && (
               <span className={cn(
-                'ml-1.5 inline-block h-1.5 w-1.5 rounded-full',
+                'ml-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle',
                 aiVerdict.action.toLowerCase() === 'buy' || aiVerdict.action.toLowerCase() === 'cover'
                   ? 'bg-emerald-400' : aiVerdict.action.toLowerCase() === 'sell' || aiVerdict.action.toLowerCase() === 'short'
                   ? 'bg-rose-400' : 'bg-amber-400',
               )} />
             )}
             {panelTab === tab && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--cb-text-primary)]" />
+              <span className="absolute bottom-0 left-4 right-4 h-[2px] rounded-full bg-[var(--cb-green)]" />
             )}
           </button>
         ))}

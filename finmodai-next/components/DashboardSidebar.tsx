@@ -17,14 +17,14 @@ import { CapitalBaseLogo } from "@/components/CapitalBaseLogo";
 import { APP_CONSOLE_NAME, APP_NAME } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 
-const navItems = [
-  { href: '/app',          label: 'Opportunities',  icon: TrendingUp,      section: 'Workspace' },
-  { href: '/portfolio',    label: 'Portfolio',       icon: Briefcase,       section: 'Workspace' },
+const navItems: Array<{ href: string; label: string; hint?: string; icon: React.ElementType; section: string; dim?: boolean }> = [
+  { href: '/app',          label: 'Opportunities',  hint: 'Hedge Fund · Dexter · Analysis', icon: TrendingUp,    section: 'Workspace' },
+  { href: '/portfolio',    label: 'Portfolio',       hint: 'Track ideas',                    icon: Briefcase,     section: 'Workspace' },
   { href: '/models',       label: 'Models',          icon: Layers,          section: 'Workspace' },
   { href: '/news',         label: 'News',            icon: Newspaper,       section: 'Tools' },
   { href: '/events',       label: 'Events',          icon: Radar,           section: 'Tools' },
-  { href: '/analyst-chat', label: 'Analyst Chat',    icon: MessageSquare,   section: 'Tools' },
   { href: '/reports',      label: 'Reports',         icon: FileText,        section: 'Tools' },
+  { href: '/analyst-chat', label: 'Analyst Chat',    icon: MessageSquare,   section: 'Tools',  dim: true },
   { href: '/dashboard/settings', label: 'Settings',  icon: Settings,        section: 'Settings' },
 ];
 
@@ -76,34 +76,42 @@ export function DashboardSidebar() {
               </p>
               {navItems
                 .filter(item => item.section === section)
-                .map(({ href, label, icon: Icon }) => {
+                .map(({ href, label, hint, icon: Icon, dim }) => {
                   const isActive = isNavItemActive(href, pathname);
                   return (
                     <Link
                       key={href}
                       href={href}
                       className={cn(
-                        "group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+                        "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 cursor-pointer",
                         isActive
-                          ? "bg-[var(--cb-surface)] text-[var(--cb-text-primary)] shadow-panel"
-                          : "text-[var(--cb-text-muted)] hover:bg-[var(--cb-surface-subtle)] hover:text-[var(--cb-text-secondary)]"
+                          ? "bg-[var(--cb-surface)] text-[var(--cb-text-primary)] border-l-2 border-[var(--cb-green)]"
+                          : dim
+                          ? "text-[var(--cb-text-muted)] opacity-60 hover:opacity-100 hover:bg-[var(--cb-surface-subtle)] hover:text-[var(--cb-text-secondary)] border-l-2 border-transparent"
+                          : "text-[var(--cb-text-muted)] hover:bg-[var(--cb-surface-subtle)] hover:text-[var(--cb-text-secondary)] border-l-2 border-transparent"
                       )}
                     >
-                      <span
-                        className={cn(
-                          "inline-flex h-7 w-1 rounded-full transition-colors",
-                          isActive ? "bg-[var(--cb-green)]" : "bg-transparent"
-                        )}
-                      />
                       <Icon
                         className={cn(
-                          "h-4 w-4 transition-colors",
+                          "h-4 w-4 shrink-0 transition-colors",
                           isActive
                             ? "text-[var(--cb-green)]"
                             : "text-[var(--cb-text-muted)] group-hover:text-[var(--cb-text-secondary)]"
                         )}
                       />
-                      <span className="truncate">{label}</span>
+                      <span className="flex min-w-0 flex-col">
+                        <span className="truncate leading-snug">{label}</span>
+                        {hint && !isActive && (
+                          <span className="truncate text-[9px] font-normal leading-tight text-[var(--cb-text-muted)] opacity-80">
+                            {hint}
+                          </span>
+                        )}
+                        {hint && isActive && (
+                          <span className="truncate text-[9px] font-normal leading-tight text-[var(--cb-green)] opacity-70">
+                            {hint}
+                          </span>
+                        )}
+                      </span>
                     </Link>
                   );
                 })}
