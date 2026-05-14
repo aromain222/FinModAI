@@ -209,10 +209,10 @@ export function RankedList({ initial }: Props) {
   }, [scoredAt]);
 
   return (
-    <div className="flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded-xl border border-[var(--cb-border)] bg-[var(--cb-surface)] lg:flex-row">
+    <div className="grid h-full min-h-0 w-full overflow-hidden rounded-xl border border-[var(--cb-border)] bg-[var(--cb-surface)] [grid-template-columns:1fr] [grid-template-rows:minmax(0,40vh)_minmax(0,1fr)] lg:[grid-template-columns:280px_minmax(0,1fr)] lg:[grid-template-rows:1fr]">
 
       {/* ── Left: compact ranked list ── */}
-      <div className="flex max-h-[40vh] w-full shrink-0 flex-col overflow-hidden border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] lg:max-h-none lg:w-72 lg:border-b-0 lg:border-r xl:w-80">
+      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] lg:border-b-0 lg:border-r">
 
         {/* Toolbar */}
         <div className="shrink-0 space-y-2 border-b border-[var(--cb-border)] px-3 py-3">
@@ -484,7 +484,7 @@ export function RankedList({ initial }: Props) {
       </div>
 
       {/* ── Right: Investment Chat ── */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">
         <InvestmentChat stock={selected} peers={peers} onStockUpdate={updateStock} />
       </div>
 

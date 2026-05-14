@@ -883,7 +883,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       )}
 
       {/* ── Full-width tabbed workspace ── */}
-      <div className="min-h-0 flex-1 flex flex-col overflow-hidden">
+      <div className="min-h-0 min-w-0 flex-1 flex flex-col overflow-hidden">
 
         {/* Tab bar — 3 tabs, full-width segmented pill control */}
         <div className="shrink-0 flex items-center gap-1 border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-2 py-1.5">
@@ -924,7 +924,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
 
         {/* ── Deep Analysis tab — full workspace width ── */}
         {analysisPaneTab === 'analysis' && (
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
             <PMDecisionStrip stock={stock} displayedScore={displayedScore} scoreChange={scoreChange} />
             <div className="border-b border-[var(--cb-border)] px-4 pb-2 pt-1">
               <TradeReadinessStrip ticker={stock.ticker} computed={tradeReadiness(stock)} />
@@ -944,7 +944,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
 
         {/* ── AI Agents tab — consensus dashboard, full width ── */}
         {analysisPaneTab === 'agents' && (
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
             <PMDecisionStrip stock={stock} displayedScore={displayedScore} scoreChange={scoreChange} />
             <HedgeFundPanel
               ticker={stock.ticker}
@@ -1017,7 +1017,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
 
         {/* ── Chat tab — full analyst copilot workspace ── */}
         {analysisPaneTab === 'chat' && (
-          <div className="min-h-0 flex-1 flex flex-col overflow-hidden">
+          <div className="min-h-0 min-w-0 flex-1 flex flex-col overflow-hidden">
 
             {/* Messages — centered max-w for comfortable reading */}
             <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">

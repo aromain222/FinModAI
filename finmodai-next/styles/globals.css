@@ -53,12 +53,17 @@
   --cb-warning: #f59e0b;
 }
 
+html {
+  overflow-x: hidden;
+}
+
 body {
   background: var(--cb-body-bg);
   color: var(--cb-text-body);
   font-feature-settings: 'liga' 1, 'calt' 1;
   min-height: 100vh;
   font-weight: 400;
+  overflow-x: hidden;
 }
 
 h1,
