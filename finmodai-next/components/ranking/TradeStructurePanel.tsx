@@ -7,49 +7,41 @@ import {
 import type { RankedStock } from '@/lib/ranking/types';
 import { cn } from '@/lib/utils';
 
-function valueColor(v: number): string {
-  if (v >= 7) return 'text-emerald-300';
-  if (v >= 4) return 'text-amber-300';
-  return 'text-rose-300';
-}
-
-function barWidth(v: number): string {
-  return `${Math.max(4, Math.min(100, v * 10))}%`;
-}
-
-function barColor(v: number): string {
-  if (v >= 7) return 'bg-emerald-400';
-  if (v >= 4) return 'bg-amber-400';
-  return 'bg-rose-400';
+function scoreAccent(v: number) {
+  if (v >= 7) return { border: 'border-l-emerald-400', bar: 'bg-emerald-400', text: 'text-emerald-300' };
+  if (v >= 4) return { border: 'border-l-amber-400',  bar: 'bg-amber-400',   text: 'text-amber-300' };
+  return          { border: 'border-l-rose-400',   bar: 'bg-rose-400',    text: 'text-rose-300' };
 }
 
 type ModuleProps = {
   label: string;
   value: string;
   read: string;
-  barPct?: number;
-  valueColor?: string;
+  score?: number;
+  overrideText?: string;
   group: 'opportunity' | 'readiness';
 };
 
-function Module({ label, value, read, barPct, valueColor: vc, group }: ModuleProps) {
+function Module({ label, value, read, score, overrideText, group }: ModuleProps) {
+  const accent = score !== undefined ? scoreAccent(score) : null;
   return (
     <div className={cn(
-      'space-y-1 rounded-lg px-3 py-2',
-      group === 'opportunity'
-        ? 'bg-[var(--cb-surface-subtle)]'
-        : 'bg-[var(--cb-surface)]',
+      'flex flex-col gap-1 rounded-lg border-l-[3px] px-3 py-2.5',
+      accent ? accent.border : 'border-l-[var(--cb-border)]',
+      group === 'opportunity' ? 'bg-[var(--cb-surface-subtle)]' : 'bg-[var(--cb-surface)]',
     )}>
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">{label}</span>
-        <span className={cn('text-[11px] font-bold tabular-nums', vc ?? 'text-[var(--cb-text-primary)]')}>
-          {value}
-        </span>
-      </div>
-      {barPct !== undefined && (
-        <div className="h-1 overflow-hidden rounded-full bg-white/8">
-          <div className={cn('h-full rounded-full transition-all duration-500', barColor(barPct / 10))}
-            style={{ width: `${barPct}%` }} />
+      <span className="text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">
+        {label}
+      </span>
+      <span className={cn('text-xl font-bold tabular-nums leading-none', overrideText ?? (accent ? accent.text : 'text-[var(--cb-text-primary)]'))}>
+        {value}
+      </span>
+      {score !== undefined && (
+        <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
+          <div
+            className={cn('h-full rounded-full transition-all duration-500', accent?.bar ?? 'bg-white/30')}
+            style={{ width: `${Math.max(4, Math.min(100, score * 10))}%` }}
+          />
         </div>
       )}
       <p className="text-[10px] leading-tight text-[var(--cb-text-muted)]">{read}</p>
@@ -65,9 +57,9 @@ const READINESS_COLOR: Record<string, string> = {
 
 const CONV_COLOR: Record<string, string> = {
   High:            'text-emerald-300',
-  'Moderate-High': 'text-emerald-300/80',
+  'Moderate-High': 'text-emerald-300',
   Moderate:        'text-amber-300',
-  'Low-Moderate':  'text-amber-300/70',
+  'Low-Moderate':  'text-amber-300',
   Low:             'text-rose-300',
 };
 
@@ -80,43 +72,43 @@ export function TradeStructurePanel({ stock }: { stock: RankedStock }) {
   const bottomKey  = factors[factors.length - 1]?.[0] ?? 'riskAdjustment';
 
   const timingRead =
-    readiness.label === 'Ready'               ? 'Enter if catalyst confirms' :
-    readiness.label === 'Work up'             ? 'Interesting — not there yet' :
-                                                'Hold — wait for repair';
+    readiness.label === 'Ready'   ? 'Enter if catalyst confirms' :
+    readiness.label === 'Work up' ? 'Interesting — not there yet' :
+                                    'Hold — wait for repair';
 
   const riskRead =
     stock.breakdown.riskAdjustment >= 7 ? 'Low — favorable risk/reward' :
     stock.breakdown.riskAdjustment >= 4 ? 'Moderate — manage position size' :
                                           'Elevated — volatility is a risk';
 
+  const signalScore = stock.signal === 'green' ? 8 : stock.signal === 'yellow' ? 5 : 2;
+
   return (
     <div className="shrink-0 border-b border-[var(--cb-border)] px-4 py-3">
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Trade Structure</span>
+        <span className="text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">
+          Trade Structure
+        </span>
       </div>
 
-      {/* Opportunity Quality group */}
-      <div className="mb-1 text-[8px] uppercase tracking-widest text-[var(--cb-text-muted)]">Opportunity Quality</div>
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-3">
+      {/* Opportunity Quality */}
+      <p className="mb-1.5 text-[8px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">
+        Opportunity Quality
+      </p>
+      <div className="grid grid-cols-3 gap-2">
         <Module
           group="opportunity"
           label="Setup"
           value={setupLabel(stock.signal)}
           read={setupRead(stock.signal)}
-          barPct={stock.score * 10}
-          valueColor={
-            stock.signal === 'green'  ? 'text-emerald-300' :
-            stock.signal === 'yellow' ? 'text-amber-300'   :
-                                        'text-rose-300'
-          }
+          score={signalScore}
         />
         <Module
           group="opportunity"
           label={SCORE_LABELS[topKey]}
-          value={`${stock.breakdown[topKey].toFixed(1)}`}
+          value={stock.breakdown[topKey].toFixed(1)}
           read={`Leads · ${topKey === 'catalystStrength' ? `${stock.meta.catalystCount} catalysts` : 'top factor'}`}
-          barPct={stock.breakdown[topKey] * 10}
-          valueColor={valueColor(stock.breakdown[topKey])}
+          score={stock.breakdown[topKey]}
         />
         <Module
           group="opportunity"
@@ -126,28 +118,30 @@ export function TradeStructurePanel({ stock }: { stock: RankedStock }) {
             stock.breakdown.earningsSetup >= 7 ? 'Beat setup' :
             stock.breakdown.earningsSetup >= 4 ? 'Neutral' : 'Miss risk'
           }
-          barPct={stock.breakdown.earningsSetup * 10}
-          valueColor={valueColor(stock.breakdown.earningsSetup)}
+          score={stock.breakdown.earningsSetup}
         />
       </div>
 
-      {/* Visual separator + Entry Timing group */}
-      <div className="my-2 border-t border-dashed border-[var(--cb-border)]" />
-      <div className="mb-1 text-[8px] uppercase tracking-widest text-[var(--cb-text-muted)]">Entry Timing</div>
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-3">
+      <div className="my-2.5 border-t border-dashed border-[var(--cb-border)]" />
+
+      {/* Entry Timing */}
+      <p className="mb-1.5 text-[8px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">
+        Entry Timing
+      </p>
+      <div className="grid grid-cols-3 gap-2">
         <Module
           group="readiness"
           label="Timing"
           value={readiness.label}
           read={timingRead}
-          valueColor={READINESS_COLOR[readiness.label]}
+          overrideText={READINESS_COLOR[readiness.label]}
         />
         <Module
           group="readiness"
           label="Sizing"
           value={pmBullCaseRead(em)}
           read={`Bull case: ${em.bullPct >= 0 ? '+' : ''}${em.bullPct}% / Risk: ${em.riskPct}%`}
-          valueColor={
+          overrideText={
             pmBullCaseRead(em) === 'High'   ? 'text-emerald-300' :
             pmBullCaseRead(em) === 'Medium' ? 'text-amber-300'   :
                                               'text-[var(--cb-text-muted)]'
@@ -158,12 +152,12 @@ export function TradeStructurePanel({ stock }: { stock: RankedStock }) {
           label="Confidence"
           value={conviction.pct != null ? `${conviction.pct}%` : conviction.level}
           read={conviction.read}
-          valueColor={CONV_COLOR[conviction.level]}
+          overrideText={CONV_COLOR[conviction.level]}
         />
       </div>
 
       {conviction.aiRead && (
-        <div className="mt-2 rounded-lg border border-blue-400/20 bg-blue-500/8 px-3 py-2 text-[10px] leading-tight text-blue-100/80">
+        <div className="mt-2.5 rounded-lg border border-blue-400/20 bg-blue-500/8 px-3 py-2 text-[10px] leading-snug text-blue-100/80">
           {conviction.aiRead}
         </div>
       )}

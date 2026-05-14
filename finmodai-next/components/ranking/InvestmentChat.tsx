@@ -11,6 +11,7 @@ import { TradingAgentsPanel } from '@/components/ranking/TradingAgentsPanel';
 import { DexterPanel } from '@/components/ranking/DexterPanel';
 import { HedgeFundPanel } from '@/components/ranking/HedgeFundPanel';
 import { ConvictionMeter, parseConvictionLevel } from '@/components/ranking/ConvictionMeter';
+import { ChatMessage } from '@/components/ranking/ChatMessage';
 import { TradeReadinessStrip } from '@/components/ranking/TradeReadinessStrip';
 import { getPitchQueue, upsertPitchQueueItem } from '@/lib/pitchQueue/storage';
 import { buildPitchQueueItemFromRankedStock } from '@/lib/pitchQueue/buildPitch';
@@ -998,31 +999,10 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
               ? parseConvictionLevel(msg.content)
               : null;
           return (
-            <div
-              key={i}
-              className={cn(
-                'flex flex-col',
-                msg.role === 'user' ? 'items-end' : 'items-start',
-              )}
-            >
-              <div
-                className={cn(
-                  'max-w-[92%] overflow-hidden rounded-xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words',
-                  msg.role === 'user'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-[var(--cb-surface)] text-[var(--cb-text-body)] ring-1 ring-[var(--cb-border)]',
-                )}
-              >
-                {msg.content || (
-                  <span className="flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current" />
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:0.1s]" />
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:0.2s]" />
-                  </span>
-                )}
-              </div>
-              {convictionLevel && (
-                <div className="mt-1 w-full max-w-[85%] px-1">
+            <div key={i} className="flex flex-col items-start gap-1">
+              <ChatMessage role={msg.role} content={msg.content} />
+              {convictionLevel && msg.content && (
+                <div className="w-full max-w-[85%] px-1">
                   <ConvictionMeter level={convictionLevel} />
                 </div>
               )}

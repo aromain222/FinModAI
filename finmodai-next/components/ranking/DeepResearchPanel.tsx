@@ -75,44 +75,49 @@ export function DeepResearchPanel({ stock, scoreChange, sourceCards, onPrompt, d
 
           {/* Score breakdown */}
           <div>
-            <p className="mb-2 text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Factor Breakdown</p>
+            <p className="mb-2 text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Factor Breakdown</p>
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {(Object.entries(stock.breakdown) as Array<[ScoreFactor, number]>).map(([key, value]) => {
                 const factorDelta = scoreChange?.factorDeltas[key];
                 const isTop       = hasDistinctPoles && key === topKey    && !factorDelta;
                 const isBottom    = hasDistinctPoles && key === bottomKey && !factorDelta;
+                const scoreColor  = value >= 7 ? 'text-emerald-300' : value >= 4 ? 'text-amber-300' : 'text-rose-300';
+                const barColor    = value >= 7 ? 'bg-emerald-400'   : value >= 4 ? 'bg-amber-400'   : 'bg-rose-400';
+                const borderAccent = value >= 7 ? 'border-l-emerald-400' : value >= 4 ? 'border-l-amber-400' : 'border-l-rose-400';
                 return (
                   <div
                     key={key}
                     className={cn(
-                      'rounded-md border p-1.5 transition-all duration-300',
+                      'rounded-md border border-transparent border-l-[3px] p-2 transition-all duration-300',
+                      borderAccent,
                       factorDelta  && changedFactorTone(factorDelta),
-                      !factorDelta && isTop    && 'border-emerald-400/40 bg-emerald-500/10',
-                      !factorDelta && isBottom && 'border-amber-400/40 bg-amber-500/10',
-                      !factorDelta && !isTop && !isBottom && 'border-transparent bg-[var(--cb-surface)]',
+                      !factorDelta && isTop    && 'bg-emerald-500/10 ring-1 ring-emerald-400/30',
+                      !factorDelta && isBottom && 'bg-amber-500/10 ring-1 ring-amber-400/30',
+                      !factorDelta && !isTop && !isBottom && 'bg-[var(--cb-surface)]',
                     )}
                   >
-                    <div className="mb-1 flex items-center justify-between gap-1">
-                      <span className="text-[10px] uppercase tracking-wide text-[var(--cb-text-muted)]">
+                    <div className="mb-1.5 flex items-start justify-between gap-1">
+                      <span className="text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)] leading-tight">
                         {SCORE_LABELS[key]}
                       </span>
-                      <span className="flex items-center gap-1 text-[10px] tabular-nums text-[var(--cb-text-muted)]">
+                      <span className="flex items-center gap-1 tabular-nums">
                         {factorDelta ? (
-                          <span className={cn('font-semibold', factorDelta > 0 ? 'text-emerald-300' : 'text-rose-300')}>
+                          <span className={cn('text-[9px] font-semibold', factorDelta > 0 ? 'text-emerald-300' : 'text-rose-300')}>
                             {factorDelta > 0 ? '+' : ''}{factorDelta.toFixed(1)}
                           </span>
                         ) : null}
-                        {value.toFixed(1)}
+                        <span className={cn('text-lg font-bold leading-none', scoreColor)}>
+                          {value.toFixed(1)}
+                        </span>
                       </span>
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                    <div className="h-2 overflow-hidden rounded-full bg-white/10">
                       <div
-                        className={cn('h-full rounded-full transition-all duration-500',
-                          value >= 7 ? 'bg-emerald-400' : value >= 4 ? 'bg-amber-400' : 'bg-rose-400')}
+                        className={cn('h-full rounded-full transition-all duration-500', barColor)}
                         style={{ width: `${Math.max(4, Math.min(100, value * 10))}%` }}
                       />
                     </div>
-                    <p className="mt-1 text-[9px] leading-tight text-[var(--cb-text-muted)]">
+                    <p className="mt-1.5 text-[10px] leading-snug text-[var(--cb-text-muted)]">
                       {factorInterpretation(stock, key, value)}
                     </p>
                   </div>

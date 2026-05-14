@@ -125,11 +125,11 @@ export function ScenarioEngine({ stock, onScenarioClick, disabled }: Props) {
             )}
           >
             <div className="mb-1 flex items-center justify-between gap-1">
-              <span className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">{s.label}</span>
-              <span className="text-[9px] text-[var(--cb-text-muted)]">{s.prob}</span>
+              <span className="text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">{s.label}</span>
+              <span className="rounded bg-white/6 px-1 py-px text-[9px] tabular-nums text-[var(--cb-text-muted)]">{s.prob}</span>
             </div>
-            <div className={cn('text-sm font-bold tabular-nums', s.color)}>{s.value}</div>
-            <p className="mt-1 text-[9px] leading-tight text-[var(--cb-text-muted)]">{s.desc}</p>
+            <div className={cn('text-xl font-bold tabular-nums leading-none', s.color)}>{s.value}</div>
+            <p className="mt-1.5 text-[10px] leading-tight text-[var(--cb-text-muted)]">{s.desc}</p>
           </button>
         ))}
       </div>
