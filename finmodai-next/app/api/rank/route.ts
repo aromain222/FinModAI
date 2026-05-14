@@ -30,7 +30,8 @@ export const maxDuration = 60;
 
 const MAX_TICKERS = MAX_RANK_UNIVERSE_SIZE;
 const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-const LIVE_FALLBACK_LIMIT = 240;
+const LIVE_FALLBACK_LIMIT = 40;
+const LIVE_SCORE_DEADLINE_MS = 45_000;
 const RANK_CACHE_TTL_MS = 30_000;
 const rankCache = new Map<string, { expiresAt: number; response: RankResponse }>();
 
@@ -170,7 +171,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   let liveStocks;
   try {
-    liveStocks = await scoreMultiple(liveTickers, new URL(req.url).origin, horizonWeeks);
+    const deadlineFallback = new Promise<RankedStock[]>(resolve =>
+      setTimeout(
+        () => resolve(liveTickers.map(t => mockFallback(t, horizonWeeks))),
+        LIVE_SCORE_DEADLINE_MS,
+      )
+    );
+    liveStocks = await Promise.race([
+      scoreMultiple(liveTickers, new URL(req.url).origin, horizonWeeks),
+      deadlineFallback,
+    ]);
   } catch (err) {
     console.error('[rank] live GET fallback failed:', err);
     liveStocks = liveTickers.map(ticker => mockFallback(ticker, horizonWeeks));
