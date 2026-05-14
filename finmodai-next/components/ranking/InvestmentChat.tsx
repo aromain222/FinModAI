@@ -685,181 +685,178 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   return (
     <div className="flex h-full min-w-0 flex-col overflow-hidden">
 
-      {/* ── Compact stock header ── */}
-      <PMDecisionStrip stock={stock} displayedScore={displayedScore} scoreChange={scoreChange} />
-
-      <div className="shrink-0 border-b border-[var(--cb-border)] px-4 pb-2 pt-1">
-        <TradeReadinessStrip ticker={stock.ticker} computed={tradeReadiness(stock)} />
-      </div>
-
-      {/* AI Verdict banner */}
-      {aiVerdict && (() => {
-        const total = aiVerdict.bullish + aiVerdict.bearish + aiVerdict.neutral;
-        const bullPct = total > 0 ? Math.round((aiVerdict.bullish / total) * 100) : 0;
-        const act = aiVerdict.action.toLowerCase();
-        const isBull = act === 'buy' || act === 'cover';
-        const isBear = act === 'sell' || act === 'short';
-        const bannerClasses = isBull
-          ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200'
-          : isBear
-          ? 'border-rose-400/40 bg-rose-500/15 text-rose-200'
-          : 'border-amber-400/30 bg-amber-500/12 text-amber-200';
-        const dotClass = isBull ? 'bg-emerald-400' : isBear ? 'bg-rose-400' : 'bg-amber-400';
-        const glowClass = isBull
-          ? 'shadow-[0_2px_16px_rgba(52,211,153,0.18)]'
-          : isBear ? 'shadow-[0_2px_16px_rgba(251,113,133,0.18)]' : '';
-        return (
-          <div className={cn('shrink-0 flex items-center gap-3 border-b px-4 py-2', bannerClasses, glowClass)}>
-            <span className={cn('h-2 w-2 shrink-0 rounded-full animate-pulse', dotClass)} />
-            <span className="text-[10px] font-bold uppercase tracking-widest">AI Hedge Fund</span>
-            <span className="text-[11px] font-black capitalize tracking-tight">{aiVerdict.action}</span>
-            <span className="text-[10px] opacity-70">{aiVerdict.confidence}% confidence</span>
-            <div className="mx-2 h-3 w-px bg-current opacity-20" />
-            <span className="text-[10px]">
-              <span className="font-semibold">{aiVerdict.bullish}</span><span className="opacity-60"> bull · </span>
-              <span className="font-semibold">{aiVerdict.bearish}</span><span className="opacity-60"> bear · </span>
-              <span className="opacity-60">{bullPct}% bullish</span>
-            </span>
-          </div>
-        );
-      })()}
-
-      {/* Action buttons */}
+      {/* ── Compact 1-row stock header ── */}
       <div className="shrink-0 flex flex-wrap items-center gap-2 border-b border-[var(--cb-border)] px-4 py-2">
-        <button
-          type="button"
-          onClick={isInQueue ? undefined : handleAddToQueue}
-          className={cn(
-            'flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors',
-            queued || isInQueue
-              ? 'cursor-default border-emerald-400/30 bg-emerald-500/15 text-emerald-300'
-              : 'border-[var(--cb-border)] text-[var(--cb-text-muted)] hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)]',
-          )}
-        >
-          {queued
-            ? <><CheckCircle className="h-3 w-3" />&nbsp;Added to Pitch Queue</>
-            : isInQueue
-              ? <><CheckCircle className="h-3 w-3" />&nbsp;In Queue</>
-              : <><Plus className="h-3 w-3" />&nbsp;Queue</>
-          }
-        </button>
-        {queued && (
-          <a href="/pitch-queue" className="text-[10px] text-emerald-400 hover:underline">
-            View Queue →
-          </a>
+        <span className="text-base font-black text-[var(--cb-text-primary)]">{stock.ticker}</span>
+        <span className={cn(
+          'rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide',
+          stock.signal === 'green'
+            ? 'bg-emerald-500/15 text-emerald-300'
+            : stock.signal === 'red'
+              ? 'bg-rose-500/15 text-rose-300'
+              : 'bg-amber-500/15 text-amber-300',
+        )}>
+          {setupLabel(stock.signal)} · {displayedScore.toFixed(1)}
+        </span>
+        {scoreChange && (
+          <span className={cn(
+            'text-[10px] font-bold tabular-nums',
+            scoreChange.delta >= 0 ? 'text-emerald-300' : 'text-rose-300',
+          )}>
+            {scoreChange.delta >= 0 ? '+' : ''}{scoreChange.delta.toFixed(1)}
+          </span>
         )}
-
-        {currentPosition ? (
-          <a
-            href="/portfolio"
-            className="flex items-center gap-1.5 rounded-lg border border-blue-400/30 bg-blue-500/10 px-2.5 py-1 text-[11px] font-medium text-blue-300 hover:underline"
-          >
-            <TrendingUp className="h-3 w-3" />
-            Tracked Thesis ↗
-          </a>
-        ) : showEnterForm ? (
-          <div className="w-full rounded-xl border border-blue-400/25 bg-blue-500/8 p-3">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <div className="text-[10px] font-bold uppercase tracking-widest text-blue-300">Track Thesis</div>
-                <div className="text-[11px] text-[var(--cb-text-muted)]">
-                  Add {stock.ticker} to Thesis Watch with a reference price and position size.
-                </div>
-              </div>
-              <div className="text-right text-[10px] text-[var(--cb-text-muted)]">
-                {entryQuoteLoading
-                  ? 'Loading quote...'
-                  : entryQuote?.price
-                    ? <>Live ref <span className="font-semibold text-[var(--cb-text-primary)]">${entryQuote.price.toFixed(2)}</span></>
-                    : 'Manual ref price'}
-              </div>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]">
-              <label className="space-y-1">
-                <span className="block text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Shares</span>
-                <input
-                  type="number"
-                  value={shareCountInput}
-                  onChange={e => setShareCountInput(e.target.value)}
-                  placeholder="10"
-                  className="h-9 w-full rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2.5 text-sm text-[var(--cb-text-primary)] focus:border-blue-400/40 focus:outline-none"
-                  onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
-                  autoFocus
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="block text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Cost basis</span>
-                <input
-                  type="number"
-                  value={positionAmountInput}
-                  onChange={e => setPositionAmountInput(e.target.value)}
-                  placeholder="3000"
-                  className="h-9 w-full rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2.5 text-sm text-[var(--cb-text-primary)] focus:border-blue-400/40 focus:outline-none"
-                  onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="block text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Entry / ref price</span>
-                <input
-                  type="number"
-                  value={entryPriceInput}
-                  onChange={e => setEntryPriceInput(e.target.value)}
-                  placeholder={entryQuote?.price ? entryQuote.price.toFixed(2) : 'Price'}
-                  className="h-9 w-full rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2.5 text-sm text-[var(--cb-text-primary)] focus:border-blue-400/40 focus:outline-none"
-                  onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
-                />
-              </label>
-              <div className="flex items-end gap-1.5">
-                <button
-                  type="button"
-                  onClick={handleEnterPosition}
-                  disabled={!Number.isFinite(parsedEntryPrice) || parsedEntryPrice <= 0}
-                  className="h-9 rounded-lg bg-blue-600 px-3 text-[11px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Add
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowEnterForm(false)}
-                  className="h-9 rounded-lg border border-[var(--cb-border)] px-3 text-[11px] text-[var(--cb-text-muted)] hover:text-[var(--cb-text-primary)]"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] text-[var(--cb-text-muted)]">
-              <span>Setup <span className="font-semibold text-[var(--cb-text-primary)]">{setupLabel(stock.signal)}</span></span>
-              <span>Score <span className="font-semibold text-[var(--cb-text-primary)]">{stock.score.toFixed(1)}</span></span>
-              {resolvedShares !== null && (
-                <span>Shares <span className="font-semibold text-[var(--cb-text-primary)]">{resolvedShares.toFixed(4)}</span>{estimatedShares !== null && !shareCountInput ? ' est.' : ''}</span>
-              )}
-              {resolvedCostBasis !== null && (
-                <span>Cost basis <span className="font-semibold text-[var(--cb-text-primary)]">${Math.round(resolvedCostBasis).toLocaleString('en-US')}</span></span>
-              )}
-            </div>
-          </div>
-        ) : (
+        {aiVerdict && (() => {
+          const act = aiVerdict.action.toLowerCase();
+          const isBull = act === 'buy' || act === 'cover';
+          const isBear = act === 'sell' || act === 'short';
+          return (
+            <span className={cn(
+              'rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide',
+              isBull ? 'bg-emerald-500/15 text-emerald-300'
+                : isBear ? 'bg-rose-500/15 text-rose-300'
+                : 'bg-amber-500/15 text-amber-300',
+            )}>
+              AI: {aiVerdict.action}
+            </span>
+          );
+        })()}
+        <div className="ml-auto flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setShowEnterForm(true)}
+            onClick={isInQueue ? undefined : handleAddToQueue}
             className={cn(
-              'flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors',
-              positionConfirmed
-                ? 'cursor-default border-blue-400/30 bg-blue-500/10 text-blue-300'
-                : 'border-[var(--cb-border)] text-[var(--cb-text-muted)] hover:border-blue-400/30 hover:text-blue-300',
+              'flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-medium transition-colors',
+              queued || isInQueue
+                ? 'cursor-default border-emerald-400/30 bg-emerald-500/15 text-emerald-300'
+                : 'border-[var(--cb-border)] text-[var(--cb-text-muted)] hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)]',
             )}
           >
-            <TrendingUp className="h-3 w-3" />
-            {positionConfirmed ? 'Thesis Tracked' : 'Track Thesis'}
+            {queued || isInQueue
+              ? <><CheckCircle className="h-3 w-3" />&nbsp;Queued</>
+              : <><Plus className="h-3 w-3" />&nbsp;Queue</>
+            }
           </button>
-        )}
+          {queued && (
+            <a href="/pitch-queue" className="text-[10px] text-emerald-400 hover:underline">View →</a>
+          )}
+          {currentPosition ? (
+            <a
+              href="/portfolio"
+              className="flex items-center gap-1 rounded-lg border border-blue-400/30 bg-blue-500/10 px-2 py-1 text-[10px] font-medium text-blue-300 hover:underline"
+            >
+              <TrendingUp className="h-3 w-3" />
+              Tracked ↗
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowEnterForm(v => !v)}
+              className={cn(
+                'flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-medium transition-colors',
+                positionConfirmed
+                  ? 'cursor-default border-blue-400/30 bg-blue-500/10 text-blue-300'
+                  : showEnterForm
+                    ? 'border-blue-400/30 bg-blue-500/10 text-blue-300'
+                    : 'border-[var(--cb-border)] text-[var(--cb-text-muted)] hover:border-blue-400/30 hover:text-blue-300',
+              )}
+            >
+              <TrendingUp className="h-3 w-3" />
+              {positionConfirmed ? 'Tracked' : 'Track'}
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* ── Enter position form (collapsible below header) ── */}
+      {showEnterForm && !currentPosition && (
+        <div className="shrink-0 border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-4 py-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-widest text-blue-300">Track Thesis</div>
+              <div className="text-[11px] text-[var(--cb-text-muted)]">
+                Add {stock.ticker} with a reference price and position size.
+              </div>
+            </div>
+            <div className="text-right text-[10px] text-[var(--cb-text-muted)]">
+              {entryQuoteLoading
+                ? 'Loading quote...'
+                : entryQuote?.price
+                  ? <>Live ref <span className="font-semibold text-[var(--cb-text-primary)]">${entryQuote.price.toFixed(2)}</span></>
+                  : 'Manual ref price'}
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]">
+            <label className="space-y-1">
+              <span className="block text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Shares</span>
+              <input
+                type="number"
+                value={shareCountInput}
+                onChange={e => setShareCountInput(e.target.value)}
+                placeholder="10"
+                className="h-9 w-full rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2.5 text-sm text-[var(--cb-text-primary)] focus:border-blue-400/40 focus:outline-none"
+                onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
+                autoFocus
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="block text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Cost basis</span>
+              <input
+                type="number"
+                value={positionAmountInput}
+                onChange={e => setPositionAmountInput(e.target.value)}
+                placeholder="3000"
+                className="h-9 w-full rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2.5 text-sm text-[var(--cb-text-primary)] focus:border-blue-400/40 focus:outline-none"
+                onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="block text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Entry / ref price</span>
+              <input
+                type="number"
+                value={entryPriceInput}
+                onChange={e => setEntryPriceInput(e.target.value)}
+                placeholder={entryQuote?.price ? entryQuote.price.toFixed(2) : 'Price'}
+                className="h-9 w-full rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2.5 text-sm text-[var(--cb-text-primary)] focus:border-blue-400/40 focus:outline-none"
+                onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
+              />
+            </label>
+            <div className="flex items-end gap-1.5">
+              <button
+                type="button"
+                onClick={handleEnterPosition}
+                disabled={!Number.isFinite(parsedEntryPrice) || parsedEntryPrice <= 0}
+                className="h-9 rounded-lg bg-blue-600 px-3 text-[11px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Add
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowEnterForm(false)}
+                className="h-9 rounded-lg border border-[var(--cb-border)] px-3 text-[11px] text-[var(--cb-text-muted)] hover:text-[var(--cb-text-primary)]"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] text-[var(--cb-text-muted)]">
+            <span>Setup <span className="font-semibold text-[var(--cb-text-primary)]">{setupLabel(stock.signal)}</span></span>
+            <span>Score <span className="font-semibold text-[var(--cb-text-primary)]">{stock.score.toFixed(1)}</span></span>
+            {resolvedShares !== null && (
+              <span>Shares <span className="font-semibold text-[var(--cb-text-primary)]">{resolvedShares.toFixed(4)}</span>{estimatedShares !== null && !shareCountInput ? ' est.' : ''}</span>
+            )}
+            {resolvedCostBasis !== null && (
+              <span>Cost basis <span className="font-semibold text-[var(--cb-text-primary)]">${Math.round(resolvedCostBasis).toLocaleString('en-US')}</span></span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Split workspace ── */}
       <div className="min-h-0 flex-1 flex flex-col lg:flex-row">
 
         {/* ── Left pane: Deep Analysis / AI Agents ── */}
-        <div className="flex min-w-0 flex-col overflow-hidden border-b border-[var(--cb-border)] lg:w-[50%] lg:border-b-0 lg:border-r lg:max-h-full">
+        <div className="flex min-w-0 flex-col overflow-hidden border-b border-[var(--cb-border)] lg:w-[52%] lg:border-b-0 lg:border-r">
           {/* Pane tab bar */}
           <div className="shrink-0 flex items-stretch border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)]">
             {(['analysis', 'agents'] as const).map(tab => (
@@ -891,10 +888,14 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             ))}
           </div>
 
-          {/* Pane content */}
+          {/* Pane content — PMDecisionStrip scrolls with the pane */}
           <div className="min-h-0 flex-1 overflow-y-auto">
             {analysisPaneTab === 'analysis' ? (
               <>
+                <PMDecisionStrip stock={stock} displayedScore={displayedScore} scoreChange={scoreChange} />
+                <div className="border-b border-[var(--cb-border)] px-4 pb-2 pt-1">
+                  <TradeReadinessStrip ticker={stock.ticker} computed={tradeReadiness(stock)} />
+                </div>
                 <TradeStructurePanel stock={stock} />
                 <ScenarioEngine stock={stock} onScenarioClick={text => sendMessage(text)} disabled={streaming} />
                 <CatalystTimeline stock={stock} onCatalystClick={text => sendMessage(text)} disabled={streaming} />
@@ -908,6 +909,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
               </>
             ) : (
               <>
+                <PMDecisionStrip stock={stock} displayedScore={displayedScore} scoreChange={scoreChange} />
                 <HedgeFundPanel
                   ticker={stock.ticker}
                   autoRun
