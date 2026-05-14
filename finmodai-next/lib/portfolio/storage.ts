@@ -4,6 +4,7 @@ import type {
   PositionMonitorResult,
   PositionStatus,
   ThesisDrift,
+  ThesisSnapshot,
 } from './types';
 
 const STORAGE_KEY = 'capitalbase:portfolio:v1';
@@ -49,7 +50,14 @@ export function addPosition(position: ActivePosition): ActivePosition[] {
   const existing = getPositions().filter(
     p => !(p.ticker === position.ticker && p.status !== 'exited'),
   );
-  return save([position, ...existing]);
+  const initialSnapshot: ThesisSnapshot = {
+    date:   position.entryDate,
+    score:  position.entryScore,
+    signal: position.entrySignal,
+    drift:  'stable',
+    note:   'Position opened',
+  };
+  return save([{ ...position, thesisSnapshots: [initialSnapshot] }, ...existing]);
 }
 
 export function updatePosition(id: string, updates: Partial<ActivePosition>): ActivePosition[] {
@@ -116,10 +124,26 @@ export function updatePositionThesis(
     kind:        'thesis_update',
   };
 
+  const newSnapshot: ThesisSnapshot = {
+    date:   event.date,
+    score:  newScore,
+    signal: newSignal,
+    drift,
+    note,
+  };
+
   return save(
     positions.map(p =>
       p.id === id
-        ? { ...p, currentScore: newScore, currentSignal: newSignal, thesisDrift: drift, status, timeline: [...p.timeline, event] }
+        ? {
+            ...p,
+            currentScore:    newScore,
+            currentSignal:   newSignal,
+            thesisDrift:     drift,
+            status,
+            timeline:        [...p.timeline, event],
+            thesisSnapshots: [...(p.thesisSnapshots ?? []), newSnapshot].slice(-20),
+          }
         : p,
     ),
   );
@@ -146,18 +170,27 @@ export function updatePositionMonitor(id: string, monitor: PositionMonitorResult
     kind:        monitor.action === 'Exit' ? 'risk' : 'thesis_update',
   };
 
+  const newSnapshot: ThesisSnapshot = {
+    date:   monitor.asOf,
+    score:  monitor.updatedScore,
+    signal: monitor.updatedSignal,
+    drift:  monitor.thesisDrift,
+    note:   `${monitor.action} — ${monitor.exitTrigger.slice(0, 80)}`,
+  };
+
   return save(
     positions.map(p =>
       p.id === id
         ? {
             ...p,
-            currentScore:  monitor.updatedScore,
-            currentSignal: monitor.updatedSignal,
-            thesisDrift:   monitor.thesisDrift,
-            currentStance: monitor.action,
+            currentScore:    monitor.updatedScore,
+            currentSignal:   monitor.updatedSignal,
+            thesisDrift:     monitor.thesisDrift,
+            currentStance:   monitor.action,
             status,
-            latestMonitor: monitor,
-            timeline:      [...p.timeline, event],
+            latestMonitor:   monitor,
+            timeline:        [...p.timeline, event],
+            thesisSnapshots: [...(p.thesisSnapshots ?? []), newSnapshot].slice(-20),
           }
         : p,
     ),

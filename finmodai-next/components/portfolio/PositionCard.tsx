@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Trash2, LogOut, ChevronDown, ChevronUp, Zap, RefreshCw, ShieldCheck } from 'lucide-react';
-import type { ActivePosition, PositionStatus, ThesisDrift } from '@/lib/portfolio/types';
+import { Trash2, LogOut, ChevronDown, ChevronUp, Zap, RefreshCw, ShieldCheck, TrendingUp } from 'lucide-react';
+import type { ActivePosition, PositionStatus, ThesisDrift, ThesisSnapshot } from '@/lib/portfolio/types';
 import type { StockQuote } from '@/app/api/quotes/route';
 import type { ClassifiedNewsItem } from '@/lib/portfolio/newsClassify';
 import { LABEL_STYLE } from '@/lib/portfolio/newsClassify';
@@ -98,6 +98,117 @@ function monitorSummary(monitor: ActivePosition['latestMonitor']): string {
   if (monitor.action === 'Trim') return 'Upside is less clean or the position is extended; harvest some risk.';
   if (monitor.action === 'Exit') return 'Original thesis is no longer supported by score, news, or agents.';
   return 'No clean add or exit signal yet; wait for confirmation.';
+}
+
+function ThesisSparkline({ snapshots }: { snapshots: ThesisSnapshot[] }) {
+  if (snapshots.length < 2) return null;
+
+  const scores  = snapshots.map(s => s.score);
+  const min     = Math.max(0, Math.min(...scores) - 0.5);
+  const max     = Math.min(10, Math.max(...scores) + 0.5);
+  const range   = max - min || 1;
+  const W = 80;
+  const H = 24;
+  const pad = 2;
+
+  const pts = scores.map((score, i) => {
+    const x = pad + ((W - pad * 2) * i) / (scores.length - 1);
+    const y = H - pad - ((H - pad * 2) * (score - min)) / range;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+
+  const lastScore = scores[scores.length - 1] ?? 0;
+  const firstScore = scores[0] ?? 0;
+  const trendColor = lastScore > firstScore + 0.3
+    ? '#34d399'  // emerald
+    : lastScore < firstScore - 0.3
+    ? '#fb7185'  // rose
+    : '#94a3b8'; // muted
+
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
+      <polyline
+        points={pts.join(' ')}
+        fill="none"
+        stroke={trendColor}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity={0.8}
+      />
+      {/* Last point dot */}
+      {pts[pts.length - 1] && (
+        <circle
+          cx={pts[pts.length - 1]!.split(',')[0]}
+          cy={pts[pts.length - 1]!.split(',')[1]}
+          r="2.5"
+          fill={trendColor}
+        />
+      )}
+    </svg>
+  );
+}
+
+function ThesisLog({ snapshots }: { snapshots: ThesisSnapshot[] }) {
+  const [expanded, setExpanded] = useState(false);
+  if (snapshots.length === 0) return null;
+
+  const first = snapshots[0]!;
+  const last  = snapshots[snapshots.length - 1]!;
+  const delta = last.score - first.score;
+  const trend =
+    delta > 0.3 ? { label: '↑ Improving', cls: 'text-emerald-300' } :
+    delta < -0.3 ? { label: '↓ Weakening', cls: 'text-rose-300' } :
+    { label: '→ Stable', cls: 'text-[var(--cb-text-muted)]' };
+
+  return (
+    <div className="mt-3 rounded-xl border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-3 py-2.5">
+      <button
+        type="button"
+        onClick={() => setExpanded(v => !v)}
+        className="flex w-full items-center justify-between gap-2"
+      >
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-3.5 w-3.5 text-[var(--cb-text-muted)]" />
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">
+            Thesis Log
+          </span>
+          <span className={cn('text-[10px] font-semibold', trend.cls)}>{trend.label}</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <ThesisSparkline snapshots={snapshots} />
+          <span className="text-[9px] tabular-nums text-[var(--cb-text-muted)]">
+            {first.score.toFixed(1)} → {last.score.toFixed(1)}
+          </span>
+          {expanded ? <ChevronUp className="h-3 w-3 text-[var(--cb-text-muted)]" /> : <ChevronDown className="h-3 w-3 text-[var(--cb-text-muted)]" />}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="mt-2 space-y-1.5 border-t border-[var(--cb-border)] pt-2">
+          {[...snapshots].reverse().map((snap, i) => {
+            const scoreColor =
+              snap.drift === 'strengthening' ? 'text-emerald-300' :
+              snap.drift === 'weakening'     ? 'text-rose-300' :
+                                               'text-[var(--cb-text-muted)]';
+            const date = new Date(snap.date);
+            const dateStr = Number.isNaN(date.getTime())
+              ? '—'
+              : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            return (
+              <div key={i} className="grid grid-cols-[52px_32px_1fr] items-start gap-x-2 text-[10px]">
+                <span className="text-[var(--cb-text-muted)]">{dateStr}</span>
+                <span className={cn('tabular-nums font-semibold', scoreColor)}>
+                  {snap.score.toFixed(1)}
+                </span>
+                <span className="leading-snug text-[var(--cb-text-muted)]">{snap.note}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function PositionCard({
@@ -350,6 +461,11 @@ export function PositionCard({
         )}
       </div>
 
+      {/* Thesis Change Log */}
+      {(position.thesisSnapshots?.length ?? 0) > 0 && (
+        <ThesisLog snapshots={position.thesisSnapshots!} />
+      )}
+
       {/* Footer */}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {editingPrice ? (
@@ -431,7 +547,10 @@ export function PositionCard({
                     <span className="block text-[11px] font-medium leading-4 text-[var(--cb-text-primary)]">
                       {item.title}
                     </span>
-                    <span className="mt-0.5 block text-[10px] text-[var(--cb-text-muted)]">
+                    <span className="mt-0.5 block text-[10px] leading-snug text-[var(--cb-text-muted)]">
+                      {item.reason}
+                    </span>
+                    <span className="mt-0.5 block text-[10px] text-[var(--cb-text-muted)] opacity-60">
                       {item.source || item.provider || 'News'} · {dateStr}
                     </span>
                   </span>

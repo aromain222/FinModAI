@@ -1,3 +1,11 @@
+export type ThesisSnapshot = {
+  date: string;
+  score: number;
+  signal: 'green' | 'yellow' | 'red';
+  drift: ThesisDrift;
+  note: string;
+};
+
 export type PositionStatus =
   | 'building'   // < 3 days since entry
   | 'working'    // thesis holding, score stable/improving
@@ -62,6 +70,7 @@ export type ActivePosition = {
   keyRisks: string;
   watchItems: string[];
   timeline: PositionEvent[];
+  thesisSnapshots?: ThesisSnapshot[];
   latestMonitor?: PositionMonitorResult;
   addedAt: string;
   exitedAt?: string;
