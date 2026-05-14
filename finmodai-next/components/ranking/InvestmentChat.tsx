@@ -72,6 +72,15 @@ const STANDARD_PROMPTS: Array<{ label: string; text: string; mode: InvestmentMod
   { label: 'Pitch',     text: 'Write a short pitch for this trade.',                           mode: 'pitch' },
 ];
 
+const CHAT_AGENT_SHORTCUTS: Array<{ label: string; text: string; mode?: InvestmentMode }> = [
+  { label: 'AI Hedge Fund',       text: 'Run the pm brain: explain why this stock belongs in the ranked list.', mode: 'explain' },
+  { label: 'Valuation Analyst',   text: 'Is this stock overpriced relative to its growth expectations?', mode: 'evaluate' },
+  { label: 'Technical Analyst',   text: 'Analyze the technical setup, momentum, forecast, and tape for this stock.' },
+  { label: 'Bear Case',           text: 'What would make this a bad trade?', mode: 'challenge' },
+  { label: 'Catalyst Scanner',    text: 'Run the catalyst agent: what events or headlines matter most for this stock?' },
+  { label: 'News Radar',          text: 'What are the latest news and sentiment signals for this stock?' },
+];
+
 type Props = {
   stock: RankedStock | null;
   peers: PeerStock[];
@@ -274,7 +283,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   const [entryQuoteLoading, setEntryQuoteLoading] = useState(false);
   const [aiVerdict, setAiVerdict] = useState<{ action: string; bullish: number; bearish: number; neutral: number; confidence: number } | null>(null);
   const [panelTab, setPanelTab] = useState<'analysis' | 'agents' | 'chat'>('agents');
-  const [analysisPaneTab, setAnalysisPaneTab] = useState<'analysis' | 'agents'>('analysis');
+  const [analysisPaneTab, setAnalysisPaneTab] = useState<'analysis' | 'agents' | 'chat'>('analysis');
   const [chatExpanded, setChatExpanded] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const scrollRef         = useRef<HTMLDivElement>(null);
@@ -401,6 +410,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       setInput('');
       setStreaming(true);
       setPanelTab('chat');
+      setAnalysisPaneTab('chat');
 
       if (currentPosition) {
         const norm = trimmed.toLowerCase();
@@ -872,262 +882,267 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
         </div>
       )}
 
-      {/* ── Split workspace ── */}
-      <div className="min-h-0 flex-1 flex flex-col lg:flex-row">
+      {/* ── Full-width tabbed workspace ── */}
+      <div className="min-h-0 flex-1 flex flex-col overflow-hidden">
 
-        {/* ── Left pane: Deep Analysis / AI Agents ── */}
-        <div className="flex min-w-0 flex-col overflow-hidden border-b border-[var(--cb-border)] lg:w-[52%] lg:border-b-0 lg:border-r">
-          {/* Pane tab bar — segmented pill control */}
-          <div className="shrink-0 flex items-center gap-1 border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-2 py-1.5">
-            {(['analysis', 'agents'] as const).map(tab => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setAnalysisPaneTab(tab)}
-                className={cn(
-                  'flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] font-semibold tracking-wide transition-all duration-150',
-                  analysisPaneTab === tab
-                    ? 'bg-[var(--cb-surface)] text-[var(--cb-text-primary)] shadow-[0_1px_4px_rgba(0,0,0,0.35)]'
-                    : 'text-[var(--cb-text-muted)] hover:text-[var(--cb-text-secondary)] hover:bg-white/[0.03]',
-                )}
-              >
-                {tab === 'analysis' ? 'Deep Analysis' : 'AI Agents'}
-                {tab === 'agents' && aiVerdict && (
-                  <span className={cn(
-                    'inline-block h-1.5 w-1.5 rounded-full',
-                    aiVerdict.action.toLowerCase() === 'buy' || aiVerdict.action.toLowerCase() === 'cover'
-                      ? 'bg-emerald-400'
-                      : aiVerdict.action.toLowerCase() === 'sell' || aiVerdict.action.toLowerCase() === 'short'
-                        ? 'bg-rose-400' : 'bg-amber-400',
-                  )} />
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* Pane content — PMDecisionStrip scrolls with the pane */}
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {analysisPaneTab === 'analysis' ? (
-              <>
-                <PMDecisionStrip stock={stock} displayedScore={displayedScore} scoreChange={scoreChange} />
-                <div className="border-b border-[var(--cb-border)] px-4 pb-2 pt-1">
-                  <TradeReadinessStrip ticker={stock.ticker} computed={tradeReadiness(stock)} />
-                </div>
-                <TradeStructurePanel stock={stock} />
-                <ScenarioEngine stock={stock} onScenarioClick={text => sendMessage(text)} disabled={streaming} />
-                <CatalystTimeline stock={stock} onCatalystClick={text => sendMessage(text)} disabled={streaming} />
-                <DeepResearchPanel
-                  stock={stock}
-                  scoreChange={scoreChange}
-                  sourceCards={sourceCards}
-                  onPrompt={(text, mode) => sendMessage(text, mode as InvestmentMode | undefined)}
-                  disabled={streaming}
-                />
-              </>
-            ) : (
-              <>
-                <PMDecisionStrip stock={stock} displayedScore={displayedScore} scoreChange={scoreChange} />
-                <HedgeFundPanel
-                  ticker={stock.ticker}
-                  autoRun
-                  onResult={r => {
-                    if (!r.decision) return;
-
-                    // ── Dynamic ranking: AI consensus adjusts the live score ──────
-                    const total = r.consensus.bullish + r.consensus.bearish + r.consensus.neutral;
-                    const bullPct = total > 0 ? r.consensus.bullish / total : 0.5;
-                    const bearPct = total > 0 ? r.consensus.bearish / total : 0.5;
-                    const consensusAdj = (bullPct - 0.5) * 3;
-                    const act = r.decision.action.toLowerCase();
-                    const actionAdj = (act === 'buy' || act === 'cover') ? 0.4
-                      : (act === 'sell' || act === 'short') ? -0.4 : 0;
-
-                    const rawNew = stock.score + consensusAdj + actionAdj;
-                    const newScore = Math.round(Math.max(0, Math.min(10, rawNew)) * 10) / 10;
-                    const newSignal = signalFromScore(newScore);
-                    const actionDirection =
-                      act === 'buy' || act === 'cover' ? 'bullish' :
-                      act === 'sell' || act === 'short' ? 'bearish' : 'neutral';
-                    const scoreDirection = newSignal === 'green' ? 'bullish' : newSignal === 'red' ? 'bearish' : 'neutral';
-                    const alignment = actionDirection === 'neutral' || scoreDirection === 'neutral'
-                      ? 'mixed'
-                      : actionDirection === scoreDirection ? 'confirms' : 'conflicts';
-                    const aiHedgeFund = {
-                      action: r.decision.action,
-                      bullish: r.consensus.bullish,
-                      bearish: r.consensus.bearish,
-                      neutral: r.consensus.neutral,
-                      confidence: r.decision.confidence,
-                      bullPct,
-                      netBias: bullPct - bearPct,
-                      alignment,
-                      updatedAt: new Date().toISOString(),
-                    } as const;
-
-                    setScoreChange({
-                      fromScore: stock.score,
-                      toScore: newScore,
-                      delta: newScore - stock.score,
-                      fromSignal: stock.signal,
-                      toSignal: newSignal,
-                      factorDeltas: {},
-                      primaryFactor: 'AI Hedge Fund',
-                      explanation: `AI Hedge Fund ${alignment === 'confirms' ? 'confirmed' : alignment === 'conflicts' ? 'challenged' : 'mixed on'} the setup.`,
-                    });
-
-                    onStockUpdate?.({
-                      ...stock,
-                      score: newScore,
-                      signal: newSignal,
-                      primaryReason: `AI: ${r.decision.action} (${r.consensus.bullish}↑ ${r.consensus.bearish}↓) — ${stock.primaryReason}`,
-                      meta: { ...stock.meta, dataSource: 'live', aiHedgeFund },
-                    });
-
-                    setAiVerdict({
-                      action: r.decision.action,
-                      bullish: r.consensus.bullish,
-                      bearish: r.consensus.bearish,
-                      neutral: r.consensus.neutral,
-                      confidence: r.decision.confidence,
-                    });
-                  }}
-                />
-                <TradingAgentsPanel ticker={stock.ticker} />
-                <DexterPanel ticker={stock.ticker} />
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* ── Right pane: Analyst Chat ── */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-
-          {/* Messages scroll area */}
-          <div
-            ref={scrollRef}
-            className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4"
-          >
-            {messages.map((msg, i) => {
-              const convictionLevel =
-                msg.role === 'assistant' && msg.content
-                  ? parseConvictionLevel(msg.content)
-                  : null;
-              return (
-                <div key={i} className="flex flex-col items-start gap-1">
-                  <ChatMessage role={msg.role} content={msg.content} />
-                  {convictionLevel && msg.content && (
-                    <div className="w-full max-w-[85%] px-1">
-                      <ConvictionMeter level={convictionLevel} />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Sticky input area */}
-          <div className="shrink-0 border-t border-[var(--cb-border)] bg-[var(--cb-surface-subtle)]">
-
-            {/* All prompt chips — single scrollable row with group dividers */}
-            <div className="flex items-center gap-1 overflow-x-auto px-3 pt-2 pb-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {currentPosition && (
-                <>
-                  <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest text-blue-400/60">Pos</span>
-                  {(
-                    [
-                      { label: 'Evolving?',   text: 'How is this position evolving?' },
-                      { label: 'Changed?',    text: 'What changed since entry?' },
-                      { label: 'Still hold?', text: 'Should we still hold this?' },
-                      { label: 'Next event?', text: 'What event matters next for this position?' },
-                      { label: 'Thesis?',     text: 'Is the thesis getting stronger?' },
-                    ] as const
-                  ).map(p => (
-                    <button
-                      key={p.label}
-                      type="button"
-                      onClick={() => sendMessage(p.text)}
-                      disabled={streaming}
-                      className="shrink-0 cursor-pointer rounded-md border border-blue-400/20 bg-blue-500/8 px-2 py-0.5 text-[10px] font-medium text-blue-300 transition-all duration-150 hover:border-blue-300/40 hover:bg-blue-500/12 disabled:opacity-50"
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                  <span className="mx-1 shrink-0 h-3.5 w-px bg-[var(--cb-border)]" />
-                </>
+        {/* Tab bar — 3 tabs, full-width segmented pill control */}
+        <div className="shrink-0 flex items-center gap-1 border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-2 py-1.5">
+          {([
+            { id: 'analysis', label: 'Deep Analysis' },
+            { id: 'agents',   label: 'AI Agents' },
+            { id: 'chat',     label: 'Chat' },
+          ] as const).map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setAnalysisPaneTab(tab.id)}
+              className={cn(
+                'flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] font-semibold tracking-wide transition-all duration-150',
+                analysisPaneTab === tab.id
+                  ? 'bg-[var(--cb-surface)] text-[var(--cb-text-primary)] shadow-[0_1px_4px_rgba(0,0,0,0.35)]'
+                  : 'text-[var(--cb-text-muted)] hover:text-[var(--cb-text-secondary)] hover:bg-white/[0.03]',
               )}
-              {/* Agent run chips */}
-              <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest text-[var(--cb-text-muted)] opacity-60">Run</span>
-              {AGENT_PROMPTS.map(agent => (
-                <button
-                  key={agent.label}
-                  type="button"
-                  onClick={() => sendMessage(agent.text, agent.mode)}
-                  disabled={streaming}
-                  className="shrink-0 cursor-pointer rounded-md border border-blue-400/20 bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-200 transition-all duration-150 hover:border-blue-300/40 hover:bg-blue-500/15 disabled:opacity-50"
-                >
-                  {agent.label}
-                </button>
-              ))}
-              <span className="mx-1 shrink-0 h-3.5 w-px bg-[var(--cb-border)]" />
-              {/* Standard mode chips */}
-              {STANDARD_PROMPTS.map(qp => (
-                <button
-                  key={qp.mode}
-                  type="button"
-                  onClick={() => sendMessage(qp.text, qp.mode)}
-                  disabled={streaming}
-                  className="shrink-0 cursor-pointer rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 py-0.5 text-[10px] font-medium text-[var(--cb-text-secondary)] transition-all duration-150 hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)] disabled:opacity-50"
-                >
-                  {qp.label}
-                </button>
-              ))}
-              {/* Signal-colored context chip */}
-              <button
-                type="button"
-                onClick={() => sendMessage(cp.text, cp.mode)}
-                disabled={streaming}
-                className={cn(
-                  'shrink-0 cursor-pointer rounded-md border px-2 py-0.5 text-[10px] font-semibold transition-all duration-150 disabled:opacity-50',
-                  stock.signal === 'green'
-                    ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15'
-                    : stock.signal === 'red'
-                      ? 'border-rose-400/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/15'
-                      : 'border-amber-400/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15',
-                )}
-              >
-                {cp.label}
-              </button>
-            </div>
-
-            {/* Input form */}
-            <div className="px-3 pb-3 pt-0.5">
-              <form
-                onSubmit={e => { e.preventDefault(); sendMessage(input); }}
-                className="flex gap-2"
-              >
-                <input
-                  type="text"
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  placeholder={`Ask about ${stock.ticker}…`}
-                  disabled={streaming}
-                  className="min-w-0 flex-1 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 py-2 text-sm text-[var(--cb-text-primary)] placeholder:text-[var(--cb-text-muted)] transition-colors focus:border-blue-400/40 focus:outline-none disabled:opacity-50"
-                />
-                <button
-                  type="submit"
-                  disabled={!input.trim() || streaming}
-                  className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-blue-600 text-white transition-all duration-150 hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {streaming
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : <Send className="h-4 w-4" />
-                  }
-                </button>
-              </form>
-            </div>
-
-          </div>
+            >
+              {tab.label}
+              {tab.id === 'agents' && aiVerdict && (
+                <span className={cn(
+                  'inline-block h-1.5 w-1.5 rounded-full',
+                  aiVerdict.action.toLowerCase() === 'buy' || aiVerdict.action.toLowerCase() === 'cover'
+                    ? 'bg-emerald-400'
+                    : aiVerdict.action.toLowerCase() === 'sell' || aiVerdict.action.toLowerCase() === 'short'
+                      ? 'bg-rose-400' : 'bg-amber-400',
+                )} />
+              )}
+              {tab.id === 'chat' && messages.length > 2 && (
+                <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-blue-500/20 px-1 text-[8px] font-bold text-blue-300 tabular-nums">
+                  {Math.floor(messages.length / 2)}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
+
+        {/* ── Deep Analysis tab — full workspace width ── */}
+        {analysisPaneTab === 'analysis' && (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <PMDecisionStrip stock={stock} displayedScore={displayedScore} scoreChange={scoreChange} />
+            <div className="border-b border-[var(--cb-border)] px-4 pb-2 pt-1">
+              <TradeReadinessStrip ticker={stock.ticker} computed={tradeReadiness(stock)} />
+            </div>
+            <TradeStructurePanel stock={stock} />
+            <ScenarioEngine stock={stock} onScenarioClick={text => sendMessage(text)} disabled={streaming} />
+            <CatalystTimeline stock={stock} onCatalystClick={text => sendMessage(text)} disabled={streaming} />
+            <DeepResearchPanel
+              stock={stock}
+              scoreChange={scoreChange}
+              sourceCards={sourceCards}
+              onPrompt={(text, mode) => sendMessage(text, mode as InvestmentMode | undefined)}
+              disabled={streaming}
+            />
+          </div>
+        )}
+
+        {/* ── AI Agents tab — consensus dashboard, full width ── */}
+        {analysisPaneTab === 'agents' && (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <PMDecisionStrip stock={stock} displayedScore={displayedScore} scoreChange={scoreChange} />
+            <HedgeFundPanel
+              ticker={stock.ticker}
+              autoRun
+              onResult={r => {
+                if (!r.decision) return;
+
+                const total = r.consensus.bullish + r.consensus.bearish + r.consensus.neutral;
+                const bullPct = total > 0 ? r.consensus.bullish / total : 0.5;
+                const bearPct = total > 0 ? r.consensus.bearish / total : 0.5;
+                const consensusAdj = (bullPct - 0.5) * 3;
+                const act = r.decision.action.toLowerCase();
+                const actionAdj = (act === 'buy' || act === 'cover') ? 0.4
+                  : (act === 'sell' || act === 'short') ? -0.4 : 0;
+
+                const rawNew = stock.score + consensusAdj + actionAdj;
+                const newScore = Math.round(Math.max(0, Math.min(10, rawNew)) * 10) / 10;
+                const newSignal = signalFromScore(newScore);
+                const actionDirection =
+                  act === 'buy' || act === 'cover' ? 'bullish' :
+                  act === 'sell' || act === 'short' ? 'bearish' : 'neutral';
+                const scoreDirection = newSignal === 'green' ? 'bullish' : newSignal === 'red' ? 'bearish' : 'neutral';
+                const alignment = actionDirection === 'neutral' || scoreDirection === 'neutral'
+                  ? 'mixed'
+                  : actionDirection === scoreDirection ? 'confirms' : 'conflicts';
+                const aiHedgeFund = {
+                  action: r.decision.action,
+                  bullish: r.consensus.bullish,
+                  bearish: r.consensus.bearish,
+                  neutral: r.consensus.neutral,
+                  confidence: r.decision.confidence,
+                  bullPct,
+                  netBias: bullPct - bearPct,
+                  alignment,
+                  updatedAt: new Date().toISOString(),
+                } as const;
+
+                setScoreChange({
+                  fromScore: stock.score,
+                  toScore: newScore,
+                  delta: newScore - stock.score,
+                  fromSignal: stock.signal,
+                  toSignal: newSignal,
+                  factorDeltas: {},
+                  primaryFactor: 'AI Hedge Fund',
+                  explanation: `AI Hedge Fund ${alignment === 'confirms' ? 'confirmed' : alignment === 'conflicts' ? 'challenged' : 'mixed on'} the setup.`,
+                });
+
+                onStockUpdate?.({
+                  ...stock,
+                  score: newScore,
+                  signal: newSignal,
+                  primaryReason: `AI: ${r.decision.action} (${r.consensus.bullish}↑ ${r.consensus.bearish}↓) — ${stock.primaryReason}`,
+                  meta: { ...stock.meta, dataSource: 'live', aiHedgeFund },
+                });
+
+                setAiVerdict({
+                  action: r.decision.action,
+                  bullish: r.consensus.bullish,
+                  bearish: r.consensus.bearish,
+                  neutral: r.consensus.neutral,
+                  confidence: r.decision.confidence,
+                });
+              }}
+            />
+            <TradingAgentsPanel ticker={stock.ticker} />
+            <DexterPanel ticker={stock.ticker} />
+          </div>
+        )}
+
+        {/* ── Chat tab — full analyst copilot workspace ── */}
+        {analysisPaneTab === 'chat' && (
+          <div className="min-h-0 flex-1 flex flex-col overflow-hidden">
+
+            {/* Messages — centered max-w for comfortable reading */}
+            <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+              <div className="mx-auto w-full max-w-3xl space-y-4 px-4 py-5 lg:px-6">
+                {messages.map((msg, i) => {
+                  const convictionLevel =
+                    msg.role === 'assistant' && msg.content
+                      ? parseConvictionLevel(msg.content)
+                      : null;
+                  return (
+                    <div key={i} className="flex flex-col gap-1.5">
+                      <ChatMessage role={msg.role} content={msg.content} />
+                      {convictionLevel && msg.content && (
+                        <ConvictionMeter level={convictionLevel} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Sticky input area */}
+            <div className="shrink-0 border-t border-[var(--cb-border)] bg-[var(--cb-surface-subtle)]">
+
+              {/* Agent shortcut command row */}
+              <div className="flex items-center gap-1.5 overflow-x-auto px-4 pt-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest text-[var(--cb-text-muted)] opacity-60">Agents</span>
+                {CHAT_AGENT_SHORTCUTS.map(shortcut => (
+                  <button
+                    key={shortcut.label}
+                    type="button"
+                    onClick={() => sendMessage(shortcut.text, shortcut.mode)}
+                    disabled={streaming}
+                    className="shrink-0 cursor-pointer rounded-md border border-blue-400/20 bg-blue-500/10 px-2.5 py-1 text-[10px] font-semibold text-blue-200 transition-all duration-150 hover:border-blue-300/40 hover:bg-blue-500/15 disabled:opacity-50"
+                  >
+                    {shortcut.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Quick mode chips + position chips */}
+              <div className="flex items-center gap-1 overflow-x-auto px-4 pt-1 pb-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {currentPosition && (
+                  <>
+                    <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest text-blue-400/60">Pos</span>
+                    {(
+                      [
+                        { label: 'Evolving?',   text: 'How is this position evolving?' },
+                        { label: 'Changed?',    text: 'What changed since entry?' },
+                        { label: 'Still hold?', text: 'Should we still hold this?' },
+                        { label: 'Next event?', text: 'What event matters next for this position?' },
+                        { label: 'Thesis?',     text: 'Is the thesis getting stronger?' },
+                      ] as const
+                    ).map(p => (
+                      <button
+                        key={p.label}
+                        type="button"
+                        onClick={() => sendMessage(p.text)}
+                        disabled={streaming}
+                        className="shrink-0 cursor-pointer rounded-md border border-blue-400/20 bg-blue-500/8 px-2 py-0.5 text-[10px] font-medium text-blue-300 transition-all duration-150 hover:border-blue-300/40 disabled:opacity-50"
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                    <span className="mx-1 shrink-0 h-3.5 w-px bg-[var(--cb-border)]" />
+                  </>
+                )}
+                {STANDARD_PROMPTS.map(qp => (
+                  <button
+                    key={qp.mode}
+                    type="button"
+                    onClick={() => sendMessage(qp.text, qp.mode)}
+                    disabled={streaming}
+                    className="shrink-0 cursor-pointer rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 py-0.5 text-[10px] font-medium text-[var(--cb-text-secondary)] transition-all duration-150 hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)] disabled:opacity-50"
+                  >
+                    {qp.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => sendMessage(cp.text, cp.mode)}
+                  disabled={streaming}
+                  className={cn(
+                    'shrink-0 cursor-pointer rounded-md border px-2 py-0.5 text-[10px] font-semibold transition-all duration-150 disabled:opacity-50',
+                    stock.signal === 'green'
+                      ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15'
+                      : stock.signal === 'red'
+                        ? 'border-rose-400/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/15'
+                        : 'border-amber-400/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15',
+                  )}
+                >
+                  {cp.label}
+                </button>
+              </div>
+
+              {/* Input form — centered max-w to match messages */}
+              <div className="mx-auto w-full max-w-3xl px-4 pb-4 pt-1">
+                <form
+                  onSubmit={e => { e.preventDefault(); sendMessage(input); }}
+                  className="flex gap-2"
+                >
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    placeholder={`Ask the analyst about ${stock.ticker}…`}
+                    disabled={streaming}
+                    className="min-w-0 flex-1 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 py-2 text-sm text-[var(--cb-text-primary)] placeholder:text-[var(--cb-text-muted)] transition-colors focus:border-blue-400/40 focus:outline-none disabled:opacity-50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!input.trim() || streaming}
+                    className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-blue-600 text-white transition-all duration-150 hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {streaming
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Send className="h-4 w-4" />
+                    }
+                  </button>
+                </form>
+              </div>
+
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
