@@ -51,7 +51,7 @@ function CatalystCard({
   catalyst, onClick, disabled,
 }: {
   catalyst: RankedCatalyst;
-  onClick: () => void;
+  onClick?: () => void;
   disabled: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -67,7 +67,7 @@ function CatalystCard({
       <button
         type="button"
         disabled={disabled && !hasDetail}
-        onClick={() => hasDetail ? setExpanded(v => !v) : onClick()}
+        onClick={() => hasDetail ? setExpanded(v => !v) : onClick?.()}
         className="w-full cursor-pointer p-3 text-left disabled:cursor-not-allowed"
       >
         <div className="mb-1.5 flex flex-wrap items-center gap-2">
@@ -104,7 +104,7 @@ function CatalystCard({
           )}
           <button
             type="button"
-            disabled={disabled}
+            disabled={disabled || !onClick}
             onClick={onClick}
             className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-[var(--cb-text-muted)] transition-colors hover:text-[var(--cb-text-secondary)] disabled:opacity-50"
           >
@@ -118,11 +118,11 @@ function CatalystCard({
 
 type Props = {
   stock: RankedStock;
-  onCatalystClick: (text: string) => void;
-  disabled: boolean;
+  onCatalystClick?: (text: string) => void;
+  disabled?: boolean;
 };
 
-export function CatalystTimeline({ stock, onCatalystClick, disabled }: Props) {
+export function CatalystTimeline({ stock, onCatalystClick, disabled = false }: Props) {
   const catalysts    = (stock.meta.catalysts ?? []).slice(0, 4);
   const brief        = getCompanyBrief(stock.ticker);
   const macroEvents  = getUpcomingMacroEvents(60);
@@ -148,8 +148,8 @@ export function CatalystTimeline({ stock, onCatalystClick, disabled }: Props) {
               <button
                 key={evt.date + evt.abbr}
                 type="button"
-                disabled={disabled}
-                onClick={() => onCatalystClick(
+                disabled={disabled || !onCatalystClick}
+                onClick={() => onCatalystClick?.(
                   `How does ${evt.name} on ${fmtEventDate(evt.date)} affect ${stock.ticker}? ${evt.description}`
                 )}
                 className={cn(
@@ -207,7 +207,7 @@ export function CatalystTimeline({ stock, onCatalystClick, disabled }: Props) {
                 key={i}
                 catalyst={c}
                 disabled={disabled}
-                onClick={() => onCatalystClick(`Tell me more about this catalyst: ${c.title}`)}
+                onClick={onCatalystClick ? () => onCatalystClick(`Tell me more about this catalyst: ${c.title}`) : undefined}
               />
             ))}
           </div>
@@ -217,8 +217,8 @@ export function CatalystTimeline({ stock, onCatalystClick, disabled }: Props) {
               <button
                 key={i}
                 type="button"
-                disabled={disabled}
-                onClick={() => onCatalystClick(`What's the latest on ${item} and how does it affect ${stock.ticker}?`)}
+                disabled={disabled || !onCatalystClick}
+                onClick={() => onCatalystClick?.(`What's the latest on ${item} and how does it affect ${stock.ticker}?`)}
                 className="rounded-lg border border-[var(--cb-border-subtle)] bg-[var(--cb-surface-subtle)] p-3 text-left transition-colors hover:border-[var(--cb-border)] disabled:opacity-60"
               >
                 <div className="mb-1">

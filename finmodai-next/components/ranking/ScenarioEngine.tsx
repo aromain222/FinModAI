@@ -7,11 +7,11 @@ import { cn } from '@/lib/utils';
 
 type Props = {
   stock: RankedStock;
-  onScenarioClick: (text: string) => void;
-  disabled: boolean;
+  onScenarioClick?: (text: string) => void;
+  disabled?: boolean;
 };
 
-export function ScenarioEngine({ stock, onScenarioClick, disabled }: Props) {
+export function ScenarioEngine({ stock, onScenarioClick, disabled = false }: Props) {
   const em   = expectedMoveForDisplay(stock);
   const live = hasLiveConfirmation(stock);
 
@@ -117,8 +117,8 @@ export function ScenarioEngine({ stock, onScenarioClick, disabled }: Props) {
           <button
             key={s.label}
             type="button"
-            disabled={disabled}
-            onClick={() => onScenarioClick(`Walk me through the ${s.label.toLowerCase()} case for ${stock.ticker}.`)}
+            disabled={disabled || !onScenarioClick}
+            onClick={() => onScenarioClick?.(`Walk me through the ${s.label.toLowerCase()} case for ${stock.ticker}.`)}
             className={cn(
               'rounded-lg p-2.5 text-left ring-1 transition-colors hover:bg-[var(--cb-surface)] disabled:opacity-60',
               s.ring, s.bg,
