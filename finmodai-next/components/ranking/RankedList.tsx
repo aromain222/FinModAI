@@ -54,11 +54,20 @@ function parseAiAction(reason: string): string | null {
   return AI_ACTION_STYLE[word] ? word : null;
 }
 
+const SCORE_TIERS = [
+  { label: 'Any',    min: 0 },
+  { label: '5+',     min: 5 },
+  { label: '7+',     min: 7 },
+  { label: 'Elite',  min: 8.5 },
+] as const;
+type ScoreTierMin = (typeof SCORE_TIERS)[number]['min'];
+
 export function RankedList({ initial }: Props) {
   const [stocks,   setStocks]   = useState<RankedStock[]>(initial.stocks);
   const [loading,  setLoading]  = useState(false);
   const [scoredAt, setScoredAt] = useState(initial.scoredAt);
   const [filter,   setFilter]   = useState<SignalFilter>('all');
+  const [scoreMin, setScoreMin] = useState<ScoreTierMin>(0);
   const [sectorFilter, setSectorFilter] = useState('all');
   const [subsectorFilter, setSubsectorFilter] = useState('all');
   const [query,    setQuery]    = useState('');
@@ -118,6 +127,7 @@ export function RankedList({ initial }: Props) {
     () =>
       stocks.filter(s => {
         if (filter !== 'all' && s.signal !== filter) return false;
+        if (scoreMin > 0 && s.score < scoreMin) return false;
         if (sectorFilter !== 'all' && (s.meta.sector ?? 'Other') !== sectorFilter) return false;
         if (subsectorFilter !== 'all' && (s.meta.subsector ?? 'General') !== subsectorFilter) return false;
         if (query) {
@@ -132,7 +142,7 @@ export function RankedList({ initial }: Props) {
         }
         return true;
       }),
-    [stocks, filter, sectorFilter, subsectorFilter, query],
+    [stocks, filter, scoreMin, sectorFilter, subsectorFilter, query],
   );
 
   const sectorOptions = useMemo(() => (
@@ -223,6 +233,28 @@ export function RankedList({ initial }: Props) {
                 {FILTER_LABEL[f]}
               </button>
             ))}
+          </div>
+
+          {/* Score tier filter */}
+          <div className="flex items-center gap-1">
+            <span className="shrink-0 text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Score</span>
+            <div className="flex flex-1 overflow-hidden rounded-md border border-[var(--cb-border)]">
+              {SCORE_TIERS.map(tier => (
+                <button
+                  key={tier.min}
+                  type="button"
+                  onClick={() => setScoreMin(tier.min)}
+                  className={cn(
+                    'flex-1 py-1 text-[10px] font-medium transition-colors',
+                    scoreMin === tier.min
+                      ? 'bg-[var(--cb-surface-alt)] text-[var(--cb-text-primary)]'
+                      : 'text-[var(--cb-text-muted)] hover:text-[var(--cb-text-secondary)]',
+                  )}
+                >
+                  {tier.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Ticker search + count */}
