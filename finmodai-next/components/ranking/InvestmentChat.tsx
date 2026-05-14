@@ -411,6 +411,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       setMessages([...history, { role: 'assistant', content: '' }]);
       setInput('');
       setStreaming(true);
+      setPanelTab('chat');
 
       if (currentPosition) {
         const norm = trimmed.toLowerCase();

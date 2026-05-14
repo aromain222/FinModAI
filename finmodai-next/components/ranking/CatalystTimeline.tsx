@@ -68,7 +68,7 @@ function CatalystCard({
         type="button"
         disabled={disabled && !hasDetail}
         onClick={() => hasDetail ? setExpanded(v => !v) : onClick()}
-        className="w-full p-3 text-left"
+        className="w-full cursor-pointer p-3 text-left disabled:cursor-not-allowed"
       >
         <div className="mb-1.5 flex flex-wrap items-center gap-2">
           <Icon className="h-3 w-3 shrink-0 text-[var(--cb-text-muted)]" />
@@ -153,7 +153,7 @@ export function CatalystTimeline({ stock, onCatalystClick, disabled }: Props) {
                   `How does ${evt.name} on ${fmtEventDate(evt.date)} affect ${stock.ticker}? ${evt.description}`
                 )}
                 className={cn(
-                  'flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors hover:border-[var(--cb-border-strong)] disabled:opacity-60',
+                  'flex w-full cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors hover:border-[var(--cb-border-strong)] hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60',
                   urgent
                     ? 'border-amber-400/25 bg-amber-500/5'
                     : 'border-[var(--cb-border-subtle)] bg-[var(--cb-surface-subtle)]',
