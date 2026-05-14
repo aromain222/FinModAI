@@ -281,9 +281,11 @@ function buildMonitor(params: {
             : 'Hold: thesis is intact enough to keep monitoring.';
 
   const holdTrigger =
-    action === 'Exit'
-      ? 'Hold only if a near-term catalyst repairs the score or invalidates the risk headline.'
-      : 'Keep holding while score stays stable, news avoids risk escalation, and price action does not break down.';
+    action === 'Exit'  ? 'Hold only if a near-term catalyst repairs the score or invalidates the risk headline.' :
+    action === 'Trim'  ? 'Reduce position size if P&L target is reached or new risk headlines stack; keep a partial position while thesis holds.' :
+    action === 'Add'   ? 'Press the position if score keeps rising and fresh risk headlines stay absent.' :
+    action === 'Watch' ? 'Move to Hold or Add if score rises above 7 or a catalyst confirms the thesis. Exit if score deteriorates further.' :
+                         'Keep holding while score stays stable, news avoids risk escalation, and price action does not break down.';
 
   return {
     action,

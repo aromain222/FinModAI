@@ -100,11 +100,16 @@ function whyNow(position: ActivePosition, pnlPct: number, news: ClassifiedNewsIt
   return 'Position is inside normal swing noise; wait for score, news, or catalyst confirmation.';
 }
 
-function changeTrigger(position: ActivePosition): string {
+function changeTrigger(position: ActivePosition, action: PositionMonitorAction): string {
   const monitor = position.latestMonitor;
   if (monitor?.holdTrigger) return monitor.holdTrigger;
-  if (position.currentScore >= 7) return 'Decision worsens if score fades, risk headlines stack, or agent sentiment turns negative.';
-  return 'Decision improves if score moves above 7, news confirms the catalyst, and agent sentiment turns supportive.';
+  if (action === 'Exit')  return 'Hold only if a near-term catalyst repairs the score or invalidates the risk headline.';
+  if (action === 'Trim')  return 'Reduce size if P&L target is reached or risk headlines stack; keep partial exposure while thesis holds.';
+  if (action === 'Add')   return 'Press if score keeps rising and risk headlines stay absent.';
+  if (action === 'Watch') return 'Move to Hold/Add if score breaks above 7 or a catalyst confirms the thesis; exit if score deteriorates.';
+  return position.currentScore >= 7
+    ? 'Decision worsens if score fades, risk headlines stack, or agent sentiment turns negative.'
+    : 'Decision improves if score moves above 7, news confirms the catalyst, and agent sentiment turns supportive.';
 }
 
 function keyRisk(position: ActivePosition, news: ClassifiedNewsItem[] | undefined): string {
@@ -184,7 +189,7 @@ export function PortfolioAlerts({ positions, quotes, newsMap, monitoring, onRefr
                 </div>
                 <div>
                   <div className="text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">What changes it</div>
-                  <p className="mt-0.5 text-[var(--cb-text-secondary)]">{changeTrigger(position)}</p>
+                  <p className="mt-0.5 text-[var(--cb-text-secondary)]">{changeTrigger(position, action)}</p>
                 </div>
                 <div>
                   <div className="text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Key risk</div>

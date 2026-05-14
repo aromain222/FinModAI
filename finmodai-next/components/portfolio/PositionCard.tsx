@@ -240,7 +240,8 @@ export function PositionCard({
     ? (dollarPnL / costBasis) * 100
     : ((livePrice - position.entryPrice) / position.entryPrice) * 100;
   const scoreDelta  = position.currentScore - position.entryScore;
-  const drift       = driftBadge(position.thesisDrift);
+  const computedDrift: ThesisDrift = scoreDelta > 0.3 ? 'strengthening' : scoreDelta < -0.3 ? 'weakening' : 'stable';
+  const drift       = driftBadge(computedDrift);
   const todayPct    = quote?.changePct ?? null;
   const isLive      = quote?.price != null;
   const monitor     = position.latestMonitor;
