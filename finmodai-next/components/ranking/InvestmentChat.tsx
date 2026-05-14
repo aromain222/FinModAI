@@ -685,86 +685,106 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   return (
     <div className="flex h-full min-w-0 flex-col overflow-hidden">
 
-      {/* ── Compact 1-row stock header ── */}
-      <div className="shrink-0 flex flex-wrap items-center gap-2 border-b border-[var(--cb-border)] px-4 py-2">
-        <span className="text-base font-black text-[var(--cb-text-primary)]">{stock.ticker}</span>
-        <span className={cn(
-          'rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide',
-          stock.signal === 'green'
-            ? 'bg-emerald-500/15 text-emerald-300'
-            : stock.signal === 'red'
-              ? 'bg-rose-500/15 text-rose-300'
-              : 'bg-amber-500/15 text-amber-300',
-        )}>
-          {setupLabel(stock.signal)} · {displayedScore.toFixed(1)}
-        </span>
-        {scoreChange && (
-          <span className={cn(
-            'text-[10px] font-bold tabular-nums',
-            scoreChange.delta >= 0 ? 'text-emerald-300' : 'text-rose-300',
-          )}>
-            {scoreChange.delta >= 0 ? '+' : ''}{scoreChange.delta.toFixed(1)}
-          </span>
-        )}
-        {aiVerdict && (() => {
-          const act = aiVerdict.action.toLowerCase();
-          const isBull = act === 'buy' || act === 'cover';
-          const isBear = act === 'sell' || act === 'short';
-          return (
+      {/* ── Command bar ── */}
+      <div className={cn(
+        'shrink-0 border-b border-l-4 px-4 py-2.5',
+        stock.signal === 'green'
+          ? 'border-l-emerald-500 bg-emerald-500/[0.04] border-b-[var(--cb-border)]'
+          : stock.signal === 'red'
+            ? 'border-l-rose-500 bg-rose-500/[0.04] border-b-[var(--cb-border)]'
+            : 'border-l-amber-500 bg-amber-500/[0.04] border-b-[var(--cb-border)]',
+      )}>
+        <div className="flex min-w-0 items-center gap-2.5">
+          {/* Left: identity strip */}
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <span className="text-lg font-black tracking-tight text-[var(--cb-text-primary)]">{stock.ticker}</span>
             <span className={cn(
-              'rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide',
-              isBull ? 'bg-emerald-500/15 text-emerald-300'
-                : isBear ? 'bg-rose-500/15 text-rose-300'
-                : 'bg-amber-500/15 text-amber-300',
+              'rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 transition-all duration-300',
+              stock.signal === 'green'
+                ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-400/25'
+                : stock.signal === 'red'
+                  ? 'bg-rose-500/15 text-rose-300 ring-rose-400/25'
+                  : 'bg-amber-500/15 text-amber-300 ring-amber-400/25',
+              scoreChange && scoreChange.fromSignal !== scoreChange.toSignal && 'animate-pulse',
             )}>
-              AI: {aiVerdict.action}
+              {setupLabel(stock.signal)} · {displayedScore.toFixed(1)}
             </span>
-          );
-        })()}
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            type="button"
-            onClick={isInQueue ? undefined : handleAddToQueue}
-            className={cn(
-              'flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-medium transition-colors',
-              queued || isInQueue
-                ? 'cursor-default border-emerald-400/30 bg-emerald-500/15 text-emerald-300'
-                : 'border-[var(--cb-border)] text-[var(--cb-text-muted)] hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)]',
+            {scoreChange && (
+              <span className={cn(
+                'text-[10px] font-bold tabular-nums',
+                scoreChange.delta >= 0 ? 'text-emerald-300' : 'text-rose-300',
+              )}>
+                {scoreChange.delta >= 0 ? '+' : ''}{scoreChange.delta.toFixed(1)}
+              </span>
             )}
-          >
-            {queued || isInQueue
-              ? <><CheckCircle className="h-3 w-3" />&nbsp;Queued</>
-              : <><Plus className="h-3 w-3" />&nbsp;Queue</>
-            }
-          </button>
-          {queued && (
-            <a href="/pitch-queue" className="text-[10px] text-emerald-400 hover:underline">View →</a>
-          )}
-          {currentPosition ? (
-            <a
-              href="/portfolio"
-              className="flex items-center gap-1 rounded-lg border border-blue-400/30 bg-blue-500/10 px-2 py-1 text-[10px] font-medium text-blue-300 hover:underline"
-            >
-              <TrendingUp className="h-3 w-3" />
-              Tracked ↗
-            </a>
-          ) : (
+            {aiVerdict && (() => {
+              const act = aiVerdict.action.toLowerCase();
+              const isBull = act === 'buy' || act === 'cover';
+              const isBear = act === 'sell' || act === 'short';
+              return (
+                <span className={cn(
+                  'rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide',
+                  isBull ? 'bg-emerald-500/15 text-emerald-300'
+                    : isBear ? 'bg-rose-500/15 text-rose-300'
+                    : 'bg-amber-500/15 text-amber-300',
+                )}>
+                  AI: {aiVerdict.action} · {aiVerdict.confidence}%
+                </span>
+              );
+            })()}
+            {/* Primary reason — shows context without opening analysis pane */}
+            {stock.primaryReason && (
+              <span className="hidden min-w-0 truncate text-[11px] text-[var(--cb-text-muted)] lg:inline">
+                {stock.primaryReason}
+              </span>
+            )}
+          </div>
+          {/* Right: action buttons */}
+          <div className="flex shrink-0 items-center gap-1.5">
             <button
               type="button"
-              onClick={() => setShowEnterForm(v => !v)}
+              onClick={isInQueue ? undefined : handleAddToQueue}
               className={cn(
-                'flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-medium transition-colors',
-                positionConfirmed
-                  ? 'cursor-default border-blue-400/30 bg-blue-500/10 text-blue-300'
-                  : showEnterForm
-                    ? 'border-blue-400/30 bg-blue-500/10 text-blue-300'
-                    : 'border-[var(--cb-border)] text-[var(--cb-text-muted)] hover:border-blue-400/30 hover:text-blue-300',
+                'flex cursor-pointer items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-all duration-150',
+                queued || isInQueue
+                  ? 'cursor-default border-emerald-400/30 bg-emerald-500/15 text-emerald-300'
+                  : 'border-[var(--cb-border)] text-[var(--cb-text-muted)] hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)]',
               )}
             >
-              <TrendingUp className="h-3 w-3" />
-              {positionConfirmed ? 'Tracked' : 'Track'}
+              {queued || isInQueue
+                ? <><CheckCircle className="h-3.5 w-3.5" /><span className="hidden sm:inline">&nbsp;Queued</span></>
+                : <><Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline">&nbsp;Queue</span></>
+              }
             </button>
-          )}
+            {queued && (
+              <a href="/pitch-queue" className="text-[10px] text-emerald-400 hover:underline">View →</a>
+            )}
+            {currentPosition ? (
+              <a
+                href="/portfolio"
+                className="flex cursor-pointer items-center gap-1 rounded-md border border-blue-400/30 bg-blue-500/10 px-2.5 py-1 text-[11px] font-semibold text-blue-300 transition-colors hover:bg-blue-500/15"
+              >
+                <TrendingUp className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Tracked ↗</span>
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowEnterForm(v => !v)}
+                className={cn(
+                  'flex cursor-pointer items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-all duration-150',
+                  positionConfirmed
+                    ? 'cursor-default border-blue-400/30 bg-blue-500/10 text-blue-300'
+                    : showEnterForm
+                      ? 'border-blue-400/30 bg-blue-500/15 text-blue-300'
+                      : 'border-[var(--cb-border)] text-[var(--cb-text-muted)] hover:border-blue-400/30 hover:text-blue-300',
+                )}
+              >
+                <TrendingUp className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{positionConfirmed ? 'Tracked' : 'Track'}</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -857,32 +877,29 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
 
         {/* ── Left pane: Deep Analysis / AI Agents ── */}
         <div className="flex min-w-0 flex-col overflow-hidden border-b border-[var(--cb-border)] lg:w-[52%] lg:border-b-0 lg:border-r">
-          {/* Pane tab bar */}
-          <div className="shrink-0 flex items-stretch border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)]">
+          {/* Pane tab bar — segmented pill control */}
+          <div className="shrink-0 flex items-center gap-1 border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-2 py-1.5">
             {(['analysis', 'agents'] as const).map(tab => (
               <button
                 key={tab}
                 type="button"
                 onClick={() => setAnalysisPaneTab(tab)}
                 className={cn(
-                  'flex-1 cursor-pointer py-2.5 text-[11px] font-semibold tracking-wide transition-colors relative',
+                  'flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] font-semibold tracking-wide transition-all duration-150',
                   analysisPaneTab === tab
-                    ? 'text-[var(--cb-text-primary)]'
-                    : 'text-[var(--cb-text-muted)] hover:text-[var(--cb-text-secondary)]',
+                    ? 'bg-[var(--cb-surface)] text-[var(--cb-text-primary)] shadow-[0_1px_4px_rgba(0,0,0,0.35)]'
+                    : 'text-[var(--cb-text-muted)] hover:text-[var(--cb-text-secondary)] hover:bg-white/[0.03]',
                 )}
               >
                 {tab === 'analysis' ? 'Deep Analysis' : 'AI Agents'}
                 {tab === 'agents' && aiVerdict && (
                   <span className={cn(
-                    'ml-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle',
+                    'inline-block h-1.5 w-1.5 rounded-full',
                     aiVerdict.action.toLowerCase() === 'buy' || aiVerdict.action.toLowerCase() === 'cover'
                       ? 'bg-emerald-400'
                       : aiVerdict.action.toLowerCase() === 'sell' || aiVerdict.action.toLowerCase() === 'short'
                         ? 'bg-rose-400' : 'bg-amber-400',
                   )} />
-                )}
-                {analysisPaneTab === tab && (
-                  <span className="absolute bottom-0 left-4 right-4 h-[2px] rounded-full bg-[var(--cb-green)]" />
                 )}
               </button>
             ))}
@@ -1009,69 +1026,68 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
           </div>
 
           {/* Sticky input area */}
-          <div className="shrink-0 border-t border-[var(--cb-border)]">
+          <div className="shrink-0 border-t border-[var(--cb-border)] bg-[var(--cb-surface-subtle)]">
 
-            {/* Position context chips */}
-            {currentPosition && (
-              <div className="flex items-center gap-1.5 overflow-x-auto px-3 pt-2 pb-0.5">
-                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-widest text-blue-400/70">Pos</span>
-                {(
-                  [
-                    { label: 'Evolving?',   text: 'How is this position evolving?' },
-                    { label: 'Changed?',    text: 'What changed since entry?' },
-                    { label: 'Still hold?', text: 'Should we still hold this?' },
-                    { label: 'Next event?', text: 'What event matters next for this position?' },
-                    { label: 'Thesis?',     text: 'Is the thesis getting stronger?' },
-                  ] as const
-                ).map(p => (
-                  <button
-                    key={p.label}
-                    type="button"
-                    onClick={() => sendMessage(p.text)}
-                    disabled={streaming}
-                    className="shrink-0 rounded-lg border border-blue-400/20 bg-blue-500/8 px-2 py-1 text-[10px] font-medium text-blue-300 transition-colors hover:border-blue-300/40 disabled:opacity-50"
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Agent command chips */}
-            <div className="flex items-center gap-1.5 overflow-x-auto px-3 pt-2 pb-0.5">
-              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Run</span>
+            {/* All prompt chips — single scrollable row with group dividers */}
+            <div className="flex items-center gap-1 overflow-x-auto px-3 pt-2 pb-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {currentPosition && (
+                <>
+                  <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest text-blue-400/60">Pos</span>
+                  {(
+                    [
+                      { label: 'Evolving?',   text: 'How is this position evolving?' },
+                      { label: 'Changed?',    text: 'What changed since entry?' },
+                      { label: 'Still hold?', text: 'Should we still hold this?' },
+                      { label: 'Next event?', text: 'What event matters next for this position?' },
+                      { label: 'Thesis?',     text: 'Is the thesis getting stronger?' },
+                    ] as const
+                  ).map(p => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => sendMessage(p.text)}
+                      disabled={streaming}
+                      className="shrink-0 cursor-pointer rounded-md border border-blue-400/20 bg-blue-500/8 px-2 py-0.5 text-[10px] font-medium text-blue-300 transition-all duration-150 hover:border-blue-300/40 hover:bg-blue-500/12 disabled:opacity-50"
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                  <span className="mx-1 shrink-0 h-3.5 w-px bg-[var(--cb-border)]" />
+                </>
+              )}
+              {/* Agent run chips */}
+              <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest text-[var(--cb-text-muted)] opacity-60">Run</span>
               {AGENT_PROMPTS.map(agent => (
                 <button
                   key={agent.label}
                   type="button"
                   onClick={() => sendMessage(agent.text, agent.mode)}
                   disabled={streaming}
-                  className="shrink-0 rounded-lg border border-blue-400/20 bg-blue-500/10 px-2 py-1 text-[10px] font-semibold text-blue-200 transition-colors hover:border-blue-300/40 hover:bg-blue-500/15 disabled:opacity-50"
+                  className="shrink-0 cursor-pointer rounded-md border border-blue-400/20 bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-200 transition-all duration-150 hover:border-blue-300/40 hover:bg-blue-500/15 disabled:opacity-50"
                 >
                   {agent.label}
                 </button>
               ))}
-            </div>
-
-            {/* Standard mode chips */}
-            <div className="flex items-center gap-1.5 overflow-x-auto px-3 pt-1 pb-1">
+              <span className="mx-1 shrink-0 h-3.5 w-px bg-[var(--cb-border)]" />
+              {/* Standard mode chips */}
               {STANDARD_PROMPTS.map(qp => (
                 <button
                   key={qp.mode}
                   type="button"
                   onClick={() => sendMessage(qp.text, qp.mode)}
                   disabled={streaming}
-                  className="shrink-0 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 py-1 text-[10px] font-medium text-[var(--cb-text-secondary)] transition-colors hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)] disabled:opacity-50"
+                  className="shrink-0 cursor-pointer rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2 py-0.5 text-[10px] font-medium text-[var(--cb-text-secondary)] transition-all duration-150 hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)] disabled:opacity-50"
                 >
                   {qp.label}
                 </button>
               ))}
+              {/* Signal-colored context chip */}
               <button
                 type="button"
                 onClick={() => sendMessage(cp.text, cp.mode)}
                 disabled={streaming}
                 className={cn(
-                  'shrink-0 rounded-lg border px-2 py-1 text-[10px] font-medium transition-colors disabled:opacity-50',
+                  'shrink-0 cursor-pointer rounded-md border px-2 py-0.5 text-[10px] font-semibold transition-all duration-150 disabled:opacity-50',
                   stock.signal === 'green'
                     ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15'
                     : stock.signal === 'red'
@@ -1084,7 +1100,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             </div>
 
             {/* Input form */}
-            <div className="px-3 pb-3 pt-1">
+            <div className="px-3 pb-3 pt-0.5">
               <form
                 onSubmit={e => { e.preventDefault(); sendMessage(input); }}
                 className="flex gap-2"
@@ -1093,14 +1109,14 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
                   type="text"
                   value={input}
                   onChange={e => setInput(e.target.value)}
-                  placeholder="Ask about this stock…"
+                  placeholder={`Ask about ${stock.ticker}…`}
                   disabled={streaming}
-                  className="min-w-0 flex-1 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 py-2 text-sm text-[var(--cb-text-primary)] placeholder:text-[var(--cb-text-muted)] focus:border-[var(--cb-border-strong)] focus:outline-none disabled:opacity-50"
+                  className="min-w-0 flex-1 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 py-2 text-sm text-[var(--cb-text-primary)] placeholder:text-[var(--cb-text-muted)] transition-colors focus:border-blue-400/40 focus:outline-none disabled:opacity-50"
                 />
                 <button
                   type="submit"
                   disabled={!input.trim() || streaming}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+                  className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-blue-600 text-white transition-all duration-150 hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {streaming
                     ? <Loader2 className="h-4 w-4 animate-spin" />

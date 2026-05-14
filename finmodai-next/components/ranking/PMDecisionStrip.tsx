@@ -64,30 +64,30 @@ export function PMDecisionStrip({ stock, displayedScore, scoreChange }: Props) {
 
   return (
     <div className={cn(
-      'shrink-0 border-b border-[var(--cb-border)] border-l-4 px-4 py-4',
+      'border-b border-[var(--cb-border)] border-l-4 px-4 py-4',
       SIGNAL_LEFT[stock.signal],
       SIGNAL_BG[stock.signal],
     )}>
       {/* Ticker row */}
-      <div className="mb-2.5 flex flex-wrap items-center gap-2">
-        <span className="text-xl font-bold tracking-tight text-[var(--cb-text-primary)]">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <span className="text-base font-black tracking-tight text-[var(--cb-text-primary)]">
           {stock.ticker}
         </span>
         <span className={cn(
-          'rounded px-2 py-0.5 text-xs font-semibold tabular-nums ring-1 transition-all duration-300',
+          'rounded px-2 py-0.5 text-[10px] font-bold tabular-nums ring-1 transition-all duration-300',
           SIGNAL_BADGE[stock.signal],
           signalChanged && 'animate-pulse',
         )}>
           {setupLabel(stock.signal)} · {displayedScore.toFixed(1)}
         </span>
         {trLabel && (
-          <span className="rounded-full border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-2 py-0.5 text-[10px] font-medium text-[var(--cb-text-muted)]">
+          <span className="rounded-full border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-2 py-0.5 text-[9px] font-medium text-[var(--cb-text-muted)]">
             {trLabel}
           </span>
         )}
         {scoreChange && (
           <span className={cn(
-            'rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums',
+            'text-[10px] font-bold tabular-nums',
             scoreChange.delta >= 0 ? 'text-emerald-300' : 'text-rose-300',
           )}>
             {scoreChange.delta >= 0 ? '+' : ''}{scoreChange.delta.toFixed(1)}
@@ -95,34 +95,41 @@ export function PMDecisionStrip({ stock, displayedScore, scoreChange }: Props) {
         )}
       </div>
 
-      {/* PM View — hero text */}
-      <p className="mb-3 text-sm font-medium leading-snug text-[var(--cb-text-primary)]">
+      {/* PM View — dominant hero text */}
+      <p className="mb-3 text-[13px] font-semibold leading-relaxed text-[var(--cb-text-primary)]">
         {pmView}
       </p>
 
-      {/* Expected move + conviction */}
-      <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Base</span>
-          <span className="font-semibold tabular-nums text-[var(--cb-text-primary)]">
+      {/* Expected move + conviction — inline stat pills */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1 rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-2 py-1">
+          <span className="text-[8px] uppercase tracking-widest text-[var(--cb-text-muted)]">Base</span>
+          <span className="text-xs font-bold tabular-nums text-[var(--cb-text-primary)]">
             {formatExpectedMoveRange(expectedMove.baseLowPct, expectedMove.baseHighPct)}
           </span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Bull</span>
-          <span className="font-semibold tabular-nums text-emerald-300">
+        <div className="flex items-center gap-1 rounded-md border border-emerald-400/20 bg-emerald-500/8 px-2 py-1">
+          <span className="text-[8px] uppercase tracking-widest text-emerald-400/60">Bull</span>
+          <span className="text-xs font-bold tabular-nums text-emerald-300">
             {expectedMove.bullPct >= 0 ? '+' : ''}{expectedMove.bullPct}%
           </span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Risk</span>
-          <span className="font-semibold tabular-nums text-rose-300">
+        <div className="flex items-center gap-1 rounded-md border border-rose-400/20 bg-rose-500/8 px-2 py-1">
+          <span className="text-[8px] uppercase tracking-widest text-rose-400/60">Risk</span>
+          <span className="text-xs font-bold tabular-nums text-rose-300">
             {expectedMove.riskPct}%
           </span>
         </div>
-        <div className="ml-auto flex items-center gap-1 text-[10px] text-[var(--cb-text-muted)]">
-          Confidence
-          <span className={cn('font-semibold', CONV_COLOR[conviction.level] ?? 'text-[var(--cb-text-secondary)]')}>
+        <div className={cn(
+          'ml-auto flex items-center gap-1.5 rounded-md border px-2 py-1',
+          conviction.level === 'High' || conviction.level === 'Moderate-High'
+            ? 'border-emerald-400/20 bg-emerald-500/8'
+            : conviction.level === 'Low'
+              ? 'border-rose-400/20 bg-rose-500/8'
+              : 'border-[var(--cb-border)] bg-[var(--cb-surface-subtle)]',
+        )}>
+          <span className="text-[8px] uppercase tracking-widest text-[var(--cb-text-muted)]">Confidence</span>
+          <span className={cn('text-xs font-bold tabular-nums', CONV_COLOR[conviction.level] ?? 'text-[var(--cb-text-secondary)]')}>
             {conviction.pct ?? '--'}%
           </span>
         </div>
@@ -130,38 +137,40 @@ export function PMDecisionStrip({ stock, displayedScore, scoreChange }: Props) {
 
       {conviction.aiRead && (
         <div className="mb-3 rounded-lg border border-blue-400/20 bg-blue-500/8 px-3 py-2 text-[11px] leading-snug text-blue-100/85">
-          <span className="font-semibold text-blue-200">Confidence link:</span> {conviction.aiRead}
+          <span className="font-semibold text-blue-300">Confidence link:</span> {conviction.aiRead}
         </div>
       )}
 
       {/* What matters / drag / next catalyst */}
-      <div className={cn('grid gap-x-5 gap-y-2 text-[11px]', showDrag ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
-        <div className="space-y-0.5">
-          <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">What Matters</div>
-          <p className="leading-tight text-[var(--cb-text-secondary)]">
-            <span className="font-semibold text-[var(--cb-text-primary)]">{SCORE_LABELS[topKey]}</span>
-            {' '}({topVal.toFixed(1)}) — {factorInterpretation(stock, topKey, topVal)}
+      <div className={cn('grid gap-3 text-[11px]', showDrag ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
+        <div className="space-y-1">
+          <div className="text-[8px] font-bold uppercase tracking-widest text-[var(--cb-text-muted)]">What Matters</div>
+          <p className="leading-snug text-[var(--cb-text-secondary)]">
+            <span className="font-bold text-[var(--cb-text-primary)]">{SCORE_LABELS[topKey]}</span>
+            <span className="text-[var(--cb-text-muted)]"> ({topVal.toFixed(1)})</span>
+            {' '}— {factorInterpretation(stock, topKey, topVal)}
           </p>
         </div>
         {showDrag && (
-          <div className="space-y-0.5">
-            <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Drag</div>
-            <p className="leading-tight text-amber-200/75">
-              <span className="font-semibold text-amber-300">{SCORE_LABELS[bottomKey]}</span>
-              {' '}({bottomVal.toFixed(1)}) — {factorInterpretation(stock, bottomKey, bottomVal)}
+          <div className="space-y-1">
+            <div className="text-[8px] font-bold uppercase tracking-widest text-amber-400/60">Drag</div>
+            <p className="leading-snug">
+              <span className="font-bold text-amber-300">{SCORE_LABELS[bottomKey]}</span>
+              <span className="text-amber-400/50"> ({bottomVal.toFixed(1)})</span>
+              {' '}<span className="text-amber-200/70">— {factorInterpretation(stock, bottomKey, bottomVal)}</span>
             </p>
           </div>
         )}
-        <div className="space-y-0.5">
-          <div className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Next Catalyst</div>
-          <p className="leading-tight text-[var(--cb-text-secondary)]">{nextCatalyst}</p>
+        <div className="space-y-1">
+          <div className="text-[8px] font-bold uppercase tracking-widest text-[var(--cb-text-muted)]">Next Catalyst</div>
+          <p className="leading-snug text-[var(--cb-text-secondary)]">{nextCatalyst}</p>
         </div>
       </div>
 
       {/* Core Debate */}
       <div className="mt-3 border-t border-[var(--cb-border)] pt-3">
-        <div className="mb-1 text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Core Debate</div>
-        <p className="text-[11px] leading-snug text-[var(--cb-text-secondary)]">{coreDebate(stock)}</p>
+        <div className="mb-1 text-[8px] font-bold uppercase tracking-widest text-[var(--cb-text-muted)]">Core Debate</div>
+        <p className="text-[11px] leading-relaxed text-[var(--cb-text-secondary)]">{coreDebate(stock)}</p>
       </div>
     </div>
   );
