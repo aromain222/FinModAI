@@ -11,6 +11,7 @@ export type InvestorMeta = {
 };
 
 export const INVESTOR_META: Record<string, InvestorMeta> = {
+  // Named investors
   'Warren Buffett':        { initials: 'WB', gradient: 'from-amber-500 to-orange-700',    style: 'Value Oracle',     textColor: '#fff' },
   'Ben Graham':            { initials: 'BG', gradient: 'from-slate-400 to-slate-700',     style: 'Father of Value',  textColor: '#fff' },
   'Charlie Munger':        { initials: 'CM', gradient: 'from-yellow-600 to-amber-800',    style: 'Mental Models',    textColor: '#fff' },
@@ -23,11 +24,20 @@ export const INVESTOR_META: Record<string, InvestorMeta> = {
   'George Soros':          { initials: 'GS', gradient: 'from-indigo-500 to-blue-700',     style: 'Global Macro',     textColor: '#fff' },
   'Ray Dalio':             { initials: 'RD', gradient: 'from-cyan-500 to-teal-700',       style: 'All Weather',      textColor: '#fff' },
   'Howard Marks':          { initials: 'HM', gradient: 'from-blue-500 to-indigo-700',     style: 'Risk Cycles',      textColor: '#fff' },
+  'Bill Ackman':           { initials: 'BA', gradient: 'from-orange-500 to-red-700',      style: 'Activist',         textColor: '#fff' },
+  'Phil Fisher':           { initials: 'PF', gradient: 'from-lime-500 to-green-700',      style: 'Growth Pioneer',   textColor: '#fff' },
+  'Mohnish Pabrai':        { initials: 'MP', gradient: 'from-amber-400 to-yellow-600',    style: 'Cloning Master',   textColor: '#fff' },
+  'Rakesh Jhunjhunwala':   { initials: 'RJ', gradient: 'from-orange-400 to-amber-600',    style: 'Indian Buffett',   textColor: '#fff' },
+  // Quant / analyst personas
   'Technical Analyst':     { initials: 'TA', gradient: 'from-indigo-400 to-blue-600',     style: 'Charts & Tape',    textColor: '#fff' },
   'Valuation Analyst':     { initials: 'VA', gradient: 'from-violet-400 to-purple-600',   style: 'DCF Models',       textColor: '#fff' },
   'Momentum Analyst':      { initials: 'MA', gradient: 'from-emerald-400 to-green-600',   style: 'Price Momentum',   textColor: '#fff' },
   'Risk Analyst':          { initials: 'RA', gradient: 'from-rose-400 to-red-600',        style: 'Tail Risk',        textColor: '#fff' },
   'Macro Analyst':         { initials: 'MC', gradient: 'from-teal-400 to-cyan-600',       style: 'Global Macro',     textColor: '#fff' },
+  'Fundamentals Analyst':  { initials: 'FA', gradient: 'from-sky-500 to-blue-700',        style: 'Fundamentals',     textColor: '#fff' },
+  'Sentiment Analyst':     { initials: 'SA', gradient: 'from-pink-400 to-rose-600',       style: 'Market Sentiment', textColor: '#fff' },
+  'News Sentiment':        { initials: 'NS', gradient: 'from-fuchsia-400 to-purple-600',  style: 'News Flow',        textColor: '#fff' },
+  'Growth Analyst':        { initials: 'GA', gradient: 'from-green-400 to-teal-600',      style: 'Growth',           textColor: '#fff' },
 };
 
 const WIKI_ARTICLES: Record<string, string> = {
@@ -43,6 +53,10 @@ const WIKI_ARTICLES: Record<string, string> = {
   'George Soros':          'George_Soros',
   'Ray Dalio':             'Ray_Dalio',
   'Howard Marks':          'Howard_Marks_(investor)',
+  'Bill Ackman':           'Bill_Ackman',
+  'Phil Fisher':           'Philip_Arthur_Fisher',
+  'Mohnish Pabrai':        'Mohnish_Pabrai',
+  'Rakesh Jhunjhunwala':   'Rakesh_Jhunjhunwala',
 };
 
 // Module-level cache persists across re-renders
