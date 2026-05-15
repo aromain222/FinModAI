@@ -47,6 +47,11 @@ export type OrchestratorContext = {
   recentPrices:      number[];
   /** Optional ranked peers for compare mode */
   peers:             Pick<RankedStock, 'ticker' | 'score' | 'signal' | 'primaryReason' | 'mainRisk' | 'breakdown'>[];
+  /** Live catalysts from stock.meta.catalysts — provides specific event context */
+  catalysts?:        Array<{ title: string; channel: string; direction: string; impactPct: number; horizon: string }>;
+  /** Company name and sector for additional context */
+  companyName?:      string;
+  sector?:           string;
   /** Conversation history — role + content tuples */
   history:           { role: 'user' | 'assistant'; content: string }[];
 };
@@ -64,13 +69,12 @@ export type DetectionResult = {
 // ── House style injected into every system prompt ─────────────────────────
 
 const HOUSE_STYLE = `
-Write like a serious early-career buy-side analyst.
-Every answer must be exactly four lines using these labels:
-Current stance: Bullish / Neutral / Bearish.
-Why now: what matters in the next 1-3 months.
-Key driver: the single most important factor.
-Main risk: what breaks the thesis.
-Keep each line short. No markdown bullets, no extra paragraphs, no descriptive setup without a decision.
+Write like a sharp buy-side analyst giving a verbal briefing to a PM.
+Be specific — reference the actual scores, percentages, catalysts, and risks from the stock context provided.
+Never say anything that could apply to any stock. Every sentence should name a number, a factor, or a catalyst.
+Answer the user's specific question directly. Lead with the most important point.
+Keep it dense and direct. Use short paragraphs (2-4 sentences each). No bullet lists. No markdown headers.
+Always tie analysis to the investment horizon window. Show conviction — don't hedge every sentence.
 `.trim();
 
 // ── Mode detection ─────────────────────────────────────────────────────────
@@ -162,11 +166,22 @@ function serializeStockContext(ctx: OrchestratorContext): string {
     })
     .join('\n');
 
+  const catalystLines = (ctx.catalysts ?? [])
+    .slice(0, 6)
+    .map(c => {
+      const sign = c.impactPct >= 0 ? '+' : '';
+      return `  [${c.direction}/${c.channel}] ${c.title} (${sign}${c.impactPct.toFixed(1)}% est${c.horizon ? ', ' + c.horizon : ''})`;
+    })
+    .join('\n');
+
+  const companyLine = [ctx.companyName, ctx.sector].filter(Boolean).join(' · ');
+
   return [
-    `Ticker: ${ctx.primaryTicker}  |  Signal: ${signalLabel}  |  Score: ${ctx.score.toFixed(1)}/10`,
-    `Horizon: ${ctx.horizonWeeks} weeks  |  ${returnLine}`,
+    `Ticker: ${ctx.primaryTicker}${companyLine ? '  (' + companyLine + ')' : ''}`,
+    `Signal: ${signalLabel}  |  Score: ${ctx.score.toFixed(1)}/10  |  Horizon: ${ctx.horizonWeeks} weeks`,
+    returnLine,
     '',
-    'Score breakdown:',
+    'Score breakdown (each factor 0-10, weight shown):',
     bdLines.join('\n'),
     '',
     `Company context: ${brief.strategicContext}`,
@@ -174,8 +189,8 @@ function serializeStockContext(ctx: OrchestratorContext): string {
     `Primary driver: ${ctx.primaryReason}`,
     `Key risk: ${ctx.mainRisk}`,
     '',
-    `Catalysts on record (${ctx.catalystCount}):`,
-    topEvents || '  None available',
+    `Live catalysts (${ctx.catalystCount}):`,
+    catalystLines || (topEvents || '  None available'),
   ].join('\n');
 }
 
@@ -207,19 +222,11 @@ function buildSystemPrompt(mode: InvestmentMode, ctx: OrchestratorContext): stri
   };
 
   return [
-    'You are a buy-side equity analyst. Your job is to give decision-useful analysis, not to narrate facts.',
+    'You are a buy-side equity analyst. Your job is to give decision-useful analysis grounded in the actual data provided.',
     '',
     HOUSE_STYLE,
     '',
-    `Current task: ${modeInstruction[mode]}`,
-    '',
-    'Hard output constraints:',
-    '- Output exactly 4 lines, no more.',
-    '- Line 1 starts with "Current stance:" and must be Bullish, Neutral, or Bearish.',
-    '- Line 2 starts with "Why now:" and must reference the next 1-3 months.',
-    '- Line 3 starts with "Key driver:" and names the most important factor.',
-    '- Line 4 starts with "Main risk:" and names what breaks the thesis.',
-    '- No markdown bullets. No preamble. No long explanations.',
+    `Task: ${modeInstruction[mode]}`,
   ].join('\n');
 }
 
@@ -285,7 +292,7 @@ export async function streamOrchestratorResponse(params: {
   const { message, mode, ctx, openai, models } = params;
   const messages = buildOrchestratorMessages(mode, message, ctx);
 
-  const maxTokens = 140;
+  const maxTokens = 500;
 
   let stream: Awaited<ReturnType<typeof openai.chat.completions.create>> | null = null;
   let lastErr: unknown;

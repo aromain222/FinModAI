@@ -59,6 +59,14 @@ const historySchema = z.object({
   content: z.string(),
 });
 
+const catalystItemSchema = z.object({
+  title:     z.string(),
+  channel:   z.string(),
+  direction: z.string(),
+  impactPct: z.number(),
+  horizon:   z.string().default(''),
+});
+
 const assistantRequestSchema = z.object({
   message:      z.string().min(1).max(2000),
   mode:         z.enum(['explain', 'evaluate', 'challenge', 'compare', 'pitch']).optional(),
@@ -72,6 +80,9 @@ const assistantRequestSchema = z.object({
     mainRisk:          z.string(),
     forecastReturnPct: z.number().nullable().optional(),
     catalystCount:     z.number().int().min(0).default(0),
+    catalysts:         z.array(catalystItemSchema).default([]),
+    companyName:       z.string().optional().default(''),
+    sector:            z.string().optional().default(''),
     events:            z.array(eventItemSchema).default([]),
     recentPrices:      z.array(z.number()).default([]),
     peers:             z.array(peerSchema).default([]),
@@ -103,6 +114,9 @@ export async function POST(req: NextRequest): Promise<Response | NextResponse> {
   const ctx: OrchestratorContext = {
     ...rawCtx,
     forecastReturnPct: rawCtx.forecastReturnPct ?? null,
+    catalysts:   rawCtx.catalysts,
+    companyName: rawCtx.companyName,
+    sector:      rawCtx.sector,
   };
 
   // Mode: explicit override > detection

@@ -651,7 +651,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
 
       const controller  = new AbortController();
       abortRef.current  = controller;
-      const timeoutId = window.setTimeout(() => controller.abort(), 2_000);
+      const timeoutId = window.setTimeout(() => controller.abort(), 25_000);
 
       try {
         const body = {
@@ -667,6 +667,15 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             mainRisk:          stock.mainRisk,
             forecastReturnPct: stock.meta.forecastReturnPct,
             catalystCount:     stock.meta.catalystCount,
+            catalysts:         (stock.meta.catalysts ?? []).slice(0, 6).map(c => ({
+              title:     c.title,
+              channel:   c.channel,
+              direction: c.direction,
+              impactPct: c.impactPct,
+              horizon:   c.horizon,
+            })),
+            companyName: stock.meta.companyName ?? '',
+            sector:      stock.meta.sector ?? '',
             events:            [],
             recentPrices:      [],
             peers,

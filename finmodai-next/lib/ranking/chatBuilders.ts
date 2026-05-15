@@ -290,8 +290,9 @@ export function buildCompare(stock: RankedStock, peers: PeerStock[]): string {
 
 export function buildLocalReply(stock: RankedStock, text: string, mode?: InvestmentMode): string | null {
   const normalized = text.toLowerCase();
+  // Agent runner shortcuts — specific invocations that map to well-defined template outputs
   if (/\b(pm brain|run the pm|decision agent|ranked here.*decision)\b/.test(normalized)) return buildExplain(stock);
-  if (/\b(catalyst agent|events? matter|headlines? matter|catalyst)\b/.test(normalized)) return buildCatalystAgent(stock);
+  if (/\b(catalyst agent|events? matter|headlines? matter)\b/.test(normalized)) return buildCatalystAgent(stock);
   if (/\b(forecast agent|forecast.*momentum|market tape|timesfm|price path)\b/.test(normalized)) return buildForecastAgent(stock);
   if (/\b(assumption agent|best assumption|assumption to test|change the score|change.*valuation)\b/.test(normalized)) return buildAssumptionAgent(stock);
   if (/\b(what'?s priced|what is priced|priced in|market pricing|market miss|what is the market missing|underpricing|mispricing)\b/.test(normalized)) return buildMarketMiss(stock);
@@ -300,21 +301,9 @@ export function buildLocalReply(stock: RankedStock, text: string, mode?: Investm
   if (/\b(what needs to be true|needs to be true|what has to happen|what would make it work|underwrite|confirm the thesis)\b/.test(normalized)) return buildNeedsTrue(stock);
   if (/\b(evidence|supporting evidence|proof|why believe|data supports|what supports this)\b/.test(normalized)) return buildEvidence(stock);
   if (/\b(monitor|watch|track|what should i watch|signals to watch|watch items)\b/.test(normalized)) return buildMonitor(stock);
-  if (/\b(thesis|investment case|core case|stock thesis|company thesis)\b/.test(normalized)) return buildThesis(stock);
   if (/\b(move.*higher|score higher|improve.*score|what would.*higher)\b/.test(normalized)) return buildMoveHigher(stock);
-  if (mode === 'challenge' || /\b(bad trade|make this weaker|what.*weaker|what breaks|invalidat|risk|push back|bear case|challenge)\b/.test(normalized)) return buildBadTrade(stock);
-  if (/\b(bull case|supports the bull|why own|upside)\b/.test(normalized)) {
-    const brief = getCompanyBrief(stock.ticker);
-    return buildSwingThesis(stock, {
-      bullCase:    `${brief.nearTermFocus} ${brief.keyDriver}`,
-      risk:        brief.mainRisk,
-      keyCatalyst: `Watch ${brief.watchItems.slice(0, 2).join(' and ')} for confirmation`,
-    });
-  }
-  if (/\b(tell me|what is|what's|about|overview|quick read|low reasoning)\b/.test(normalized)) return buildExplain(stock);
-  if (mode === 'pitch' || /\b(turn this into a pitch|pitch|weekly pitch)\b/.test(normalized)) return buildPitch(stock);
-  if (mode === 'explain' || /\b(why|ranked here|score|breakdown)\b/.test(normalized)) return buildExplain(stock);
-  if (mode === 'evaluate' || /\b(buy|wait|avoid|trade|recommendation|should i)\b/.test(normalized)) return buildEvaluate(stock);
-  if (looksLikeStockQuestion(text, stock)) return buildGeneralStockQuestion(stock, text);
+  // Everything else (explain, evaluate, challenge, pitch, compare, bull/bear case, free-form questions)
+  // routes to the AI so it can reason dynamically about the actual question using live context.
+  void mode;
   return null;
 }
