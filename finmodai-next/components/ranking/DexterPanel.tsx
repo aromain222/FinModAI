@@ -331,10 +331,10 @@ function ResearchTab({ ticker }: { ticker: string }) {
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 
-type Props = { ticker: string };
+type Props = { ticker: string; defaultOpen?: boolean };
 
-export function DexterPanel({ ticker }: Props) {
-  const [open,    setOpen]    = useState(false);
+export function DexterPanel({ ticker, defaultOpen = false }: Props) {
+  const [open,    setOpen]    = useState(defaultOpen);
   const [tab,     setTab]     = useState<Tab>('financials');
   const [loading, setLoading] = useState(false);
   const [data,    setData]    = useState<OverviewData | null>(null);

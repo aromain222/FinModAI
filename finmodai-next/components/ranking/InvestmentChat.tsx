@@ -1279,8 +1279,8 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
                 <ScoreBacktestPanel stock={stock} />
 
               </div>
-              {/* Dexter — live financial data: income, cashflow, metrics, filings, insider */}
-              <DexterPanel ticker={stock.ticker} />
+              {/* Dexter — starts expanded in Financials tab */}
+              <DexterPanel ticker={stock.ticker} defaultOpen />
             </div>
           );
         })()}
