@@ -820,7 +820,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
 
       {/* ── Command bar ── */}
       <div className={cn(
-        'shrink-0 border-b border-l-4 px-4 py-2.5',
+        'shrink-0 border-b border-l-4 px-4 py-3',
         stock.signal === 'green'
           ? 'border-l-emerald-500 bg-emerald-500/[0.04] border-b-[var(--cb-border)]'
           : stock.signal === 'red'
@@ -867,7 +867,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             })()}
             {/* Primary reason — shows context without opening analysis pane */}
             {stock.primaryReason && (
-              <span className="hidden min-w-0 truncate text-[11px] text-[var(--cb-text-muted)] lg:inline">
+              <span className="hidden min-w-0 truncate text-[11px] text-[var(--cb-text-secondary)] lg:inline">
                 {stock.primaryReason}
               </span>
             )}
@@ -1008,8 +1008,8 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       {/* ── Full-width tabbed workspace ── */}
       <div className="min-h-0 min-w-0 flex-1 flex flex-col overflow-hidden">
 
-        {/* Tab bar — 3 tabs, full-width segmented pill control */}
-        <div className="shrink-0 flex items-center gap-1 border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-2 py-1.5">
+        {/* Tab bar — 4 tabs, full-width segmented pill control */}
+        <div className="shrink-0 flex items-center gap-1 border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-3 py-2">
           {([
             { id: 'analysis',   label: 'Deep Analysis' },
             { id: 'agents',     label: 'AI Agents' },
@@ -1050,7 +1050,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
         {analysisPaneTab === 'analysis' && (
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
             <PMDecisionStrip stock={stock} displayedScore={displayedScore} scoreChange={scoreChange} />
-            <div className="border-b border-[var(--cb-border)] px-4 pb-2 pt-1">
+            <div className="border-b border-[var(--cb-border)] px-4 py-3">
               <TradeReadinessStrip ticker={stock.ticker} computed={tradeReadiness(stock)} />
             </div>
             <TradeStructurePanel stock={stock} />
@@ -1063,6 +1063,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
               onPrompt={(text, mode) => sendMessage(text, mode as InvestmentMode | undefined)}
               disabled={streaming}
             />
+            <div className="pb-6" />
           </div>
         )}
 
@@ -1174,6 +1175,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
               }}
             />
             <DexterPanel ticker={stock.ticker} />
+            <div className="pb-6" />
           </div>
         )}
 
@@ -1188,7 +1190,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
           const factors = Object.entries(stock.breakdown) as Array<[ScoreFactor, number]>;
           return (
             <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
-              <div className="mx-auto w-full max-w-2xl space-y-4 px-4 py-5">
+              <div className="mx-auto w-full max-w-2xl space-y-4 px-4 py-5 pb-8">
 
                 {/* Score breakdown */}
                 <div className="rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] p-4">
@@ -1287,7 +1289,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
 
             {/* Messages — centered max-w for comfortable reading */}
             <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
-              <div className="mx-auto w-full max-w-3xl space-y-4 px-4 py-5 lg:px-6">
+              <div className="mx-auto w-full max-w-3xl space-y-4 px-4 py-5 pb-6 lg:px-6">
                 {messages.map((msg, i) => {
                   const convictionLevel =
                     msg.role === 'assistant' && msg.content

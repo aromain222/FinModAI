@@ -215,7 +215,7 @@ export function RankedList({ initial }: Props) {
       <div className="flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] lg:border-b-0 lg:border-r">
 
         {/* Toolbar */}
-        <div className="shrink-0 space-y-2 border-b border-[var(--cb-border)] px-3 py-3">
+        <div className="shrink-0 space-y-2.5 border-b border-[var(--cb-border)] px-3 py-3.5">
           {/* Signal filter tabs */}
           <div className="flex overflow-hidden rounded-md border border-[var(--cb-border)]">
             {SIGNAL_FILTERS.map(f => (
@@ -237,7 +237,7 @@ export function RankedList({ initial }: Props) {
 
           {/* Score tier filter */}
           <div className="flex items-center gap-1">
-            <span className="shrink-0 text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Score</span>
+            <span className="shrink-0 text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-secondary)]">Score</span>
             <div className="flex flex-1 overflow-hidden rounded-md border border-[var(--cb-border)]">
               {SCORE_TIERS.map(tier => (
                 <button
@@ -332,7 +332,7 @@ export function RankedList({ initial }: Props) {
                   type="button"
                   onClick={() => setSelected(stock)}
                   className={cn(
-                    'flex w-full items-start gap-2 border-l-2 px-3 py-2.5 text-left transition-all duration-300',
+                    'flex w-full items-start gap-2 border-l-2 px-3 py-3 text-left transition-all duration-300',
                     isActive
                       ? 'border-l-[var(--cb-green)] bg-[var(--cb-surface)]'
                       : 'border-l-transparent hover:bg-[var(--cb-surface)]',
@@ -455,7 +455,7 @@ export function RankedList({ initial }: Props) {
                           {stock.meta.forecastReturnPct >= 0 ? '+' : ''}{stock.meta.forecastReturnPct.toFixed(1)}%
                         </span>
                       )}
-                      <span className="truncate text-[10px] leading-tight text-[var(--cb-text-muted)]">
+                      <span className="truncate text-[10px] leading-tight text-[var(--cb-text-secondary)]">
                         {stock.primaryReason}
                       </span>
                     </span>
