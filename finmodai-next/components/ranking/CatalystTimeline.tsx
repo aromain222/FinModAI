@@ -11,57 +11,102 @@ type EventInsight = {
   importance: string;
   likelyOutcome: string;
   ifSurprises: string;
+  stockImpact: string;
 };
 
-const EVENT_INSIGHT: Partial<Record<string, EventInsight>> = {
+type StaticInsight = Omit<EventInsight, 'stockImpact'>;
+
+const EVENT_INSIGHT: Partial<Record<string, StaticInsight>> = {
   CPI: {
-    importance:    'The single most market-moving data point. Inflation prints directly reprice rate expectations, which drives equity multiples — especially growth names.',
-    likelyOutcome: 'Market consensus anchors around the prior trend. A read in-line with expectations is typically a non-event; the tail scenarios move markets.',
-    ifSurprises:   'Hot print (above est.) → rate cut hopes fade → multiple compression in growth/tech. Cool print (below est.) → rate cut odds rise → multiple expansion, especially in duration-sensitive sectors.',
+    importance:    'The highest-frequency rate-expectations repricing event. A 0.1pp surprise above consensus has historically moved S&P 500 futures 0.8–1.5% within 30 minutes of the print.',
+    likelyOutcome: 'Consensus expects the current trend to hold. In-line reads are near non-events (±0.3% on S&P). The tails move markets: three consecutive hot prints have historically preceded 8–12% drawdowns in growth names.',
+    ifSurprises:   'Hot (+0.2pp above est.): 2Y yields typically jump 10–18bps → P/E compression of 1–2 turns in growth. Cool (−0.2pp): 2Y yields drop 8–14bps → tech/growth leads the bounce, rate-sensitive sectors (REITs, utilities) rally 2–4%.',
   },
   FOMC: {
-    importance:    'The Fed\'s rate decision resets the discount rate for all assets. The dot plot and press conference often matter more than the decision itself.',
-    likelyOutcome: 'Markets price in the expected move well in advance. The reaction usually hinges on the tone — hawkish surprise compresses multiples; dovish pivot sparks a relief rally.',
-    ifSurprises:   'Hawkish hold or hike → growth names sell off, financials benefit. Dovish hold or cut → risk assets rally, REITs and tech lead. Neutral decision with hawkish language can still be negative.',
+    importance:    'Resets the risk-free rate anchor for all equity valuations. The dot plot and press conference carry more weight than the decision itself — the market prices the decision; it doesn\'t price the nuance.',
+    likelyOutcome: 'The expected decision is fully in the price. Watch for dot plot shifts of ≥25bps from prior projection, which have historically triggered ±1.5–2.5% intraday moves in rate-sensitive equities.',
+    ifSurprises:   'Hawkish surprise (fewer cuts in dot plot, hawkish Q&A): financials and energy lead; growth/tech sells off 2–4% same day. Dovish pivot: growth rallies hard — tech outperformed S&P by 3–5% in the 5 sessions after each of the last 3 dovish FOMC pivots.',
   },
   NFP: {
-    importance:    'Payroll strength signals labor market health, which feeds directly into Fed rate path expectations and consumer spending outlook.',
-    likelyOutcome: 'A strong beat (100K+ above est.) historically triggers a risk-off reaction as it reduces odds of near-term rate cuts. A miss raises cut expectations.',
-    ifSurprises:   'Strong beat → yields up, growth stocks down, financials up. Weak miss → yields down, growth stocks rally, defensive rotation. "Goldilocks" range (near consensus) → minimal market reaction.',
+    importance:    'The labor market read is the Fed\'s single most-watched input. A 100K+ beat vs. consensus has pushed 2-year Treasury yields up ~12bps on average and priced out roughly 0.5 expected rate cuts in the next 6 months.',
+    likelyOutcome: 'Recent prints have beat by an average of ~40K. A read within ±50K of consensus (the "Goldilocks" band) typically produces a muted reaction — S&P moves ±0.4%. Outside that band, sector rotation is material.',
+    ifSurprises:   'Strong beat (+100K+): 2Y yields up 10–15bps → rate-cut odds drop ~20pp → growth/tech sells 1.5–3%; financials outperform. Miss (−75K or worse): recession fears trigger defensive rotation; utilities and consumer staples outperform growth by 2–4% in the following week.',
   },
   PPI: {
-    importance:    'Producer prices lead consumer inflation by 1-2 months. A rising PPI signals margin pressure is coming for companies unable to pass costs through.',
-    likelyOutcome: 'Watch the core PPI ex-food and energy. Services PPI is increasingly relevant for Fed inflation models.',
-    ifSurprises:   'Hot PPI → margin compression warnings for consumer-facing names; rate-cut timeline pushed out. Cool PPI → margin relief expected in forward guidance; supports estimates.',
+    importance:    'Producer prices lead consumer inflation by 6–8 weeks and flow directly into corporate margin guidance. Services PPI (ex-trade) is the Fed\'s preferred leading indicator for sticky inflation — a 0.3pp surprise changes the CPI baseline meaningfully.',
+    likelyOutcome: 'Core PPI ex-food and energy is the key line. Hot services PPI has prompted forward guidance reductions of 3–8% on EPS estimates for consumer-facing and labor-intensive businesses in the quarter following the print.',
+    ifSurprises:   'Hot PPI (core ex-food/energy +0.4%+): analyst margin assumptions come under pressure → EPS estimates cut 3–6% for pass-through-sensitive names; rate timeline extends. Cool PPI (flat or negative): margin relief narrative builds → gross margin estimates revised up, supports next quarter\'s guide.',
   },
   GDP: {
-    importance:    'GDP confirms or revises the macro growth narrative. A sharp downgrade can trigger recession fear repricing across cyclicals.',
-    likelyOutcome: 'Second and final estimates rarely surprise significantly vs. advance read. Market focus shifts to consumption and investment components.',
-    ifSurprises:   'Downward revision signals economic slowdown → defensive rotation, rate cut odds rise. Upward revision → cyclicals lead, financials benefit, rate cut timeline extends.',
+    importance:    'GDP second estimate rarely diverges more than ±0.3pp from advance. The market-moving content is in the components: consumption (70% of GDP), business investment, and the implicit price deflator — all reprice earnings growth expectations.',
+    likelyOutcome: 'If consumption holds near prior read, expect muted reaction (S&P ±0.5%). A downward revision to real final sales of −0.5pp or more has historically triggered defensive rotation of 2–4% vs. cyclicals in the following 5 sessions.',
+    ifSurprises:   'Downward revision ≥−0.5pp: cyclical slowdown narrative gains traction → consumer discretionary, industrials underperform; rate-cut odds rise 15–25pp → defensives and REITs benefit. Upward revision with strong capex: confirms expansion → cyclicals lead; cuts priced out → financials outperform.',
   },
   'Fed Minutes': {
-    importance:    'The minutes reveal disagreement within the committee and the reasoning behind the last decision — useful for gauging future policy flexibility.',
-    likelyOutcome: 'Markets look for signs of division: any hawk/dove split on rate path or balance sheet can move yields and reprice equities.',
-    ifSurprises:   'Hawkish tone (discussed rate hike, concerned about inflation) → yields up, multiples compress. Dovish tone (discussed cuts, worried about growth) → risk-on, growth names rally.',
+    importance:    'The minutes surface committee-level disagreement that the statement obscures. Count the dissents and hawkish/dovish language shifts. Two or more dissenters on rate path have moved 10-year yields 8–15bps on the release.',
+    likelyOutcome: 'Watch for three signals: any discussion of additional hikes, language around balance sheet pace, and disagreement on inflation trajectory. The market reaction is usually asymmetric — hawkish surprises in minutes trigger larger moves than dovish ones.',
+    ifSurprises:   'Hawkish tone (hike discussion, inflation "not convinced" language): 10Y yields +8–12bps → valuation multiples compress 1–2 turns for high-duration names. Dovish tone (growth concerns, earlier cut discussion): risk assets rally; growth outperforms by 1.5–3% in the following week.',
   },
   'Jackson Hole': {
-    importance:    'The Fed Chair\'s annual speech at Jackson Hole often signals major policy shifts. It\'s one of the highest-impact macro events of the calendar year.',
-    likelyOutcome: 'Markets position for a policy signal. The speech can reprice the entire rate curve if the Fed Chair pivots from prior messaging.',
-    ifSurprises:   'Any pivot language (hawkish or dovish) relative to market pricing triggers outsized moves. Neutral/expected speech → relief rally as uncertainty clears.',
+    importance:    'The single highest-impact discretionary macro event of the year. Powell\'s 2022 Jackson Hole speech triggered a 3.4% S&P decline same day. In 2023, the market moved 1.5% off a single sentence about rates staying "higher for longer."',
+    likelyOutcome: 'The speech is prepared in advance and vetted — any pivot from prior Fed messaging is deliberate. Markets typically position cautiously ahead of it, compressing vol and sector moves until the speech drops (~10am ET Friday).',
+    ifSurprises:   'Any hawkish pivot vs. market pricing: growth/tech sell-off 2–5%, yields spike. Dovish signal (earlier cuts, growth concerns): risk-on — tech and growth outperform by 3–6% in the week following. "No change" speech typically sparks a relief rally of 0.5–1%.',
   },
   'GDP Final': {
-    importance:    'The final GDP estimate closes the book on the quarter and sets the official macro narrative for the period.',
-    likelyOutcome: 'Rarely diverges materially from the second estimate. Focus shifts to components: strong capex and consumption are positive for corporate earnings.',
-    ifSurprises:   'Downward revision to prior quarter growth → macro bears gain confidence, defensives lead. Upward revision → confirms expansion, cyclicals outperform.',
+    importance:    'Closes the quarter\'s GDP accounting. Rarely moves markets on the headline (divergence from second estimate averages ±0.1pp), but the component mix — particularly corporate profits — gives a direct read on earnings quality for the quarter.',
+    likelyOutcome: 'Corporate profits component (released alongside) is the watchlist item. Profits contracting q/q while revenue grew signals margin compression incoming. Expansionary profits in a slowing-headline GDP quarter is historically bullish for earnings revision cycles.',
+    ifSurprises:   'Material downward revision (−0.4pp+): recession narrative strengthens → cyclicals underperform defensives by 2–4% the following week; rate-cut timeline pulled forward. Upward revision with strong profits: confirms cycle durability → cyclicals lead; analysts raise earnings growth assumptions.',
   },
 };
 
-function getInsight(evt: MacroEvent): EventInsight {
-  return EVENT_INSIGHT[evt.abbr] ?? {
-    importance:    evt.description,
-    likelyOutcome: 'Watch for consensus vs. actual divergence as the key market-moving signal.',
-    ifSurprises:   `A significant surprise on ${evt.name} can shift sector rotation and near-term risk appetite.`,
-  };
+function getInsight(evt: MacroEvent, stock: RankedStock): EventInsight {
+  const base = EVENT_INSIGHT[evt.abbr];
+  const bd = stock.breakdown;
+  const sector = stock.meta?.sector ?? stock.meta?.subsector ?? '';
+  const sectorNote = sector ? ` (${sector})` : '';
+
+  const stockImpact = (() => {
+    switch (evt.channel) {
+      case 'estimate': {
+        const earningsScore = bd.earningsSetup.toFixed(1);
+        const weak = bd.earningsSetup < 5;
+        return weak
+          ? `${stock.ticker}${sectorNote} has a weak earnings setup (${earningsScore}/10) — a cost-pressure surprise here hits estimates with limited cushion. Watch for forward guidance cuts.`
+          : `${stock.ticker}${sectorNote} has a solid earnings setup (${earningsScore}/10) — but a hot print can still reprice forward margins. The catalyst strength score (${bd.catalystStrength.toFixed(1)}/10) determines how fast the street reprices.`;
+      }
+      case 'multiple': {
+        const valScore = bd.valuationSignal.toFixed(1);
+        const highForecast = bd.forecastSignal >= 6.5;
+        return highForecast
+          ? `${stock.ticker}${sectorNote} carries a growth premium (forecast signal ${bd.forecastSignal.toFixed(1)}/10). Rate-driven multiple compression hits growth-priced names hardest — a hawkish surprise can compress the P/E 1–2 turns directly.`
+          : `${stock.ticker}'s valuation signal is ${valScore}/10 — a rate surprise reprices this name through the discount rate. ${bd.valuationSignal >= 6 ? 'Cheap valuation provides some buffer against multiple compression.' : 'Limited valuation support amplifies downside if sentiment turns.'}`;
+      }
+      case 'macro': {
+        const momScore = bd.momentum.toFixed(1);
+        const highMom = bd.momentum >= 6.5;
+        return highMom
+          ? `${stock.ticker}${sectorNote} has strong price momentum (${momScore}/10) — macro shocks that break the trend historically trigger 1.5–3x the index move as longs unwind. The risk/vol score (${bd.riskAdjustment.toFixed(1)}/10) sets the stop distance.`
+          : `${stock.ticker}'s momentum score is ${momScore}/10. A macro re-rating event could be the catalyst to reprice this setup — the direction of the surprise determines whether it accelerates or reverses the current trend.`;
+      }
+      case 'risk': {
+        const riskScore = bd.riskAdjustment.toFixed(1);
+        return `${stock.ticker}'s risk/vol factor scores ${riskScore}/10. Macro risk events directly update this input — a volatile surprise typically widens the bid/ask and compresses sizing for risk-managed portfolios.`;
+      }
+      default:
+        return `Applies to ${stock.ticker} via the ${evt.channel} scoring channel — watch for estimate and multiple revisions in the session following the print.`;
+    }
+  })();
+
+  if (!base) {
+    return {
+      importance:    evt.description,
+      likelyOutcome: 'Watch for consensus vs. actual divergence as the key market-moving signal.',
+      ifSurprises:   `A significant surprise on ${evt.name} can shift sector rotation and near-term risk appetite.`,
+      stockImpact,
+    };
+  }
+
+  return { ...base, stockImpact };
 }
 
 const CHANNEL_STYLE: Record<string, { bg: string; text: string }> = {
@@ -184,7 +229,7 @@ function MacroEventRow({ evt, stock }: { evt: MacroEvent; stock: RankedStock }) 
   const days    = daysUntil(evt.date);
   const ch      = CHANNEL_STYLE[evt.channel] ?? CHANNEL_STYLE.macro;
   const urgent  = days <= 7;
-  const insight = getInsight(evt);
+  const insight = getInsight(evt, stock);
 
   return (
     <div className={cn(
@@ -237,9 +282,11 @@ function MacroEventRow({ evt, stock }: { evt: MacroEvent; stock: RankedStock }) 
             <div className="mb-0.5 text-[9px] font-bold uppercase tracking-widest text-amber-400/70">If it surprises</div>
             <p className="text-[11px] leading-snug text-[var(--cb-text-secondary)]">{insight.ifSurprises}</p>
           </div>
-          <div className="pt-0.5 text-[10px] text-[var(--cb-text-muted)]">
-            Applies to <span className="font-semibold text-[var(--cb-text-primary)]">{stock.ticker}</span> via{' '}
-            <span className={cn('font-medium', ch.text)}>{evt.channel}</span> channel.
+          <div className={cn('rounded-md border px-2.5 py-2', ch.bg, 'border-current/10')}>
+            <div className="mb-0.5 text-[9px] font-bold uppercase tracking-widest" style={{ color: 'inherit', opacity: 0.6 }}>
+              <span className={ch.text}>For {stock.ticker}</span>
+            </div>
+            <p className={cn('text-[11px] leading-snug', ch.text)} style={{ opacity: 0.85 }}>{insight.stockImpact}</p>
           </div>
         </div>
       )}
