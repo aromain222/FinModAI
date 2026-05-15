@@ -3,9 +3,66 @@
 import { useState } from 'react';
 import { Calendar, Globe, Zap, BarChart2, ChevronDown, ChevronRight, Clock } from 'lucide-react';
 import { getCompanyBrief } from '@/lib/ranking/companyBriefs';
-import { getUpcomingMacroEvents, daysUntil, fmtEventDate } from '@/lib/ranking/macroCal';
+import { getUpcomingMacroEvents, daysUntil, fmtEventDate, type MacroEvent } from '@/lib/ranking/macroCal';
 import type { RankedCatalyst, RankedStock } from '@/lib/ranking/types';
 import { cn } from '@/lib/utils';
+
+type EventInsight = {
+  importance: string;
+  likelyOutcome: string;
+  ifSurprises: string;
+};
+
+const EVENT_INSIGHT: Partial<Record<string, EventInsight>> = {
+  CPI: {
+    importance:    'The single most market-moving data point. Inflation prints directly reprice rate expectations, which drives equity multiples — especially growth names.',
+    likelyOutcome: 'Market consensus anchors around the prior trend. A read in-line with expectations is typically a non-event; the tail scenarios move markets.',
+    ifSurprises:   'Hot print (above est.) → rate cut hopes fade → multiple compression in growth/tech. Cool print (below est.) → rate cut odds rise → multiple expansion, especially in duration-sensitive sectors.',
+  },
+  FOMC: {
+    importance:    'The Fed\'s rate decision resets the discount rate for all assets. The dot plot and press conference often matter more than the decision itself.',
+    likelyOutcome: 'Markets price in the expected move well in advance. The reaction usually hinges on the tone — hawkish surprise compresses multiples; dovish pivot sparks a relief rally.',
+    ifSurprises:   'Hawkish hold or hike → growth names sell off, financials benefit. Dovish hold or cut → risk assets rally, REITs and tech lead. Neutral decision with hawkish language can still be negative.',
+  },
+  NFP: {
+    importance:    'Payroll strength signals labor market health, which feeds directly into Fed rate path expectations and consumer spending outlook.',
+    likelyOutcome: 'A strong beat (100K+ above est.) historically triggers a risk-off reaction as it reduces odds of near-term rate cuts. A miss raises cut expectations.',
+    ifSurprises:   'Strong beat → yields up, growth stocks down, financials up. Weak miss → yields down, growth stocks rally, defensive rotation. "Goldilocks" range (near consensus) → minimal market reaction.',
+  },
+  PPI: {
+    importance:    'Producer prices lead consumer inflation by 1-2 months. A rising PPI signals margin pressure is coming for companies unable to pass costs through.',
+    likelyOutcome: 'Watch the core PPI ex-food and energy. Services PPI is increasingly relevant for Fed inflation models.',
+    ifSurprises:   'Hot PPI → margin compression warnings for consumer-facing names; rate-cut timeline pushed out. Cool PPI → margin relief expected in forward guidance; supports estimates.',
+  },
+  GDP: {
+    importance:    'GDP confirms or revises the macro growth narrative. A sharp downgrade can trigger recession fear repricing across cyclicals.',
+    likelyOutcome: 'Second and final estimates rarely surprise significantly vs. advance read. Market focus shifts to consumption and investment components.',
+    ifSurprises:   'Downward revision signals economic slowdown → defensive rotation, rate cut odds rise. Upward revision → cyclicals lead, financials benefit, rate cut timeline extends.',
+  },
+  'Fed Minutes': {
+    importance:    'The minutes reveal disagreement within the committee and the reasoning behind the last decision — useful for gauging future policy flexibility.',
+    likelyOutcome: 'Markets look for signs of division: any hawk/dove split on rate path or balance sheet can move yields and reprice equities.',
+    ifSurprises:   'Hawkish tone (discussed rate hike, concerned about inflation) → yields up, multiples compress. Dovish tone (discussed cuts, worried about growth) → risk-on, growth names rally.',
+  },
+  'Jackson Hole': {
+    importance:    'The Fed Chair\'s annual speech at Jackson Hole often signals major policy shifts. It\'s one of the highest-impact macro events of the calendar year.',
+    likelyOutcome: 'Markets position for a policy signal. The speech can reprice the entire rate curve if the Fed Chair pivots from prior messaging.',
+    ifSurprises:   'Any pivot language (hawkish or dovish) relative to market pricing triggers outsized moves. Neutral/expected speech → relief rally as uncertainty clears.',
+  },
+  'GDP Final': {
+    importance:    'The final GDP estimate closes the book on the quarter and sets the official macro narrative for the period.',
+    likelyOutcome: 'Rarely diverges materially from the second estimate. Focus shifts to components: strong capex and consumption are positive for corporate earnings.',
+    ifSurprises:   'Downward revision to prior quarter growth → macro bears gain confidence, defensives lead. Upward revision → confirms expansion, cyclicals outperform.',
+  },
+};
+
+function getInsight(evt: MacroEvent): EventInsight {
+  return EVENT_INSIGHT[evt.abbr] ?? {
+    importance:    evt.description,
+    likelyOutcome: 'Watch for consensus vs. actual divergence as the key market-moving signal.',
+    ifSurprises:   `A significant surprise on ${evt.name} can shift sector rotation and near-term risk appetite.`,
+  };
+}
 
 const CHANNEL_STYLE: Record<string, { bg: string; text: string }> = {
   estimate:    { bg: 'bg-amber-500/15',   text: 'text-amber-300' },
@@ -122,6 +179,74 @@ type Props = {
   disabled?: boolean;
 };
 
+function MacroEventRow({ evt, stock }: { evt: MacroEvent; stock: RankedStock }) {
+  const [open, setOpen] = useState(false);
+  const days    = daysUntil(evt.date);
+  const ch      = CHANNEL_STYLE[evt.channel] ?? CHANNEL_STYLE.macro;
+  const urgent  = days <= 7;
+  const insight = getInsight(evt);
+
+  return (
+    <div className={cn(
+      'overflow-hidden rounded-lg border transition-colors',
+      urgent ? 'border-amber-400/25 bg-amber-500/5' : 'border-[var(--cb-border-subtle)] bg-[var(--cb-surface-subtle)]',
+    )}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left"
+      >
+        {/* Days until badge */}
+        <div className={cn('shrink-0 w-10 text-center', urgencyColor(days))}>
+          <div className="text-base font-bold tabular-nums leading-none">{days}</div>
+          <div className="text-[8px] leading-tight opacity-70">days</div>
+        </div>
+
+        <div className="h-8 w-px bg-[var(--cb-border)]" />
+
+        {/* Event details */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className={cn('rounded px-1.5 py-px text-[9px] font-bold tracking-wide', ch.bg, ch.text)}>
+              {evt.abbr}
+            </span>
+            <span className="text-[10px] text-[var(--cb-text-muted)]">{fmtEventDate(evt.date)}</span>
+          </div>
+          <p className="mt-0.5 truncate text-[11px] font-medium text-[var(--cb-text-primary)]">
+            {evt.name}
+          </p>
+        </div>
+
+        {open
+          ? <ChevronDown className="h-3 w-3 shrink-0 text-[var(--cb-text-muted)]" />
+          : <ChevronRight className="h-3 w-3 shrink-0 text-[var(--cb-text-muted)]" />
+        }
+      </button>
+
+      {open && (
+        <div className="border-t border-[var(--cb-border-subtle)] px-3 pb-3 pt-2.5 space-y-2.5">
+          <div>
+            <div className="mb-0.5 text-[9px] font-bold uppercase tracking-widest text-[var(--cb-text-muted)]">Why it matters</div>
+            <p className="text-[11px] leading-snug text-[var(--cb-text-secondary)]">{insight.importance}</p>
+          </div>
+          <div>
+            <div className="mb-0.5 text-[9px] font-bold uppercase tracking-widest text-[var(--cb-text-muted)]">What to expect</div>
+            <p className="text-[11px] leading-snug text-[var(--cb-text-secondary)]">{insight.likelyOutcome}</p>
+          </div>
+          <div>
+            <div className="mb-0.5 text-[9px] font-bold uppercase tracking-widest text-amber-400/70">If it surprises</div>
+            <p className="text-[11px] leading-snug text-[var(--cb-text-secondary)]">{insight.ifSurprises}</p>
+          </div>
+          <div className="pt-0.5 text-[10px] text-[var(--cb-text-muted)]">
+            Applies to <span className="font-semibold text-[var(--cb-text-primary)]">{stock.ticker}</span> via{' '}
+            <span className={cn('font-medium', ch.text)}>{evt.channel}</span> channel.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CatalystTimeline({ stock, onCatalystClick, disabled = false }: Props) {
   const catalysts    = (stock.meta.catalysts ?? []).slice(0, 4);
   const brief        = getCompanyBrief(stock.ticker);
@@ -140,52 +265,9 @@ export function CatalystTimeline({ stock, onCatalystClick, disabled = false }: P
         </div>
 
         <div className="space-y-1">
-          {macroEvents.map((evt) => {
-            const days   = daysUntil(evt.date);
-            const ch     = CHANNEL_STYLE[evt.channel] ?? CHANNEL_STYLE.macro;
-            const urgent = days <= 7;
-            return (
-              <button
-                key={evt.date + evt.abbr}
-                type="button"
-                disabled={disabled || !onCatalystClick}
-                onClick={() => onCatalystClick?.(
-                  `How does ${evt.name} on ${fmtEventDate(evt.date)} affect ${stock.ticker}? ${evt.description}`
-                )}
-                className={cn(
-                  'flex w-full cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors hover:border-[var(--cb-border-strong)] hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60',
-                  urgent
-                    ? 'border-amber-400/25 bg-amber-500/5'
-                    : 'border-[var(--cb-border-subtle)] bg-[var(--cb-surface-subtle)]',
-                )}
-              >
-                {/* Days until badge */}
-                <div className={cn('shrink-0 w-10 text-center', urgencyColor(days))}>
-                  <div className="text-base font-bold tabular-nums leading-none">{days}</div>
-                  <div className="text-[8px] leading-tight opacity-70">days</div>
-                </div>
-
-                {/* Divider */}
-                <div className="h-8 w-px bg-[var(--cb-border)]" />
-
-                {/* Event details */}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className={cn('rounded px-1.5 py-px text-[9px] font-bold tracking-wide', ch.bg, ch.text)}>
-                      {evt.abbr}
-                    </span>
-                    <span className="text-[10px] text-[var(--cb-text-muted)]">{fmtEventDate(evt.date)}</span>
-                  </div>
-                  <p className="mt-0.5 truncate text-[11px] font-medium text-[var(--cb-text-primary)]">
-                    {evt.name}
-                  </p>
-                  <p className="truncate text-[10px] text-[var(--cb-text-muted)]">{evt.description}</p>
-                </div>
-
-                <ChevronRight className="h-3 w-3 shrink-0 text-[var(--cb-text-muted)]" />
-              </button>
-            );
-          })}
+          {macroEvents.map((evt) => (
+            <MacroEventRow key={evt.date + evt.abbr} evt={evt} stock={stock} />
+          ))}
         </div>
       </div>
 

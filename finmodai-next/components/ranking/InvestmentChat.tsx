@@ -1279,11 +1279,13 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
                 <ScoreBacktestPanel stock={stock} />
 
               </div>
+              {/* Dexter — live financial data: income, cashflow, metrics, filings, insider */}
+              <DexterPanel ticker={stock.ticker} />
             </div>
           );
         })()}
 
-        {/* ── Chat tab — full analyst copilot workspace ── */}
+        {/* ── Chat tab — analyst copilot workspace ── TODO: UX still needs iteration */}
         {analysisPaneTab === 'chat' && (
           <div className="min-h-0 min-w-0 flex-1 flex flex-col overflow-hidden">
 
