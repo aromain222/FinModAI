@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { ChevronDown, ChevronRight, Loader2, Play, RotateCcw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { InvestorAvatar, InvestorAvatarStack, INVESTOR_META } from './InvestorAvatar';
+import { hedgeFundRead, type NormalizedAgentRead } from '@/lib/ranking/agentAlignment';
+import type { Signal as OpportunitySignal } from '@/lib/ranking/types';
 
 type Signal = {
   key: string; name: string; group: 'persona' | 'quant' | string;
@@ -121,7 +123,44 @@ async function readJsonResponse(res: Response): Promise<unknown> {
   }
 }
 
-export function HedgeFundPanel({ ticker, autoRun = false, onResult }: { ticker: string; autoRun?: boolean; onResult?: (result: AnalysisResult) => void }) {
+function AgentReadCard({ read }: { read: NormalizedAgentRead }) {
+  const tone = read.stance === 'bullish' ? 'emerald' : read.stance === 'bearish' ? 'rose' : 'amber';
+  return (
+    <div className={cn(
+      'rounded-xl border px-3 py-2.5',
+      tone === 'emerald' && 'border-emerald-400/25 bg-emerald-500/8',
+      tone === 'rose' && 'border-rose-400/25 bg-rose-500/8',
+      tone === 'amber' && 'border-amber-400/25 bg-amber-500/8',
+    )}>
+      <div className="mb-1.5 flex flex-wrap items-center gap-2">
+        <span className="text-[8px] font-bold uppercase tracking-widest text-[var(--cb-text-muted)]">Unified PM Read</span>
+        <span className={cn(
+          'rounded px-1.5 py-0.5 text-[9px] font-bold uppercase',
+          read.stance === 'bullish' ? 'bg-emerald-500/15 text-emerald-300'
+            : read.stance === 'bearish' ? 'bg-rose-500/15 text-rose-300'
+              : 'bg-amber-500/15 text-amber-300',
+        )}>{read.stance}</span>
+        <span className="rounded border border-[var(--cb-border)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--cb-text-secondary)]">
+          {read.readiness}
+        </span>
+        <span className="ml-auto text-[9px] font-bold text-[var(--cb-text-secondary)]">{read.confidence}%</span>
+      </div>
+      <p className="text-[10px] leading-snug text-[var(--cb-text-secondary)]">{read.pmRead}</p>
+    </div>
+  );
+}
+
+export function HedgeFundPanel({
+  ticker,
+  signal = 'yellow',
+  autoRun = false,
+  onResult,
+}: {
+  ticker: string;
+  signal?: OpportunitySignal;
+  autoRun?: boolean;
+  onResult?: (result: AnalysisResult) => void;
+}) {
   const [open,    setOpen]    = useState(false);
   const [loading, setLoading] = useState(false);
   const [result,  setResult]  = useState<AnalysisResult | null>(null);
@@ -159,6 +198,16 @@ export function HedgeFundPanel({ ticker, autoRun = false, onResult }: { ticker: 
   const quants   = result?.signals.filter(s => s.group === 'quant')   ?? [];
   const dec      = result?.decision;
   const aStyle   = ACTION_STYLE[dec?.action ?? 'hold'] ?? ACTION_STYLE.hold;
+  const agentRead = result && dec
+    ? hedgeFundRead({
+      action: dec.action,
+      confidence: dec.confidence,
+      bullish: result.consensus.bullish,
+      bearish: result.consensus.bearish,
+      neutral: result.consensus.neutral,
+      signal,
+    })
+    : null;
 
   return (
     <div className="shrink-0 border-b border-[var(--cb-border)]">
@@ -237,6 +286,8 @@ export function HedgeFundPanel({ ticker, autoRun = false, onResult }: { ticker: 
               {dec.reasoning && <p className="mt-1.5 text-[10px] leading-snug opacity-70">{dec.reasoning}</p>}
             </div>
           )}
+
+          {agentRead && <AgentReadCard read={agentRead} />}
 
           {/* Consensus */}
           <div>

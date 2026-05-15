@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Loader2, Play, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { tradingAgentsRead, type NormalizedAgentRead } from '@/lib/ranking/agentAlignment';
+import type { Signal as OpportunitySignal } from '@/lib/ranking/types';
 
 type AnalystReports = { market: string | null; fundamentals: string | null; sentiment: string | null; news: string | null };
 type AnalysisResult = {
@@ -12,6 +14,10 @@ type AnalysisResult = {
   summary: string | null;
   thesis: string | null;
   price_target: number | null;
+  current_price?: number | null;
+  target_implied_move_pct?: number | null;
+  target_validity?: 'valid' | 'invalid' | 'unavailable';
+  target_warning?: string | null;
   time_horizon: string | null;
   reports: AnalystReports;
   source?: 'python_backend' | 'openai_fallback';
@@ -64,7 +70,42 @@ async function readJsonResponse(res: Response): Promise<unknown> {
   }
 }
 
-export function TradingAgentsPanel({ ticker }: { ticker: string }) {
+function AgentReadCard({ read }: { read: NormalizedAgentRead }) {
+  const tone = read.stance === 'bullish' ? 'emerald' : read.stance === 'bearish' ? 'rose' : 'amber';
+  return (
+    <div className={cn(
+      'rounded-xl border px-3 py-2.5',
+      tone === 'emerald' && 'border-emerald-400/25 bg-emerald-500/8',
+      tone === 'rose' && 'border-rose-400/25 bg-rose-500/8',
+      tone === 'amber' && 'border-amber-400/25 bg-amber-500/8',
+    )}>
+      <div className="mb-1.5 flex flex-wrap items-center gap-2">
+        <span className="text-[8px] font-bold uppercase tracking-widest text-[var(--cb-text-muted)]">Unified PM Read</span>
+        <span className={cn(
+          'rounded px-1.5 py-0.5 text-[9px] font-bold uppercase',
+          read.stance === 'bullish' ? 'bg-emerald-500/15 text-emerald-300'
+            : read.stance === 'bearish' ? 'bg-rose-500/15 text-rose-300'
+              : 'bg-amber-500/15 text-amber-300',
+        )}>{read.stance}</span>
+        <span className="rounded border border-[var(--cb-border)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--cb-text-secondary)]">
+          {read.readiness}
+        </span>
+        <span className="ml-auto text-[9px] font-bold text-[var(--cb-text-secondary)]">{read.confidence}%</span>
+      </div>
+      <p className="text-[10px] leading-snug text-[var(--cb-text-secondary)]">{read.pmRead}</p>
+    </div>
+  );
+}
+
+export function TradingAgentsPanel({
+  ticker,
+  signal = 'yellow',
+  onResult,
+}: {
+  ticker: string;
+  signal?: OpportunitySignal;
+  onResult?: (result: AnalysisResult) => void;
+}) {
   const [open,    setOpen]    = useState(false);
   const [loading, setLoading] = useState(false);
   const [result,  setResult]  = useState<AnalysisResult | null>(null);
@@ -80,13 +121,28 @@ export function TradingAgentsPanel({ ticker }: { ticker: string }) {
         setError('Agent route returned an incomplete TradingAgents result.');
         return;
       }
-      setResult(data as AnalysisResult); setOpen(true);
+      const typed = data as AnalysisResult;
+      setResult(typed); setOpen(true); onResult?.(typed);
     } catch (e) { setError(e instanceof Error ? e.message : 'Request failed'); }
     finally { setLoading(false); }
   }
 
   const decision = result?.decision ?? '';
   const dStyle   = DECISION_STYLE[decision] ?? DECISION_STYLE['Hold'];
+  const reportCount = result
+    ? Object.values(result.reports).filter(Boolean).length
+    : 0;
+  const agentRead = result
+    ? tradingAgentsRead({
+      decision,
+      signal,
+      reportCount,
+      source: result.source,
+      targetValidity: result.target_validity,
+      targetWarning: result.target_warning,
+    })
+    : null;
+  const targetInvalid = result?.target_validity === 'invalid';
 
   return (
     <div className="shrink-0 border-b border-[var(--cb-border)]">
@@ -149,15 +205,35 @@ export function TradingAgentsPanel({ ticker }: { ticker: string }) {
             <p className="mb-1 text-[8px] font-bold uppercase tracking-widest opacity-60">PM Verdict</p>
             <div className="flex flex-wrap items-center gap-3">
               <span className={cn('text-2xl font-black tracking-tight', dStyle.text)}>{decision}</span>
-              {result.price_target != null && (
+              {result.price_target != null && !targetInvalid && (
                 <span className={cn('text-sm font-semibold opacity-80', dStyle.text)}>
                   Target ${result.price_target.toFixed(2)}
+                  {result.target_implied_move_pct != null && (
+                    <span className="ml-1 opacity-60">
+                      ({result.target_implied_move_pct >= 0 ? '+' : ''}{result.target_implied_move_pct.toFixed(1)}%)
+                    </span>
+                  )}
+                </span>
+              )}
+              {targetInvalid && (
+                <span className="rounded bg-rose-500/15 px-2 py-0.5 text-[10px] font-bold text-rose-300 ring-1 ring-rose-400/25">
+                  Target sanity failed
                 </span>
               )}
               {result.time_horizon && <span className="text-[10px] opacity-60">{result.time_horizon}</span>}
               <span className="ml-auto text-[9px] opacity-50">{result.date}</span>
             </div>
+            {targetInvalid && result.target_warning && (
+              <p className="mt-2 text-[10px] leading-snug text-rose-200/80">{result.target_warning}</p>
+            )}
+            {!targetInvalid && result.current_price != null && (
+              <p className="mt-2 text-[9px] text-[var(--cb-text-muted)]">
+                Checked against current price ${result.current_price.toFixed(2)}.
+              </p>
+            )}
           </div>
+
+          {agentRead && <AgentReadCard read={agentRead} />}
 
           {result.summary && (
             <div>

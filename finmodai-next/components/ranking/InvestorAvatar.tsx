@@ -38,6 +38,7 @@ export const INVESTOR_META: Record<string, InvestorMeta> = {
   'Sentiment Analyst':     { initials: 'SA', gradient: 'from-pink-400 to-rose-600',       style: 'Market Sentiment', textColor: '#fff' },
   'News Sentiment':        { initials: 'NS', gradient: 'from-fuchsia-400 to-purple-600',  style: 'News Flow',        textColor: '#fff' },
   'Growth Analyst':        { initials: 'GA', gradient: 'from-green-400 to-teal-600',      style: 'Growth',           textColor: '#fff' },
+  'PM Reconciliation Agent': { initials: 'PM', gradient: 'from-cyan-500 to-slate-700',     style: 'Signal Referee',   textColor: '#fff' },
 };
 
 const WIKI_ARTICLES: Record<string, string> = {

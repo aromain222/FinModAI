@@ -28,11 +28,20 @@ import { buildValuationSignal } from '@/lib/valuation/signal';
 import {
   type InvestmentMode, type ScoreFactor, SCORE_LABELS,
   capitalize, factorLabel, resolvedRisk, signalFromScore, contextPrompt, tradeReadiness, setupLabel,
+  expectedMoveForDisplay,
 } from '@/lib/ranking/chatHelpers';
+import {
+  hedgeFundRead,
+  tradingAgentsRead,
+  stanceFromAction,
+  type NormalizedAgentRead,
+} from '@/lib/ranking/agentAlignment';
+import { ScoreBacktestPanel } from '@/components/ranking/ScoreBacktestPanel';
 import { cn } from '@/lib/utils';
 import { PeerStock, buildExplain, buildSwingThesis, buildCompare, buildLocalReply, catalystDetailedContext, cryptoTapeContext } from '@/lib/ranking/chatBuilders';
 import { ChatMessage } from '@/components/ranking/ChatMessage';
 import { ConvictionMeter, parseConvictionLevel } from '@/components/ranking/ConvictionMeter';
+import { InvestorAvatar } from '@/components/ranking/InvestorAvatar';
 
 
 type Message = { role: 'user' | 'assistant'; content: string };
@@ -56,6 +65,116 @@ type AssumptionUpdateResponse = {
   };
   error?: string;
 };
+
+function AgentPMReadCard({
+  hedgeFund,
+  tradingAgents,
+  stock,
+}: {
+  hedgeFund: NormalizedAgentRead | null;
+  tradingAgents: NormalizedAgentRead | null;
+  stock: RankedStock;
+}) {
+  const available = [hedgeFund, tradingAgents].filter(Boolean) as NormalizedAgentRead[];
+  const bothLoaded = Boolean(hedgeFund && tradingAgents);
+  const conflict = bothLoaded && hedgeFund!.stance !== 'neutral' && tradingAgents!.stance !== 'neutral' && hedgeFund!.stance !== tradingAgents!.stance;
+  const bothBullish = bothLoaded && hedgeFund!.stance === 'bullish' && tradingAgents!.stance === 'bullish';
+  const bothBearish = bothLoaded && hedgeFund!.stance === 'bearish' && tradingAgents!.stance === 'bearish';
+  const oneLoaded = available.length === 1;
+  const avgConfidence = available.length
+    ? Math.round(available.reduce((sum, read) => sum + read.confidence, 0) / available.length)
+    : null;
+
+  let headline = 'Run agents for PM read';
+  let read = 'AI Hedge Fund checks quality, valuation, and investor-style risk. TradingAgents checks tape, news, and catalyst timing.';
+  let action = 'Use both before sizing.';
+  let thesis = 'I do not create a third opinion. I referee the signal stack and decide whether disagreement means opportunity, timing risk, or thesis damage.';
+  let tone: 'green' | 'yellow' | 'red' = 'yellow';
+
+  if (bothBullish) {
+    headline = 'Agents agree: constructive';
+    read = 'Quality/valuation and tape/catalyst checks both lean bullish. This can support a stronger work-up if the score and risk setup also confirm.';
+    action = stock.signal === 'green' ? 'PM action: Ready to size with risk controls.' : 'PM action: Work up until the Opportunity Score confirms.';
+    thesis = 'When quality and timing agree, I let the score breathe higher, but still check valuation, risk, and catalyst durability before sizing.';
+    tone = 'green';
+  } else if (bothBearish) {
+    headline = 'Agents agree: avoid or trim';
+    read = 'Both the quality/valuation brain and the tactical tape brain are negative. Do not force the long unless a fresh catalyst changes the setup.';
+    action = 'PM action: Pass, trim, or wait for thesis repair.';
+    thesis = 'When both agent stacks reject the idea, I protect capital first and require a new catalyst before reopening the long case.';
+    tone = 'red';
+  } else if (conflict) {
+    headline = 'Agent conflict';
+    read = hedgeFund!.stance === 'bearish'
+      ? 'AI Hedge Fund is warning on quality, valuation, or risk while TradingAgents sees tactical upside. Treat this as a trade, not a clean thesis.'
+      : 'AI Hedge Fund likes the quality/valuation setup, but TradingAgents does not confirm timing. Good idea, bad entry risk.';
+    action = 'PM action: Work up only; smaller size, tighter stop, and require catalyst or price confirmation.';
+    thesis = 'Conflict is information. I downgrade conviction, separate tactical trade from ownership thesis, and force confirmation before capital goes to work.';
+    tone = 'yellow';
+  } else if (oneLoaded) {
+    const loaded = available[0]!;
+    headline = `${loaded.source}: ${loaded.stance}`;
+    read = loaded.pmRead;
+    action = 'PM action: Run the other agent before treating this as confirmed.';
+    thesis = 'One agent is not enough. I need both quality/risk and timing/catalyst evidence before upgrading the setup.';
+    tone = loaded.stance === 'bullish' ? 'green' : loaded.stance === 'bearish' ? 'red' : 'yellow';
+  } else if (bothLoaded) {
+    headline = 'Agents mixed';
+    read = 'At least one agent is neutral, so the agent stack is not giving a clean confirmation.';
+    action = 'PM action: Keep in Work Up until tape, catalysts, or valuation resolve the debate.';
+    thesis = 'Mixed evidence means the market has not given us enough edge. I keep the idea alive, but I do not let it become a conviction trade.';
+  }
+
+  return (
+    <div className={cn(
+      'border-b px-4 py-3',
+      tone === 'green' && 'border-emerald-400/20 bg-emerald-500/[0.05]',
+      tone === 'yellow' && 'border-amber-400/20 bg-amber-500/[0.05]',
+      tone === 'red' && 'border-rose-400/20 bg-rose-500/[0.05]',
+    )}>
+      <div className="mb-2 flex items-start gap-2.5">
+        <InvestorAvatar
+          name="PM Reconciliation Agent"
+          signal={tone === 'green' ? 'bullish' : tone === 'red' ? 'bearish' : 'neutral'}
+          size="md"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--cb-text-muted)]">PM Reconciliation Agent</span>
+            <span className={cn(
+              'rounded px-2 py-0.5 text-[10px] font-bold',
+              tone === 'green' && 'bg-emerald-500/15 text-emerald-300',
+              tone === 'yellow' && 'bg-amber-500/15 text-amber-300',
+              tone === 'red' && 'bg-rose-500/15 text-rose-300',
+            )}>{headline}</span>
+            {avgConfidence != null && (
+              <span className="ml-auto text-[10px] font-bold text-[var(--cb-text-secondary)]">{avgConfidence}% avg confidence</span>
+            )}
+          </div>
+          <p className="mt-1 text-[10px] leading-snug text-[var(--cb-text-muted)]">
+            Brain: quality vs timing referee. Thesis: {thesis}
+          </p>
+        </div>
+      </div>
+      <p className="text-[11px] leading-snug text-[var(--cb-text-secondary)]">{read}</p>
+      <p className="mt-1 text-[10px] font-semibold text-[var(--cb-text-muted)]">{action}</p>
+      <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+        <div className="rounded border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2.5 py-2">
+          <p className="text-[8px] font-bold uppercase tracking-widest text-[var(--cb-text-muted)]">AI Hedge Fund</p>
+          <p className="mt-0.5 text-[10px] font-semibold capitalize text-[var(--cb-text-secondary)]">
+            {hedgeFund ? `${hedgeFund.stance} · ${hedgeFund.readiness}` : 'Not run yet'}
+          </p>
+        </div>
+        <div className="rounded border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2.5 py-2">
+          <p className="text-[8px] font-bold uppercase tracking-widest text-[var(--cb-text-muted)]">TradingAgents</p>
+          <p className="mt-0.5 text-[10px] font-semibold capitalize text-[var(--cb-text-secondary)]">
+            {tradingAgents ? `${tradingAgents.stance} · ${tradingAgents.readiness}` : 'Not run yet'}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const AGENT_PROMPTS: Array<{ label: string; text: string; mode?: InvestmentMode }> = [
   { label: 'Thesis',    text: 'Run the pm brain: explain why this stock belongs in the ranked list.', mode: 'explain' },
@@ -282,8 +401,10 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   const [entryQuote, setEntryQuote] = useState<StockQuote | null>(null);
   const [entryQuoteLoading, setEntryQuoteLoading] = useState(false);
   const [aiVerdict, setAiVerdict] = useState<{ action: string; bullish: number; bearish: number; neutral: number; confidence: number } | null>(null);
+  const [hedgeFundReadState, setHedgeFundReadState] = useState<NormalizedAgentRead | null>(null);
+  const [tradingAgentsReadState, setTradingAgentsReadState] = useState<NormalizedAgentRead | null>(null);
   const [panelTab, setPanelTab] = useState<'analysis' | 'agents' | 'chat'>('agents');
-  const [analysisPaneTab, setAnalysisPaneTab] = useState<'analysis' | 'agents' | 'chat'>('analysis');
+  const [analysisPaneTab, setAnalysisPaneTab] = useState<'analysis' | 'agents' | 'financials' | 'chat'>('analysis');
   const [chatExpanded, setChatExpanded] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const scrollRef         = useRef<HTMLDivElement>(null);
@@ -317,6 +438,8 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       setPositionConfirmed(false);
       setEntryQuote(null);
       setEntryQuoteLoading(false);
+      setHedgeFundReadState(null);
+      setTradingAgentsReadState(null);
       setAiVerdict(stock?.meta.aiHedgeFund ? {
         action: stock.meta.aiHedgeFund.action,
         bullish: stock.meta.aiHedgeFund.bullish,
@@ -888,9 +1011,10 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
         {/* Tab bar — 3 tabs, full-width segmented pill control */}
         <div className="shrink-0 flex items-center gap-1 border-b border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-2 py-1.5">
           {([
-            { id: 'analysis', label: 'Deep Analysis' },
-            { id: 'agents',   label: 'AI Agents' },
-            { id: 'chat',     label: 'Chat' },
+            { id: 'analysis',   label: 'Deep Analysis' },
+            { id: 'agents',     label: 'AI Agents' },
+            { id: 'financials', label: 'Financials' },
+            { id: 'chat',       label: 'Chat' },
           ] as const).map(tab => (
             <button
               key={tab.id}
@@ -946,8 +1070,14 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
         {analysisPaneTab === 'agents' && (
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
             <PMDecisionStrip stock={stock} displayedScore={displayedScore} scoreChange={scoreChange} />
+            <AgentPMReadCard
+              hedgeFund={hedgeFundReadState}
+              tradingAgents={tradingAgentsReadState}
+              stock={stock}
+            />
             <HedgeFundPanel
               ticker={stock.ticker}
+              signal={stock.signal}
               autoRun
               onResult={r => {
                 if (!r.decision) return;
@@ -981,6 +1111,15 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
                   alignment,
                   updatedAt: new Date().toISOString(),
                 } as const;
+                const normalizedHedgeFundRead = hedgeFundRead({
+                  action: r.decision.action,
+                  confidence: r.decision.confidence,
+                  bullish: r.consensus.bullish,
+                  bearish: r.consensus.bearish,
+                  neutral: r.consensus.neutral,
+                  signal: stock.signal,
+                });
+                setHedgeFundReadState(normalizedHedgeFundRead);
 
                 setScoreChange({
                   fromScore: stock.score,
@@ -1010,10 +1149,137 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
                 });
               }}
             />
-            <TradingAgentsPanel ticker={stock.ticker} />
+            <TradingAgentsPanel
+              ticker={stock.ticker}
+              signal={stock.signal}
+              onResult={r => {
+                const reportCount = Object.values(r.reports).filter(Boolean).length;
+                const read = tradingAgentsRead({
+                  decision: r.decision,
+                  signal: stock.signal,
+                  reportCount,
+                  source: r.source,
+                  targetValidity: r.target_validity,
+                  targetWarning: r.target_warning,
+                });
+                setTradingAgentsReadState(read);
+                const stance = stanceFromAction(r.decision);
+                setAiVerdict({
+                  action: `TA ${r.decision}`,
+                  bullish: stance === 'bullish' ? 1 : 0,
+                  bearish: stance === 'bearish' ? 1 : 0,
+                  neutral: stance === 'neutral' ? 1 : 0,
+                  confidence: read.confidence,
+                });
+              }}
+            />
             <DexterPanel ticker={stock.ticker} />
           </div>
         )}
+
+        {/* ── Financials tab ── */}
+        {analysisPaneTab === 'financials' && (() => {
+          const em  = expectedMoveForDisplay(stock);
+          const val = buildValuationSignal({
+            ticker:          stock.ticker,
+            forecastReturnPct: stock.meta.forecastReturnPct ?? null,
+            factorBreakdown: stock.breakdown,
+          });
+          const factors = Object.entries(stock.breakdown) as Array<[ScoreFactor, number]>;
+          return (
+            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+              <div className="mx-auto w-full max-w-2xl space-y-4 px-4 py-5">
+
+                {/* Score breakdown */}
+                <div className="rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--cb-text-muted)]">Score Breakdown</span>
+                    <span className="rounded bg-[var(--cb-surface-subtle)] px-2 py-0.5 text-[11px] font-bold tabular-nums text-[var(--cb-text-primary)]">
+                      {stock.score.toFixed(1)} / 10
+                    </span>
+                  </div>
+                  <div className="space-y-2.5">
+                    {factors.map(([key, val]) => (
+                      <div key={key}>
+                        <div className="mb-1 flex items-center justify-between">
+                          <span className="text-[11px] text-[var(--cb-text-secondary)]">{SCORE_LABELS[key]}</span>
+                          <span className={cn(
+                            'text-[11px] font-semibold tabular-nums',
+                            val >= 7 ? 'text-emerald-400' : val >= 5 ? 'text-amber-400' : 'text-rose-400',
+                          )}>{val.toFixed(1)}</span>
+                        </div>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--cb-surface-subtle)]">
+                          <div
+                            className={cn(
+                              'h-full rounded-full transition-all',
+                              val >= 7 ? 'bg-emerald-500' : val >= 5 ? 'bg-amber-500' : 'bg-rose-500',
+                            )}
+                            style={{ width: `${(val / 10) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Expected move */}
+                <div className="rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] p-4">
+                  <div className="mb-3 text-[11px] font-bold uppercase tracking-widest text-[var(--cb-text-muted)]">Expected Move</div>
+                  <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-col items-center rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-3 py-2 min-w-[80px]">
+                      <span className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Base low</span>
+                      <span className="mt-0.5 text-sm font-bold tabular-nums text-[var(--cb-text-primary)]">
+                        {em.baseLowPct >= 0 ? '+' : ''}{em.baseLowPct.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-center rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-3 py-2 min-w-[80px]">
+                      <span className="text-[9px] uppercase tracking-widest text-[var(--cb-text-muted)]">Base high</span>
+                      <span className="mt-0.5 text-sm font-bold tabular-nums text-emerald-400">
+                        +{em.baseHighPct.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-center rounded-md border border-emerald-400/25 bg-emerald-500/8 px-3 py-2 min-w-[80px]">
+                      <span className="text-[9px] uppercase tracking-widest text-emerald-400/70">Bull case</span>
+                      <span className="mt-0.5 text-sm font-bold tabular-nums text-emerald-300">
+                        +{em.bullPct.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-center rounded-md border border-rose-400/25 bg-rose-500/8 px-3 py-2 min-w-[80px]">
+                      <span className="text-[9px] uppercase tracking-widest text-rose-400/70">Risk case</span>
+                      <span className="mt-0.5 text-sm font-bold tabular-nums text-rose-300">
+                        {em.riskPct.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                  <p className="mt-2.5 text-[10px] text-[var(--cb-text-muted)]">{em.summary}</p>
+                </div>
+
+                {/* Valuation signal */}
+                {val && (
+                  <div className="rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] p-4">
+                    <div className="mb-2 text-[11px] font-bold uppercase tracking-widest text-[var(--cb-text-muted)]">Valuation Signal</div>
+                    {val.impliedUpside !== null && (
+                      <div className="mb-1.5 flex items-center gap-2">
+                        <span className="text-[11px] text-[var(--cb-text-secondary)]">Implied upside</span>
+                        <span className={cn(
+                          'text-sm font-bold tabular-nums',
+                          val.impliedUpside >= 0 ? 'text-emerald-400' : 'text-rose-400',
+                        )}>
+                          {val.impliedUpside >= 0 ? '+' : ''}{val.impliedUpside.toFixed(1)}%
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-[11px] leading-snug text-[var(--cb-text-secondary)]">{val.summary}</p>
+                  </div>
+                )}
+
+                {/* Score profile / backtest panel */}
+                <ScoreBacktestPanel stock={stock} />
+
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── Chat tab — full analyst copilot workspace ── */}
         {analysisPaneTab === 'chat' && (
@@ -1042,27 +1308,11 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
             {/* Sticky input area */}
             <div className="shrink-0 border-t border-[var(--cb-border)] bg-[var(--cb-surface-subtle)]">
 
-              {/* Agent shortcut command row */}
-              <div className="flex items-center gap-1.5 overflow-x-auto px-4 pt-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest text-[var(--cb-text-muted)] opacity-60">Agents</span>
-                {CHAT_AGENT_SHORTCUTS.map(shortcut => (
-                  <button
-                    key={shortcut.label}
-                    type="button"
-                    onClick={() => sendMessage(shortcut.text, shortcut.mode)}
-                    disabled={streaming}
-                    className="shrink-0 cursor-pointer rounded-md border border-blue-400/20 bg-blue-500/10 px-2.5 py-1 text-[10px] font-semibold text-blue-200 transition-all duration-150 hover:border-blue-300/40 hover:bg-blue-500/15 disabled:opacity-50"
-                  >
-                    {shortcut.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Quick mode chips + position chips */}
-              <div className="flex items-center gap-1 overflow-x-auto px-4 pt-1 pb-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {/* Unified prompt chip row */}
+              <div className="flex items-center gap-1 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {/* Position chips — shown only when tracking a position */}
                 {currentPosition && (
                   <>
-                    <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest text-blue-400/60">Pos</span>
                     {(
                       [
                         { label: 'Evolving?',   text: 'How is this position evolving?' },
@@ -1085,6 +1335,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
                     <span className="mx-1 shrink-0 h-3.5 w-px bg-[var(--cb-border)]" />
                   </>
                 )}
+                {/* Standard analysis prompts */}
                 {STANDARD_PROMPTS.map(qp => (
                   <button
                     key={qp.mode}
@@ -1096,6 +1347,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
                     {qp.label}
                   </button>
                 ))}
+                {/* Signal chip */}
                 <button
                   type="button"
                   onClick={() => sendMessage(cp.text, cp.mode)}
@@ -1111,6 +1363,19 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
                 >
                   {cp.label}
                 </button>
+                {/* Agent shortcuts — separated by a thin divider */}
+                <span className="mx-1 shrink-0 h-3.5 w-px bg-[var(--cb-border)]" />
+                {CHAT_AGENT_SHORTCUTS.map(shortcut => (
+                  <button
+                    key={shortcut.label}
+                    type="button"
+                    onClick={() => sendMessage(shortcut.text, shortcut.mode)}
+                    disabled={streaming}
+                    className="shrink-0 cursor-pointer rounded-md border border-blue-400/20 bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-200 transition-all duration-150 hover:border-blue-300/40 hover:bg-blue-500/15 disabled:opacity-50"
+                  >
+                    {shortcut.label}
+                  </button>
+                ))}
               </div>
 
               {/* Input form — centered max-w to match messages */}
