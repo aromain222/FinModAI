@@ -122,6 +122,56 @@ Avoid static dashboard feel, clutter, heavy modeling screens, and long text bloc
 
 Use existing patterns before introducing new ones.
 
+## PM OS — Portfolio Manager Operating System
+
+CapitalBase is adding a second layer on top of the Intelligence Engine: a PM OS that turns agent signals into persistent investment workflows.
+
+### Architecture boundary
+
+```
+Intelligence Engine  →  structured outputs  →  PM OS
+(lib/ranking, lib/analyst,                    (lib/pm, components/pm,
+ app/api/hedge-fund,                           app/api/pm)
+ app/api/tradingagents)
+```
+
+The Intelligence Engine generates signals. The PM OS is the operator. Do not mix these layers.
+
+### PM OS rules for all agents
+
+- **Do not rebuild the Intelligence Engine.** `lib/ranking/`, `lib/analyst/`, `app/api/hedge-fund/`, `app/api/tradingagents/` are read-only signal sources for PM OS work.
+- **All agent recommendations must be persisted** (as `AgentView` records in `lib/pm/types.ts`) before they can appear in PM workflows.
+- **Thesis updates must record old thesis vs new evidence.** Use `ThesisUpdate` — never overwrite in place.
+- **No autonomous live trading.** The PM OS generates recommendations and surfaces them for human review. It does not execute orders.
+- **PM approval required for all trade recommendations.** `InvestmentDecision` records must have `approvalStatus: 'approved'` before surfacing as actionable in any UI.
+- **Use adapters over rewrites.** Wrap existing logic before replacing it. `lib/portfolio/types.ts` and `lib/trading/` already have partial position models — extend them via `lib/pm/types.ts`, do not duplicate.
+- **Avoid large rewrites.** Prefer additive changes. If a refactor touches more than 3 existing files, stop and document the plan first.
+- **TypeScript strict.** No `any`. Extend existing types via intersection or extension rather than redefining.
+- **No fake data unless clearly marked.** Fixture files must be named `*.fixture.ts` or placed under `__fixtures__/`.
+- **Run lint/build before finishing.** Run `npm run build && npx tsc --noEmit` after any structural change.
+
+### PM OS folder map
+
+```
+lib/pm/types.ts          — shared PM OS types (source of truth)
+lib/pm/thesis/           — thesis storage and comparison logic
+lib/pm/memory/           — agent view persistence and retrieval
+lib/pm/alerts/           — alert generation and severity routing
+lib/pm/reports/          — weekly memo generation
+lib/pm/portfolio/        — portfolio-level aggregations
+lib/pm/decisions/        — investment decision lifecycle
+
+app/api/pm/              — PM OS API routes
+components/pm/           — PM OS UI components
+```
+
+### PM UI principles
+
+- Institutional, compact, calm. Not a retail trading app.
+- No gradients, heavy animations, or excessive scroll.
+- Every panel must show data or a clear empty state — no loading spinners without a skeleton.
+- Primary palette: existing CSS variables (`--cb-*`). Do not introduce new design tokens.
+
 ## Commands
 
 Use these when validating:

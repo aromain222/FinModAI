@@ -18,7 +18,7 @@ export type MarketCompanyListing = {
   sharesOutstanding: number | null;
   marketCap: number | null;
   sharePrice: number | null;
-  source: 'company_cache' | 'demo_company_snapshots';
+  source: 'company_cache' | 'demo_company_snapshots' | 'public_listing_directory';
 };
 
 type CompanyRow = {
@@ -59,6 +59,13 @@ type MarketCompanyUniverseOptions = {
 };
 
 const COMPANY_UNIVERSE_BATCH_SIZE = 100;
+const PUBLIC_LISTINGS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const PUBLIC_LISTING_URLS = [
+  'https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt',
+  'https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt',
+] as const;
+
+let publicListingsCache: { expiresAt: number; rows: MarketCompanyListing[] } | null = null;
 
 function toNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -105,6 +112,144 @@ function chunkArray<T>(items: T[], size: number): T[][] {
     chunks.push(items.slice(index, index + size));
   }
   return chunks;
+}
+
+function parsePipeDelimitedListing(text: string): Array<Record<string, string>> {
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('File Creation Time'));
+
+  const header = lines[0]?.split('|').map((field) => field.trim()) ?? [];
+  if (header.length === 0) return [];
+
+  return lines.slice(1).flatMap((line) => {
+    const values = line.split('|').map((field) => field.trim());
+    if (values.length !== header.length) return [];
+    return [
+      Object.fromEntries(header.map((field, index) => [field, values[index] ?? ''])),
+    ];
+  });
+}
+
+function normalizeListedTicker(value: string | null | undefined): string | null {
+  const cleaned = String(value ?? '').trim().toUpperCase().replace(/\$/g, '.').replace(/-/g, '.');
+  if (!cleaned || cleaned.includes(' ') || cleaned.includes('/')) return null;
+  return /^[A-Z.]{1,10}$/.test(cleaned) ? cleaned : null;
+}
+
+function cleanSecurityName(value: string | null | undefined): string | null {
+  const cleaned = String(value ?? '')
+    .replace(/\s+-\s+Common Stock$/i, '')
+    .replace(/\s+Common Stock$/i, '')
+    .replace(/\s+Class [A-Z]\s+Common Stock$/i, '')
+    .replace(/\s+-\s+Class [A-Z]$/i, '')
+    .replace(/\s+Ordinary Shares$/i, '')
+    .replace(/\s+Ordinary Share$/i, '')
+    .replace(/\s+American Depositary Shares$/i, ' ADS')
+    .replace(/\s+American Depository Shares$/i, ' ADS')
+    .trim();
+  return cleaned.length > 0 ? cleaned : null;
+}
+
+function isOperatingCompanyListing(row: Record<string, string>): boolean {
+  const name = String(row['Security Name'] ?? '').toLowerCase();
+  const symbol = normalizeListedTicker(row.Symbol || row['ACT Symbol'] || row['NASDAQ Symbol']);
+  if (!symbol) return false;
+  if ((row.ETF ?? '').toUpperCase() === 'Y') return false;
+  if ((row['Test Issue'] ?? '').toUpperCase() === 'Y') return false;
+  if ((row.NextShares ?? '').toUpperCase() === 'Y') return false;
+  return ![
+    ' warrant',
+    ' warrants',
+    ' right',
+    ' rights',
+    ' unit',
+    ' units',
+    ' preferred',
+    ' preference',
+    ' notes due',
+    ' senior note',
+    ' depositary share',
+    ' etn',
+    ' fund',
+    ' trust',
+    ' acquisition corp',
+    ' acquisition inc',
+    ' acquisition company',
+    ' blank check',
+    ' spac',
+  ].some((blocked) => name.includes(blocked));
+}
+
+function mapOtherListedExchange(code: string | null | undefined): string | null {
+  const normalized = String(code ?? '').trim().toUpperCase();
+  if (normalized === 'A') return 'NYSE American';
+  if (normalized === 'N') return 'NYSE';
+  if (normalized === 'P') return 'NYSE Arca';
+  if (normalized === 'Z') return 'Cboe BZX';
+  if (normalized === 'V') return 'IEX';
+  return normalized || null;
+}
+
+function listingRowToMarketCompany(row: Record<string, string>, sourceUrl: string): MarketCompanyListing | null {
+  if (!isOperatingCompanyListing(row)) return null;
+  const ticker = normalizeListedTicker(row.Symbol || row['ACT Symbol'] || row['NASDAQ Symbol']);
+  if (!ticker) return null;
+
+  return {
+    ticker,
+    companyName: cleanSecurityName(row['Security Name']),
+    sector: null,
+    industry: null,
+    country: 'US',
+    exchange: sourceUrl.includes('nasdaqlisted') ? 'NASDAQ' : mapOtherListedExchange(row.Exchange),
+    companyType: 'public_company',
+    updatedAt: null,
+    asOfDate: null,
+    revenueLtm: null,
+    ebitdaLtm: null,
+    netIncomeLtm: null,
+    cash: null,
+    totalDebt: null,
+    sharesOutstanding: null,
+    marketCap: null,
+    sharePrice: null,
+    source: 'public_listing_directory',
+  };
+}
+
+export async function getPublicCompanyListingUniverse(limit = 8000): Promise<MarketCompanyListing[]> {
+  const cached = publicListingsCache;
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.rows.slice(0, limit);
+  }
+
+  const responses = await Promise.allSettled(
+    PUBLIC_LISTING_URLS.map(async (url) => {
+      const res = await fetch(url, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) throw new Error(`public listing fetch failed: ${res.status}`);
+      return { url, text: await res.text() };
+    }),
+  );
+
+  const byTicker = new Map<string, MarketCompanyListing>();
+  for (const response of responses) {
+    if (response.status !== 'fulfilled') continue;
+    for (const row of parsePipeDelimitedListing(response.value.text)) {
+      const listing = listingRowToMarketCompany(row, response.value.url);
+      if (listing && !byTicker.has(listing.ticker)) {
+        byTicker.set(listing.ticker, listing);
+      }
+    }
+  }
+
+  const rows = [...byTicker.values()].sort((left, right) => left.ticker.localeCompare(right.ticker));
+  publicListingsCache = { expiresAt: Date.now() + PUBLIC_LISTINGS_CACHE_TTL_MS, rows };
+  return rows.slice(0, limit);
 }
 
 function preferMetricValue(
