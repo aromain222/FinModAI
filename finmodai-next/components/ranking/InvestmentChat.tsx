@@ -1131,6 +1131,12 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
                 });
                 setHedgeFundReadState(normalizedHedgeFundRead);
 
+                fetch('/api/pm/agent-views', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ adapter: 'hedge_fund', output: { ...r, ticker: stock.ticker }, ingest: true }),
+                }).catch(() => {});
+
                 setScoreChange({
                   fromScore: stock.score,
                   toScore: newScore,
@@ -1173,6 +1179,13 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
                   targetWarning: r.target_warning,
                 });
                 setTradingAgentsReadState(read);
+
+                fetch('/api/pm/agent-views', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ adapter: 'tradingagents', output: { ...r, ticker: stock.ticker }, ingest: true }),
+                }).catch(() => {});
+
                 const stance = stanceFromAction(r.decision);
                 setAiVerdict({
                   action: `TA ${r.decision}`,

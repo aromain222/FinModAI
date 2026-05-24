@@ -1,12 +1,16 @@
-import type { AgentView, InvestmentDecision, PMAlert } from '@/lib/pm/types';
+import type { AgentView, ConvictionDriftSummary, InvestmentDecision, PMAlert } from '@/lib/pm/types';
 import { saveAlert } from '@/lib/pm/alerts/alertStore';
 import { saveDecision } from '@/lib/pm/decisions/decisionStore';
-import { getLatestAgentView, saveAgentView } from '@/lib/pm/memory/agentViewStore';
+import { convictionDriftToAlert, evaluateConvictionDrift } from '@/lib/pm/memory/convictionDrift';
+import { getLatestAgentView, listAgentViews, saveAgentView } from '@/lib/pm/memory/agentViewStore';
+import { getLatestThesis } from '@/lib/pm/thesis/thesisStore';
 import { updateThesis } from '@/lib/pm/thesis/updateThesis';
 
 export type PMBrainIngestResult = {
   agentView: AgentView;
   thesisUpdate: Awaited<ReturnType<typeof updateThesis>>;
+  convictionDrift: ConvictionDriftSummary;
+  driftAlert: PMAlert | null;
   decision: InvestmentDecision | null;
   approvalAlert: PMAlert | null;
 };
@@ -62,21 +66,34 @@ function approvalAlertFromDecision(decision: InvestmentDecision): PMAlert {
 
 export async function ingestAgentView(view: AgentView): Promise<PMBrainIngestResult> {
   const previous = await getLatestAgentView(view.ticker);
+  const [recentViews, latestThesis] = await Promise.all([
+    listAgentViews({ ticker: view.ticker, limit: 12 }),
+    getLatestThesis(view.ticker),
+  ]);
   const viewWithDrift: AgentView = {
     ...view,
     changedSinceLast: previous ? previous.stance !== view.stance || Math.abs(previous.conviction - view.conviction) >= 10 : view.changedSinceLast,
   };
+  const convictionDrift = evaluateConvictionDrift({
+    ticker: view.ticker,
+    currentView: viewWithDrift,
+    previousView: previous,
+    recentViews,
+    thesis: latestThesis,
+  });
   const agentView = await saveAgentView(viewWithDrift);
+  const driftAlertPayload = convictionDriftToAlert(convictionDrift, latestThesis);
+  const driftAlert = driftAlertPayload ? await saveAlert(driftAlertPayload) : null;
   const thesisUpdate = await updateThesis({
     ticker: agentView.ticker,
-    newEvidence: `${agentView.agentName}: ${agentView.reasoning}`,
+    newEvidence: `${agentView.agentName}: ${agentView.reasoning}\nPM drift check: ${convictionDrift.reason}`,
     convictionScore: agentView.conviction,
-    agentViews: [agentView],
+    agentViews: [agentView, ...recentViews].slice(0, 8),
     evidence: agentView.evidence,
     source: 'agent',
   });
   const decisionPayload = decisionFromView(agentView);
   const decision = decisionPayload ? await saveDecision(decisionPayload) : null;
   const approvalAlert = decision ? await saveAlert(approvalAlertFromDecision(decision)) : null;
-  return { agentView, thesisUpdate, decision, approvalAlert };
+  return { agentView, thesisUpdate, convictionDrift, driftAlert, decision, approvalAlert };
 }

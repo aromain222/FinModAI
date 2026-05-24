@@ -1,4 +1,4 @@
-import type { AgentView, InvestmentDecision } from '@/lib/pm/types';
+import type { AgentView, InvestmentDecision, ThesisUpdateInput, WeeklyMemoSection } from '@/lib/pm/types';
 
 type TradingAgentsOutput = {
   ticker?: string;
@@ -76,5 +76,30 @@ export function tradingAgentsToDecision(output: TradingAgentsOutput): Investment
     createdAt: now,
     updatedAt: now,
     recommendedAction: action,
+  };
+}
+
+export function tradingAgentsToThesisUpdateInput(output: TradingAgentsOutput): ThesisUpdateInput | null {
+  if (!output.ticker) return null;
+  const stance = stanceFromDecision(output.decision);
+  const reports = Object.entries(output.reports ?? {})
+    .flatMap(([source, report]) => report ? [`${source}: ${report}`] : [])
+    .slice(0, 4)
+    .join(' ');
+  return {
+    ticker: output.ticker.toUpperCase(),
+    newEvidence: `TradingAgents debate update: ${output.decision ?? 'hold'} / ${stance}. ${output.summary ?? ''} ${output.thesis ?? ''} ${output.target_warning ?? ''} ${reports}`.trim(),
+    newThesisSummary: output.thesis ?? output.summary ?? undefined,
+    convictionScore: output.target_validity === 'invalid' ? 45 : 60,
+    source: 'agent',
+  };
+}
+
+export function tradingAgentsToWeeklyMemoSection(output: TradingAgentsOutput): WeeklyMemoSection | null {
+  if (!output.ticker) return null;
+  return {
+    title: `${output.ticker.toUpperCase()} TradingAgents debate`,
+    body: `${output.decision ?? 'Hold'} over ${output.time_horizon ?? 'the active horizon'}. ${output.summary ?? output.thesis ?? 'No debate summary recorded.'}${output.target_warning ? ` Target warning: ${output.target_warning}` : ''}`,
+    tickers: [output.ticker.toUpperCase()],
   };
 }

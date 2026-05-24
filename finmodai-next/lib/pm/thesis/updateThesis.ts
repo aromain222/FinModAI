@@ -25,6 +25,36 @@ function conditionTriggered(conditions: string[], evidence: string): boolean {
   });
 }
 
+function extractKeywords(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter(word => word.length > 4 && !['thesis', 'stock', 'agent', 'market', 'update', 'evidence'].includes(word)),
+  );
+}
+
+function compareEvidence(previous: PositionThesis | null, evidence: string): string {
+  if (!previous) return 'No prior thesis existed, so this opens the official PM record.';
+  const previousText = [
+    previous.thesisSummary,
+    previous.whyWeOwnIt,
+    ...previous.catalysts,
+    ...previous.keyRisks,
+    ...previous.invalidationConditions,
+  ].join(' ');
+  const oldWords = extractKeywords(previousText);
+  const newWords = extractKeywords(evidence);
+  const overlap = [...newWords].filter(word => oldWords.has(word));
+  const additions = [...newWords].filter(word => !oldWords.has(word)).slice(0, 5);
+  if (additions.length === 0) {
+    return overlap.length > 0
+      ? `Evidence mostly confirms existing thesis terms: ${overlap.slice(0, 5).join(', ')}.`
+      : 'Evidence did not introduce a clear new thesis driver.';
+  }
+  return `New evidence adds ${additions.join(', ')}${overlap.length > 0 ? ` while overlapping prior drivers ${overlap.slice(0, 3).join(', ')}` : ''}.`;
+}
+
 function determineStatus(params: {
   previous: PositionThesis | null;
   evidence: string;
@@ -103,12 +133,18 @@ export async function updateThesis(input: ThesisUpdateInput): Promise<ThesisUpda
     ?? previous?.thesisSummary
     ?? `${ticker} thesis opened from new PM evidence.`;
   const explanation = previous
-    ? `Changed from ${previous.thesisStatus} to ${statusAfter}. Evidence affected ${changedFactors.join(', ')}; conviction ${convictionBefore} -> ${convictionAfter}.`
+    ? `Changed from ${previous.thesisStatus} to ${statusAfter}. ${compareEvidence(previous, input.newEvidence)} Evidence affected ${changedFactors.join(', ')}; conviction ${convictionBefore} -> ${convictionAfter}.`
     : `Created initial PM thesis record. Evidence affected ${changedFactors.join(', ')}; starting conviction ${convictionAfter}.`;
+  const currentThesis = input.newThesisSummary
+    ?? previous?.currentThesis
+    ?? previous?.thesisSummary
+    ?? updatedSummary;
 
   const updatedThesis: PositionThesis = {
     id: previous?.id ?? crypto.randomUUID(),
     ticker,
+    originalThesis: previous?.originalThesis ?? previous?.thesisSummary ?? updatedSummary,
+    currentThesis,
     thesisSummary: updatedSummary,
     whyWeOwnIt: previous?.whyWeOwnIt ?? input.newEvidence,
     addConditions: previous?.addConditions ?? [],
@@ -117,7 +153,15 @@ export async function updateThesis(input: ThesisUpdateInput): Promise<ThesisUpda
     keyRisks: previous?.keyRisks ?? [],
     catalysts: previous?.catalysts ?? [],
     convictionScore: convictionAfter,
+    status: statusAfter,
+    integrityStatus:
+      statusAfter === 'closed' ? 'resolved' :
+      statusAfter === 'holding' ? 'intact' :
+      statusAfter === 'building' ? 'under_review' :
+      statusAfter,
     thesisStatus: statusAfter,
+    currentScore: convictionAfter,
+    entryScore: previous?.entryScore ?? convictionBefore ?? convictionAfter,
     timeHorizon: previous?.timeHorizon ?? null,
     lastReviewedAt: now,
     createdAt: previous?.createdAt ?? now,

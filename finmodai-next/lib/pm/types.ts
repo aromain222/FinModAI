@@ -109,6 +109,9 @@ export type PortfolioPosition = {
   approvalStatus?: PMApprovalStatus;
   thesisIntegrity?: ThesisIntegrityStatus;
   agentConsensus?: 'bullish' | 'bearish' | 'neutral' | 'split';
+  convictionScore?: number | null;
+  entryScore?: number | null;
+  currentScore?: number | null;
   lastAgentRunAt?: string;
   weeklyMemoId?: string;
 };
@@ -253,6 +256,32 @@ export type ConvictionChange = {
   delta: number;
   reason: string;
   triggeredBy: 'agent_run' | 'thesis_update' | 'score_change' | 'event' | 'manual';
+};
+
+export type ConvictionDriftType =
+  | 'strengthening'
+  | 'weakening'
+  | 'agent_disagreement'
+  | 'fragmented_conviction'
+  | 'increasing_uncertainty'
+  | 'thesis_decay'
+  | 'stable';
+
+export type ConvictionDriftSummary = {
+  ticker: string;
+  driftType: ConvictionDriftType;
+  material: boolean;
+  severity: AlertSeverity;
+  impactDirection: ImpactDirection;
+  confidence: number;
+  convictionBefore: number | null;
+  convictionAfter: number;
+  convictionDelta: number | null;
+  disagreementScore: number;
+  dominantStance: AgentView['stance'];
+  reason: string;
+  changedFactors: string[];
+  shouldNotifyPM: boolean;
 };
 
 // ── Decision types ─────────────────────────────────────────────────────────────

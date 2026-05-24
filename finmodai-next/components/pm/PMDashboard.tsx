@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { PortfolioPosition, PMAlert, InvestmentDecision, PositionThesis, WeeklyMemo } from '@/lib/pm/types';
+import type { AgentView, PortfolioPosition, PMAlert, InvestmentDecision, PositionThesis, WeeklyMemo } from '@/lib/pm/types';
 import { CommandCenter } from './CommandCenter';
 import { PositionsByTheme } from './PositionsByTheme';
 import { AlertFeed } from './AlertFeed';
@@ -9,12 +9,14 @@ import { DecisionQueue } from './DecisionQueue';
 import { ThesisCards } from './ThesisCards';
 import { WeeklyMemoPanel } from './WeeklyMemoPanel';
 import { PMLoadingSkeleton } from './PMLoadingSkeleton';
+import { LocalStoragePositionSync } from './LocalStoragePositionSync';
 
 type DashboardData = {
   positions: PortfolioPosition[];
   alerts: PMAlert[];
   decisions: InvestmentDecision[];
   theses: PositionThesis[];
+  agentViews: AgentView[];
   memo: WeeklyMemo | null;
 };
 
@@ -31,19 +33,27 @@ export function PMDashboard() {
 
   const loadAll = useCallback(async () => {
     try {
-      const [posRes, alertRes, decRes, thesisRes, memoRes] = await Promise.allSettled([
+      const [posRes, alertRes, decRes, thesisRes, agentRes, memoRes] = await Promise.allSettled([
         fetchJson<{ positions: PortfolioPosition[] }>('/api/pm/positions'),
         fetchJson<{ alerts: PMAlert[] }>('/api/pm/alerts'),
         fetchJson<{ decisions: InvestmentDecision[] }>('/api/pm/decisions'),
         fetchJson<{ theses: PositionThesis[] }>('/api/pm/theses'),
+        fetchJson<{ agentViews: AgentView[] }>('/api/pm/agent-views?limit=500'),
         fetchJson<{ memos: WeeklyMemo[] }>('/api/pm/weekly-memo'),
       ]);
 
+      const rawPositions = posRes.status === 'fulfilled' ? posRes.value.positions : [];
+      const theses = thesisRes.status === 'fulfilled' ? thesisRes.value.theses : [];
+      const agentViews = agentRes.status === 'fulfilled' ? agentRes.value.agentViews : [];
+      const latestThesisByTicker = latestByTicker(theses);
+      const viewsByTicker = groupViewsByTicker(agentViews);
+
       setData({
-        positions: posRes.status === 'fulfilled' ? posRes.value.positions : [],
+        positions: rawPositions.map((position) => enrichPosition(position, latestThesisByTicker.get(position.ticker), viewsByTicker.get(position.ticker) ?? [])),
         alerts:    alertRes.status === 'fulfilled' ? alertRes.value.alerts : [],
         decisions: decRes.status === 'fulfilled' ? decRes.value.decisions : [],
-        theses:    thesisRes.status === 'fulfilled' ? thesisRes.value.theses : [],
+        theses,
+        agentViews,
         memo:      memoRes.status === 'fulfilled' ? (memoRes.value.memos[0] ?? null) : null,
       });
       setError(null);
@@ -117,11 +127,12 @@ export function PMDashboard() {
   }
 
   const { positions, alerts, decisions, theses, memo } = data ?? {
-    positions: [], alerts: [], decisions: [], theses: [], memo: null,
+    positions: [], alerts: [], decisions: [], theses: [], agentViews: [], memo: null,
   };
 
   return (
     <div className="space-y-8">
+      <LocalStoragePositionSync />
       {/* Section 1: Portfolio Command Center */}
       <CommandCenter positions={positions} alerts={alerts} decisions={decisions} />
 
@@ -141,4 +152,58 @@ export function PMDashboard() {
       <WeeklyMemoPanel memo={memo} onGenerate={handleGenerateMemo} />
     </div>
   );
+}
+
+function latestByTicker(theses: PositionThesis[]): Map<string, PositionThesis> {
+  const map = new Map<string, PositionThesis>();
+  for (const thesis of theses) {
+    const current = map.get(thesis.ticker);
+    if (!current || thesis.updatedAt > current.updatedAt) map.set(thesis.ticker, thesis);
+  }
+  return map;
+}
+
+function groupViewsByTicker(views: AgentView[]): Map<string, AgentView[]> {
+  const map = new Map<string, AgentView[]>();
+  for (const view of views) {
+    const list = map.get(view.ticker) ?? [];
+    list.push(view);
+    map.set(view.ticker, list);
+  }
+  for (const [ticker, list] of map) {
+    map.set(ticker, list.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 12));
+  }
+  return map;
+}
+
+function deriveConsensus(views: AgentView[]): PortfolioPosition['agentConsensus'] | undefined {
+  if (views.length === 0) return undefined;
+  const counts = views.reduce<Record<string, number>>((acc, view) => {
+    const stance = view.stance === 'mixed' ? 'split' : view.stance;
+    acc[stance] = (acc[stance] ?? 0) + 1;
+    return acc;
+  }, {});
+  if ((counts.bullish ?? 0) > 0 && (counts.bearish ?? 0) > 0) return 'split';
+  if ((counts.bullish ?? 0) >= Math.max(counts.bearish ?? 0, counts.neutral ?? 0, counts.split ?? 0)) return 'bullish';
+  if ((counts.bearish ?? 0) >= Math.max(counts.bullish ?? 0, counts.neutral ?? 0, counts.split ?? 0)) return 'bearish';
+  return (counts.split ?? 0) > 0 ? 'split' : 'neutral';
+}
+
+function enrichPosition(position: PortfolioPosition, thesis: PositionThesis | undefined, views: AgentView[]): PortfolioPosition {
+  const latestView = views[0];
+  const thesisIntegrity = thesis?.integrityStatus ?? (
+    thesis?.thesisStatus === 'holding' ? 'intact' :
+    thesis?.thesisStatus === 'building' ? 'under_review' :
+    thesis?.thesisStatus === 'closed' ? 'resolved' :
+    thesis?.thesisStatus
+  ) ?? position.thesisIntegrity;
+  return {
+    ...position,
+    thesisIntegrity,
+    convictionScore: thesis?.convictionScore ?? position.convictionScore ?? latestView?.conviction ?? null,
+    currentScore: thesis?.currentScore ?? thesis?.convictionScore ?? position.currentScore ?? latestView?.conviction ?? null,
+    entryScore: thesis?.entryScore ?? position.entryScore ?? null,
+    agentConsensus: deriveConsensus(views) ?? position.agentConsensus,
+    lastAgentRunAt: latestView?.createdAt ?? position.lastAgentRunAt,
+  };
 }

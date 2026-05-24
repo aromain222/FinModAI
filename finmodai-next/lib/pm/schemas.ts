@@ -8,7 +8,7 @@ const nullableString = z.string().nullable().optional().default(null);
 export const impactDirectionSchema = z.enum(['bullish', 'bearish', 'neutral', 'mixed']);
 export const alertSeveritySchema = z.enum(['critical', 'high', 'medium', 'low', 'info']);
 export const approvalStatusSchema = z.enum(['pending', 'approved', 'rejected', 'deferred']);
-export const thesisStatusSchema = z.enum(['intact', 'strengthening', 'weakening', 'broken', 'under_review', 'closed']);
+export const thesisStatusSchema = z.enum(['intact', 'under_review', 'building', 'holding', 'strengthening', 'weakening', 'broken', 'closed']);
 export const tradeActionSchema = z.enum(['buy', 'sell', 'hold', 'short', 'cover', 'trim', 'add', 'watch', 'exit']);
 export const alertTypeSchema = z.enum([
   'thesis_break',
@@ -59,6 +59,15 @@ export const portfolioPositionSchema = z.object({
   status: z.enum(['watch', 'active', 'trimmed', 'exited', 'closed']).default('watch'),
   createdAt: isoString.default(() => new Date().toISOString()),
   updatedAt: isoString.default(() => new Date().toISOString()),
+  pmNotes: z.string().optional(),
+  approvalStatus: approvalStatusSchema.optional(),
+  thesisIntegrity: z.enum(['intact', 'strengthening', 'weakening', 'broken', 'under_review', 'resolved']).optional(),
+  agentConsensus: z.enum(['bullish', 'bearish', 'neutral', 'split']).optional(),
+  convictionScore: z.number().min(0).max(100).nullable().optional(),
+  entryScore: z.number().min(0).max(100).nullable().optional(),
+  currentScore: z.number().min(0).max(100).nullable().optional(),
+  lastAgentRunAt: z.string().optional(),
+  weeklyMemoId: z.string().optional(),
 });
 
 export const thesisUpdateSchema = z.object({
@@ -95,6 +104,17 @@ export const positionThesisSchema = z.object({
   lastReviewedAt: z.string().nullable().optional().default(null),
   createdAt: isoString.default(() => new Date().toISOString()),
   updatedAt: isoString.default(() => new Date().toISOString()),
+  status: thesisStatusSchema.optional(),
+  integrityStatus: z.enum(['intact', 'strengthening', 'weakening', 'broken', 'under_review', 'resolved']).optional(),
+  originalThesis: z.string().optional(),
+  currentThesis: z.string().optional(),
+  entryScore: z.number().min(0).max(100).optional(),
+  currentScore: z.number().min(0).max(100).optional(),
+  catalystExpected: z.string().optional(),
+  catalystConfirmed: z.boolean().optional(),
+  horizon: z.string().optional(),
+  primaryDriver: z.string().optional(),
+  mainRisk: z.string().optional(),
   history: z.array(thesisUpdateSchema).optional(),
 });
 
@@ -109,6 +129,16 @@ export const agentViewSchema = z.object({
   evidence: z.array(evidenceItemSchema).default([]),
   createdAt: isoString.default(() => new Date().toISOString()),
   source: z.enum(['hedge_fund', 'tradingagents', 'dexter', 'rank', 'forecast', 'news', 'pm_brain', 'manual']).optional(),
+  positionId: z.string().optional(),
+  agentType: z.enum(['hedge_fund', 'tradingagents', 'dexter', 'pm_brain', 'catalyst', 'forecast']).optional(),
+  runAt: z.string().optional(),
+  signal: z.enum(['bullish', 'bearish', 'neutral']).optional(),
+  confidence: z.number().min(0).max(100).optional(),
+  summary: z.string().optional(),
+  thesis: z.string().optional(),
+  action: tradeActionSchema.optional(),
+  sizing: z.string().optional(),
+  priceTarget: z.number().nullable().optional(),
   recommendation: tradeActionSchema.nullable().optional(),
   timeHorizon: z.string().nullable().optional(),
   rawOutput: z.record(z.unknown()).optional(),
@@ -127,7 +157,17 @@ export const investmentDecisionSchema = z.object({
   confidence: z.number().min(0).max(100).default(50),
   createdAt: isoString.default(() => new Date().toISOString()),
   updatedAt: isoString.default(() => new Date().toISOString()),
+  positionId: z.string().optional(),
+  recommendedAction: tradeActionSchema.optional(),
+  recommendedSizing: z.string().optional(),
+  confidenceScore: z.number().min(0).max(100).optional(),
+  rationaleText: z.string().optional(),
+  agentViewIds: z.array(z.string()).optional(),
+  thesisId: z.string().optional(),
   approvedAt: z.string().nullable().optional(),
+  approvalNote: z.string().optional(),
+  executedAt: z.string().optional(),
+  executionNote: z.string().optional(),
 });
 
 export const pmAlertSchema = z.object({
@@ -146,6 +186,11 @@ export const pmAlertSchema = z.object({
   evidence: z.array(evidenceItemSchema).default([]),
   createdAt: isoString.default(() => new Date().toISOString()),
   resolvedAt: z.string().nullable().optional().default(null),
+  body: z.string().optional(),
+  category: alertTypeSchema.optional(),
+  acknowledged: z.boolean().optional(),
+  acknowledgedAt: z.string().optional(),
+  linkedDecisionId: z.string().optional(),
 });
 
 export const pmMemorySchema = z.object({

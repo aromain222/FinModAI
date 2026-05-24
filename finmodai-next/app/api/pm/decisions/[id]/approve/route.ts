@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { readJson, jsonError } from '@/lib/pm/api/http';
 import { updateDecision } from '@/lib/pm/decisions/decisionStore';
+import { recordOutcome } from '@/lib/pm/memory/recordOutcome';
 import type { PMApprovalStatus } from '@/lib/pm/types';
 
 export const dynamic = 'force-dynamic';
@@ -36,6 +37,17 @@ export async function POST(
 
     if (!decision) {
       return NextResponse.json({ error: 'Decision not found' }, { status: 404 });
+    }
+    try {
+      await recordOutcome({
+        memoryType: 'process_lesson',
+        lesson: `${decision.ticker} ${decision.action.toUpperCase()} recommendation was ${decision.approvalStatus}. Rationale: ${decision.rationale}`,
+        relatedTickers: [decision.ticker],
+        relatedThemes: [],
+        importance: body.action === 'approve' ? 65 : body.action === 'reject' ? 70 : 55,
+      });
+    } catch {
+      // Decision approval should not fail just because memory persistence is unavailable.
     }
     return NextResponse.json({ decision });
   } catch (err) {

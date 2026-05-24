@@ -1,4 +1,4 @@
-import type { AgentView, InvestmentDecision } from '@/lib/pm/types';
+import type { AgentView, InvestmentDecision, ThesisUpdateInput, WeeklyMemoSection } from '@/lib/pm/types';
 
 type HedgeFundSignal = {
   key?: string;
@@ -90,5 +90,36 @@ export function hedgeFundToDecision(output: HedgeFundOutput): InvestmentDecision
     updatedAt: now,
     recommendedAction: action,
     recommendedSizing: output.decision.sizing,
+  };
+}
+
+export function hedgeFundToThesisUpdateInput(output: HedgeFundOutput): ThesisUpdateInput | null {
+  if (!output.ticker) return null;
+  const decision = output.decision?.action ? `${output.decision.action.toUpperCase()} at ${output.decision.confidence ?? 50}% confidence.` : '';
+  const strongest = (output.signals ?? [])
+    .slice()
+    .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))
+    .slice(0, 3)
+    .map(signal => `${signal.name ?? signal.key ?? 'agent'}: ${signal.signal ?? 'neutral'} (${signal.confidence ?? 50}%). ${signal.reasoning ?? signal.thesis ?? ''}`)
+    .join(' ');
+  return {
+    ticker: output.ticker.toUpperCase(),
+    newEvidence: `AI Hedge Fund committee update. ${decision} ${output.decision?.reasoning ?? ''} ${strongest}`.trim(),
+    newThesisSummary: output.decision?.reasoning ?? (strongest || undefined),
+    convictionScore: Math.max(0, Math.min(100, Math.round(output.decision?.confidence ?? 50))),
+    source: 'agent',
+  };
+}
+
+export function hedgeFundToWeeklyMemoSection(output: HedgeFundOutput): WeeklyMemoSection | null {
+  if (!output.ticker) return null;
+  const action = normalizeAction(output.decision?.action);
+  const bull = output.consensus?.bullish ?? 0;
+  const bear = output.consensus?.bearish ?? 0;
+  const neutral = output.consensus?.neutral ?? 0;
+  return {
+    title: `${output.ticker.toUpperCase()} AI Hedge Fund read`,
+    body: `${action.toUpperCase()} bias with ${bull} bullish, ${bear} bearish, ${neutral} neutral perspectives. ${output.decision?.reasoning ?? 'No committee rationale recorded.'}`,
+    tickers: [output.ticker.toUpperCase()],
   };
 }

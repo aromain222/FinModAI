@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { tickerQuerySchema } from '@/lib/pm/schemas';
+import { agentViewSchema, tickerQuerySchema } from '@/lib/pm/schemas';
 import { readJson, jsonError } from '@/lib/pm/api/http';
 import { getLatestAgentView, listAgentViews, saveAgentView } from '@/lib/pm/memory/agentViewStore';
 import { hedgeFundToAgentView, hedgeFundToDecision } from '@/lib/pm/adapters/hedgeFund';
@@ -19,9 +19,13 @@ const adaptedAgentViewRequest = z.object({
 });
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const parsed = tickerQuerySchema.parse(Object.fromEntries(req.nextUrl.searchParams));
-  const agentViews = await listAgentViews(parsed);
-  return NextResponse.json({ agentViews });
+  try {
+    const parsed = tickerQuerySchema.parse(Object.fromEntries(req.nextUrl.searchParams));
+    const agentViews = await listAgentViews(parsed);
+    return NextResponse.json({ agentViews });
+  } catch (err) {
+    return jsonError(err, 'Could not load agent views');
+  }
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -49,7 +53,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
     const bodyRecord = body as Record<string, unknown>;
     if (bodyRecord.ingest === true && typeof bodyRecord.agentView === 'object' && bodyRecord.agentView !== null) {
-      const result = await ingestAgentView(bodyRecord.agentView as Parameters<typeof ingestAgentView>[0]);
+      const result = await ingestAgentView(agentViewSchema.parse(bodyRecord.agentView));
       return NextResponse.json(result, { status: 201 });
     }
     const agentView = await saveAgentView(body);

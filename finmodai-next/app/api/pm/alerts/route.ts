@@ -29,9 +29,13 @@ const eventRequest = z.object({
 });
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const parsed = tickerQuerySchema.parse(Object.fromEntries(req.nextUrl.searchParams));
-  const alerts = await listAlerts(parsed);
-  return NextResponse.json({ alerts });
+  try {
+    const parsed = tickerQuerySchema.parse(Object.fromEntries(req.nextUrl.searchParams));
+    const alerts = await listAlerts(parsed);
+    return NextResponse.json({ alerts });
+  } catch (err) {
+    return jsonError(err, 'Could not load alerts');
+  }
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {

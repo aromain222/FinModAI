@@ -107,7 +107,7 @@ function PositionCard({ position, latestAlert }: { position: PortfolioPosition; 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <div className="flex flex-col gap-0.5">
           <span className="text-[9px] uppercase tracking-wider text-[var(--cb-text-muted)]">Conviction</span>
-          <ConvictionDrift score={null} />
+          <ConvictionDrift score={position.currentScore ?? position.convictionScore ?? null} />
         </div>
         {position.portfolioRole && (
           <div className="flex flex-col gap-0.5">

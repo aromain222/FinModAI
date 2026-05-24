@@ -34,44 +34,64 @@ function inferSeverity(event: InterpretableEvent): PMAlert['severity'] {
 
 export async function interpretEvent(event: InterpretableEvent): Promise<EventInterpretation> {
   const tickers = [...new Set((event.tickers ?? []).map(ticker => ticker.toUpperCase()))];
-  const positions = tickers.length > 0
+  const tickerPositions = tickers.length > 0
     ? (await Promise.all(tickers.map(ticker => listPositions({ ticker, limit: 10 })))).flat()
     : [];
+  const themePositions = event.themes && event.themes.length > 0
+    ? (await listPositions({ limit: 500 })).filter(position => (
+      position.portfolioTheme && event.themes?.some(theme => position.portfolioTheme?.toLowerCase() === theme.toLowerCase())
+    ))
+    : [];
+  const positions = [...tickerPositions, ...themePositions].filter((position, index, arr) => (
+    arr.findIndex(item => item.id === position.id) === index
+  ));
   const direction = inferDirection(event);
   const severity = inferSeverity(event);
   const confidence = Math.max(0, Math.min(100, event.confidence ?? 50));
   const materiality = event.materiality ?? (severityRank(severity) * 18);
   const hasPortfolioExposure = positions.length > 0;
+  const materialityScore = Math.round(
+    materiality * 0.5 +
+    (event.urgency ?? 50) * 0.25 +
+    confidence * 0.15 +
+    (hasPortfolioExposure ? 10 : 0),
+  );
+  const invalidationLanguage = /(invalidat|thesis break|guidance cut|default|fraud|ban|halts?|downgrade|missed badly|lawsuit|antitrust remedy)/i
+    .test(`${event.title} ${event.summary}`);
   const material =
-    severityRank(severity) >= 3 ||
-    materiality >= 55 ||
-    hasPortfolioExposure ||
-    direction !== 'neutral';
+    (hasPortfolioExposure && (severityRank(severity) >= 2 || materialityScore >= 45 || direction !== 'neutral')) ||
+    severityRank(severity) >= 4 ||
+    materialityScore >= 72 ||
+    invalidationLanguage;
 
   if (!material) {
     return {
       material: false,
-      reason: 'Event is not material enough for a PM alert; no thesis, conviction, or portfolio risk threshold was crossed.',
+      reason: 'Event was filtered out: no portfolio/theme exposure and no material severity, urgency, invalidation, or conviction threshold was crossed.',
       alerts: [],
     };
   }
 
   const shouldNotifyPM =
     severityRank(severity) >= 4 ||
-    hasPortfolioExposure ||
-    materiality >= 70 ||
-    confidence >= 75;
+    invalidationLanguage ||
+    (hasPortfolioExposure && (materialityScore >= 50 || severityRank(severity) >= 3)) ||
+    materialityScore >= 78;
 
-  const affectedTickers = tickers.length > 0 ? tickers : [null];
+  const affectedTickers = tickers.length > 0
+    ? tickers
+    : themePositions.length > 0
+      ? [...new Set(themePositions.map(position => position.ticker))]
+      : [null];
   const alerts: PMAlert[] = affectedTickers.map(ticker => ({
     id: crypto.randomUUID(),
     ticker,
     alertType: inferAlertType(event),
     severity,
     title: event.title,
-    summary: `${event.summary} PM read: ${direction} impact, materiality ${Math.round(materiality)}/100, confidence ${Math.round(confidence)}/100.`,
+    summary: `${event.summary} PM read: ${direction} impact, materiality ${materialityScore}/100, confidence ${Math.round(confidence)}/100. ${hasPortfolioExposure ? 'Portfolio exposure found.' : 'No direct portfolio exposure.'}`,
     impactDirection: direction,
-    suggestedAction: direction === 'bearish' ? 'review' : 'watch',
+    suggestedAction: invalidationLanguage ? 'review' : direction === 'bearish' ? 'review' : direction === 'bullish' ? 'add' : 'watch',
     confidence,
     affectedTheme: event.themes?.[0] ?? null,
     affectedThesis: null,
@@ -93,8 +113,8 @@ export async function interpretEvent(event: InterpretableEvent): Promise<EventIn
   return {
     material: true,
     reason: shouldNotifyPM
-      ? 'Event crossed PM notification threshold through portfolio exposure, severity, or materiality.'
-      : 'Event is worth recording but does not require immediate PM interruption.',
+      ? 'Event crossed PM notification threshold through portfolio exposure, severity, materiality, or invalidation language.'
+      : 'Event is material enough to record but below the PM interruption threshold.',
     alerts,
   };
 }
