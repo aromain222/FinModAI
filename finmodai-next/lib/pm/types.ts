@@ -114,6 +114,10 @@ export type PortfolioPosition = {
   currentScore?: number | null;
   lastAgentRunAt?: string;
   weeklyMemoId?: string;
+  /** Price target set by PM — triggers Discord alert when hit. */
+  targetPrice?: number | null;
+  /** Entry price recorded at position open. */
+  entryPrice?: number | null;
 };
 
 // ── Thesis types ──────────────────────────────────────────────────────────────
