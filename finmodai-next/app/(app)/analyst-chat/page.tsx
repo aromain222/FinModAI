@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { AnalystChatApp } from '@/components/analyst/AnalystChatApp';
 import { Button } from '@/components/ui/button';
@@ -24,7 +25,9 @@ export default async function AnalystChatPage() {
             </Button>
           </div>
         </div>
-        <AnalystChatApp />
+        <Suspense fallback={<div className="h-[600px] flex items-center justify-center text-sm text-[var(--cb-text-muted)]">Loading…</div>}>
+          <AnalystChatApp />
+        </Suspense>
       </div>
     </main>
   );
