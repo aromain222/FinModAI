@@ -12,7 +12,6 @@ import {
   Newspaper,
   Radar,
   Briefcase,
-  ShieldCheck,
 } from "lucide-react";
 import { CapitalBaseLogo } from "@/components/CapitalBaseLogo";
 import { APP_CONSOLE_NAME, APP_NAME } from "@/lib/branding";
@@ -20,8 +19,7 @@ import { cn } from "@/lib/utils";
 
 const navItems: Array<{ href: string; label: string; hint?: string; icon: React.ElementType; section: string; dim?: boolean }> = [
   { href: '/app',          label: 'Opportunities',  hint: 'Hedge Fund · Dexter · Analysis', icon: TrendingUp,    section: 'Workspace' },
-  { href: '/portfolio',    label: 'Portfolio',       hint: 'Track ideas',                    icon: Briefcase,     section: 'Workspace' },
-  { href: '/pm',           label: 'PM OS',           hint: 'Theses · Alerts · Decisions',    icon: ShieldCheck,   section: 'Workspace' },
+  { href: '/portfolio',    label: 'Portfolio',       hint: 'Monitor · Alerts · Decisions',   icon: Briefcase,     section: 'Workspace' },
   { href: '/models',       label: 'Models',          icon: Layers,          section: 'Workspace' },
   { href: '/news',         label: 'News',            icon: Newspaper,       section: 'Tools' },
   { href: '/events',       label: 'Events',          icon: Radar,           section: 'Tools' },

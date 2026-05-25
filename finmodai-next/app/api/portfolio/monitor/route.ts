@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { notifyScoreDrop } from '@/lib/pm/notifications/notifier';
 import { scoreMultiple } from '@/lib/ranking/score';
 import type { RankedStock, Signal } from '@/lib/ranking/types';
 import type {
@@ -353,6 +354,18 @@ export async function POST(req: NextRequest) {
   ].filter((read): read is PositionMonitorAgentRead => Boolean(read));
 
   const monitor = buildMonitor({ position, quote, news, rank, agentReads });
+
+  // Notify on exit/trim signals or significant score drops
+  if (monitor.action === 'Exit' || monitor.action === 'Trim') {
+    await notifyScoreDrop({
+      ticker,
+      fromScore: position.entryScore,
+      toScore: monitor.updatedScore,
+      action: monitor.action,
+      confidence: monitor.confidence,
+      reason: [monitor.exitTrigger, ...monitor.riskFlags].filter(Boolean).join(' '),
+    });
+  }
 
   return NextResponse.json({ monitor }, {
     headers: { 'Cache-Control': 'no-store' },

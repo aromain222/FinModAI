@@ -5,6 +5,7 @@ import { convictionDriftToAlert, evaluateConvictionDrift } from '@/lib/pm/memory
 import { getLatestAgentView, listAgentViews, saveAgentView } from '@/lib/pm/memory/agentViewStore';
 import { getLatestThesis } from '@/lib/pm/thesis/thesisStore';
 import { updateThesis } from '@/lib/pm/thesis/updateThesis';
+import { notifyAlert, notifyApprovalNeeded, notifySignalFlip } from '@/lib/pm/notifications/notifier';
 
 export type PMBrainIngestResult = {
   agentView: AgentView;
@@ -95,5 +96,26 @@ export async function ingestAgentView(view: AgentView): Promise<PMBrainIngestRes
   const decisionPayload = decisionFromView(agentView);
   const decision = decisionPayload ? await saveDecision(decisionPayload) : null;
   const approvalAlert = decision ? await saveAlert(approvalAlertFromDecision(decision)) : null;
+
+  // Fire-and-forget Discord notifications (never block ingest)
+  const notifications: Promise<void>[] = [];
+  if (driftAlert && (driftAlert.severity === 'high' || driftAlert.severity === 'critical')) {
+    notifications.push(notifyAlert(driftAlert, convictionDrift.reason));
+  }
+  if (approvalAlert && decision) {
+    notifications.push(notifyApprovalNeeded(decision));
+  }
+  if (previous && previous.stance !== agentView.stance) {
+    notifications.push(notifySignalFlip({
+      ticker: agentView.ticker,
+      agentName: agentView.agentName,
+      fromStance: previous.stance,
+      toStance: agentView.stance,
+      conviction: agentView.conviction,
+      reasoning: agentView.reasoning,
+    }));
+  }
+  await Promise.allSettled(notifications);
+
   return { agentView, thesisUpdate, convictionDrift, driftAlert, decision, approvalAlert };
 }

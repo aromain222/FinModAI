@@ -761,6 +761,31 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
     );
     const updated  = addPosition(position);
     setCurrentPosition(updated.find(p => p.id === position.id) ?? null);
+
+    // Mirror to PM OS store so Portfolio Workflow tab and PM data stay in sync
+    fetch('/api/pm/positions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: position.id,
+        ticker: position.ticker.toUpperCase(),
+        companyName: null,
+        shares: position.shares ?? null,
+        notionalExposure: position.notionalUsd ?? null,
+        costBasis: position.entryPrice,
+        currentPrice: position.currentPrice,
+        targetAllocation: null,
+        currentAllocation: null,
+        portfolioTheme: null,
+        portfolioRole: null,
+        timeHorizon: null,
+        status: 'active',
+        pmNotes: position.thesisSummary,
+        createdAt: position.entryDate,
+        updatedAt: new Date().toISOString(),
+      }),
+    }).catch(() => {});
+
     setShowEnterForm(false);
     setEntryPriceInput('');
     setPositionAmountInput('');
