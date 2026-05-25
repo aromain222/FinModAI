@@ -4,6 +4,18 @@
     {
       "path": "/api/rank/cron",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/pm/brief?type=daily",
+      "schedule": "0 21 * * 1-5"
+    },
+    {
+      "path": "/api/pm/brief?type=weekly",
+      "schedule": "30 21 * * 5"
+    },
+    {
+      "path": "/api/pm/brief?type=monthly",
+      "schedule": "0 22 1 * *"
     }
   ]
 }
