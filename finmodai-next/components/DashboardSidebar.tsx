@@ -3,9 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
   TrendingUp,
-  Layers,
   FileText,
   Settings,
   MessageSquare,
@@ -20,7 +18,6 @@ import { cn } from "@/lib/utils";
 const navItems: Array<{ href: string; label: string; hint?: string; icon: React.ElementType; section: string; dim?: boolean }> = [
   { href: '/app',          label: 'Opportunities',  hint: 'Hedge Fund · Dexter · Analysis', icon: TrendingUp,    section: 'Workspace' },
   { href: '/portfolio',    label: 'Portfolio',       hint: 'Monitor · Alerts · Decisions',   icon: Briefcase,     section: 'Workspace' },
-  { href: '/models',       label: 'Models',          icon: Layers,          section: 'Workspace' },
   { href: '/news',         label: 'News',            icon: Newspaper,       section: 'Tools' },
   { href: '/events',       label: 'Events',          icon: Radar,           section: 'Tools' },
   { href: '/reports',      label: 'Reports',         icon: FileText,        section: 'Tools' },
