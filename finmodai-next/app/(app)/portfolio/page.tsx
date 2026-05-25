@@ -10,6 +10,14 @@ import { LocalStoragePositionSync } from '@/components/pm/LocalStoragePositionSy
 import type { PMAlert, InvestmentDecision, PositionThesis, WeeklyMemo } from '@/lib/pm/types';
 import { cn } from '@/lib/utils';
 
+async function resetPortfolio(): Promise<void> {
+  await fetch('/api/pm/reset', { method: 'DELETE' });
+  Object.keys(localStorage)
+    .filter(k => k.startsWith('capitalbase:'))
+    .forEach(k => localStorage.removeItem(k));
+  window.location.reload();
+}
+
 type Tab = 'monitor' | 'workflow';
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -82,19 +90,36 @@ const TABS: { id: Tab; label: string; hint: string }[] = [
 
 export default function PortfolioPage() {
   const [tab, setTab] = useState<Tab>('monitor');
+  const [resetting, setResetting] = useState(false);
+
+  async function handleReset() {
+    if (!window.confirm('Reset portfolio? This clears all positions, theses, alerts, and decisions. Cannot be undone.')) return;
+    setResetting(true);
+    await resetPortfolio();
+  }
 
   return (
     <main className="mx-auto max-w-5xl space-y-6">
       <LocalStoragePositionSync />
 
-      <header className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--cb-text-muted)]">
-          Swing-trade workflow
-        </p>
-        <h1 className="text-2xl font-bold text-[var(--cb-text-primary)]">Thesis Watch</h1>
-        <p className="max-w-2xl text-sm text-[var(--cb-text-muted)]">
-          Track ideas by thesis, not just price. Each card auto-checks score drift, news, catalysts, and AI agent sentiment.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--cb-text-muted)]">
+            Swing-trade workflow
+          </p>
+          <h1 className="text-2xl font-bold text-[var(--cb-text-primary)]">Thesis Watch</h1>
+          <p className="max-w-2xl text-sm text-[var(--cb-text-muted)]">
+            Track ideas by thesis, not just price. Each card auto-checks score drift, news, catalysts, and AI agent sentiment.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleReset}
+          disabled={resetting}
+          className="mt-1 shrink-0 rounded border border-red-800/50 px-3 py-1.5 text-xs text-red-400 transition-colors hover:border-red-600 hover:text-red-300 disabled:opacity-40 cursor-pointer"
+        >
+          {resetting ? 'Resetting…' : 'Reset portfolio'}
+        </button>
       </header>
 
       {/* Tab bar */}
