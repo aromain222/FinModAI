@@ -14,12 +14,24 @@ type DiscordField = { name: string; value: string; inline?: boolean };
 
 type DiscordEmbed = {
   title: string;
+  url?: string;
   description?: string;
   color: number;
   fields?: DiscordField[];
   footer?: { text: string };
   timestamp?: string;
 };
+
+function appUrl(): string {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_URL;
+  if (!base) return '';
+  return base.startsWith('http') ? base : `https://${base}`;
+}
+
+function workflowUrl(): string {
+  const base = appUrl();
+  return base ? `${base}/portfolio?tab=workflow` : '';
+}
 
 function webhookUrl(): string | null {
   return process.env.DISCORD_WEBHOOK_URL ?? null;
@@ -168,16 +180,40 @@ export async function notifySignalFlip(params: {
 
 export async function notifyApprovalNeeded(decision: InvestmentDecision): Promise<void> {
   const emoji = actionEmoji(decision.action);
+  const link = workflowUrl();
 
   await post({
     title: `${emoji} ${decision.ticker} — Approval Needed`,
+    url: link || undefined,
     description: decision.rationale.slice(0, 600),
     color: COLORS.blue,
     fields: [
       { name: 'Action', value: decision.action.toUpperCase(), inline: true },
       { name: 'Confidence', value: `${decision.confidence}%`, inline: true },
+      ...(link ? [{ name: 'Review', value: `[Open Approval Queue](${link})` }] : []),
     ],
     footer: { text: 'CapitalBase PM OS · Approval Queue' },
+    timestamp: new Date().toISOString(),
+  });
+}
+
+export async function notifyDecisionUpdate(params: {
+  ticker: string;
+  action: string;
+  outcome: 'approved' | 'rejected' | 'deferred';
+  note?: string;
+}): Promise<void> {
+  const { ticker, action, outcome, note } = params;
+  const emoji = outcome === 'approved' ? '✅' : outcome === 'rejected' ? '❌' : '⏸️';
+  const color = outcome === 'approved' ? COLORS.green : outcome === 'rejected' ? COLORS.red : COLORS.gray;
+  const link = workflowUrl();
+
+  await post({
+    title: `${emoji} ${ticker} ${action.toUpperCase()} — ${outcome.charAt(0).toUpperCase() + outcome.slice(1)}`,
+    url: link || undefined,
+    description: note?.slice(0, 400),
+    color,
+    footer: { text: 'CapitalBase PM OS · Decision Log' },
     timestamp: new Date().toISOString(),
   });
 }

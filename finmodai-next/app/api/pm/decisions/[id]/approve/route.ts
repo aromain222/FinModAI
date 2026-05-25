@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { readJson, jsonError } from '@/lib/pm/api/http';
 import { updateDecision } from '@/lib/pm/decisions/decisionStore';
 import { recordOutcome } from '@/lib/pm/memory/recordOutcome';
+import { notifyDecisionUpdate } from '@/lib/pm/notifications/notifier';
 import type { PMApprovalStatus } from '@/lib/pm/types';
 
 export const dynamic = 'force-dynamic';
@@ -38,6 +39,14 @@ export async function POST(
     if (!decision) {
       return NextResponse.json({ error: 'Decision not found' }, { status: 404 });
     }
+    const outcomeMap = { approve: 'approved', reject: 'rejected', defer: 'deferred' } as const;
+    await notifyDecisionUpdate({
+      ticker: decision.ticker,
+      action: decision.action,
+      outcome: outcomeMap[body.action],
+      note: body.note,
+    });
+
     try {
       await recordOutcome({
         memoryType: 'process_lesson',
