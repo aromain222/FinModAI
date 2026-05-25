@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { extractSubdomain, getSubdomainPath, shouldBypassSubdomainRouting } from '@/lib/subdomains';
 
-const PUBLIC_PATHS = ['/login', '/api/auth/password'];
-const STATIC_PREFIXES = ['/_next', '/favicon.ico', '/api/rank/cron', '/api/pm/brief', '/api/pm/monitor-cron'];
+const PUBLIC_PATHS = ['/login', '/api'];
+const STATIC_PREFIXES = ['/_next', '/favicon.ico'];
 
 async function hmacHex(secret: string, data: string): Promise<string> {
   const enc = new TextEncoder();
