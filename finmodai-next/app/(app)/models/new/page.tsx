@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { BackButton } from '@/components/BackButton';
@@ -20,7 +20,7 @@ const MODEL_OPTIONS: { value: ModelType; label: string; description: string }[] 
   { value: 'scorecard', label: 'Scorecard', description: 'Fundamentals ratio scorecard with sector benchmarks.' },
 ];
 
-export default function CreateModelPage() {
+function CreateModelPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [ticker, setTicker] = useState('');
@@ -237,4 +237,12 @@ export default function CreateModelPage() {
 
 function isModelType(value: string | null): value is ModelType {
   return value === 'dcf' || value === 'comps' || value === 'scorecard';
+}
+
+export default function CreateModelPage() {
+  return (
+    <Suspense fallback={null}>
+      <CreateModelPageInner />
+    </Suspense>
+  );
 }
