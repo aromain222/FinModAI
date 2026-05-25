@@ -17,7 +17,6 @@ import {
   Sparkles,
   TrendingUp,
 } from 'lucide-react';
-import { WaitlistForm } from '@/components/MarketingLanding';
 import { Button } from '@/components/ui/button';
 import { APP_NAME } from '@/lib/branding';
 import { getSubdomainHref } from '@/lib/subdomains';
@@ -113,15 +112,13 @@ function HeroSlide(props: SlideProps) {
             Generate financial models, monitor market developments, and accelerate investment research from a single platform.
           </p>
 
-          <div className="mt-10 max-w-[34rem]">
-            <WaitlistForm
-              idPrefix="hero-waitlist"
-              buttonText="Join the Waitlist"
-              helperText="Waitlist members receive early demo access."
-              layout="inline"
-              showLabels={false}
-              className="max-w-[34rem] rounded-[28px] border-white/[0.05] bg-[linear-gradient(180deg,rgba(15,20,26,0.9),rgba(8,11,15,0.95))] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
-            />
+          <div className="mt-10">
+            <a
+              href="/login"
+              className="inline-block rounded-full bg-[var(--cb-green)] px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-90"
+            >
+              Get Access
+            </a>
           </div>
         </div>
 
