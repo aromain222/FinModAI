@@ -7,6 +7,19 @@ type QuantInput = Partial<RankedStock> & {
   signal?: RankedStock['signal'];
   breakdown?: Partial<ScoreBreakdown>;
   meta?: Partial<RankedStock['meta']>;
+  position?: {
+    entryScore?: number | null;
+    currentScore?: number | null;
+    entryPrice?: number | null;
+    currentPrice?: number | null;
+    recentHighPrice?: number | null;
+    catalystPassedWithoutReaction?: boolean | null;
+  };
+  technicals?: {
+    volatility30dPct?: number | null;
+    momentum20dPct?: number | null;
+    drawdownFromHighPct?: number | null;
+  };
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -18,9 +31,36 @@ function round(value: number, decimals = 1): number {
   return Math.round(value * scale) / scale;
 }
 
+function finiteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
 function safeFactor(breakdown: Partial<ScoreBreakdown> | undefined, key: keyof ScoreBreakdown, fallback = 5): number {
   const value = breakdown?.[key];
   return typeof value === 'number' && Number.isFinite(value) ? clamp(value, 0, 10) : fallback;
+}
+
+function drawdownFromHigh(input: QuantInput): number | null {
+  const explicit = finiteNumber(input.technicals?.drawdownFromHighPct);
+  if (explicit !== null) return Math.min(0, explicit);
+  const current = finiteNumber(input.position?.currentPrice);
+  const high = finiteNumber(input.position?.recentHighPrice);
+  if (current === null || high === null || high <= 0) return null;
+  return Math.min(0, (current / high - 1) * 100);
+}
+
+function volatilityProxy(input: QuantInput): number | null {
+  const explicit = finiteNumber(input.technicals?.volatility30dPct);
+  if (explicit !== null) return explicit;
+  const risk = safeFactor(input.breakdown, 'riskAdjustment');
+  return Math.max(12, Math.min(95, 70 - risk * 6));
+}
+
+function volatilityAdjustedEdge(input: QuantInput): number | null {
+  const forecastReturn = finiteNumber(input.meta?.forecastReturnPct);
+  const vol = volatilityProxy(input);
+  if (forecastReturn === null || vol === null || vol <= 0) return null;
+  return forecastReturn / vol;
 }
 
 function factorStats(breakdown: Partial<ScoreBreakdown> | undefined): {
@@ -58,6 +98,12 @@ function sellRiskScore(input: QuantInput): number {
   const valuation = safeFactor(input.breakdown, 'valuationSignal');
   const earnings = safeFactor(input.breakdown, 'earningsSetup');
   const forecastReturn = typeof input.meta?.forecastReturnPct === 'number' ? input.meta.forecastReturnPct : null;
+  const stats = factorStats(input.breakdown);
+  const drawdown = drawdownFromHigh(input);
+  const volEdge = volatilityAdjustedEdge(input);
+  const scoreDelta = finiteNumber(input.position?.currentScore) !== null && finiteNumber(input.position?.entryScore) !== null
+    ? finiteNumber(input.position?.currentScore)! - finiteNumber(input.position?.entryScore)!
+    : null;
   let sellRisk = 0;
   sellRisk += Math.max(0, 5.2 - momentum) * 13;
   sellRisk += Math.max(0, 5.0 - forecast) * 10;
@@ -65,8 +111,15 @@ function sellRiskScore(input: QuantInput): number {
   sellRisk += Math.max(0, 4.8 - earnings) * 7;
   sellRisk += Math.max(0, 5.0 - score) * 8;
   sellRisk += Math.max(0, 5.5 - valuation) * 4;
+  sellRisk += Math.max(0, 0.5 - stats.breadth) * 18;
+  sellRisk += Math.max(0, stats.spread - 3) * 4;
   if (forecastReturn !== null && forecastReturn <= -3) sellRisk += Math.min(22, Math.abs(forecastReturn) * 2.5);
   if (forecastReturn !== null && forecastReturn >= 6) sellRisk -= Math.min(14, forecastReturn);
+  if (drawdown !== null && drawdown <= -8) sellRisk += Math.min(20, Math.abs(drawdown) * 1.2);
+  if (volEdge !== null && volEdge < 0.06) sellRisk += 10;
+  if (volEdge !== null && volEdge < -0.04) sellRisk += 12;
+  if (scoreDelta !== null && scoreDelta <= -0.8) sellRisk += Math.min(18, Math.abs(scoreDelta) * 7);
+  if (input.position?.catalystPassedWithoutReaction) sellRisk += 14;
   return clamp(Math.round(sellRisk), 0, 100);
 }
 
@@ -94,6 +147,12 @@ function quantRead(input: QuantInput): {
   const stance = stanceFor(input);
   const sellRisk = sellRiskScore(input);
   const forecastReturn = typeof input.meta?.forecastReturnPct === 'number' ? input.meta.forecastReturnPct : null;
+  const drawdown = drawdownFromHigh(input);
+  const volEdge = volatilityAdjustedEdge(input);
+  const volatility = volatilityProxy(input);
+  const scoreDelta = finiteNumber(input.position?.currentScore) !== null && finiteNumber(input.position?.entryScore) !== null
+    ? finiteNumber(input.position?.currentScore)! - finiteNumber(input.position?.entryScore)!
+    : null;
   const risk = safeFactor(input.breakdown, 'riskAdjustment');
   const momentum = safeFactor(input.breakdown, 'momentum');
   const valuation = safeFactor(input.breakdown, 'valuationSignal');
@@ -108,12 +167,31 @@ function quantRead(input: QuantInput): {
   const forecastRead = forecastReturn === null
     ? 'forecast is not live-confirmed'
     : `forecast tape points to ${forecastReturn >= 0 ? '+' : ''}${round(forecastReturn)}%`;
+  const drawdownRead = drawdown === null
+    ? 'drawdown check unavailable'
+    : drawdown <= -12 ? `drawdown is severe at ${round(drawdown)}% from recent high`
+      : drawdown <= -8 ? `drawdown is meaningful at ${round(drawdown)}% from recent high`
+        : `drawdown is controlled at ${round(drawdown)}%`;
+  const volRead = volEdge === null
+    ? 'volatility-adjusted edge unavailable'
+    : `vol-adjusted edge ${round(volEdge, 2)} with ${round(volatility ?? 0)}% vol proxy`;
+  const catalystFailureRead = input.position?.catalystPassedWithoutReaction
+    ? 'catalyst passed without positive reaction, which is negative positioning evidence'
+    : 'no catalyst-failure flag';
+  const factorConflictRead = forecastReturn !== null && forecastReturn <= 0 && momentum <= 5 && valuation <= 5.5
+    ? 'forecast, momentum, and valuation conflict with the long thesis'
+    : 'no major three-factor conflict';
+  const scoreDriftRead = scoreDelta === null
+    ? 'score drift unavailable'
+    : scoreDelta <= -0.8 ? `score has deteriorated ${round(scoreDelta)} since entry`
+      : scoreDelta >= 0.8 ? `score has improved ${round(scoreDelta)} since entry`
+        : `score drift is modest at ${scoreDelta >= 0 ? '+' : ''}${round(scoreDelta)}`;
   const sellDiscipline =
     sellRisk >= 70 ? 'sell signal is active: protect capital unless a catalyst repairs the tape quickly'
       : sellRisk >= 50 ? 'trim/watch signal: reduce risk if confirmation does not improve'
         : sellRisk >= 30 ? 'hold discipline: no clean sell signal, but do not add blindly'
           : 'no quant sell signal: thesis can remain active if catalysts still support it';
-  const reasoning = `${ticker} Quant Sell Discipline: ${stance}. Sell-risk score ${sellRisk}/100. Factor breadth ${Math.round(stats.breadth * 100)}%, top factor ${topLabel} (${round(stats.top[1])}), main drag ${bottomLabel} (${round(stats.bottom[1])}). ${sellDiscipline}; ${tapeRead}; ${valuationRead}; ${riskRead}; ${forecastRead}.`;
+  const reasoning = `${ticker} Quant Sell Discipline: ${stance}. Sell-risk score ${sellRisk}/100. Factor breadth ${Math.round(stats.breadth * 100)}%, top factor ${topLabel} (${round(stats.top[1])}), main drag ${bottomLabel} (${round(stats.bottom[1])}). ${sellDiscipline}; ${tapeRead}; ${valuationRead}; ${riskRead}; ${forecastRead}; ${drawdownRead}; ${volRead}; ${scoreDriftRead}; ${catalystFailureRead}.`;
 
   return {
     stance,
@@ -122,7 +200,7 @@ function quantRead(input: QuantInput): {
     evidence: [
       {
         source: 'factor_breadth',
-        summary: `${Math.round(stats.breadth * 100)}% of score factors are constructive; factor spread is ${round(stats.spread)} points. Low breadth raises trim risk.`,
+        summary: `${Math.round(stats.breadth * 100)}% of score factors are constructive; factor spread is ${round(stats.spread)} points. ${factorConflictRead}. Low breadth raises trim risk.`,
         impactDirection: stats.breadth >= 0.5 ? 'neutral' : 'bearish',
         confidence: conviction,
       },
@@ -134,13 +212,13 @@ function quantRead(input: QuantInput): {
       },
       {
         source: 'valuation_forecast',
-        summary: `Valuation ${round(valuation)}/10. ${valuationRead}; ${forecastRead}.`,
+        summary: `Valuation ${round(valuation)}/10. ${valuationRead}; ${forecastRead}; ${volRead}.`,
         impactDirection: valuation <= 4 || (forecastReturn !== null && forecastReturn <= -3) ? 'bearish' : 'neutral',
         confidence: conviction,
       },
       {
         source: 'sell_risk_score',
-        summary: `Sell-risk score ${sellRisk}/100. ${sellDiscipline}.`,
+        summary: `Sell-risk score ${sellRisk}/100. ${sellDiscipline}. ${drawdownRead}; ${scoreDriftRead}; ${catalystFailureRead}.`,
         impactDirection: sellRisk >= 50 ? 'bearish' : 'neutral',
         confidence: conviction,
       },
