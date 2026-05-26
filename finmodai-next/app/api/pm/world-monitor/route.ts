@@ -11,13 +11,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import type { WorldBriefResponseV2 } from '@/types/worldBrief';
-import type { PMAlert } from '@/lib/pm/types';
+import type { InvestmentDecision, PMAlert } from '@/lib/pm/types';
 import { readJson, jsonError } from '@/lib/pm/api/http';
 import { interpretEvent } from '@/lib/pm/alerts/interpretEvent';
 import { listAlerts, saveAlert } from '@/lib/pm/alerts/alertStore';
+import { saveDecision } from '@/lib/pm/decisions/decisionStore';
 import { saveAgentView } from '@/lib/pm/memory/agentViewStore';
 import { saveMemory } from '@/lib/pm/memory/memoryStore';
-import { notifyAlert } from '@/lib/pm/notifications/notifier';
+import { notifyAlert, notifyApprovalNeeded } from '@/lib/pm/notifications/notifier';
 import {
   type WorldMonitorInput,
   type WorldMonitorNewsItem,
@@ -64,6 +65,7 @@ const postRequestSchema = z.object({
   persistAgentViews: z.boolean().optional().default(true),
   notifyDiscord: z.boolean().optional().default(true),
   persistMemory: z.boolean().optional().default(true),
+  createDecisions: z.boolean().optional().default(true),
 });
 
 function isAuthorized(req: NextRequest): boolean {
@@ -603,11 +605,53 @@ async function recordWorldMemory(alert: PMAlert): Promise<void> {
   });
 }
 
+function shouldCreateWorldDecision(alert: PMAlert): boolean {
+  const bearishMaterial = alert.impactDirection === 'bearish' || alert.impactDirection === 'mixed';
+  return bearishMaterial && (
+    alert.severity === 'critical' ||
+    alert.severity === 'high' ||
+    alert.shouldNotifyPM ||
+    alert.confidence >= 70 ||
+    /thesis|portfolio exposure|materiality (7|8|9)\d\/100|oil|hormuz|shipping|sanction|cyber|outage|conflict|war|rates|inflation/i.test(alert.summary)
+  );
+}
+
+function decisionActionForWorldAlert(alert: PMAlert): InvestmentDecision['action'] {
+  if (alert.impactDirection === 'bearish' && (alert.severity === 'critical' || alert.confidence >= 82)) return 'trim';
+  if (alert.impactDirection === 'bearish') return 'watch';
+  if (alert.impactDirection === 'mixed' && (alert.severity === 'high' || alert.severity === 'critical')) return 'watch';
+  return 'hold';
+}
+
+function worldDecisionFromAlert(alert: PMAlert): InvestmentDecision {
+  const now = new Date().toISOString();
+  const action = decisionActionForWorldAlert(alert);
+  const affected = alert.ticker ?? alert.affectedTheme ?? 'Portfolio';
+  return {
+    id: `world_decision_${Buffer.from(`${alert.id}:${action}`).toString('base64url').slice(0, 40)}`,
+    ticker: alert.ticker ?? 'MACRO',
+    action,
+    recommendation: `${affected} ${action.toUpperCase()} review from World Monitor; pending PM approval`,
+    approvalStatus: 'pending',
+    approvedBy: null,
+    rationale: `World Monitor event may affect sell discipline. ${alert.summary}`,
+    evidence: alert.evidence,
+    linkedAlertId: alert.id,
+    confidence: Math.max(50, Math.min(92, alert.confidence)),
+    createdAt: now,
+    updatedAt: now,
+    recommendedAction: action,
+    recommendedSizing: action === 'trim' ? 'Reduce risk until event transmission is clear' : 'Watch; do not add until event risk resolves',
+    rationaleText: `World event changed PM risk context: ${alert.title}`,
+  };
+}
+
 async function runWorldMonitor(inputs: WorldMonitorInput[], options: {
   persist: boolean;
   persistAgentViews: boolean;
   notifyDiscord: boolean;
   persistMemory: boolean;
+  createDecisions: boolean;
 }) {
   const existingKeys = await existingAlertKeys();
   const checked = inputs.length;
@@ -616,7 +660,9 @@ async function runWorldMonitor(inputs: WorldMonitorInput[], options: {
   let agentViews = 0;
   let notified = 0;
   let memories = 0;
+  let decisions = 0;
   const alerts: PMAlert[] = [];
+  const decisionRecords: InvestmentDecision[] = [];
   const filtered: Array<{ title: string; reason: string }> = [];
 
   for (const input of inputs) {
@@ -648,6 +694,15 @@ async function runWorldMonitor(inputs: WorldMonitorInput[], options: {
         await notifyAlert(saved, 'World Brief Lite crossed PM materiality threshold.');
         notified++;
       }
+
+      if (options.createDecisions && shouldCreateWorldDecision(saved)) {
+        const decision = await saveDecision(worldDecisionFromAlert(saved));
+        decisionRecords.push(decision);
+        decisions++;
+        if (options.notifyDiscord) {
+          await notifyApprovalNeeded(decision);
+        }
+      }
     }
 
     if (options.persistAgentViews) {
@@ -659,7 +714,7 @@ async function runWorldMonitor(inputs: WorldMonitorInput[], options: {
     }
   }
 
-  return { checked, material, persisted, agentViews, notified, memories, alerts, filtered };
+  return { checked, material, persisted, agentViews, notified, memories, decisions, alerts, decisionRecords, filtered };
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -672,9 +727,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const persistAgentViews = req.nextUrl.searchParams.get('agentViews') !== 'false';
     const notifyDiscord = req.nextUrl.searchParams.get('discord') !== 'false';
     const persistMemory = req.nextUrl.searchParams.get('memory') !== 'false';
+    const createDecisions = req.nextUrl.searchParams.get('decisions') !== 'false';
     const days = Math.max(1, Math.min(30, Number(req.nextUrl.searchParams.get('days') ?? '7') || 7));
     const { inputs, source } = await fetchWorldMonitorInputs(req.nextUrl.origin, days);
-    const result = await runWorldMonitor(inputs, { persist, persistAgentViews, notifyDiscord, persistMemory });
+    const result = await runWorldMonitor(inputs, { persist, persistAgentViews, notifyDiscord, persistMemory, createDecisions });
     return NextResponse.json({ ok: true, source, ...result });
   } catch (err) {
     return jsonError(err, 'Could not run world monitor');
@@ -693,6 +749,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       persistAgentViews: body.persistAgentViews,
       notifyDiscord: body.notifyDiscord,
       persistMemory: body.persistMemory,
+      createDecisions: body.createDecisions,
     });
     return NextResponse.json({ ok: true, ...result }, { status: result.material > 0 ? 201 : 200 });
   } catch (err) {
