@@ -16,7 +16,7 @@ const eventRequest = z.object({
     source: z.string().optional(),
     url: z.string().url().nullable().optional(),
     publishedAt: z.string().nullable().optional(),
-    eventType: z.enum(['market', 'news', 'macro', 'earnings', 'agent', 'portfolio']).optional(),
+    eventType: z.enum(['market', 'news', 'macro', 'world', 'earnings', 'agent', 'portfolio']).optional(),
     tickers: z.array(z.string()).optional(),
     themes: z.array(z.string()).optional(),
     impactDirection: z.enum(['bullish', 'bearish', 'neutral', 'mixed']).optional(),

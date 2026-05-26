@@ -60,6 +60,7 @@ export type PMAlertType =
   | 'weekly_memo'
   | 'news_shock'
   | 'macro_shock'
+  | 'world_monitor'
   | 'earnings_shock'
   | 'position_monitor';
 
@@ -222,7 +223,7 @@ export type AgentView = {
   createdAt: string;
   /** Associated position ID, if this was run in context of an open position. */
   positionId?: string;
-  agentType?: 'hedge_fund' | 'tradingagents' | 'dexter' | 'pm_brain' | 'catalyst' | 'forecast' | 'quant';
+  agentType?: 'hedge_fund' | 'tradingagents' | 'dexter' | 'pm_brain' | 'catalyst' | 'forecast' | 'quant' | 'world_monitor';
   runAt?: string;
   signal?: 'bullish' | 'bearish' | 'neutral';
   /** 0–100 confidence from the agent output. */
@@ -241,7 +242,7 @@ export type AgentView = {
   timeHorizon?: string | null;
   /** Full raw JSON output for reference (not displayed in UI). */
   rawOutput?: Record<string, unknown>;
-  source?: 'hedge_fund' | 'tradingagents' | 'dexter' | 'rank' | 'forecast' | 'news' | 'pm_brain' | 'quant' | 'manual';
+  source?: 'hedge_fund' | 'tradingagents' | 'dexter' | 'rank' | 'forecast' | 'news' | 'pm_brain' | 'quant' | 'world_monitor' | 'manual';
   recommendation?: TradeAction | null;
 };
 
@@ -454,7 +455,7 @@ export type InterpretableEvent = {
   source?: string;
   url?: string | null;
   publishedAt?: string | null;
-  eventType?: 'market' | 'news' | 'macro' | 'earnings' | 'agent' | 'portfolio';
+  eventType?: 'market' | 'news' | 'macro' | 'world' | 'earnings' | 'agent' | 'portfolio';
   tickers?: string[];
   themes?: string[];
   impactDirection?: ImpactDirection;

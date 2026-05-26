@@ -42,6 +42,7 @@ export async function generateWeeklyMemo(params: { weekStart: string; weekEnd: s
     .filter(([, stances]) => stances.size > 1)
     .map(([ticker]) => ticker);
   const openAlerts = alerts.filter(alert => !alert.resolvedAt && !alert.acknowledged);
+  const worldMonitorAlerts = weekAlerts.filter(alert => alert.alertType === 'world_monitor');
   const pendingDecisions = decisions.filter(decision => decision.approvalStatus === 'pending');
   const themeCounts = countBy(positions.map(position => position.portfolioTheme ?? 'Unassigned'));
   const themePerformance = Object.fromEntries(
@@ -85,6 +86,9 @@ export async function generateWeeklyMemo(params: { weekStart: string; weekEnd: s
       'Conviction Drift': materialDrift.length > 0
         ? materialDrift.slice(0, 8).join('\n')
         : 'No material conviction drift recorded this week.',
+      'World Monitor': worldMonitorAlerts.length > 0
+        ? worldMonitorAlerts.slice(0, 6).map(alert => `${alert.impactDirection}: ${alert.title.replace(/^World Monitor:\s*/, '')} — ${alert.suggestedAction}.`).join('\n')
+        : 'No material world monitor alerts recorded this week.',
       'Institutional Memory': importantMemory.length > 0
         ? importantMemory.join('\n')
         : 'No high-importance PM memory yet.',

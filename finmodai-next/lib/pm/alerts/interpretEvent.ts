@@ -10,6 +10,7 @@ function inferDirection(event: InterpretableEvent): 'bullish' | 'bearish' | 'neu
 }
 
 function inferAlertType(event: InterpretableEvent): PMAlert['alertType'] {
+  if (event.eventType === 'world') return 'world_monitor';
   if (event.eventType === 'macro') return 'macro_shock';
   if (event.eventType === 'earnings') return 'earnings_shock';
   if (event.eventType === 'news') return 'news_shock';
