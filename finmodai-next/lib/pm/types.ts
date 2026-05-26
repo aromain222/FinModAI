@@ -60,7 +60,8 @@ export type PMAlertType =
   | 'weekly_memo'
   | 'news_shock'
   | 'macro_shock'
-  | 'earnings_shock';
+  | 'earnings_shock'
+  | 'position_monitor';
 
 export type MemoryType =
   | 'missed_trade'

@@ -21,6 +21,7 @@ export const alertTypeSchema = z.enum([
   'news_shock',
   'macro_shock',
   'earnings_shock',
+  'position_monitor',
 ]);
 export const memoryTypeSchema = z.enum([
   'missed_trade',

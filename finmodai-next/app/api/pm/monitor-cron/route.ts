@@ -16,6 +16,7 @@ import { listPMRecords } from '@/lib/pm/persistence/store';
 import type { PortfolioPosition } from '@/lib/pm/types';
 import type { StockQuote } from '@/app/api/quotes/route';
 import { monitorPositions, type PositionAlert } from '@/lib/pm/notifications/positionMonitor';
+import { saveAlert } from '@/lib/pm/alerts/alertStore';
 
 export const dynamic     = 'force-dynamic';
 export const runtime     = 'nodejs';
@@ -96,8 +97,26 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const alerts = await monitorPositions({ positions: active, quotes, origin });
 
-  // Fire Discord for high urgency immediately, then medium, skip low in cron
+  // Persist all alerts to the in-app AlertFeed and fire Discord for high/medium
   const toNotify = alerts.filter(a => a.urgency === 'high' || a.urgency === 'medium');
+  await Promise.all(alerts.map(alert => saveAlert({
+    id: crypto.randomUUID(),
+    ticker: alert.ticker,
+    alertType: 'position_monitor' as const,
+    severity: alert.urgency === 'high' ? 'high' : alert.urgency === 'medium' ? 'medium' : 'low',
+    title: alert.title,
+    summary: alert.body,
+    impactDirection: (['exit_signal', 'score_drop', 'sell_suggestion', 'trim_signal'].includes(alert.type) ? 'bearish' : alert.type === 'add_signal' ? 'bullish' : 'neutral') as 'bullish' | 'bearish' | 'neutral',
+    suggestedAction: (['exit_signal', 'sell_suggestion'].includes(alert.type) ? 'review' : alert.type === 'add_signal' ? 'add' : 'watch') as 'review' | 'add' | 'watch',
+    confidence: 75,
+    affectedTheme: null,
+    affectedThesis: null,
+    shouldNotifyPM: alert.urgency === 'high',
+    evidence: [],
+    createdAt: new Date().toISOString(),
+    resolvedAt: null,
+  })));
+
   for (const alert of toNotify) {
     await postDiscord(alert, link);
   }
@@ -105,7 +124,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   return NextResponse.json({
     ok: true,
     checked: active.length,
-    alerts: toNotify.length,
+    alerts: alerts.length,
+    notified: toNotify.length,
     fired: toNotify.map(a => ({ ticker: a.ticker, type: a.type, urgency: a.urgency })),
   });
 }
