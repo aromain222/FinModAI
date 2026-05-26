@@ -16,6 +16,8 @@ import { readJson, jsonError } from '@/lib/pm/api/http';
 import { interpretEvent } from '@/lib/pm/alerts/interpretEvent';
 import { listAlerts, saveAlert } from '@/lib/pm/alerts/alertStore';
 import { saveAgentView } from '@/lib/pm/memory/agentViewStore';
+import { saveMemory } from '@/lib/pm/memory/memoryStore';
+import { notifyAlert } from '@/lib/pm/notifications/notifier';
 import {
   type WorldMonitorInput,
   type WorldMonitorNewsItem,
@@ -60,6 +62,8 @@ const postRequestSchema = z.object({
   events: z.array(manualWorldEventSchema).min(1).max(50),
   persist: z.boolean().optional().default(true),
   persistAgentViews: z.boolean().optional().default(true),
+  notifyDiscord: z.boolean().optional().default(true),
+  persistMemory: z.boolean().optional().default(true),
 });
 
 function isAuthorized(req: NextRequest): boolean {
@@ -579,12 +583,39 @@ async function existingAlertKeys(): Promise<Set<string>> {
   }
 }
 
-async function runWorldMonitor(inputs: WorldMonitorInput[], options: { persist: boolean; persistAgentViews: boolean }) {
+function shouldRecordWorldMemory(alert: PMAlert): boolean {
+  return alert.severity === 'critical' ||
+    alert.severity === 'high' ||
+    alert.shouldNotifyPM ||
+    alert.confidence >= 70 ||
+    /(hormuz|sanction|shipping|chokepoint|earthquake|war|conflict|cyber|outage|inflation|rates|oil|gas)/i.test(`${alert.title} ${alert.summary}`);
+}
+
+async function recordWorldMemory(alert: PMAlert): Promise<void> {
+  await saveMemory({
+    id: `world_${Buffer.from(`${alert.title}:${alert.createdAt.slice(0, 10)}`).toString('base64url').slice(0, 44)}`,
+    memoryType: 'process_lesson',
+    lesson: `World Monitor context: ${alert.title}. ${alert.summary}`,
+    relatedTickers: alert.ticker ? [alert.ticker] : [],
+    relatedThemes: [alert.affectedTheme, alert.alertType, alert.impactDirection].filter((value): value is string => Boolean(value)),
+    importance: Math.max(50, Math.min(100, alert.confidence + (alert.severity === 'critical' ? 20 : alert.severity === 'high' ? 12 : alert.severity === 'medium' ? 4 : 0))),
+    createdAt: alert.createdAt,
+  });
+}
+
+async function runWorldMonitor(inputs: WorldMonitorInput[], options: {
+  persist: boolean;
+  persistAgentViews: boolean;
+  notifyDiscord: boolean;
+  persistMemory: boolean;
+}) {
   const existingKeys = await existingAlertKeys();
   const checked = inputs.length;
   let material = 0;
   let persisted = 0;
   let agentViews = 0;
+  let notified = 0;
+  let memories = 0;
   const alerts: PMAlert[] = [];
   const filtered: Array<{ title: string; reason: string }> = [];
 
@@ -607,6 +638,16 @@ async function runWorldMonitor(inputs: WorldMonitorInput[], options: { persist: 
       existingKeys.add(key);
       alerts.push(saved);
       if (options.persist) persisted++;
+
+      if (options.persistMemory && shouldRecordWorldMemory(saved)) {
+        await recordWorldMemory(saved);
+        memories++;
+      }
+
+      if (options.notifyDiscord && saved.shouldNotifyPM) {
+        await notifyAlert(saved, 'World Brief Lite crossed PM materiality threshold.');
+        notified++;
+      }
     }
 
     if (options.persistAgentViews) {
@@ -618,7 +659,7 @@ async function runWorldMonitor(inputs: WorldMonitorInput[], options: { persist: 
     }
   }
 
-  return { checked, material, persisted, agentViews, alerts, filtered };
+  return { checked, material, persisted, agentViews, notified, memories, alerts, filtered };
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -629,9 +670,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     const persist = req.nextUrl.searchParams.get('persist') !== 'false';
     const persistAgentViews = req.nextUrl.searchParams.get('agentViews') !== 'false';
+    const notifyDiscord = req.nextUrl.searchParams.get('discord') !== 'false';
+    const persistMemory = req.nextUrl.searchParams.get('memory') !== 'false';
     const days = Math.max(1, Math.min(30, Number(req.nextUrl.searchParams.get('days') ?? '7') || 7));
     const { inputs, source } = await fetchWorldMonitorInputs(req.nextUrl.origin, days);
-    const result = await runWorldMonitor(inputs, { persist, persistAgentViews });
+    const result = await runWorldMonitor(inputs, { persist, persistAgentViews, notifyDiscord, persistMemory });
     return NextResponse.json({ ok: true, source, ...result });
   } catch (err) {
     return jsonError(err, 'Could not run world monitor');
@@ -648,6 +691,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const result = await runWorldMonitor(body.events as WorldMonitorInput[], {
       persist: body.persist,
       persistAgentViews: body.persistAgentViews,
+      notifyDiscord: body.notifyDiscord,
+      persistMemory: body.persistMemory,
     });
     return NextResponse.json({ ok: true, ...result }, { status: result.material > 0 ? 201 : 200 });
   } catch (err) {
