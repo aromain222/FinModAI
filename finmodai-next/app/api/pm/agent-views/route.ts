@@ -4,6 +4,7 @@ import { agentViewSchema, tickerQuerySchema } from '@/lib/pm/schemas';
 import { readJson, jsonError } from '@/lib/pm/api/http';
 import { getLatestAgentView, listAgentViews, saveAgentView } from '@/lib/pm/memory/agentViewStore';
 import { hedgeFundToAgentView, hedgeFundToDecision } from '@/lib/pm/adapters/hedgeFund';
+import { quantToAgentView, quantToDecision } from '@/lib/pm/adapters/quant';
 import { tradingAgentsToAgentView, tradingAgentsToDecision } from '@/lib/pm/adapters/tradingAgents';
 import { saveDecision } from '@/lib/pm/decisions/decisionStore';
 import { ingestAgentView } from '@/lib/pm/decisions/pmBrain';
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const adaptedAgentViewRequest = z.object({
-  adapter: z.enum(['hedge_fund', 'tradingagents']).optional(),
+  adapter: z.enum(['hedge_fund', 'tradingagents', 'quant']).optional(),
   output: z.record(z.unknown()).optional(),
   createDecision: z.boolean().optional().default(false),
   ingest: z.boolean().optional().default(true),
@@ -37,7 +38,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const previous = ticker ? await getLatestAgentView(ticker) : null;
       const view = adapted.data.adapter === 'hedge_fund'
         ? hedgeFundToAgentView(adapted.data.output, previous)
-        : tradingAgentsToAgentView(adapted.data.output, previous);
+        : adapted.data.adapter === 'quant'
+          ? quantToAgentView(adapted.data.output, previous)
+          : tradingAgentsToAgentView(adapted.data.output, previous);
       if (adapted.data.ingest) {
         const result = await ingestAgentView(view);
         return NextResponse.json(result, { status: 201 });
@@ -45,7 +48,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const agentView = await saveAgentView(view);
       const decisionPayload = adapted.data.adapter === 'hedge_fund'
         ? hedgeFundToDecision(adapted.data.output)
-        : tradingAgentsToDecision(adapted.data.output);
+        : adapted.data.adapter === 'quant'
+          ? quantToDecision(adapted.data.output)
+          : tradingAgentsToDecision(adapted.data.output);
       const decision = adapted.data.createDecision && decisionPayload
         ? await saveDecision(decisionPayload)
         : null;

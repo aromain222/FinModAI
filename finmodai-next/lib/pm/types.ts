@@ -222,7 +222,7 @@ export type AgentView = {
   createdAt: string;
   /** Associated position ID, if this was run in context of an open position. */
   positionId?: string;
-  agentType?: 'hedge_fund' | 'tradingagents' | 'dexter' | 'pm_brain' | 'catalyst' | 'forecast';
+  agentType?: 'hedge_fund' | 'tradingagents' | 'dexter' | 'pm_brain' | 'catalyst' | 'forecast' | 'quant';
   runAt?: string;
   signal?: 'bullish' | 'bearish' | 'neutral';
   /** 0–100 confidence from the agent output. */
@@ -241,7 +241,7 @@ export type AgentView = {
   timeHorizon?: string | null;
   /** Full raw JSON output for reference (not displayed in UI). */
   rawOutput?: Record<string, unknown>;
-  source?: 'hedge_fund' | 'tradingagents' | 'dexter' | 'rank' | 'forecast' | 'news' | 'pm_brain' | 'manual';
+  source?: 'hedge_fund' | 'tradingagents' | 'dexter' | 'rank' | 'forecast' | 'news' | 'pm_brain' | 'quant' | 'manual';
   recommendation?: TradeAction | null;
 };
 

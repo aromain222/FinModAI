@@ -23,6 +23,7 @@ import { buildPositionFromRankedStock } from '@/lib/portfolio/buildPosition';
 import type { ActivePosition } from '@/lib/portfolio/types';
 import type { StockQuote } from '@/app/api/quotes/route';
 import type { RankedStock } from '@/lib/ranking/types';
+import type { AgentView, ConvictionDriftSummary } from '@/lib/pm/types';
 import { getCompanyBrief } from '@/lib/ranking/companyBriefs';
 import { buildValuationSignal } from '@/lib/valuation/signal';
 import {
@@ -63,6 +64,12 @@ type AssumptionUpdateResponse = {
     valuationGapDelta: number | null;
     expectedMoveDeltaPct: number;
   };
+  error?: string;
+};
+
+type QuantPMResponse = {
+  agentView?: AgentView;
+  convictionDrift?: ConvictionDriftSummary;
   error?: string;
 };
 
@@ -170,6 +177,83 @@ function AgentPMReadCard({
           <p className="mt-0.5 text-[10px] font-semibold capitalize text-[var(--cb-text-secondary)]">
             {tradingAgents ? `${tradingAgents.stance} · ${tradingAgents.readiness}` : 'Not run yet'}
           </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuantPMPanel({
+  stock,
+  read,
+  onResult,
+}: {
+  stock: RankedStock;
+  read: QuantPMResponse | null;
+  onResult: (result: QuantPMResponse) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function runQuant() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/pm/agent-views', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adapter: 'quant', output: stock, ingest: true }),
+      });
+      const body = await res.json() as QuantPMResponse;
+      if (!res.ok) throw new Error(body.error ?? 'Quant PM failed');
+      onResult(body);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Quant PM failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const stance = read?.agentView?.stance ?? 'neutral';
+  const tone =
+    stance === 'bullish' ? 'border-emerald-400/25 bg-emerald-500/8 text-emerald-300'
+      : stance === 'bearish' ? 'border-rose-400/25 bg-rose-500/8 text-rose-300'
+        : 'border-amber-400/25 bg-amber-500/8 text-amber-300';
+
+  return (
+    <div className="border-b border-[var(--cb-border)] px-4 py-3">
+      <div className="rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="rounded-md border border-blue-400/25 bg-blue-500/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-blue-300">
+                Quant PM
+              </span>
+              {read?.agentView && (
+                <span className={`rounded-md border px-2 py-1 text-[10px] font-bold uppercase tracking-widest ${tone}`}>
+                  {read.agentView.stance} · {read.agentView.conviction}%
+                </span>
+              )}
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-[var(--cb-text-secondary)]">
+              {read?.agentView?.reasoning
+                ?? 'Adds factor breadth, momentum/risk confirmation, valuation support, and forecast reliability as a disciplined quant read.'}
+            </p>
+            {read?.convictionDrift && (
+              <p className="mt-1.5 text-[11px] text-[var(--cb-text-muted)]">
+                Drift: {read.convictionDrift.driftType.replace(/_/g, ' ')} · disagreement {read.convictionDrift.disagreementScore}/100.
+              </p>
+            )}
+            {error && <p className="mt-1.5 text-[11px] text-rose-400">{error}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={runQuant}
+            disabled={loading}
+            className="shrink-0 rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-3 py-1.5 text-[11px] font-semibold text-[var(--cb-text-secondary)] transition hover:border-blue-400/50 hover:text-blue-300 disabled:cursor-wait disabled:opacity-60"
+          >
+            {loading ? 'Running…' : read?.agentView ? 'Re-run' : 'Run'}
+          </button>
         </div>
       </div>
     </div>
@@ -403,6 +487,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   const [aiVerdict, setAiVerdict] = useState<{ action: string; bullish: number; bearish: number; neutral: number; confidence: number } | null>(null);
   const [hedgeFundReadState, setHedgeFundReadState] = useState<NormalizedAgentRead | null>(null);
   const [tradingAgentsReadState, setTradingAgentsReadState] = useState<NormalizedAgentRead | null>(null);
+  const [quantPMReadState, setQuantPMReadState] = useState<QuantPMResponse | null>(null);
   const [panelTab, setPanelTab] = useState<'analysis' | 'agents' | 'chat'>('agents');
   const [analysisPaneTab, setAnalysisPaneTab] = useState<'analysis' | 'agents' | 'financials' | 'chat'>('analysis');
   const [chatExpanded, setChatExpanded] = useState(false);
@@ -440,6 +525,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       setEntryQuoteLoading(false);
       setHedgeFundReadState(null);
       setTradingAgentsReadState(null);
+      setQuantPMReadState(null);
       setAiVerdict(stock?.meta.aiHedgeFund ? {
         action: stock.meta.aiHedgeFund.action,
         bullish: stock.meta.aiHedgeFund.bullish,
@@ -1110,6 +1196,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
               tradingAgents={tradingAgentsReadState}
               stock={stock}
             />
+            <QuantPMPanel stock={stock} read={quantPMReadState} onResult={setQuantPMReadState} />
             <HedgeFundPanel
               ticker={stock.ticker}
               signal={stock.signal}
