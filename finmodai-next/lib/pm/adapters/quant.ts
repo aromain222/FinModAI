@@ -50,20 +50,36 @@ function factorStats(breakdown: Partial<ScoreBreakdown> | undefined): {
   };
 }
 
-function stanceFor(input: QuantInput): AgentView['stance'] {
+function sellRiskScore(input: QuantInput): number {
   const score = typeof input.score === 'number' ? input.score : 5;
   const momentum = safeFactor(input.breakdown, 'momentum');
   const forecast = safeFactor(input.breakdown, 'forecastSignal');
   const risk = safeFactor(input.breakdown, 'riskAdjustment');
   const valuation = safeFactor(input.breakdown, 'valuationSignal');
-  if (score >= 7.2 && momentum >= 5.8 && risk >= 4.5) return 'bullish';
-  if (score <= 4 || risk <= 3 || (momentum <= 4 && forecast <= 4.5 && valuation <= 5)) return 'bearish';
+  const earnings = safeFactor(input.breakdown, 'earningsSetup');
+  const forecastReturn = typeof input.meta?.forecastReturnPct === 'number' ? input.meta.forecastReturnPct : null;
+  let sellRisk = 0;
+  sellRisk += Math.max(0, 5.2 - momentum) * 13;
+  sellRisk += Math.max(0, 5.0 - forecast) * 10;
+  sellRisk += Math.max(0, 4.8 - risk) * 12;
+  sellRisk += Math.max(0, 4.8 - earnings) * 7;
+  sellRisk += Math.max(0, 5.0 - score) * 8;
+  sellRisk += Math.max(0, 5.5 - valuation) * 4;
+  if (forecastReturn !== null && forecastReturn <= -3) sellRisk += Math.min(22, Math.abs(forecastReturn) * 2.5);
+  if (forecastReturn !== null && forecastReturn >= 6) sellRisk -= Math.min(14, forecastReturn);
+  return clamp(Math.round(sellRisk), 0, 100);
+}
+
+function stanceFor(input: QuantInput): AgentView['stance'] {
+  const sellRisk = sellRiskScore(input);
+  if (sellRisk >= 58) return 'bearish';
+  if (sellRisk <= 24) return 'bullish';
   return 'neutral';
 }
 
 function actionFor(view: AgentView): InvestmentDecision['action'] {
-  if (view.stance === 'bullish' && view.conviction >= 74) return 'add';
-  if (view.stance === 'bearish' && view.conviction >= 70) return 'trim';
+  if (view.stance === 'bearish' && view.conviction >= 82) return 'exit';
+  if (view.stance === 'bearish' && view.conviction >= 62) return 'trim';
   return 'watch';
 }
 
@@ -74,20 +90,16 @@ function quantRead(input: QuantInput): {
   evidence: AgentView['evidence'];
 } {
   const ticker = (input.ticker ?? '').toUpperCase();
-  const score = typeof input.score === 'number' ? input.score : 5;
   const stats = factorStats(input.breakdown);
   const stance = stanceFor(input);
+  const sellRisk = sellRiskScore(input);
   const forecastReturn = typeof input.meta?.forecastReturnPct === 'number' ? input.meta.forecastReturnPct : null;
-  const liveCatalysts = typeof input.meta?.catalystCount === 'number' ? input.meta.catalystCount : 0;
   const risk = safeFactor(input.breakdown, 'riskAdjustment');
   const momentum = safeFactor(input.breakdown, 'momentum');
   const valuation = safeFactor(input.breakdown, 'valuationSignal');
-  const scoreQuality = score * 6.2;
-  const breadthBonus = stats.breadth * 16;
-  const riskPenalty = Math.max(0, 5 - risk) * 4;
-  const concentrationPenalty = Math.max(0, stats.spread - 2.5) * 3.5;
-  const liveBonus = (forecastReturn !== null ? 4 : 0) + Math.min(liveCatalysts, 3) * 2;
-  const conviction = Math.round(clamp(scoreQuality + breadthBonus + liveBonus - riskPenalty - concentrationPenalty, 28, 88));
+  const weakBreadthPenalty = (1 - stats.breadth) * 14;
+  const concentrationPenalty = Math.max(0, stats.spread - 2.5) * 4;
+  const conviction = Math.round(clamp(42 + sellRisk * 0.55 + weakBreadthPenalty + concentrationPenalty, 35, 92));
   const topLabel = stats.top[0].replace(/([A-Z])/g, ' $1').toLowerCase();
   const bottomLabel = stats.bottom[0].replace(/([A-Z])/g, ' $1').toLowerCase();
   const riskRead = risk < 4 ? 'risk budget is the gating item' : risk >= 6.5 ? 'risk is acceptable for a swing setup' : 'risk is manageable but not clean';
@@ -96,7 +108,12 @@ function quantRead(input: QuantInput): {
   const forecastRead = forecastReturn === null
     ? 'forecast is not live-confirmed'
     : `forecast tape points to ${forecastReturn >= 0 ? '+' : ''}${round(forecastReturn)}%`;
-  const reasoning = `${ticker} Quant PM read: ${stance}. Factor breadth ${Math.round(stats.breadth * 100)}%, top factor ${topLabel} (${round(stats.top[1])}), main drag ${bottomLabel} (${round(stats.bottom[1])}). ${tapeRead}; ${valuationRead}; ${riskRead}; ${forecastRead}.`;
+  const sellDiscipline =
+    sellRisk >= 70 ? 'sell signal is active: protect capital unless a catalyst repairs the tape quickly'
+      : sellRisk >= 50 ? 'trim/watch signal: reduce risk if confirmation does not improve'
+        : sellRisk >= 30 ? 'hold discipline: no clean sell signal, but do not add blindly'
+          : 'no quant sell signal: thesis can remain active if catalysts still support it';
+  const reasoning = `${ticker} Quant Sell Discipline: ${stance}. Sell-risk score ${sellRisk}/100. Factor breadth ${Math.round(stats.breadth * 100)}%, top factor ${topLabel} (${round(stats.top[1])}), main drag ${bottomLabel} (${round(stats.bottom[1])}). ${sellDiscipline}; ${tapeRead}; ${valuationRead}; ${riskRead}; ${forecastRead}.`;
 
   return {
     stance,
@@ -105,20 +122,26 @@ function quantRead(input: QuantInput): {
     evidence: [
       {
         source: 'factor_breadth',
-        summary: `${Math.round(stats.breadth * 100)}% of score factors are constructive; factor spread is ${round(stats.spread)} points.`,
-        impactDirection: stats.breadth >= 0.5 ? 'bullish' : 'mixed',
+        summary: `${Math.round(stats.breadth * 100)}% of score factors are constructive; factor spread is ${round(stats.spread)} points. Low breadth raises trim risk.`,
+        impactDirection: stats.breadth >= 0.5 ? 'neutral' : 'bearish',
         confidence: conviction,
       },
       {
         source: 'momentum_risk',
-        summary: `Momentum ${round(momentum)}/10 and risk adjustment ${round(risk)}/10. ${tapeRead}; ${riskRead}.`,
-        impactDirection: momentum >= 6 && risk >= 5 ? 'bullish' : risk <= 3.5 ? 'bearish' : 'neutral',
+        summary: `Momentum ${round(momentum)}/10 and risk adjustment ${round(risk)}/10. ${tapeRead}; ${riskRead}. This is the main sell/hold gate.`,
+        impactDirection: momentum <= 4.5 || risk <= 3.5 ? 'bearish' : 'neutral',
         confidence: conviction,
       },
       {
         source: 'valuation_forecast',
         summary: `Valuation ${round(valuation)}/10. ${valuationRead}; ${forecastRead}.`,
-        impactDirection: valuation >= 6 ? 'bullish' : valuation <= 4 ? 'bearish' : 'neutral',
+        impactDirection: valuation <= 4 || (forecastReturn !== null && forecastReturn <= -3) ? 'bearish' : 'neutral',
+        confidence: conviction,
+      },
+      {
+        source: 'sell_risk_score',
+        summary: `Sell-risk score ${sellRisk}/100. ${sellDiscipline}.`,
+        impactDirection: sellRisk >= 50 ? 'bearish' : 'neutral',
         confidence: conviction,
       },
     ],
@@ -132,7 +155,7 @@ export function quantToAgentView(output: QuantInput, previous?: AgentView | null
   const recommendation = actionFor({
     id: '',
     ticker,
-    agentName: 'Quant PM',
+    agentName: 'Quant Sell Discipline',
     stance: read.stance,
     conviction: read.conviction,
     reasoning: read.reasoning,
@@ -143,7 +166,7 @@ export function quantToAgentView(output: QuantInput, previous?: AgentView | null
   return {
     id: crypto.randomUUID(),
     ticker,
-    agentName: 'Quant PM',
+    agentName: 'Quant Sell Discipline',
     stance: read.stance,
     conviction: read.conviction,
     reasoning: read.reasoning,
@@ -171,7 +194,7 @@ export function quantToDecision(output: QuantInput): InvestmentDecision | null {
     id: crypto.randomUUID(),
     ticker: view.ticker,
     action,
-    recommendation: `${action.toUpperCase()} from Quant PM; pending human approval`,
+    recommendation: `${action.toUpperCase()} from Quant Sell Discipline; pending human approval`,
     approvalStatus: 'pending',
     approvedBy: null,
     rationale: view.reasoning,
@@ -189,7 +212,7 @@ export function quantToThesisUpdateInput(output: QuantInput): ThesisUpdateInput 
   const view = quantToAgentView(output);
   return {
     ticker: view.ticker,
-    newEvidence: `Quant PM update: ${view.reasoning}`,
+    newEvidence: `Quant Sell Discipline update: ${view.reasoning}`,
     newThesisSummary: view.summary,
     convictionScore: view.conviction,
     agentViews: [view],
@@ -202,7 +225,7 @@ export function quantToWeeklyMemoSection(output: QuantInput): WeeklyMemoSection 
   if (!output.ticker) return null;
   const view = quantToAgentView(output);
   return {
-    title: `${view.ticker} Quant PM read`,
+    title: `${view.ticker} Quant Sell Discipline read`,
     body: `${view.stance.toUpperCase()} at ${view.conviction}% conviction. ${view.reasoning}`,
     tickers: [view.ticker],
   };

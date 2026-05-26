@@ -227,7 +227,7 @@ function QuantPMPanel({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="rounded-md border border-blue-400/25 bg-blue-500/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-blue-300">
-                Quant PM
+                Quant Sell Discipline
               </span>
               {read?.agentView && (
                 <span className={`rounded-md border px-2 py-1 text-[10px] font-bold uppercase tracking-widest ${tone}`}>
@@ -237,7 +237,7 @@ function QuantPMPanel({
             </div>
             <p className="mt-2 text-xs leading-relaxed text-[var(--cb-text-secondary)]">
               {read?.agentView?.reasoning
-                ?? 'Adds factor breadth, momentum/risk confirmation, valuation support, and forecast reliability as a disciplined quant read.'}
+                ?? 'Checks sell-risk: weakening momentum, poor breadth, valuation exhaustion, forecast deterioration, and risk-budget pressure.'}
             </p>
             {read?.convictionDrift && (
               <p className="mt-1.5 text-[11px] text-[var(--cb-text-muted)]">
