@@ -135,6 +135,12 @@ function msToIso(value: unknown): string | undefined {
   return Number.isFinite(numeric) && numeric > 0 ? new Date(numeric).toISOString() : undefined;
 }
 
+function dateToIso(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value.trim()) return undefined;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+}
+
 function confidenceFromSeverity(severity: string, fallback: WorldMonitorNewsItem['confidence'] = 'medium'): WorldMonitorNewsItem['confidence'] {
   const normalized = severity.toLowerCase();
   if (normalized.includes('high') || normalized.includes('critical') || normalized.includes('confirmed')) return 'high';
@@ -313,6 +319,207 @@ async function fetchWorldMonitorApiInputs(days: number): Promise<WorldMonitorInp
   ].slice(0, MAX_EVENTS);
 }
 
+type GdeltArticle = {
+  title?: string;
+  url?: string;
+  domain?: string;
+  seendate?: string;
+  sourceCountry?: string;
+  language?: string;
+};
+
+type UsgsFeature = {
+  properties?: {
+    title?: string;
+    place?: string;
+    mag?: number;
+    time?: number;
+    url?: string;
+    alert?: string;
+    tsunami?: number;
+    sig?: number;
+  };
+};
+
+type EonetEvent = {
+  id?: string;
+  title?: string;
+  description?: string;
+  categories?: Array<{ title?: string }>;
+  sources?: Array<{ id?: string; url?: string }>;
+  geometry?: Array<{ date?: string }>;
+};
+
+type ReliefWebItem = {
+  fields?: {
+    name?: string;
+    description?: string;
+    url?: string;
+    date?: { created?: string };
+    country?: Array<{ name?: string }>;
+    type?: Array<{ name?: string }>;
+  };
+};
+
+function classifyWorldNewsTopics(title: string): string[] {
+  const lower = title.toLowerCase();
+  const topics = ['geopolitics'];
+  if (/(oil|gas|lng|energy|opec|hormuz|strait|tanker|pipeline|crude)/.test(lower)) topics.push('energy', 'commodities');
+  if (/(ship|shipping|waterway|canal|port|suez|panama|red sea|malacca)/.test(lower)) topics.push('supply_chain', 'waterways', 'trade');
+  if (/(sanction|tariff|export control|trade war)/.test(lower)) topics.push('sanctions', 'trade', 'policy');
+  if (/(missile|drone|attack|war|conflict|airstrike|military|coup|protest|riot)/.test(lower)) topics.push('conflict');
+  if (/(cyber|hack|outage|blackout|infrastructure)/.test(lower)) topics.push('cyber', 'infrastructure');
+  if (/(earthquake|flood|wildfire|storm|hurricane|cyclone|drought|volcano)/.test(lower)) topics.push('natural', 'weather');
+  if (/(inflation|fed|rates|cpi|pce|treasury|yield)/.test(lower)) topics.push('rates', 'inflation');
+  return [...new Set(topics)];
+}
+
+async function fetchGdeltLite(days: number): Promise<WorldMonitorNewsItem[]> {
+  const query = [
+    'conflict',
+    'sanctions',
+    'missile',
+    'drone',
+    '"Strait of Hormuz"',
+    'shipping',
+    'waterway',
+    'blackout',
+    'cyberattack',
+    'earthquake',
+    'flood',
+    'wildfire',
+    'oil',
+    'tariff',
+    'coup',
+    'protest',
+  ].join(' OR ');
+  const url = new URL('https://api.gdeltproject.org/api/v2/doc/doc');
+  url.searchParams.set('query', query);
+  url.searchParams.set('mode', 'artlist');
+  url.searchParams.set('format', 'json');
+  url.searchParams.set('maxrecords', '20');
+  url.searchParams.set('sort', 'hybridrel');
+  url.searchParams.set('timespan', `${Math.max(1, Math.min(7, days))}d`);
+
+  const data = await fetchJson<{ articles?: GdeltArticle[] }>(url.toString(), 10_000);
+  const articles = Array.isArray(data?.articles) ? data.articles : [];
+  return articles.flatMap(article => {
+    const title = article.title?.trim();
+    if (!title) return [];
+    const topics = classifyWorldNewsTopics(title);
+    return [{
+      title,
+      source: article.domain ? `GDELT / ${article.domain}` : 'GDELT',
+      url: article.url,
+      publishedAt: dateToIso(article.seendate),
+      summary: title,
+      what_happened: title,
+      why_it_matters: 'GDELT flagged this as a live global risk story; PM impact depends on whether it changes rates, supply chains, energy, sanctions, or risk appetite.',
+      topics,
+      region: article.sourceCountry || 'Global',
+      confidence: topics.length >= 3 ? 'medium' : 'low',
+      routing: {
+        market_relevance_score: topics.some(topic => ['energy', 'supply_chain', 'rates', 'sanctions'].includes(topic)) ? 72 : 52,
+        world_relevance_score: 74,
+        market_reason: 'No-key GDELT global risk feed.',
+        world_reason: 'Matched geopolitical, macro, infrastructure, or disaster keywords.',
+      },
+    } satisfies WorldMonitorNewsItem];
+  });
+}
+
+async function fetchUsgsLite(): Promise<WorldMonitorNewsItem[]> {
+  const data = await fetchJson<{ features?: UsgsFeature[] }>(
+    'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_week.geojson',
+    8_000,
+  );
+  const features = Array.isArray(data?.features) ? data.features : [];
+  return features.flatMap(feature => {
+    const props = feature.properties;
+    const title = props?.title ?? (props?.place ? `Significant earthquake near ${props.place}` : '');
+    if (!title) return [];
+    const mag = typeof props?.mag === 'number' ? props.mag : null;
+    return [{
+      title,
+      source: 'USGS Earthquakes',
+      url: props?.url,
+      publishedAt: msToIso(props?.time),
+      summary: compactRecord({ magnitude: mag, place: props?.place, alert: props?.alert, tsunami: props?.tsunami, significance: props?.sig }, ['magnitude', 'place', 'alert', 'tsunami', 'significance']),
+      what_happened: `USGS reported ${mag ? `a M${mag.toFixed(1)} ` : 'a significant '}earthquake${props?.place ? ` near ${props.place}` : ''}.`,
+      why_it_matters: 'Significant earthquakes can affect local infrastructure, ports, energy assets, semiconductor supply chains, insurance risk, and regional risk appetite.',
+      topics: ['earthquake', 'natural', 'infrastructure', props?.tsunami ? 'waterways' : 'risk'],
+      region: props?.place ?? 'Global',
+      confidence: props?.alert === 'red' || props?.alert === 'orange' || (mag ?? 0) >= 6.5 ? 'high' : 'medium',
+    } satisfies WorldMonitorNewsItem];
+  });
+}
+
+async function fetchEonetLite(days: number): Promise<WorldMonitorNewsItem[]> {
+  const url = new URL('https://eonet.gsfc.nasa.gov/api/v3/events');
+  url.searchParams.set('days', String(Math.max(1, Math.min(30, days))));
+  url.searchParams.set('status', 'open');
+  url.searchParams.set('limit', '20');
+  const data = await fetchJson<{ events?: EonetEvent[] }>(url.toString(), 8_000);
+  const events = Array.isArray(data?.events) ? data.events : [];
+  return events.flatMap(event => {
+    const title = event.title?.trim();
+    if (!title) return [];
+    const category = event.categories?.[0]?.title ?? 'Natural event';
+    const sourceUrl = event.sources?.[0]?.url;
+    return [{
+      title: `Natural hazard: ${title}`,
+      source: event.sources?.[0]?.id ? `NASA EONET / ${event.sources[0].id}` : 'NASA EONET',
+      url: sourceUrl,
+      publishedAt: dateToIso(event.geometry?.[0]?.date),
+      summary: event.description || category,
+      what_happened: `${category} remains active: ${title}.`,
+      why_it_matters: 'Active natural hazards can disrupt logistics, energy production, agriculture, insurance, and local demand conditions.',
+      topics: classifyWorldNewsTopics(`${title} ${category}`).concat(['natural', 'weather']),
+      region: 'Global',
+      confidence: 'medium',
+    } satisfies WorldMonitorNewsItem];
+  });
+}
+
+async function fetchReliefWebLite(): Promise<WorldMonitorNewsItem[]> {
+  const url = new URL('https://api.reliefweb.int/v1/disasters');
+  url.searchParams.set('appname', 'capitalbase-world-brief-lite');
+  url.searchParams.set('limit', '12');
+  url.searchParams.set('profile', 'list');
+  url.searchParams.set('preset', 'latest');
+  const data = await fetchJson<{ data?: ReliefWebItem[] }>(url.toString(), 8_000);
+  const items = Array.isArray(data?.data) ? data.data : [];
+  return items.flatMap(item => {
+    const fields = item.fields;
+    const title = fields?.name?.trim();
+    if (!title) return [];
+    const countries = fields?.country?.flatMap(country => country.name ? [country.name] : []) ?? [];
+    const types = fields?.type?.flatMap(type => type.name ? [type.name] : []) ?? [];
+    return [{
+      title: `Humanitarian/disaster monitor: ${title}`,
+      source: 'ReliefWeb',
+      url: fields?.url,
+      publishedAt: dateToIso(fields?.date?.created),
+      summary: fields?.description || [...countries, ...types].join('; '),
+      what_happened: `ReliefWeb latest disaster listing: ${title}${countries.length ? ` in ${countries.join(', ')}` : ''}.`,
+      why_it_matters: 'Humanitarian and disaster signals can point to supply disruption, fiscal stress, commodity impacts, insurance losses, and regional instability.',
+      topics: ['natural', 'weather', 'geopolitics', 'infrastructure'],
+      region: countries.join(', ') || 'Global',
+      confidence: 'medium',
+    } satisfies WorldMonitorNewsItem];
+  });
+}
+
+async function fetchWorldBriefLiteInputs(days: number): Promise<WorldMonitorInput[]> {
+  const [gdelt, usgs, eonet, reliefWeb] = await Promise.all([
+    fetchGdeltLite(days),
+    fetchUsgsLite(),
+    fetchEonetLite(days),
+    fetchReliefWebLite(),
+  ]);
+  return [...gdelt, ...usgs, ...eonet, ...reliefWeb].slice(0, MAX_EVENTS);
+}
+
 function dedupeInputs(inputs: WorldMonitorInput[]): WorldMonitorInput[] {
   const seen = new Set<string>();
   return inputs.filter(input => {
@@ -335,19 +542,26 @@ async function fetchInternalWorldBriefInputs(origin: string): Promise<WorldMonit
 }
 
 async function fetchWorldMonitorInputs(origin: string, days: number): Promise<{ inputs: WorldMonitorInput[]; source: Record<string, unknown> }> {
-  const [apiInputs, internalInputs] = await Promise.all([
+  const [apiInputs, liteInputs, internalInputs] = await Promise.all([
     fetchWorldMonitorApiInputs(days),
+    fetchWorldBriefLiteInputs(days),
     fetchInternalWorldBriefInputs(origin),
   ]);
-  const inputs = dedupeInputs([...apiInputs, ...internalInputs]).slice(0, MAX_EVENTS);
+  const inputs = dedupeInputs([...apiInputs, ...liteInputs, ...internalInputs]).slice(0, MAX_EVENTS);
   return {
     inputs,
     source: {
       apiBase: WORLD_MONITOR_API_BASE,
       apiKeyConfigured: Boolean(worldMonitorApiKey()),
       apiEvents: apiInputs.length,
+      liteEvents: liteInputs.length,
       internalFallbackEvents: internalInputs.length,
-      mode: apiInputs.length > 0 ? 'worldmonitor_api_plus_fallback' : 'internal_fallback_only',
+      liteSources: ['GDELT', 'USGS', 'NASA EONET', 'ReliefWeb'],
+      mode: apiInputs.length > 0
+        ? 'worldmonitor_api_plus_lite_plus_fallback'
+        : liteInputs.length > 0
+          ? 'world_brief_lite_plus_internal_fallback'
+          : 'internal_fallback_only',
     },
   };
 }

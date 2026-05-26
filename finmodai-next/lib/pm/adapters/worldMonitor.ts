@@ -33,6 +33,15 @@ const HIGH_IMPACT_TAGS = new Set([
   'geopolitics',
   'trade',
   'fx',
+  'conflict',
+  'sanctions',
+  'shipping',
+  'waterways',
+  'supply_chain',
+  'cyber',
+  'outages',
+  'natural',
+  'weather',
 ]);
 
 const TAG_THEME_MAP: Record<string, string> = {
@@ -45,13 +54,26 @@ const TAG_THEME_MAP: Record<string, string> = {
   energy: 'Energy',
   commodities: 'Commodities',
   geopolitics: 'Geopolitical Risk',
+  conflict: 'Geopolitical Risk',
+  sanctions: 'Geopolitical Risk',
   trade: 'Global Trade',
+  supply_chain: 'Supply Chain',
+  shipping: 'Supply Chain',
+  waterways: 'Supply Chain',
   growth: 'Cyclical Growth',
   labor: 'Consumer Demand',
   consumer: 'Consumer Demand',
   equities: 'Equity Risk Appetite',
   financials: 'Financials',
   housing: 'Rate Sensitive',
+  cyber: 'Infrastructure Risk',
+  outages: 'Infrastructure Risk',
+  infrastructure: 'Infrastructure Risk',
+  natural: 'Physical Risk',
+  weather: 'Physical Risk',
+  earthquake: 'Physical Risk',
+  wildfire: 'Physical Risk',
+  flood: 'Physical Risk',
 };
 
 function isWorldBriefEvent(input: WorldMonitorInput): input is WorldBriefEventCard {
@@ -116,7 +138,7 @@ function inferDirection(text: string, tags: string[]): ImpactDirection {
   if (/(hot inflation|sticky inflation|hawkish|higher-for-longer|yields? (rise|higher)|weak auction|default|war|attack|sanction|export control|oil spike|credit stress|recession|growth slows)/.test(lower)) {
     return 'bearish';
   }
-  if (tags.some(tag => ['energy', 'commodities', 'fx', 'geopolitics', 'credit'].includes(tag))) return 'mixed';
+  if (tags.some(tag => ['energy', 'commodities', 'fx', 'geopolitics', 'conflict', 'sanctions', 'supply_chain', 'credit', 'natural', 'weather', 'cyber', 'outages'].includes(tag))) return 'mixed';
   return 'neutral';
 }
 
@@ -158,7 +180,7 @@ function materialityScore(input: WorldMonitorInput, tags: string[], confidence: 
 
 function urgencyScore(input: WorldMonitorInput, tags: string[]): number {
   const text = summaryOf(input).toLowerCase();
-  let urgency = tags.some(tag => ['rates', 'inflation', 'credit', 'geopolitics', 'energy'].includes(tag)) ? 68 : 52;
+  let urgency = tags.some(tag => ['rates', 'inflation', 'credit', 'geopolitics', 'conflict', 'sanctions', 'energy', 'supply_chain', 'natural', 'cyber', 'outages'].includes(tag)) ? 68 : 52;
   if (/(today|tomorrow|this week|emergency|attack|shock|surprise|spike|selloff)/.test(text)) urgency += 14;
   if (/(watch:|next release|auction|fomc|cpi|payrolls|pce)/.test(text)) urgency += 6;
   return Math.max(20, Math.min(95, urgency));
