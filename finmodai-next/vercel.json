@@ -28,6 +28,10 @@
     {
       "path": "/api/pm/brief?type=monthly",
       "schedule": "0 22 1 * *"
+    },
+    {
+      "path": "/api/execution/auto-trade-cron",
+      "schedule": "0 14 * * 1-5"
     }
   ]
 }
