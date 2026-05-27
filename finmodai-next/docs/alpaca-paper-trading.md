@@ -93,3 +93,12 @@ Authorization: Bearer $EXECUTION_CRON_SECRET
 
 { "dryRun": false, "autoApprove": true, "notional": 100 }
 ```
+
+Cron-compatible GET route:
+
+```bash
+GET /api/execution/auto-paper-cron?notional=100&maxOrders=3
+Authorization: Bearer $EXECUTION_CRON_SECRET
+```
+
+Do not add this to Vercel Cron until you are comfortable with the paper behavior. Hobby Vercel plans also limit cron frequency, so an external scheduler may be better for paper tests.
