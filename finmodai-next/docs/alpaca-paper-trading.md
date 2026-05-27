@@ -59,3 +59,37 @@ Authorization: Bearer $EXECUTION_CRON_SECRET
 
 { "dryRun": false, "notional": 100 }
 ```
+
+## PM Agent Auto-Approval
+
+The PM Agent can auto-approve paper-trade decisions before the paper auto-trader runs. This is still paper-only.
+
+```bash
+PM_AGENT_AUTO_APPROVAL_ENABLED=true
+PM_AGENT_AUTO_APPROVAL_MIN_CONFIDENCE=78
+PM_AGENT_AUTO_APPROVAL_MAX_APPROVALS=3
+```
+
+Preview approvals:
+
+```bash
+GET /api/pm/decisions/auto-approve
+```
+
+Approve qualifying paper decisions:
+
+```bash
+POST /api/pm/decisions/auto-approve
+Authorization: Bearer $EXECUTION_CRON_SECRET
+
+{ "dryRun": false }
+```
+
+Approve and execute paper decisions in one guarded call:
+
+```bash
+POST /api/execution/auto-paper
+Authorization: Bearer $EXECUTION_CRON_SECRET
+
+{ "dryRun": false, "autoApprove": true, "notional": 100 }
+```

@@ -2,6 +2,7 @@ import { listDecisions } from '@/lib/pm/decisions/decisionStore';
 import type { InvestmentDecision } from '@/lib/pm/types';
 import { isExecutableTradeAction, previewPaperExecution, submitApprovedPaperExecution } from '@/lib/execution/orders';
 import type { PaperExecutionResult, PaperOrderInput } from '@/lib/execution/types';
+import { autoApprovePaperDecisions, type AutoApprovalResult } from '@/lib/pm/decisions/autoApprove';
 
 const DEFAULT_AUTO_NOTIONAL = 100;
 const DEFAULT_MIN_CONFIDENCE = 65;
@@ -12,6 +13,8 @@ export type AutoPaperTraderInput = {
   notional?: number;
   minConfidence?: number;
   maxOrders?: number;
+  autoApprove?: boolean;
+  approvalMinConfidence?: number;
 };
 
 export type AutoPaperCandidate = {
@@ -30,6 +33,7 @@ export type AutoPaperTraderResult = {
   submitted: number;
   skipped: AutoPaperCandidate[];
   results: PaperExecutionResult[];
+  autoApproval?: AutoApprovalResult;
 };
 
 function envNumber(key: string, fallback: number): number {
@@ -63,6 +67,14 @@ export async function runAutoPaperTrader(input: AutoPaperTraderInput): Promise<A
   const minConfidence = input.minConfidence ?? envNumber('ALPACA_AUTO_PAPER_MIN_CONFIDENCE', DEFAULT_MIN_CONFIDENCE);
   const maxOrders = Math.max(1, Math.min(10, input.maxOrders ?? envNumber('ALPACA_AUTO_PAPER_MAX_ORDERS', DEFAULT_MAX_ORDERS)));
   const enabled = autoEnabled();
+  const autoApproval = input.autoApprove
+    ? await autoApprovePaperDecisions({
+      dryRun: input.dryRun,
+      minConfidence: input.approvalMinConfidence,
+      maxApprovals: maxOrders,
+      approvedBy: 'pm_agent',
+    })
+    : undefined;
   const decisions = await listDecisions({ limit: 500 });
   const skipped: AutoPaperCandidate[] = [];
   const eligible: AutoPaperCandidate[] = [];
@@ -113,5 +125,6 @@ export async function runAutoPaperTrader(input: AutoPaperTraderInput): Promise<A
     submitted: results.length,
     skipped,
     results,
+    autoApproval,
   };
 }
