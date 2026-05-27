@@ -32,3 +32,30 @@ EXECUTION_MAX_ORDER_QTY=1000
 - Approval required before submission.
 - Stale approvals and duplicate executions are blocked.
 - `hold`, `watch`, and `short` decisions are not executable.
+
+## Auto Paper Mode
+
+Auto paper mode submits only PM-approved, unexecuted, executable decisions. It never approves decisions and never uses a live trading endpoint.
+
+```bash
+ALPACA_AUTO_PAPER_ENABLED=true
+ALPACA_AUTO_PAPER_NOTIONAL=100
+ALPACA_AUTO_PAPER_MIN_CONFIDENCE=65
+ALPACA_AUTO_PAPER_MAX_ORDERS=3
+EXECUTION_CRON_SECRET=...
+```
+
+Preview:
+
+```bash
+GET /api/execution/auto-paper
+```
+
+Submit approved paper orders:
+
+```bash
+POST /api/execution/auto-paper
+Authorization: Bearer $EXECUTION_CRON_SECRET
+
+{ "dryRun": false, "notional": 100 }
+```

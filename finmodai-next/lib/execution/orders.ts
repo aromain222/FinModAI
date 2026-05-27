@@ -22,6 +22,10 @@ function sideFromAction(action: TradeAction): AlpacaOrderSide | null {
   return null;
 }
 
+export function isExecutableTradeAction(action: TradeAction): boolean {
+  return sideFromAction(action) != null;
+}
+
 function formatDecimal(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
 }
