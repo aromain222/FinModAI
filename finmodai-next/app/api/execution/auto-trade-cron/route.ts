@@ -1,5 +1,6 @@
 /**
  * GET /api/execution/auto-trade-cron
+ * v2
  *
  * Full auto-trade loop:
  *   1. Score the watchlist via the ranking engine
