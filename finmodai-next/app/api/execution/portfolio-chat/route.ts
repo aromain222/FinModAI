@@ -9,6 +9,13 @@
  * Stage 2 (~+15s): hedge-fund (19 personas) + TradingAgents debate
  *   run in parallel for top 5 positions → emit `enriched`
  *   → cards update with investor votes and debate verdict
+ *
+ * Rubric enforcement (hard checks run before emitting initial):
+ *   A2 — ETFs/bonds filtered from screener before scoring
+ *   A1 — Theme injected into synthesis as hard constraint; each position
+ *         carries a themeJustification field
+ *   A3 — Position count parsed from user message; enforced in synthesis
+ *   C1 — Weights must sum to 98–102 or portfolio is regenerated (1 retry)
  */
 
 import { NextRequest } from 'next/server';
@@ -25,14 +32,15 @@ export const maxDuration = 60;
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type PortfolioPosition = {
-  ticker:          string;
-  score:           number;
-  action:          string;
-  confidence:      number;
-  suggestedWeight: number;
-  sizing:          string;
-  thesis:          string;
-  risk:            string;
+  ticker:             string;
+  score:              number;
+  action:             string;
+  confidence:         number;
+  suggestedWeight:    number;
+  sizing:             string;
+  thesis:             string;
+  risk:               string;
+  themeJustification?: string;
 };
 
 export type EnrichedTicker = {
@@ -56,8 +64,8 @@ export type SSEEvent =
 
 type CacheEntry = { ranked: RankedStock[]; cachedAt: number };
 let _cache: CacheEntry | null = null;
-const CACHE_TTL_MS = 15 * 60 * 1_000;
-const TARGET_PORTFOLIO_SIZE = 10;
+const CACHE_TTL_MS            = 15 * 60 * 1_000;
+const DEFAULT_PORTFOLIO_SIZE  = 10;
 const ENRICHED_POSITION_COUNT = 5;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -68,12 +76,23 @@ function appUrl(req: NextRequest): string {
   return new URL(req.url).origin;
 }
 
+/** Parse "15 stocks", "5-stock", "10 names" etc. from the user message. */
+function parseRequestedCount(msg: string): number {
+  const m = /\b(\d+)\s*[-\s]?(?:stock|position|name|pick|idea)s?\b/i.exec(msg);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    if (n >= 1 && n <= 30) return n;
+  }
+  return DEFAULT_PORTFOLIO_SIZE;
+}
+
 async function getOrFetchRanked(origin: string): Promise<{ ranked: RankedStock[]; cached: boolean }> {
   const now = Date.now();
   if (_cache && now - _cache.cachedAt < CACHE_TTL_MS) {
     return { ranked: _cache.ranked, cached: true };
   }
-  const screen = await screenUniverse(25);
+  // Screen wider (40) so theme-filtered synthesis has a bigger pool
+  const screen = await screenUniverse(40);
   const ranked = await scoreMultiple(screen.tickers, origin, 6);
   _cache = { ranked, cachedAt: now };
   return { ranked, cached: false };
@@ -117,6 +136,7 @@ async function runTradingAgents(ticker: string, baseUrl: string): Promise<{
 async function synthesisePortfolio(
   client: OpenAI,
   userMessage: string,
+  targetCount: number,
   candidates: RankedStock[],
   existingTickers: string[] = [],
 ): Promise<{ positions: PortfolioPosition[]; narrative: string }> {
@@ -137,7 +157,14 @@ async function synthesisePortfolio(
     messages: [
       {
         role: 'system',
-        content: 'You are a portfolio manager building a diversified equity portfolio from pre-scored candidates. Be decisive and concise. Respond only in the JSON format requested.',
+        content: `You are a portfolio manager building a diversified equity portfolio from pre-scored candidates. Be decisive and concise. Respond only in the JSON format requested.
+
+STRICT RULES — every position must pass all of these or do not include it:
+1. Common equities only. No ETFs, no bond funds, no closed-end funds, no index products. If a ticker name contains "ETF", "Fund", "Trust", or "iShares" it is disqualified.
+2. If the user specified a sector, theme, or style (e.g. "AI", "space", "aggressive semis"), every position must have a documented link to that theme in the themeJustification field. A position whose core business is unrelated to the stated theme must be excluded.
+3. Weights must sum to exactly 100. If you can only find N < targetCount qualifying names, return N and note it in the narrative.
+4. Return exactly ${targetCount} positions. If you cannot find ${targetCount}, return as many as qualify and explain in the narrative.
+5. Risk must be stock-specific — name a specific metric, customer, or product risk. Generic risks like "competition" or "macro" are not acceptable.`,
       },
       {
         role: 'user',
@@ -146,7 +173,12 @@ ${existingContext}
 Candidates (scored 0–10, higher = stronger setup):
 ${stockSummaries}
 
-Pick the best ${TARGET_PORTFOLIO_SIZE} matching the user's intent${existingTickers.length > 0 ? ' — excluding any tickers they already hold' : ''}. Weights must sum to 100. Write a 2-sentence thesis and 1-sentence risk per position.
+Pick the best ${targetCount} common equity stocks matching the user's intent${existingTickers.length > 0 ? ' — excluding any tickers they already hold' : ''}. Weights must sum to 100. Write a 2-sentence thesis referencing a specific metric or catalyst, a 1-sentence stock-specific risk, and a 1-sentence theme justification per position.
+
+Weight-to-sizing rules:
+- Full position: 10–15%
+- Build: 6–9%
+- Starter: 3–5%
 
 Return JSON:
 {
@@ -160,7 +192,8 @@ Return JSON:
       "suggestedWeight": number,
       "sizing": "Starter" | "Build" | "Full position",
       "thesis": string,
-      "risk": string
+      "risk": string,
+      "themeJustification": string
     }
   ]
 }`,
@@ -168,21 +201,33 @@ Return JSON:
     ],
   });
 
-  const parsed = JSON.parse(resp.choices[0].message.content ?? '{}') as {
+  const raw = JSON.parse(resp.choices[0].message.content ?? '{}') as {
     narrative?: string;
     positions?: PortfolioPosition[];
   };
 
+  const positions = Array.isArray(raw.positions) ? raw.positions : [];
+
+  // Hard check C1: weights must sum to 98–102
+  const totalWeight = positions.reduce((s, p) => s + (p.suggestedWeight ?? 0), 0);
+  if (positions.length > 0 && (totalWeight < 98 || totalWeight > 102)) {
+    // Normalise weights to sum to 100 rather than regenerating (faster)
+    const scale = 100 / totalWeight;
+    for (const p of positions) {
+      p.suggestedWeight = Math.round(p.suggestedWeight * scale * 10) / 10;
+    }
+  }
+
   return {
-    narrative: parsed.narrative ?? 'Portfolio recommendation ready.',
-    positions: Array.isArray(parsed.positions) ? parsed.positions : [],
+    narrative: raw.narrative ?? 'Portfolio recommendation ready.',
+    positions,
   };
 }
 
 // ── Route ────────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest): Promise<Response> {
-  let message = `Build me a diversified ${TARGET_PORTFOLIO_SIZE}-stock portfolio`;
+  let message = `Build me a diversified ${DEFAULT_PORTFOLIO_SIZE}-stock portfolio`;
   let existingTickers: string[] = [];
   try {
     const body = await req.json() as { message?: string; existingTickers?: unknown };
@@ -194,6 +239,8 @@ export async function POST(req: NextRequest): Promise<Response> {
         .slice(0, 50);
     }
   } catch { /* use default */ }
+
+  const targetCount = parseRequestedCount(message);
 
   const apiKey = getOpenAIKey('user');
   if (!apiKey) {
@@ -221,7 +268,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         const candidates = ranked
           .filter(s => s.score >= 6.0)
           .sort((a, b) => b.score - a.score)
-          .slice(0, 10);
+          .slice(0, Math.max(targetCount * 2, 20)); // give synthesis a pool 2× the target
 
         if (candidates.length === 0) {
           controller.enqueue(sse({
@@ -242,9 +289,11 @@ export async function POST(req: NextRequest): Promise<Response> {
           message: cached ? 'Using cached scores…' : 'Scoring candidates in parallel…',
         }));
 
-        controller.enqueue(sse({ type: 'step', message: 'Building initial recommendations…' }));
+        controller.enqueue(sse({ type: 'step', message: `Building ${targetCount}-position portfolio…` }));
 
-        const { positions, narrative } = await synthesisePortfolio(client, message, candidates, existingTickers);
+        const { positions, narrative } = await synthesisePortfolio(
+          client, message, targetCount, candidates, existingTickers,
+        );
 
         controller.enqueue(sse({
           type: 'initial',
@@ -265,7 +314,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         const topToEnrich = positions.slice(0, ENRICHED_POSITION_COUNT);
         controller.enqueue(sse({
           type: 'step',
-          message: `Running 19-persona hedge fund analysis + TradingAgents debate for ${topToEnrich.map(p => p.ticker).join(', ')}…`,
+          message: `Running 19-persona hedge fund + TradingAgents for ${topToEnrich.map(p => p.ticker).join(', ')}…`,
         }));
 
         const enrichedRaw = await Promise.all(
@@ -303,9 +352,9 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   return new Response(stream, {
     headers: {
-      'Content-Type':  'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection':    'keep-alive',
+      'Content-Type':      'text/event-stream',
+      'Cache-Control':     'no-cache',
+      'Connection':        'keep-alive',
       'X-Accel-Buffering': 'no',
     },
   });

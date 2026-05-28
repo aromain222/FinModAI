@@ -9,6 +9,7 @@
  * Filter criteria (proxy for established, liquid equities):
  *   - tradable, fractionable, marginable (Alpaca flags for large/mid-caps)
  *   - symbol is simple: letters only, 1–5 chars (no warrants, preferreds, ETNs)
+ *   - asset name does not indicate an ETF, bond fund, or index product
  *   - latest price ≥ $5 (exclude micro-caps / penny stocks)
  *   - 30-day avg daily volume ≥ 500 000 shares
  *
@@ -30,8 +31,17 @@ const SNAPSHOT_BATCH = 1_000;
 const MIN_PRICE      = 5;
 const MIN_AVG_VOLUME = 500_000;
 
+// Name-based blocklist — any asset whose name contains one of these terms
+// is a fund/ETF/note, not a common equity.
+const FUND_NAME_KEYWORDS = [
+  'ETF', 'FUND', 'TRUST', 'ISHARES', 'SPDR', 'VANGUARD', 'INVESCO',
+  'PROSHARES', 'DIREXION', 'WISDOMTREE', 'VANECK', 'FIRST TRUST',
+  'GLOBAL X', 'ARK ', 'INDEX', 'NOTES', 'BOND', 'TREASURY',
+];
+
 type AlpacaAsset = {
   symbol: string;
+  name: string;
   tradable: boolean;
   fractionable: boolean;
   marginable: boolean;
@@ -67,18 +77,25 @@ async function fetchAllAssets(): Promise<AlpacaAsset[]> {
   return res.json() as Promise<AlpacaAsset[]>;
 }
 
+function isETFOrFund(name: string): boolean {
+  const upper = name.toUpperCase();
+  return FUND_NAME_KEYWORDS.some(kw => upper.includes(kw));
+}
+
 function isQualifiedAsset(a: AlpacaAsset): boolean {
   if (!a.tradable || !a.fractionable || !a.marginable) return false;
   if (a.status !== 'active') return false;
   // Simple ticker: A-Z only, 1–5 chars (excludes ETNs like UVXY, warrants like X.WS, etc.)
-  return /^[A-Z]{1,5}$/.test(a.symbol);
+  if (!/^[A-Z]{1,5}$/.test(a.symbol)) return false;
+  // Reject ETFs, bond funds, index products by asset name
+  if (a.name && isETFOrFund(a.name)) return false;
+  return true;
 }
 
 async function fetchSnapshots(symbols: string[]): Promise<Record<string, AlpacaSnapshot>> {
   const creds = alpacaPaperCredentials();
   if (!creds.configured) return {};
 
-  // Use market data base URL (not paper) for snapshots
   const dataUrl = 'https://data.alpaca.markets';
   const results: Record<string, AlpacaSnapshot> = {};
 
@@ -103,6 +120,7 @@ async function fetchSnapshots(symbols: string[]): Promise<Record<string, AlpacaS
 
 export type ScreenerResult = {
   tickers: string[];
+  names: Record<string, string>;
   source: 'alpaca' | 'fallback';
   total: number;
   filtered: number;
@@ -112,12 +130,14 @@ export async function screenUniverse(maxTickers = 75): Promise<ScreenerResult> {
   try {
     const assets = await fetchAllAssets();
     if (assets.length === 0) {
-      return { tickers: DEFAULT_WATCHLIST, source: 'fallback', total: 0, filtered: 0 };
+      return { tickers: DEFAULT_WATCHLIST, names: {}, source: 'fallback', total: 0, filtered: 0 };
     }
 
-    const qualified = assets.filter(isQualifiedAsset).map(a => a.symbol);
+    const qualifiedAssets = assets.filter(isQualifiedAsset);
+    const qualified = qualifiedAssets.map(a => a.symbol);
+    const nameMap: Record<string, string> = {};
+    for (const a of qualifiedAssets) nameMap[a.symbol] = a.name ?? a.symbol;
 
-    // Fetch snapshots for all qualified tickers in batches
     const snapshots = await fetchSnapshots(qualified);
 
     type Ranked = { symbol: string; price: number; volume: number };
@@ -132,16 +152,17 @@ export async function screenUniverse(maxTickers = 75): Promise<ScreenerResult> {
       ranked.push({ symbol, price, volume });
     }
 
-    // Sort by daily volume descending, take top N
     ranked.sort((a, b) => b.volume - a.volume);
     const tickers = ranked.slice(0, maxTickers).map(r => r.symbol);
+    const names: Record<string, string> = {};
+    for (const t of tickers) names[t] = nameMap[t] ?? t;
 
     if (tickers.length === 0) {
-      return { tickers: DEFAULT_WATCHLIST, source: 'fallback', total: assets.length, filtered: 0 };
+      return { tickers: DEFAULT_WATCHLIST, names: {}, source: 'fallback', total: assets.length, filtered: 0 };
     }
 
-    return { tickers, source: 'alpaca', total: assets.length, filtered: ranked.length };
+    return { tickers, names, source: 'alpaca', total: assets.length, filtered: ranked.length };
   } catch {
-    return { tickers: DEFAULT_WATCHLIST, source: 'fallback', total: 0, filtered: 0 };
+    return { tickers: DEFAULT_WATCHLIST, names: {}, source: 'fallback', total: 0, filtered: 0 };
   }
 }
