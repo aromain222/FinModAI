@@ -1,17 +1,17 @@
 /**
- * POST /api/execution/portfolio-chat
+ * POST /api/execution/portfolio-chat — SSE streaming
  *
- * Fast multi-agent portfolio builder (~10s cold, ~3s warm):
- *   1. Screen live universe (top 25 by volume) — cached 15 min
- *   2. Score all 25 in parallel via ranking engine — cached 15 min
- *   3. OpenAI gpt-4o-mini synthesises portfolio from scored data
+ * Two-stage pipeline so the user sees cards fast then agents fill in:
  *
- * Hedge-fund consensus (slow 19-persona step) is intentionally excluded
- * from this path — scores already incorporate news, technicals, fundamentals
- * and catalysts. Use InvestmentChat for per-ticker deep analysis.
+ * Stage 1 (~10–13s): screen → score → synthesise → emit `initial`
+ *   → position cards appear immediately
+ *
+ * Stage 2 (~+15s): hedge-fund (19 personas) + TradingAgents debate
+ *   run in parallel for top 3 positions → emit `enriched`
+ *   → cards update with investor votes and debate verdict
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
 import { getOpenAIKey } from '@/lib/openaiKey';
 import { screenUniverse } from '@/lib/execution/universalScreener';
@@ -20,12 +20,9 @@ import type { RankedStock } from '@/lib/ranking/types';
 
 export const dynamic     = 'force-dynamic';
 export const runtime     = 'nodejs';
-export const maxDuration = 30;
+export const maxDuration = 60;
 
-// ── In-memory cache (lives in the function instance, resets on cold start) ──
-type CacheEntry = { ranked: RankedStock[]; cachedAt: number };
-let _cache: CacheEntry | null = null;
-const CACHE_TTL_MS = 15 * 60 * 1_000; // 15 minutes
+// ── Types ────────────────────────────────────────────────────────────────────
 
 export type PortfolioPosition = {
   ticker:          string;
@@ -38,13 +35,30 @@ export type PortfolioPosition = {
   risk:            string;
 };
 
-export type PortfolioChatResponse = {
-  positions:     PortfolioPosition[];
-  narrative:     string;
-  positionCount: number;
-  scoredAt:      string;
-  cached:        boolean;
+export type EnrichedTicker = {
+  ticker:              string;
+  bullishCount:        number;
+  bearishCount:        number;
+  totalPersonas:       number;
+  tradingDecision:     string;
+  tradingThesis:       string;
+  tradingTimeHorizon:  string;
 };
+
+export type SSEEvent =
+  | { type: 'step';     message: string }
+  | { type: 'initial';  positions: PortfolioPosition[]; narrative: string; positionCount: number; scoredAt: string; cached: boolean }
+  | { type: 'enriched'; items: EnrichedTicker[] }
+  | { type: 'error';    message: string }
+  | { type: 'done' };
+
+// ── In-memory cache (function-instance lifetime, reset on cold start) ────────
+
+type CacheEntry = { ranked: RankedStock[]; cachedAt: number };
+let _cache: CacheEntry | null = null;
+const CACHE_TTL_MS = 15 * 60 * 1_000;
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function appUrl(req: NextRequest): string {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_URL;
@@ -63,6 +77,41 @@ async function getOrFetchRanked(origin: string): Promise<{ ranked: RankedStock[]
   return { ranked, cached: false };
 }
 
+async function runHedgeFund(ticker: string, baseUrl: string): Promise<{
+  consensus: { bullish: number; bearish: number; neutral: number };
+} | null> {
+  try {
+    const res = await fetch(`${baseUrl}/api/hedge-fund`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker }),
+      signal: AbortSignal.timeout(25_000),
+    });
+    if (!res.ok) return null;
+    return res.json() as Promise<{ consensus: { bullish: number; bearish: number; neutral: number } }>;
+  } catch { return null; }
+}
+
+async function runTradingAgents(ticker: string, baseUrl: string): Promise<{
+  decision: string; thesis: string; time_horizon: string;
+} | null> {
+  try {
+    const res = await fetch(`${baseUrl}/api/tradingagents`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker }),
+      signal: AbortSignal.timeout(25_000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as { decision?: string; thesis?: string; time_horizon?: string };
+    return {
+      decision:     data.decision     ?? 'Hold',
+      thesis:       data.thesis       ?? '',
+      time_horizon: data.time_horizon ?? '3–6 months',
+    };
+  } catch { return null; }
+}
+
 async function synthesisePortfolio(
   client: OpenAI,
   userMessage: string,
@@ -70,8 +119,8 @@ async function synthesisePortfolio(
 ): Promise<{ positions: PortfolioPosition[]; narrative: string }> {
   const stockSummaries = candidates.map(s => {
     const forecast = s.meta.forecastReturnPct != null ? `, forecast=${s.meta.forecastReturnPct.toFixed(1)}%` : '';
-    const catalysts = s.meta.catalystCount > 0 ? `, ${s.meta.catalystCount} catalysts` : '';
-    return `${s.ticker}: score=${s.score}/10, sector=${s.meta.sector ?? 'N/A'}${forecast}${catalysts}. Reason: ${s.primaryReason}. Risk: ${s.mainRisk}`;
+    const cats     = s.meta.catalystCount > 0 ? `, ${s.meta.catalystCount} catalysts` : '';
+    return `${s.ticker}: score=${s.score}/10, sector=${s.meta.sector ?? 'N/A'}${forecast}${cats}. Reason: ${s.primaryReason}. Risk: ${s.mainRisk}`;
   }).join('\n');
 
   const resp = await client.chat.completions.create({
@@ -87,10 +136,10 @@ async function synthesisePortfolio(
         role: 'user',
         content: `User request: "${userMessage}"
 
-Candidates (already screened and scored 0–10):
+Candidates (scored 0–10, higher = stronger setup):
 ${stockSummaries}
 
-Pick the best 5 that match the user's intent. Weights must sum to 100. Write a 2-sentence thesis and 1-sentence risk per position.
+Pick the best 5 matching the user's intent. Weights must sum to 100. Write a 2-sentence thesis and 1-sentence risk per position.
 
 Return JSON:
 {
@@ -123,7 +172,9 @@ Return JSON:
   };
 }
 
-export async function POST(req: NextRequest): Promise<NextResponse> {
+// ── Route ────────────────────────────────────────────────────────────────────
+
+export async function POST(req: NextRequest): Promise<Response> {
   let message = 'Build me a diversified 5-stock portfolio';
   try {
     const body = await req.json() as { message?: string };
@@ -132,43 +183,116 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const apiKey = getOpenAIKey('user');
   if (!apiKey) {
-    return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 503 });
-  }
-  const client = new OpenAI({ apiKey });
-
-  try {
-    const origin = appUrl(req);
-    const { ranked, cached } = await getOrFetchRanked(origin);
-
-    const candidates = ranked
-      .filter(s => s.score >= 6.0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 10);
-
-    if (candidates.length === 0) {
-      return NextResponse.json({
-        positions: [],
-        narrative: 'No strong buy candidates right now (score < 6.0 across universe). Try again later.',
-        positionCount: 0,
-        scoredAt: new Date().toISOString(),
-        cached,
-      } satisfies PortfolioChatResponse);
-    }
-
-    const { positions, narrative } = await synthesisePortfolio(client, message, candidates);
-
-    return NextResponse.json({
-      positions,
-      narrative,
-      positionCount: positions.length,
-      scoredAt:      new Date().toISOString(),
-      cached,
-    } satisfies PortfolioChatResponse);
-
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Portfolio generation failed' },
-      { status: 500 },
+    return new Response(
+      `event: error\ndata: ${JSON.stringify({ message: 'OpenAI API key not configured' })}\n\n`,
+      { headers: { 'Content-Type': 'text/event-stream' } },
     );
   }
+
+  const client = new OpenAI({ apiKey });
+  const origin = appUrl(req);
+  const enc    = new TextEncoder();
+
+  function sse(event: SSEEvent): Uint8Array {
+    return enc.encode(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+  }
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        // ── Stage 1: Screen + score + synthesise ──────────────────────────
+        controller.enqueue(sse({ type: 'step', message: 'Screening live stock universe…' }));
+
+        const { ranked, cached } = await getOrFetchRanked(origin);
+        const candidates = ranked
+          .filter(s => s.score >= 6.0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 10);
+
+        if (candidates.length === 0) {
+          controller.enqueue(sse({
+            type: 'initial',
+            positions: [],
+            narrative: 'No strong buy candidates right now (score < 6.0 across universe). Try again later.',
+            positionCount: 0,
+            scoredAt: new Date().toISOString(),
+            cached,
+          }));
+          controller.enqueue(sse({ type: 'done' }));
+          controller.close();
+          return;
+        }
+
+        controller.enqueue(sse({
+          type: 'step',
+          message: cached ? 'Using cached scores…' : 'Scoring candidates in parallel…',
+        }));
+
+        controller.enqueue(sse({ type: 'step', message: 'Building initial recommendations…' }));
+
+        const { positions, narrative } = await synthesisePortfolio(client, message, candidates);
+
+        controller.enqueue(sse({
+          type: 'initial',
+          positions,
+          narrative,
+          positionCount: positions.length,
+          scoredAt: new Date().toISOString(),
+          cached,
+        }));
+
+        if (positions.length === 0) {
+          controller.enqueue(sse({ type: 'done' }));
+          controller.close();
+          return;
+        }
+
+        // ── Stage 2: Enrich top 3 with hedge-fund + TradingAgents ─────────
+        const top3 = positions.slice(0, 3);
+        controller.enqueue(sse({
+          type: 'step',
+          message: `Running 19-persona hedge fund analysis + TradingAgents debate for ${top3.map(p => p.ticker).join(', ')}…`,
+        }));
+
+        const enrichedRaw = await Promise.all(
+          top3.map(async pos => {
+            const [hfRes, taRes] = await Promise.allSettled([
+              runHedgeFund(pos.ticker, origin),
+              runTradingAgents(pos.ticker, origin),
+            ]);
+            const hf = hfRes.status === 'fulfilled' ? hfRes.value : null;
+            const ta = taRes.status === 'fulfilled' ? taRes.value : null;
+            return { ticker: pos.ticker, hf, ta };
+          }),
+        );
+
+        const items: EnrichedTicker[] = enrichedRaw.map(r => ({
+          ticker:              r.ticker,
+          bullishCount:        r.hf?.consensus.bullish ?? 0,
+          bearishCount:        r.hf?.consensus.bearish ?? 0,
+          totalPersonas:       r.hf ? r.hf.consensus.bullish + r.hf.consensus.bearish + r.hf.consensus.neutral : 0,
+          tradingDecision:     r.ta?.decision     ?? '',
+          tradingThesis:       r.ta?.thesis       ?? '',
+          tradingTimeHorizon:  r.ta?.time_horizon ?? '',
+        }));
+
+        controller.enqueue(sse({ type: 'enriched', items }));
+        controller.enqueue(sse({ type: 'done' }));
+
+      } catch (err) {
+        controller.enqueue(sse({ type: 'error', message: err instanceof Error ? err.message : 'Portfolio generation failed' }));
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type':  'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection':    'keep-alive',
+      'X-Accel-Buffering': 'no',
+    },
+  });
 }

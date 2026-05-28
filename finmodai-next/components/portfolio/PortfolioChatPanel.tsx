@@ -2,27 +2,32 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Send, AlertCircle } from 'lucide-react';
-import type { PortfolioChatResponse, PortfolioPosition } from '@/app/api/execution/portfolio-chat/route';
+import type { PortfolioPosition, EnrichedTicker, SSEEvent } from '@/app/api/execution/portfolio-chat/route';
 
 interface PortfolioChatPanelProps {
   onAdd: (ticker: string) => void;
 }
 
-type MessageRole = 'user' | 'assistant' | 'error';
-
-interface Message {
-  id:      string;
-  role:    MessageRole;
-  text?:   string;
-  result?: PortfolioChatResponse;
+interface InitialResult {
+  positions:     PortfolioPosition[];
+  narrative:     string;
+  positionCount: number;
+  scoredAt:      string;
+  cached:        boolean;
 }
 
-const PROGRESS_STEPS = [
-  'Screening live stock universe…',
-  'Scoring candidates in parallel…',
-  'Building portfolio recommendation…',
-];
-const STEP_DELAYS_MS = [0, 4_000, 9_000];
+interface AssistantMessage {
+  id:             string;
+  role:           'assistant';
+  result:         InitialResult;
+  enriched:       Record<string, EnrichedTicker>;
+  enrichingDone:  boolean;
+}
+
+interface UserMessage   { id: string; role: 'user';  text: string }
+interface ErrorMessage  { id: string; role: 'error'; text: string }
+
+type Message = UserMessage | ErrorMessage | AssistantMessage;
 
 const EXAMPLE_PROMPTS = [
   'Build me a 5-stock portfolio, tech-focused',
@@ -32,10 +37,9 @@ const EXAMPLE_PROMPTS = [
 ];
 
 function ScoreBadge({ score }: { score: number }) {
-  const cls =
-    score >= 7.0
-      ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20'
-      : 'bg-amber-500/15 text-amber-400 border-amber-500/20';
+  const cls = score >= 7.0
+    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20'
+    : 'bg-amber-500/15 text-amber-400 border-amber-500/20';
   return (
     <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-semibold tabular-nums ${cls}`}>
       {score.toFixed(1)}
@@ -43,11 +47,22 @@ function ScoreBadge({ score }: { score: number }) {
   );
 }
 
-function PositionCard({ pos, onAdd }: { pos: PortfolioPosition; onAdd: (ticker: string) => void }) {
+function PositionCard({
+  pos, index, enriched, enrichingDone, onAdd,
+}: {
+  pos:           PortfolioPosition;
+  index:         number;
+  enriched?:     EnrichedTicker;
+  enrichingDone: boolean;
+  onAdd:         (ticker: string) => void;
+}) {
+  const isEnriching = index < 3 && !enrichingDone && !enriched;
+
   return (
     <div className="rounded-xl border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-3 py-2.5">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 space-y-1">
+          {/* Header row */}
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-[var(--cb-text-primary)]">{pos.ticker}</span>
             <ScoreBadge score={pos.score} />
@@ -55,11 +70,45 @@ function PositionCard({ pos, onAdd }: { pos: PortfolioPosition; onAdd: (ticker: 
             <span className="text-xs text-[var(--cb-text-muted)]">· {pos.suggestedWeight}%</span>
             <span className="text-xs text-[var(--cb-text-muted)]">· {pos.sizing}</span>
           </div>
-          <p className="mt-1 text-xs text-[var(--cb-text-secondary)]">{pos.thesis}</p>
-          <p className="mt-0.5 text-xs text-[var(--cb-text-muted)]">
+
+          {/* Thesis + risk */}
+          <p className="text-xs text-[var(--cb-text-secondary)]">{pos.thesis}</p>
+          <p className="text-xs text-[var(--cb-text-muted)]">
             <span className="mr-1 text-amber-400/70">Risk:</span>{pos.risk}
           </p>
+
+          {/* Enriched agent data */}
+          {enriched && (
+            <div className="mt-1.5 flex flex-wrap gap-3 border-t border-[var(--cb-border)] pt-1.5">
+              {enriched.totalPersonas > 0 && (
+                <span className="text-xs text-[var(--cb-text-muted)]">
+                  <span className="mr-1 text-emerald-400/80">{enriched.bullishCount}/{enriched.totalPersonas}</span>
+                  investors bullish
+                </span>
+              )}
+              {enriched.tradingDecision && (
+                <span className="text-xs text-[var(--cb-text-muted)]">
+                  <span className="mr-1 text-[var(--cb-text-secondary)]">Verdict:</span>
+                  {enriched.tradingDecision}
+                  {enriched.tradingTimeHorizon && ` · ${enriched.tradingTimeHorizon}`}
+                </span>
+              )}
+              {enriched.tradingThesis && (
+                <p className="w-full text-xs text-[var(--cb-text-muted)] italic">{enriched.tradingThesis}</p>
+              )}
+            </div>
+          )}
+
+          {/* Loading enrichment */}
+          {isEnriching && (
+            <div className="mt-1.5 flex items-center gap-1.5 border-t border-[var(--cb-border)] pt-1.5">
+              <span className="h-1 w-12 animate-pulse rounded bg-[var(--cb-border)]" />
+              <span className="h-1 w-20 animate-pulse rounded bg-[var(--cb-border)]" />
+              <span className="text-[10px] text-[var(--cb-text-muted)]">agent analysis running…</span>
+            </div>
+          )}
         </div>
+
         <button
           type="button"
           onClick={() => onAdd(pos.ticker)}
@@ -72,52 +121,39 @@ function PositionCard({ pos, onAdd }: { pos: PortfolioPosition; onAdd: (ticker: 
   );
 }
 
-function ProgressIndicator() {
-  const [stepIndex, setStepIndex] = useState(0);
-
-  useEffect(() => {
-    const timers = STEP_DELAYS_MS.slice(1).map((delay, i) =>
-      window.setTimeout(() => setStepIndex(i + 1), delay),
-    );
-    return () => timers.forEach(clearTimeout);
-  }, []);
-
+function ProgressStep({ label, done }: { label: string; done: boolean }) {
   return (
-    <div className="space-y-1.5 py-1">
-      {PROGRESS_STEPS.map((step, i) => (
-        <div key={step} className="flex items-center gap-2">
-          {i < stepIndex ? (
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
-          ) : i === stepIndex ? (
-            <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-[var(--cb-text-muted)]" />
-          ) : (
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--cb-border)]" />
-          )}
-          <span className={`text-xs ${i <= stepIndex ? 'text-[var(--cb-text-secondary)]' : 'text-[var(--cb-text-muted)]'}`}>
-            {step}
-          </span>
-        </div>
-      ))}
+    <div className="flex items-center gap-2">
+      {done
+        ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+        : <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-[var(--cb-text-muted)]" />}
+      <span className={`text-xs ${done ? 'text-[var(--cb-text-secondary)]' : 'text-[var(--cb-text-muted)]'}`}>
+        {label}
+      </span>
     </div>
   );
 }
 
 export function PortfolioChatPanel({ onAdd }: PortfolioChatPanelProps) {
-  const [messages,   setMessages]   = useState<Message[]>([]);
-  const [input,      setInput]      = useState('');
-  const [loading,    setLoading]    = useState(false);
+  const [messages,     setMessages]     = useState<Message[]>([]);
+  const [input,        setInput]        = useState('');
+  const [loading,      setLoading]      = useState(false);
+  const [stepLog,      setStepLog]      = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
+  }, [messages, loading, stepLog]);
 
   async function send(text: string) {
     if (!text.trim() || loading) return;
-    const userMsg: Message = { id: crypto.randomUUID(), role: 'user', text };
-    setMessages(prev => [...prev, userMsg]);
+
+    setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text }]);
     setInput('');
     setLoading(true);
+    setStepLog([]);
+
+    const msgId = crypto.randomUUID();
 
     try {
       const res = await fetch('/api/execution/portfolio-chat', {
@@ -125,15 +161,84 @@ export function PortfolioChatPanel({ onAdd }: PortfolioChatPanelProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text }),
       });
-      const data = await res.json() as PortfolioChatResponse & { error?: string };
 
-      if (!res.ok || data.error) {
-        setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'error', text: data.error ?? 'Something went wrong.' }]);
-      } else {
-        setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', result: data }]);
+      if (!res.body) throw new Error('No response stream');
+
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer    = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Split on SSE event delimiter
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() ?? '';
+
+        for (const raw of parts) {
+          if (!raw.trim()) continue;
+          const typeMatch = raw.match(/^event: (.+)$/m);
+          const dataMatch = raw.match(/^data: (.+)$/ms);
+          if (!typeMatch || !dataMatch) continue;
+
+          let event: SSEEvent;
+          try {
+            event = JSON.parse(dataMatch[1]) as SSEEvent;
+            (event as { type: string }).type = typeMatch[1].trim();
+          } catch { continue; }
+
+          switch (event.type) {
+            case 'step':
+              setStepLog(prev => [...prev, event.message]);
+              break;
+
+            case 'initial': {
+              setLoading(false);
+              const initial: InitialResult = {
+                positions:     event.positions,
+                narrative:     event.narrative,
+                positionCount: event.positionCount,
+                scoredAt:      event.scoredAt,
+                cached:        event.cached,
+              };
+              setMessages(prev => [...prev, {
+                id: msgId, role: 'assistant', result: initial, enriched: {}, enrichingDone: false,
+              }]);
+              break;
+            }
+
+            case 'enriched': {
+              const map: Record<string, EnrichedTicker> = {};
+              for (const item of event.items) map[item.ticker] = item;
+              setMessages(prev => prev.map(m =>
+                m.id === msgId ? { ...m as AssistantMessage, enriched: map } as AssistantMessage : m,
+              ));
+              break;
+            }
+
+            case 'done':
+              setMessages(prev => prev.map(m =>
+                m.id === msgId ? { ...m as AssistantMessage, enrichingDone: true } as AssistantMessage : m,
+              ));
+              setStepLog([]);
+              break;
+
+            case 'error':
+              setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'error', text: event.message }]);
+              setLoading(false);
+              setStepLog([]);
+              break;
+          }
+        }
       }
     } catch (err) {
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'error', text: err instanceof Error ? err.message : 'Network error' }]);
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(), role: 'error',
+        text: err instanceof Error ? err.message : 'Network error',
+      }]);
     } finally {
       setLoading(false);
     }
@@ -148,12 +253,12 @@ export function PortfolioChatPanel({ onAdd }: PortfolioChatPanelProps) {
 
   return (
     <div className="flex flex-col rounded-2xl border border-[var(--cb-border)] bg-[var(--cb-surface)]">
-      {/* Message list */}
-      <div className="min-h-[200px] space-y-3 overflow-y-auto p-4">
+      {/* Messages */}
+      <div className="min-h-[220px] space-y-3 overflow-y-auto p-4">
         {messages.length === 0 && !loading && (
           <div>
             <p className="text-xs text-[var(--cb-text-muted)]">
-              Describe the portfolio you want — the agent will screen stocks, run 19-investor hedge fund analysis, and build a personalised recommendation.
+              Describe the portfolio you want. The agent screens stocks, then runs 19-investor hedge fund consensus and a TradingAgents debate on the top picks.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {EXAMPLE_PROMPTS.map(prompt => (
@@ -190,14 +295,29 @@ export function PortfolioChatPanel({ onAdd }: PortfolioChatPanelProps) {
             );
           }
 
-          if (msg.role === 'assistant' && msg.result) {
-            const { narrative, positions } = msg.result;
+          if (msg.role === 'assistant') {
+            const am = msg as AssistantMessage;
+            const { positions, narrative } = am.result;
             return (
               <div key={msg.id} className="space-y-2">
-                <p className="text-xs text-[var(--cb-text-secondary)]">{narrative}</p>
-                {positions.map(pos => (
-                  <PositionCard key={pos.ticker} pos={pos} onAdd={onAdd} />
+                {narrative && (
+                  <p className="text-xs text-[var(--cb-text-secondary)]">{narrative}</p>
+                )}
+                {positions.map((pos, i) => (
+                  <PositionCard
+                    key={pos.ticker}
+                    pos={pos}
+                    index={i}
+                    enriched={am.enriched[pos.ticker]}
+                    enrichingDone={am.enrichingDone}
+                    onAdd={onAdd}
+                  />
                 ))}
+                {!am.enrichingDone && positions.length > 0 && (
+                  <p className="text-[10px] text-[var(--cb-text-muted)]">
+                    Running 19-persona analysis + TradingAgents debate on top 3…
+                  </p>
+                )}
               </div>
             );
           }
@@ -205,16 +325,22 @@ export function PortfolioChatPanel({ onAdd }: PortfolioChatPanelProps) {
           return null;
         })}
 
+        {/* Loading / progress */}
         {loading && (
-          <div className="rounded-xl border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-3 py-2.5">
-            <ProgressIndicator />
+          <div className="rounded-xl border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-3 py-2.5 space-y-1.5">
+            {stepLog.map((step, i) => (
+              <ProgressStep key={i} label={step} done={i < stepLog.length - 1} />
+            ))}
+            {stepLog.length === 0 && (
+              <ProgressStep label="Connecting…" done={false} />
+            )}
           </div>
         )}
 
         <div ref={bottomRef} />
       </div>
 
-      {/* Input bar */}
+      {/* Input */}
       <div className="border-t border-[var(--cb-border)] p-3">
         <div className="flex items-end gap-2">
           <textarea
@@ -236,7 +362,9 @@ export function PortfolioChatPanel({ onAdd }: PortfolioChatPanelProps) {
             <Send size={14} />
           </button>
         </div>
-        <p className="mt-1.5 text-[10px] text-[var(--cb-text-muted)]">Enter to send · Shift+Enter for new line · ~10s first run, ~3s after</p>
+        <p className="mt-1.5 text-[10px] text-[var(--cb-text-muted)]">
+          Enter to send · cards appear in ~10s · full agent analysis fills in ~25s later
+        </p>
       </div>
     </div>
   );
