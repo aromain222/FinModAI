@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, Plus } from 'lucide-react';
 import { addPosition } from '@/lib/portfolio/storage';
 import type { ActivePosition } from '@/lib/portfolio/types';
@@ -8,6 +8,7 @@ import type { ActivePosition } from '@/lib/portfolio/types';
 interface AddPositionModalProps {
   open: boolean;
   onClose: () => void;
+  prefillTicker?: string;
 }
 
 interface FormState {
@@ -26,8 +27,14 @@ const DEFAULT_FORM: FormState = {
   submitToAlpaca: true,
 };
 
-export function AddPositionModal({ open, onClose }: AddPositionModalProps) {
+export function AddPositionModal({ open, onClose, prefillTicker }: AddPositionModalProps) {
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
+
+  useEffect(() => {
+    if (open && prefillTicker) {
+      setForm(prev => ({ ...prev, ticker: prefillTicker.toUpperCase() }));
+    }
+  }, [open, prefillTicker]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

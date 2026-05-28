@@ -16,19 +16,22 @@ import type { ActivePosition } from '@/lib/portfolio/types';
 import type { StockQuote } from '@/app/api/quotes/route';
 import type { ClassifiedNewsItem, NewsItem } from '@/lib/portfolio/newsClassify';
 import { classifyHeadline, sortByPriority } from '@/lib/portfolio/newsClassify';
-import { Plus } from 'lucide-react';
+import { Plus, Sparkles } from 'lucide-react';
 import { PositionCard } from './PositionCard';
 import { PortfolioAlerts } from './PortfolioAlerts';
 import { PortfolioRiskDashboard } from './PortfolioRiskDashboard';
 import { AddPositionModal } from './AddPositionModal';
+import { RecommendationsDrawer } from './RecommendationsDrawer';
 
 export function PortfolioPanel() {
   const [positions,  setPositions]  = useState<ActivePosition[]>([]);
   const [quotes,     setQuotes]     = useState<Map<string, StockQuote>>(new Map());
   const [newsMap,    setNewsMap]    = useState<Map<string, ClassifiedNewsItem[]>>(new Map());
   const [monitoring, setMonitoring] = useState<Set<string>>(new Set());
-  const [showExited, setShowExited] = useState(false);
-  const [showAdd,    setShowAdd]    = useState(false);
+  const [showExited,     setShowExited]     = useState(false);
+  const [showAdd,        setShowAdd]        = useState(false);
+  const [showRecs,       setShowRecs]       = useState(false);
+  const [prefillTicker,  setPrefillTicker]  = useState<string | undefined>();
   const autoMonitorRef = useRef<Set<string>>(new Set());
 
   // Sync from storage
@@ -177,7 +180,15 @@ export function PortfolioPanel() {
           )}
           <button
             type="button"
-            onClick={() => setShowAdd(true)}
+            onClick={() => setShowRecs(v => !v)}
+            className="cursor-pointer flex items-center gap-1 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-2.5 py-1.5 text-xs font-medium text-[var(--cb-text-primary)] hover:bg-[var(--cb-surface)]"
+          >
+            <Sparkles size={13} />
+            {showRecs ? 'Hide agent' : 'Build with agent'}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setPrefillTicker(undefined); setShowAdd(true); }}
             className="cursor-pointer flex items-center gap-1 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-2.5 py-1.5 text-xs font-medium text-[var(--cb-text-primary)] hover:bg-[var(--cb-surface)]"
           >
             <Plus size={13} />
@@ -188,6 +199,15 @@ export function PortfolioPanel() {
           </Button>
         </div>
       </div>
+
+      {showRecs && (
+        <RecommendationsDrawer
+          onAdd={ticker => {
+            setPrefillTicker(ticker);
+            setShowAdd(true);
+          }}
+        />
+      )}
 
       {visible.length === 0 ? (
         <div className="rounded-2xl border border-[var(--cb-border)] bg-[var(--cb-surface)] px-6 py-12 text-center">
@@ -213,7 +233,7 @@ export function PortfolioPanel() {
           ))}
         </div>
       )}
-      <AddPositionModal open={showAdd} onClose={() => setShowAdd(false)} />
+      <AddPositionModal open={showAdd} onClose={() => setShowAdd(false)} prefillTicker={prefillTicker} />
     </div>
   );
 }
