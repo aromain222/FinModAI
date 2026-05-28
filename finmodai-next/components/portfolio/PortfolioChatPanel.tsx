@@ -23,6 +23,8 @@ interface AssistantMessage {
   result:         InitialResult;
   enriched:       Record<string, EnrichedTicker>;
   enrichingDone:  boolean;
+  prices:         Record<string, number>;
+  budget:         number;
 }
 
 interface UserMessage   { id: string; role: 'user';  text: string }
@@ -49,15 +51,21 @@ function ScoreBadge({ score }: { score: number }) {
 }
 
 function PositionCard({
-  pos, index, enriched, enrichingDone, onAdd,
+  pos, index, enriched, enrichingDone, price, budget, onAdd,
 }: {
   pos:           PortfolioPosition;
   index:         number;
   enriched?:     EnrichedTicker;
   enrichingDone: boolean;
+  price?:        number;
+  budget:        number;
   onAdd:         (ticker: string) => void;
 }) {
   const isEnriching = index < 3 && !enrichingDone && !enriched;
+  const shares = (price && budget > 0)
+    ? Math.floor((budget * pos.suggestedWeight / 100) / price)
+    : null;
+  const estCost = (shares && price) ? (shares * price) : null;
 
   return (
     <div className="rounded-xl border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-3 py-2.5">
@@ -70,6 +78,16 @@ function PositionCard({
             <span className="text-xs text-[var(--cb-text-muted)]">{pos.action}</span>
             <span className="text-xs text-[var(--cb-text-muted)]">· {pos.suggestedWeight}%</span>
             <span className="text-xs text-[var(--cb-text-muted)]">· {pos.sizing}</span>
+            {shares != null && (
+              <span className="text-xs font-medium text-[var(--cb-text-primary)]">
+                · {shares} shares
+                {estCost != null && (
+                  <span className="ml-1 font-normal text-[var(--cb-text-muted)]">
+                    (${estCost.toLocaleString('en-US', { maximumFractionDigits: 0 })})
+                  </span>
+                )}
+              </span>
+            )}
           </div>
 
           {/* Thesis + risk */}
@@ -140,6 +158,7 @@ export function PortfolioChatPanel({ onAdd }: PortfolioChatPanelProps) {
   const [input,        setInput]        = useState('');
   const [loading,      setLoading]      = useState(false);
   const [stepLog,      setStepLog]      = useState<string[]>([]);
+  const [budget,       setBudget]       = useState('10000');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -209,9 +228,27 @@ export function PortfolioChatPanel({ onAdd }: PortfolioChatPanelProps) {
                 scoredAt:      event.scoredAt,
                 cached:        event.cached,
               };
+              const budgetNum = Math.max(0, parseFloat(budget) || 0);
               setMessages(prev => [...prev, {
-                id: msgId, role: 'assistant', result: initial, enriched: {}, enrichingDone: false,
+                id: msgId, role: 'assistant', result: initial, enriched: {}, enrichingDone: false, prices: {}, budget: budgetNum,
               }]);
+              // Fetch live prices in the background — doesn't block card rendering
+              const tickers = event.positions.map((p: PortfolioPosition) => p.ticker);
+              if (tickers.length > 0) {
+                fetch(`/api/quotes?symbols=${encodeURIComponent(tickers.join(','))}`)
+                  .then(r => r.ok ? r.json() : null)
+                  .then((data: { quotes?: Array<{ ticker: string; price: number | null }> } | null) => {
+                    if (!data?.quotes) return;
+                    const priceMap: Record<string, number> = {};
+                    for (const q of data.quotes) {
+                      if (q.price != null) priceMap[q.ticker] = q.price;
+                    }
+                    setMessages(prev => prev.map(m =>
+                      m.id === msgId ? { ...m as AssistantMessage, prices: priceMap } as AssistantMessage : m,
+                    ));
+                  })
+                  .catch(() => {/* prices optional */});
+              }
               break;
             }
 
@@ -315,6 +352,8 @@ export function PortfolioChatPanel({ onAdd }: PortfolioChatPanelProps) {
                     index={i}
                     enriched={am.enriched[pos.ticker]}
                     enrichingDone={am.enrichingDone}
+                    price={am.prices[pos.ticker]}
+                    budget={am.budget}
                     onAdd={onAdd}
                   />
                 ))}
@@ -347,6 +386,23 @@ export function PortfolioChatPanel({ onAdd }: PortfolioChatPanelProps) {
 
       {/* Input */}
       <div className="border-t border-[var(--cb-border)] p-3">
+        {/* Budget row */}
+        <div className="mb-2 flex items-center gap-2">
+          <span className="text-xs text-[var(--cb-text-muted)]">Budget</span>
+          <div className="flex items-center rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-2 py-1">
+            <span className="text-xs text-[var(--cb-text-muted)]">$</span>
+            <input
+              type="number"
+              value={budget}
+              onChange={e => setBudget(e.target.value)}
+              min="0"
+              step="1000"
+              className="w-24 bg-transparent text-xs text-[var(--cb-text-primary)] focus:outline-none"
+              placeholder="10000"
+            />
+          </div>
+          <span className="text-xs text-[var(--cb-text-muted)]">— share counts calculated from this</span>
+        </div>
         <div className="flex items-end gap-2">
           <textarea
             value={input}
