@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Send, AlertCircle } from 'lucide-react';
 import type { PortfolioPosition, EnrichedTicker, SSEEvent } from '@/app/api/execution/portfolio-chat/route';
+import { getPositions } from '@/lib/portfolio/storage';
 
 interface PortfolioChatPanelProps {
   onAdd: (ticker: string) => void;
@@ -156,10 +157,14 @@ export function PortfolioChatPanel({ onAdd }: PortfolioChatPanelProps) {
     const msgId = crypto.randomUUID();
 
     try {
+      const existingTickers = getPositions()
+        .filter(p => p.status !== 'exited')
+        .map(p => p.ticker);
+
       const res = await fetch('/api/execution/portfolio-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, existingTickers }),
       });
 
       if (!res.body) throw new Error('No response stream');

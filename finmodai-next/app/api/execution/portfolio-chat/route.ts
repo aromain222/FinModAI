@@ -116,12 +116,17 @@ async function synthesisePortfolio(
   client: OpenAI,
   userMessage: string,
   candidates: RankedStock[],
+  existingTickers: string[] = [],
 ): Promise<{ positions: PortfolioPosition[]; narrative: string }> {
   const stockSummaries = candidates.map(s => {
     const forecast = s.meta.forecastReturnPct != null ? `, forecast=${s.meta.forecastReturnPct.toFixed(1)}%` : '';
     const cats     = s.meta.catalystCount > 0 ? `, ${s.meta.catalystCount} catalysts` : '';
     return `${s.ticker}: score=${s.score}/10, sector=${s.meta.sector ?? 'N/A'}${forecast}${cats}. Reason: ${s.primaryReason}. Risk: ${s.mainRisk}`;
   }).join('\n');
+
+  const existingContext = existingTickers.length > 0
+    ? `\nUser already holds: ${existingTickers.join(', ')}. Do NOT include these tickers. Only suggest new additions.\n`
+    : '';
 
   const resp = await client.chat.completions.create({
     model: 'gpt-4o-mini',
@@ -135,11 +140,11 @@ async function synthesisePortfolio(
       {
         role: 'user',
         content: `User request: "${userMessage}"
-
+${existingContext}
 Candidates (scored 0–10, higher = stronger setup):
 ${stockSummaries}
 
-Pick the best 5 matching the user's intent. Weights must sum to 100. Write a 2-sentence thesis and 1-sentence risk per position.
+Pick the best 5 matching the user's intent${existingTickers.length > 0 ? ' — excluding any tickers they already hold' : ''}. Weights must sum to 100. Write a 2-sentence thesis and 1-sentence risk per position.
 
 Return JSON:
 {
@@ -176,9 +181,16 @@ Return JSON:
 
 export async function POST(req: NextRequest): Promise<Response> {
   let message = 'Build me a diversified 5-stock portfolio';
+  let existingTickers: string[] = [];
   try {
-    const body = await req.json() as { message?: string };
+    const body = await req.json() as { message?: string; existingTickers?: unknown };
     if (body.message) message = String(body.message).slice(0, 500);
+    if (Array.isArray(body.existingTickers)) {
+      existingTickers = body.existingTickers
+        .filter((t): t is string => typeof t === 'string')
+        .map(t => t.toUpperCase().trim())
+        .slice(0, 50);
+    }
   } catch { /* use default */ }
 
   const apiKey = getOpenAIKey('user');
@@ -230,7 +242,7 @@ export async function POST(req: NextRequest): Promise<Response> {
 
         controller.enqueue(sse({ type: 'step', message: 'Building initial recommendations…' }));
 
-        const { positions, narrative } = await synthesisePortfolio(client, message, candidates);
+        const { positions, narrative } = await synthesisePortfolio(client, message, candidates, existingTickers);
 
         controller.enqueue(sse({
           type: 'initial',
