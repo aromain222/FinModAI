@@ -188,7 +188,7 @@ function InlinePortfolioCards({ message }: { message: Message }) {
       ))}
       {!message.enrichingDone && positions.length > 0 && (
         <p className="text-[10px] text-[var(--cb-text-muted)]">
-          Running 19-persona analysis + TradingAgents debate on top 3…
+          Running 19-persona analysis + TradingAgents debate on top 5…
         </p>
       )}
     </div>

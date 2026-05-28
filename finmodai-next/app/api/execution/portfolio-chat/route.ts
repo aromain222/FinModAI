@@ -7,7 +7,7 @@
  *   → position cards appear immediately
  *
  * Stage 2 (~+15s): hedge-fund (19 personas) + TradingAgents debate
- *   run in parallel for top 3 positions → emit `enriched`
+ *   run in parallel for top 5 positions → emit `enriched`
  *   → cards update with investor votes and debate verdict
  */
 
@@ -57,6 +57,8 @@ export type SSEEvent =
 type CacheEntry = { ranked: RankedStock[]; cachedAt: number };
 let _cache: CacheEntry | null = null;
 const CACHE_TTL_MS = 15 * 60 * 1_000;
+const TARGET_PORTFOLIO_SIZE = 10;
+const ENRICHED_POSITION_COUNT = 5;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -144,7 +146,7 @@ ${existingContext}
 Candidates (scored 0–10, higher = stronger setup):
 ${stockSummaries}
 
-Pick the best 5 matching the user's intent${existingTickers.length > 0 ? ' — excluding any tickers they already hold' : ''}. Weights must sum to 100. Write a 2-sentence thesis and 1-sentence risk per position.
+Pick the best ${TARGET_PORTFOLIO_SIZE} matching the user's intent${existingTickers.length > 0 ? ' — excluding any tickers they already hold' : ''}. Weights must sum to 100. Write a 2-sentence thesis and 1-sentence risk per position.
 
 Return JSON:
 {
@@ -180,7 +182,7 @@ Return JSON:
 // ── Route ────────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest): Promise<Response> {
-  let message = 'Build me a diversified 5-stock portfolio';
+  let message = `Build me a diversified ${TARGET_PORTFOLIO_SIZE}-stock portfolio`;
   let existingTickers: string[] = [];
   try {
     const body = await req.json() as { message?: string; existingTickers?: unknown };
@@ -259,15 +261,15 @@ export async function POST(req: NextRequest): Promise<Response> {
           return;
         }
 
-        // ── Stage 2: Enrich top 3 with hedge-fund + TradingAgents ─────────
-        const top3 = positions.slice(0, 3);
+        // ── Stage 2: Enrich top 5 with hedge-fund + TradingAgents ─────────
+        const topToEnrich = positions.slice(0, ENRICHED_POSITION_COUNT);
         controller.enqueue(sse({
           type: 'step',
-          message: `Running 19-persona hedge fund analysis + TradingAgents debate for ${top3.map(p => p.ticker).join(', ')}…`,
+          message: `Running 19-persona hedge fund analysis + TradingAgents debate for ${topToEnrich.map(p => p.ticker).join(', ')}…`,
         }));
 
         const enrichedRaw = await Promise.all(
-          top3.map(async pos => {
+          topToEnrich.map(async pos => {
             const [hfRes, taRes] = await Promise.allSettled([
               runHedgeFund(pos.ticker, origin),
               runTradingAgents(pos.ticker, origin),

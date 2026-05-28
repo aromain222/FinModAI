@@ -31,7 +31,7 @@ interface ErrorMessage  { id: string; role: 'error'; text: string }
 type Message = UserMessage | ErrorMessage | AssistantMessage;
 
 const EXAMPLE_PROMPTS = [
-  'Build me a 5-stock portfolio, tech-focused',
+  'Build me a 10-stock portfolio, tech-focused',
   'Suggest high-conviction growth plays, medium risk',
   'Give me a diversified 6-stock portfolio',
   'Find the best value names right now',
@@ -320,7 +320,7 @@ export function PortfolioChatPanel({ onAdd }: PortfolioChatPanelProps) {
                 ))}
                 {!am.enrichingDone && positions.length > 0 && (
                   <p className="text-[10px] text-[var(--cb-text-muted)]">
-                    Running 19-persona analysis + TradingAgents debate on top 3…
+                    Running 19-persona analysis + TradingAgents debate on top 5…
                   </p>
                 )}
               </div>
