@@ -16,9 +16,11 @@ import type { ActivePosition } from '@/lib/portfolio/types';
 import type { StockQuote } from '@/app/api/quotes/route';
 import type { ClassifiedNewsItem, NewsItem } from '@/lib/portfolio/newsClassify';
 import { classifyHeadline, sortByPriority } from '@/lib/portfolio/newsClassify';
+import { Plus } from 'lucide-react';
 import { PositionCard } from './PositionCard';
 import { PortfolioAlerts } from './PortfolioAlerts';
 import { PortfolioRiskDashboard } from './PortfolioRiskDashboard';
+import { AddPositionModal } from './AddPositionModal';
 
 export function PortfolioPanel() {
   const [positions,  setPositions]  = useState<ActivePosition[]>([]);
@@ -26,6 +28,7 @@ export function PortfolioPanel() {
   const [newsMap,    setNewsMap]    = useState<Map<string, ClassifiedNewsItem[]>>(new Map());
   const [monitoring, setMonitoring] = useState<Set<string>>(new Set());
   const [showExited, setShowExited] = useState(false);
+  const [showAdd,    setShowAdd]    = useState(false);
   const autoMonitorRef = useRef<Set<string>>(new Set());
 
   // Sync from storage
@@ -172,6 +175,14 @@ export function PortfolioPanel() {
               {showExited ? 'Hide exited' : 'Show exited'}
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setShowAdd(true)}
+            className="cursor-pointer flex items-center gap-1 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-2.5 py-1.5 text-xs font-medium text-[var(--cb-text-primary)] hover:bg-[var(--cb-surface)]"
+          >
+            <Plus size={13} />
+            Add position
+          </button>
           <Button asChild variant="outline" size="sm">
             <Link href="/app">Back to Ranked Board</Link>
           </Button>
@@ -202,6 +213,7 @@ export function PortfolioPanel() {
           ))}
         </div>
       )}
+      <AddPositionModal open={showAdd} onClose={() => setShowAdd(false)} />
     </div>
   );
 }
