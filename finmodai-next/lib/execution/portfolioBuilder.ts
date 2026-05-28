@@ -25,9 +25,9 @@ const DEFAULT_WATCHLIST = [
   'UBER', 'ABNB', 'SHOP',
 ];
 
-const BUY_SCORE_THRESHOLD  = 6.5;
+const BUY_SCORE_THRESHOLD  = 6.0;
 const SELL_SCORE_THRESHOLD = 4.0;
-const MAX_BUY_CANDIDATES   = 5;
+const MAX_BUY_CANDIDATES   = 20;
 
 export type BuilderConfig = {
   dryRun: boolean;

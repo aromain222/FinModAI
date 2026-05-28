@@ -65,7 +65,7 @@ function candidateReasons(decision: InvestmentDecision, minConfidence: number): 
 export async function runAutoPaperTrader(input: AutoPaperTraderInput): Promise<AutoPaperTraderResult> {
   const notional = input.notional ?? envNumber('ALPACA_AUTO_PAPER_NOTIONAL', DEFAULT_AUTO_NOTIONAL);
   const minConfidence = input.minConfidence ?? envNumber('ALPACA_AUTO_PAPER_MIN_CONFIDENCE', DEFAULT_MIN_CONFIDENCE);
-  const maxOrders = Math.max(1, Math.min(10, input.maxOrders ?? envNumber('ALPACA_AUTO_PAPER_MAX_ORDERS', DEFAULT_MAX_ORDERS)));
+  const maxOrders = Math.max(1, Math.min(20, input.maxOrders ?? envNumber('ALPACA_AUTO_PAPER_MAX_ORDERS', DEFAULT_MAX_ORDERS)));
   const enabled = autoEnabled();
   const autoApproval = input.autoApprove
     ? await autoApprovePaperDecisions({

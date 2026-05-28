@@ -59,8 +59,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const dryRun  = req.nextUrl.searchParams.get('dryRun') !== 'false';
   const origin  = appUrl(req);
   const notional    = envNum('AUTO_TRADE_NOTIONAL', 500);
-  const maxOrders   = envNum('AUTO_TRADE_MAX_ORDERS', 5);
-  const minConf     = envNum('AUTO_TRADE_MIN_CONFIDENCE', 70);
+  const maxOrders   = envNum('AUTO_TRADE_MAX_ORDERS', 20);
+  const minConf     = envNum('AUTO_TRADE_MIN_CONFIDENCE', 60);
 
   // Step 1–4: Rank → Decide → Approve → Execute
   const build = await buildPortfolio({ dryRun, notional, maxOrders, minConfidence: minConf, origin });
