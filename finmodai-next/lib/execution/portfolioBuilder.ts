@@ -16,6 +16,7 @@ import { ingestAgentView } from '@/lib/pm/decisions/pmBrain';
 import { autoApprovePaperDecisions } from '@/lib/pm/decisions/autoApprove';
 import { runAutoPaperTrader } from '@/lib/execution/autoPaperTrader';
 import { screenUniverse } from '@/lib/execution/universalScreener';
+import type { UserIntent } from '@/lib/execution/userIntent';
 import type { AgentView } from '@/lib/pm/types';
 
 const BUY_SCORE_THRESHOLD  = 6.0;
@@ -93,8 +94,14 @@ export async function buildPortfolio(config: BuilderConfig): Promise<BuilderResu
   let universeSource: 'alpaca' | 'fallback' = 'fallback';
   let universeSize = 0;
 
+  // Default unconstrained intent for the auto-trader — no theme or capital filters
+  const builderIntent: UserIntent = {
+    themes: [], risk_profile: 'balanced', position_count: null,
+    capital_usd: null, asset_class: 'common_stock', raw_prompt: '',
+  };
+
   if (watchlist.length === 0) {
-    const screen = await screenUniverse(config.maxOrders ? Math.max(75, config.maxOrders * 3) : 75);
+    const screen = await screenUniverse(builderIntent, config.maxOrders ? Math.max(75, config.maxOrders * 3) : 75);
     watchlist     = screen.tickers;
     universeSource = screen.source;
     universeSize   = screen.total;
