@@ -18,6 +18,7 @@
  */
 
 import { alpacaPaperCredentials } from '@/lib/execution/alpacaPaper';
+import type { UserIntent } from '@/lib/execution/userIntent';
 
 const DEFAULT_WATCHLIST = [
   'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA', 'TSLA',
@@ -40,12 +41,13 @@ const FUND_NAME_KEYWORDS = [
 ];
 
 type AlpacaAsset = {
-  symbol: string;
-  name: string;
-  tradable: boolean;
+  symbol:      string;
+  name:        string;
+  exchange:    string;   // e.g. "NASDAQ", "NYSE", "ARCA", "BATS"
+  tradable:    boolean;
   fractionable: boolean;
-  marginable: boolean;
-  status: string;
+  marginable:  boolean;
+  status:      string;
   asset_class: string;
 };
 
@@ -77,18 +79,32 @@ async function fetchAllAssets(): Promise<AlpacaAsset[]> {
   return res.json() as Promise<AlpacaAsset[]>;
 }
 
-function isETFOrFund(name: string): boolean {
-  const upper = name.toUpperCase();
-  return FUND_NAME_KEYWORDS.some(kw => upper.includes(kw));
+function isETFOrFund(a: AlpacaAsset): boolean {
+  // Structural check: NYSE Arca is the primary listing venue for ETFs/ETPs
+  if (a.exchange === 'ARCA') return true;
+  // Name-keyword check covers ETFs on other exchanges (BATS, NYSE, NASDAQ)
+  if (a.name) {
+    const upper = a.name.toUpperCase();
+    if (FUND_NAME_KEYWORDS.some(kw => upper.includes(kw))) return true;
+  }
+  return false;
 }
 
-function isQualifiedAsset(a: AlpacaAsset): boolean {
+function isSPAC(a: AlpacaAsset): boolean {
+  if (!a.name) return false;
+  const upper = a.name.toUpperCase();
+  return upper.includes('ACQUISITION CORP') || upper.includes('ACQUISITION CO.') || upper.includes('BLANK CHECK');
+}
+
+function isQualifiedAsset(a: AlpacaAsset, intent: UserIntent): boolean {
   if (!a.tradable || !a.fractionable || !a.marginable) return false;
   if (a.status !== 'active') return false;
-  // Simple ticker: A-Z only, 1–5 chars (excludes ETNs like UVXY, warrants like X.WS, etc.)
+  // Simple ticker: A-Z only, 1–5 chars (excludes warrants like X.WS, units like AAPL.U)
   if (!/^[A-Z]{1,5}$/.test(a.symbol)) return false;
-  // Reject ETFs, bond funds, index products by asset name
-  if (a.name && isETFOrFund(a.name)) return false;
+  // Reject ETFs/funds unless user explicitly asked for them
+  if (intent.asset_class === 'common_stock' && isETFOrFund(a)) return false;
+  // Reject SPACs — shell companies with no operating business
+  if (isSPAC(a)) return false;
   return true;
 }
 
@@ -126,14 +142,14 @@ export type ScreenerResult = {
   filtered: number;
 };
 
-export async function screenUniverse(maxTickers = 75): Promise<ScreenerResult> {
+export async function screenUniverse(intent: UserIntent, maxTickers = 75): Promise<ScreenerResult> {
   try {
     const assets = await fetchAllAssets();
     if (assets.length === 0) {
       return { tickers: DEFAULT_WATCHLIST, names: {}, source: 'fallback', total: 0, filtered: 0 };
     }
 
-    const qualifiedAssets = assets.filter(isQualifiedAsset);
+    const qualifiedAssets = assets.filter(a => isQualifiedAsset(a, intent));
     const qualified = qualifiedAssets.map(a => a.symbol);
     const nameMap: Record<string, string> = {};
     for (const a of qualifiedAssets) nameMap[a.symbol] = a.name ?? a.symbol;
