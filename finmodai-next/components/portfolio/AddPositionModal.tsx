@@ -55,11 +55,11 @@ export function AddPositionModal({ open, onClose, prefillTicker }: AddPositionMo
 
     const ticker = form.ticker.trim().toUpperCase();
     const shares = parseFloat(form.shares);
-    const costBasis = parseFloat(form.costBasis);
+    const costBasis = form.costBasis.trim() ? parseFloat(form.costBasis) : 0;
 
     if (!ticker) { setError('Ticker is required.'); return; }
     if (!Number.isFinite(shares) || shares <= 0) { setError('Shares must be a positive number.'); return; }
-    if (!Number.isFinite(costBasis) || costBasis <= 0) { setError('Cost basis must be a positive number.'); return; }
+    if (form.costBasis.trim() && (!Number.isFinite(costBasis) || costBasis < 0)) { setError('Cost basis must be a positive number.'); return; }
 
     setSubmitting(true);
     try {
@@ -182,16 +182,15 @@ export function AddPositionModal({ open, onClose, prefillTicker }: AddPositionMo
           {/* Cost basis */}
           <div>
             <label className="mb-1 block text-xs font-medium text-[var(--cb-text-secondary)]">
-              Cost basis per share <span className="text-[var(--cb-text-muted)]">(required)</span>
+              Cost basis per share <span className="text-[var(--cb-text-muted)]">(optional)</span>
             </label>
             <input
               type="number"
               value={form.costBasis}
               onChange={e => handleChange('costBasis', e.target.value)}
-              placeholder="150.00"
-              min="0.0001"
+              placeholder="0.00"
+              min="0"
               step="any"
-              required
               className="w-full cursor-pointer rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-3 py-1.5 text-sm text-[var(--cb-text-primary)] placeholder:text-[var(--cb-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--cb-border)]"
             />
           </div>
