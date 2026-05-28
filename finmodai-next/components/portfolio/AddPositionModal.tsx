@@ -28,15 +28,39 @@ const DEFAULT_FORM: FormState = {
 };
 
 export function AddPositionModal({ open, onClose, prefillTicker }: AddPositionModalProps) {
-  const [form, setForm] = useState<FormState>(DEFAULT_FORM);
+  const [form,          setForm]          = useState<FormState>(DEFAULT_FORM);
+  const [submitting,    setSubmitting]    = useState(false);
+  const [error,         setError]         = useState<string | null>(null);
+  const [fetchingPrice, setFetchingPrice] = useState(false);
 
   useEffect(() => {
     if (open && prefillTicker) {
       setForm(prev => ({ ...prev, ticker: prefillTicker.toUpperCase() }));
     }
   }, [open, prefillTicker]);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
+  // Auto-fetch price when ticker looks valid and cost basis is empty
+  useEffect(() => {
+    const ticker = form.ticker.trim().toUpperCase();
+    if (!ticker || !/^[A-Z]{1,5}$/.test(ticker) || form.costBasis.trim()) return;
+
+    const timeout = setTimeout(async () => {
+      setFetchingPrice(true);
+      try {
+        const res = await fetch(`/api/quotes?symbols=${encodeURIComponent(ticker)}`);
+        if (!res.ok) return;
+        const data = await res.json() as { quotes?: Array<{ ticker: string; price: number | null }> };
+        const price = data.quotes?.[0]?.price;
+        if (price != null && price > 0) {
+          setForm(prev => prev.costBasis.trim() ? prev : { ...prev, costBasis: price.toFixed(2) });
+        }
+      } catch { /* silent */ } finally {
+        setFetchingPrice(false);
+      }
+    }, 600);
+
+    return () => clearTimeout(timeout);
+  }, [form.ticker, form.costBasis]);
 
   if (!open) return null;
 
@@ -181,8 +205,11 @@ export function AddPositionModal({ open, onClose, prefillTicker }: AddPositionMo
 
           {/* Cost basis */}
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--cb-text-secondary)]">
-              Cost basis per share <span className="text-[var(--cb-text-muted)]">(optional)</span>
+            <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-[var(--cb-text-secondary)]">
+              Cost basis per share
+              {fetchingPrice
+                ? <span className="text-[var(--cb-text-muted)]">— fetching price…</span>
+                : <span className="text-[var(--cb-text-muted)]">(auto-filled from live price)</span>}
             </label>
             <input
               type="number"
