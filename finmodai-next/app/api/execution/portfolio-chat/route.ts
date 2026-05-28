@@ -14,7 +14,8 @@
  *   parseUserIntent(prompt) → intent
  *   → screenUniverse(intent)
  *   → synthesisePortfolio(client, intent, candidates, existingTickers)
- *   → validate(portfolio, intent)
+ *   → validateSynthesis(portfolio, intent, rejectedTickers)   ← Stage 3
+ *   → validatePortfolio(portfolio, intent)                    ← Stage 4 final gate
  *   → emit
  */
 
@@ -24,6 +25,14 @@ import { getOpenAIKey } from '@/lib/openaiKey';
 import { screenUniverse } from '@/lib/execution/universalScreener';
 import { parseUserIntent, type UserIntent } from '@/lib/execution/userIntent';
 import { fetchAssetMetadata, type AssetMetadata } from '@/lib/execution/assetMetadata';
+import { validatePortfolio } from '@/lib/execution/portfolioValidator';
+import { runAsyncJudges } from '@/lib/execution/asyncJudge';
+import {
+  validateSynthesis,
+  type SynthesizedPortfolio,
+  type SynthesizedPosition,
+  type ValidationError,
+} from '@/lib/execution/synthesisValidation';
 import { scoreMultiple } from '@/lib/ranking/score';
 import type { RankedStock } from '@/lib/ranking/types';
 
@@ -38,15 +47,19 @@ const CACHE_TTL_MS            = 15 * 60 * 1_000;
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type PortfolioPosition = {
-  ticker:              string;
-  score:               number;
-  action:              string;
-  confidence:          number;
-  suggestedWeight:     number;
-  sizing:              string;
-  thesis:              string;
-  risk:                string;
-  themeJustification?: string;
+  ticker:               string;
+  score:                number;
+  action:               string;
+  confidence:           number;           // kept for UI backward compat; always 0 post-Stage 3
+  suggestedWeight:      number;           // UI backward compat alias for weight_pct
+  weight_pct:           number;
+  sizing:               string;
+  thesis:               string;
+  risk:                 string;
+  themeJustification?:  string;           // UI backward compat alias for theme_justification
+  theme_justification?: string;
+  shares?:              number;
+  dollar_amount?:       number;
 };
 
 export type EnrichedTicker = {
@@ -70,52 +83,24 @@ export type SSEEvent =
   | { type: 'error';    message: string }
   | { type: 'done' };
 
-// ── Validation (Stage 4 stub — hard checks run post-synthesis) ───────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-type ValidationResult =
-  | { ok: true }
-  | { ok: false; reasons: string[] };
-
-function validate(positions: PortfolioPosition[], intent: UserIntent): ValidationResult {
-  const reasons: string[] = [];
-
-  // A3: position count
-  if (intent.position_count !== null && positions.length !== intent.position_count) {
-    reasons.push(
-      `A3: requested ${intent.position_count} positions, got ${positions.length}`,
-    );
-  }
-
-  // C1: weights must sum to 98–102
-  const totalWeight = positions.reduce((s, p) => s + (p.suggestedWeight ?? 0), 0);
-  if (positions.length > 0 && (totalWeight < 98 || totalWeight > 102)) {
-    reasons.push(`C1: weights sum to ${totalWeight.toFixed(1)}% (expected 98–102%)`);
-    // Log the pre-fix value so we have telemetry on synthesis accuracy,
-    // then normalise in-place so the response is still usable.
-    console.warn(`[portfolio-chat] validate C1 auto-fix: weight sum was ${totalWeight.toFixed(1)}%`);
-    const scale = 100 / totalWeight;
-    for (const p of positions) {
-      p.suggestedWeight = Math.round(p.suggestedWeight * scale * 10) / 10;
-    }
-    // Remove from reasons — we fixed it, so it's a warning not a hard fail
-    reasons.splice(reasons.indexOf(reasons.find(r => r.startsWith('C1'))!), 1);
-  }
-
-  // A1: theme justification present when themes were specified
-  if (intent.themes.length > 0) {
-    const missing = positions.filter(p => !p.themeJustification?.trim());
-    if (missing.length > 0) {
-      reasons.push(
-        `A1: missing themeJustification on ${missing.map(p => p.ticker).join(', ')}`,
-      );
-    }
-  }
-
-  if (reasons.length > 0) {
-    console.warn('[portfolio-chat] validation warnings:', reasons);
-  }
-
-  return reasons.length === 0 ? { ok: true } : { ok: false, reasons };
+function toPortfolioPosition(p: SynthesizedPosition): PortfolioPosition {
+  return {
+    ticker:              p.ticker,
+    score:               p.score,
+    action:              p.action,
+    confidence:          0,
+    suggestedWeight:     p.weight_pct,
+    weight_pct:          p.weight_pct,
+    sizing:              p.sizing,
+    thesis:              p.thesis,
+    risk:                p.risk,
+    themeJustification:  p.theme_justification,
+    theme_justification: p.theme_justification,
+    shares:              p.shares > 0 ? p.shares : undefined,
+    dollar_amount:       p.dollar_amount > 0 ? p.dollar_amount : undefined,
+  };
 }
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
@@ -132,14 +117,11 @@ async function getOrFetchRanked(
     return { ranked: _cache.ranked, cached: true };
   }
   const targetCount = intent.position_count ?? DEFAULT_PORTFOLIO_SIZE;
-  // Screen wider than the target so synthesis has a theme-filtered pool
   const screen = await screenUniverse(intent, Math.max(targetCount * 3, 40));
   const ranked = await scoreMultiple(screen.tickers, origin, 6);
   _cache = { ranked, cachedAt: now };
   return { ranked, cached: false };
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function appUrl(req: NextRequest): string {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_URL;
@@ -196,12 +178,26 @@ async function runTradingAgents(
   } catch { return null; }
 }
 
+// ── Synthesis ─────────────────────────────────────────────────────────────────
+
+type RawLLMPosition = {
+  ticker?:              string;
+  score?:               number;
+  action?:              string;
+  sizing?:              string;
+  weight_pct?:          number;
+  thesis?:              string;
+  theme_justification?: string;
+  risk?:                string;
+};
+
 async function synthesisePortfolio(
   client: OpenAI,
   intent: UserIntent,
   candidates: RankedStock[],
-  existingTickers: string[] = [],
-): Promise<{ positions: PortfolioPosition[]; narrative: string }> {
+  existingTickers: string[],
+  lastErrors?: ValidationError[],
+): Promise<SynthesizedPortfolio> {
   const targetCount = intent.position_count ?? DEFAULT_PORTFOLIO_SIZE;
 
   const stockSummaries = candidates.map(s => {
@@ -218,6 +214,14 @@ async function synthesisePortfolio(
     ? `\nRequired themes: ${intent.themes.join(', ')}. Every position must have a documented link to one of these themes.\n`
     : '';
 
+  const capitalContext = intent.capital_usd != null
+    ? `\nPortfolio capital: $${intent.capital_usd.toLocaleString()}\n`
+    : '';
+
+  const errorFeedback = lastErrors && lastErrors.length > 0
+    ? `\n\n⚠️ PREVIOUS ATTEMPT FAILED VALIDATION — fix ALL of these issues:\n${lastErrors.map(e => `  • [${e.code}] ${e.message}`).join('\n')}\n`
+    : '';
+
   const resp = await client.chat.completions.create({
     model: 'gpt-4o-mini',
     temperature: 0.3,
@@ -225,44 +229,44 @@ async function synthesisePortfolio(
     messages: [
       {
         role: 'system',
-        content: `You are a portfolio manager building a diversified equity portfolio from pre-scored candidates. Be decisive and concise. Respond only in the JSON format requested.
+        content: `You are a portfolio manager building a diversified equity portfolio from pre-scored candidates. Be decisive and concise. Respond only in the JSON format requested. Output will be validated automatically.
 
 STRICT RULES — every position must pass all of these or do not include it:
 1. Common equities only. No ETFs, bond funds, closed-end funds, or index products.
-2. ${intent.themes.length > 0 ? `Every position must relate to: ${intent.themes.join(', ')}. Fill themeJustification with a 1-sentence explanation of the link. Positions without a clear theme link must be excluded.` : 'Fill themeJustification with the primary sector or investment category.'}
-3. Weights must sum to exactly 100.
-4. Return exactly ${targetCount} positions. If you can only find N < ${targetCount} qualifying names, return N and note it in the narrative.
-5. Risk must name a specific metric, customer, product, or regulatory risk. Generic risks like "competition" or "macro" alone are not acceptable.
+2. ${intent.themes.length > 0 ? `Every position must relate to: ${intent.themes.join(', ')}. Fill theme_justification with a 1-sentence explanation of the link. The word "${intent.themes[0]}" or a synonym must appear in theme_justification.` : 'Fill theme_justification with the primary sector or investment category.'}
+3. weight_pct values must be in range 2–20. Weights must sum to exactly 100.
+4. Return exactly ${targetCount} positions. If you can only find N < ${targetCount} qualifying names, return N and explain in shortfall_reason.
+5. risk must name a specific metric, company, product, or number. Generic risks like "competition" or "macro risk" alone are not acceptable — they will be rejected.
 
-Weight-to-sizing mapping:
-- Full position: 10–15%
-- Build: 6–9%
-- Starter: 3–5%`,
+Weight-to-sizing mapping (do not guess — follow exactly):
+- Full position: weight_pct 10–20
+- Build: weight_pct 6–9
+- Starter: weight_pct 2–5`,
       },
       {
         role: 'user',
         content: `User request: "${intent.raw_prompt}"
-${themeContext}${existingContext}
+${themeContext}${existingContext}${capitalContext}${errorFeedback}
 Risk profile: ${intent.risk_profile}
 Candidates (scored 0–10):
 ${stockSummaries}
 
-Pick the best ${targetCount} positions. Weights sum to 100.
+Pick the best ${targetCount} positions. All weight_pct values must be in 2–20 range and sum to exactly 100.
 
 Return JSON:
 {
   "narrative": "2-3 sentence portfolio summary",
+  "shortfall_reason": null or "reason why fewer positions were returned",
   "positions": [
     {
       "ticker": string,
       "score": number,
-      "action": "Buy" | "Overweight" | "Build",
-      "confidence": 0-100,
-      "suggestedWeight": number,
-      "sizing": "Starter" | "Build" | "Full position",
+      "action": "Buy" | "Overweight" | "Hold" | "Reduce" | "Sell",
+      "sizing": "Full position" | "Build" | "Starter",
+      "weight_pct": number,
       "thesis": string,
-      "risk": string,
-      "themeJustification": string
+      "risk": "specific risk with a named metric, company, or number",
+      "theme_justification": string
     }
   ]
 }`,
@@ -272,12 +276,33 @@ Return JSON:
 
   const raw = JSON.parse(resp.choices[0].message.content ?? '{}') as {
     narrative?: string;
-    positions?: PortfolioPosition[];
+    shortfall_reason?: string | null;
+    positions?: RawLLMPosition[];
   };
 
+  const positions: SynthesizedPosition[] = (Array.isArray(raw.positions) ? raw.positions : [])
+    .filter((p): p is RawLLMPosition & { ticker: string } => typeof p.ticker === 'string' && !!p.ticker)
+    .map(p => ({
+      ticker:              p.ticker.toUpperCase().trim(),
+      score:               typeof p.score === 'number' ? p.score : 0,
+      action:              (['Buy', 'Overweight', 'Hold', 'Reduce', 'Sell'].includes(p.action ?? '') ? p.action : 'Hold') as SynthesizedPosition['action'],
+      sizing:              (['Full position', 'Build', 'Starter'].includes(p.sizing ?? '') ? p.sizing : 'Build') as SynthesizedPosition['sizing'],
+      weight_pct:          typeof p.weight_pct === 'number' ? p.weight_pct : 0,
+      shares:              0,
+      dollar_amount:       0,
+      thesis:              p.thesis              ?? '',
+      theme_justification: p.theme_justification ?? '',
+      risk:                p.risk                ?? '',
+    }));
+
   return {
-    narrative: raw.narrative ?? 'Portfolio recommendation ready.',
-    positions: Array.isArray(raw.positions) ? raw.positions : [],
+    narrative:         raw.narrative ?? 'Portfolio recommendation ready.',
+    total_capital_usd: intent.capital_usd,
+    cash_reserve_pct:  0,
+    requested_count:   targetCount,
+    delivered_count:   positions.length,
+    shortfall_reason:  raw.shortfall_reason ?? null,
+    positions,
   };
 }
 
@@ -348,12 +373,52 @@ export async function POST(req: NextRequest): Promise<Response> {
         }));
         controller.enqueue(sse({ type: 'step', message: `Building ${targetCount}-position portfolio…` }));
 
-        const { positions, narrative } = await synthesisePortfolio(
-          client, intent, candidates, existingTickers,
-        );
+        // Stages 3+4: synthesis → validate → gate loop (max 2 attempts)
+        const rejectedTickers = new Set<string>();
+        let synthesized: SynthesizedPortfolio | null = null;
+        let lastErrors: ValidationError[] = [];
 
-        // Validate before emitting — fixes in-place where possible, logs warnings
-        validate(positions, intent);
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          const raw = await synthesisePortfolio(
+            client, intent, candidates, existingTickers,
+            attempt > 1 ? lastErrors : undefined,
+          );
+          const vr   = validateSynthesis(raw, intent, rejectedTickers);
+          const gate = validatePortfolio(vr.portfolio, intent);
+          synthesized = vr.portfolio;
+
+          const needsRetry = vr.mustRegenerate || !gate.ok;
+          if (!needsRetry || attempt === 2) {
+            if (attempt === 2 && !gate.ok) {
+              console.error('[portfolio-chat] gate blockers after 2 attempts:', gate.blockers.map(v => v.rule_id).join(', '));
+            }
+            break;
+          }
+
+          const s3Errors = vr.errors.filter(e => !e.code.endsWith('_warn'));
+          lastErrors = [...s3Errors, ...gate.blockers.map(v => ({ code: v.rule_id, message: v.message }))];
+          console.info(`[portfolio-chat] attempt ${attempt} needs retry (s3=${vr.mustRegenerate}, gate=${!gate.ok})`);
+        }
+
+        // Final gate — never ship BLOCKER violations
+        const finalGate = validatePortfolio(synthesized!, intent);
+        if (!finalGate.ok) {
+          console.error('[portfolio-chat] FINAL GATE BLOCKERS:', finalGate.blockers.map(v => `[${v.rule_id}] ${v.message}`).join('; '));
+          controller.enqueue(sse({
+            type: 'initial', positions: [], positionCount: 0, cached,
+            narrative: "We couldn't produce a portfolio that fully matches your constraints. Please try again.",
+            scoredAt: new Date().toISOString(),
+          }));
+          controller.enqueue(sse({ type: 'done' }));
+          controller.close();
+          return;
+        }
+        if (finalGate.warnings.length > 0) {
+          console.warn('[portfolio-chat] gate warnings:', finalGate.warnings.map(v => `[${v.rule_id}] ${v.message}`).join('; '));
+        }
+
+        const positions: PortfolioPosition[] = (synthesized?.positions ?? []).map(toPortfolioPosition);
+        const narrative: string = synthesized?.narrative ?? 'Portfolio recommendation ready.';
 
         controller.enqueue(sse({
           type: 'initial',
@@ -377,7 +442,6 @@ export async function POST(req: NextRequest): Promise<Response> {
           message: `Running 19-persona hedge fund + TradingAgents for ${topToEnrich.map(p => p.ticker).join(', ')}…`,
         }));
 
-        // Pre-fetch asset metadata for all tickers in parallel (cached after first hit)
         const assetMap = new Map<string, AssetMetadata | null>();
         await Promise.allSettled(
           topToEnrich.map(async pos => {
@@ -385,7 +449,7 @@ export async function POST(req: NextRequest): Promise<Response> {
               const meta = await fetchAssetMetadata(pos.ticker, client);
               assetMap.set(pos.ticker, meta);
             } catch {
-              console.warn(`[portfolio-chat] assetMetadata fetch failed for ${pos.ticker}, falling back`);
+              console.warn(`[portfolio-chat] assetMetadata fetch failed for ${pos.ticker}`);
               assetMap.set(pos.ticker, null);
             }
           }),
@@ -410,12 +474,12 @@ export async function POST(req: NextRequest): Promise<Response> {
         for (const r of enrichedRaw) {
           const medianThemeFit = r.hf?.median_theme_fit ?? r.ta?.theme_fit_score ?? null;
 
-          // Emit rejection event when agents agree the ticker is off-theme
           if (
             intent.themes.length > 0 &&
             medianThemeFit !== null &&
             medianThemeFit < THEME_REJECTION_THRESHOLD
           ) {
+            rejectedTickers.add(r.ticker);
             console.warn(`[portfolio-chat] Stage 2 rejected ${r.ticker} — median_theme_fit=${medianThemeFit.toFixed(1)} < ${THEME_REJECTION_THRESHOLD}`);
             controller.enqueue(sse({
               type:           'rejected',
@@ -442,6 +506,11 @@ export async function POST(req: NextRequest): Promise<Response> {
 
         controller.enqueue(sse({ type: 'enriched', items }));
         controller.enqueue(sse({ type: 'done' }));
+
+        // Fire async quality judges — background, does not block user
+        if (process.env.NODE_ENV !== 'test' && synthesized) {
+          void runAsyncJudges(synthesized.positions, intent, assetMap, client);
+        }
 
       } catch (err) {
         controller.enqueue(sse({
