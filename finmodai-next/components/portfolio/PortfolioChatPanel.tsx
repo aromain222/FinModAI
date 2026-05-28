@@ -19,11 +19,10 @@ interface Message {
 
 const PROGRESS_STEPS = [
   'Screening live stock universe…',
-  'Scoring top candidates in parallel…',
-  'Running hedge fund consensus (19 investors per stock)…',
-  'Portfolio manager synthesising recommendations…',
+  'Scoring candidates in parallel…',
+  'Building portfolio recommendation…',
 ];
-const STEP_DELAYS_MS = [0, 7_000, 17_000, 33_000];
+const STEP_DELAYS_MS = [0, 4_000, 9_000];
 
 const EXAMPLE_PROMPTS = [
   'Build me a 5-stock portfolio, tech-focused',
@@ -45,10 +44,6 @@ function ScoreBadge({ score }: { score: number }) {
 }
 
 function PositionCard({ pos, onAdd }: { pos: PortfolioPosition; onAdd: (ticker: string) => void }) {
-  const consensusTxt = pos.totalPersonas > 0
-    ? `${pos.bullishCount}/${pos.totalPersonas} investors bullish`
-    : null;
-
   return (
     <div className="rounded-xl border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-3 py-2.5">
       <div className="flex items-start justify-between gap-3">
@@ -58,9 +53,7 @@ function PositionCard({ pos, onAdd }: { pos: PortfolioPosition; onAdd: (ticker: 
             <ScoreBadge score={pos.score} />
             <span className="text-xs text-[var(--cb-text-muted)]">{pos.action}</span>
             <span className="text-xs text-[var(--cb-text-muted)]">· {pos.suggestedWeight}%</span>
-            {consensusTxt && (
-              <span className="text-xs text-[var(--cb-text-muted)]">· {consensusTxt}</span>
-            )}
+            <span className="text-xs text-[var(--cb-text-muted)]">· {pos.sizing}</span>
           </div>
           <p className="mt-1 text-xs text-[var(--cb-text-secondary)]">{pos.thesis}</p>
           <p className="mt-0.5 text-xs text-[var(--cb-text-muted)]">
@@ -243,7 +236,7 @@ export function PortfolioChatPanel({ onAdd }: PortfolioChatPanelProps) {
             <Send size={14} />
           </button>
         </div>
-        <p className="mt-1.5 text-[10px] text-[var(--cb-text-muted)]">Enter to send · Shift+Enter for new line · ~30s to run</p>
+        <p className="mt-1.5 text-[10px] text-[var(--cb-text-muted)]">Enter to send · Shift+Enter for new line · ~10s first run, ~3s after</p>
       </div>
     </div>
   );

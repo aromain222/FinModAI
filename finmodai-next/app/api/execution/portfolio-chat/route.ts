@@ -1,13 +1,14 @@
 /**
  * POST /api/execution/portfolio-chat
  *
- * Multi-agent portfolio builder:
- *   1. Screen live universe (top 25 by volume)
- *   2. Score all 25 in parallel via ranking engine
- *   3. Run hedge-fund consensus in parallel for top 6 buy candidates
- *   4. OpenAI PM synthesises: picks 5 best positions matching user's intent
+ * Fast multi-agent portfolio builder (~10s cold, ~3s warm):
+ *   1. Screen live universe (top 25 by volume) — cached 15 min
+ *   2. Score all 25 in parallel via ranking engine — cached 15 min
+ *   3. OpenAI gpt-4o-mini synthesises portfolio from scored data
  *
- * ~30–40s end-to-end; fits Hobby maxDuration=60.
+ * Hedge-fund consensus (slow 19-persona step) is intentionally excluded
+ * from this path — scores already incorporate news, technicals, fundamentals
+ * and catalysts. Use InvestmentChat for per-ticker deep analysis.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -19,7 +20,12 @@ import type { RankedStock } from '@/lib/ranking/types';
 
 export const dynamic     = 'force-dynamic';
 export const runtime     = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 30;
+
+// ── In-memory cache (lives in the function instance, resets on cold start) ──
+type CacheEntry = { ranked: RankedStock[]; cachedAt: number };
+let _cache: CacheEntry | null = null;
+const CACHE_TTL_MS = 15 * 60 * 1_000; // 15 minutes
 
 export type PortfolioPosition = {
   ticker:          string;
@@ -30,9 +36,6 @@ export type PortfolioPosition = {
   sizing:          string;
   thesis:          string;
   risk:            string;
-  bullishCount:    number;
-  bearishCount:    number;
-  totalPersonas:   number;
 };
 
 export type PortfolioChatResponse = {
@@ -40,12 +43,7 @@ export type PortfolioChatResponse = {
   narrative:     string;
   positionCount: number;
   scoredAt:      string;
-};
-
-type HedgeFundResult = {
-  ticker:    string;
-  consensus: { bullish: number; bearish: number; neutral: number };
-  decision:  { action: string; confidence: number; sizing?: string; reasoning: string } | null;
+  cached:        boolean;
 };
 
 function appUrl(req: NextRequest): string {
@@ -54,31 +52,26 @@ function appUrl(req: NextRequest): string {
   return new URL(req.url).origin;
 }
 
-async function runHedgeFund(ticker: string, baseUrl: string): Promise<HedgeFundResult | null> {
-  try {
-    const res = await fetch(`${baseUrl}/api/hedge-fund`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticker }),
-      signal: AbortSignal.timeout(25_000),
-    });
-    if (!res.ok) return null;
-    const data = await res.json() as HedgeFundResult;
-    return data;
-  } catch {
-    return null;
+async function getOrFetchRanked(origin: string): Promise<{ ranked: RankedStock[]; cached: boolean }> {
+  const now = Date.now();
+  if (_cache && now - _cache.cachedAt < CACHE_TTL_MS) {
+    return { ranked: _cache.ranked, cached: true };
   }
+  const screen = await screenUniverse(25);
+  const ranked = await scoreMultiple(screen.tickers, origin, 6);
+  _cache = { ranked, cachedAt: now };
+  return { ranked, cached: false };
 }
 
 async function synthesisePortfolio(
   client: OpenAI,
   userMessage: string,
-  stocks: Array<{ stock: RankedStock; hf: HedgeFundResult | null }>,
-): Promise<{ positions: Omit<PortfolioPosition, 'bullishCount' | 'bearishCount' | 'totalPersonas'>[]; narrative: string }> {
-  const stockSummaries = stocks.map(({ stock, hf }) => {
-    const consensus = hf ? `${hf.consensus.bullish}/${hf.consensus.bullish + hf.consensus.bearish + hf.consensus.neutral} investors bullish` : 'consensus unavailable';
-    const decision  = hf?.decision ? `PM: ${hf.decision.action} (${hf.decision.confidence}% confidence)` : '';
-    return `${stock.ticker}: score=${stock.score}/10, sector=${stock.meta.sector ?? 'N/A'}, ${consensus}. ${decision}. Reason: ${stock.primaryReason}. Risk: ${stock.mainRisk}`;
+  candidates: RankedStock[],
+): Promise<{ positions: PortfolioPosition[]; narrative: string }> {
+  const stockSummaries = candidates.map(s => {
+    const forecast = s.meta.forecastReturnPct != null ? `, forecast=${s.meta.forecastReturnPct.toFixed(1)}%` : '';
+    const catalysts = s.meta.catalystCount > 0 ? `, ${s.meta.catalystCount} catalysts` : '';
+    return `${s.ticker}: score=${s.score}/10, sector=${s.meta.sector ?? 'N/A'}${forecast}${catalysts}. Reason: ${s.primaryReason}. Risk: ${s.mainRisk}`;
   }).join('\n');
 
   const resp = await client.chat.completions.create({
@@ -88,25 +81,25 @@ async function synthesisePortfolio(
     messages: [
       {
         role: 'system',
-        content: 'You are a portfolio manager building a diversified equity portfolio. Respond only in the JSON format requested.',
+        content: 'You are a portfolio manager building a diversified equity portfolio from pre-scored candidates. Be decisive and concise. Respond only in the JSON format requested.',
       },
       {
         role: 'user',
         content: `User request: "${userMessage}"
 
-Candidate stocks (pre-screened and scored):
+Candidates (already screened and scored 0–10):
 ${stockSummaries}
 
-Select the best 5 stocks that best match the user's intent. Allocate portfolio weights (must sum to 100). For each position write a 2-sentence thesis and 1-sentence risk.
+Pick the best 5 that match the user's intent. Weights must sum to 100. Write a 2-sentence thesis and 1-sentence risk per position.
 
 Return JSON:
 {
-  "narrative": "2-3 sentence overall portfolio summary",
+  "narrative": "2-3 sentence portfolio summary",
   "positions": [
     {
       "ticker": string,
       "score": number,
-      "action": "Buy" | "Overweight" | "Hold",
+      "action": "Buy" | "Overweight" | "Build",
       "confidence": 0-100,
       "suggestedWeight": number,
       "sizing": "Starter" | "Build" | "Full position",
@@ -121,7 +114,7 @@ Return JSON:
 
   const parsed = JSON.parse(resp.choices[0].message.content ?? '{}') as {
     narrative?: string;
-    positions?: Omit<PortfolioPosition, 'bullishCount' | 'bearishCount' | 'totalPersonas'>[];
+    positions?: PortfolioPosition[];
   };
 
   return {
@@ -145,54 +138,31 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   try {
     const origin = appUrl(req);
+    const { ranked, cached } = await getOrFetchRanked(origin);
 
-    // 1. Screen + score
-    const screen  = await screenUniverse(25);
-    const ranked  = await scoreMultiple(screen.tickers, origin, 6);
-    const buyable = ranked
+    const candidates = ranked
       .filter(s => s.score >= 6.0)
       .sort((a, b) => b.score - a.score)
-      .slice(0, 6);
+      .slice(0, 10);
 
-    if (buyable.length === 0) {
+    if (candidates.length === 0) {
       return NextResponse.json({
         positions: [],
-        narrative: 'No strong buy candidates in the current universe (score < 6.0). Market conditions may be unfavourable — try again tomorrow.',
+        narrative: 'No strong buy candidates right now (score < 6.0 across universe). Try again later.',
         positionCount: 0,
         scoredAt: new Date().toISOString(),
+        cached,
       } satisfies PortfolioChatResponse);
     }
 
-    // 2. Run hedge-fund consensus in parallel for top candidates
-    const hedgeFundResults = await Promise.all(
-      buyable.map(stock => runHedgeFund(stock.ticker, origin)),
-    );
-
-    const stocksWithHF = buyable.map((stock, i) => ({
-      stock,
-      hf: hedgeFundResults[i],
-    }));
-
-    // 3. Synthesise with OpenAI PM
-    const { positions: rawPositions, narrative } = await synthesisePortfolio(client, message, stocksWithHF);
-
-    // Merge hedge-fund signal counts into each position
-    const positions: PortfolioPosition[] = rawPositions.map(pos => {
-      const hf = hedgeFundResults[buyable.findIndex(s => s.ticker === pos.ticker)] ?? null;
-      const total = hf ? hf.consensus.bullish + hf.consensus.bearish + hf.consensus.neutral : 0;
-      return {
-        ...pos,
-        bullishCount:  hf?.consensus.bullish  ?? 0,
-        bearishCount:  hf?.consensus.bearish  ?? 0,
-        totalPersonas: total,
-      };
-    });
+    const { positions, narrative } = await synthesisePortfolio(client, message, candidates);
 
     return NextResponse.json({
       positions,
       narrative,
       positionCount: positions.length,
-      scoredAt: new Date().toISOString(),
+      scoredAt:      new Date().toISOString(),
+      cached,
     } satisfies PortfolioChatResponse);
 
   } catch (err) {
