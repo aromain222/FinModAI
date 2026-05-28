@@ -23,6 +23,7 @@ import OpenAI from 'openai';
 import { getOpenAIKey } from '@/lib/openaiKey';
 import { screenUniverse } from '@/lib/execution/universalScreener';
 import { parseUserIntent, type UserIntent } from '@/lib/execution/userIntent';
+import { fetchAssetMetadata, type AssetMetadata } from '@/lib/execution/assetMetadata';
 import { scoreMultiple } from '@/lib/ranking/score';
 import type { RankedStock } from '@/lib/ranking/types';
 
@@ -53,15 +54,19 @@ export type EnrichedTicker = {
   bullishCount:        number;
   bearishCount:        number;
   totalPersonas:       number;
+  medianThemeFit:      number | null;
   tradingDecision:     string;
   tradingThesis:       string;
   tradingTimeHorizon:  string;
+  tradingThemeFit:     number | null;
+  businessConsistency: boolean;
 };
 
 export type SSEEvent =
   | { type: 'step';     message: string }
   | { type: 'initial';  positions: PortfolioPosition[]; narrative: string; positionCount: number; scoredAt: string; cached: boolean }
   | { type: 'enriched'; items: EnrichedTicker[] }
+  | { type: 'rejected'; ticker: string; reason: string; medianThemeFit: number }
   | { type: 'error';    message: string }
   | { type: 'done' };
 
@@ -142,37 +147,51 @@ function appUrl(req: NextRequest): string {
   return new URL(req.url).origin;
 }
 
-async function runHedgeFund(ticker: string, baseUrl: string): Promise<{
-  consensus: { bullish: number; bearish: number; neutral: number };
-} | null> {
+async function runHedgeFund(
+  ticker: string,
+  intent: UserIntent,
+  asset: AssetMetadata | null,
+  baseUrl: string,
+): Promise<{ consensus: { bullish: number; bearish: number; neutral: number }; median_theme_fit: number | null } | null> {
   try {
     const res = await fetch(`${baseUrl}/api/hedge-fund`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticker }),
-      signal: AbortSignal.timeout(25_000),
+      body: JSON.stringify({ ticker, intent, assetMetadata: asset }),
+      signal: AbortSignal.timeout(30_000),
     });
     if (!res.ok) return null;
-    return res.json() as Promise<{ consensus: { bullish: number; bearish: number; neutral: number } }>;
+    return res.json() as Promise<{ consensus: { bullish: number; bearish: number; neutral: number }; median_theme_fit: number | null }>;
   } catch { return null; }
 }
 
-async function runTradingAgents(ticker: string, baseUrl: string): Promise<{
+async function runTradingAgents(
+  ticker: string,
+  intent: UserIntent,
+  asset: AssetMetadata | null,
+  baseUrl: string,
+): Promise<{
   decision: string; thesis: string; time_horizon: string;
+  theme_fit_score: number | null; business_consistency: boolean;
 } | null> {
   try {
     const res = await fetch(`${baseUrl}/api/tradingagents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticker }),
-      signal: AbortSignal.timeout(25_000),
+      body: JSON.stringify({ ticker, intent, assetMetadata: asset }),
+      signal: AbortSignal.timeout(30_000),
     });
     if (!res.ok) return null;
-    const data = await res.json() as { decision?: string; thesis?: string; time_horizon?: string };
+    const data = await res.json() as {
+      decision?: string; thesis?: string; time_horizon?: string;
+      theme_fit_score?: number | null; business_consistency?: boolean;
+    };
     return {
-      decision:     data.decision     ?? 'Hold',
-      thesis:       data.thesis       ?? '',
-      time_horizon: data.time_horizon ?? '3–6 months',
+      decision:             data.decision             ?? 'Hold',
+      thesis:               data.thesis               ?? '',
+      time_horizon:         data.time_horizon         ?? '3–6 months',
+      theme_fit_score:      data.theme_fit_score      ?? null,
+      business_consistency: data.business_consistency ?? true,
     };
   } catch { return null; }
 }
@@ -358,11 +377,28 @@ export async function POST(req: NextRequest): Promise<Response> {
           message: `Running 19-persona hedge fund + TradingAgents for ${topToEnrich.map(p => p.ticker).join(', ')}…`,
         }));
 
+        // Pre-fetch asset metadata for all tickers in parallel (cached after first hit)
+        const assetMap = new Map<string, AssetMetadata | null>();
+        await Promise.allSettled(
+          topToEnrich.map(async pos => {
+            try {
+              const meta = await fetchAssetMetadata(pos.ticker, client);
+              assetMap.set(pos.ticker, meta);
+            } catch {
+              console.warn(`[portfolio-chat] assetMetadata fetch failed for ${pos.ticker}, falling back`);
+              assetMap.set(pos.ticker, null);
+            }
+          }),
+        );
+
+        const THEME_REJECTION_THRESHOLD = 5;
+
         const enrichedRaw = await Promise.all(
           topToEnrich.map(async pos => {
+            const asset = assetMap.get(pos.ticker) ?? null;
             const [hfRes, taRes] = await Promise.allSettled([
-              runHedgeFund(pos.ticker, origin),
-              runTradingAgents(pos.ticker, origin),
+              runHedgeFund(pos.ticker, intent, asset, origin),
+              runTradingAgents(pos.ticker, intent, asset, origin),
             ]);
             const hf = hfRes.status === 'fulfilled' ? hfRes.value : null;
             const ta = taRes.status === 'fulfilled' ? taRes.value : null;
@@ -370,15 +406,39 @@ export async function POST(req: NextRequest): Promise<Response> {
           }),
         );
 
-        const items: EnrichedTicker[] = enrichedRaw.map(r => ({
-          ticker:              r.ticker,
-          bullishCount:        r.hf?.consensus.bullish ?? 0,
-          bearishCount:        r.hf?.consensus.bearish ?? 0,
-          totalPersonas:       r.hf ? r.hf.consensus.bullish + r.hf.consensus.bearish + r.hf.consensus.neutral : 0,
-          tradingDecision:     r.ta?.decision     ?? '',
-          tradingThesis:       r.ta?.thesis       ?? '',
-          tradingTimeHorizon:  r.ta?.time_horizon ?? '',
-        }));
+        const items: EnrichedTicker[] = [];
+        for (const r of enrichedRaw) {
+          const medianThemeFit = r.hf?.median_theme_fit ?? r.ta?.theme_fit_score ?? null;
+
+          // Emit rejection event when agents agree the ticker is off-theme
+          if (
+            intent.themes.length > 0 &&
+            medianThemeFit !== null &&
+            medianThemeFit < THEME_REJECTION_THRESHOLD
+          ) {
+            console.warn(`[portfolio-chat] Stage 2 rejected ${r.ticker} — median_theme_fit=${medianThemeFit.toFixed(1)} < ${THEME_REJECTION_THRESHOLD}`);
+            controller.enqueue(sse({
+              type:           'rejected',
+              ticker:         r.ticker,
+              reason:         `Agent consensus: theme fit score ${medianThemeFit.toFixed(1)}/10 is below threshold for themes [${intent.themes.join(', ')}]`,
+              medianThemeFit: medianThemeFit,
+            }));
+            continue;
+          }
+
+          items.push({
+            ticker:              r.ticker,
+            bullishCount:        r.hf?.consensus.bullish ?? 0,
+            bearishCount:        r.hf?.consensus.bearish ?? 0,
+            totalPersonas:       r.hf ? r.hf.consensus.bullish + r.hf.consensus.bearish + r.hf.consensus.neutral : 0,
+            medianThemeFit:      medianThemeFit,
+            tradingDecision:     r.ta?.decision          ?? '',
+            tradingThesis:       r.ta?.thesis            ?? '',
+            tradingTimeHorizon:  r.ta?.time_horizon      ?? '',
+            tradingThemeFit:     r.ta?.theme_fit_score      ?? null,
+            businessConsistency: r.ta?.business_consistency ?? true,
+          });
+        }
 
         controller.enqueue(sse({ type: 'enriched', items }));
         controller.enqueue(sse({ type: 'done' }));
