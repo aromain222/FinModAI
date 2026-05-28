@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { screenUniverse } from '@/lib/execution/universalScreener';
 import { scoreMultiple } from '@/lib/ranking/score';
+import type { UserIntent } from '@/lib/execution/userIntent';
 
 export const dynamic    = 'force-dynamic';
 export const runtime    = 'nodejs';
@@ -30,10 +31,20 @@ function appUrl(req: NextRequest): string {
   return new URL(req.url).origin;
 }
 
+// Generic top-picks intent — no theme or asset-class constraints
+const DEFAULT_INTENT: UserIntent = {
+  themes:         [],
+  risk_profile:   'balanced',
+  position_count: null,
+  capital_usd:    null,
+  asset_class:    'common_stock',
+  raw_prompt:     '',
+};
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     const origin = appUrl(req);
-    const screen = await screenUniverse(25);
+    const screen = await screenUniverse(DEFAULT_INTENT, 25);
     const ranked = await scoreMultiple(screen.tickers, origin, 6);
 
     const recommendations: Recommendation[] = ranked
