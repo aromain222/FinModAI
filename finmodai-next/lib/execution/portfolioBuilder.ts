@@ -15,15 +15,8 @@ import type { RankedStock } from '@/lib/ranking/types';
 import { ingestAgentView } from '@/lib/pm/decisions/pmBrain';
 import { autoApprovePaperDecisions } from '@/lib/pm/decisions/autoApprove';
 import { runAutoPaperTrader } from '@/lib/execution/autoPaperTrader';
+import { screenUniverse } from '@/lib/execution/universalScreener';
 import type { AgentView } from '@/lib/pm/types';
-
-const DEFAULT_WATCHLIST = [
-  'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA', 'TSLA',
-  'JPM', 'GS', 'BAC', 'V', 'MA',
-  'UNH', 'LLY', 'ABBV',
-  'XOM', 'CVX',
-  'UBER', 'ABNB', 'SHOP',
-];
 
 const BUY_SCORE_THRESHOLD  = 6.0;
 const SELL_SCORE_THRESHOLD = 4.0;
@@ -40,6 +33,8 @@ export type BuilderConfig = {
 
 export type BuilderResult = {
   dryRun: boolean;
+  universeSource: 'alpaca' | 'fallback';
+  universeSize: number;
   ranked: number;
   buyCandidates: string[];
   sellCandidates: string[];
@@ -92,15 +87,26 @@ function rankedStockToAgentView(stock: RankedStock): AgentView {
 
 export async function buildPortfolio(config: BuilderConfig): Promise<BuilderResult> {
   const errors: string[] = [];
-  const watchlist = config.watchlist ?? DEFAULT_WATCHLIST;
 
-  // 1. Score all tickers
+  // 1a. Build ticker universe — use Alpaca screener if no watchlist provided
+  let watchlist = config.watchlist ?? [];
+  let universeSource: 'alpaca' | 'fallback' = 'fallback';
+  let universeSize = 0;
+
+  if (watchlist.length === 0) {
+    const screen = await screenUniverse(config.maxOrders ? Math.max(75, config.maxOrders * 3) : 75);
+    watchlist     = screen.tickers;
+    universeSource = screen.source;
+    universeSize   = screen.total;
+  }
+
+  // 1b. Score all tickers
   let ranked: RankedStock[] = [];
   try {
     ranked = await scoreMultiple(watchlist, config.origin, 6);
   } catch (err) {
     errors.push(`Scoring failed: ${err instanceof Error ? err.message : String(err)}`);
-    return { dryRun: config.dryRun, ranked: 0, buyCandidates: [], sellCandidates: [], decisionsCreated: 0, approved: 0, submitted: 0, errors };
+    return { dryRun: config.dryRun, universeSource, universeSize, ranked: 0, buyCandidates: [], sellCandidates: [], decisionsCreated: 0, approved: 0, submitted: 0, errors };
   }
 
   const buyCandidates = ranked
@@ -143,6 +149,8 @@ export async function buildPortfolio(config: BuilderConfig): Promise<BuilderResu
 
   return {
     dryRun: config.dryRun,
+    universeSource,
+    universeSize,
     ranked: ranked.length,
     buyCandidates,
     sellCandidates,
