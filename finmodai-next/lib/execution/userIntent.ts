@@ -6,6 +6,8 @@
  * agents, validation) reads from this object instead of re-parsing the prompt.
  */
 
+import { detectThemesFromPrompt } from './themeClassifier';
+
 export interface UserIntent {
   themes:         string[];                                      // canonical tags, e.g. ["ai", "space"]
   risk_profile:   'aggressive' | 'balanced' | 'conservative';
@@ -14,23 +16,6 @@ export interface UserIntent {
   asset_class:    'common_stock' | 'any';
   raw_prompt:     string;
 }
-
-// ── Theme keyword map ─────────────────────────────────────────────────────────
-
-const THEME_MAP: Record<string, string[]> = {
-  ai:          ['ai', 'artificial intelligence', 'machine learning', 'ml ', 'llm', 'gpt', 'neural', 'deep learning', 'generative'],
-  tech:        ['tech', 'technology', 'software', 'saas', 'cloud computing', 'enterprise software'],
-  space:       ['space', 'aerospace', 'rocket', 'satellite', 'defense', 'hypersonic'],
-  biotech:     ['biotech', 'biopharma', 'pharma', 'drug', 'clinical', 'genomics', 'oncology', 'therapeutics'],
-  semis:       ['semi', 'semiconductor', 'chip', 'chipmaker', 'fab', 'wafer'],
-  energy:      ['energy', 'oil', 'gas', 'lng', 'solar', 'renewable', 'clean energy', 'ev battery', 'nuclear'],
-  fintech:     ['fintech', 'payments', 'neobank', 'insurtech', 'lending'],
-  crypto:      ['crypto', 'bitcoin', 'blockchain', 'defi', 'web3', 'digital asset'],
-  consumer:    ['consumer', 'retail', 'ecommerce', 'e-commerce', 'apparel', 'luxury'],
-  healthcare:  ['healthcare', 'health', 'medical device', 'hospital', 'diagnostics'],
-  industrials: ['industrial', 'manufacturing', 'automation', 'robotics', 'infrastructure'],
-  realestate:  ['reit', 'real estate', 'property'],
-};
 
 const AGGRESSIVE_KEYWORDS = [
   'aggressive', 'high growth', 'high-growth', 'speculative', 'high beta',
@@ -43,15 +28,6 @@ const CONSERVATIVE_KEYWORDS = [
 ];
 
 // ── Parsers ───────────────────────────────────────────────────────────────────
-
-function extractThemes(prompt: string): string[] {
-  const lower = prompt.toLowerCase();
-  const found: string[] = [];
-  for (const [theme, keywords] of Object.entries(THEME_MAP)) {
-    if (keywords.some(kw => lower.includes(kw))) found.push(theme);
-  }
-  return found;
-}
 
 function extractRiskProfile(
   prompt: string,
@@ -100,7 +76,7 @@ export function parseUserIntent(prompt: string): UserIntent {
   const wantsETF = /\betfs?\b|\bfunds?\b|\bindex\b/i.test(prompt);
 
   return {
-    themes:         extractThemes(prompt),
+    themes:         detectThemesFromPrompt(prompt),
     risk_profile:   extractRiskProfile(prompt),
     position_count: extractPositionCount(prompt),
     capital_usd:    extractCapital(prompt),

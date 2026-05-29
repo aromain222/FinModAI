@@ -221,7 +221,7 @@ async function runPersonaSignals(
   const assetRealityBlock = buildAssetRealityBlock(ticker, asset);
 
   const themeFitInstruction = hasThemes
-    ? `For theme_fit_score: rate 0–10 how well this ticker's actual business fits the user's themes (${intent.themes.join(', ')}). 0 = completely off-theme (e.g. bond ETF asked for AI stocks), 10 = perfect match. Be honest even if the ticker is otherwise a good investment.`
+    ? `For theme_fit_score: rate 0–10 how well this ticker's actual business fits the user's themes (${intent.themes.join(', ')}). 0 = completely off-theme (e.g. bond ETF or printer company asked for AI/space stocks), 10 = perfect match. Be honest even if the ticker is otherwise a good investment. If theme_fit_score is below 5, the persona must be neutral or bearish for this portfolio request and must not invent an AI/space/robotics angle.`
     : 'For theme_fit_score: return null (no theme filter was specified).';
 
   const resp = await client.chat.completions.create({
@@ -314,7 +314,7 @@ export async function POST(req: NextRequest) {
   const assetMetadata: AssetMetadata | null = (b.assetMetadata ?? null) as AssetMetadata | null;
 
   try {
-    const pythonResult = await tryPythonBackend(ticker);
+    const pythonResult = intent?.themes.length ? null : await tryPythonBackend(ticker);
     if (pythonResult) {
       return NextResponse.json(pythonResult, {
         headers: {

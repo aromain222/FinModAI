@@ -27,6 +27,7 @@ import { parseUserIntent, type UserIntent } from '@/lib/execution/userIntent';
 import { fetchAssetMetadata, type AssetMetadata } from '@/lib/execution/assetMetadata';
 import { validatePortfolio } from '@/lib/execution/portfolioValidator';
 import { runAsyncJudges } from '@/lib/execution/asyncJudge';
+import { matchThemes } from '@/lib/execution/themeClassifier';
 import {
   validateSynthesis,
   type SynthesizedPortfolio,
@@ -105,21 +106,41 @@ function toPortfolioPosition(p: SynthesizedPosition): PortfolioPosition {
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
-type CacheEntry = { ranked: RankedStock[]; cachedAt: number };
+type CacheEntry = { key: string; ranked: RankedStock[]; cachedAt: number };
 let _cache: CacheEntry | null = null;
+
+function cacheKeyForIntent(intent: UserIntent, maxTickers: number): string {
+  return JSON.stringify({
+    themes:         intent.themes,
+    risk_profile:   intent.risk_profile,
+    position_count: intent.position_count,
+    asset_class:    intent.asset_class,
+    maxTickers,
+  });
+}
 
 async function getOrFetchRanked(
   intent: UserIntent,
   origin: string,
 ): Promise<{ ranked: RankedStock[]; cached: boolean }> {
   const now = Date.now();
-  if (_cache && now - _cache.cachedAt < CACHE_TTL_MS) {
+  const targetCount = intent.position_count ?? DEFAULT_PORTFOLIO_SIZE;
+  const maxTickers = Math.max(targetCount * 3, 40);
+  const key = cacheKeyForIntent(intent, maxTickers);
+  if (_cache && _cache.key === key && now - _cache.cachedAt < CACHE_TTL_MS) {
     return { ranked: _cache.ranked, cached: true };
   }
-  const targetCount = intent.position_count ?? DEFAULT_PORTFOLIO_SIZE;
-  const screen = await screenUniverse(intent, Math.max(targetCount * 3, 40));
+  const screen = await screenUniverse(intent, maxTickers);
+  console.info('[stage-1 portfolio-chat] parseUserIntent', {
+    themes: intent.themes,
+    requested: targetCount,
+    source: screen.source,
+    universeTotal: screen.total,
+    themeFiltered: screen.themeFiltered,
+    scoredCandidates: screen.tickers.length,
+  });
   const ranked = await scoreMultiple(screen.tickers, origin, 6);
-  _cache = { ranked, cachedAt: now };
+  _cache = { key, ranked, cachedAt: now };
   return { ranked, cached: false };
 }
 
@@ -233,10 +254,11 @@ async function synthesisePortfolio(
 
 STRICT RULES — every position must pass all of these or do not include it:
 1. Common equities only. No ETFs, bond funds, closed-end funds, or index products.
-2. ${intent.themes.length > 0 ? `Every position must relate to: ${intent.themes.join(', ')}. Fill theme_justification with a 1-sentence explanation of the link. The word "${intent.themes[0]}" or a synonym must appear in theme_justification.` : 'Fill theme_justification with the primary sector or investment category.'}
-3. weight_pct values must be in range 2–20. Weights must sum to exactly 100.
-4. Return exactly ${targetCount} positions. If you can only find N < ${targetCount} qualifying names, return N and explain in shortfall_reason.
-5. risk must name a specific metric, company, product, or number. Generic risks like "competition" or "macro risk" alone are not acceptable — they will be rejected.
+2. Only choose tickers from the candidate list below. Do not add outside names.
+3. ${intent.themes.length > 0 ? `Every position must relate to: ${intent.themes.join(', ')}. Fill theme_justification with a 1-sentence explanation of the link. The word "${intent.themes[0]}" or a synonym must appear in theme_justification.` : 'Fill theme_justification with the primary sector or investment category.'}
+4. weight_pct values must be in range 2–20. Weights must sum to exactly 100.
+5. Return exactly ${targetCount} positions. If you can only find N < ${targetCount} qualifying names, return N and explain in shortfall_reason.
+6. risk must name a specific metric, company, product, or number. Generic risks like "competition" or "macro risk" alone are not acceptable — they will be rejected.
 
 Weight-to-sizing mapping (do not guess — follow exactly):
 - Full position: weight_pct 10–20
@@ -349,6 +371,11 @@ export async function POST(req: NextRequest): Promise<Response> {
 
         const { ranked, cached } = await getOrFetchRanked(intent, origin);
         const candidates = ranked
+          .filter(s => intent.themes.length === 0 || matchThemes({
+            ticker: s.ticker,
+            name:   s.meta.companyName ?? s.meta.sector ?? s.ticker,
+            sector: s.meta.sector ?? undefined,
+          }, intent.themes).fits)
           .filter(s => s.score >= 6.0)
           .sort((a, b) => b.score - a.score)
           .slice(0, Math.max(targetCount * 2, 20));
@@ -374,6 +401,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         controller.enqueue(sse({ type: 'step', message: `Building ${targetCount}-position portfolio…` }));
 
         // Stages 3+4: synthesis → validate → gate loop (max 2 attempts)
+        const candidateTickers = new Set(candidates.map(c => c.ticker));
         const rejectedTickers = new Set<string>();
         let synthesized: SynthesizedPortfolio | null = null;
         let lastErrors: ValidationError[] = [];
@@ -383,7 +411,33 @@ export async function POST(req: NextRequest): Promise<Response> {
             client, intent, candidates, existingTickers,
             attempt > 1 ? lastErrors : undefined,
           );
+          const offSlate = raw.positions
+            .filter(p => !candidateTickers.has(p.ticker))
+            .map(p => p.ticker);
+          const offTheme = intent.themes.length > 0
+            ? raw.positions
+              .filter(p => !matchThemes({ ticker: p.ticker }, intent.themes).fits)
+              .map(p => p.ticker)
+            : [];
+          for (const ticker of [...offSlate, ...offTheme]) rejectedTickers.add(ticker);
+
           const vr   = validateSynthesis(raw, intent, rejectedTickers);
+          if (offSlate.length > 0) {
+            vr.errors.push({
+              code:    'C9',
+              message: `Ticker(s) were not in the screened candidate slate and cannot be included: ${offSlate.join(', ')}`,
+              tickers: offSlate,
+            });
+            vr.mustRegenerate = true;
+          }
+          if (offTheme.length > 0) {
+            vr.errors.push({
+              code:    'C10',
+              message: `Ticker(s) do not have a deterministic link to requested themes [${intent.themes.join(', ')}]: ${offTheme.join(', ')}`,
+              tickers: offTheme,
+            });
+            vr.mustRegenerate = true;
+          }
           const gate = validatePortfolio(vr.portfolio, intent);
           synthesized = vr.portfolio;
 

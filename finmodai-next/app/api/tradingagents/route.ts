@@ -59,7 +59,7 @@ function buildContextBlocks(
     parts.push(`USER CONTEXT
 Themes: ${themes} | Risk profile: ${intent.risk_profile} | Capital: ${capital}
 Original prompt: "${intent.raw_prompt}"
-If ${ticker} does not fit the user's stated themes, note it explicitly in your analysis.`);
+If ${ticker} does not fit the user's stated themes, note it explicitly in your analysis and do not invent a thematic link.`);
   }
 
   if (asset) {
@@ -225,7 +225,7 @@ async function runDebateAndDecision(
 
   const hasThemes = intent && intent.themes.length > 0;
   const themeLine = hasThemes
-    ? `\ntheme_fit_score: 0–10 — how well does ${ticker}'s actual business fit the themes (${intent.themes.join(', ')})? 0 = off-theme (e.g. bond ETF for AI portfolio), 10 = perfect fit. Be accurate.\ntheme_fit_reason: 1-2 sentences explaining the score.\nbusiness_consistency: true if the decision is consistent with ${asset?.name ?? ticker}'s actual business; false otherwise.`
+    ? `\ntheme_fit_score: 0–10 — how well does ${ticker}'s actual business fit the themes (${intent.themes.join(', ')})? 0 = off-theme (e.g. printer company for AI/space portfolio), 10 = perfect fit. Be accurate.\ntheme_fit_reason: 1-2 sentences explaining the score.\nbusiness_consistency: true if the decision is consistent with ${asset?.name ?? ticker}'s actual business; false otherwise.\nIf theme_fit_score is below 5, decision must be Hold, Underweight, or Sell. Do not rationalize an off-theme company as an AI/space/robotics pick.`
     : '\ntheme_fit_score: null (no theme specified).\ntheme_fit_reason: "".\nbusiness_consistency: true.';
 
   const assetLine = asset
@@ -286,7 +286,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const currentPricePromise = fetchCurrentPrice(ticker);
-    const pythonResult = await tryPythonBackend(ticker);
+    const pythonResult = intent?.themes.length ? null : await tryPythonBackend(ticker);
     if (pythonResult) {
       const currentPrice = await currentPricePromise;
       return NextResponse.json(withTargetSanity(pythonResult, currentPrice), {

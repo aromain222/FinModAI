@@ -19,6 +19,7 @@
 
 import { alpacaPaperCredentials } from '@/lib/execution/alpacaPaper';
 import type { UserIntent } from '@/lib/execution/userIntent';
+import { getThemeFallbackTickers, matchThemes } from '@/lib/execution/themeClassifier';
 
 const DEFAULT_WATCHLIST = [
   'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA', 'TSLA',
@@ -55,6 +56,11 @@ type AlpacaSnapshot = {
   latestTrade?: { p: number };
   dailyBar?:    { v: number };
 };
+
+function fallbackTickers(intent: UserIntent): string[] {
+  const themed = getThemeFallbackTickers(intent.themes, 100);
+  return themed.length > 0 ? themed : DEFAULT_WATCHLIST;
+}
 
 function alpacaHeaders(): Record<string, string> {
   const creds = alpacaPaperCredentials();
@@ -140,19 +146,38 @@ export type ScreenerResult = {
   source: 'alpaca' | 'fallback';
   total: number;
   filtered: number;
+  themeFiltered: number;
 };
 
 export async function screenUniverse(intent: UserIntent, maxTickers = 75): Promise<ScreenerResult> {
   try {
     const assets = await fetchAllAssets();
     if (assets.length === 0) {
-      return { tickers: DEFAULT_WATCHLIST, names: {}, source: 'fallback', total: 0, filtered: 0 };
+      return { tickers: fallbackTickers(intent).slice(0, maxTickers), names: {}, source: 'fallback', total: 0, filtered: 0, themeFiltered: 0 };
     }
 
-    const qualifiedAssets = assets.filter(a => isQualifiedAsset(a, intent));
+    const qualifiedAssets = assets
+      .filter(a => isQualifiedAsset(a, intent))
+      .filter(a => intent.themes.length === 0 || matchThemes({
+        ticker: a.symbol,
+        name:   a.name,
+      }, intent.themes).fits);
+
     const qualified = qualifiedAssets.map(a => a.symbol);
     const nameMap: Record<string, string> = {};
     for (const a of qualifiedAssets) nameMap[a.symbol] = a.name ?? a.symbol;
+
+    if (intent.themes.length > 0 && qualified.length === 0) {
+      const themedFallback = fallbackTickers(intent);
+      return {
+        tickers:       themedFallback.slice(0, maxTickers),
+        names:         {},
+        source:        'fallback',
+        total:         assets.length,
+        filtered:      0,
+        themeFiltered: 0,
+      };
+    }
 
     const snapshots = await fetchSnapshots(qualified);
 
@@ -174,11 +199,26 @@ export async function screenUniverse(intent: UserIntent, maxTickers = 75): Promi
     for (const t of tickers) names[t] = nameMap[t] ?? t;
 
     if (tickers.length === 0) {
-      return { tickers: DEFAULT_WATCHLIST, names: {}, source: 'fallback', total: assets.length, filtered: 0 };
+      const themedFallback = fallbackTickers(intent);
+      return {
+        tickers:       themedFallback.slice(0, maxTickers),
+        names:         {},
+        source:        'fallback',
+        total:         assets.length,
+        filtered:      0,
+        themeFiltered: qualified.length,
+      };
     }
 
-    return { tickers, names, source: 'alpaca', total: assets.length, filtered: ranked.length };
+    return {
+      tickers,
+      names,
+      source:        'alpaca',
+      total:         assets.length,
+      filtered:      ranked.length,
+      themeFiltered: intent.themes.length > 0 ? qualified.length : ranked.length,
+    };
   } catch {
-    return { tickers: DEFAULT_WATCHLIST, names: {}, source: 'fallback', total: 0, filtered: 0 };
+    return { tickers: fallbackTickers(intent).slice(0, maxTickers), names: {}, source: 'fallback', total: 0, filtered: 0, themeFiltered: 0 };
   }
 }
