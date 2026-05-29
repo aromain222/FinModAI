@@ -252,9 +252,22 @@ async function synthesisePortfolio(
       return cb - ca;
     });
 
+  // Early-exit when debate excluded every candidate
+  if (eligible.length === 0) {
+    return {
+      narrative:         'No viable candidates — all were excluded by the debate filter.',
+      total_capital_usd: intent.capital_usd ?? 10_000,
+      cash_reserve_pct:  0,
+      requested_count:   targetCount,
+      delivered_count:   0,
+      shortfall_reason:  `All ${deduped.length} candidates were excluded by the debate filter. Try a broader prompt.`,
+      positions:         [],
+    };
+  }
+
   // Document shortfall when eligible count is below requested; cap context to top 15
-  const effectiveTarget = Math.min(targetCount, Math.max(eligible.length, 1));
-  const preSynthesisShortfall = eligible.length < targetCount && eligible.length > 0
+  const effectiveTarget = Math.min(targetCount, eligible.length);
+  const preSynthesisShortfall = eligible.length < targetCount
     ? `Only ${eligible.length} viable candidates after debate filtering (${targetCount} requested).`
     : null;
   const topEligible = eligible.slice(0, Math.max(effectiveTarget, 15));
@@ -577,8 +590,19 @@ export async function POST(req: NextRequest): Promise<Response> {
             scoredAt: new Date().toISOString(),
           }));
           controller.enqueue(sse({ type: 'done' }));
-          controller.close();
           return;
+        }
+
+        // Force-normalize weights if both synthesis attempts left them outside 100±2%.
+        // This prevents C1 gate failure when the LLM ignores weight-sum feedback on both attempts.
+        if (synthesized && synthesized.positions.length > 0) {
+          const wSum = synthesized.positions.reduce((s, p) => s + p.weight_pct, 0);
+          if (wSum > 0 && Math.abs(wSum - 100) > 2) {
+            const scale = 100 / wSum;
+            for (const p of synthesized.positions) {
+              p.weight_pct = Math.round(p.weight_pct * scale * 10) / 10;
+            }
+          }
         }
 
         // Final gate — never ship BLOCKER violations
