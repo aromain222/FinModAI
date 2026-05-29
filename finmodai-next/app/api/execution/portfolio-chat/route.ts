@@ -16,6 +16,8 @@
 
 import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
+
+export const maxDuration = 300; // 5 min — required for multi-stage LLM pipeline (Vercel Pro+)
 import { getOpenAIKey } from '@/lib/openaiKey';
 import { hasAnyAnthropicKey } from '@/lib/anthropicKey';
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
