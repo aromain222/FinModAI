@@ -126,7 +126,7 @@ async function getOrFetchRanked(
 ): Promise<{ ranked: RankedStock[]; cached: boolean }> {
   const now = Date.now();
   const targetCount = intent.position_count ?? DEFAULT_PORTFOLIO_SIZE;
-  const maxTickers = Math.max(targetCount * 3, 40);
+  const maxTickers = Math.max(targetCount * 3, 20); // keep under Edge 30s budget
   const key = cacheKeyForIntent(intent, maxTickers);
   if (_cache && _cache.key === key && now - _cache.cachedAt < CACHE_TTL_MS) {
     return { ranked: _cache.ranked, cached: true };
@@ -270,7 +270,7 @@ async function synthesisePortfolio(
   const preSynthesisShortfall = eligible.length < targetCount
     ? `Only ${eligible.length} viable candidates after debate filtering (${targetCount} requested).`
     : null;
-  const topEligible = eligible.slice(0, Math.max(effectiveTarget, 15));
+  const topEligible = eligible.slice(0, Math.max(effectiveTarget, 10));
 
   const stockSummaries = topEligible.map(s => {
     const debate   = debateMap.get(s.ticker);
@@ -457,7 +457,7 @@ export async function POST(req: NextRequest): Promise<Response> {
 
         const { ranked, cached } = await getOrFetchRanked(intent, origin);
         // Threshold cascade: prefer score ≥ 6.0; fall back to ≥ 5.0 when not enough candidates
-        const minCandidates = Math.max(targetCount * 2, 20);
+        const minCandidates = Math.max(targetCount * 2, 10); // keep under Edge 30s budget
         const themeFiltered = ranked
           .filter(s => intent.themes.length === 0 || matchThemes({
             ticker: s.ticker,
