@@ -23,8 +23,7 @@ import {
 } from '@/lib/analyst/orchestrator';
 
 export const dynamic    = 'force-dynamic';
-export const runtime    = 'nodejs';
-export const maxDuration = 30;
+export const runtime = 'edge';
 
 // ── Request schema ─────────────────────────────────────────────────────────
 
