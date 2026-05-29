@@ -17,7 +17,7 @@
 import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
 
-export const maxDuration = 300; // 5 min — required for multi-stage LLM pipeline (Vercel Pro+)
+export const runtime = 'edge'; // no timeout on Vercel Hobby; all deps use fetch/Web APIs only
 import { getOpenAIKey } from '@/lib/openaiKey';
 import { hasAnyAnthropicKey } from '@/lib/anthropicKey';
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
@@ -40,9 +40,7 @@ import {
 import { scoreMultiple } from '@/lib/ranking/score';
 import type { RankedStock } from '@/lib/ranking/types';
 
-export const dynamic     = 'force-dynamic';
-export const runtime     = 'nodejs';
-export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
 
 const DEFAULT_PORTFOLIO_SIZE  = 10;
 const ENRICHED_POSITION_COUNT = 5;
