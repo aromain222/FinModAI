@@ -20,7 +20,7 @@ type AnalysisResult = {
   target_warning?: string | null;
   time_horizon: string | null;
   reports: AnalystReports;
-  source?: 'python_backend' | 'openai_fallback';
+  source?: 'python_backend' | 'llm_fallback';
 };
 
 const DECISION_STYLE: Record<string, { bg: string; text: string; ring: string; glow: string }> = {
@@ -57,7 +57,7 @@ function ReportCard({ label, text }: { label: string; text: string }) {
 const PIPELINE_STAGES = ['4 Analysts', 'Bull Researcher', 'Bear Researcher', 'Risk Manager', 'PM Decision'];
 
 function sourceLabel(source?: AnalysisResult['source']): string {
-  return source === 'python_backend' ? 'Real repo backend' : 'OpenAI fallback';
+  return source === 'python_backend' ? 'Real repo backend' : 'LLM fallback';
 }
 
 async function readJsonResponse(res: Response): Promise<unknown> {

@@ -19,7 +19,7 @@ type AnalysisResult = {
   decision: Decision | null;
   signals: Signal[];
   consensus: Consensus;
-  source?: 'python_backend' | 'openai_fallback';
+  source?: 'python_backend' | 'llm_fallback';
 };
 
 const SIGNAL_STYLE = {
@@ -110,7 +110,7 @@ function SignalCard({ s }: { s: Signal }) {
 const LOADING_NAMES = ['Warren Buffett','Ben Graham','Charlie Munger','Peter Lynch','Nassim Taleb','Michael Burry','Cathie Wood','Aswath Damodaran','Stanley Druckenmiller','Technical Analyst','Valuation Analyst','Momentum Analyst'];
 
 function sourceLabel(source?: AnalysisResult['source']): string {
-  return source === 'python_backend' ? 'Real repo backend' : 'OpenAI fallback';
+  return source === 'python_backend' ? 'Real repo backend' : 'LLM fallback';
 }
 
 async function readJsonResponse(res: Response): Promise<unknown> {
