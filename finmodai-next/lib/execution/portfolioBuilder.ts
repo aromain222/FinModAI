@@ -97,7 +97,7 @@ export async function buildPortfolio(config: BuilderConfig): Promise<BuilderResu
   // Default unconstrained intent for the auto-trader — no theme or capital filters
   const builderIntent: UserIntent = {
     themes: [], risk_profile: 'balanced', position_count: null,
-    capital_usd: null, asset_class: 'common_stock', raw_prompt: '',
+    capital_usd: null, time_horizon: 'medium', asset_class: 'common_stock', raw_prompt: '',
   };
 
   if (watchlist.length === 0) {

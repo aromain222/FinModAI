@@ -1,4 +1,5 @@
 import type { UserIntent } from './userIntent';
+import type { PersonaOutput } from './agentConsensus';
 
 export type SynthesizedPosition = {
   ticker:              string;
@@ -11,6 +12,10 @@ export type SynthesizedPosition = {
   thesis:              string;
   theme_justification: string;
   risk:                string;
+  // Populated from debate stage — optional so pre-debate synthesis still type-checks
+  bull_case?:     string;
+  bear_case?:     string;
+  agent_signals?: PersonaOutput[];
 };
 
 export type SynthesizedPortfolio = {

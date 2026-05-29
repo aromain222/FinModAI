@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
-import { getOpenAIKey } from '@/lib/openaiKey';
+import { hasAnyAnthropicKey } from '@/lib/anthropicKey';
+import { hasAnyOpenAIKey } from '@/lib/openaiKey';
+import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 import type { UserIntent } from '@/lib/execution/userIntent';
 import type { AssetMetadata } from '@/lib/execution/assetMetadata';
 
@@ -61,19 +62,22 @@ type AnalysisResult = {
   signals:           { key: string; name: string; group: string; signal: 'bullish' | 'bearish' | 'neutral'; confidence: number; reasoning: string; thesis: string; theme_fit_score: number | null; theme_fit_reason: string; business_consistency: boolean }[];
   consensus:         { bullish: number; bearish: number; neutral: number };
   median_theme_fit:  number | null;
-  source?:           'python_backend' | 'openai_fallback';
+  source?:           'python_backend' | 'llm_fallback';
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function openAIClient(): OpenAI | null {
-  const apiKey = getOpenAIKey('user');
-  return apiKey ? new OpenAI({ apiKey }) : null;
-}
-
 function pythonBackendUrl(): string | null {
   const raw = process.env.AI_AGENT_BACKEND_URL || process.env.PYTHON_BACKEND_URL;
   return raw ? raw.replace(/\/+$/, '') : null;
+}
+
+function extractJsonObject(raw: string): unknown {
+  const trimmed = raw.trim().replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '').trim();
+  const first = trimmed.indexOf('{');
+  const last = trimmed.lastIndexOf('}');
+  const slice = first >= 0 && last > first ? trimmed.slice(first, last + 1) : trimmed;
+  return JSON.parse(slice);
 }
 
 function median(values: number[]): number {
@@ -192,7 +196,6 @@ async function fetchMarketContext(ticker: string): Promise<MarketContext | null>
 }
 
 async function runPersonaSignals(
-  client: OpenAI,
   ticker: string,
   intent: UserIntent | null,
   asset: AssetMetadata | null,
@@ -224,11 +227,11 @@ async function runPersonaSignals(
     ? `For theme_fit_score: rate 0–10 how well this ticker's actual business fits the user's themes (${intent.themes.join(', ')}). 0 = completely off-theme (e.g. bond ETF or printer company asked for AI/space stocks), 10 = perfect match. Be honest even if the ticker is otherwise a good investment. If theme_fit_score is below 5, the persona must be neutral or bearish for this portfolio request and must not invent an AI/space/robotics angle.`
     : 'For theme_fit_score: return null (no theme filter was specified).';
 
-  const resp = await client.chat.completions.create({
-    model: 'gpt-4o-mini',
-    response_format: { type: 'json_object' },
+  const result = await generateTextWithProviderFallback({
+    preferredProvider: 'anthropic',
+    clientType: 'user',
     temperature: 0.75,
-    max_tokens: 6000,
+    maxTokens: 6000,
     messages: [
       {
         role: 'system',
@@ -247,7 +250,7 @@ async function runPersonaSignals(
     ],
   });
 
-  const parsed = JSON.parse(resp.choices[0].message.content ?? '{}') as { signals?: RawSignal[] };
+  const parsed = extractJsonObject(result?.text ?? '{}') as { signals?: RawSignal[] };
   const signals = Array.isArray(parsed.signals) ? parsed.signals : [];
 
   // Validate required new fields; retry once on first attempt
@@ -256,14 +259,13 @@ async function runPersonaSignals(
   );
   if (invalid.length > 0 && attempt === 1) {
     console.warn(`[hedge-fund] ${invalid.length} signals missing theme_fit_score on attempt 1, retrying…`);
-    return runPersonaSignals(client, ticker, intent, asset, ctx, 2);
+    return runPersonaSignals(ticker, intent, asset, ctx, 2);
   }
 
   return signals;
 }
 
 async function runPortfolioManager(
-  client: OpenAI,
   ticker: string,
   signals: RawSignal[],
   consensus: { bullish: number; bearish: number; neutral: number },
@@ -272,11 +274,11 @@ async function runPortfolioManager(
     .map(s => `${s.key}: ${s.signal} (${s.confidence}%) — ${s.reasoning}`)
     .join('\n');
 
-  const resp = await client.chat.completions.create({
-    model: 'gpt-4o-mini',
-    response_format: { type: 'json_object' },
+  const result = await generateTextWithProviderFallback({
+    preferredProvider: 'anthropic',
+    clientType: 'user',
     temperature: 0.5,
-    max_tokens: 400,
+    maxTokens: 500,
     messages: [
       {
         role: 'system',
@@ -289,7 +291,7 @@ async function runPortfolioManager(
     ],
   });
 
-  const parsed = JSON.parse(resp.choices[0].message.content ?? '{}') as AnalysisResult['decision'];
+  const parsed = extractJsonObject(result?.text ?? '{}') as AnalysisResult['decision'];
   if (!parsed) return null;
   const { action, confidence, reasoning, sizing } = parsed;
   return { action, confidence, reasoning, sizing };
@@ -324,15 +326,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const client = openAIClient();
-    if (!client) {
+    if (!hasAnyAnthropicKey() && !hasAnyOpenAIKey()) {
       return NextResponse.json({
-        error: 'Agent backend unavailable and OpenAI key not configured. Set OPENAI_API_KEY or OPENAI_SERVICE_API_KEY.',
+        error: 'Agent backend unavailable and no LLM key configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.',
       }, { status: 503 });
     }
 
     const ctx = await fetchMarketContext(ticker);
-    const rawSignals = await runPersonaSignals(client, ticker, intent, assetMetadata, ctx);
+    const rawSignals = await runPersonaSignals(ticker, intent, assetMetadata, ctx);
 
     const signals = rawSignals.map(s => {
       const meta = PERSONAS.find(p => p.key === s.key);
@@ -366,7 +367,7 @@ export async function POST(req: NextRequest) {
       console.info(`[hedge-fund] ${ticker} median_theme_fit=${median_theme_fit.toFixed(1)} themes=${intent.themes.join(',')}`);
     }
 
-    const decision = await runPortfolioManager(client, ticker, rawSignals, consensus);
+    const decision = await runPortfolioManager(ticker, rawSignals, consensus);
 
     const result: AnalysisResult = {
       ticker,
@@ -375,13 +376,13 @@ export async function POST(req: NextRequest) {
       signals,
       consensus,
       median_theme_fit,
-      source:           'openai_fallback',
+      source:           'llm_fallback',
     };
 
     return NextResponse.json(result, {
       headers: {
         'Cache-Control':              'no-store',
-        'X-CapitalBase-Agent-Source': 'openai_fallback',
+        'X-CapitalBase-Agent-Source': 'llm_fallback',
       },
     });
   } catch (err) {

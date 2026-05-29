@@ -13,6 +13,7 @@ export interface UserIntent {
   risk_profile:   'aggressive' | 'balanced' | 'conservative';
   position_count: number | null;                                 // null = not specified → use default
   capital_usd:    number | null;                                 // null = not specified
+  time_horizon:   'short' | 'medium' | 'long';                  // 3mo / 1yr / 3yr+
   asset_class:    'common_stock' | 'any';
   raw_prompt:     string;
 }
@@ -25,6 +26,18 @@ const AGGRESSIVE_KEYWORDS = [
 const CONSERVATIVE_KEYWORDS = [
   'conservative', 'safe', 'dividend', 'stable', 'low risk', 'low-risk',
   'defensive', 'value', 'income', 'blue chip', 'blue-chip',
+];
+
+const SHORT_HORIZON_KEYWORDS = [
+  '3 month', '3-month', 'near term', 'near-term', 'short term', 'short-term',
+  'short horizon', 'tactical', 'catalyst play', 'catalyst-play',
+  '1 month', '2 month', 'quarterly',
+];
+
+const LONG_HORIZON_KEYWORDS = [
+  'long term', 'long-term', '3 year', '5 year', '10 year', 'multi year', 'multi-year',
+  'decade', 'generational', 'retirement', 'wealth building', 'compounding',
+  'buy and hold', 'hold forever',
 ];
 
 // ── Parsers ───────────────────────────────────────────────────────────────────
@@ -58,6 +71,13 @@ function extractPositionCount(prompt: string): number | null {
   return null;
 }
 
+function extractTimeHorizon(prompt: string): 'short' | 'medium' | 'long' {
+  const lower = prompt.toLowerCase();
+  if (SHORT_HORIZON_KEYWORDS.some(kw => lower.includes(kw))) return 'short';
+  if (LONG_HORIZON_KEYWORDS.some(kw => lower.includes(kw))) return 'long';
+  return 'medium';
+}
+
 function extractCapital(prompt: string): number | null {
   // "$10k", "$10,000", "$1.5m", "$500"
   const m = /\$\s*([\d,]+\.?\d*)\s*([km]?)\b/i.exec(prompt);
@@ -80,6 +100,7 @@ export function parseUserIntent(prompt: string): UserIntent {
     risk_profile:   extractRiskProfile(prompt),
     position_count: extractPositionCount(prompt),
     capital_usd:    extractCapital(prompt),
+    time_horizon:   extractTimeHorizon(prompt),
     asset_class:    wantsETF ? 'any' : 'common_stock',
     raw_prompt:     prompt,
   };

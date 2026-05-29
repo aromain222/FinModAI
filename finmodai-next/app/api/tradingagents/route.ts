@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
-import { getOpenAIKey } from '@/lib/openaiKey';
+import { hasAnyAnthropicKey } from '@/lib/anthropicKey';
+import { hasAnyOpenAIKey } from '@/lib/openaiKey';
+import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 import type { UserIntent } from '@/lib/execution/userIntent';
 import type { AssetMetadata } from '@/lib/execution/assetMetadata';
 
@@ -31,19 +32,22 @@ type AnalysisResult = {
   theme_fit_score:      number | null;
   theme_fit_reason:     string;
   business_consistency: boolean;
-  source?:              'python_backend' | 'openai_fallback';
+  source?:              'python_backend' | 'llm_fallback';
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function openAIClient(): OpenAI | null {
-  const apiKey = getOpenAIKey('user');
-  return apiKey ? new OpenAI({ apiKey }) : null;
-}
-
 function pythonBackendUrl(): string | null {
   const raw = process.env.AI_AGENT_BACKEND_URL || process.env.PYTHON_BACKEND_URL;
   return raw ? raw.replace(/\/+$/, '') : null;
+}
+
+function extractJsonObject(raw: string): unknown {
+  const trimmed = raw.trim().replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '').trim();
+  const first = trimmed.indexOf('{');
+  const last = trimmed.lastIndexOf('}');
+  const slice = first >= 0 && last > first ? trimmed.slice(first, last + 1) : trimmed;
+  return JSON.parse(slice);
 }
 
 function buildContextBlocks(
@@ -158,7 +162,6 @@ function withTargetSanity(result: AnalysisResult, currentPrice: number | null): 
 }
 
 async function runAnalysts(
-  client: OpenAI,
   ticker: string,
   contextBlocks: string,
 ): Promise<AnalystReports> {
@@ -167,11 +170,11 @@ async function runAnalysts(
     contextBlocks,
   ].filter(Boolean).join('\n\n');
 
-  const resp = await client.chat.completions.create({
-    model: 'gpt-4o-mini',
-    response_format: { type: 'json_object' },
+  const result = await generateTextWithProviderFallback({
+    preferredProvider: 'anthropic',
+    clientType: 'user',
     temperature: 0.7,
-    max_tokens: 2000,
+    maxTokens: 2200,
     messages: [
       { role: 'system', content: systemContent },
       {
@@ -190,7 +193,7 @@ Return JSON: { "market": "...", "fundamentals": "...", "sentiment": "...", "news
     ],
   });
 
-  const parsed = JSON.parse(resp.choices[0].message.content ?? '{}') as Partial<AnalystReports>;
+  const parsed = extractJsonObject(result?.text ?? '{}') as Partial<AnalystReports>;
   return {
     market:       parsed.market       ?? null,
     fundamentals: parsed.fundamentals ?? null,
@@ -200,7 +203,6 @@ Return JSON: { "market": "...", "fundamentals": "...", "sentiment": "...", "news
 }
 
 async function runDebateAndDecision(
-  client: OpenAI,
   ticker: string,
   reports: AnalystReports,
   currentPrice: number | null,
@@ -232,11 +234,11 @@ async function runDebateAndDecision(
     ? `\nNote: ${ticker} is ${asset.name} (${asset.sector} / ${asset.industry}). ${asset.business_summary}`
     : '';
 
-  const resp = await client.chat.completions.create({
-    model: 'gpt-4o-mini',
-    response_format: { type: 'json_object' },
+  const result = await generateTextWithProviderFallback({
+    preferredProvider: 'anthropic',
+    clientType: 'user',
     temperature: 0.5,
-    max_tokens: 700,
+    maxTokens: 900,
     messages: [
       {
         role: 'system',
@@ -249,7 +251,7 @@ async function runDebateAndDecision(
     ],
   });
 
-  const parsed = JSON.parse(resp.choices[0].message.content ?? '{}') as {
+  const parsed = extractJsonObject(result?.text ?? '{}') as {
     decision?: string; summary?: string; thesis?: string;
     price_target?: number | null; time_horizon?: string;
     theme_fit_score?: number | null; theme_fit_reason?: string; business_consistency?: boolean;
@@ -294,17 +296,16 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const client = openAIClient();
-    if (!client) {
+    if (!hasAnyAnthropicKey() && !hasAnyOpenAIKey()) {
       return NextResponse.json({
-        error: 'Agent backend unavailable and OpenAI key not configured.',
+        error: 'Agent backend unavailable and no LLM key configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.',
       }, { status: 503 });
     }
 
     const contextBlocks = buildContextBlocks(ticker, intent, assetMetadata);
     const currentPrice  = await currentPricePromise;
-    const reports       = await runAnalysts(client, ticker, contextBlocks);
-    const debateResult  = await runDebateAndDecision(client, ticker, reports, currentPrice, intent, assetMetadata);
+    const reports       = await runAnalysts(ticker, contextBlocks);
+    const debateResult  = await runDebateAndDecision(ticker, reports, currentPrice, intent, assetMetadata);
 
     if (debateResult.theme_fit_score !== null && intent?.themes.length) {
       console.info(`[tradingagents] ${ticker} theme_fit_score=${debateResult.theme_fit_score} themes=${intent.themes.join(',')}`);
@@ -322,11 +323,11 @@ export async function POST(req: NextRequest) {
       theme_fit_score:      debateResult.theme_fit_score,
       theme_fit_reason:     debateResult.theme_fit_reason,
       business_consistency: debateResult.business_consistency,
-      source:               'openai_fallback',
+      source:               'llm_fallback',
     }, currentPrice);
 
     return NextResponse.json(result, {
-      headers: { 'Cache-Control': 'no-store', 'X-CapitalBase-Agent-Source': 'openai_fallback' },
+      headers: { 'Cache-Control': 'no-store', 'X-CapitalBase-Agent-Source': 'llm_fallback' },
     });
   } catch (err) {
     return NextResponse.json(

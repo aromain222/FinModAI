@@ -37,6 +37,7 @@ const DEFAULT_INTENT: UserIntent = {
   risk_profile:   'balanced',
   position_count: null,
   capital_usd:    null,
+  time_horizon:   'medium',
   asset_class:    'common_stock',
   raw_prompt:     '',
 };

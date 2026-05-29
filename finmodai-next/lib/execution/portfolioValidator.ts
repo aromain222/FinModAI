@@ -133,5 +133,16 @@ export function validatePortfolio(
     }
   }
 
+  // F1: aggressive portfolios must not contain Hold actions
+  if (intent.risk_profile === 'aggressive') {
+    const holdPositions = p.filter(pos => pos.action === 'Hold');
+    if (holdPositions.length > 0) {
+      blocker('F1', `Aggressive portfolio must not contain Hold positions: ${holdPositions.map(pos => pos.ticker).join(', ')}`, {
+        tickers: holdPositions.map(pos => pos.ticker),
+        risk_profile: intent.risk_profile,
+      });
+    }
+  }
+
   return { ok: blockers.length === 0, blockers, warnings };
 }
