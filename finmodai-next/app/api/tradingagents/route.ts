@@ -5,9 +5,8 @@ import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 import type { UserIntent } from '@/lib/execution/userIntent';
 import type { AssetMetadata } from '@/lib/execution/assetMetadata';
 
-export const dynamic     = 'force-dynamic';
-export const runtime     = 'nodejs';
-export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
 
 type AnalystReports = {
   market:       string | null;
