@@ -204,6 +204,96 @@ test('Test 5: weights summing to 87% → auto-normalized (delta ≤ 15%)', () =>
   );
 });
 
+// ── Test 7: C1 fires when count short and no shortfall_reason ────────────────
+
+test('Test 7: C1 fires when portfolio is short and shortfall_reason is null', () => {
+  const positions = [makePos('T0', 33), makePos('T1', 33), makePos('T2', 34)];
+  const portfolio = makePortfolio(positions, {
+    requested_count:  5,
+    delivered_count:  3,
+    shortfall_reason: null,
+  });
+
+  const vr = validateSynthesis(portfolio, noThemeIntent, new Set());
+  const c1 = vr.errors.find(e => e.code === 'C1');
+  assert.ok(
+    c1,
+    `C1 should fire when delivered(3) < requested(5) with no shortfall_reason; errors: [${vr.errors.map(e => e.code).join(', ')}]`,
+  );
+  assert.ok(vr.mustRegenerate, 'mustRegenerate should be true when C1 fires');
+});
+
+// ── Test 8: viable=0 → C1 suppressed when shortfall_reason explains it ───────
+
+test('Test 8: viable=0 → C1 suppressed when shortfall_reason is set', () => {
+  const portfolio = makePortfolio([], {
+    requested_count:  10,
+    delivered_count:  0,
+    shortfall_reason: 'No viable candidates after debate filtering.',
+  });
+
+  const vr = validateSynthesis(portfolio, noThemeIntent, new Set());
+  const c1 = vr.errors.find(e => e.code === 'C1');
+  assert.ok(
+    !c1,
+    `C1 should NOT fire when positions=0 and shortfall_reason explains it; errors: [${vr.errors.map(e => e.code).join(', ')}]`,
+  );
+});
+
+// ── Test 9: positions with empty bull_case/bear_case pass without errors ──────
+
+test('Test 9: positions with empty bull_case/bear_case do not trigger validation errors', () => {
+  const positions = Array.from({ length: 5 }, (_, i) =>
+    makePos(`T${i}`, 20, { bull_case: '', bear_case: '' }),
+  );
+  const portfolio = makePortfolio(positions);
+
+  const vr = validateSynthesis(portfolio, noThemeIntent, new Set());
+  const blocking = vr.errors.filter(e => !e.code.endsWith('_warn'));
+  assert.ok(
+    blocking.length === 0,
+    `Positions with empty bull_case/bear_case should not trigger blocking errors; got: [${blocking.map(e => e.code).join(', ')}]`,
+  );
+});
+
+// ── Test 10: F1 lists ALL Hold tickers (multi-Hold case) ─────────────────────
+
+test('Test 10: F1 blocker lists every Hold ticker in aggressive portfolio', () => {
+  const positions = [
+    makePos('NVDA', 20),
+    makePos('AMD',  20, { action: 'Hold' }),
+    makePos('MSFT', 20, { action: 'Hold' }),
+    makePos('GOOGL', 20),
+    makePos('META', 20),
+  ];
+  const portfolio = makePortfolio(positions);
+  const { blockers } = validatePortfolio(portfolio, aggressiveAiIntent);
+  const f1 = blockers.find(v => v.rule_id === 'F1');
+
+  assert.ok(f1, `F1 should fire; blockers: ${JSON.stringify(blockers.map(b => b.rule_id))}`);
+  const holdTickers = f1.details.tickers as string[];
+  assert.ok(holdTickers.includes('AMD'),  `F1.tickers should include AMD;  got: ${JSON.stringify(holdTickers)}`);
+  assert.ok(holdTickers.includes('MSFT'), `F1.tickers should include MSFT; got: ${JSON.stringify(holdTickers)}`);
+  assert.equal(holdTickers.length, 2, `F1 should name exactly 2 Hold tickers; got: ${JSON.stringify(holdTickers)}`);
+});
+
+// ── Test 11: weight delta=16% → C5 fires (exceeds 15% auto-fix threshold) ────
+
+test('Test 11: weights summing to 84% (delta=16%) → C5 fires (exceeds auto-fix threshold)', () => {
+  // 5 × 16.8 = 84% — delta=16% is strictly > 15%, so C5 must fire instead of normalizing
+  const positions = [17, 17, 17, 16, 17].map((w, i) => makePos(`T${i}`, w));
+  const portfolio = makePortfolio(positions, { requested_count: 5, delivered_count: 5 });
+  const preTotal  = positions.reduce((s, p) => s + p.weight_pct, 0);
+
+  const vr = validateSynthesis(portfolio, noThemeIntent, new Set());
+  const c5 = vr.errors.find(e => e.code === 'C5');
+  assert.ok(
+    c5,
+    `C5 should fire when delta=${Math.abs(preTotal - 100).toFixed(0)}% > 15%; errors: [${vr.errors.map(e => e.code).join(', ')}]`,
+  );
+  assert.ok(vr.mustRegenerate, 'mustRegenerate should be true when C5 fires');
+});
+
 // ── Test 6: Capital not specified → defaults to $10,000 ──────────────────────
 
 test('Test 6: capital not specified in prompt → defaults to $10,000', () => {

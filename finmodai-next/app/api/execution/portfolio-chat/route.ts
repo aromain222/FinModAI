@@ -252,7 +252,14 @@ async function synthesisePortfolio(
       return cb - ca;
     });
 
-  const stockSummaries = eligible.map(s => {
+  // Document shortfall when eligible count is below requested; cap context to top 15
+  const effectiveTarget = Math.min(targetCount, Math.max(eligible.length, 1));
+  const preSynthesisShortfall = eligible.length < targetCount && eligible.length > 0
+    ? `Only ${eligible.length} viable candidates after debate filtering (${targetCount} requested).`
+    : null;
+  const topEligible = eligible.slice(0, Math.max(effectiveTarget, 15));
+
+  const stockSummaries = topEligible.map(s => {
     const debate   = debateMap.get(s.ticker);
     const cs       = consensusMap.get(s.ticker);
     const forecast = s.meta.forecastReturnPct != null ? `, forecast=${s.meta.forecastReturnPct.toFixed(1)}%` : '';
@@ -279,8 +286,11 @@ async function synthesisePortfolio(
 
   const horizonContext = `Time horizon: ${intent.time_horizon === 'short' ? '3 months' : intent.time_horizon === 'long' ? '3+ years' : '1 year'}`;
 
+  const hasF1 = lastErrors?.some(e => e.code === 'F1') ?? false;
   const errorFeedback = lastErrors && lastErrors.length > 0
-    ? `\n\n⚠️ PREVIOUS ATTEMPT FAILED VALIDATION — fix ALL of these issues:\n${lastErrors.map(e => `  • [${e.code}] ${e.message}`).join('\n')}\n`
+    ? `\n\n⚠️ PREVIOUS ATTEMPT FAILED VALIDATION — fix ALL of these issues:\n${lastErrors.map(e => `  • [${e.code}] ${e.message}`).join('\n')}\n${
+      hasF1 ? '\n🚨 CRITICAL F1 OVERRIDE: Replace EVERY "Hold" with "Buy" or "Overweight". Aggressive profiles reject Hold — this is a hard blocker.\n' : ''
+    }`
     : '';
 
   const result = await generateTextWithProviderFallback({
@@ -301,7 +311,7 @@ STRICT RULES:
 2. Only use tickers from the candidate list. Do not add outside names.
 3. ${intent.themes.length > 0 ? `Every position must relate to: ${intent.themes.join(', ')}. Fill theme_justification with a 1-sentence explanation. The word "${intent.themes[0]}" or a synonym must appear in theme_justification.` : 'Fill theme_justification with the primary sector or investment category.'}
 4. weight_pct must be in range 2–20. Weights must sum to exactly 100.
-5. Return exactly ${targetCount} positions (or fewer with shortfall_reason if not enough qualify).
+5. Return exactly ${effectiveTarget} position${effectiveTarget !== 1 ? 's' : ''} (or fewer with shortfall_reason if not enough qualify).
 6. risk must name a specific metric, company, product, or number — not generic phrases.
 7. STARTER_ONLY tickers must have weight_pct ≤ 5.
 8. Aggressive risk profiles must use "Buy" or "Overweight" — not "Hold".
@@ -339,11 +349,13 @@ Return JSON:
     ],
   });
 
-  const raw = extractJsonObject(result?.text ?? '{}') as {
-    narrative?: string;
-    shortfall_reason?: string | null;
-    positions?: RawLLMPosition[];
-  };
+  type RawResponse = { narrative?: string; shortfall_reason?: string | null; positions?: RawLLMPosition[] };
+  let raw: RawResponse;
+  try {
+    raw = extractJsonObject(result?.text ?? '{}') as RawResponse;
+  } catch {
+    raw = { shortfall_reason: preSynthesisShortfall ?? 'LLM returned malformed response.', positions: [] };
+  }
 
   const positions: SynthesizedPosition[] = (Array.isArray(raw.positions) ? raw.positions : [])
     .filter((p): p is RawLLMPosition & { ticker: string } => typeof p.ticker === 'string' && !!p.ticker)
@@ -383,7 +395,7 @@ Return JSON:
     cash_reserve_pct:  0,
     requested_count:   targetCount,
     delivered_count:   positions.length,
-    shortfall_reason:  raw.shortfall_reason ?? null,
+    shortfall_reason:  preSynthesisShortfall ?? raw.shortfall_reason ?? null,
     positions,
   };
 }
@@ -431,15 +443,18 @@ export async function POST(req: NextRequest): Promise<Response> {
         controller.enqueue(sse({ type: 'step', message: 'Screening live stock universe…' }));
 
         const { ranked, cached } = await getOrFetchRanked(intent, origin);
-        const candidates = ranked
+        // Threshold cascade: prefer score ≥ 6.0; fall back to ≥ 5.0 when not enough candidates
+        const minCandidates = Math.max(targetCount * 2, 20);
+        const themeFiltered = ranked
           .filter(s => intent.themes.length === 0 || matchThemes({
             ticker: s.ticker,
             name:   s.meta.companyName ?? s.meta.sector ?? s.ticker,
             sector: s.meta.sector ?? undefined,
           }, intent.themes).fits)
-          .filter(s => s.score >= 6.0)
-          .sort((a, b) => b.score - a.score)
-          .slice(0, Math.max(targetCount * 2, 20));
+          .sort((a, b) => b.score - a.score);
+        const strictPass = themeFiltered.filter(s => s.score >= 6.0);
+        const candidates = (strictPass.length >= minCandidates ? strictPass : themeFiltered.filter(s => s.score >= 5.0))
+          .slice(0, minCandidates);
 
         if (candidates.length === 0) {
           controller.enqueue(sse({
@@ -505,6 +520,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         let synthesized: SynthesizedPortfolio | null = null;
         let lastErrors: ValidationError[] = [];
 
+        try {
         for (let attempt = 1; attempt <= 2; attempt++) {
           const raw = await synthesisePortfolio(
             intent, candidates, existingTickers,
@@ -552,6 +568,17 @@ export async function POST(req: NextRequest): Promise<Response> {
           const s3Errors = vr.errors.filter(e => !e.code.endsWith('_warn'));
           lastErrors = [...s3Errors, ...gate.blockers.map(v => ({ code: v.rule_id, message: v.message }))];
           console.info(`[portfolio-chat] attempt ${attempt} needs retry (s3=${vr.mustRegenerate}, gate=${!gate.ok})`);
+        }
+        } catch (synthErr) {
+          console.error('[portfolio-chat] synthesis threw:', synthErr instanceof Error ? synthErr.message : String(synthErr));
+          controller.enqueue(sse({
+            type: 'initial', positions: [], positionCount: 0, cached,
+            narrative: 'Portfolio synthesis failed — insufficient candidates or model error. Try a broader prompt.',
+            scoredAt: new Date().toISOString(),
+          }));
+          controller.enqueue(sse({ type: 'done' }));
+          controller.close();
+          return;
         }
 
         // Final gate — never ship BLOCKER violations
