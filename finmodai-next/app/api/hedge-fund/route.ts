@@ -9,7 +9,7 @@ import type { AssetMetadata } from '@/lib/execution/assetMetadata';
 export const dynamic = 'force-dynamic';
 export const runtime = 'edge';
 
-const AGENT_TIMEOUT_MS = 7_000;
+const AGENT_TIMEOUT_MS = 25_000;
 
 const PERSONAS = [
   { key: 'warren_buffett',        name: 'Warren Buffett',          group: 'persona', style: 'value investing, wide moat businesses, long-term compounding, owner-operator mentality' },

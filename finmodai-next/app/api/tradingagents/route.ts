@@ -8,7 +8,7 @@ import type { AssetMetadata } from '@/lib/execution/assetMetadata';
 export const dynamic = 'force-dynamic';
 export const runtime = 'edge';
 
-const AGENT_STEP_TIMEOUT_MS = 4_000;
+const AGENT_STEP_TIMEOUT_MS = 13_000;
 
 type AnalystReports = {
   market:       string | null;
