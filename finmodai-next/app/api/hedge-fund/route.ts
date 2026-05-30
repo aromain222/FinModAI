@@ -9,7 +9,7 @@ import type { AssetMetadata } from '@/lib/execution/assetMetadata';
 export const dynamic = 'force-dynamic';
 export const runtime = 'edge';
 
-const AGENT_TIMEOUT_MS = 25_000;
+const AGENT_TIMEOUT_MS = 18_000;
 
 const PERSONAS = [
   { key: 'warren_buffett',        name: 'Warren Buffett',          group: 'persona', style: 'value investing, wide moat businesses, long-term compounding, owner-operator mentality' },
@@ -82,16 +82,22 @@ function extractJsonObject(raw: string): unknown {
   const first = trimmed.indexOf('{');
   const last = trimmed.lastIndexOf('}');
   const slice = first >= 0 && last > first ? trimmed.slice(first, last + 1) : trimmed;
-  return JSON.parse(slice);
+  try {
+    return JSON.parse(slice);
+  } catch {
+    return {};
+  }
 }
 
 function agentModelCandidates(): string[] {
-  return [
+  // Return exactly ONE candidate — multiple models each add 18s to worst-case
+  // wall-clock time, which would exceed the 30s Edge limit.
+  const candidates = [
     process.env.ANTHROPIC_AGENT_MODEL,
     'claude-haiku-4-5-20251001',
-    'claude-3-5-haiku-latest',
     process.env.ANTHROPIC_MODEL,
   ].filter((model): model is string => typeof model === 'string' && model.trim().length > 0);
+  return candidates.slice(0, 1);
 }
 
 function median(values: number[]): number {
@@ -300,7 +306,7 @@ async function fetchMarketContext(ticker: string): Promise<MarketContext | null>
   try {
     const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ticker)}&fields=regularMarketPrice,regularMarketChangePercent,regularMarketChange,regularMarketVolume,marketCap,fiftyTwoWeekHigh,fiftyTwoWeekLow,trailingPE,forwardPE,shortName`;
     const res = await fetch(url, {
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(3000),
       headers: { 'User-Agent': 'Mozilla/5.0' },
     });
     if (!res.ok) return null;
@@ -340,7 +346,6 @@ async function runPersonaSignals(
   intent: UserIntent | null,
   asset: AssetMetadata | null,
   ctx: MarketContext | null,
-  attempt = 1,
 ): Promise<RawSignal[]> {
   const hasThemes = intent && intent.themes.length > 0;
 
@@ -395,16 +400,6 @@ async function runPersonaSignals(
 
   const parsed = extractJsonObject(result?.text ?? '{}') as { signals?: RawSignal[] };
   const signals = Array.isArray(parsed.signals) ? parsed.signals : [];
-
-  // Validate required new fields; retry once on first attempt
-  const invalid = signals.filter(
-    s => hasThemes && s.theme_fit_score === undefined,
-  );
-  if (invalid.length > 0 && attempt === 1) {
-    console.warn(`[hedge-fund] ${invalid.length} signals missing theme_fit_score on attempt 1, retrying…`);
-    return runPersonaSignals(ticker, intent, asset, ctx, 2);
-  }
-
   return signals;
 }
 
