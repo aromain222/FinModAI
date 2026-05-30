@@ -82,11 +82,7 @@ function extractJsonObject(raw: string): unknown {
   const first = trimmed.indexOf('{');
   const last = trimmed.lastIndexOf('}');
   const slice = first >= 0 && last > first ? trimmed.slice(first, last + 1) : trimmed;
-  try {
-    return JSON.parse(slice);
-  } catch {
-    return {};
-  }
+  return JSON.parse(slice);
 }
 
 function agentModelCandidates(): string[] {
@@ -400,6 +396,9 @@ async function runPersonaSignals(
 
   const parsed = extractJsonObject(result?.text ?? '{}') as { signals?: RawSignal[] };
   const signals = Array.isArray(parsed.signals) ? parsed.signals : [];
+  if (signals.length === 0) {
+    throw new Error('LLM returned no signals');
+  }
   return signals;
 }
 
