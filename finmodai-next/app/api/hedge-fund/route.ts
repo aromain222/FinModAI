@@ -366,12 +366,10 @@ export async function POST(req: NextRequest) {
       console.info(`[hedge-fund] ${ticker} median_theme_fit=${median_theme_fit.toFixed(1)} themes=${intent.themes.join(',')}`);
     }
 
-    const decision = await runPortfolioManager(ticker, rawSignals, consensus);
-
     const result: AnalysisResult = {
       ticker,
       date:             new Date().toISOString().slice(0, 10),
-      decision,
+      decision:         null,
       signals,
       consensus,
       median_theme_fit,
