@@ -20,6 +20,8 @@ type AnalysisResult = {
   signals: Signal[];
   consensus: Consensus;
   source?: 'python_backend' | 'llm_fallback';
+  degraded?: boolean;
+  degradedReason?: string | null;
 };
 
 const SIGNAL_STYLE = {
@@ -150,6 +152,28 @@ function AgentReadCard({ read }: { read: NormalizedAgentRead }) {
   );
 }
 
+function FastFallbackNotice({ result }: { result: AnalysisResult }) {
+  const total = result.consensus.bullish + result.consensus.bearish + result.consensus.neutral;
+  return (
+    <div className="rounded-xl border border-amber-400/25 bg-amber-500/8 px-3 py-3">
+      <div className="mb-1.5 flex items-center gap-2">
+        <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-widest text-amber-300">
+          Fast PM read
+        </span>
+        <span className="text-[9px] text-[var(--cb-text-muted)]">
+          Full 19-persona run unavailable
+        </span>
+      </div>
+      <p className="text-[10px] leading-snug text-[var(--cb-text-secondary)]">
+        {result.degradedReason ?? 'The full agent run hit the latency guardrail, so CapitalBase returned a compact fallback instead of repeating placeholder persona cards.'}
+      </p>
+      <p className="mt-2 text-[9px] text-[var(--cb-text-muted)]">
+        Fast checks: {result.consensus.bullish} bullish · {result.consensus.neutral} neutral · {result.consensus.bearish} bearish across {total} compact signals.
+      </p>
+    </div>
+  );
+}
+
 export function HedgeFundPanel({
   ticker,
   signal = 'yellow',
@@ -217,7 +241,9 @@ export function HedgeFundPanel({
           className={cn('flex flex-1 items-center gap-2 text-left transition-colors', result && 'hover:text-[var(--cb-text-secondary)]')}>
           {result ? (open ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--cb-text-muted)]" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--cb-text-muted)]" />) : <span className="h-3.5 w-3.5 shrink-0" />}
           <span className="font-bold uppercase tracking-widest text-[9px] text-[var(--cb-text-secondary)]">AI Hedge Fund</span>
-          <span className="text-[9px] text-[var(--cb-text-muted)]">· 19 Perspectives</span>
+          <span className="text-[9px] text-[var(--cb-text-muted)]">
+            · {result?.degraded ? 'Fast Check' : '19 Perspectives'}
+          </span>
           {result && dec && (
             <span className={cn('rounded px-2 py-0.5 text-[10px] font-bold capitalize', aStyle.classes)}>{dec.action}</span>
           )}
@@ -295,8 +321,11 @@ export function HedgeFundPanel({
               <p className="text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">
                 Analyst Consensus — {total} signals
               </p>
-              <span className="text-[9px] text-[var(--cb-text-muted)] opacity-60">{sourceLabel(result.source)}</span>
+              <span className="text-[9px] text-[var(--cb-text-muted)] opacity-60">
+                {result.degraded ? 'Fast fallback' : sourceLabel(result.source)}
+              </span>
             </div>
+            {result.degraded && <FastFallbackNotice result={result} />}
             <ConsensusBar c={result.consensus} total={total} />
             {/* Face stacks: bullish vs bearish */}
             <div className="mt-2.5 flex items-center justify-between">
@@ -314,7 +343,7 @@ export function HedgeFundPanel({
           </div>
 
           {/* Personas */}
-          {personas.length > 0 && (
+          {!result.degraded && personas.length > 0 && (
             <div>
               <p className="mb-2 text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Investor Personas</p>
               <div className="grid gap-1.5 sm:grid-cols-2">{personas.map(s => <SignalCard key={s.key} s={s} />)}</div>
@@ -322,9 +351,16 @@ export function HedgeFundPanel({
           )}
 
           {/* Quants */}
-          {quants.length > 0 && (
+          {!result.degraded && quants.length > 0 && (
             <div>
               <p className="mb-2 text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Quant Analysts</p>
+              <div className="grid gap-1.5 sm:grid-cols-2">{quants.map(s => <SignalCard key={s.key} s={s} />)}</div>
+            </div>
+          )}
+
+          {result.degraded && quants.length > 0 && (
+            <div>
+              <p className="mb-2 text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Compact Checks</p>
               <div className="grid gap-1.5 sm:grid-cols-2">{quants.map(s => <SignalCard key={s.key} s={s} />)}</div>
             </div>
           )}

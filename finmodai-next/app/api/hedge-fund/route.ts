@@ -65,6 +65,8 @@ type AnalysisResult = {
   consensus:         { bullish: number; bearish: number; neutral: number };
   median_theme_fit:  number | null;
   source?:           'python_backend' | 'llm_fallback';
+  degraded?:         boolean;
+  degradedReason?:   string | null;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -189,33 +191,73 @@ function fallbackPersonaSignals(
       ? (ctx.price - ctx.low52w) / (ctx.high52w - ctx.low52w)
       : 0.5;
 
-  return PERSONAS.map((persona, index) => {
-    let signal: RawSignal['signal'] = 'neutral';
-    if (offTheme) {
-      signal = index % 4 === 0 ? 'bearish' : 'neutral';
-    } else if (pricePosition > 0.65) {
-      signal = index % 3 === 0 ? 'bullish' : index % 5 === 0 ? 'bearish' : 'neutral';
-    } else if (pricePosition < 0.35) {
-      signal = index % 4 === 0 ? 'bullish' : index % 3 === 0 ? 'bearish' : 'neutral';
-    } else {
-      signal = index % 5 === 0 ? 'bullish' : index % 6 === 0 ? 'bearish' : 'neutral';
-    }
+  const technicalSignal: RawSignal['signal'] =
+    pricePosition > 0.65 ? 'bullish' : pricePosition < 0.35 ? 'bearish' : 'neutral';
+  const growthSignal: RawSignal['signal'] = offTheme ? 'bearish' : 'neutral';
+  const confidenceBase = offTheme ? 62 : 52;
 
-    return {
-      key: persona.key,
-      signal,
-      confidence: offTheme ? 62 : 54,
-      reasoning: offTheme
-        ? `${ticker} does not pass the requested theme fit screen, so this persona will not force a thesis.`
-        : `${ticker} received a fast fallback read using price context and business metadata because the live agent call hit the latency guardrail.`,
-      thesis: offTheme
-        ? `${ticker} may still be investable, but it should not be selected for this themed portfolio without a clearer business link.`
-        : `${ticker} remains a work-up candidate; use this as a fast placeholder until the full agent read refreshes.`,
+  const compactSignals: RawSignal[] = [
+    {
+      key: 'fundamentals',
+      signal: offTheme ? 'neutral' : 'neutral',
+      confidence: confidenceBase,
+      reasoning: 'Fast check only: fundamentals need the full agent pass before a high-conviction call.',
+      thesis: `${ticker} should stay in work-up mode until revenue durability, margins, and cash-flow quality are confirmed by the full run.`,
       theme_fit_score: themeMatch ? themeMatch.score : null,
       theme_fit_reason: themeMatch?.reason ?? '',
       business_consistency: !offTheme,
-    };
-  });
+    },
+    {
+      key: 'valuation',
+      signal: 'neutral',
+      confidence: confidenceBase - 2,
+      reasoning: 'Fast check only: valuation was not fully rebuilt before the latency guardrail.',
+      thesis: 'Do not treat this as a margin-of-safety verdict; use the compressed valuation signal elsewhere in the stock page.',
+      theme_fit_score: themeMatch ? themeMatch.score : null,
+      theme_fit_reason: themeMatch?.reason ?? '',
+      business_consistency: !offTheme,
+    },
+    {
+      key: 'technicals',
+      signal: technicalSignal,
+      confidence: confidenceBase + 3,
+      reasoning: `Fast check only: price is roughly ${(pricePosition * 100).toFixed(0)}% through its 52-week range.`,
+      thesis: technicalSignal === 'bullish'
+        ? 'Tape is not fighting the setup, but this is not a full technical confirmation.'
+        : technicalSignal === 'bearish'
+          ? 'Tape needs repair before this gets upgraded.'
+          : 'Tape is mixed; wait for confirmation.',
+      theme_fit_score: themeMatch ? themeMatch.score : null,
+      theme_fit_reason: themeMatch?.reason ?? '',
+      business_consistency: !offTheme,
+    },
+    {
+      key: 'news_sentiment',
+      signal: 'neutral',
+      confidence: confidenceBase - 1,
+      reasoning: 'Fast check only: live news/persona synthesis did not complete inside the timeout budget.',
+      thesis: 'Treat catalyst evidence as incomplete until the full agent read refreshes.',
+      theme_fit_score: themeMatch ? themeMatch.score : null,
+      theme_fit_reason: themeMatch?.reason ?? '',
+      business_consistency: !offTheme,
+    },
+    {
+      key: 'growth',
+      signal: growthSignal,
+      confidence: confidenceBase,
+      reasoning: offTheme
+        ? `${ticker} failed the requested theme-fit screen.`
+        : 'Fast check only: growth thesis needs full agent confirmation.',
+      thesis: offTheme
+        ? `${ticker} may be investable elsewhere, but it should not be forced into this themed mandate.`
+        : `${ticker} remains a work-up candidate, not a fully confirmed agent-backed idea.`,
+      theme_fit_score: themeMatch ? themeMatch.score : null,
+      theme_fit_reason: themeMatch?.reason ?? '',
+      business_consistency: !offTheme,
+    },
+  ];
+
+  return compactSignals;
 }
 
 function synthesizeDecision(
@@ -435,10 +477,14 @@ export async function POST(req: NextRequest) {
 
     const ctx = await fetchMarketContext(ticker);
     let rawSignals: RawSignal[];
+    let degraded = false;
+    let degradedReason: string | null = null;
     try {
       rawSignals = await runPersonaSignals(ticker, intent, assetMetadata, ctx);
     } catch (error) {
       console.warn('[hedge-fund] LLM fallback timed out or failed; returning fast deterministic read', error);
+      degraded = true;
+      degradedReason = 'Full 19-persona agent run hit the latency guardrail, so this is a compact fast check.';
       rawSignals = fallbackPersonaSignals(ticker, intent, assetMetadata, ctx);
     }
 
@@ -484,6 +530,8 @@ export async function POST(req: NextRequest) {
       consensus,
       median_theme_fit,
       source:           'llm_fallback',
+      degraded,
+      degradedReason,
     };
 
     return NextResponse.json(result, {
