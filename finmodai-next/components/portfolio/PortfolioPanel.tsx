@@ -22,7 +22,6 @@ import { PortfolioAlerts } from './PortfolioAlerts';
 import { PortfolioRiskDashboard } from './PortfolioRiskDashboard';
 import { AddPositionModal } from './AddPositionModal';
 import { RecommendationsDrawer } from './RecommendationsDrawer';
-import { PortfolioChatPanel } from './PortfolioChatPanel';
 
 export function PortfolioPanel() {
   const [positions,  setPositions]  = useState<ActivePosition[]>([]);
@@ -32,7 +31,6 @@ export function PortfolioPanel() {
   const [showExited,     setShowExited]     = useState(false);
   const [showAdd,        setShowAdd]        = useState(false);
   const [showRecs,       setShowRecs]       = useState(false);
-  const [showChat,       setShowChat]       = useState(false);
   const [prefillTicker,  setPrefillTicker]  = useState<string | undefined>();
   const autoMonitorRef = useRef<Set<string>>(new Set());
 
@@ -180,14 +178,7 @@ export function PortfolioPanel() {
               {showExited ? 'Hide exited' : 'Show exited'}
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => { setShowChat(v => !v); setShowRecs(false); }}
-            className="cursor-pointer flex items-center gap-1 rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-2.5 py-1.5 text-xs font-medium text-[var(--cb-text-primary)] hover:bg-[var(--cb-surface)]"
-          >
-            <Sparkles size={13} />
-            {showChat ? 'Hide agent' : 'Build with agent'}
-          </button>
+
           <button
             type="button"
             onClick={() => { setPrefillTicker(undefined); setShowAdd(true); }}
@@ -202,14 +193,7 @@ export function PortfolioPanel() {
         </div>
       </div>
 
-      {showChat && (
-        <PortfolioChatPanel
-          onAdd={ticker => {
-            setPrefillTicker(ticker);
-            setShowAdd(true);
-          }}
-        />
-      )}
+
 
       {visible.length === 0 ? (
         <div className="rounded-2xl border border-[var(--cb-border)] bg-[var(--cb-surface)] px-6 py-12 text-center">

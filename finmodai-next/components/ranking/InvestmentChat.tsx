@@ -22,11 +22,7 @@ import {
 } from '@/lib/portfolio/storage';
 import { buildPositionFromRankedStock } from '@/lib/portfolio/buildPosition';
 import type { ActivePosition } from '@/lib/portfolio/types';
-import type {
-  EnrichedTicker as PortfolioChatEnrichedTicker,
-  PortfolioPosition as PortfolioChatPosition,
-  SSEEvent as PortfolioChatSSEEvent,
-} from '@/app/api/execution/portfolio-chat/route';
+
 import type { StockQuote } from '@/app/api/quotes/route';
 import type { RankedStock } from '@/lib/ranking/types';
 import type { AgentView, ConvictionDriftSummary } from '@/lib/pm/types';
@@ -51,20 +47,10 @@ import { ConvictionMeter, parseConvictionLevel } from '@/components/ranking/Conv
 import { InvestorAvatar } from '@/components/ranking/InvestorAvatar';
 
 
-type PortfolioChatResult = {
-  positions: PortfolioChatPosition[];
-  narrative: string;
-  positionCount: number;
-  scoredAt: string;
-  cached: boolean;
-};
 
 type Message = {
   role: 'user' | 'assistant';
   content: string;
-  portfolioResult?: PortfolioChatResult;
-  enriched?: Record<string, PortfolioChatEnrichedTicker>;
-  enrichingDone?: boolean;
 };
 
 type AssumptionUpdateResponse = {
@@ -93,107 +79,7 @@ type QuantPMResponse = {
   error?: string;
 };
 
-function looksLikePortfolioRequest(text: string): boolean {
-  return /\b(build|make|create|suggest|recommend|add)\b[\s\S]{0,60}\b(portfolio|stocks?|positions?)\b|\b(add more positions|suggest stocks|build me a portfolio|make a portfolio)\b/i.test(text);
-}
 
-function PortfolioScoreBadge({ score }: { score: number }) {
-  const cls = score >= 7.0
-    ? 'border-emerald-500/20 bg-emerald-500/15 text-emerald-400'
-    : 'border-amber-500/20 bg-amber-500/15 text-amber-400';
-  return (
-    <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-semibold tabular-nums ${cls}`}>
-      {score.toFixed(1)}
-    </span>
-  );
-}
-
-function InlinePortfolioPositionCard({
-  pos,
-  index,
-  enriched,
-  enrichingDone,
-}: {
-  pos: PortfolioChatPosition;
-  index: number;
-  enriched?: PortfolioChatEnrichedTicker;
-  enrichingDone: boolean;
-}) {
-  const isEnriching = index < 3 && !enrichingDone && !enriched;
-  return (
-    <div className="rounded-xl border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-3 py-2.5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-[var(--cb-text-primary)]">{pos.ticker}</span>
-            <PortfolioScoreBadge score={pos.score} />
-            <span className="text-xs text-[var(--cb-text-muted)]">{pos.action}</span>
-            <span className="text-xs text-[var(--cb-text-muted)]">· {pos.suggestedWeight}%</span>
-            <span className="text-xs text-[var(--cb-text-muted)]">· {pos.sizing}</span>
-          </div>
-          <p className="text-xs text-[var(--cb-text-secondary)]">{pos.thesis}</p>
-          <p className="text-xs text-[var(--cb-text-muted)]">
-            <span className="mr-1 text-amber-400/70">Risk:</span>{pos.risk}
-          </p>
-
-          {enriched && (
-            <div className="mt-1.5 flex flex-wrap gap-3 border-t border-[var(--cb-border)] pt-1.5">
-              {enriched.totalPersonas > 0 && (
-                <span className="text-xs text-[var(--cb-text-muted)]">
-                  <span className="mr-1 text-emerald-400/80">{enriched.bullishCount}/{enriched.totalPersonas}</span>
-                  investors bullish
-                </span>
-              )}
-              {enriched.tradingDecision && (
-                <span className="text-xs text-[var(--cb-text-muted)]">
-                  <span className="mr-1 text-[var(--cb-text-secondary)]">Verdict:</span>
-                  {enriched.tradingDecision}
-                  {enriched.tradingTimeHorizon && ` · ${enriched.tradingTimeHorizon}`}
-                </span>
-              )}
-              {enriched.tradingThesis && (
-                <p className="w-full text-xs italic text-[var(--cb-text-muted)]">{enriched.tradingThesis}</p>
-              )}
-            </div>
-          )}
-
-          {isEnriching && (
-            <div className="mt-1.5 flex items-center gap-1.5 border-t border-[var(--cb-border)] pt-1.5">
-              <span className="h-1 w-12 animate-pulse rounded bg-[var(--cb-border)]" />
-              <span className="h-1 w-20 animate-pulse rounded bg-[var(--cb-border)]" />
-              <span className="text-[10px] text-[var(--cb-text-muted)]">agent analysis running…</span>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function InlinePortfolioCards({ message }: { message: Message }) {
-  if (!message.portfolioResult) return null;
-  const { positions, narrative } = message.portfolioResult;
-  const enriched = message.enriched ?? {};
-  return (
-    <div className="space-y-2 rounded-2xl border border-[var(--cb-border)] bg-[var(--cb-surface)] p-3">
-      {narrative && <p className="text-xs text-[var(--cb-text-secondary)]">{narrative}</p>}
-      {positions.map((pos, i) => (
-        <InlinePortfolioPositionCard
-          key={pos.ticker}
-          pos={pos}
-          index={i}
-          enriched={enriched[pos.ticker]}
-          enrichingDone={Boolean(message.enrichingDone)}
-        />
-      ))}
-      {!message.enrichingDone && positions.length > 0 && (
-        <p className="text-[10px] text-[var(--cb-text-muted)]">
-          Running 19-persona analysis + TradingAgents debate on top 5…
-        </p>
-      )}
-    </div>
-  );
-}
 
 function AgentPMReadCard({
   hedgeFund,
@@ -765,114 +651,6 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
         }
       }
 
-      if (looksLikePortfolioRequest(trimmed)) {
-        const controller = new AbortController();
-        abortRef.current = controller;
-        const timeoutId = window.setTimeout(() => controller.abort(), 60_000);
-
-        try {
-          const existingTickers = getPositions()
-            .filter(p => p.status !== 'exited')
-            .map(p => p.ticker);
-
-          const res = await fetch('/api/execution/portfolio-chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: trimmed, existingTickers }),
-            signal: controller.signal,
-          });
-
-          if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
-
-          const reader = res.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = '';
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const parts = buffer.split('\n\n');
-            buffer = parts.pop() ?? '';
-
-            for (const raw of parts) {
-              if (!raw.trim()) continue;
-              const typeMatch = raw.match(/^event: (.+)$/m);
-              const dataMatch = raw.match(/^data: (.+)$/ms);
-              if (!typeMatch || !dataMatch) continue;
-
-              let event: PortfolioChatSSEEvent;
-              try {
-                event = JSON.parse(dataMatch[1]) as PortfolioChatSSEEvent;
-                (event as { type: string }).type = typeMatch[1].trim();
-              } catch {
-                continue;
-              }
-
-              if (event.type === 'step') {
-                setMessages(prev => {
-                  const last = prev[prev.length - 1];
-                  if (!last || last.role !== 'assistant') return prev;
-                  return [...prev.slice(0, -1), { ...last, content: event.message }];
-                });
-              }
-
-              if (event.type === 'initial') {
-                const portfolioResult: PortfolioChatResult = {
-                  positions: event.positions,
-                  narrative: event.narrative,
-                  positionCount: event.positionCount,
-                  scoredAt: event.scoredAt,
-                  cached: event.cached,
-                };
-                setMessages([...history, {
-                  role: 'assistant',
-                  content: event.narrative,
-                  portfolioResult,
-                  enriched: {},
-                  enrichingDone: false,
-                }]);
-                setStreaming(false);
-              }
-
-              if (event.type === 'enriched') {
-                const map: Record<string, PortfolioChatEnrichedTicker> = {};
-                for (const item of event.items) map[item.ticker] = item;
-                setMessages(prev => {
-                  const lastIndex = [...prev].reverse().findIndex(m => m.role === 'assistant' && m.portfolioResult);
-                  if (lastIndex === -1) return prev;
-                  const idx = prev.length - 1 - lastIndex;
-                  return prev.map((m, i) => i === idx ? { ...m, enriched: map } : m);
-                });
-              }
-
-              if (event.type === 'done') {
-                setMessages(prev => prev.map(m => m.portfolioResult ? { ...m, enrichingDone: true } : m));
-                setStreaming(false);
-              }
-
-              if (event.type === 'error') {
-                setMessages([...history, { role: 'assistant', content: buildInputErrorReply(stock, event.message) }]);
-                setStreaming(false);
-              }
-            }
-          }
-
-          return;
-        } catch (err) {
-          if ((err as Error).name === 'AbortError') {
-            setMessages([...history, { role: 'assistant', content: buildInputErrorReply(stock, 'Portfolio builder timed out before returning position cards.') }]);
-            return;
-          }
-          console.error('[InvestmentChat portfolio-chat]', err);
-          setMessages([...history, { role: 'assistant', content: buildInputErrorReply(stock, 'Portfolio builder is unavailable; try a narrower request or run from the portfolio page.') }]);
-          return;
-        } finally {
-          window.clearTimeout(timeoutId);
-          setStreaming(false);
-        }
-      }
 
       if (looksLikeAssumptionUpdate(trimmed)) {
         const controller = new AbortController();
@@ -1659,14 +1437,12 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
               <div className="mx-auto w-full max-w-3xl space-y-4 px-4 py-5 pb-6 lg:px-6">
                 {messages.map((msg, i) => {
                   const convictionLevel =
-                    msg.role === 'assistant' && msg.content && !msg.portfolioResult
+                    msg.role === 'assistant' && msg.content
                       ? parseConvictionLevel(msg.content)
                       : null;
                   return (
                     <div key={i} className="flex flex-col gap-1.5">
-                      {msg.portfolioResult
-                        ? <InlinePortfolioCards message={msg} />
-                        : <ChatMessage role={msg.role} content={msg.content} />}
+                      <ChatMessage role={msg.role} content={msg.content} />
                       {convictionLevel && msg.content && (
                         <ConvictionMeter level={convictionLevel} />
                       )}
