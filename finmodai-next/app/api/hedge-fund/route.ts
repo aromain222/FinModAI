@@ -371,7 +371,7 @@ async function runPersonaSignals(
     preferredProvider: 'anthropic',
     clientType: 'user',
     temperature: 0.75,
-    maxTokens: 2600,
+    maxTokens: 1600,
     timeoutMs: AGENT_TIMEOUT_MS,
     anthropicModels: agentModelCandidates(),
     openAiModels: [],
@@ -388,7 +388,7 @@ async function runPersonaSignals(
       },
       {
         role: 'user',
-        content: `Analyze ${ticker} from the perspective of each investor/analyst below.\n${dataStr ? `\nCurrent market data:\n${dataStr}` : ''}\n\n${themeFitInstruction}\n\nFor business_consistency: set true if your thesis is consistent with the company's actual business described above, false if you cannot write a consistent thesis.\n\nFor each persona, apply their specific philosophy. Return JSON:\n{ "signals": [ { "key": string, "signal": "bullish"|"bearish"|"neutral", "confidence": 0-100, "reasoning": "1-2 sentences", "thesis": "3-5 sentence full investment thesis in that persona's voice", "theme_fit_score": number|null, "theme_fit_reason": "1-2 sentences explaining the score", "business_consistency": boolean }, ... ] }\n\nPersonas:\n${personaList}`,
+        content: `Analyze ${ticker} from the perspective of each investor/analyst below.\n${dataStr ? `\nCurrent market data:\n${dataStr}` : ''}\n\n${themeFitInstruction}\n\nFor business_consistency: set true if your thesis is consistent with the company's actual business described above, false if you cannot write a consistent thesis.\n\nFor each persona, apply their specific philosophy. Return JSON:\n{ "signals": [ { "key": string, "signal": "bullish"|"bearish"|"neutral", "confidence": 0-100, "reasoning": "1-2 sentences", "theme_fit_score": number|null, "business_consistency": boolean }, ... ] }\n\nPersonas:\n${personaList}`,
       },
     ],
   });
