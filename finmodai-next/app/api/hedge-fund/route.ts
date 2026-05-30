@@ -298,6 +298,19 @@ function synthesizeDecision(
   };
 }
 
+function logHedgeFundFailure(scope: string, error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  const isTimeout = message.includes('abort') || message.includes('timeout') || message.includes('signal');
+  const isParseError = message.includes('JSON') || message.includes('parse') || message.includes('Unexpected');
+  const isAPIError = message.includes('400') || message.includes('401') || message.includes('429') || message.includes('500');
+
+  console.error(`[hedge-fund] ${scope} failed`, {
+    error: message,
+    type: isTimeout ? 'TIMEOUT' : isParseError ? 'PARSE' : isAPIError ? 'API' : 'UNKNOWN',
+    stack: error instanceof Error ? error.stack?.split('\n').slice(0, 5) : undefined,
+  });
+}
+
 async function fetchMarketContext(ticker: string): Promise<MarketContext | null> {
   try {
     const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ticker)}&fields=regularMarketPrice,regularMarketChangePercent,regularMarketChange,regularMarketVolume,marketCap,fiftyTwoWeekHigh,fiftyTwoWeekLow,trailingPE,forwardPE,shortName`;
@@ -448,6 +461,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'ticker required' }, { status: 400 });
   }
 
+  const requestStart = Date.now();
+  console.log('[hedge-fund] POST started', { ticker, model: agentModelCandidates()[0] });
+
   // Optional: intent and assetMetadata from portfolio-chat (backward compatible)
   const intent:        UserIntent    | null = (b.intent        ?? null) as UserIntent | null;
   const assetMetadata: AssetMetadata | null = (b.assetMetadata ?? null) as AssetMetadata | null;
@@ -475,11 +491,24 @@ export async function POST(req: NextRequest) {
     let degradedReason: string | null = null;
     try {
       rawSignals = await runPersonaSignals(ticker, intent, assetMetadata, ctx);
+      console.log('[hedge-fund] signals completed', {
+        count: rawSignals.length,
+        elapsed: `${Date.now() - requestStart}ms`,
+      });
     } catch (error) {
-      console.warn('[hedge-fund] LLM fallback timed out or failed; returning fast deterministic read', error);
+      logHedgeFundFailure('persona signals', error);
+      console.warn('[hedge-fund] returning fast deterministic read', {
+        ticker,
+        elapsed: `${Date.now() - requestStart}ms`,
+      });
       degraded = true;
       degradedReason = 'Full 19-persona agent run hit the latency guardrail, so this is a compact fast check.';
       rawSignals = fallbackPersonaSignals(ticker, intent, assetMetadata, ctx);
+      console.log('[hedge-fund] signals completed', {
+        count: rawSignals.length,
+        degraded: true,
+        elapsed: `${Date.now() - requestStart}ms`,
+      });
     }
 
     const signals = rawSignals.map(s => {
@@ -535,6 +564,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
+    logHedgeFundFailure('POST', err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Analysis failed' },
       { status: 502 },
