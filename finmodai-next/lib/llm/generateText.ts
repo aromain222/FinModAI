@@ -24,6 +24,7 @@ export type GenerateTextParams = {
   clientType?: OpenAIClientType | AnthropicClientType;
   temperature?: number;
   maxTokens?: number;
+  timeoutMs?: number;
   preferredProvider?: ProviderPreference;
   openAiModels?: string[];
   anthropicModels?: string[];
@@ -104,19 +105,24 @@ async function generateWithOpenAI(params: GenerateTextParams): Promise<GenerateT
   for (const apiKey of apiKeys) {
     const client = new OpenAI({ apiKey });
     for (const model of models) {
+      let timer: ReturnType<typeof setTimeout> | null = null;
       try {
+        const controller = params.timeoutMs ? new AbortController() : null;
+        timer = controller ? setTimeout(() => controller.abort(), params.timeoutMs) : null;
         const completion = await client.chat.completions.create({
           model,
           messages: openAiMessages,
           temperature: params.temperature ?? 0.2,
           max_tokens: params.maxTokens ?? 900,
-        });
+        }, controller ? { signal: controller.signal } : undefined);
         const text = extractOpenAIText(completion);
         if (text) {
           return { text, provider: 'openai', model };
         }
       } catch (error) {
         lastError = error;
+      } finally {
+        if (timer) clearTimeout(timer);
       }
     }
   }
@@ -137,7 +143,10 @@ async function generateWithAnthropic(params: GenerateTextParams): Promise<Genera
   let lastError: unknown = null;
   for (const apiKey of apiKeys) {
     for (const model of models) {
+      let timer: ReturnType<typeof setTimeout> | null = null;
       try {
+        const controller = params.timeoutMs ? new AbortController() : null;
+        timer = controller ? setTimeout(() => controller.abort(), params.timeoutMs) : null;
         const response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
@@ -156,6 +165,7 @@ async function generateWithAnthropic(params: GenerateTextParams): Promise<Genera
             max_tokens: params.maxTokens ?? 900,
           }),
           cache: 'no-store',
+          signal: controller?.signal,
         });
         if (!response.ok) {
           const text = await response.text();
@@ -175,6 +185,8 @@ async function generateWithAnthropic(params: GenerateTextParams): Promise<Genera
         }
       } catch (error) {
         lastError = error;
+      } finally {
+        if (timer) clearTimeout(timer);
       }
     }
   }

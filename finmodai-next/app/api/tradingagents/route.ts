@@ -8,6 +8,8 @@ import type { AssetMetadata } from '@/lib/execution/assetMetadata';
 export const dynamic = 'force-dynamic';
 export const runtime = 'edge';
 
+const AGENT_STEP_TIMEOUT_MS = 4_000;
+
 type AnalystReports = {
   market:       string | null;
   fundamentals: string | null;
@@ -37,6 +39,7 @@ type AnalysisResult = {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function pythonBackendUrl(): string | null {
+  if (process.env.ENABLE_PYTHON_AGENT_BACKEND !== 'true') return null;
   const raw = process.env.AI_AGENT_BACKEND_URL || process.env.PYTHON_BACKEND_URL;
   return raw ? raw.replace(/\/+$/, '') : null;
 }
@@ -47,6 +50,15 @@ function extractJsonObject(raw: string): unknown {
   const last = trimmed.lastIndexOf('}');
   const slice = first >= 0 && last > first ? trimmed.slice(first, last + 1) : trimmed;
   return JSON.parse(slice);
+}
+
+function agentModelCandidates(): string[] {
+  return [
+    process.env.ANTHROPIC_AGENT_MODEL,
+    'claude-haiku-4-5-20251001',
+    'claude-3-5-haiku-latest',
+    process.env.ANTHROPIC_MODEL,
+  ].filter((model): model is string => typeof model === 'string' && model.trim().length > 0);
 }
 
 function buildContextBlocks(
@@ -84,8 +96,8 @@ async function tryPythonBackend(ticker: string): Promise<AnalysisResult | null> 
     const res = await fetch(`${backend}/api/v1/tradingagents/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticker, analysts: ['market', 'news'], timeout_seconds: 35 }),
-      signal: AbortSignal.timeout(45_000),
+      body: JSON.stringify({ ticker, analysts: ['market', 'news'], timeout_seconds: 5 }),
+      signal: AbortSignal.timeout(5_000),
       cache: 'no-store',
     });
 
@@ -101,6 +113,46 @@ async function tryPythonBackend(ticker: string): Promise<AnalysisResult | null> 
   } catch {
     return null;
   }
+}
+
+function fallbackReports(ticker: string, asset: AssetMetadata | null): AnalystReports {
+  const business = asset?.business_summary || `${ticker} business metadata was limited in this run.`;
+  return {
+    market: `Fast fallback: ${ticker} needs price/momentum confirmation before the debate pipeline upgrades the setup.`,
+    fundamentals: `Fast fallback: evaluate ${ticker} against revenue durability, margin trend, balance-sheet risk, and FCF conversion. ${business}`,
+    sentiment: `Fast fallback: use positioning, short interest, and recent news reaction as confirmation; no strong sentiment verdict was available before the latency guardrail.`,
+    news: `Fast fallback: no full live debate completed before timeout. Treat catalyst evidence as incomplete and rerun if this is a high-priority idea.`,
+  };
+}
+
+function fallbackDecision(
+  ticker: string,
+  currentPrice: number | null,
+  intent: UserIntent | null,
+  asset: AssetMetadata | null,
+): {
+  decision: string;
+  summary: string;
+  thesis: string;
+  price_target: number | null;
+  time_horizon: string;
+  theme_fit_score: number | null;
+  theme_fit_reason: string;
+  business_consistency: boolean;
+} {
+  const hasThemes = intent?.themes.length ? true : false;
+  return {
+    decision: 'Hold',
+    summary: `${ticker} returned a fast fallback read because the full debate pipeline hit the latency guardrail. Use this as a work-up signal, not a confirmed buy/sell call.`,
+    thesis: currentPrice
+      ? `${ticker} needs confirmation from tape, catalyst quality, and valuation before action around the $${currentPrice.toFixed(2)} reference price.`
+      : `${ticker} needs confirmation from tape, catalyst quality, and valuation before action.`,
+    price_target: null,
+    time_horizon: '2-6 weeks',
+    theme_fit_score: hasThemes ? null : null,
+    theme_fit_reason: hasThemes ? `Theme fit was not fully scored before timeout; rerun for a complete mandate check on ${asset?.name ?? ticker}.` : '',
+    business_consistency: true,
+  };
 }
 
 async function fetchCurrentPrice(ticker: string): Promise<number | null> {
@@ -173,7 +225,10 @@ async function runAnalysts(
     preferredProvider: 'anthropic',
     clientType: 'user',
     temperature: 0.7,
-    maxTokens: 2200,
+    maxTokens: 1200,
+    timeoutMs: AGENT_STEP_TIMEOUT_MS,
+    anthropicModels: agentModelCandidates(),
+    openAiModels: [],
     messages: [
       { role: 'system', content: systemContent },
       {
@@ -237,7 +292,10 @@ async function runDebateAndDecision(
     preferredProvider: 'anthropic',
     clientType: 'user',
     temperature: 0.5,
-    maxTokens: 900,
+    maxTokens: 700,
+    timeoutMs: AGENT_STEP_TIMEOUT_MS,
+    anthropicModels: agentModelCandidates(),
+    openAiModels: [],
     messages: [
       {
         role: 'system',
@@ -303,8 +361,21 @@ export async function POST(req: NextRequest) {
 
     const contextBlocks = buildContextBlocks(ticker, intent, assetMetadata);
     const currentPrice  = await currentPricePromise;
-    const reports       = await runAnalysts(ticker, contextBlocks);
-    const debateResult  = await runDebateAndDecision(ticker, reports, currentPrice, intent, assetMetadata);
+    let reports: AnalystReports;
+    try {
+      reports = await runAnalysts(ticker, contextBlocks);
+    } catch (error) {
+      console.warn('[tradingagents] analyst stage timed out or failed; returning fallback reports', error);
+      reports = fallbackReports(ticker, assetMetadata);
+    }
+
+    let debateResult: Awaited<ReturnType<typeof runDebateAndDecision>>;
+    try {
+      debateResult = await runDebateAndDecision(ticker, reports, currentPrice, intent, assetMetadata);
+    } catch (error) {
+      console.warn('[tradingagents] PM stage timed out or failed; returning fallback decision', error);
+      debateResult = fallbackDecision(ticker, currentPrice, intent, assetMetadata);
+    }
 
     if (debateResult.theme_fit_score !== null && intent?.themes.length) {
       console.info(`[tradingagents] ${ticker} theme_fit_score=${debateResult.theme_fit_score} themes=${intent.themes.join(',')}`);

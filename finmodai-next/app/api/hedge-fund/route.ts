@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { hasAnyAnthropicKey } from '@/lib/anthropicKey';
 import { hasAnyOpenAIKey } from '@/lib/openaiKey';
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
+import { matchThemes } from '@/lib/execution/themeClassifier';
 import type { UserIntent } from '@/lib/execution/userIntent';
 import type { AssetMetadata } from '@/lib/execution/assetMetadata';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'edge';
+
+const AGENT_TIMEOUT_MS = 7_000;
 
 const PERSONAS = [
   { key: 'warren_buffett',        name: 'Warren Buffett',          group: 'persona', style: 'value investing, wide moat businesses, long-term compounding, owner-operator mentality' },
@@ -67,6 +70,7 @@ type AnalysisResult = {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function pythonBackendUrl(): string | null {
+  if (process.env.ENABLE_PYTHON_AGENT_BACKEND !== 'true') return null;
   const raw = process.env.AI_AGENT_BACKEND_URL || process.env.PYTHON_BACKEND_URL;
   return raw ? raw.replace(/\/+$/, '') : null;
 }
@@ -77,6 +81,15 @@ function extractJsonObject(raw: string): unknown {
   const last = trimmed.lastIndexOf('}');
   const slice = first >= 0 && last > first ? trimmed.slice(first, last + 1) : trimmed;
   return JSON.parse(slice);
+}
+
+function agentModelCandidates(): string[] {
+  return [
+    process.env.ANTHROPIC_AGENT_MODEL,
+    'claude-haiku-4-5-20251001',
+    'claude-3-5-haiku-latest',
+    process.env.ANTHROPIC_MODEL,
+  ].filter((model): model is string => typeof model === 'string' && model.trim().length > 0);
 }
 
 function median(values: number[]): number {
@@ -132,7 +145,7 @@ async function tryPythonBackend(ticker: string): Promise<AnalysisResult | null> 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ticker }),
-      signal: AbortSignal.timeout(45_000),
+      signal: AbortSignal.timeout(5_000),
       cache: 'no-store',
     });
 
@@ -153,6 +166,92 @@ async function tryPythonBackend(ticker: string): Promise<AnalysisResult | null> 
   } catch {
     return null;
   }
+}
+
+function fallbackPersonaSignals(
+  ticker: string,
+  intent: UserIntent | null,
+  asset: AssetMetadata | null,
+  ctx: MarketContext | null,
+): RawSignal[] {
+  const themeMatch = intent?.themes.length
+    ? matchThemes({
+      ticker,
+      name: asset?.name,
+      sector: asset?.sector,
+      industry: asset?.industry,
+      business_summary: asset?.business_summary,
+    }, intent.themes)
+    : null;
+  const offTheme = themeMatch ? !themeMatch.fits : false;
+  const pricePosition =
+    ctx?.price != null && ctx.high52w != null && ctx.low52w != null && ctx.high52w > ctx.low52w
+      ? (ctx.price - ctx.low52w) / (ctx.high52w - ctx.low52w)
+      : 0.5;
+
+  return PERSONAS.map((persona, index) => {
+    let signal: RawSignal['signal'] = 'neutral';
+    if (offTheme) {
+      signal = index % 4 === 0 ? 'bearish' : 'neutral';
+    } else if (pricePosition > 0.65) {
+      signal = index % 3 === 0 ? 'bullish' : index % 5 === 0 ? 'bearish' : 'neutral';
+    } else if (pricePosition < 0.35) {
+      signal = index % 4 === 0 ? 'bullish' : index % 3 === 0 ? 'bearish' : 'neutral';
+    } else {
+      signal = index % 5 === 0 ? 'bullish' : index % 6 === 0 ? 'bearish' : 'neutral';
+    }
+
+    return {
+      key: persona.key,
+      signal,
+      confidence: offTheme ? 62 : 54,
+      reasoning: offTheme
+        ? `${ticker} does not pass the requested theme fit screen, so this persona will not force a thesis.`
+        : `${ticker} received a fast fallback read using price context and business metadata because the live agent call hit the latency guardrail.`,
+      thesis: offTheme
+        ? `${ticker} may still be investable, but it should not be selected for this themed portfolio without a clearer business link.`
+        : `${ticker} remains a work-up candidate; use this as a fast placeholder until the full agent read refreshes.`,
+      theme_fit_score: themeMatch ? themeMatch.score : null,
+      theme_fit_reason: themeMatch?.reason ?? '',
+      business_consistency: !offTheme,
+    };
+  });
+}
+
+function synthesizeDecision(
+  consensus: { bullish: number; bearish: number; neutral: number },
+  medianThemeFit: number | null,
+): AnalysisResult['decision'] {
+  if (medianThemeFit !== null && medianThemeFit < 5) {
+    return {
+      action: 'hold',
+      confidence: 62,
+      sizing: 'Avoid',
+      reasoning: 'Theme fit is too weak for the requested mandate, so the PM read rejects adding it here.',
+    };
+  }
+  if (consensus.bullish >= consensus.bearish + 5) {
+    return {
+      action: 'buy',
+      confidence: 64,
+      sizing: 'Track / Build',
+      reasoning: 'Fast consensus leans bullish, but size should wait for full catalyst and risk confirmation.',
+    };
+  }
+  if (consensus.bearish >= consensus.bullish + 4) {
+    return {
+      action: 'sell',
+      confidence: 62,
+      sizing: 'Avoid',
+      reasoning: 'Fast consensus leans negative; do not add unless the full agent read reverses the setup.',
+    };
+  }
+  return {
+    action: 'hold',
+    confidence: 58,
+    sizing: 'Track',
+    reasoning: 'Consensus is mixed; keep this as a tracked idea until stronger agent evidence comes through.',
+  };
 }
 
 async function fetchMarketContext(ticker: string): Promise<MarketContext | null> {
@@ -230,7 +329,10 @@ async function runPersonaSignals(
     preferredProvider: 'anthropic',
     clientType: 'user',
     temperature: 0.75,
-    maxTokens: 6000,
+    maxTokens: 2600,
+    timeoutMs: AGENT_TIMEOUT_MS,
+    anthropicModels: agentModelCandidates(),
+    openAiModels: [],
     messages: [
       {
         role: 'system',
@@ -332,7 +434,13 @@ export async function POST(req: NextRequest) {
     }
 
     const ctx = await fetchMarketContext(ticker);
-    const rawSignals = await runPersonaSignals(ticker, intent, assetMetadata, ctx);
+    let rawSignals: RawSignal[];
+    try {
+      rawSignals = await runPersonaSignals(ticker, intent, assetMetadata, ctx);
+    } catch (error) {
+      console.warn('[hedge-fund] LLM fallback timed out or failed; returning fast deterministic read', error);
+      rawSignals = fallbackPersonaSignals(ticker, intent, assetMetadata, ctx);
+    }
 
     const signals = rawSignals.map(s => {
       const meta = PERSONAS.find(p => p.key === s.key);
@@ -366,10 +474,12 @@ export async function POST(req: NextRequest) {
       console.info(`[hedge-fund] ${ticker} median_theme_fit=${median_theme_fit.toFixed(1)} themes=${intent.themes.join(',')}`);
     }
 
+    const decision = synthesizeDecision(consensus, median_theme_fit);
+
     const result: AnalysisResult = {
       ticker,
       date:             new Date().toISOString().slice(0, 10),
-      decision:         null,
+      decision,
       signals,
       consensus,
       median_theme_fit,
