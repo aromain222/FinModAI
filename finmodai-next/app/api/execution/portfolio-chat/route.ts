@@ -43,7 +43,7 @@ import type { RankedStock } from '@/lib/ranking/types';
 export const dynamic = 'force-dynamic';
 
 const DEFAULT_PORTFOLIO_SIZE  = 10;
-const ENRICHED_POSITION_COUNT = 5;
+const ENRICHED_POSITION_COUNT = 2; // keep Stage 2 under Edge 30s budget (2×2 LLM calls vs 5×2)
 const CACHE_TTL_MS            = 15 * 60 * 1_000;
 
 // ── Types ────────────────────────────────────────────────────────────────────
