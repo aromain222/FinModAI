@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hasAnyAnthropicKey } from '@/lib/anthropicKey';
-import { hasAnyOpenAIKey } from '@/lib/openaiKey';
-import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
+import { getOpenAIKey, hasAnyOpenAIKey } from '@/lib/openaiKey';
+import { generateTextWithProviderFallback, type LlmMessage } from '@/lib/llm/generateText';
 import { matchThemes } from '@/lib/execution/themeClassifier';
 import type { UserIntent } from '@/lib/execution/userIntent';
 import type { AssetMetadata } from '@/lib/execution/assetMetadata';
 
 export const dynamic = 'force-dynamic';
-export const runtime = 'edge';
+export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 const AGENT_TIMEOUT_MS = 18_000;
+const OPENAI_JSON_TIMEOUT_MS = 25_000;
 
 const PERSONAS = [
   { key: 'warren_buffett',        name: 'Warren Buffett',          group: 'persona', style: 'value investing, wide moat businesses, long-term compounding, owner-operator mentality' },
@@ -69,6 +71,11 @@ type AnalysisResult = {
   degradedReason?:   string | null;
 };
 
+type PersonaPrompt = {
+  messages: LlmMessage[];
+  expectedKeys: string[];
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function pythonBackendUrl(): string | null {
@@ -83,6 +90,68 @@ function extractJsonObject(raw: string): unknown {
   const last = trimmed.lastIndexOf('}');
   const slice = first >= 0 && last > first ? trimmed.slice(first, last + 1) : trimmed;
   return JSON.parse(slice);
+}
+
+function clampConfidence(value: unknown): number {
+  const num = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(num)) return 55;
+  return Math.round(Math.max(0, Math.min(100, num)));
+}
+
+function parseSignal(value: unknown): RawSignal['signal'] {
+  const normalized = String(value ?? '').toLowerCase();
+  if (normalized === 'bullish' || normalized === 'bearish' || normalized === 'neutral') return normalized;
+  return 'neutral';
+}
+
+function normalizePersonaSignals(raw: unknown): RawSignal[] {
+  const payload = raw as { signals?: unknown };
+  if (!Array.isArray(payload.signals)) return [];
+
+  const byKey = new Map<string, RawSignal>();
+  for (const item of payload.signals) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const key = typeof row.key === 'string' ? row.key.trim() : '';
+    const persona = PERSONAS.find(p => p.key === key);
+    if (!persona || byKey.has(persona.key)) continue;
+
+    const themeFitRaw = row.theme_fit_score;
+    const themeFitNum = typeof themeFitRaw === 'number' ? themeFitRaw : Number(themeFitRaw);
+    const themeFit = Number.isFinite(themeFitNum)
+      ? Math.max(0, Math.min(10, Math.round(themeFitNum * 10) / 10))
+      : null;
+    const reasoning = typeof row.reasoning === 'string' && row.reasoning.trim()
+      ? row.reasoning.trim()
+      : `${persona.name} gives ${persona.key === 'valuation' ? 'valuation' : 'style-specific'} context.`;
+    const thesis = typeof row.thesis === 'string' && row.thesis.trim()
+      ? row.thesis.trim()
+      : reasoning;
+
+    byKey.set(persona.key, {
+      key: persona.key,
+      signal: parseSignal(row.signal),
+      confidence: clampConfidence(row.confidence),
+      reasoning,
+      thesis,
+      theme_fit_score: themeFit,
+      theme_fit_reason: typeof row.theme_fit_reason === 'string' ? row.theme_fit_reason.trim() : '',
+      business_consistency: typeof row.business_consistency === 'boolean' ? row.business_consistency : true,
+    });
+  }
+
+  return PERSONAS
+    .map(persona => byKey.get(persona.key))
+    .filter((signal): signal is RawSignal => Boolean(signal));
+}
+
+function applyRequestThemePolicy(signals: RawSignal[], intent: UserIntent | null): RawSignal[] {
+  if (intent?.themes.length) return signals;
+  return signals.map(signal => ({
+    ...signal,
+    theme_fit_score: null,
+    theme_fit_reason: '',
+  }));
 }
 
 function agentModelCandidates(): string[] {
@@ -279,7 +348,7 @@ function synthesizeDecision(
       action: 'buy',
       confidence: 64,
       sizing: 'Track / Build',
-      reasoning: 'Fast consensus leans bullish, but size should wait for full catalyst and risk confirmation.',
+      reasoning: 'Persona consensus leans bullish, but sizing still needs catalyst and risk confirmation.',
     };
   }
   if (consensus.bearish >= consensus.bullish + 4) {
@@ -287,14 +356,14 @@ function synthesizeDecision(
       action: 'sell',
       confidence: 62,
       sizing: 'Avoid',
-      reasoning: 'Fast consensus leans negative; do not add unless the full agent read reverses the setup.',
+      reasoning: 'Persona consensus leans negative; do not add unless catalyst evidence reverses the setup.',
     };
   }
   return {
     action: 'hold',
     confidence: 58,
     sizing: 'Track',
-    reasoning: 'Consensus is mixed; keep this as a tracked idea until stronger agent evidence comes through.',
+    reasoning: 'Persona consensus is mixed; keep this tracked until stronger agent evidence comes through.',
   };
 }
 
@@ -356,6 +425,47 @@ async function runPersonaSignals(
   asset: AssetMetadata | null,
   ctx: MarketContext | null,
 ): Promise<RawSignal[]> {
+  const prompt = buildPersonaPrompt(ticker, intent, asset, ctx);
+
+  if (getOpenAIKey('user')) {
+    try {
+      const signals = await runPersonaSignalsOpenAIJson(ticker, prompt);
+      return applyRequestThemePolicy(signals, intent);
+    } catch (error) {
+      logHedgeFundFailure('openai persona json', error);
+    }
+  }
+
+  const result = await generateTextWithProviderFallback({
+    preferredProvider: 'anthropic',
+    clientType: 'user',
+    temperature: 0.25,
+    maxTokens: 2200,
+    timeoutMs: AGENT_TIMEOUT_MS,
+    anthropicModels: agentModelCandidates(),
+    openAiModels: [],
+    messages: prompt.messages,
+  });
+
+  try {
+    const parsed = extractJsonObject(result?.text ?? '{}');
+    const signals = normalizePersonaSignals(parsed);
+    if (signals.length < PERSONAS.length) {
+      throw new Error(`LLM returned ${signals.length}/${PERSONAS.length} persona signals`);
+    }
+    return applyRequestThemePolicy(signals, intent);
+  } catch (error) {
+    logHedgeFundFailure('anthropic persona parse', error);
+    throw error;
+  }
+}
+
+function buildPersonaPrompt(
+  ticker: string,
+  intent: UserIntent | null,
+  asset: AssetMetadata | null,
+  ctx: MarketContext | null,
+): PersonaPrompt {
   const hasThemes = intent && intent.themes.length > 0;
 
   const personaList = PERSONAS.map((p, i) =>
@@ -381,19 +491,16 @@ async function runPersonaSignals(
     ? `For theme_fit_score: rate 0–10 how well this ticker's actual business fits the user's themes (${intent.themes.join(', ')}). 0 = completely off-theme (e.g. bond ETF or printer company asked for AI/space stocks), 10 = perfect match. Be honest even if the ticker is otherwise a good investment. If theme_fit_score is below 5, the persona must be neutral or bearish for this portfolio request and must not invent an AI/space/robotics angle.`
     : 'For theme_fit_score: return null (no theme filter was specified).';
 
-  const result = await generateTextWithProviderFallback({
-    preferredProvider: 'anthropic',
-    clientType: 'user',
-    temperature: 0.75,
-    maxTokens: 1600,
-    timeoutMs: AGENT_TIMEOUT_MS,
-    anthropicModels: agentModelCandidates(),
-    openAiModels: [],
+  const expectedKeys = PERSONAS.map(p => p.key);
+  return {
+    expectedKeys,
     messages: [
       {
         role: 'system',
         content: [
-          `You are a financial analysis system simulating ${PERSONAS.length} legendary investors and quantitative analysts evaluating ${ticker} stock. Each persona applies their distinct philosophy to arrive at a signal. Be realistic and let personas disagree — not all should be bullish or bearish.`,
+          `You are a strict JSON financial analysis engine evaluating ${ticker}.`,
+          `Return exactly ${PERSONAS.length} signals, one for each provided key. Do not skip keys.`,
+          'No markdown. No prose outside JSON. Keep every field short so the JSON is valid.',
           '',
           userContextBlock,
           '',
@@ -402,17 +509,61 @@ async function runPersonaSignals(
       },
       {
         role: 'user',
-        content: `Analyze ${ticker} from the perspective of each investor/analyst below.\n${dataStr ? `\nCurrent market data:\n${dataStr}` : ''}\n\n${themeFitInstruction}\n\nFor business_consistency: set true if your thesis is consistent with the company's actual business described above, false if you cannot write a consistent thesis.\n\nFor each persona, apply their specific philosophy. Return JSON:\n{ "signals": [ { "key": string, "signal": "bullish"|"bearish"|"neutral", "confidence": 0-100, "reasoning": "1-2 sentences", "theme_fit_score": number|null, "business_consistency": boolean }, ... ] }\n\nPersonas:\n${personaList}`,
+        content: `Analyze ${ticker} from each investor/analyst viewpoint.\n${dataStr ? `\nCurrent market data:\n${dataStr}` : ''}\n\n${themeFitInstruction}\n\nFor business_consistency: true only if the thesis matches the actual business.\n\nReturn valid JSON exactly in this shape:\n{"signals":[{"key":"warren_buffett","signal":"neutral","confidence":55,"reasoning":"max 12 words","thesis":"max 18 words","theme_fit_score":null,"theme_fit_reason":"max 10 words","business_consistency":true}]}\n\nRules:\n- Include exactly these keys in this order: ${expectedKeys.join(', ')}.\n- Use each key once.\n- signal must be bullish, bearish, or neutral.\n- confidence must be 0-100.\n- reasoning max 12 words.\n- thesis max 18 words.\n- theme_fit_reason max 10 words.\n- No trailing commas.\n\nPersonas:\n${personaList}`,
       },
     ],
-  });
+  };
+}
 
-  const parsed = extractJsonObject(result?.text ?? '{}') as { signals?: RawSignal[] };
-  const signals = Array.isArray(parsed.signals) ? parsed.signals : [];
-  if (signals.length === 0) {
-    throw new Error('LLM returned no signals');
+async function runPersonaSignalsOpenAIJson(ticker: string, prompt: PersonaPrompt): Promise<RawSignal[]> {
+  const apiKey = getOpenAIKey('user');
+  if (!apiKey) {
+    throw new Error('Anthropic returned malformed JSON and no OpenAI key is available for JSON-mode repair');
   }
-  return signals;
+
+  const model = process.env.OPENAI_AGENT_MODEL || 'gpt-4o-mini';
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), OPENAI_JSON_TIMEOUT_MS);
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: prompt.messages,
+        temperature: 0.15,
+        max_tokens: 2200,
+        response_format: { type: 'json_object' },
+      }),
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`OpenAI JSON-mode persona fallback failed (${response.status}): ${text}`);
+    }
+
+    const payload = await response.json() as {
+      choices?: Array<{ message?: { content?: string | null } }>;
+    };
+    const parsed = extractJsonObject(payload.choices?.[0]?.message?.content ?? '{}');
+    const signals = normalizePersonaSignals(parsed);
+    if (signals.length < PERSONAS.length) {
+      throw new Error(`OpenAI JSON-mode fallback returned ${signals.length}/${PERSONAS.length} persona signals`);
+    }
+    console.info('[hedge-fund] recovered full persona signals with OpenAI JSON mode', {
+      ticker,
+      model,
+      count: signals.length,
+    });
+    return signals;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function runPortfolioManager(
