@@ -9,7 +9,7 @@ import type { Signal as OpportunitySignal } from '@/lib/ranking/types';
 
 type Signal = {
   key: string; name: string; group: 'persona' | 'quant' | string;
-  signal: 'bullish' | 'bearish' | 'neutral'; confidence: number; reasoning: string; thesis?: string; risk?: string;
+  signal: 'bullish' | 'bearish' | 'neutral'; confidence: number; reasoning: string; thesis?: string; risk?: string; watch?: string;
 };
 type Consensus  = { bullish: number; bearish: number; neutral: number };
 type Decision   = { action: string; confidence: number; reasoning: string; sizing?: string };
@@ -106,6 +106,11 @@ function SignalCard({ s }: { s: Signal }) {
           {s.risk && (
             <p className="rounded-md border border-white/8 bg-black/10 px-2 py-1.5 text-[9px] leading-snug text-[var(--cb-text-muted)]">
               <span className="font-semibold text-[var(--cb-text-secondary)]">Risk: </span>{s.risk}
+            </p>
+          )}
+          {s.watch && (
+            <p className="rounded-md border border-white/8 bg-white/[0.03] px-2 py-1.5 text-[9px] leading-snug text-[var(--cb-text-muted)]">
+              <span className="font-semibold text-[var(--cb-text-secondary)]">Watch: </span>{s.watch}
             </p>
           )}
         </div>
