@@ -11,7 +11,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 const AGENT_TIMEOUT_MS = 18_000;
-const OPENAI_JSON_TIMEOUT_MS = 25_000;
+const OPENAI_JSON_TIMEOUT_MS = 40_000;
 
 const PERSONAS = [
   { key: 'warren_buffett',        name: 'Warren Buffett',          group: 'persona', style: 'value investing, wide moat businesses, long-term compounding, owner-operator mentality' },
@@ -43,6 +43,7 @@ type RawSignal = {
   confidence:           number;
   reasoning:            string;
   thesis:               string;
+  risk:                 string;
   theme_fit_score:      number | null;
   theme_fit_reason:     string;
   business_consistency: boolean;
@@ -63,7 +64,7 @@ type AnalysisResult = {
   ticker:            string;
   date:              string;
   decision:          { action: string; confidence: number; reasoning: string; sizing?: string } | null;
-  signals:           { key: string; name: string; group: string; signal: 'bullish' | 'bearish' | 'neutral'; confidence: number; reasoning: string; thesis: string; theme_fit_score: number | null; theme_fit_reason: string; business_consistency: boolean }[];
+  signals:           { key: string; name: string; group: string; signal: 'bullish' | 'bearish' | 'neutral'; confidence: number; reasoning: string; thesis: string; risk: string; theme_fit_score: number | null; theme_fit_reason: string; business_consistency: boolean }[];
   consensus:         { bullish: number; bearish: number; neutral: number };
   median_theme_fit:  number | null;
   source?:           'python_backend' | 'llm_fallback';
@@ -127,6 +128,9 @@ function normalizePersonaSignals(raw: unknown): RawSignal[] {
     const thesis = typeof row.thesis === 'string' && row.thesis.trim()
       ? row.thesis.trim()
       : reasoning;
+    const risk = typeof row.risk === 'string' && row.risk.trim()
+      ? row.risk.trim()
+      : 'Risk depends on valuation, catalyst timing, and whether the core thesis keeps confirming.';
 
     byKey.set(persona.key, {
       key: persona.key,
@@ -134,6 +138,7 @@ function normalizePersonaSignals(raw: unknown): RawSignal[] {
       confidence: clampConfidence(row.confidence),
       reasoning,
       thesis,
+      risk,
       theme_fit_score: themeFit,
       theme_fit_reason: typeof row.theme_fit_reason === 'string' ? row.theme_fit_reason.trim() : '',
       business_consistency: typeof row.business_consistency === 'boolean' ? row.business_consistency : true,
@@ -276,6 +281,7 @@ function fallbackPersonaSignals(
       thesis: `${ticker} should stay in work-up mode until revenue durability, margins, and cash-flow quality are confirmed by the full run.`,
       theme_fit_score: themeMatch ? themeMatch.score : null,
       theme_fit_reason: themeMatch?.reason ?? '',
+      risk: 'Fast fallback risk: full persona evidence was unavailable, so conviction should stay limited.',
       business_consistency: !offTheme,
     },
     {
@@ -286,6 +292,7 @@ function fallbackPersonaSignals(
       thesis: 'Do not treat this as a margin-of-safety verdict; use the compressed valuation signal elsewhere in the stock page.',
       theme_fit_score: themeMatch ? themeMatch.score : null,
       theme_fit_reason: themeMatch?.reason ?? '',
+      risk: 'Fast fallback risk: valuation sensitivity was not fully re-underwritten.',
       business_consistency: !offTheme,
     },
     {
@@ -300,6 +307,7 @@ function fallbackPersonaSignals(
           : 'Tape is mixed; wait for confirmation.',
       theme_fit_score: themeMatch ? themeMatch.score : null,
       theme_fit_reason: themeMatch?.reason ?? '',
+      risk: 'Fast fallback risk: price action can reverse before full technical confirmation.',
       business_consistency: !offTheme,
     },
     {
@@ -310,6 +318,7 @@ function fallbackPersonaSignals(
       thesis: 'Treat catalyst evidence as incomplete until the full agent read refreshes.',
       theme_fit_score: themeMatch ? themeMatch.score : null,
       theme_fit_reason: themeMatch?.reason ?? '',
+      risk: 'Fast fallback risk: missed live headlines could change the catalyst read.',
       business_consistency: !offTheme,
     },
     {
@@ -324,6 +333,9 @@ function fallbackPersonaSignals(
         : `${ticker} remains a work-up candidate, not a fully confirmed agent-backed idea.`,
       theme_fit_score: themeMatch ? themeMatch.score : null,
       theme_fit_reason: themeMatch?.reason ?? '',
+      risk: offTheme
+        ? 'Theme mismatch can make portfolio fit poor even if the standalone stock works.'
+        : 'Growth expectations may already be priced into the stock.',
       business_consistency: !offTheme,
     },
   ];
@@ -500,7 +512,7 @@ function buildPersonaPrompt(
         content: [
           `You are a strict JSON financial analysis engine evaluating ${ticker}.`,
           `Return exactly ${PERSONAS.length} signals, one for each provided key. Do not skip keys.`,
-          'No markdown. No prose outside JSON. Keep every field short so the JSON is valid.',
+          'No markdown. No prose outside JSON. Keep the JSON valid while giving each persona a real institutional opinion.',
           '',
           userContextBlock,
           '',
@@ -509,7 +521,7 @@ function buildPersonaPrompt(
       },
       {
         role: 'user',
-        content: `Analyze ${ticker} from each investor/analyst viewpoint.\n${dataStr ? `\nCurrent market data:\n${dataStr}` : ''}\n\n${themeFitInstruction}\n\nFor business_consistency: true only if the thesis matches the actual business.\n\nReturn valid JSON exactly in this shape:\n{"signals":[{"key":"warren_buffett","signal":"neutral","confidence":55,"reasoning":"max 12 words","thesis":"max 18 words","theme_fit_score":null,"theme_fit_reason":"max 10 words","business_consistency":true}]}\n\nRules:\n- Include exactly these keys in this order: ${expectedKeys.join(', ')}.\n- Use each key once.\n- signal must be bullish, bearish, or neutral.\n- confidence must be 0-100.\n- reasoning max 12 words.\n- thesis max 18 words.\n- theme_fit_reason max 10 words.\n- No trailing commas.\n\nPersonas:\n${personaList}`,
+        content: `Analyze ${ticker} from each investor/analyst viewpoint.\n${dataStr ? `\nCurrent market data:\n${dataStr}` : ''}\n\n${themeFitInstruction}\n\nFor business_consistency: true only if the thesis matches the actual business.\n\nReturn valid JSON exactly in this shape:\n{"signals":[{"key":"warren_buffett","signal":"neutral","confidence":55,"reasoning":"Two concise sentences in this persona's voice.","thesis":"One clear investment view.","risk":"One sentence on what could make this persona wrong.","theme_fit_score":null,"theme_fit_reason":"max 12 words","business_consistency":true}]}\n\nRules:\n- Include exactly these keys in this order: ${expectedKeys.join(', ')}.\n- Use each key once.\n- signal must be bullish, bearish, or neutral.\n- confidence must be 0-100.\n- reasoning should be 2 concise sentences, max 45 words total.\n- thesis should be 1 sentence, max 28 words.\n- risk should be 1 sentence, max 24 words.\n- theme_fit_reason max 12 words.\n- No trailing commas.\n\nPersonas:\n${personaList}`,
       },
     ],
   };
@@ -535,7 +547,7 @@ async function runPersonaSignalsOpenAIJson(ticker: string, prompt: PersonaPrompt
         model,
         messages: prompt.messages,
         temperature: 0.15,
-        max_tokens: 2200,
+        max_tokens: 4200,
         response_format: { type: 'json_object' },
       }),
       cache: 'no-store',
@@ -672,6 +684,7 @@ export async function POST(req: NextRequest) {
         confidence:           Math.round(Math.max(0, Math.min(100, s.confidence))),
         reasoning:            s.reasoning,
         thesis:               s.thesis ?? s.reasoning,
+        risk:                 s.risk ?? 'Risk depends on valuation, catalyst timing, and whether the core thesis keeps confirming.',
         theme_fit_score:      s.theme_fit_score      ?? null,
         theme_fit_reason:     s.theme_fit_reason     ?? '',
         business_consistency: s.business_consistency ?? true,
