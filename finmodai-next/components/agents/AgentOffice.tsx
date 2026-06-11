@@ -41,8 +41,10 @@ type StatusFilter = 'all' | 'active' | 'attention' | 'idle';
 type Selection = `quant:${QuantAnalystKey}` | `senior:${string}`;
 type ScoutLocation = 'desk' | 'company_queue' | 'research_wall' | 'pm_inbox';
 
-const ACTIVE_LOOP_INTERVAL_MS = 30_000;
-const TICKER_COOLDOWN_MS = 90_000;
+const ACTIVE_LOOP_INTERVAL_MS = 60_000;
+const TICKER_COOLDOWN_MS = 180_000;
+// Scouts in this set never leave their desk — they cover continuous data streams.
+const ALWAYS_AT_DESK = new Set<QuantAnalystKey>(['news_sentiment']);
 
 // Walking choreography — triggered when a scout completes a scan. Total 8s round trip.
 const WALK_TOTAL_MS = 8000;
@@ -743,6 +745,13 @@ export function AgentOffice() {
       position = scoutPosition('desk', index);
       activity = `${verb} ${monitoringTicker}`;
       phaseLabel = isScanningThis ? 'At desk · scoring' : 'At desk · scanning';
+      location = 'desk';
+      nextLocation = 'desk';
+    } else if (ALWAYS_AT_DESK.has(analyst.key)) {
+      // Newswire never sleeps — this scout stays planted at their desk between scans.
+      position = scoutPosition('desk', index);
+      activity = snapshot ? `Watching ${snapshot.ticker} tape` : 'Watching newswire';
+      phaseLabel = 'At desk · newswire';
       location = 'desk';
       nextLocation = 'desk';
     } else {
