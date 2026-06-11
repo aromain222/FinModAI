@@ -169,13 +169,16 @@ function AnalystDesk({
   hidden: boolean;
   onSelect: () => void;
 }) {
+  const currentTask = snapshot?.reasoning?.trim() || `Monitoring ${analyst.domain.toLowerCase()}.`;
+  const nextEvidence = snapshot?.watch?.trim() || 'Waiting for the next scheduled company scan.';
+
   return (
     <button
       type="button"
       onClick={onSelect}
       data-testid={`analyst-${analyst.key}`}
       className={cn(
-        'group relative flex min-h-[190px] min-w-0 flex-col items-center justify-end border border-transparent px-1 pb-2 pt-8 text-left transition-all',
+        'group relative flex min-h-[205px] min-w-0 flex-col items-center justify-end border border-transparent px-1 pb-2 pt-8 text-left transition-all',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#65d487]',
         selected && 'border-[#65d487]/70 bg-[#65d487]/[0.04]',
         hidden && 'opacity-20 grayscale',
@@ -240,6 +243,17 @@ function AnalystDesk({
           {event.delta > 0 ? '+' : ''}{event.delta} event
         </span>
       ) : null}
+      <span className="mt-1 block w-[96%] border border-[#303942] bg-[#10161b]/95 px-2 py-1.5">
+        <span className="block font-mono text-[7px] uppercase tracking-[0.12em] text-[#65d487]">
+          Now · {snapshot?.ticker ?? 'Queue'}
+        </span>
+        <span className="mt-0.5 block line-clamp-2 min-h-5 font-mono text-[7px] leading-[10px] text-[#c4cbd2]">
+          {currentTask}
+        </span>
+        <span className="mt-1 block truncate font-mono text-[7px] text-[#727d88]" title={nextEvidence}>
+          Next: {nextEvidence}
+        </span>
+      </span>
     </button>
   );
 }
@@ -258,12 +272,15 @@ function SeniorSeat({
   onSelect: () => void;
 }) {
   const status: AgentStatus = active ? 'reviewing' : 'idle';
+  const currentTask = active
+    ? signal?.reasoning?.trim() || signal?.thesis?.trim() || `Reviewing through the ${senior.lens.toLowerCase()} lens.`
+    : `Standby · ${senior.lens}`;
   return (
     <button
       type="button"
       onClick={onSelect}
       className={cn(
-        'flex min-w-0 items-center gap-1 border border-transparent px-1 py-1 text-left transition',
+        'flex min-w-0 items-start gap-1 border border-transparent px-1 py-1 text-left transition',
         selected && 'border-[#e6b84d]/70 bg-[#e6b84d]/10',
         !active && 'opacity-65',
       )}
@@ -277,6 +294,9 @@ function SeniorSeat({
         <span className="block truncate font-mono text-[7px] text-[#e5e7eb]">{senior.name}</span>
         <span className="block truncate font-mono text-[7px]" style={{ color: stanceColor(signal?.signal) }}>
           {active ? signal?.signal ?? 'reviewing' : 'standby'}
+        </span>
+        <span className="mt-0.5 block line-clamp-2 min-h-4 font-mono text-[6px] leading-2 text-[#a7afb9]">
+          {currentTask}
         </span>
       </span>
     </button>
@@ -671,6 +691,50 @@ export function AgentOffice() {
                   </dd>
                 </dl>
               )}
+            </section>
+
+            <section className="border-b border-[#252c34] p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-medium text-[#d8dde3]">Live workboard</h3>
+                <span className="font-mono text-[9px] text-[#727d88]">Updates every 15s</span>
+              </div>
+              <div className="mt-3 divide-y divide-[#252c34] border-y border-[#252c34]">
+                {ANALYSTS.map(analyst => {
+                  const snapshot = latestSnapshotByAnalyst.get(analyst.key);
+                  const event = latestEventByAnalyst.get(analyst.key);
+                  const status = statusForAnalyst(snapshot, event, now);
+                  return (
+                    <button
+                      key={analyst.key}
+                      type="button"
+                      onClick={() => setSelection(`quant:${analyst.key}`)}
+                      className={cn(
+                        'grid w-full grid-cols-[8px_78px_minmax(0,1fr)] items-start gap-2 py-2 text-left',
+                        selection === `quant:${analyst.key}` && 'bg-[#65d487]/[0.035]',
+                      )}
+                    >
+                      <span
+                        className="mt-1 h-2 w-2 rounded-full"
+                        style={{ backgroundColor: STATUS_COLORS[status] }}
+                      />
+                      <span className="font-mono text-[9px] text-[#c9d0d7]">
+                        {analyst.name.replace(' Analyst', '')}
+                        <span className="mt-0.5 block text-[8px] text-[#697480]">
+                          {snapshot ? `${snapshot.ticker} · ${Math.round(snapshot.score)}` : 'Queue idle'}
+                        </span>
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block line-clamp-2 text-[9px] leading-3 text-[#aeb6bf]">
+                          {snapshot?.reasoning || `Monitoring ${analyst.domain.toLowerCase()}.`}
+                        </span>
+                        <span className="mt-1 block truncate font-mono text-[8px] text-[#65717c]">
+                          {snapshot ? `Updated ${formatAge(snapshot.observedAt)}` : 'Awaiting first scheduled scan'}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </section>
 
             <section className="border-b border-[#252c34] p-5">
