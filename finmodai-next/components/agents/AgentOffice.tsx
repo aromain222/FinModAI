@@ -17,6 +17,7 @@ import type {
   QuantSignalEvent,
 } from '@/lib/pm/monitoring/types';
 import type { AgentView, PortfolioPosition } from '@/lib/pm/types';
+import { getActivePositions, PORTFOLIO_EVENT } from '@/lib/portfolio/storage';
 import { cn } from '@/lib/utils';
 
 type AgentStatus = 'working' | 'reviewing' | 'idle' | 'needs_attention';
@@ -190,6 +191,8 @@ function ScoutMover({
   location,
   nextLocation,
   ticker,
+  bookIndex,
+  bookSize,
   position,
   selected,
   hidden,
@@ -201,6 +204,8 @@ function ScoutMover({
   location: ScoutLocation;
   nextLocation: ScoutLocation;
   ticker: string;
+  bookIndex: number;
+  bookSize: number;
   position: { x: number; y: number };
   selected: boolean;
   hidden: boolean;
@@ -218,14 +223,14 @@ function ScoutMover({
         hidden && 'opacity-20 grayscale',
       )}
       style={{ left: `${position.x}%`, top: `${position.y}%`, transitionDuration: '1400ms' }}
-      aria-label={`${analyst.name} at ${LOCATION_LABELS[location]}, moving next to ${LOCATION_LABELS[nextLocation]}`}
-      title={`${analyst.name} · ${ticker} · ${LOCATION_LABELS[location]} → ${LOCATION_LABELS[nextLocation]}`}
+      aria-label={`${analyst.name} covering ${ticker}${bookSize > 0 ? `, portfolio position ${bookIndex + 1} of ${bookSize}` : ''}, at ${LOCATION_LABELS[location]}, moving next to ${LOCATION_LABELS[nextLocation]}`}
+      title={`${analyst.name} · ${ticker}${bookSize > 0 ? ` ${bookIndex + 1}/${bookSize}` : ''} · ${LOCATION_LABELS[location]} → ${LOCATION_LABELS[nextLocation]}`}
     >
       <span className="agent-office-scout__sprite">
         <AgentSprite palette={analyst.palette} status={status} moving={moving} />
       </span>
       <span className="max-w-24 truncate border border-[#303942] bg-[#10161b]/95 px-1.5 py-0.5 font-mono text-[7px] text-[#d9dfe5] shadow-md">
-        {ticker} · {LOCATION_LABELS[location]}
+        {ticker} · {bookSize > 0 ? `${bookIndex + 1}/${bookSize}` : 'queue'}
       </span>
     </button>
   );
@@ -418,6 +423,7 @@ export function AgentOffice() {
   const [snapshots, setSnapshots] = useState<QuantScoreSnapshot[]>([]);
   const [events, setEvents] = useState<QuantSignalEvent[]>([]);
   const [positions, setPositions] = useState<PortfolioPosition[]>([]);
+  const [localPortfolioTickers, setLocalPortfolioTickers] = useState<string[]>([]);
   const [monitoringTicker, setMonitoringTicker] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection>('quant:fundamentals');
   const [filter, setFilter] = useState<StatusFilter>('all');
@@ -469,13 +475,31 @@ export function AgentOffice() {
     };
   }, [loadActivity]);
 
+  useEffect(() => {
+    const refreshLocalPortfolio = () => {
+      setLocalPortfolioTickers([
+        ...new Set(getActivePositions().map(position => position.ticker.toUpperCase())),
+      ]);
+    };
+    refreshLocalPortfolio();
+    window.addEventListener(PORTFOLIO_EVENT, refreshLocalPortfolio);
+    window.addEventListener('storage', refreshLocalPortfolio);
+    return () => {
+      window.removeEventListener(PORTFOLIO_EVENT, refreshLocalPortfolio);
+      window.removeEventListener('storage', refreshLocalPortfolio);
+    };
+  }, []);
+
   const portfolioTickers = useMemo(
     () => [...new Set(
-      positions
-        .filter(position => position.status === 'active' || position.status === 'watch')
-        .map(position => position.ticker.toUpperCase()),
+      [
+        ...localPortfolioTickers,
+        ...positions
+          .filter(position => position.status === 'active' || position.status === 'watch')
+          .map(position => position.ticker.toUpperCase()),
+      ],
     )],
-    [positions],
+    [localPortfolioTickers, positions],
   );
   const scoredTickers = useMemo(() => new Set(snapshots.map(snapshot => snapshot.ticker)), [snapshots]);
   const nextUnscoredTicker = portfolioTickers.find(ticker => !scoredTickers.has(ticker)) ?? null;
@@ -540,8 +564,8 @@ export function AgentOffice() {
     const tickerPool = portfolioTickers.length > 0
       ? portfolioTickers
       : snapshot?.ticker ? [snapshot.ticker] : [];
-    const ticker = monitoringTicker
-      ?? (tickerPool.length > 0 ? tickerPool[(rotationStep + index) % tickerPool.length] : 'QUEUE');
+    const bookIndex = tickerPool.length > 0 ? (rotationStep + index) % tickerPool.length : 0;
+    const ticker = monitoringTicker ?? (tickerPool[bookIndex] ?? 'QUEUE');
     const status = monitoringTicker && !snapshot
       ? 'working'
       : statusForAnalyst(snapshot, event, now);
@@ -551,6 +575,10 @@ export function AgentOffice() {
       location,
       nextLocation,
       ticker,
+      bookIndex: monitoringTicker
+        ? Math.max(0, tickerPool.indexOf(monitoringTicker))
+        : bookIndex,
+      bookSize: tickerPool.length,
       position: scoutPosition(location, index),
       moving: rotationClock % ROTATION_SECONDS <= 1,
     };
@@ -771,6 +799,8 @@ export function AgentOffice() {
                         location={rotation.location}
                         nextLocation={rotation.nextLocation}
                         ticker={rotation.ticker}
+                        bookIndex={rotation.bookIndex}
+                        bookSize={rotation.bookSize}
                         position={rotation.position}
                         selected={selection === `quant:${rotation.analyst.key}`}
                         hidden={!filterMatches(rotation.status, filter)}
@@ -919,6 +949,12 @@ export function AgentOffice() {
                       ? `${LOCATION_LABELS[selectedRotation.nextLocation]} · ${rotationCountdown}s`
                       : '—'}
                   </dd>
+                  <dt className="text-[#7d8792]">Book rotation</dt>
+                  <dd data-testid="selected-scout-book-rotation" className="font-mono text-[#d2d7dd]">
+                    {selectedRotation && selectedRotation.bookSize > 0
+                      ? `${selectedRotation.ticker} · ${selectedRotation.bookIndex + 1}/${selectedRotation.bookSize}`
+                      : 'Queue empty'}
+                  </dd>
                   <dt className="text-[#7d8792]">Watching</dt>
                   <dd className="line-clamp-4 leading-5 text-[#d2d7dd]">{selectedVisibleSnapshot?.watch ?? selectedAnalyst.domain}</dd>
                 </dl>
@@ -973,7 +1009,7 @@ export function AgentOffice() {
                       </span>
                     </span>
                     <span className="border border-[#344039] bg-[#152019] px-1.5 py-0.5 font-mono text-[8px] text-[#65d487]">
-                      {rotation.ticker}
+                      {rotation.ticker} · {rotation.bookSize > 0 ? `${rotation.bookIndex + 1}/${rotation.bookSize}` : 'queue'}
                     </span>
                   </button>
                 ))}
