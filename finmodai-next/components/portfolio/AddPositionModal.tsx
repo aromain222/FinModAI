@@ -131,6 +131,13 @@ export function AddPositionModal({ open, onClose, prefillTicker }: AddPositionMo
           shares,
           thesis: form.thesis.trim() || null,
         }),
+      }).then(response => {
+        if (!response.ok) return;
+        void fetch('/api/pm/quant-monitor', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticker, autoEscalate: true }),
+        }).catch(() => {});
       });
 
       await Promise.allSettled([alpacaPromise, pmPromise]);

@@ -25,7 +25,7 @@ function markSynced(ticker: string): void {
 }
 
 async function syncPMRecords(ticker: string, payload: Record<string, unknown>, thesis: Record<string, unknown>): Promise<void> {
-  await fetch('/api/pm/positions', {
+  const positionResponse = await fetch('/api/pm/positions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -35,6 +35,13 @@ async function syncPMRecords(ticker: string, payload: Record<string, unknown>, t
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(thesis),
   });
+  if (positionResponse.ok) {
+    await fetch('/api/pm/quant-monitor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker, autoEscalate: true }),
+    });
+  }
   markSynced(ticker);
 }
 

@@ -879,6 +879,13 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
         createdAt: position.entryDate,
         updatedAt: new Date().toISOString(),
       }),
+    }).then(async response => {
+      if (!response.ok) return;
+      await fetch('/api/pm/quant-monitor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticker: position.ticker.toUpperCase(), autoEscalate: true }),
+      });
     }).catch(() => {});
 
     setShowEnterForm(false);

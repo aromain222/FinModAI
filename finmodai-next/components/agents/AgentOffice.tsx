@@ -16,7 +16,7 @@ import type {
   QuantScoreSnapshot,
   QuantSignalEvent,
 } from '@/lib/pm/monitoring/types';
-import type { AgentView } from '@/lib/pm/types';
+import type { AgentView, PortfolioPosition } from '@/lib/pm/types';
 import { cn } from '@/lib/utils';
 
 type AgentStatus = 'working' | 'reviewing' | 'idle' | 'needs_attention';
@@ -312,10 +312,34 @@ function ScoreBar({ score }: { score: number }) {
   );
 }
 
+function pendingSnapshot(
+  analyst: AnalystDefinition,
+  ticker: string,
+  now: number,
+): QuantScoreSnapshot {
+  const observedAt = new Date(now).toISOString();
+  return {
+    id: `pending-${ticker}-${analyst.key}`,
+    ticker,
+    analystKey: analyst.key,
+    analystName: analyst.name,
+    score: 50,
+    signal: 'neutral',
+    confidence: 0,
+    reasoning: `Building the first ${analyst.domain.toLowerCase()} baseline for ${ticker}.`,
+    watch: 'Waiting for the monitoring model to return the first scored observation.',
+    source: 'hedge_fund_monitoring',
+    observedAt,
+    createdAt: observedAt,
+  };
+}
+
 export function AgentOffice() {
   const [views, setViews] = useState<AgentView[]>([]);
   const [snapshots, setSnapshots] = useState<QuantScoreSnapshot[]>([]);
   const [events, setEvents] = useState<QuantSignalEvent[]>([]);
+  const [positions, setPositions] = useState<PortfolioPosition[]>([]);
+  const [monitoringTicker, setMonitoringTicker] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection>('quant:fundamentals');
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [loading, setLoading] = useState(true);
@@ -326,19 +350,23 @@ export function AgentOffice() {
   const loadActivity = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
     try {
-      const [viewsResponse, monitoringResponse] = await Promise.all([
+      const [viewsResponse, monitoringResponse, positionsResponse] = await Promise.all([
         fetch('/api/pm/agent-views?limit=500', { cache: 'no-store' }),
         fetch('/api/pm/quant-monitor?limit=500', { cache: 'no-store' }),
+        fetch('/api/pm/positions?limit=200', { cache: 'no-store' }),
       ]);
       if (!viewsResponse.ok) throw new Error(`Agent activity request failed (${viewsResponse.status})`);
       if (!monitoringResponse.ok) throw new Error(`Monitoring request failed (${monitoringResponse.status})`);
-      const [viewsPayload, monitoringPayload] = await Promise.all([
+      if (!positionsResponse.ok) throw new Error(`Portfolio request failed (${positionsResponse.status})`);
+      const [viewsPayload, monitoringPayload, positionsPayload] = await Promise.all([
         viewsResponse.json() as Promise<{ agentViews?: AgentView[] }>,
         monitoringResponse.json() as Promise<{ snapshots?: QuantScoreSnapshot[]; events?: QuantSignalEvent[] }>,
+        positionsResponse.json() as Promise<{ positions?: PortfolioPosition[] }>,
       ]);
       setViews([...(viewsPayload.agentViews ?? [])].sort((a, b) => (b.runAt ?? b.createdAt).localeCompare(a.runAt ?? a.createdAt)));
       setSnapshots(monitoringPayload.snapshots ?? []);
       setEvents(monitoringPayload.events ?? []);
+      setPositions(positionsPayload.positions ?? []);
       setNow(Date.now());
       setError(null);
     } catch (requestError) {
@@ -358,6 +386,45 @@ export function AgentOffice() {
       window.clearInterval(clock);
     };
   }, [loadActivity]);
+
+  const portfolioTickers = useMemo(
+    () => [...new Set(
+      positions
+        .filter(position => position.status === 'active' || position.status === 'watch')
+        .map(position => position.ticker.toUpperCase()),
+    )],
+    [positions],
+  );
+  const scoredTickers = useMemo(() => new Set(snapshots.map(snapshot => snapshot.ticker)), [snapshots]);
+  const nextUnscoredTicker = portfolioTickers.find(ticker => !scoredTickers.has(ticker)) ?? null;
+
+  useEffect(() => {
+    if (loading || monitoringTicker || !nextUnscoredTicker) return;
+    setMonitoringTicker(nextUnscoredTicker);
+    void fetch('/api/pm/quant-monitor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker: nextUnscoredTicker, autoEscalate: true }),
+    })
+      .then(async response => {
+        if (!response.ok) throw new Error(`Baseline monitoring failed (${response.status})`);
+        return response.json() as Promise<{
+          snapshots?: QuantScoreSnapshot[];
+          events?: QuantSignalEvent[];
+        }>;
+      })
+      .then(result => {
+        setSnapshots(current => [...(result.snapshots ?? []), ...current]);
+        setEvents(current => [...(result.events ?? []), ...current]);
+        setError(null);
+      })
+      .catch(requestError => {
+        setError(requestError instanceof Error ? requestError.message : 'Could not start portfolio monitoring');
+      })
+      .finally(() => {
+        setMonitoringTicker(null);
+      });
+  }, [loading, monitoringTicker, nextUnscoredTicker]);
 
   const latestSnapshotByAnalyst = useMemo(() => {
     const map = new Map<QuantAnalystKey, QuantScoreSnapshot>();
@@ -400,8 +467,11 @@ export function AgentOffice() {
     for (const snapshot of snapshots) {
       if (!byTicker.has(snapshot.ticker)) byTicker.set(snapshot.ticker, snapshot.observedAt);
     }
+    for (const ticker of portfolioTickers) {
+      if (!byTicker.has(ticker)) byTicker.set(ticker, '');
+    }
     return [...byTicker.entries()].slice(0, 8);
-  }, [snapshots]);
+  }, [portfolioTickers, snapshots]);
 
   const selectedQuantKey = selection.startsWith('quant:')
     ? selection.slice(6) as QuantAnalystKey
@@ -409,11 +479,13 @@ export function AgentOffice() {
   const selectedSeniorKey = selection.startsWith('senior:') ? selection.slice(7) : null;
   const selectedAnalyst = selectedQuantKey ? ANALYSTS.find(analyst => analyst.key === selectedQuantKey) : undefined;
   const selectedSnapshot = selectedQuantKey ? latestSnapshotByAnalyst.get(selectedQuantKey) : undefined;
+  const selectedVisibleSnapshot = selectedSnapshot
+    ?? (selectedAnalyst && monitoringTicker ? pendingSnapshot(selectedAnalyst, monitoringTicker, now) : undefined);
   const selectedEvent = selectedQuantKey ? latestEventByAnalyst.get(selectedQuantKey) : undefined;
   const selectedSenior = selectedSeniorKey ? SENIORS.find(senior => senior.key === selectedSeniorKey) : undefined;
   const selectedSeniorSignal = selectedSeniorKey ? committeeSignalByKey.get(selectedSeniorKey) : undefined;
 
-  const activeAnalystCount = ANALYSTS.filter(analyst => {
+  const activeAnalystCount = monitoringTicker ? ANALYSTS.length : ANALYSTS.filter(analyst => {
     const status = statusForAnalyst(
       latestSnapshotByAnalyst.get(analyst.key),
       latestEventByAnalyst.get(analyst.key),
@@ -429,7 +501,7 @@ export function AgentOffice() {
 
   const detailOutput = selectedAnalyst
     ? {
-        latestScore: selectedSnapshot ?? null,
+        latestScore: selectedVisibleSnapshot ?? null,
         latestSignalEvent: selectedEvent ?? null,
       }
     : {
@@ -450,6 +522,8 @@ export function AgentOffice() {
               )} />
               {error
                 ? 'Activity feed unavailable'
+                : monitoringTicker
+                  ? `Six scouts scanning ${monitoringTicker}`
                 : committeeActive
                   ? `Committee reviewing ${committeeTicker ?? 'an escalation'}`
                   : attentionCount > 0
@@ -529,9 +603,13 @@ export function AgentOffice() {
                   </div>
                   <div className="grid min-h-[610px] grid-cols-3 gap-1">
                     {ANALYSTS.map(analyst => {
-                      const snapshot = latestSnapshotByAnalyst.get(analyst.key);
+                      const persistedSnapshot = latestSnapshotByAnalyst.get(analyst.key);
+                      const snapshot = persistedSnapshot
+                        ?? (monitoringTicker ? pendingSnapshot(analyst, monitoringTicker, now) : undefined);
                       const event = latestEventByAnalyst.get(analyst.key);
-                      const status = statusForAnalyst(snapshot, event, now);
+                      const status = monitoringTicker && !persistedSnapshot
+                        ? 'working'
+                        : statusForAnalyst(snapshot, event, now);
                       return (
                         <AnalystDesk
                           key={analyst.key}
@@ -642,7 +720,9 @@ export function AgentOffice() {
                   <AgentSprite
                     palette={selectedAnalyst?.palette ?? selectedSenior?.palette ?? 0}
                     status={selectedAnalyst
-                      ? statusForAnalyst(selectedSnapshot, selectedEvent, now)
+                      ? monitoringTicker && !selectedSnapshot
+                        ? 'working'
+                        : statusForAnalyst(selectedSnapshot, selectedEvent, now)
                       : committeeActive ? 'reviewing' : 'idle'}
                   />
                 </div>
@@ -659,21 +739,23 @@ export function AgentOffice() {
               {selectedAnalyst ? (
                 <dl className="mt-5 grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-3 text-xs">
                   <dt className="text-[#7d8792]">Company</dt>
-                  <dd className="font-mono font-semibold text-white">{selectedSnapshot?.ticker ?? '—'}</dd>
+                  <dd className="font-mono font-semibold text-white">{selectedVisibleSnapshot?.ticker ?? '—'}</dd>
                   <dt className="text-[#7d8792]">Score</dt>
                   <dd>
                     <div className="flex items-center justify-between font-mono text-white">
-                      <span>{selectedSnapshot ? Math.round(selectedSnapshot.score) : '—'}</span>
-                      <span className="text-[9px] capitalize" style={{ color: stanceColor(selectedSnapshot?.signal) }}>
-                        {selectedSnapshot?.signal ?? 'No read'}
+                      <span>{selectedVisibleSnapshot ? Math.round(selectedVisibleSnapshot.score) : '—'}</span>
+                      <span className="text-[9px] capitalize" style={{ color: stanceColor(selectedVisibleSnapshot?.signal) }}>
+                        {monitoringTicker && !selectedSnapshot ? 'Scanning' : selectedVisibleSnapshot?.signal ?? 'No read'}
                       </span>
                     </div>
-                    {selectedSnapshot ? <ScoreBar score={selectedSnapshot.score} /> : null}
+                    {selectedVisibleSnapshot ? <ScoreBar score={selectedVisibleSnapshot.score} /> : null}
                   </dd>
                   <dt className="text-[#7d8792]">Last scan</dt>
-                  <dd className="text-[#d2d7dd]">{formatAge(selectedSnapshot?.observedAt)}</dd>
+                  <dd className="text-[#d2d7dd]">
+                    {monitoringTicker && !selectedSnapshot ? 'Running now' : formatAge(selectedVisibleSnapshot?.observedAt)}
+                  </dd>
                   <dt className="text-[#7d8792]">Watching</dt>
-                  <dd className="line-clamp-4 leading-5 text-[#d2d7dd]">{selectedSnapshot?.watch ?? selectedAnalyst.domain}</dd>
+                  <dd className="line-clamp-4 leading-5 text-[#d2d7dd]">{selectedVisibleSnapshot?.watch ?? selectedAnalyst.domain}</dd>
                 </dl>
               ) : (
                 <dl className="mt-5 grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-3 text-xs">
@@ -700,9 +782,13 @@ export function AgentOffice() {
               </div>
               <div className="mt-3 divide-y divide-[#252c34] border-y border-[#252c34]">
                 {ANALYSTS.map(analyst => {
-                  const snapshot = latestSnapshotByAnalyst.get(analyst.key);
+                  const persistedSnapshot = latestSnapshotByAnalyst.get(analyst.key);
+                  const snapshot = persistedSnapshot
+                    ?? (monitoringTicker ? pendingSnapshot(analyst, monitoringTicker, now) : undefined);
                   const event = latestEventByAnalyst.get(analyst.key);
-                  const status = statusForAnalyst(snapshot, event, now);
+                  const status = monitoringTicker && !persistedSnapshot
+                    ? 'working'
+                    : statusForAnalyst(snapshot, event, now);
                   return (
                     <button
                       key={analyst.key}
@@ -720,7 +806,9 @@ export function AgentOffice() {
                       <span className="font-mono text-[9px] text-[#c9d0d7]">
                         {analyst.name.replace(' Analyst', '')}
                         <span className="mt-0.5 block text-[8px] text-[#697480]">
-                          {snapshot ? `${snapshot.ticker} · ${Math.round(snapshot.score)}` : 'Queue idle'}
+                          {snapshot
+                            ? `${snapshot.ticker} · ${monitoringTicker && !persistedSnapshot ? 'scanning' : Math.round(snapshot.score)}`
+                            : 'Queue idle'}
                         </span>
                       </span>
                       <span className="min-w-0">
@@ -728,7 +816,11 @@ export function AgentOffice() {
                           {snapshot?.reasoning || `Monitoring ${analyst.domain.toLowerCase()}.`}
                         </span>
                         <span className="mt-1 block truncate font-mono text-[8px] text-[#65717c]">
-                          {snapshot ? `Updated ${formatAge(snapshot.observedAt)}` : 'Awaiting first scheduled scan'}
+                          {snapshot
+                            ? monitoringTicker && !persistedSnapshot
+                              ? 'Baseline scan running now'
+                              : `Updated ${formatAge(snapshot.observedAt)}`
+                            : 'Awaiting first scheduled scan'}
                         </span>
                       </span>
                     </button>
@@ -766,7 +858,7 @@ export function AgentOffice() {
             <section className="p-5">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-medium text-[#d8dde3]">Latest output</h3>
-                {(selectedSnapshot || selectedSeniorSignal) ? (
+                {(selectedVisibleSnapshot || selectedSeniorSignal) ? (
                   <span className="inline-flex items-center gap-1 text-[10px] text-[#65d487]">
                     <CheckCircle2 className="h-3 w-3" />
                     Persisted
@@ -774,7 +866,7 @@ export function AgentOffice() {
                 ) : null}
               </div>
 
-              {(selectedSnapshot || selectedSeniorSignal) ? (
+              {(selectedVisibleSnapshot || selectedSeniorSignal) ? (
                 <pre className="mt-3 max-h-56 overflow-auto border border-[#2d353e] bg-[#0b1015] p-3 font-mono text-[9px] leading-4 text-[#8fce8f]">
                   {JSON.stringify(detailOutput, null, 2)}
                 </pre>
