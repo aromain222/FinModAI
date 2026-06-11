@@ -57,6 +57,15 @@ const ANALYSTS: AnalystDefinition[] = [
   { key: 'valuation', name: 'Valuation Analyst', palette: 5, domain: 'Intrinsic value and multiple extension' },
 ];
 
+const DESK_VERB: Record<QuantAnalystKey, string> = {
+  fundamentals: 'Modeling',
+  growth: 'Forecasting',
+  news_sentiment: 'Reading',
+  sentiment: 'Mapping flow on',
+  technicals: 'Charting',
+  valuation: 'Valuing',
+};
+
 const SENIORS: SeniorDefinition[] = [
   { key: 'warren_buffett', name: 'Warren Buffett', palette: 0, lens: 'Moat and compounding' },
   { key: 'charlie_munger', name: 'Charlie Munger', palette: 1, lens: 'Quality and mental models' },
@@ -87,8 +96,8 @@ const STATUS_COLORS: Record<AgentStatus, string> = {
   needs_attention: '#f26d6d',
 };
 
-const ACTIVE_LOOP_INTERVAL_MS = 15_000;
-const TICKER_COOLDOWN_MS = 60_000;
+const ACTIVE_LOOP_INTERVAL_MS = 30_000;
+const TICKER_COOLDOWN_MS = 90_000;
 
 // Walking choreography — triggered when a scout completes a scan. Total 8s round trip.
 const WALK_TOTAL_MS = 8000;
@@ -291,6 +300,7 @@ function ScoutMover({
   hidden,
   moving,
   activity,
+  alerting,
   onSelect,
 }: {
   analyst: AnalystDefinition;
@@ -305,6 +315,7 @@ function ScoutMover({
   hidden: boolean;
   moving: boolean;
   activity: string;
+  alerting: boolean;
   onSelect: () => void;
 }) {
   const shortName = analyst.name.replace(' Analyst', '');
@@ -322,17 +333,24 @@ function ScoutMover({
       aria-label={`${analyst.name}: ${activity}. Covering ${ticker}${bookSize > 0 ? `, portfolio position ${bookIndex + 1} of ${bookSize}` : ''}, at ${LOCATION_LABELS[location]}, heading toward ${LOCATION_LABELS[nextLocation]}`}
       title={`${analyst.name} · ${activity}`}
     >
-      <span
-        className="-mb-1 max-w-[10rem] truncate border bg-[#0c1116]/95 px-2 py-1 font-mono text-[9px] leading-tight shadow-lg"
-        style={{ borderColor: STATUS_COLORS[status], color: STATUS_COLORS[status] }}
-      >
-        {activity}
-      </span>
+      {alerting ? (
+        <span
+          className="-mb-1 max-w-[11rem] truncate border-2 bg-[#1b0f0f]/95 px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-wide shadow-[0_0_12px_rgba(242,109,109,0.45)]"
+          style={{ borderColor: STATUS_COLORS[status], color: STATUS_COLORS[status] }}
+        >
+          {activity}
+        </span>
+      ) : null}
       <span className="agent-office-scout__sprite">
         <AgentSprite palette={analyst.palette} status={status} moving={moving} />
       </span>
-      <span className="max-w-28 truncate border border-[#252c34] bg-[#0b0f13]/95 px-1.5 py-0.5 font-mono text-[8px] text-[#c9d0d7] shadow-md">
-        {shortName} · {ticker}
+      <span
+        className={cn(
+          'max-w-[8rem] truncate border bg-[#0b0f13]/95 px-1.5 py-0.5 font-mono text-[8px] shadow-md',
+          alerting ? 'border-[#252c34] text-[#c9d0d7]' : 'border-[#1f262d] text-[#8d97a2]',
+        )}
+      >
+        {alerting ? `${shortName} · ${ticker}` : `${shortName} · ${activity}`}
       </span>
     </button>
   );
@@ -535,7 +553,7 @@ export function AgentOffice() {
   const [now, setNow] = useState(() => Date.now());
   const [walkTick, setWalkTick] = useState(0);
   const [walkSessions, setWalkSessions] = useState<Partial<Record<QuantAnalystKey, WalkSession>>>({});
-  const lastSeenSnapshotRef = useRef<Partial<Record<QuantAnalystKey, string>>>({});
+  const lastSeenEventRef = useRef<Partial<Record<QuantAnalystKey, string>>>({});
 
   const loadActivity = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
@@ -720,25 +738,27 @@ export function AgentOffice() {
     return map;
   }, [events]);
 
-  // When a new snapshot lands for an analyst, kick off the desk → PM inbox → desk walk.
+  // Only big events make a scout get up — anything tagged shouldEscalate triggers
+  // a walk to the PM inbox. Routine snapshots just keep the scout typing at their desk.
   useEffect(() => {
     let pending: Partial<Record<QuantAnalystKey, WalkSession>> | null = null;
     for (const analyst of ANALYSTS) {
-      const latest = latestSnapshotByAnalyst.get(analyst.key);
-      if (!latest) continue;
-      const prevId = lastSeenSnapshotRef.current[analyst.key];
-      if (prevId === latest.id) continue;
+      const latestEvent = latestEventByAnalyst.get(analyst.key);
+      if (!latestEvent) continue;
+      const prevId = lastSeenEventRef.current[analyst.key];
+      if (prevId === latestEvent.id) continue;
       const firstTime = !prevId;
-      lastSeenSnapshotRef.current[analyst.key] = latest.id;
+      lastSeenEventRef.current[analyst.key] = latestEvent.id;
       if (firstTime) continue;
+      if (!latestEvent.shouldEscalate) continue;
       if (!pending) pending = {};
-      pending[analyst.key] = { startedAt: Date.now(), ticker: latest.ticker };
+      pending[analyst.key] = { startedAt: Date.now(), ticker: latestEvent.ticker };
     }
     if (pending) {
       const additions = pending;
       setWalkSessions(prev => ({ ...prev, ...additions }));
     }
-  }, [latestSnapshotByAnalyst]);
+  }, [latestEventByAnalyst]);
 
   // Drop walk sessions once they finish so the scout returns to default at-desk.
   useEffect(() => {
@@ -773,6 +793,7 @@ export function AgentOffice() {
     let location: ScoutLocation = 'desk';
     let nextLocation: ScoutLocation = 'desk';
     let isWalking = false;
+    const verb = DESK_VERB[analyst.key];
 
     if (escalated && event) {
       position = scoutPosition('pm_inbox', index);
@@ -796,18 +817,20 @@ export function AgentOffice() {
         location = elapsed < WALK_PHASE_END_MS.BACK_TO_AISLE ? 'pm_inbox' : 'company_queue';
         nextLocation = 'desk';
       }
+    } else if (isScanningThis && monitoringTicker) {
+      activity = `${verb} ${monitoringTicker}`;
+      phaseLabel = 'At desk · scoring';
     } else if (monitoringTicker) {
-      activity = isScanningThis
-        ? `Scoring ${monitoringTicker}`
-        : `Scanning ${monitoringTicker}`;
-      phaseLabel = 'At desk';
+      activity = `${verb} ${monitoringTicker}`;
+      phaseLabel = 'At desk · scanning';
     } else if (snapshot) {
-      activity = `Watching ${snapshot.ticker}`;
+      activity = `${verb} ${snapshot.ticker}`;
       phaseLabel = 'At desk';
     } else {
-      activity = portfolioTickers.length === 0 ? 'Awaiting portfolio' : 'Queueing scan';
+      activity = portfolioTickers.length === 0 ? 'Awaiting portfolio' : 'Queueing book';
       phaseLabel = 'At desk';
     }
+    const alerting = escalated || isWalking;
 
     const tickerPool = portfolioTickers.length > 0
       ? portfolioTickers
@@ -836,6 +859,7 @@ export function AgentOffice() {
       activity,
       phaseLabel,
       remainingMs,
+      alerting,
     };
   }), [
     latestEventByAnalyst,
@@ -1065,6 +1089,7 @@ export function AgentOffice() {
                         hidden={!filterMatches(rotation.status, filter)}
                         moving={rotation.moving}
                         activity={rotation.activity}
+                        alerting={rotation.alerting}
                         onSelect={() => setSelection(`quant:${rotation.analyst.key}`)}
                       />
                     ))}
