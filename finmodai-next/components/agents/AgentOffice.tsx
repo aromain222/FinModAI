@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 type AgentStatus = 'working' | 'reviewing' | 'idle' | 'needs_attention';
 type StatusFilter = 'all' | 'active' | 'attention' | 'idle';
 type Selection = `quant:${QuantAnalystKey}` | `senior:${string}`;
+type ScoutLocation = 'desk' | 'company_queue' | 'research_wall' | 'pm_inbox';
 
 type AnalystDefinition = {
   key: QuantAnalystKey;
@@ -85,6 +86,34 @@ const STATUS_COLORS: Record<AgentStatus, string> = {
   needs_attention: '#f26d6d',
 };
 
+const ROTATION_SECONDS = 5;
+const ROTATION_ROUTE: ScoutLocation[] = ['desk', 'company_queue', 'research_wall', 'pm_inbox'];
+const LOCATION_LABELS: Record<ScoutLocation, string> = {
+  desk: 'Analyst desk',
+  company_queue: 'Company queue',
+  research_wall: 'Research wall',
+  pm_inbox: 'PM inbox',
+};
+const DESK_POSITIONS = [
+  { x: 16, y: 30 },
+  { x: 50, y: 30 },
+  { x: 84, y: 30 },
+  { x: 16, y: 76 },
+  { x: 50, y: 76 },
+  { x: 84, y: 76 },
+];
+
+function scoutPosition(location: ScoutLocation, index: number): { x: number; y: number } {
+  if (location === 'desk') return DESK_POSITIONS[index] ?? DESK_POSITIONS[0];
+  if (location === 'company_queue') {
+    return { x: 40 + (index % 3) * 10, y: 47 + Math.floor(index / 3) * 9 };
+  }
+  if (location === 'research_wall') {
+    return { x: 7 + (index % 2) * 6, y: 34 + (index % 3) * 12 };
+  }
+  return { x: 93 - (index % 2) * 6, y: 34 + (index % 3) * 12 };
+}
+
 function ageInMs(value: string | undefined, now: number): number {
   if (!value) return Number.POSITIVE_INFINITY;
   const timestamp = new Date(value).getTime();
@@ -133,10 +162,12 @@ function AgentSprite({
   palette,
   status,
   compact = false,
+  moving = false,
 }: {
   palette: number;
   status: AgentStatus;
   compact?: boolean;
+  moving?: boolean;
 }) {
   return (
     <span
@@ -144,11 +175,59 @@ function AgentSprite({
       className={cn(
         'agent-office-sprite',
         compact && 'agent-office-sprite--compact',
-        status === 'working' && 'agent-office-sprite--typing',
-        (status === 'reviewing' || status === 'needs_attention') && 'agent-office-sprite--reading',
+        moving && 'agent-office-sprite--walking',
+        !moving && status === 'working' && 'agent-office-sprite--typing',
+        !moving && (status === 'reviewing' || status === 'needs_attention') && 'agent-office-sprite--reading',
       )}
       style={{ backgroundImage: `url(/pixel-agents/assets/characters/char_${palette}.png)` }}
     />
+  );
+}
+
+function ScoutMover({
+  analyst,
+  status,
+  location,
+  nextLocation,
+  ticker,
+  position,
+  selected,
+  hidden,
+  moving,
+  onSelect,
+}: {
+  analyst: AnalystDefinition;
+  status: AgentStatus;
+  location: ScoutLocation;
+  nextLocation: ScoutLocation;
+  ticker: string;
+  position: { x: number; y: number };
+  selected: boolean;
+  hidden: boolean;
+  moving: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      data-testid={`scout-${analyst.key}`}
+      className={cn(
+        'agent-office-scout pointer-events-auto absolute z-30 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center transition-[left,top,opacity] ease-in-out',
+        selected && 'agent-office-scout--selected',
+        hidden && 'opacity-20 grayscale',
+      )}
+      style={{ left: `${position.x}%`, top: `${position.y}%`, transitionDuration: '1400ms' }}
+      aria-label={`${analyst.name} at ${LOCATION_LABELS[location]}, moving next to ${LOCATION_LABELS[nextLocation]}`}
+      title={`${analyst.name} · ${ticker} · ${LOCATION_LABELS[location]} → ${LOCATION_LABELS[nextLocation]}`}
+    >
+      <span className="agent-office-scout__sprite">
+        <AgentSprite palette={analyst.palette} status={status} moving={moving} />
+      </span>
+      <span className="max-w-24 truncate border border-[#303942] bg-[#10161b]/95 px-1.5 py-0.5 font-mono text-[7px] text-[#d9dfe5] shadow-md">
+        {ticker} · {LOCATION_LABELS[location]}
+      </span>
+    </button>
   );
 }
 
@@ -229,8 +308,8 @@ function AnalystDesk({
           unoptimized
           className="absolute bottom-[54px] right-[37px] h-14 w-7 [image-rendering:pixelated]"
         />
-        <span className="absolute bottom-0 left-1/2 -translate-x-1/2">
-          <AgentSprite palette={analyst.palette} status={status} />
+        <span className="absolute bottom-4 left-1/2 -translate-x-1/2 border border-[#46505a] bg-[#171d23]/90 px-2 py-1 font-mono text-[7px] uppercase tracking-[0.1em] text-[#78838e]">
+          Field rotation
         </span>
       </span>
 
@@ -346,6 +425,7 @@ export function AgentOffice() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [rotationClock, setRotationClock] = useState(0);
 
   const loadActivity = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
@@ -381,9 +461,11 @@ export function AgentOffice() {
     void loadActivity();
     const polling = window.setInterval(() => { void loadActivity(); }, 15_000);
     const clock = window.setInterval(() => setNow(Date.now()), 30_000);
+    const rotation = window.setInterval(() => setRotationClock(current => current + 1), 1_000);
     return () => {
       window.clearInterval(polling);
       window.clearInterval(clock);
+      window.clearInterval(rotation);
     };
   }, [loadActivity]);
 
@@ -442,6 +524,50 @@ export function AgentOffice() {
     return map;
   }, [events]);
 
+  const rotationStep = Math.floor(rotationClock / ROTATION_SECONDS);
+  const rotationCountdown = ROTATION_SECONDS - (rotationClock % ROTATION_SECONDS);
+  const scoutRotations = useMemo(() => ANALYSTS.map((analyst, index) => {
+    const event = latestEventByAnalyst.get(analyst.key);
+    const routeIndex = (rotationStep + index) % ROTATION_ROUTE.length;
+    const normalLocation = ROTATION_ROUTE[routeIndex];
+    const location: ScoutLocation = event?.status === 'escalated' && event.shouldEscalate
+      ? 'pm_inbox'
+      : normalLocation;
+    const nextLocation = location === 'pm_inbox' && event?.status === 'escalated'
+      ? 'pm_inbox'
+      : ROTATION_ROUTE[(routeIndex + 1) % ROTATION_ROUTE.length];
+    const snapshot = latestSnapshotByAnalyst.get(analyst.key);
+    const tickerPool = portfolioTickers.length > 0
+      ? portfolioTickers
+      : snapshot?.ticker ? [snapshot.ticker] : [];
+    const ticker = monitoringTicker
+      ?? (tickerPool.length > 0 ? tickerPool[(rotationStep + index) % tickerPool.length] : 'QUEUE');
+    const status = monitoringTicker && !snapshot
+      ? 'working'
+      : statusForAnalyst(snapshot, event, now);
+    return {
+      analyst,
+      status,
+      location,
+      nextLocation,
+      ticker,
+      position: scoutPosition(location, index),
+      moving: rotationClock % ROTATION_SECONDS <= 1,
+    };
+  }), [
+    latestEventByAnalyst,
+    latestSnapshotByAnalyst,
+    monitoringTicker,
+    now,
+    portfolioTickers,
+    rotationClock,
+    rotationStep,
+  ]);
+  const scoutRotationByKey = useMemo(
+    () => new Map(scoutRotations.map(rotation => [rotation.analyst.key, rotation])),
+    [scoutRotations],
+  );
+
   const latestCommitteeView = views.find(view => view.agentName === 'Senior Investment Committee') ?? null;
   const committeeSignals = useMemo(() => {
     const raw = latestCommitteeView?.rawOutput as { signals?: SeniorSignal[] } | undefined;
@@ -482,6 +608,7 @@ export function AgentOffice() {
   const selectedVisibleSnapshot = selectedSnapshot
     ?? (selectedAnalyst && monitoringTicker ? pendingSnapshot(selectedAnalyst, monitoringTicker, now) : undefined);
   const selectedEvent = selectedQuantKey ? latestEventByAnalyst.get(selectedQuantKey) : undefined;
+  const selectedRotation = selectedQuantKey ? scoutRotationByKey.get(selectedQuantKey) : undefined;
   const selectedSenior = selectedSeniorKey ? SENIORS.find(senior => senior.key === selectedSeniorKey) : undefined;
   const selectedSeniorSignal = selectedSeniorKey ? committeeSignalByKey.get(selectedSeniorKey) : undefined;
 
@@ -601,6 +728,17 @@ export function AgentOffice() {
                     <Bot className="h-3 w-3 text-[#65d487]" />
                     Monitoring floor
                   </div>
+                  <div className="pointer-events-none absolute inset-0 z-20">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 border border-[#3b4650] bg-[#12181e]/95 px-1.5 py-1 font-mono text-[7px] uppercase tracking-[0.12em] text-[#8da2b3] [writing-mode:vertical-rl]">
+                      Research wall
+                    </span>
+                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border border-[#4b5948] bg-[#152019]/95 px-2 py-1 font-mono text-[7px] uppercase tracking-[0.12em] text-[#79c98f]">
+                      Company queue
+                    </span>
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 border border-[#5e4d32] bg-[#211b13]/95 px-1.5 py-1 font-mono text-[7px] uppercase tracking-[0.12em] text-[#d8ae5b] [writing-mode:vertical-rl]">
+                      PM inbox
+                    </span>
+                  </div>
                   <div className="grid min-h-[610px] grid-cols-3 gap-1">
                     {ANALYSTS.map(analyst => {
                       const persistedSnapshot = latestSnapshotByAnalyst.get(analyst.key);
@@ -623,6 +761,23 @@ export function AgentOffice() {
                         />
                       );
                     })}
+                  </div>
+                  <div className="pointer-events-none absolute inset-x-3 bottom-3 top-10 z-30">
+                    {scoutRotations.map(rotation => (
+                      <ScoutMover
+                        key={rotation.analyst.key}
+                        analyst={rotation.analyst}
+                        status={rotation.status}
+                        location={rotation.location}
+                        nextLocation={rotation.nextLocation}
+                        ticker={rotation.ticker}
+                        position={rotation.position}
+                        selected={selection === `quant:${rotation.analyst.key}`}
+                        hidden={!filterMatches(rotation.status, filter)}
+                        moving={rotation.moving}
+                        onSelect={() => setSelection(`quant:${rotation.analyst.key}`)}
+                      />
+                    ))}
                   </div>
                 </section>
 
@@ -754,6 +909,16 @@ export function AgentOffice() {
                   <dd className="text-[#d2d7dd]">
                     {monitoringTicker && !selectedSnapshot ? 'Running now' : formatAge(selectedVisibleSnapshot?.observedAt)}
                   </dd>
+                  <dt className="text-[#7d8792]">Location</dt>
+                  <dd data-testid="selected-scout-location" className="font-mono text-[#d2d7dd]">
+                    {selectedRotation ? LOCATION_LABELS[selectedRotation.location] : '—'}
+                  </dd>
+                  <dt className="text-[#7d8792]">Next move</dt>
+                  <dd data-testid="selected-scout-next-move" className="font-mono text-[#d2d7dd]">
+                    {selectedRotation
+                      ? `${LOCATION_LABELS[selectedRotation.nextLocation]} · ${rotationCountdown}s`
+                      : '—'}
+                  </dd>
                   <dt className="text-[#7d8792]">Watching</dt>
                   <dd className="line-clamp-4 leading-5 text-[#d2d7dd]">{selectedVisibleSnapshot?.watch ?? selectedAnalyst.domain}</dd>
                 </dl>
@@ -773,6 +938,46 @@ export function AgentOffice() {
                   </dd>
                 </dl>
               )}
+            </section>
+
+            <section className="border-b border-[#252c34] p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-medium text-[#d8dde3]">Scout rotation</h3>
+                <span className="font-mono text-[9px] text-[#65d487]">
+                  Move in {rotationCountdown}s
+                </span>
+              </div>
+              <p className="mt-1 text-[9px] leading-4 text-[#697480]">
+                Desk → company queue → research wall → PM inbox. Ticker assignments rotate across the active book.
+              </p>
+              <div className="mt-3 divide-y divide-[#252c34] border-y border-[#252c34]">
+                {scoutRotations.map(rotation => (
+                  <button
+                    key={rotation.analyst.key}
+                    type="button"
+                    onClick={() => setSelection(`quant:${rotation.analyst.key}`)}
+                    className={cn(
+                      'grid w-full grid-cols-[76px_minmax(0,1fr)_auto] items-center gap-2 py-2 text-left',
+                      selection === `quant:${rotation.analyst.key}` && 'bg-[#65d487]/[0.035]',
+                    )}
+                  >
+                    <span className="truncate font-mono text-[8px] text-[#c9d0d7]">
+                      {rotation.analyst.name.replace(' Analyst', '')}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate font-mono text-[8px] text-[#9fa9b3]">
+                        {LOCATION_LABELS[rotation.location]}
+                      </span>
+                      <span className="block truncate font-mono text-[7px] text-[#65717c]">
+                        Next: {LOCATION_LABELS[rotation.nextLocation]}
+                      </span>
+                    </span>
+                    <span className="border border-[#344039] bg-[#152019] px-1.5 py-0.5 font-mono text-[8px] text-[#65d487]">
+                      {rotation.ticker}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </section>
 
             <section className="border-b border-[#252c34] p-5">
@@ -891,7 +1096,7 @@ export function AgentOffice() {
       </div>
 
       <p className="mt-3 text-[10px] text-[var(--cb-text-muted)]">
-        Pixel artwork adapted from Pixel Agents under the MIT License. Movement reflects persisted monitoring and committee events.
+        Pixel artwork adapted from Pixel Agents under the MIT License. Scores and assignments are persisted; floor movement visualizes the live scout rotation.
       </p>
 
       <style jsx global>{`
@@ -919,6 +1124,10 @@ export function AgentOffice() {
           animation: agent-office-reading 1s steps(1) infinite;
         }
 
+        .agent-office-sprite--walking {
+          animation: agent-office-walking 0.55s steps(1) infinite;
+        }
+
         .agent-office-sprite--compact.agent-office-sprite--typing {
           animation-name: agent-office-typing-compact;
         }
@@ -929,6 +1138,22 @@ export function AgentOffice() {
 
         .agent-office-runner--handoff {
           animation: agent-office-handoff 2.6s ease-in-out infinite;
+        }
+
+        .agent-office-scout__sprite {
+          filter: drop-shadow(0 4px 2px rgba(0, 0, 0, 0.4));
+        }
+
+        .agent-office-scout--selected .agent-office-scout__sprite {
+          filter:
+            drop-shadow(0 4px 2px rgba(0, 0, 0, 0.45))
+            drop-shadow(0 0 5px rgba(101, 212, 135, 0.95));
+        }
+
+        @keyframes agent-office-walking {
+          0%, 32% { background-position: 0 0; }
+          33%, 65% { background-position: -48px 0; }
+          66%, 100% { background-position: -96px 0; }
         }
 
         @keyframes agent-office-typing {
@@ -960,11 +1185,16 @@ export function AgentOffice() {
         @media (prefers-reduced-motion: reduce) {
           .agent-office-sprite--typing,
           .agent-office-sprite--reading,
+          .agent-office-sprite--walking,
           .agent-office-runner--handoff {
             animation: none;
           }
+          .agent-office-scout {
+            transition: none;
+          }
           .agent-office-sprite--typing { background-position: -144px 0; }
           .agent-office-sprite--reading { background-position: -240px 0; }
+          .agent-office-sprite--walking { background-position: 0 0; }
           .agent-office-sprite--compact.agent-office-sprite--typing { background-position: -72px 0; }
           .agent-office-sprite--compact.agent-office-sprite--reading { background-position: -120px 0; }
         }
