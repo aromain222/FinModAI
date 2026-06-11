@@ -36,17 +36,21 @@ async function save(
   const adapter = table(name);
   if (!adapter) return;
   const isSnapshot = name === 'pm_quant_score_snapshots';
-  const { error } = await adapter.upsert({
+  const row: Record<string, unknown> = {
     id: record.id,
     ticker: record.ticker,
     analyst_key: record.analystKey,
-    status: isSnapshot ? null : (record as QuantSignalEvent).status,
-    severity: isSnapshot ? null : (record as QuantSignalEvent).severity,
-    should_escalate: isSnapshot ? null : (record as QuantSignalEvent).shouldEscalate,
     payload: record,
     created_at: isSnapshot ? (record as QuantScoreSnapshot).observedAt : record.createdAt,
     updated_at: new Date().toISOString(),
-  }, { onConflict: 'id' });
+  };
+  if (!isSnapshot) {
+    const event = record as QuantSignalEvent;
+    row.status = event.status;
+    row.severity = event.severity;
+    row.should_escalate = event.shouldEscalate;
+  }
+  const { error } = await adapter.upsert(row, { onConflict: 'id' });
   if (error) throw new Error(error.message ?? `Could not save ${name} record`);
 }
 
