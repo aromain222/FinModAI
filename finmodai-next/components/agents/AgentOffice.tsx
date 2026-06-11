@@ -71,6 +71,16 @@ const DESK_POSITIONS = [
   { x: 84, y: 52 },
 ];
 
+// Standing positions around the break-area sofas (3 per side, facing the coffee table).
+const BREAK_POSITIONS = [
+  { x: 30, y: 80 },
+  { x: 38, y: 82 },
+  { x: 46, y: 80 },
+  { x: 56, y: 80 },
+  { x: 64, y: 82 },
+  { x: 72, y: 80 },
+];
+
 function scoutPosition(location: ScoutLocation, index: number): { x: number; y: number } {
   if (location === 'desk') return DESK_POSITIONS[index] ?? DESK_POSITIONS[0];
   if (location === 'company_queue') {
@@ -728,18 +738,24 @@ export function AgentOffice() {
         location = elapsed < WALK_PHASE_END_MS.BACK_TO_AISLE ? 'pm_inbox' : 'company_queue';
         nextLocation = 'desk';
       }
-    } else if (isScanningThis && monitoringTicker) {
-      activity = `${verb} ${monitoringTicker}`;
-      phaseLabel = 'At desk · scoring';
     } else if (monitoringTicker) {
+      // Active scan in progress — sit at desk and work.
+      position = scoutPosition('desk', index);
       activity = `${verb} ${monitoringTicker}`;
-      phaseLabel = 'At desk · scanning';
-    } else if (snapshot) {
-      activity = `${verb} ${snapshot.ticker}`;
-      phaseLabel = 'At desk';
+      phaseLabel = isScanningThis ? 'At desk · scoring' : 'At desk · scanning';
+      location = 'desk';
+      nextLocation = 'desk';
     } else {
-      activity = portfolioTickers.length === 0 ? 'Awaiting portfolio' : 'Queueing book';
-      phaseLabel = 'At desk';
+      // No scan in flight — head to the break room.
+      position = BREAK_POSITIONS[index] ?? BREAK_POSITIONS[0];
+      activity = snapshot
+        ? `Reading ${snapshot.ticker} notes`
+        : portfolioTickers.length === 0
+          ? 'Awaiting portfolio'
+          : 'On break';
+      phaseLabel = 'In break room';
+      location = 'company_queue';
+      nextLocation = 'desk';
     }
     const alerting = escalated || isWalking;
 
