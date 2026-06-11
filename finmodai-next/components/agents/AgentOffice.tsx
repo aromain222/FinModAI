@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import {
   AlertTriangle,
@@ -88,6 +88,9 @@ const STATUS_COLORS: Record<AgentStatus, string> = {
 };
 
 const ROTATION_SECONDS = 5;
+const SCOUT_PHASE_OFFSET_SECONDS = 0.9;
+const ACTIVE_LOOP_INTERVAL_MS = 30_000;
+const TICKER_COOLDOWN_MS = 90_000;
 const ROTATION_ROUTE: ScoutLocation[] = ['desk', 'company_queue', 'research_wall', 'pm_inbox'];
 const LOCATION_LABELS: Record<ScoutLocation, string> = {
   desk: 'Analyst desk',
@@ -113,6 +116,16 @@ function scoutPosition(location: ScoutLocation, index: number): { x: number; y: 
     return { x: 7 + (index % 2) * 6, y: 34 + (index % 3) * 12 };
   }
   return { x: 93 - (index % 2) * 6, y: 34 + (index % 3) * 12 };
+}
+
+const CORRIDOR_X_LANES = [22, 34, 46, 58, 70, 82];
+
+function corridorWaypoint(
+  _from: ScoutLocation,
+  _to: ScoutLocation,
+  index: number,
+): { x: number; y: number } {
+  return { x: CORRIDOR_X_LANES[index] ?? 50, y: 55 };
 }
 
 function ageInMs(value: string | undefined, now: number): number {
@@ -222,7 +235,7 @@ function ScoutMover({
         selected && 'agent-office-scout--selected',
         hidden && 'opacity-20 grayscale',
       )}
-      style={{ left: `${position.x}%`, top: `${position.y}%`, transitionDuration: '1400ms' }}
+      style={{ left: `${position.x}%`, top: `${position.y}%`, transitionDuration: '1100ms' }}
       aria-label={`${analyst.name} covering ${ticker}${bookSize > 0 ? `, portfolio position ${bookIndex + 1} of ${bookSize}` : ''}, at ${LOCATION_LABELS[location]}, moving next to ${LOCATION_LABELS[nextLocation]}`}
       title={`${analyst.name} · ${ticker}${bookSize > 0 ? ` ${bookIndex + 1}/${bookSize}` : ''} · ${LOCATION_LABELS[location]} → ${LOCATION_LABELS[nextLocation]}`}
     >
@@ -532,6 +545,74 @@ export function AgentOffice() {
       });
   }, [loading, monitoringTicker, nextUnscoredTicker]);
 
+  // Always-on monitoring loop: rescans the stalest portfolio ticker on a cadence
+  // so the desk is never quiet. Per-ticker cooldown keeps the same name from being
+  // hammered. State is read through a ref so the interval does not reset on every
+  // snapshot/event update.
+  const loopStateRef = useRef<{
+    monitoringTicker: string | null;
+    portfolioTickers: string[];
+    snapshots: QuantScoreSnapshot[];
+    lastScanAt: Record<string, number>;
+  }>({
+    monitoringTicker: null,
+    portfolioTickers: [],
+    snapshots: [],
+    lastScanAt: {},
+  });
+  loopStateRef.current.monitoringTicker = monitoringTicker;
+  loopStateRef.current.portfolioTickers = portfolioTickers;
+  loopStateRef.current.snapshots = snapshots;
+
+  useEffect(() => {
+    if (loading) return;
+    const interval = window.setInterval(() => {
+      const state = loopStateRef.current;
+      if (state.monitoringTicker || state.portfolioTickers.length === 0) return;
+      const nowMs = Date.now();
+      let candidate: string | null = null;
+      let stalestAt = Number.POSITIVE_INFINITY;
+      for (const ticker of state.portfolioTickers) {
+        const lastLocal = state.lastScanAt[ticker] ?? 0;
+        if (nowMs - lastLocal < TICKER_COOLDOWN_MS) continue;
+        let observedAt = Number.POSITIVE_INFINITY;
+        for (const snap of state.snapshots) {
+          if (snap.ticker !== ticker) continue;
+          const t = new Date(snap.observedAt).getTime();
+          if (Number.isFinite(t) && t < observedAt) observedAt = t;
+        }
+        if (observedAt < stalestAt) {
+          stalestAt = observedAt;
+          candidate = ticker;
+        }
+      }
+      if (!candidate) return;
+      state.lastScanAt[candidate] = nowMs;
+      setMonitoringTicker(candidate);
+      void fetch('/api/pm/quant-monitor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticker: candidate, autoEscalate: true }),
+      })
+        .then(async response => {
+          if (!response.ok) throw new Error(`Continuous monitoring failed (${response.status})`);
+          return response.json() as Promise<{
+            snapshots?: QuantScoreSnapshot[];
+            events?: QuantSignalEvent[];
+          }>;
+        })
+        .then(result => {
+          setSnapshots(current => [...(result.snapshots ?? []), ...current]);
+          setEvents(current => [...(result.events ?? []), ...current]);
+        })
+        .catch(requestError => {
+          setError(requestError instanceof Error ? requestError.message : 'Continuous monitoring failed');
+        })
+        .finally(() => setMonitoringTicker(null));
+    }, ACTIVE_LOOP_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+  }, [loading]);
+
   const latestSnapshotByAnalyst = useMemo(() => {
     const map = new Map<QuantAnalystKey, QuantScoreSnapshot>();
     for (const snapshot of snapshots) {
@@ -552,7 +633,10 @@ export function AgentOffice() {
   const rotationCountdown = ROTATION_SECONDS - (rotationClock % ROTATION_SECONDS);
   const scoutRotations = useMemo(() => ANALYSTS.map((analyst, index) => {
     const event = latestEventByAnalyst.get(analyst.key);
-    const routeIndex = (rotationStep + index) % ROTATION_ROUTE.length;
+    const personalClock = rotationClock + index * SCOUT_PHASE_OFFSET_SECONDS;
+    const personalStep = Math.floor(personalClock / ROTATION_SECONDS);
+    const personalPhase = personalClock % ROTATION_SECONDS;
+    const routeIndex = personalStep % ROTATION_ROUTE.length;
     const normalLocation = ROTATION_ROUTE[routeIndex];
     const location: ScoutLocation = event?.status === 'escalated' && event.shouldEscalate
       ? 'pm_inbox'
@@ -564,11 +648,26 @@ export function AgentOffice() {
     const tickerPool = portfolioTickers.length > 0
       ? portfolioTickers
       : snapshot?.ticker ? [snapshot.ticker] : [];
-    const bookIndex = tickerPool.length > 0 ? (rotationStep + index) % tickerPool.length : 0;
+    const bookIndex = tickerPool.length > 0 ? personalStep % tickerPool.length : 0;
     const ticker = monitoringTicker ?? (tickerPool[bookIndex] ?? 'QUEUE');
     const status = monitoringTicker && !snapshot
       ? 'working'
       : statusForAnalyst(snapshot, event, now);
+
+    // Sub-phase: dock 0..1.5s → corridor 1.5..3.5s → next dock 3.5..5s
+    let position: { x: number; y: number };
+    let walking: boolean;
+    if (personalPhase < 1.5) {
+      position = scoutPosition(location, index);
+      walking = personalPhase < 0.5;
+    } else if (personalPhase < 3.5) {
+      position = corridorWaypoint(location, nextLocation, index);
+      walking = true;
+    } else {
+      position = scoutPosition(nextLocation, index);
+      walking = personalPhase < 4.5;
+    }
+
     return {
       analyst,
       status,
@@ -579,8 +678,8 @@ export function AgentOffice() {
         ? Math.max(0, tickerPool.indexOf(monitoringTicker))
         : bookIndex,
       bookSize: tickerPool.length,
-      position: scoutPosition(location, index),
-      moving: rotationClock % ROTATION_SECONDS <= 1,
+      position,
+      moving: walking,
     };
   }), [
     latestEventByAnalyst,
@@ -589,7 +688,6 @@ export function AgentOffice() {
     now,
     portfolioTickers,
     rotationClock,
-    rotationStep,
   ]);
   const scoutRotationByKey = useMemo(
     () => new Map(scoutRotations.map(rotation => [rotation.analyst.key, rotation])),
@@ -1064,6 +1162,62 @@ export function AgentOffice() {
                             : 'Awaiting first scheduled scan'}
                         </span>
                       </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="border-b border-[#252c34] p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-medium text-[#d8dde3]">Completed work</h3>
+                <span className="text-[10px] text-[#727d88]">{snapshots.length} scans</span>
+              </div>
+              <p className="mt-1 text-[9px] leading-4 text-[#697480]">
+                What each scout finished and what shifted as a result.
+              </p>
+              <div className="mt-3 space-y-2">
+                {snapshots.length === 0 ? (
+                  <p className="py-3 text-center text-xs text-[#697480]">No completed scans yet.</p>
+                ) : snapshots.slice(0, 8).map(snap => {
+                  const snapTime = new Date(snap.observedAt).getTime();
+                  const matchingEvent = events.find(e =>
+                    e.ticker === snap.ticker
+                    && e.analystKey === snap.analystKey
+                    && Math.abs(new Date(e.createdAt).getTime() - snapTime) < 60_000,
+                  );
+                  const firstSentence = (snap.reasoning || '').split(/(?<=[.!?])\s+/)[0]?.trim();
+                  const synthesis = firstSentence || `Scored ${snap.ticker} at ${Math.round(snap.score)}.`;
+                  const stance = matchingEvent?.direction ?? snap.signal;
+                  const accent = stanceColor(stance);
+                  return (
+                    <button
+                      key={snap.id}
+                      type="button"
+                      onClick={() => setSelection(`quant:${snap.analystKey}`)}
+                      className={cn(
+                        'w-full border-l-2 px-2 py-1.5 text-left transition',
+                        selection === `quant:${snap.analystKey}` && 'bg-[#65d487]/[0.04]',
+                      )}
+                      style={{ borderLeftColor: accent }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate font-mono text-[9px] text-[#c9d0d7]">
+                          {snap.analystName.replace(' Analyst', '')} ·{' '}
+                          <span style={{ color: accent }}>{snap.ticker}</span>
+                        </span>
+                        <span className="shrink-0 font-mono text-[8px] text-[#697480]">
+                          {formatAge(snap.observedAt)}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 line-clamp-2 text-[10px] leading-[14px] text-[#aeb6bf]">
+                        {synthesis}
+                      </p>
+                      <p className="mt-1 line-clamp-1 font-mono text-[8px] text-[#65717c]">
+                        {matchingEvent
+                          ? `↳ ${matchingEvent.summary}`
+                          : `score ${Math.round(snap.score)} · ${snap.signal} · conf ${Math.round((snap.confidence ?? 0) * 100)}%`}
+                      </p>
                     </button>
                   );
                 })}
