@@ -63,12 +63,12 @@ const LOCATION_LABELS: Record<ScoutLocation, string> = {
   pm_inbox: 'PM inbox',
 };
 const DESK_POSITIONS = [
-  { x: 16, y: 30 },
-  { x: 50, y: 30 },
-  { x: 84, y: 30 },
-  { x: 16, y: 76 },
-  { x: 50, y: 76 },
-  { x: 84, y: 76 },
+  { x: 16, y: 22 },
+  { x: 50, y: 22 },
+  { x: 84, y: 22 },
+  { x: 16, y: 52 },
+  { x: 50, y: 52 },
+  { x: 84, y: 52 },
 ];
 
 function scoutPosition(location: ScoutLocation, index: number): { x: number; y: number } {
@@ -96,8 +96,8 @@ function walkChoreography(
   ticker: string,
 ): WalkChoreography {
   const desk = scoutPosition('desk', index);
-  const aisleAtDesk = { x: desk.x, y: 55 };
-  const aisleAtInbox = { x: 78, y: 55 };
+  const aisleAtDesk = { x: desk.x, y: 70 };
+  const aisleAtInbox = { x: 78, y: 70 };
   const inbox = scoutPosition('pm_inbox', index);
   if (elapsedMs < WALK_PHASE_END_MS.STAND_UP) {
     return {
@@ -867,7 +867,7 @@ export function AgentOffice() {
     : [];
 
   return (
-    <div className="mx-auto w-full max-w-[1600px]">
+    <div className="mx-auto w-full max-w-[2000px]">
       <header className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -946,7 +946,7 @@ export function AgentOffice() {
         <div className="grid xl:grid-cols-[minmax(0,1fr)_360px]">
           <section className="min-w-0 border-b border-[#252c34] xl:border-b-0 xl:border-r">
             <div
-              className="relative min-h-[720px] overflow-x-auto p-4"
+              className="relative min-h-[920px] overflow-x-auto p-4"
               style={{
                 backgroundColor: '#24292f',
                 backgroundImage: 'linear-gradient(rgba(11,14,18,0.18) 1px, transparent 1px), linear-gradient(90deg, rgba(11,14,18,0.18) 1px, transparent 1px), url(/pixel-agents/assets/floors/floor_6.png)',
@@ -956,24 +956,178 @@ export function AgentOffice() {
             >
               <div className="pointer-events-none absolute inset-3 border-[6px] border-[#171c22] shadow-[inset_0_0_0_2px_#3b424a]" />
 
-              <div className="relative z-10 mx-auto grid min-h-[680px] min-w-[920px] grid-cols-[minmax(0,1fr)_88px_330px]">
+              <div className="relative z-10 mx-auto grid min-h-[880px] min-w-[1480px] grid-cols-[220px_minmax(0,1fr)_88px_380px]">
+                {/* Research library — bookshelves, reading bench, ambient decor */}
+                <section
+                  className="relative border-r-[6px] border-[#171c22] px-3 pb-3 pt-10"
+                  style={{
+                    backgroundImage: 'url(/pixel-agents/assets/floors/floor_3.png)',
+                    backgroundSize: '32px 32px',
+                    imageRendering: 'pixelated',
+                  }}
+                >
+                  <div className="absolute left-3 top-3 flex items-center gap-2 bg-[#10151a]/90 px-2 py-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[#8f98a3]">
+                    <Bot className="h-3 w-3 text-[#7ea8c9]" />
+                    Research library
+                  </div>
+                  {/* Bookshelf wall (top half) */}
+                  <Image
+                    alt=""
+                    src="/pixel-agents/assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png"
+                    width={48}
+                    height={48}
+                    unoptimized
+                    className="absolute left-3 top-12 h-24 w-32 [image-rendering:pixelated]"
+                  />
+                  <Image
+                    alt=""
+                    src="/pixel-agents/assets/furniture/BOOKSHELF/BOOKSHELF.png"
+                    width={32}
+                    height={48}
+                    unoptimized
+                    className="absolute right-3 top-12 h-24 w-16 [image-rendering:pixelated]"
+                  />
+                  <Image
+                    alt=""
+                    src="/pixel-agents/assets/furniture/SMALL_PAINTING/SMALL_PAINTING.png"
+                    width={32}
+                    height={32}
+                    unoptimized
+                    className="absolute left-1/2 top-40 h-10 w-14 -translate-x-1/2 [image-rendering:pixelated]"
+                  />
+                  {/* Reading nook (mid) */}
+                  <Image
+                    alt=""
+                    src="/pixel-agents/assets/furniture/CUSHIONED_BENCH/CUSHIONED_BENCH.png"
+                    width={64}
+                    height={32}
+                    unoptimized
+                    className="absolute left-1/2 top-56 h-12 w-36 -translate-x-1/2 [image-rendering:pixelated]"
+                  />
+                  <Image
+                    alt=""
+                    src="/pixel-agents/assets/furniture/COFFEE_TABLE/COFFEE_TABLE.png"
+                    width={32}
+                    height={16}
+                    unoptimized
+                    className="absolute left-1/2 top-72 h-6 w-20 -translate-x-1/2 [image-rendering:pixelated]"
+                  />
+                  {/* Plants and clock */}
+                  <Image
+                    alt=""
+                    src="/pixel-agents/assets/furniture/LARGE_PLANT/LARGE_PLANT.png"
+                    width={32}
+                    height={48}
+                    unoptimized
+                    className="absolute bottom-12 left-3 h-20 w-12 [image-rendering:pixelated]"
+                  />
+                  <Image
+                    alt=""
+                    src="/pixel-agents/assets/furniture/HANGING_PLANT/HANGING_PLANT.png"
+                    width={32}
+                    height={32}
+                    unoptimized
+                    className="absolute right-3 top-3 h-12 w-12 [image-rendering:pixelated]"
+                  />
+                  <Image
+                    alt=""
+                    src="/pixel-agents/assets/furniture/CLOCK/CLOCK.png"
+                    width={16}
+                    height={16}
+                    unoptimized
+                    className="absolute bottom-3 right-3 h-8 w-8 [image-rendering:pixelated]"
+                  />
+                  <p className="absolute bottom-3 left-1/2 -translate-x-1/2 font-mono text-[7px] uppercase tracking-[0.16em] text-[#5f6a76]">
+                    Edgar · 10-K · transcripts
+                  </p>
+                </section>
+
                 <section className="relative border-r-[6px] border-[#171c22] px-3 pb-3 pt-10">
                   <div className="absolute left-4 top-3 flex items-center gap-2 bg-[#10151a]/90 px-2 py-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[#8f98a3]">
                     <Bot className="h-3 w-3 text-[#65d487]" />
-                    Monitoring floor
+                    Trading floor
                   </div>
                   <div className="pointer-events-none absolute inset-0 z-20">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 border border-[#3b4650] bg-[#12181e]/95 px-1.5 py-1 font-mono text-[7px] uppercase tracking-[0.12em] text-[#8da2b3] [writing-mode:vertical-rl]">
-                      Research wall
-                    </span>
-                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border border-[#4b5948] bg-[#152019]/95 px-2 py-1 font-mono text-[7px] uppercase tracking-[0.12em] text-[#79c98f]">
+                    <span className="absolute left-1/2 top-[5%] -translate-x-1/2 border border-[#4b5948] bg-[#152019]/95 px-2 py-1 font-mono text-[7px] uppercase tracking-[0.12em] text-[#79c98f]">
                       Company queue
                     </span>
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 border border-[#5e4d32] bg-[#211b13]/95 px-1.5 py-1 font-mono text-[7px] uppercase tracking-[0.12em] text-[#d8ae5b] [writing-mode:vertical-rl]">
                       PM inbox
                     </span>
+                    <span className="absolute left-1/2 top-[70%] -translate-x-1/2 -translate-y-1/2 border border-[#3b4650] bg-[#12181e]/95 px-2 py-1 font-mono text-[7px] uppercase tracking-[0.12em] text-[#8da2b3]">
+                      Break area
+                    </span>
                   </div>
-                  <div className="grid min-h-[610px] grid-cols-3 gap-1">
+                  {/* Break area decor — coffee table flanked by sofas, plus plants. Below desks at y~80%. */}
+                  <div className="pointer-events-none absolute inset-x-6 bottom-3 z-10 flex items-end justify-center gap-4">
+                    <Image
+                      alt=""
+                      src="/pixel-agents/assets/furniture/LARGE_PLANT/LARGE_PLANT.png"
+                      width={32}
+                      height={48}
+                      unoptimized
+                      className="h-20 w-12 [image-rendering:pixelated]"
+                    />
+                    <Image
+                      alt=""
+                      src="/pixel-agents/assets/furniture/SOFA/SOFA_SIDE.png"
+                      width={48}
+                      height={32}
+                      unoptimized
+                      className="h-14 w-20 [image-rendering:pixelated]"
+                    />
+                    <div className="flex flex-col items-center gap-1">
+                      <Image
+                        alt=""
+                        src="/pixel-agents/assets/furniture/COFFEE/COFFEE.png"
+                        width={16}
+                        height={16}
+                        unoptimized
+                        className="h-6 w-6 [image-rendering:pixelated]"
+                      />
+                      <Image
+                        alt=""
+                        src="/pixel-agents/assets/furniture/COFFEE_TABLE/COFFEE_TABLE.png"
+                        width={32}
+                        height={16}
+                        unoptimized
+                        className="h-8 w-20 [image-rendering:pixelated]"
+                      />
+                    </div>
+                    <Image
+                      alt=""
+                      src="/pixel-agents/assets/furniture/SOFA/SOFA_SIDE.png"
+                      width={48}
+                      height={32}
+                      unoptimized
+                      className="h-14 w-20 -scale-x-100 [image-rendering:pixelated]"
+                    />
+                    <Image
+                      alt=""
+                      src="/pixel-agents/assets/furniture/CACTUS/CACTUS.png"
+                      width={16}
+                      height={32}
+                      unoptimized
+                      className="h-10 w-8 [image-rendering:pixelated]"
+                    />
+                  </div>
+                  <Image
+                    alt=""
+                    src="/pixel-agents/assets/furniture/HANGING_PLANT/HANGING_PLANT.png"
+                    width={32}
+                    height={32}
+                    unoptimized
+                    className="pointer-events-none absolute left-3 top-3 z-10 h-12 w-12 [image-rendering:pixelated]"
+                  />
+                  <Image
+                    alt=""
+                    src="/pixel-agents/assets/furniture/SMALL_PAINTING_2/SMALL_PAINTING_2.png"
+                    width={32}
+                    height={32}
+                    unoptimized
+                    className="pointer-events-none absolute right-12 top-3 z-10 h-10 w-14 [image-rendering:pixelated]"
+                  />
+                  <div className="grid min-h-[520px] grid-cols-3 gap-1">
                     {ANALYSTS.map(analyst => {
                       const persistedSnapshot = latestSnapshotByAnalyst.get(analyst.key);
                       const snapshot = persistedSnapshot
@@ -1053,6 +1207,11 @@ export function AgentOffice() {
                     committeeActive && 'shadow-[inset_0_0_42px_rgba(230,184,77,0.13)]',
                   )}
                   data-testid="senior-room"
+                  style={{
+                    backgroundImage: 'url(/pixel-agents/assets/floors/floor_1.png)',
+                    backgroundSize: '32px 32px',
+                    imageRendering: 'pixelated',
+                  }}
                 >
                   <div className="absolute left-4 top-3 flex items-center gap-2 bg-[#10151a]/90 px-2 py-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[#8f98a3]">
                     <Users className={cn('h-3 w-3', committeeActive ? 'text-[#e6b84d]' : 'text-[#8a929d]')} />
@@ -1062,7 +1221,49 @@ export function AgentOffice() {
                     {committeeActive ? `IN SESSION · ${committeeTicker ?? ''}` : 'STANDBY'}
                   </div>
 
-                  <div className="relative mx-auto mt-4 min-h-[570px] max-w-[300px] border-[4px] border-[#151a20] bg-[#20262d]/75 p-3 shadow-[inset_0_0_0_2px_#414952]">
+                  {/* Boardroom side decor */}
+                  <Image
+                    alt=""
+                    src="/pixel-agents/assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png"
+                    width={48}
+                    height={48}
+                    unoptimized
+                    className="pointer-events-none absolute bottom-12 left-2 h-20 w-24 [image-rendering:pixelated]"
+                  />
+                  <Image
+                    alt=""
+                    src="/pixel-agents/assets/furniture/LARGE_PAINTING/LARGE_PAINTING.png"
+                    width={48}
+                    height={32}
+                    unoptimized
+                    className="pointer-events-none absolute right-2 top-12 h-12 w-20 [image-rendering:pixelated]"
+                  />
+                  <Image
+                    alt=""
+                    src="/pixel-agents/assets/furniture/LARGE_PLANT/LARGE_PLANT.png"
+                    width={32}
+                    height={48}
+                    unoptimized
+                    className="pointer-events-none absolute bottom-4 right-3 h-20 w-12 [image-rendering:pixelated]"
+                  />
+                  <Image
+                    alt=""
+                    src="/pixel-agents/assets/furniture/PLANT/PLANT.png"
+                    width={16}
+                    height={32}
+                    unoptimized
+                    className="pointer-events-none absolute left-3 top-12 h-12 w-8 [image-rendering:pixelated]"
+                  />
+                  <Image
+                    alt=""
+                    src="/pixel-agents/assets/furniture/CLOCK/CLOCK.png"
+                    width={16}
+                    height={16}
+                    unoptimized
+                    className="pointer-events-none absolute right-3 top-3 h-8 w-8 [image-rendering:pixelated]"
+                  />
+
+                  <div className="relative mx-auto mt-4 min-h-[640px] max-w-[320px] border-[4px] border-[#151a20] bg-[#20262d]/85 p-3 shadow-[inset_0_0_0_2px_#414952]">
                     <Image
                       alt=""
                       src="/pixel-agents/assets/furniture/WHITEBOARD/WHITEBOARD.png"
