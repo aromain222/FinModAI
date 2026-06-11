@@ -87,11 +87,21 @@ const STATUS_COLORS: Record<AgentStatus, string> = {
   needs_attention: '#f26d6d',
 };
 
-const ROTATION_SECONDS = 5;
-const SCOUT_PHASE_OFFSET_SECONDS = 0.9;
-const ACTIVE_LOOP_INTERVAL_MS = 30_000;
-const TICKER_COOLDOWN_MS = 90_000;
-const ROTATION_ROUTE: ScoutLocation[] = ['desk', 'company_queue', 'research_wall', 'pm_inbox'];
+const ACTIVE_LOOP_INTERVAL_MS = 15_000;
+const TICKER_COOLDOWN_MS = 60_000;
+
+// Walking choreography — triggered when a scout completes a scan. Total 8s round trip.
+const WALK_TOTAL_MS = 8000;
+const WALK_PHASE_END_MS = {
+  STAND_UP: 700,
+  TO_AISLE: 1800,
+  TO_INBOX: 3300,
+  AT_INBOX: 5500,
+  BACK_TO_AISLE: 7000,
+  TO_DESK: 8000,
+} as const;
+
+type WalkSession = { startedAt: number; ticker: string };
 const LOCATION_LABELS: Record<ScoutLocation, string> = {
   desk: 'Analyst desk',
   company_queue: 'Company queue',
@@ -118,14 +128,84 @@ function scoutPosition(location: ScoutLocation, index: number): { x: number; y: 
   return { x: 93 - (index % 2) * 6, y: 34 + (index % 3) * 12 };
 }
 
-const CORRIDOR_X_LANES = [22, 34, 46, 58, 70, 82];
+type WalkChoreography = {
+  position: { x: number; y: number };
+  walking: boolean;
+  activity: string;
+  phaseLabel: string;
+  remainingMs: number;
+};
 
-function corridorWaypoint(
-  _from: ScoutLocation,
-  _to: ScoutLocation,
+function walkChoreography(
+  elapsedMs: number,
   index: number,
-): { x: number; y: number } {
-  return { x: CORRIDOR_X_LANES[index] ?? 50, y: 55 };
+  ticker: string,
+): WalkChoreography {
+  const desk = scoutPosition('desk', index);
+  const aisleAtDesk = { x: desk.x, y: 55 };
+  const aisleAtInbox = { x: 78, y: 55 };
+  const inbox = scoutPosition('pm_inbox', index);
+  if (elapsedMs < WALK_PHASE_END_MS.STAND_UP) {
+    return {
+      position: desk,
+      walking: false,
+      activity: `Wrapping ${ticker} scan`,
+      phaseLabel: 'Standing up',
+      remainingMs: WALK_PHASE_END_MS.STAND_UP - elapsedMs,
+    };
+  }
+  if (elapsedMs < WALK_PHASE_END_MS.TO_AISLE) {
+    return {
+      position: aisleAtDesk,
+      walking: true,
+      activity: `Stepping into aisle`,
+      phaseLabel: 'To aisle',
+      remainingMs: WALK_PHASE_END_MS.TO_AISLE - elapsedMs,
+    };
+  }
+  if (elapsedMs < WALK_PHASE_END_MS.TO_INBOX) {
+    return {
+      position: aisleAtInbox,
+      walking: true,
+      activity: `Carrying ${ticker} to PM`,
+      phaseLabel: 'Down the aisle',
+      remainingMs: WALK_PHASE_END_MS.TO_INBOX - elapsedMs,
+    };
+  }
+  if (elapsedMs < WALK_PHASE_END_MS.AT_INBOX) {
+    return {
+      position: inbox,
+      walking: false,
+      activity: `Dropping ${ticker} signal`,
+      phaseLabel: 'At PM inbox',
+      remainingMs: WALK_PHASE_END_MS.AT_INBOX - elapsedMs,
+    };
+  }
+  if (elapsedMs < WALK_PHASE_END_MS.BACK_TO_AISLE) {
+    return {
+      position: aisleAtInbox,
+      walking: true,
+      activity: `Heading back to desk`,
+      phaseLabel: 'Leaving inbox',
+      remainingMs: WALK_PHASE_END_MS.BACK_TO_AISLE - elapsedMs,
+    };
+  }
+  if (elapsedMs < WALK_PHASE_END_MS.TO_DESK) {
+    return {
+      position: aisleAtDesk,
+      walking: true,
+      activity: `Approaching desk`,
+      phaseLabel: 'Back to desk',
+      remainingMs: WALK_PHASE_END_MS.TO_DESK - elapsedMs,
+    };
+  }
+  return {
+    position: desk,
+    walking: false,
+    activity: 'Back at desk',
+    phaseLabel: 'At desk',
+    remainingMs: 0,
+  };
 }
 
 function ageInMs(value: string | undefined, now: number): number {
@@ -210,6 +290,7 @@ function ScoutMover({
   selected,
   hidden,
   moving,
+  activity,
   onSelect,
 }: {
   analyst: AnalystDefinition;
@@ -223,8 +304,10 @@ function ScoutMover({
   selected: boolean;
   hidden: boolean;
   moving: boolean;
+  activity: string;
   onSelect: () => void;
 }) {
+  const shortName = analyst.name.replace(' Analyst', '');
   return (
     <button
       type="button"
@@ -235,15 +318,21 @@ function ScoutMover({
         selected && 'agent-office-scout--selected',
         hidden && 'opacity-20 grayscale',
       )}
-      style={{ left: `${position.x}%`, top: `${position.y}%`, transitionDuration: '1100ms' }}
-      aria-label={`${analyst.name} covering ${ticker}${bookSize > 0 ? `, portfolio position ${bookIndex + 1} of ${bookSize}` : ''}, at ${LOCATION_LABELS[location]}, moving next to ${LOCATION_LABELS[nextLocation]}`}
-      title={`${analyst.name} · ${ticker}${bookSize > 0 ? ` ${bookIndex + 1}/${bookSize}` : ''} · ${LOCATION_LABELS[location]} → ${LOCATION_LABELS[nextLocation]}`}
+      style={{ left: `${position.x}%`, top: `${position.y}%`, transitionDuration: '900ms' }}
+      aria-label={`${analyst.name}: ${activity}. Covering ${ticker}${bookSize > 0 ? `, portfolio position ${bookIndex + 1} of ${bookSize}` : ''}, at ${LOCATION_LABELS[location]}, heading toward ${LOCATION_LABELS[nextLocation]}`}
+      title={`${analyst.name} · ${activity}`}
     >
+      <span
+        className="-mb-1 max-w-[10rem] truncate border bg-[#0c1116]/95 px-2 py-1 font-mono text-[9px] leading-tight shadow-lg"
+        style={{ borderColor: STATUS_COLORS[status], color: STATUS_COLORS[status] }}
+      >
+        {activity}
+      </span>
       <span className="agent-office-scout__sprite">
         <AgentSprite palette={analyst.palette} status={status} moving={moving} />
       </span>
-      <span className="max-w-24 truncate border border-[#303942] bg-[#10161b]/95 px-1.5 py-0.5 font-mono text-[7px] text-[#d9dfe5] shadow-md">
-        {ticker} · {bookSize > 0 ? `${bookIndex + 1}/${bookSize}` : 'queue'}
+      <span className="max-w-28 truncate border border-[#252c34] bg-[#0b0f13]/95 px-1.5 py-0.5 font-mono text-[8px] text-[#c9d0d7] shadow-md">
+        {shortName} · {ticker}
       </span>
     </button>
   );
@@ -444,7 +533,9 @@ export function AgentOffice() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [rotationClock, setRotationClock] = useState(0);
+  const [walkTick, setWalkTick] = useState(0);
+  const [walkSessions, setWalkSessions] = useState<Partial<Record<QuantAnalystKey, WalkSession>>>({});
+  const lastSeenSnapshotRef = useRef<Partial<Record<QuantAnalystKey, string>>>({});
 
   const loadActivity = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
@@ -480,11 +571,11 @@ export function AgentOffice() {
     void loadActivity();
     const polling = window.setInterval(() => { void loadActivity(); }, 15_000);
     const clock = window.setInterval(() => setNow(Date.now()), 30_000);
-    const rotation = window.setInterval(() => setRotationClock(current => current + 1), 1_000);
+    const walk = window.setInterval(() => setWalkTick(current => (current + 1) % 1_000_000), 250);
     return () => {
       window.clearInterval(polling);
       window.clearInterval(clock);
-      window.clearInterval(rotation);
+      window.clearInterval(walk);
     };
   }, [loadActivity]);
 
@@ -629,44 +720,108 @@ export function AgentOffice() {
     return map;
   }, [events]);
 
-  const rotationStep = Math.floor(rotationClock / ROTATION_SECONDS);
-  const rotationCountdown = ROTATION_SECONDS - (rotationClock % ROTATION_SECONDS);
+  // When a new snapshot lands for an analyst, kick off the desk → PM inbox → desk walk.
+  useEffect(() => {
+    let pending: Partial<Record<QuantAnalystKey, WalkSession>> | null = null;
+    for (const analyst of ANALYSTS) {
+      const latest = latestSnapshotByAnalyst.get(analyst.key);
+      if (!latest) continue;
+      const prevId = lastSeenSnapshotRef.current[analyst.key];
+      if (prevId === latest.id) continue;
+      const firstTime = !prevId;
+      lastSeenSnapshotRef.current[analyst.key] = latest.id;
+      if (firstTime) continue;
+      if (!pending) pending = {};
+      pending[analyst.key] = { startedAt: Date.now(), ticker: latest.ticker };
+    }
+    if (pending) {
+      const additions = pending;
+      setWalkSessions(prev => ({ ...prev, ...additions }));
+    }
+  }, [latestSnapshotByAnalyst]);
+
+  // Drop walk sessions once they finish so the scout returns to default at-desk.
+  useEffect(() => {
+    setWalkSessions(prev => {
+      const nowMs = Date.now();
+      let changed = false;
+      const next: Partial<Record<QuantAnalystKey, WalkSession>> = { ...prev };
+      for (const [key, session] of Object.entries(prev)) {
+        if (!session) continue;
+        if (nowMs - session.startedAt >= WALK_TOTAL_MS) {
+          delete next[key as QuantAnalystKey];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [walkTick]);
+
   const scoutRotations = useMemo(() => ANALYSTS.map((analyst, index) => {
     const event = latestEventByAnalyst.get(analyst.key);
-    const personalClock = rotationClock + index * SCOUT_PHASE_OFFSET_SECONDS;
-    const personalStep = Math.floor(personalClock / ROTATION_SECONDS);
-    const personalPhase = personalClock % ROTATION_SECONDS;
-    const routeIndex = personalStep % ROTATION_ROUTE.length;
-    const normalLocation = ROTATION_ROUTE[routeIndex];
-    const location: ScoutLocation = event?.status === 'escalated' && event.shouldEscalate
-      ? 'pm_inbox'
-      : normalLocation;
-    const nextLocation = location === 'pm_inbox' && event?.status === 'escalated'
-      ? 'pm_inbox'
-      : ROTATION_ROUTE[(routeIndex + 1) % ROTATION_ROUTE.length];
     const snapshot = latestSnapshotByAnalyst.get(analyst.key);
+    const session = walkSessions[analyst.key];
+    const nowMs = Date.now();
+    const escalated = event?.status === 'escalated' && event.shouldEscalate;
+    const isScanningThis = monitoringTicker && snapshot?.ticker === monitoringTicker;
+
+    let position = scoutPosition('desk', index);
+    let walking = false;
+    let activity: string;
+    let phaseLabel: string;
+    let remainingMs = 0;
+    let location: ScoutLocation = 'desk';
+    let nextLocation: ScoutLocation = 'desk';
+    let isWalking = false;
+
+    if (escalated && event) {
+      position = scoutPosition('pm_inbox', index);
+      activity = `Escalating ${event.ticker}`;
+      phaseLabel = 'At PM inbox';
+      location = 'pm_inbox';
+      nextLocation = 'pm_inbox';
+    } else if (session && nowMs - session.startedAt < WALK_TOTAL_MS) {
+      const elapsed = nowMs - session.startedAt;
+      const chor = walkChoreography(elapsed, index, session.ticker);
+      position = chor.position;
+      walking = chor.walking;
+      activity = chor.activity;
+      phaseLabel = chor.phaseLabel;
+      remainingMs = chor.remainingMs;
+      isWalking = true;
+      if (elapsed < WALK_PHASE_END_MS.AT_INBOX) {
+        location = elapsed < WALK_PHASE_END_MS.TO_AISLE ? 'desk' : 'company_queue';
+        nextLocation = 'pm_inbox';
+      } else {
+        location = elapsed < WALK_PHASE_END_MS.BACK_TO_AISLE ? 'pm_inbox' : 'company_queue';
+        nextLocation = 'desk';
+      }
+    } else if (monitoringTicker) {
+      activity = isScanningThis
+        ? `Scoring ${monitoringTicker}`
+        : `Scanning ${monitoringTicker}`;
+      phaseLabel = 'At desk';
+    } else if (snapshot) {
+      activity = `Watching ${snapshot.ticker}`;
+      phaseLabel = 'At desk';
+    } else {
+      activity = portfolioTickers.length === 0 ? 'Awaiting portfolio' : 'Queueing scan';
+      phaseLabel = 'At desk';
+    }
+
     const tickerPool = portfolioTickers.length > 0
       ? portfolioTickers
       : snapshot?.ticker ? [snapshot.ticker] : [];
-    const bookIndex = tickerPool.length > 0 ? personalStep % tickerPool.length : 0;
-    const ticker = monitoringTicker ?? (tickerPool[bookIndex] ?? 'QUEUE');
-    const status = monitoringTicker && !snapshot
-      ? 'working'
-      : statusForAnalyst(snapshot, event, now);
+    const ticker = session?.ticker ?? monitoringTicker ?? snapshot?.ticker ?? 'QUEUE';
+    const bookIndex = tickerPool.length > 0 ? Math.max(0, tickerPool.indexOf(ticker)) : 0;
 
-    // Sub-phase: dock 0..1.5s → corridor 1.5..3.5s → next dock 3.5..5s
-    let position: { x: number; y: number };
-    let walking: boolean;
-    if (personalPhase < 1.5) {
-      position = scoutPosition(location, index);
-      walking = personalPhase < 0.5;
-    } else if (personalPhase < 3.5) {
-      position = corridorWaypoint(location, nextLocation, index);
-      walking = true;
-    } else {
-      position = scoutPosition(nextLocation, index);
-      walking = personalPhase < 4.5;
-    }
+    const status: AgentStatus = escalated
+      ? 'needs_attention'
+      : isWalking
+        ? 'working'
+        : monitoringTicker && !snapshot
+          ? 'working'
+          : statusForAnalyst(snapshot, event, now);
 
     return {
       analyst,
@@ -674,12 +829,13 @@ export function AgentOffice() {
       location,
       nextLocation,
       ticker,
-      bookIndex: monitoringTicker
-        ? Math.max(0, tickerPool.indexOf(monitoringTicker))
-        : bookIndex,
+      bookIndex,
       bookSize: tickerPool.length,
       position,
       moving: walking,
+      activity,
+      phaseLabel,
+      remainingMs,
     };
   }), [
     latestEventByAnalyst,
@@ -687,7 +843,8 @@ export function AgentOffice() {
     monitoringTicker,
     now,
     portfolioTickers,
-    rotationClock,
+    walkSessions,
+    walkTick,
   ]);
   const scoutRotationByKey = useMemo(
     () => new Map(scoutRotations.map(rotation => [rotation.analyst.key, rotation])),
@@ -775,17 +932,21 @@ export function AgentOffice() {
               )} />
               {error
                 ? 'Activity feed unavailable'
-                : monitoringTicker
-                  ? `Six scouts scanning ${monitoringTicker}`
-                : committeeActive
-                  ? `Committee reviewing ${committeeTicker ?? 'an escalation'}`
-                  : attentionCount > 0
-                    ? `${attentionCount} signal${attentionCount === 1 ? '' : 's'} escalating`
-                    : 'Scouts monitoring normally'}
+                : portfolioTickers.length === 0
+                  ? 'No portfolio positions — add holdings to start monitoring'
+                  : monitoringTicker
+                    ? `Six scouts scanning ${monitoringTicker}`
+                    : committeeActive
+                      ? `Committee reviewing ${committeeTicker ?? 'an escalation'}`
+                      : Object.keys(walkSessions).length > 0
+                        ? `${Object.keys(walkSessions).length} scout${Object.keys(walkSessions).length === 1 ? '' : 's'} delivering signals`
+                        : attentionCount > 0
+                          ? `${attentionCount} signal${attentionCount === 1 ? '' : 's'} escalating`
+                          : 'Scouts monitoring normally'}
             </span>
           </div>
           <p className="mt-1 text-sm text-[var(--cb-text-muted)]">
-            Quant scouts monitor continuously. Senior investors convene only when the PM escalates a signal.
+            Quant scouts type at their desks. When a scan completes they get up, walk the result to the PM inbox, and head back.
           </p>
         </div>
 
@@ -903,6 +1064,7 @@ export function AgentOffice() {
                         selected={selection === `quant:${rotation.analyst.key}`}
                         hidden={!filterMatches(rotation.status, filter)}
                         moving={rotation.moving}
+                        activity={rotation.activity}
                         onSelect={() => setSelection(`quant:${rotation.analyst.key}`)}
                       />
                     ))}
@@ -1037,17 +1199,19 @@ export function AgentOffice() {
                   <dd className="text-[#d2d7dd]">
                     {monitoringTicker && !selectedSnapshot ? 'Running now' : formatAge(selectedVisibleSnapshot?.observedAt)}
                   </dd>
-                  <dt className="text-[#7d8792]">Location</dt>
+                  <dt className="text-[#7d8792]">Activity</dt>
                   <dd data-testid="selected-scout-location" className="font-mono text-[#d2d7dd]">
-                    {selectedRotation ? LOCATION_LABELS[selectedRotation.location] : '—'}
+                    {selectedRotation?.activity ?? '—'}
                   </dd>
-                  <dt className="text-[#7d8792]">Next move</dt>
+                  <dt className="text-[#7d8792]">Phase</dt>
                   <dd data-testid="selected-scout-next-move" className="font-mono text-[#d2d7dd]">
                     {selectedRotation
-                      ? `${LOCATION_LABELS[selectedRotation.nextLocation]} · ${rotationCountdown}s`
+                      ? selectedRotation.remainingMs > 0
+                        ? `${selectedRotation.phaseLabel} · ${(selectedRotation.remainingMs / 1000).toFixed(1)}s left`
+                        : selectedRotation.phaseLabel
                       : '—'}
                   </dd>
-                  <dt className="text-[#7d8792]">Book rotation</dt>
+                  <dt className="text-[#7d8792]">Book</dt>
                   <dd data-testid="selected-scout-book-rotation" className="font-mono text-[#d2d7dd]">
                     {selectedRotation && selectedRotation.bookSize > 0
                       ? `${selectedRotation.ticker} · ${selectedRotation.bookIndex + 1}/${selectedRotation.bookSize}`
@@ -1076,13 +1240,15 @@ export function AgentOffice() {
 
             <section className="border-b border-[#252c34] p-5">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-medium text-[#d8dde3]">Scout rotation</h3>
+                <h3 className="text-xs font-medium text-[#d8dde3]">Current activity</h3>
                 <span className="font-mono text-[9px] text-[#65d487]">
-                  Move in {rotationCountdown}s
+                  {Object.keys(walkSessions).length > 0
+                    ? `${Object.keys(walkSessions).length} walking`
+                    : 'All at desks'}
                 </span>
               </div>
               <p className="mt-1 text-[9px] leading-4 text-[#697480]">
-                Desk → company queue → research wall → PM inbox. Ticker assignments rotate across the active book.
+                Scouts work at their desks. When a scan completes they walk the result to the PM inbox and back.
               </p>
               <div className="mt-3 divide-y divide-[#252c34] border-y border-[#252c34]">
                 {scoutRotations.map(rotation => (
@@ -1099,15 +1265,21 @@ export function AgentOffice() {
                       {rotation.analyst.name.replace(' Analyst', '')}
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate font-mono text-[8px] text-[#9fa9b3]">
-                        {LOCATION_LABELS[rotation.location]}
+                      <span
+                        className="block truncate font-mono text-[8px]"
+                        style={{ color: STATUS_COLORS[rotation.status] }}
+                      >
+                        {rotation.activity}
                       </span>
                       <span className="block truncate font-mono text-[7px] text-[#65717c]">
-                        Next: {LOCATION_LABELS[rotation.nextLocation]}
+                        {rotation.phaseLabel}
+                        {rotation.remainingMs > 0
+                          ? ` · ${(rotation.remainingMs / 1000).toFixed(1)}s`
+                          : ''}
                       </span>
                     </span>
                     <span className="border border-[#344039] bg-[#152019] px-1.5 py-0.5 font-mono text-[8px] text-[#65d487]">
-                      {rotation.ticker} · {rotation.bookSize > 0 ? `${rotation.bookIndex + 1}/${rotation.bookSize}` : 'queue'}
+                      {rotation.ticker}
                     </span>
                   </button>
                 ))}
