@@ -89,23 +89,29 @@ async function fetchRank(ticker: string, origin: string, horizonWeeks: number): 
   }
 }
 
-function hedgeFundRead(raw: unknown): PositionMonitorAgentRead | null {
+function quantScoutRead(raw: unknown): PositionMonitorAgentRead | null {
   if (!raw || typeof raw !== 'object') return null;
   const data = raw as {
-    decision?: { action?: string; confidence?: number; reasoning?: string } | null;
-    consensus?: { bullish?: number; bearish?: number; neutral?: number };
+    snapshots?: Array<{
+      analystName?: string;
+      score?: number;
+      confidence?: number;
+    }>;
+    events?: Array<{ summary?: string }>;
   };
-  const action = data.decision?.action;
-  const reasoning = data.decision?.reasoning;
-  const consensus = data.consensus
-    ? `Consensus ${data.consensus.bullish ?? 0} bull / ${data.consensus.bearish ?? 0} bear / ${data.consensus.neutral ?? 0} neutral.`
-    : '';
-  if (!action && !reasoning && !consensus) return null;
+  const snapshots = Array.isArray(data.snapshots)
+    ? data.snapshots.filter(snapshot => typeof snapshot.score === 'number')
+    : [];
+  if (snapshots.length === 0) return null;
+  const averageScore = snapshots.reduce((sum, snapshot) => sum + (snapshot.score ?? 50), 0) / snapshots.length;
+  const averageConfidence = snapshots.reduce((sum, snapshot) => sum + (snapshot.confidence ?? 50), 0) / snapshots.length;
+  const stance = averageScore >= 60 ? 'BULLISH' : averageScore <= 40 ? 'BEARISH' : 'NEUTRAL';
+  const changed = data.events?.[0]?.summary;
   return {
     source: 'hedge_fund',
-    stance: action ? action.toUpperCase() : 'CHECK',
-    read: [reasoning, consensus].filter(Boolean).join(' '),
-    confidence: typeof data.decision?.confidence === 'number' ? data.decision.confidence : null,
+    stance,
+    read: `Quant scouts average ${averageScore.toFixed(0)}/100 across ${snapshots.length} monitoring domains.${changed ? ` Latest event: ${changed}` : ' No material score event fired.'}`,
+    confidence: Math.round(averageConfidence),
   };
 }
 
@@ -331,11 +337,11 @@ export async function POST(req: NextRequest) {
 
   const [rankResult, hedgeResult, tradingResult, dexterResult] = await Promise.allSettled([
     fetchRank(ticker, origin, horizonWeeks),
-    fetchJson(`${origin}/api/hedge-fund`, {
+    fetchJson(`${origin}/api/pm/quant-monitor`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticker }),
-    }, 12_000),
+      body: JSON.stringify({ ticker, autoEscalate: true }),
+    }, 55_000),
     fetchJson(`${origin}/api/tradingagents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -348,7 +354,7 @@ export async function POST(req: NextRequest) {
 
   const rank = rankResult.status === 'fulfilled' ? rankResult.value : null;
   const agentReads = [
-    hedgeResult.status === 'fulfilled' ? hedgeFundRead(hedgeResult.value) : null,
+    hedgeResult.status === 'fulfilled' ? quantScoutRead(hedgeResult.value) : null,
     tradingResult.status === 'fulfilled' ? tradingAgentsRead(tradingResult.value) : null,
     dexterResult.status === 'fulfilled' ? dexterRead(dexterResult.value) : null,
   ].filter((read): read is PositionMonitorAgentRead => Boolean(read));

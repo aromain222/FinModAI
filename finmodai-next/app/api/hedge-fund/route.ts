@@ -31,14 +31,32 @@ const PERSONAS = [
   { key: 'valuation',             name: 'Valuation Analyst',       group: 'quant',   style: 'P/E, EV/EBITDA, P/S, P/FCF multiples vs peers and historical range' },
   { key: 'technicals',            name: 'Technical Analyst',       group: 'quant',   style: 'price action, momentum indicators, RSI, MACD, moving averages, volume confirmation' },
   { key: 'sentiment',             name: 'Sentiment Analyst',       group: 'quant',   style: 'options flow, short interest, insider buying/selling, institutional positioning' },
-  { key: 'news_sentiment',        name: 'News Sentiment',          group: 'quant',   style: 'recent news flow, analyst upgrades and downgrades, earnings revisions, catalyst pipeline' },
+  { key: 'news_sentiment',        name: 'News Sentiment Analyst',  group: 'quant',   style: 'recent news flow, analyst upgrades and downgrades, earnings revisions, catalyst pipeline' },
   { key: 'growth',                name: 'Growth Analyst',          group: 'quant',   style: 'TAM expansion, revenue acceleration, unit economics, LTV/CAC dynamics, market share gains' },
 ] as const;
 
 type PersonaKey = typeof PERSONAS[number]['key'];
+type HedgeFundMode = 'full' | 'monitoring' | 'committee';
+type PersonaDefinition = typeof PERSONAS[number];
+
+const MONITORING_KEYS = new Set<PersonaKey>([
+  'fundamentals',
+  'growth',
+  'news_sentiment',
+  'sentiment',
+  'technicals',
+  'valuation',
+]);
+
+function personasForMode(mode: HedgeFundMode): PersonaDefinition[] {
+  if (mode === 'monitoring') return PERSONAS.filter(persona => MONITORING_KEYS.has(persona.key));
+  if (mode === 'committee') return PERSONAS.filter(persona => persona.group === 'persona');
+  return [...PERSONAS];
+}
 
 type RawSignal = {
   key:                  PersonaKey;
+  score:                number;
   signal:               'bullish' | 'bearish' | 'neutral';
   confidence:           number;
   reasoning:            string;
@@ -63,9 +81,10 @@ type MarketContext = {
 
 type AnalysisResult = {
   ticker:            string;
+  mode:              HedgeFundMode;
   date:              string;
   decision:          { action: string; confidence: number; reasoning: string; sizing?: string } | null;
-  signals:           { key: string; name: string; group: string; signal: 'bullish' | 'bearish' | 'neutral'; confidence: number; reasoning: string; thesis: string; risk: string; watch: string; theme_fit_score: number | null; theme_fit_reason: string; business_consistency: boolean }[];
+  signals:           { key: string; name: string; group: string; score: number; signal: 'bullish' | 'bearish' | 'neutral'; confidence: number; reasoning: string; thesis: string; risk: string; watch: string; theme_fit_score: number | null; theme_fit_reason: string; business_consistency: boolean }[];
   consensus:         { bullish: number; bearish: number; neutral: number };
   median_theme_fit:  number | null;
   source?:           'python_backend' | 'llm_fallback';
@@ -106,7 +125,7 @@ function parseSignal(value: unknown): RawSignal['signal'] {
   return 'neutral';
 }
 
-function normalizePersonaSignals(raw: unknown): RawSignal[] {
+function normalizePersonaSignals(raw: unknown, personas: PersonaDefinition[]): RawSignal[] {
   const payload = raw as { signals?: unknown };
   if (!Array.isArray(payload.signals)) return [];
 
@@ -115,7 +134,7 @@ function normalizePersonaSignals(raw: unknown): RawSignal[] {
     if (!item || typeof item !== 'object') continue;
     const row = item as Record<string, unknown>;
     const key = typeof row.key === 'string' ? row.key.trim() : '';
-    const persona = PERSONAS.find(p => p.key === key);
+    const persona = personas.find(p => p.key === key);
     if (!persona || byKey.has(persona.key)) continue;
 
     const themeFitRaw = row.theme_fit_score;
@@ -138,6 +157,13 @@ function normalizePersonaSignals(raw: unknown): RawSignal[] {
 
     byKey.set(persona.key, {
       key: persona.key,
+      score: clampConfidence(row.score ?? (
+        parseSignal(row.signal) === 'bullish'
+          ? 50 + clampConfidence(row.confidence) / 2
+          : parseSignal(row.signal) === 'bearish'
+            ? 50 - clampConfidence(row.confidence) / 2
+            : 50
+      )),
       signal: parseSignal(row.signal),
       confidence: clampConfidence(row.confidence),
       reasoning,
@@ -150,7 +176,7 @@ function normalizePersonaSignals(raw: unknown): RawSignal[] {
     });
   }
 
-  return PERSONAS
+  return personas
     .map(persona => byKey.get(persona.key))
     .filter((signal): signal is RawSignal => Boolean(signal));
 }
@@ -236,10 +262,18 @@ async function tryPythonBackend(ticker: string): Promise<AnalysisResult | null> 
     const data = await res.json() as AnalysisResult;
     return {
       ...data,
+      mode: 'full',
       median_theme_fit: null,
       source: 'python_backend',
       signals: (data.signals ?? []).map(signal => ({
         ...signal,
+        score: signal.score ?? (
+          signal.signal === 'bullish'
+            ? 50 + signal.confidence / 2
+            : signal.signal === 'bearish'
+              ? 50 - signal.confidence / 2
+              : 50
+        ),
         theme_fit_score:      signal.theme_fit_score      ?? null,
         theme_fit_reason:     signal.theme_fit_reason     ?? '',
         business_consistency: signal.business_consistency ?? true,
@@ -280,6 +314,7 @@ function fallbackPersonaSignals(
   const compactSignals: RawSignal[] = [
     {
       key: 'fundamentals',
+      score: 50,
       signal: offTheme ? 'neutral' : 'neutral',
       confidence: confidenceBase,
       reasoning: 'Fast check only: fundamentals need the full agent pass before a high-conviction call.',
@@ -292,6 +327,7 @@ function fallbackPersonaSignals(
     },
     {
       key: 'valuation',
+      score: 50,
       signal: 'neutral',
       confidence: confidenceBase - 2,
       reasoning: 'Fast check only: valuation was not fully rebuilt before the latency guardrail.',
@@ -304,6 +340,7 @@ function fallbackPersonaSignals(
     },
     {
       key: 'technicals',
+      score: Math.round(25 + pricePosition * 50),
       signal: technicalSignal,
       confidence: confidenceBase + 3,
       reasoning: `Fast check only: price is roughly ${(pricePosition * 100).toFixed(0)}% through its 52-week range.`,
@@ -320,6 +357,7 @@ function fallbackPersonaSignals(
     },
     {
       key: 'news_sentiment',
+      score: 50,
       signal: 'neutral',
       confidence: confidenceBase - 1,
       reasoning: 'Fast check only: live news/persona synthesis did not complete inside the timeout budget.',
@@ -331,7 +369,21 @@ function fallbackPersonaSignals(
       business_consistency: !offTheme,
     },
     {
+      key: 'sentiment',
+      score: 50,
+      signal: 'neutral',
+      confidence: confidenceBase - 1,
+      reasoning: 'Fast check only: positioning, options flow, short interest, and insider activity were not fully refreshed.',
+      thesis: 'Treat market sentiment as unconfirmed until the monitoring agent completes a live refresh.',
+      theme_fit_score: themeMatch ? themeMatch.score : null,
+      theme_fit_reason: themeMatch?.reason ?? '',
+      risk: 'Fast fallback risk: positioning can change quickly around catalysts.',
+      watch: 'Watch options skew, short interest, insider activity, and institutional positioning.',
+      business_consistency: !offTheme,
+    },
+    {
       key: 'growth',
+      score: offTheme ? 35 : 50,
       signal: growthSignal,
       confidence: confidenceBase,
       reasoning: offTheme
@@ -448,12 +500,13 @@ async function runPersonaSignals(
   intent: UserIntent | null,
   asset: AssetMetadata | null,
   ctx: MarketContext | null,
+  personas: PersonaDefinition[],
 ): Promise<RawSignal[]> {
-  const prompt = buildPersonaPrompt(ticker, intent, asset, ctx);
+  const prompt = buildPersonaPrompt(ticker, intent, asset, ctx, personas);
 
   if (getOpenAIKey('user')) {
     try {
-      const signals = await runPersonaSignalsOpenAIJson(ticker, prompt);
+      const signals = await runPersonaSignalsOpenAIJson(ticker, prompt, personas);
       return applyRequestThemePolicy(signals, intent);
     } catch (error) {
       logHedgeFundFailure('openai persona json', error);
@@ -473,9 +526,9 @@ async function runPersonaSignals(
 
   try {
     const parsed = extractJsonObject(result?.text ?? '{}');
-    const signals = normalizePersonaSignals(parsed);
-    if (signals.length < PERSONAS.length) {
-      throw new Error(`LLM returned ${signals.length}/${PERSONAS.length} persona signals`);
+    const signals = normalizePersonaSignals(parsed, personas);
+    if (signals.length < personas.length) {
+      throw new Error(`LLM returned ${signals.length}/${personas.length} persona signals`);
     }
     return applyRequestThemePolicy(signals, intent);
   } catch (error) {
@@ -489,10 +542,11 @@ function buildPersonaPrompt(
   intent: UserIntent | null,
   asset: AssetMetadata | null,
   ctx: MarketContext | null,
+  personas: PersonaDefinition[],
 ): PersonaPrompt {
   const hasThemes = intent && intent.themes.length > 0;
 
-  const personaList = PERSONAS.map((p, i) =>
+  const personaList = personas.map((p, i) =>
     `${i + 1}. ${p.name} [key: ${p.key}] — ${p.style}`,
   ).join('\n');
 
@@ -515,7 +569,7 @@ function buildPersonaPrompt(
     ? `For theme_fit_score: rate 0–10 how well this ticker's actual business fits the user's themes (${intent.themes.join(', ')}). 0 = completely off-theme (e.g. bond ETF or printer company asked for AI/space stocks), 10 = perfect match. Be honest even if the ticker is otherwise a good investment. If theme_fit_score is below 5, the persona must be neutral or bearish for this portfolio request and must not invent an AI/space/robotics angle.`
     : 'For theme_fit_score: return null (no theme filter was specified).';
 
-  const expectedKeys = PERSONAS.map(p => p.key);
+  const expectedKeys = personas.map(p => p.key);
   return {
     expectedKeys,
     messages: [
@@ -523,7 +577,7 @@ function buildPersonaPrompt(
         role: 'system',
         content: [
           `You are a strict JSON financial analysis engine evaluating ${ticker}.`,
-          `Return exactly ${PERSONAS.length} signals, one for each provided key. Do not skip keys.`,
+          `Return exactly ${personas.length} signals, one for each provided key. Do not skip keys.`,
           'No markdown. No prose outside JSON. Keep the JSON valid while giving each persona a real institutional opinion.',
           '',
           userContextBlock,
@@ -533,13 +587,17 @@ function buildPersonaPrompt(
       },
       {
         role: 'user',
-        content: `Analyze ${ticker} from each investor/analyst viewpoint.\n${dataStr ? `\nCurrent market data:\n${dataStr}` : ''}\n\n${themeFitInstruction}\n\nFor business_consistency: true only if the thesis matches the actual business.\n\nReturn valid JSON exactly in this shape:\n{"signals":[{"key":"warren_buffett","signal":"neutral","confidence":55,"reasoning":"Two or three concise sentences in this persona's voice.","thesis":"One clear investment view.","risk":"One sentence on what could make this persona wrong.","watch":"One concrete evidence point this persona would monitor.","theme_fit_score":null,"theme_fit_reason":"max 12 words","business_consistency":true}]}\n\nRules:\n- Include exactly these keys in this order: ${expectedKeys.join(', ')}.\n- Use each key once.\n- signal must be bullish, bearish, or neutral.\n- confidence must be 0-100.\n- reasoning should be 2-3 concise sentences, max 70 words total.\n- thesis should be 1 sentence, max 34 words.\n- risk should be 1 sentence, max 28 words.\n- watch should be 1 concrete evidence point, max 24 words.\n- theme_fit_reason max 12 words.\n- If company fundamentals are unclear, explain what evidence is missing instead of writing a generic opinion.\n- No trailing commas.\n\nPersonas:\n${personaList}`,
+        content: `Analyze ${ticker} from each investor/analyst viewpoint.\n${dataStr ? `\nCurrent market data:\n${dataStr}` : ''}\n\n${themeFitInstruction}\n\nFor business_consistency: true only if the thesis matches the actual business.\n\nReturn valid JSON exactly in this shape:\n{"signals":[{"key":"${expectedKeys[0]}","score":55,"signal":"neutral","confidence":55,"reasoning":"Two or three concise sentences in this persona's voice.","thesis":"One clear investment view.","risk":"One sentence on what could make this persona wrong.","watch":"One concrete evidence point this persona would monitor.","theme_fit_score":null,"theme_fit_reason":"max 12 words","business_consistency":true}]}\n\nRules:\n- Include exactly these keys in this order: ${expectedKeys.join(', ')}.\n- Use each key once.\n- score must be 0-100 and represent current health/attractiveness for that analyst's domain; higher is more supportive.\n- signal must be bullish, bearish, or neutral.\n- confidence must be 0-100.\n- reasoning should be 2-3 concise sentences, max 70 words total.\n- thesis should be 1 sentence, max 34 words.\n- risk should be 1 sentence, max 28 words.\n- watch should be 1 concrete evidence point, max 24 words.\n- theme_fit_reason max 12 words.\n- If company fundamentals are unclear, explain what evidence is missing instead of writing a generic opinion.\n- No trailing commas.\n\nPersonas:\n${personaList}`,
       },
     ],
   };
 }
 
-async function runPersonaSignalsOpenAIJson(ticker: string, prompt: PersonaPrompt): Promise<RawSignal[]> {
+async function runPersonaSignalsOpenAIJson(
+  ticker: string,
+  prompt: PersonaPrompt,
+  personas: PersonaDefinition[],
+): Promise<RawSignal[]> {
   const apiKey = getOpenAIKey('user');
   if (!apiKey) {
     throw new Error('Anthropic returned malformed JSON and no OpenAI key is available for JSON-mode repair');
@@ -575,9 +633,9 @@ async function runPersonaSignalsOpenAIJson(ticker: string, prompt: PersonaPrompt
       choices?: Array<{ message?: { content?: string | null } }>;
     };
     const parsed = extractJsonObject(payload.choices?.[0]?.message?.content ?? '{}');
-    const signals = normalizePersonaSignals(parsed);
-    if (signals.length < PERSONAS.length) {
-      throw new Error(`OpenAI JSON-mode fallback returned ${signals.length}/${PERSONAS.length} persona signals`);
+    const signals = normalizePersonaSignals(parsed, personas);
+    if (signals.length < personas.length) {
+      throw new Error(`OpenAI JSON-mode fallback returned ${signals.length}/${personas.length} persona signals`);
     }
     console.info('[hedge-fund] recovered full persona signals with OpenAI JSON mode', {
       ticker,
@@ -635,18 +693,23 @@ export async function POST(req: NextRequest) {
   if (!ticker) {
     return NextResponse.json({ error: 'ticker required' }, { status: 400 });
   }
+  const mode: HedgeFundMode =
+    b.mode === 'monitoring' || b.mode === 'committee' || b.mode === 'full'
+      ? b.mode
+      : 'full';
+  const selectedPersonas = personasForMode(mode);
 
   const requestStart = Date.now();
-  console.log('[hedge-fund] POST started', { ticker, model: agentModelCandidates()[0] });
+  console.log('[hedge-fund] POST started', { ticker, mode, model: agentModelCandidates()[0] });
 
   // Optional: intent and assetMetadata from portfolio-chat (backward compatible)
   const intent:        UserIntent    | null = (b.intent        ?? null) as UserIntent | null;
   const assetMetadata: AssetMetadata | null = (b.assetMetadata ?? null) as AssetMetadata | null;
 
   try {
-    const pythonResult = intent?.themes.length ? null : await tryPythonBackend(ticker);
+    const pythonResult = mode !== 'full' || intent?.themes.length ? null : await tryPythonBackend(ticker);
     if (pythonResult) {
-      return NextResponse.json(pythonResult, {
+      return NextResponse.json({ ...pythonResult, mode }, {
         headers: {
           'Cache-Control':               'no-store',
           'X-CapitalBase-Agent-Source':  'python_backend',
@@ -665,7 +728,7 @@ export async function POST(req: NextRequest) {
     let degraded = false;
     let degradedReason: string | null = null;
     try {
-      rawSignals = await runPersonaSignals(ticker, intent, assetMetadata, ctx);
+      rawSignals = await runPersonaSignals(ticker, intent, assetMetadata, ctx, selectedPersonas);
       console.log('[hedge-fund] signals completed', {
         count: rawSignals.length,
         elapsed: `${Date.now() - requestStart}ms`,
@@ -677,8 +740,12 @@ export async function POST(req: NextRequest) {
         elapsed: `${Date.now() - requestStart}ms`,
       });
       degraded = true;
-      degradedReason = 'Full 19-persona agent run hit the latency guardrail, so this is a compact fast check.';
-      rawSignals = fallbackPersonaSignals(ticker, intent, assetMetadata, ctx);
+      degradedReason = mode === 'monitoring'
+        ? 'Quant monitoring refresh hit the latency guardrail, so compact monitoring scores were recorded.'
+        : 'Senior investment committee review did not complete inside the latency guardrail.';
+      rawSignals = mode === 'committee'
+        ? []
+        : fallbackPersonaSignals(ticker, intent, assetMetadata, ctx);
       console.log('[hedge-fund] signals completed', {
         count: rawSignals.length,
         degraded: true,
@@ -692,6 +759,7 @@ export async function POST(req: NextRequest) {
         key:                  s.key,
         name:                 meta?.name                  ?? s.key,
         group:                meta?.group                 ?? 'quant',
+        score:                Math.round(Math.max(0, Math.min(100, s.score))),
         signal:               s.signal,
         confidence:           Math.round(Math.max(0, Math.min(100, s.confidence))),
         reasoning:            s.reasoning,
@@ -720,10 +788,14 @@ export async function POST(req: NextRequest) {
       console.info(`[hedge-fund] ${ticker} median_theme_fit=${median_theme_fit.toFixed(1)} themes=${intent.themes.join(',')}`);
     }
 
-    const decision = synthesizeDecision(consensus, median_theme_fit);
+    const hasSeniorSignals = signals.some(signal => signal.group === 'persona');
+    const decision = mode === 'monitoring' || !hasSeniorSignals
+      ? null
+      : synthesizeDecision(consensus, median_theme_fit);
 
     const result: AnalysisResult = {
       ticker,
+      mode,
       date:             new Date().toISOString().slice(0, 10),
       decision,
       signals,
@@ -738,6 +810,7 @@ export async function POST(req: NextRequest) {
       headers: {
         'Cache-Control':              'no-store',
         'X-CapitalBase-Agent-Source': 'llm_fallback',
+        'X-CapitalBase-Agent-Mode':   mode,
       },
     });
   } catch (err) {
