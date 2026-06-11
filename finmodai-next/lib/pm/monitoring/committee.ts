@@ -1,5 +1,6 @@
 import { hedgeFundToAgentView } from '@/lib/pm/adapters/hedgeFund';
 import { ingestAgentView } from '@/lib/pm/decisions/pmBrain';
+import { internalRequestHeaders } from '@/lib/pm/monitoring/internalRequestHeaders';
 import {
   listQuantSignalEvents,
   updateQuantSignalEvent,
@@ -43,12 +44,13 @@ export async function runInvestmentCommittee(params: {
   trigger: CommitteeTrigger;
   origin: string;
   signalEvents?: QuantSignalEvent[];
+  requestHeaders?: Headers;
 }): Promise<InvestmentCommitteeRun> {
   const ticker = params.ticker.toUpperCase();
   const signalEvents = params.signalEvents ?? [];
   const response = await fetch(`${params.origin}/api/hedge-fund`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: internalRequestHeaders(params.requestHeaders),
     body: JSON.stringify({
       ticker,
       mode: 'committee',

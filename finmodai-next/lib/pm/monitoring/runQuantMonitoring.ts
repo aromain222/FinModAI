@@ -1,6 +1,7 @@
 import { saveAlert } from '@/lib/pm/alerts/alertStore';
 import { runInvestmentCommittee } from '@/lib/pm/monitoring/committee';
 import { evaluateQuantSignal } from '@/lib/pm/monitoring/evaluateSignal';
+import { internalRequestHeaders } from '@/lib/pm/monitoring/internalRequestHeaders';
 import {
   latestQuantScore,
   saveQuantScoreSnapshot,
@@ -70,11 +71,12 @@ export async function runQuantMonitoring(params: {
   ticker: string;
   origin: string;
   autoEscalate?: boolean;
+  requestHeaders?: Headers;
 }): Promise<QuantMonitoringRun> {
   const ticker = params.ticker.toUpperCase();
   const response = await fetch(`${params.origin}/api/hedge-fund`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: internalRequestHeaders(params.requestHeaders),
     body: JSON.stringify({ ticker, mode: 'monitoring' }),
     cache: 'no-store',
     signal: AbortSignal.timeout(55_000),
@@ -114,6 +116,7 @@ export async function runQuantMonitoring(params: {
         trigger: 'signal_event',
         origin: params.origin,
         signalEvents: escalatedEvents,
+        requestHeaders: params.requestHeaders,
       })
     : null;
 

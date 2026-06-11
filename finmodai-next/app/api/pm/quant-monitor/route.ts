@@ -35,6 +35,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const result = await runQuantMonitoring({
       ...input,
       origin: new URL(req.url).origin,
+      requestHeaders: req.headers,
     });
     return NextResponse.json(result, { status: 201 });
   } catch (error) {

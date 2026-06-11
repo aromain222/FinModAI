@@ -28,6 +28,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       ...input,
       origin: new URL(req.url).origin,
       signalEvents,
+      requestHeaders: req.headers,
     });
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
