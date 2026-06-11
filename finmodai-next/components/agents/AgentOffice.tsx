@@ -7,93 +7,75 @@ import {
   Bot,
   CheckCircle2,
   Clock3,
-  ExternalLink,
   Filter,
   RefreshCw,
+  Users,
 } from 'lucide-react';
+import type {
+  QuantAnalystKey,
+  QuantScoreSnapshot,
+  QuantSignalEvent,
+} from '@/lib/pm/monitoring/types';
 import type { AgentView } from '@/lib/pm/types';
 import { cn } from '@/lib/utils';
 
 type AgentStatus = 'working' | 'reviewing' | 'idle' | 'needs_attention';
 type StatusFilter = 'all' | 'active' | 'attention' | 'idle';
+type Selection = `quant:${QuantAnalystKey}` | `senior:${string}`;
 
-type AgentDefinition = {
-  id: string;
+type AnalystDefinition = {
+  key: QuantAnalystKey;
   name: string;
-  shortName: string;
-  types: NonNullable<AgentView['agentType']>[];
-  sources: NonNullable<AgentView['source']>[];
   palette: number;
-  desk: string;
+  domain: string;
 };
 
-type OfficeAgent = AgentDefinition & {
-  view: AgentView | null;
-  status: AgentStatus;
+type SeniorDefinition = {
+  key: string;
+  name: string;
+  palette: number;
+  lens: string;
 };
 
-const AGENTS: AgentDefinition[] = [
-  {
-    id: 'hedge-fund',
-    name: 'AI Hedge Fund',
-    shortName: 'Hedge Fund',
-    types: ['hedge_fund'],
-    sources: ['hedge_fund'],
-    palette: 0,
-    desk: 'Fundamental and persona consensus',
-  },
-  {
-    id: 'trading-agents',
-    name: 'TradingAgents Debate',
-    shortName: 'Debate',
-    types: ['tradingagents'],
-    sources: ['tradingagents'],
-    palette: 1,
-    desk: 'Bull, bear, and risk debate',
-  },
-  {
-    id: 'catalyst',
-    name: 'Catalyst Scanner',
-    shortName: 'Catalyst',
-    types: ['catalyst', 'world_monitor'],
-    sources: ['news', 'world_monitor'],
-    palette: 2,
-    desk: 'Events, headlines, and timing',
-  },
-  {
-    id: 'forecast',
-    name: 'Forecast Agent',
-    shortName: 'Forecast',
-    types: ['forecast'],
-    sources: ['forecast', 'rank'],
-    palette: 3,
-    desk: 'Price path and momentum',
-  },
-  {
-    id: 'pm-brain',
-    name: 'PM Brain',
-    shortName: 'PM Brain',
-    types: ['pm_brain'],
-    sources: ['pm_brain'],
-    palette: 4,
-    desk: 'Sizing and portfolio decision',
-  },
-  {
-    id: 'quant',
-    name: 'Quant Discipline',
-    shortName: 'Quant',
-    types: ['quant'],
-    sources: ['quant'],
-    palette: 5,
-    desk: 'Risk controls and sell discipline',
-  },
+type SeniorSignal = {
+  key?: string;
+  name?: string;
+  signal?: 'bullish' | 'bearish' | 'neutral';
+  confidence?: number;
+  reasoning?: string;
+  thesis?: string;
+};
+
+const ANALYSTS: AnalystDefinition[] = [
+  { key: 'fundamentals', name: 'Fundamentals Analyst', palette: 0, domain: 'Financial quality and cash-flow durability' },
+  { key: 'growth', name: 'Growth Analyst', palette: 1, domain: 'Revenue acceleration and market expansion' },
+  { key: 'news_sentiment', name: 'News Sentiment Analyst', palette: 2, domain: 'Headlines, revisions, and catalyst flow' },
+  { key: 'sentiment', name: 'Sentiment Analyst', palette: 3, domain: 'Positioning, options, and institutional behavior' },
+  { key: 'technicals', name: 'Technical Analyst', palette: 4, domain: 'Trend, momentum, volume, and structure' },
+  { key: 'valuation', name: 'Valuation Analyst', palette: 5, domain: 'Intrinsic value and multiple extension' },
+];
+
+const SENIORS: SeniorDefinition[] = [
+  { key: 'warren_buffett', name: 'Warren Buffett', palette: 0, lens: 'Moat and compounding' },
+  { key: 'charlie_munger', name: 'Charlie Munger', palette: 1, lens: 'Quality and mental models' },
+  { key: 'ben_graham', name: 'Ben Graham', palette: 2, lens: 'Margin of safety' },
+  { key: 'peter_lynch', name: 'Peter Lynch', palette: 3, lens: 'Growth at a reasonable price' },
+  { key: 'nassim_taleb', name: 'Nassim Taleb', palette: 4, lens: 'Fragility and tail risk' },
+  { key: 'michael_burry', name: 'Michael Burry', palette: 5, lens: 'Contrarian asymmetry' },
+  { key: 'cathie_wood', name: 'Cathie Wood', palette: 0, lens: 'Disruptive innovation' },
+  { key: 'aswath_damodaran', name: 'Aswath Damodaran', palette: 1, lens: 'Narrative and valuation' },
+  { key: 'stanley_druckenmiller', name: 'Stanley Druckenmiller', palette: 2, lens: 'Macro and momentum' },
+  { key: 'bill_ackman', name: 'Bill Ackman', palette: 3, lens: 'Concentrated quality' },
+  { key: 'phil_fisher', name: 'Phil Fisher', palette: 4, lens: 'Management and durability' },
+  { key: 'mohnish_pabrai', name: 'Mohnish Pabrai', palette: 5, lens: 'Low-risk asymmetry' },
+  { key: 'rakesh_jhunjhunwala', name: 'Rakesh Jhunjhunwala', palette: 0, lens: 'Structural growth' },
 ];
 
 const STATUS_LABELS: Record<AgentStatus, string> = {
-  working: 'Working',
+  working: 'Scanning',
   reviewing: 'Reviewing',
   idle: 'Idle',
-  needs_attention: 'Needs attention',
+  needs_attention: 'Escalating',
 };
 
 const STATUS_COLORS: Record<AgentStatus, string> = {
@@ -103,70 +85,65 @@ const STATUS_COLORS: Record<AgentStatus, string> = {
   needs_attention: '#f26d6d',
 };
 
-function timeOf(view: AgentView): string {
-  return view.runAt ?? view.createdAt;
-}
-
-function ageInMs(view: AgentView, now: number): number {
-  const timestamp = new Date(timeOf(view)).getTime();
+function ageInMs(value: string | undefined, now: number): number {
+  if (!value) return Number.POSITIVE_INFINITY;
+  const timestamp = new Date(value).getTime();
   return Number.isFinite(timestamp) ? Math.max(0, now - timestamp) : Number.POSITIVE_INFINITY;
-}
-
-function deriveStatus(view: AgentView | null, now: number): AgentStatus {
-  if (!view) return 'idle';
-  if (view.changedSinceLast && (view.stance === 'bearish' || view.stance === 'mixed')) {
-    return 'needs_attention';
-  }
-  const age = ageInMs(view, now);
-  if (age <= 90_000) return 'working';
-  if (age <= 30 * 60_000) return 'reviewing';
-  return 'idle';
-}
-
-function matchesAgent(view: AgentView, agent: AgentDefinition): boolean {
-  if (view.agentType && agent.types.includes(view.agentType)) return true;
-  if (view.source && agent.sources.includes(view.source)) return true;
-  const normalizedName = view.agentName.toLowerCase();
-  return normalizedName.includes(agent.shortName.toLowerCase())
-    || normalizedName.includes(agent.id.replace(/-/g, ' '));
 }
 
 function formatAge(value: string | undefined): string {
   if (!value) return 'No runs yet';
-  const timestamp = new Date(value).getTime();
-  if (!Number.isFinite(timestamp)) return 'Unknown';
-  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
+  if (!Number.isFinite(seconds)) return 'Unknown';
   if (seconds < 60) return `${seconds}s ago`;
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }
 
-function stanceColor(stance: AgentView['stance'] | undefined): string {
+function statusForAnalyst(
+  snapshot: QuantScoreSnapshot | undefined,
+  event: QuantSignalEvent | undefined,
+  now: number,
+): AgentStatus {
+  if (event?.status === 'escalated' && event.shouldEscalate) return 'needs_attention';
+  const age = ageInMs(snapshot?.observedAt, now);
+  if (age <= 90_000) return 'working';
+  if (age <= 30 * 60_000) return 'reviewing';
+  return 'idle';
+}
+
+function filterMatches(status: AgentStatus, filter: StatusFilter): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'active') return status === 'working' || status === 'reviewing';
+  if (filter === 'attention') return status === 'needs_attention';
+  return status === 'idle';
+}
+
+function stanceColor(stance: string | undefined): string {
   if (stance === 'bullish') return '#65d487';
   if (stance === 'bearish') return '#f26d6d';
   if (stance === 'mixed') return '#e6b84d';
   return '#a7afb9';
 }
 
-function compactTask(view: AgentView | null, fallback: string): string {
-  if (!view) return fallback;
-  return view.summary?.trim() || view.reasoning.trim() || fallback;
-}
-
-function latestViewFor(agent: AgentDefinition, views: AgentView[]): AgentView | null {
-  return views.find((view) => matchesAgent(view, agent)) ?? null;
-}
-
-function AgentSprite({ palette, status }: { palette: number; status: AgentStatus }) {
+function AgentSprite({
+  palette,
+  status,
+  compact = false,
+}: {
+  palette: number;
+  status: AgentStatus;
+  compact?: boolean;
+}) {
   return (
     <span
       aria-hidden="true"
       className={cn(
         'agent-office-sprite',
+        compact && 'agent-office-sprite--compact',
         status === 'working' && 'agent-office-sprite--typing',
         (status === 'reviewing' || status === 'needs_attention') && 'agent-office-sprite--reading',
       )}
@@ -175,13 +152,19 @@ function AgentSprite({ palette, status }: { palette: number; status: AgentStatus
   );
 }
 
-function Workstation({
-  agent,
+function AnalystDesk({
+  analyst,
+  snapshot,
+  event,
+  status,
   selected,
   hidden,
   onSelect,
 }: {
-  agent: OfficeAgent;
+  analyst: AnalystDefinition;
+  snapshot?: QuantScoreSnapshot;
+  event?: QuantSignalEvent;
+  status: AgentStatus;
   selected: boolean;
   hidden: boolean;
   onSelect: () => void;
@@ -190,104 +173,152 @@ function Workstation({
     <button
       type="button"
       onClick={onSelect}
+      data-testid={`analyst-${analyst.key}`}
       className={cn(
-        'group relative flex min-h-[205px] min-w-0 flex-col items-center justify-end border border-transparent px-2 pb-3 pt-8 text-left transition-all',
+        'group relative flex min-h-[190px] min-w-0 flex-col items-center justify-end border border-transparent px-1 pb-2 pt-8 text-left transition-all',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#65d487]',
-        selected && 'border-[#65d487]/70 bg-[#65d487]/[0.035] shadow-[inset_0_0_0_1px_rgba(101,212,135,0.16),0_0_24px_rgba(101,212,135,0.06)]',
-        hidden && 'opacity-25 grayscale',
+        selected && 'border-[#65d487]/70 bg-[#65d487]/[0.04]',
+        hidden && 'opacity-20 grayscale',
       )}
       aria-pressed={selected}
     >
-      <span className="absolute top-3 max-w-[90%] truncate border border-[#46505a] bg-[#12171d] px-2 py-1 font-mono text-[10px] text-[#e6e9ed] shadow-md">
-        <span
-          className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full"
-          style={{ backgroundColor: STATUS_COLORS[agent.status] }}
-        />
-        {agent.name}
+      <span className="absolute top-2 max-w-[94%] border border-[#46505a] bg-[#12171d] px-2 py-1 text-center font-mono text-[9px] text-[#e6e9ed] shadow-md">
+        <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: STATUS_COLORS[status] }} />
+        {analyst.name}
       </span>
 
-      <span className="relative h-[118px] w-[190px] max-w-full">
+      <span className="relative h-[112px] w-[170px] max-w-full">
         <Image
           alt=""
           src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png"
           width={48}
           height={32}
           unoptimized
-          className="absolute bottom-0 left-1/2 h-28 w-44 -translate-x-1/2 object-fill [image-rendering:pixelated]"
+          className="absolute bottom-0 left-1/2 h-24 w-40 -translate-x-1/2 object-fill [image-rendering:pixelated]"
         />
         <Image
           alt=""
-          src={agent.status === 'idle'
+          src={status === 'idle'
             ? '/pixel-agents/assets/furniture/PC/PC_FRONT_OFF.png'
             : '/pixel-agents/assets/furniture/PC/PC_FRONT_ON_2.png'}
           width={16}
           height={32}
           unoptimized
-          className="absolute bottom-[62px] left-[42px] h-16 w-8 [image-rendering:pixelated]"
+          className="absolute bottom-[54px] left-[37px] h-14 w-7 [image-rendering:pixelated]"
         />
         <Image
           alt=""
-          src={agent.status === 'idle'
+          src={status === 'idle'
             ? '/pixel-agents/assets/furniture/PC/PC_FRONT_OFF.png'
             : '/pixel-agents/assets/furniture/PC/PC_FRONT_ON_1.png'}
           width={16}
           height={32}
           unoptimized
-          className="absolute bottom-[65px] left-1/2 h-16 w-8 -translate-x-1/2 [image-rendering:pixelated]"
+          className="absolute bottom-[56px] left-1/2 h-14 w-7 -translate-x-1/2 [image-rendering:pixelated]"
         />
         <Image
           alt=""
-          src={agent.status === 'idle'
+          src={status === 'idle'
             ? '/pixel-agents/assets/furniture/PC/PC_FRONT_OFF.png'
             : '/pixel-agents/assets/furniture/PC/PC_FRONT_ON_3.png'}
           width={16}
           height={32}
           unoptimized
-          className="absolute bottom-[62px] right-[42px] h-16 w-8 [image-rendering:pixelated]"
+          className="absolute bottom-[54px] right-[37px] h-14 w-7 [image-rendering:pixelated]"
         />
-        <span className="absolute bottom-[3px] left-1/2 -translate-x-1/2">
-          <AgentSprite palette={agent.palette} status={agent.status} />
+        <span className="absolute bottom-0 left-1/2 -translate-x-1/2">
+          <AgentSprite palette={analyst.palette} status={status} />
         </span>
       </span>
 
-      <span
-        className="mt-1 font-mono text-[10px]"
-        style={{ color: STATUS_COLORS[agent.status] }}
-      >
-        {STATUS_LABELS[agent.status]}
+      <span className="mt-1 flex items-center gap-2 font-mono text-[9px]">
+        <span style={{ color: STATUS_COLORS[status] }}>{STATUS_LABELS[status]}</span>
+        <span className="text-[#b8c0c8]">{snapshot ? `${snapshot.ticker} ${Math.round(snapshot.score)}` : 'No score'}</span>
+      </span>
+      {event ? (
+        <span className="mt-1 max-w-[95%] truncate font-mono text-[8px] text-[#f18a8a]">
+          {event.delta > 0 ? '+' : ''}{event.delta} event
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
+function SeniorSeat({
+  senior,
+  signal,
+  active,
+  selected,
+  onSelect,
+}: {
+  senior: SeniorDefinition;
+  signal?: SeniorSignal;
+  active: boolean;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const status: AgentStatus = active ? 'reviewing' : 'idle';
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        'flex min-w-0 items-center gap-1 border border-transparent px-1 py-1 text-left transition',
+        selected && 'border-[#e6b84d]/70 bg-[#e6b84d]/10',
+        !active && 'opacity-65',
+      )}
+      aria-pressed={selected}
+      title={`${senior.name}: ${senior.lens}`}
+    >
+      <span className="h-8 w-5 shrink-0 overflow-hidden">
+        <AgentSprite palette={senior.palette} status={status} compact />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate font-mono text-[7px] text-[#e5e7eb]">{senior.name}</span>
+        <span className="block truncate font-mono text-[7px]" style={{ color: stanceColor(signal?.signal) }}>
+          {active ? signal?.signal ?? 'reviewing' : 'standby'}
+        </span>
       </span>
     </button>
   );
 }
 
-function EmptyOfficeState() {
+function ScoreBar({ score }: { score: number }) {
+  const color = score >= 60 ? '#65d487' : score <= 40 ? '#f26d6d' : '#e6b84d';
   return (
-    <div className="absolute inset-x-6 bottom-5 flex items-center justify-center">
-      <div className="border border-[#343b44] bg-[#11161c]/95 px-4 py-2 text-center text-[11px] text-[#929aa5] shadow-xl">
-        Agent desks are ready. Run an analysis from Opportunities to populate live output.
-      </div>
+    <div className="h-1.5 overflow-hidden bg-[#252d35]">
+      <div className="h-full transition-[width]" style={{ width: `${Math.max(0, Math.min(100, score))}%`, backgroundColor: color }} />
     </div>
   );
 }
 
 export function AgentOffice() {
   const [views, setViews] = useState<AgentView[]>([]);
-  const [selectedId, setSelectedId] = useState(AGENTS[0].id);
+  const [snapshots, setSnapshots] = useState<QuantScoreSnapshot[]>([]);
+  const [events, setEvents] = useState<QuantSignalEvent[]>([]);
+  const [selection, setSelection] = useState<Selection>('quant:fundamentals');
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
-  const loadViews = useCallback(async (manual = false) => {
+  const loadActivity = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
     try {
-      const response = await fetch('/api/pm/agent-views?limit=500', { cache: 'no-store' });
-      if (!response.ok) throw new Error(`Agent activity request failed (${response.status})`);
-      const payload = await response.json() as { agentViews?: AgentView[] };
-      const nextViews = [...(payload.agentViews ?? [])]
-        .sort((a, b) => timeOf(b).localeCompare(timeOf(a)));
-      setViews(nextViews);
+      const [viewsResponse, monitoringResponse] = await Promise.all([
+        fetch('/api/pm/agent-views?limit=500', { cache: 'no-store' }),
+        fetch('/api/pm/quant-monitor?limit=500', { cache: 'no-store' }),
+      ]);
+      if (!viewsResponse.ok) throw new Error(`Agent activity request failed (${viewsResponse.status})`);
+      if (!monitoringResponse.ok) throw new Error(`Monitoring request failed (${monitoringResponse.status})`);
+      const [viewsPayload, monitoringPayload] = await Promise.all([
+        viewsResponse.json() as Promise<{ agentViews?: AgentView[] }>,
+        monitoringResponse.json() as Promise<{ snapshots?: QuantScoreSnapshot[]; events?: QuantSignalEvent[] }>,
+      ]);
+      setViews([...(viewsPayload.agentViews ?? [])].sort((a, b) => (b.runAt ?? b.createdAt).localeCompare(a.runAt ?? a.createdAt)));
+      setSnapshots(monitoringPayload.snapshots ?? []);
+      setEvents(monitoringPayload.events ?? []);
       setNow(Date.now());
       setError(null);
     } catch (requestError) {
@@ -299,44 +330,95 @@ export function AgentOffice() {
   }, []);
 
   useEffect(() => {
-    void loadViews();
-    const polling = window.setInterval(() => { void loadViews(); }, 15_000);
+    void loadActivity();
+    const polling = window.setInterval(() => { void loadActivity(); }, 15_000);
     const clock = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => {
       window.clearInterval(polling);
       window.clearInterval(clock);
     };
-  }, [loadViews]);
+  }, [loadActivity]);
 
-  const officeAgents = useMemo<OfficeAgent[]>(() => AGENTS.map((agent) => {
-    const view = latestViewFor(agent, views);
-    return { ...agent, view, status: deriveStatus(view, now) };
-  }), [now, views]);
+  const latestSnapshotByAnalyst = useMemo(() => {
+    const map = new Map<QuantAnalystKey, QuantScoreSnapshot>();
+    for (const snapshot of snapshots) {
+      if (!map.has(snapshot.analystKey)) map.set(snapshot.analystKey, snapshot);
+    }
+    return map;
+  }, [snapshots]);
 
-  const selectedAgent = officeAgents.find((agent) => agent.id === selectedId) ?? officeAgents[0];
-  const selectedView = selectedAgent.view;
-  const activity = views.slice(0, 8);
-  const hasAnyRuns = views.length > 0;
-  const activeCount = officeAgents.filter((agent) => agent.status === 'working' || agent.status === 'reviewing').length;
-  const attentionCount = officeAgents.filter((agent) => agent.status === 'needs_attention').length;
+  const latestEventByAnalyst = useMemo(() => {
+    const map = new Map<QuantAnalystKey, QuantSignalEvent>();
+    for (const event of events) {
+      if (!map.has(event.analystKey)) map.set(event.analystKey, event);
+    }
+    return map;
+  }, [events]);
 
-  function agentHidden(agent: OfficeAgent): boolean {
-    if (filter === 'all') return false;
-    if (filter === 'active') return agent.status !== 'working' && agent.status !== 'reviewing';
-    if (filter === 'attention') return agent.status !== 'needs_attention';
-    return agent.status !== 'idle';
-  }
+  const latestCommitteeView = views.find(view => view.agentName === 'Senior Investment Committee') ?? null;
+  const committeeSignals = useMemo(() => {
+    const raw = latestCommitteeView?.rawOutput as { signals?: SeniorSignal[] } | undefined;
+    return Array.isArray(raw?.signals) ? raw.signals : [];
+  }, [latestCommitteeView]);
+  const committeeSignalByKey = useMemo(
+    () => new Map(committeeSignals.map(signal => [signal.key ?? '', signal])),
+    [committeeSignals],
+  );
 
-  const output = selectedView?.rawOutput ?? (selectedView ? {
-    ticker: selectedView.ticker,
-    stance: selectedView.stance,
-    conviction: selectedView.conviction,
-    recommendation: selectedView.recommendation,
-    reasoning: selectedView.reasoning,
-  } : null);
+  const pendingEscalation = events.find(event => event.status === 'escalated' && event.shouldEscalate && !event.committeeRunId);
+  const recentlyReviewed = events.find(event => event.status === 'reviewed' && ageInMs(event.reviewedAt ?? event.createdAt, now) <= 10 * 60_000);
+  const committeeActive = Boolean(
+    pendingEscalation
+    || recentlyReviewed
+    || ageInMs(latestCommitteeView?.runAt ?? latestCommitteeView?.createdAt, now) <= 10 * 60_000,
+  );
+  const handoffEvent = pendingEscalation ?? recentlyReviewed;
+  const committeeTicker = handoffEvent?.ticker ?? latestCommitteeView?.ticker ?? null;
+
+  const latestCompanies = useMemo(() => {
+    const byTicker = new Map<string, string>();
+    for (const snapshot of snapshots) {
+      if (!byTicker.has(snapshot.ticker)) byTicker.set(snapshot.ticker, snapshot.observedAt);
+    }
+    return [...byTicker.entries()].slice(0, 8);
+  }, [snapshots]);
+
+  const selectedQuantKey = selection.startsWith('quant:')
+    ? selection.slice(6) as QuantAnalystKey
+    : null;
+  const selectedSeniorKey = selection.startsWith('senior:') ? selection.slice(7) : null;
+  const selectedAnalyst = selectedQuantKey ? ANALYSTS.find(analyst => analyst.key === selectedQuantKey) : undefined;
+  const selectedSnapshot = selectedQuantKey ? latestSnapshotByAnalyst.get(selectedQuantKey) : undefined;
+  const selectedEvent = selectedQuantKey ? latestEventByAnalyst.get(selectedQuantKey) : undefined;
+  const selectedSenior = selectedSeniorKey ? SENIORS.find(senior => senior.key === selectedSeniorKey) : undefined;
+  const selectedSeniorSignal = selectedSeniorKey ? committeeSignalByKey.get(selectedSeniorKey) : undefined;
+
+  const activeAnalystCount = ANALYSTS.filter(analyst => {
+    const status = statusForAnalyst(
+      latestSnapshotByAnalyst.get(analyst.key),
+      latestEventByAnalyst.get(analyst.key),
+      now,
+    );
+    return status !== 'idle';
+  }).length;
+  const attentionCount = ANALYSTS.filter(analyst => statusForAnalyst(
+    latestSnapshotByAnalyst.get(analyst.key),
+    latestEventByAnalyst.get(analyst.key),
+    now,
+  ) === 'needs_attention').length;
+
+  const detailOutput = selectedAnalyst
+    ? {
+        latestScore: selectedSnapshot ?? null,
+        latestSignalEvent: selectedEvent ?? null,
+      }
+    : {
+        committee: latestCommitteeView?.rawOutput ?? null,
+        selectedInvestor: selectedSeniorSignal ?? null,
+      };
 
   return (
-    <div className="mx-auto w-full max-w-[1540px]">
+    <div className="mx-auto w-full max-w-[1600px]">
       <header className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -346,11 +428,17 @@ export function AgentOffice() {
                 'h-1.5 w-1.5 rounded-full',
                 error ? 'bg-red-400' : attentionCount > 0 ? 'bg-amber-400' : 'bg-[var(--cb-green)]',
               )} />
-              {error ? 'Activity feed unavailable' : attentionCount > 0 ? `${attentionCount} need attention` : 'All systems operational'}
+              {error
+                ? 'Activity feed unavailable'
+                : committeeActive
+                  ? `Committee reviewing ${committeeTicker ?? 'an escalation'}`
+                  : attentionCount > 0
+                    ? `${attentionCount} signal${attentionCount === 1 ? '' : 's'} escalating`
+                    : 'Scouts monitoring normally'}
             </span>
           </div>
           <p className="mt-1 text-sm text-[var(--cb-text-muted)]">
-            Live agent operations from persisted PM OS runs.
+            Quant scouts monitor continuously. Senior investors convene only when the PM escalates a signal.
           </p>
         </div>
 
@@ -360,18 +448,18 @@ export function AgentOffice() {
             <Filter className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--cb-text-muted)]" />
             <select
               value={filter}
-              onChange={(event) => setFilter(event.target.value as StatusFilter)}
+              onChange={event => setFilter(event.target.value as StatusFilter)}
               className="h-9 appearance-none rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] pl-8 pr-8 text-xs text-[var(--cb-text-secondary)] outline-none focus:border-[var(--cb-green)]"
             >
-              <option value="all">All systems</option>
+              <option value="all">All scouts</option>
               <option value="active">Active</option>
-              <option value="attention">Needs attention</option>
+              <option value="attention">Escalating</option>
               <option value="idle">Idle</option>
             </select>
           </label>
           <button
             type="button"
-            onClick={() => { void loadViews(true); }}
+            onClick={() => { void loadActivity(true); }}
             disabled={refreshing}
             className="inline-flex h-9 items-center gap-2 rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 text-xs font-medium text-[var(--cb-text-secondary)] transition hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)] disabled:opacity-50"
           >
@@ -382,23 +470,28 @@ export function AgentOffice() {
       </header>
 
       <div className="overflow-hidden border border-[#252c34] bg-[#0d1116] text-[#dfe4ea] shadow-[0_14px_50px_rgba(0,0,0,0.18)]">
-        <div className="grid min-h-[690px] xl:grid-cols-[minmax(0,1fr)_350px]">
-          <section className="relative min-w-0 border-b border-[#252c34] xl:border-b-0 xl:border-r">
-            <div className="flex h-11 items-center justify-between border-b border-[#252c34] bg-[#10151a] px-4">
-              <div className="flex items-center gap-4 text-[10px] text-[#8f98a3]">
-                <span className="inline-flex items-center gap-1.5">
-                  <Bot className="h-3.5 w-3.5 text-[#65d487]" />
-                  {officeAgents.length} configured agents
-                </span>
-                <span>{activeCount} active</span>
-              </div>
-              <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-[#66717d]">
-                Polling every 15s
-              </span>
-            </div>
+        <div className="flex min-h-11 items-center justify-between gap-4 overflow-x-auto border-b border-[#252c34] bg-[#10151a] px-4">
+          <div className="flex shrink-0 items-center gap-4 text-[10px] text-[#8f98a3]">
+            <span className="inline-flex items-center gap-1.5">
+              <Bot className="h-3.5 w-3.5 text-[#65d487]" />
+              6 monitoring scouts
+            </span>
+            <span>{activeAnalystCount} active</span>
+            <span className={committeeActive ? 'text-[#e6b84d]' : undefined}>
+              {committeeActive ? 'Investment committee awake' : 'Senior room on standby'}
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-2 font-mono text-[8px] uppercase tracking-[0.12em] text-[#66717d]">
+            {latestCompanies.length > 0 ? latestCompanies.map(([ticker]) => (
+              <span key={ticker} className="border-l border-[#303842] pl-2">{ticker}</span>
+            )) : <span>No monitored companies yet</span>}
+          </div>
+        </div>
 
+        <div className="grid xl:grid-cols-[minmax(0,1fr)_360px]">
+          <section className="min-w-0 border-b border-[#252c34] xl:border-b-0 xl:border-r">
             <div
-              className="relative min-h-[646px] overflow-hidden p-4 sm:p-6"
+              className="relative min-h-[720px] overflow-x-auto p-4"
               style={{
                 backgroundColor: '#24292f',
                 backgroundImage: 'linear-gradient(rgba(11,14,18,0.18) 1px, transparent 1px), linear-gradient(90deg, rgba(11,14,18,0.18) 1px, transparent 1px), url(/pixel-agents/assets/floors/floor_6.png)',
@@ -407,116 +500,200 @@ export function AgentOffice() {
               }}
             >
               <div className="pointer-events-none absolute inset-3 border-[6px] border-[#171c22] shadow-[inset_0_0_0_2px_#3b424a]" />
-              <div className="pointer-events-none absolute left-1/2 top-1/2 h-[68%] w-px -translate-x-1/2 -translate-y-1/2 bg-[#151a20]/50" />
-              <div className="pointer-events-none absolute left-1/2 top-1/2 h-px w-[78%] -translate-x-1/2 -translate-y-1/2 bg-[#151a20]/50" />
 
-              <div className="relative z-10 grid min-h-[590px] grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3">
-                {officeAgents.map((agent) => (
-                  <Workstation
-                    key={agent.id}
-                    agent={agent}
-                    selected={selectedAgent.id === agent.id}
-                    hidden={agentHidden(agent)}
-                    onSelect={() => setSelectedId(agent.id)}
-                  />
-                ))}
+              <div className="relative z-10 mx-auto grid min-h-[680px] min-w-[920px] grid-cols-[minmax(0,1fr)_88px_330px]">
+                <section className="relative border-r-[6px] border-[#171c22] px-3 pb-3 pt-10">
+                  <div className="absolute left-4 top-3 flex items-center gap-2 bg-[#10151a]/90 px-2 py-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[#8f98a3]">
+                    <Bot className="h-3 w-3 text-[#65d487]" />
+                    Monitoring floor
+                  </div>
+                  <div className="grid min-h-[610px] grid-cols-3 gap-1">
+                    {ANALYSTS.map(analyst => {
+                      const snapshot = latestSnapshotByAnalyst.get(analyst.key);
+                      const event = latestEventByAnalyst.get(analyst.key);
+                      const status = statusForAnalyst(snapshot, event, now);
+                      return (
+                        <AnalystDesk
+                          key={analyst.key}
+                          analyst={analyst}
+                          snapshot={snapshot}
+                          event={event}
+                          status={status}
+                          selected={selection === `quant:${analyst.key}`}
+                          hidden={!filterMatches(status, filter)}
+                          onSelect={() => setSelection(`quant:${analyst.key}`)}
+                        />
+                      );
+                    })}
+                  </div>
+                </section>
+
+                <section className="relative border-r-[6px] border-[#171c22] bg-[#171c22]/25">
+                  <div className="absolute inset-x-3 top-1/2 h-16 -translate-y-1/2 border-y-2 border-dashed border-[#4e5964] bg-[#29313a]/80" />
+                  <div className="absolute left-1/2 top-[43%] -translate-x-1/2 font-mono text-[7px] uppercase tracking-[0.16em] text-[#737e89] [writing-mode:vertical-rl]">
+                    PM escalation corridor
+                  </div>
+                  {handoffEvent ? (
+                    <div
+                      className={cn(
+                        'agent-office-runner absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2',
+                        pendingEscalation && 'agent-office-runner--handoff',
+                      )}
+                      data-testid="escalation-runner"
+                    >
+                      <AgentSprite
+                        palette={ANALYSTS.find(analyst => analyst.key === handoffEvent.analystKey)?.palette ?? 0}
+                        status="needs_attention"
+                      />
+                      <span className="absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap bg-[#10151a] px-1 font-mono text-[7px] text-[#f18a8a]">
+                        {handoffEvent.ticker} signal
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-mono text-[8px] text-[#59636e]">
+                      clear
+                    </span>
+                  )}
+                </section>
+
+                <section
+                  className={cn(
+                    'relative px-3 pb-3 pt-12 transition-shadow',
+                    committeeActive && 'shadow-[inset_0_0_42px_rgba(230,184,77,0.13)]',
+                  )}
+                  data-testid="senior-room"
+                >
+                  <div className="absolute left-4 top-3 flex items-center gap-2 bg-[#10151a]/90 px-2 py-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[#8f98a3]">
+                    <Users className={cn('h-3 w-3', committeeActive ? 'text-[#e6b84d]' : 'text-[#8a929d]')} />
+                    Senior committee
+                  </div>
+                  <div className="absolute right-4 top-3 font-mono text-[8px]" style={{ color: committeeActive ? '#e6b84d' : '#8a929d' }}>
+                    {committeeActive ? `IN SESSION · ${committeeTicker ?? ''}` : 'STANDBY'}
+                  </div>
+
+                  <div className="relative mx-auto mt-4 min-h-[570px] max-w-[300px] border-[4px] border-[#151a20] bg-[#20262d]/75 p-3 shadow-[inset_0_0_0_2px_#414952]">
+                    <Image
+                      alt=""
+                      src="/pixel-agents/assets/furniture/WHITEBOARD/WHITEBOARD.png"
+                      width={32}
+                      height={32}
+                      unoptimized
+                      className="mx-auto h-16 w-24 [image-rendering:pixelated]"
+                    />
+                    <p className="mt-1 text-center font-mono text-[8px] text-[#9aa4ae]">
+                      {committeeActive ? `${committeeTicker ?? 'Ticker'} review in progress` : 'Awaiting PM escalation'}
+                    </p>
+
+                    <div className="relative mt-4 grid grid-cols-2 gap-x-2 gap-y-1 border border-[#4c3f26] bg-[#5e482c]/65 p-2 shadow-[inset_0_0_0_2px_#806541]">
+                      {SENIORS.map(senior => (
+                        <SeniorSeat
+                          key={senior.key}
+                          senior={senior}
+                          signal={committeeSignalByKey.get(senior.key)}
+                          active={committeeActive}
+                          selected={selection === `senior:${senior.key}`}
+                          onSelect={() => setSelection(`senior:${senior.key}`)}
+                        />
+                      ))}
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-center gap-2 border border-[#38414a] bg-[#11171c] px-2 py-2">
+                      <AgentSprite palette={4} status={committeeActive ? 'working' : 'idle'} compact />
+                      <div>
+                        <p className="font-mono text-[8px] text-white">PM Agent</p>
+                        <p className="font-mono text-[7px]" style={{ color: committeeActive ? '#65d487' : '#8a929d' }}>
+                          {committeeActive ? 'Synthesizing recommendation' : 'Monitoring signal queue'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </section>
               </div>
-
-              {!loading && !hasAnyRuns && <EmptyOfficeState />}
             </div>
           </section>
 
           <aside className="min-w-0 bg-[#0f1419]">
             <section className="border-b border-[#252c34] p-5">
-              <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-[#7d8792]">Selected agent</p>
+              <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-[#7d8792]">
+                {selectedAnalyst ? 'Selected scout' : 'Selected senior investor'}
+              </p>
               <div className="mt-4 flex items-center gap-3">
                 <div className="flex h-14 w-14 items-center justify-center border border-[#313943] bg-[#181e24]">
-                  <AgentSprite palette={selectedAgent.palette} status={selectedAgent.status} />
+                  <AgentSprite
+                    palette={selectedAnalyst?.palette ?? selectedSenior?.palette ?? 0}
+                    status={selectedAnalyst
+                      ? statusForAnalyst(selectedSnapshot, selectedEvent, now)
+                      : committeeActive ? 'reviewing' : 'idle'}
+                  />
                 </div>
                 <div className="min-w-0">
-                  <h2 className="truncate text-base font-semibold text-white">{selectedAgent.name}</h2>
-                  <p className="mt-1 text-xs" style={{ color: STATUS_COLORS[selectedAgent.status] }}>
-                    {STATUS_LABELS[selectedAgent.status]}
+                  <h2 className="truncate text-base font-semibold text-white">
+                    {selectedAnalyst?.name ?? selectedSenior?.name ?? 'Agent'}
+                  </h2>
+                  <p className="mt-1 text-xs text-[#8d97a2]">
+                    {selectedAnalyst?.domain ?? selectedSenior?.lens}
                   </p>
                 </div>
               </div>
 
-              <dl className="mt-5 grid grid-cols-[92px_minmax(0,1fr)] gap-x-3 gap-y-3 text-xs">
-                <dt className="text-[#7d8792]">Current task</dt>
-                <dd className="line-clamp-3 leading-5 text-[#d2d7dd]">
-                  {compactTask(selectedView, selectedAgent.desk)}
-                </dd>
-                <dt className="text-[#7d8792]">Ticker</dt>
-                <dd className="font-mono font-semibold text-white">{selectedView?.ticker ?? '—'}</dd>
-                <dt className="text-[#7d8792]">Stance</dt>
-                <dd className="font-medium capitalize" style={{ color: stanceColor(selectedView?.stance) }}>
-                  {selectedView?.stance ?? 'No read'}
-                </dd>
-                <dt className="text-[#7d8792]">Conviction</dt>
-                <dd>
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: 5 }, (_, index) => {
-                      const conviction = selectedView?.confidence ?? selectedView?.conviction ?? 0;
-                      return (
-                        <span
-                          key={index}
-                          className="h-2.5 w-4 border border-[#4b5560]"
-                          style={{
-                            backgroundColor: conviction >= (index + 1) * 20
-                              ? stanceColor(selectedView?.stance)
-                              : 'transparent',
-                          }}
-                        />
-                      );
-                    })}
-                    <span className="ml-1 font-mono text-[10px] text-[#9ba4ae]">
-                      {selectedView ? `${selectedView.confidence ?? selectedView.conviction}%` : '—'}
-                    </span>
-                  </div>
-                </dd>
-                <dt className="text-[#7d8792]">Last run</dt>
-                <dd className="text-[#d2d7dd]">
-                  {formatAge(selectedView ? timeOf(selectedView) : undefined)}
-                  {selectedView && (
-                    <span className="mt-0.5 block text-[10px] text-[#697480]">
-                      {new Date(timeOf(selectedView)).toLocaleString()}
-                    </span>
-                  )}
-                </dd>
-              </dl>
+              {selectedAnalyst ? (
+                <dl className="mt-5 grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-3 text-xs">
+                  <dt className="text-[#7d8792]">Company</dt>
+                  <dd className="font-mono font-semibold text-white">{selectedSnapshot?.ticker ?? '—'}</dd>
+                  <dt className="text-[#7d8792]">Score</dt>
+                  <dd>
+                    <div className="flex items-center justify-between font-mono text-white">
+                      <span>{selectedSnapshot ? Math.round(selectedSnapshot.score) : '—'}</span>
+                      <span className="text-[9px] capitalize" style={{ color: stanceColor(selectedSnapshot?.signal) }}>
+                        {selectedSnapshot?.signal ?? 'No read'}
+                      </span>
+                    </div>
+                    {selectedSnapshot ? <ScoreBar score={selectedSnapshot.score} /> : null}
+                  </dd>
+                  <dt className="text-[#7d8792]">Last scan</dt>
+                  <dd className="text-[#d2d7dd]">{formatAge(selectedSnapshot?.observedAt)}</dd>
+                  <dt className="text-[#7d8792]">Watching</dt>
+                  <dd className="line-clamp-4 leading-5 text-[#d2d7dd]">{selectedSnapshot?.watch ?? selectedAnalyst.domain}</dd>
+                </dl>
+              ) : (
+                <dl className="mt-5 grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-3 text-xs">
+                  <dt className="text-[#7d8792]">Room</dt>
+                  <dd style={{ color: committeeActive ? '#e6b84d' : '#8a929d' }}>{committeeActive ? 'In session' : 'Standby'}</dd>
+                  <dt className="text-[#7d8792]">Company</dt>
+                  <dd className="font-mono font-semibold text-white">{committeeTicker ?? '—'}</dd>
+                  <dt className="text-[#7d8792]">View</dt>
+                  <dd className="capitalize" style={{ color: stanceColor(selectedSeniorSignal?.signal) }}>
+                    {selectedSeniorSignal?.signal ?? 'No committee read'}
+                  </dd>
+                  <dt className="text-[#7d8792]">Confidence</dt>
+                  <dd className="font-mono text-[#d2d7dd]">
+                    {selectedSeniorSignal?.confidence != null ? `${selectedSeniorSignal.confidence}%` : '—'}
+                  </dd>
+                </dl>
+              )}
             </section>
 
             <section className="border-b border-[#252c34] p-5">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-medium text-[#d8dde3]">Recent activity</h3>
-                <span className="text-[10px] text-[#727d88]">{activity.length} events</span>
+                <h3 className="text-xs font-medium text-[#d8dde3]">Signal handoffs</h3>
+                <span className="text-[10px] text-[#727d88]">{events.length} events</span>
               </div>
               <div className="mt-3 space-y-3">
-                {activity.length === 0 ? (
-                  <p className="py-4 text-center text-xs text-[#697480]">No persisted agent runs yet.</p>
-                ) : activity.map((view) => (
+                {events.length === 0 ? (
+                  <p className="py-4 text-center text-xs text-[#697480]">No score-change events yet.</p>
+                ) : events.slice(0, 6).map(event => (
                   <button
-                    key={view.id}
+                    key={event.id}
                     type="button"
-                    onClick={() => {
-                      const matching = officeAgents.find((agent) => matchesAgent(view, agent));
-                      if (matching) setSelectedId(matching.id);
-                    }}
-                    className="grid w-full grid-cols-[10px_minmax(0,1fr)_auto] items-start gap-2 text-left"
+                    onClick={() => setSelection(`quant:${event.analystKey}`)}
+                    className="grid w-full grid-cols-[8px_minmax(0,1fr)_auto] items-start gap-2 text-left"
                   >
-                    <span
-                      className="mt-1.5 h-2 w-2 rounded-full"
-                      style={{ backgroundColor: stanceColor(view.stance) }}
-                    />
+                    <span className="mt-1.5 h-2 w-2 rounded-full" style={{ backgroundColor: event.shouldEscalate ? '#f26d6d' : '#e6b84d' }} />
                     <span className="min-w-0">
-                      <span className="block truncate text-[11px] text-[#c9d0d7]">
-                        {view.agentName} · {view.ticker}
-                      </span>
-                      <span className="mt-0.5 block truncate text-[10px] text-[#697480]">
-                        {view.summary || view.reasoning}
-                      </span>
+                      <span className="block truncate text-[11px] text-[#c9d0d7]">{event.ticker} · {event.analystName}</span>
+                      <span className="mt-0.5 block line-clamp-2 text-[10px] text-[#697480]">{event.summary}</span>
                     </span>
-                    <span className="pt-0.5 font-mono text-[9px] text-[#697480]">{formatAge(timeOf(view))}</span>
+                    <span className="pt-0.5 font-mono text-[9px] text-[#697480]">{formatAge(event.createdAt)}</span>
                   </button>
                 ))}
               </div>
@@ -525,60 +702,40 @@ export function AgentOffice() {
             <section className="p-5">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-medium text-[#d8dde3]">Latest output</h3>
-                {selectedView && (
+                {(selectedSnapshot || selectedSeniorSignal) ? (
                   <span className="inline-flex items-center gap-1 text-[10px] text-[#65d487]">
                     <CheckCircle2 className="h-3 w-3" />
                     Persisted
                   </span>
-                )}
+                ) : null}
               </div>
 
-              {output ? (
-                <>
-                  <pre className="mt-3 max-h-44 overflow-auto border border-[#2d353e] bg-[#0b1015] p-3 font-mono text-[9px] leading-4 text-[#8fce8f]">
-                    {JSON.stringify(output, null, 2)}
-                  </pre>
-                  {selectedView?.evidence && selectedView.evidence.length > 0 && (
-                    <div className="mt-3 space-y-2">
-                      {selectedView.evidence.slice(0, 3).map((item, index) => (
-                        <a
-                          key={item.id ?? `${item.source}-${index}`}
-                          href={item.url ?? undefined}
-                          target={item.url ? '_blank' : undefined}
-                          rel={item.url ? 'noreferrer' : undefined}
-                          className={cn(
-                            'flex items-start gap-2 border-t border-[#252c34] pt-2 text-[10px] text-[#8d97a2]',
-                            item.url && 'hover:text-[#d7dde3]',
-                          )}
-                        >
-                          <ExternalLink className="mt-0.5 h-3 w-3 shrink-0" />
-                          <span className="line-clamp-2">{item.title || item.summary}</span>
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </>
+              {(selectedSnapshot || selectedSeniorSignal) ? (
+                <pre className="mt-3 max-h-56 overflow-auto border border-[#2d353e] bg-[#0b1015] p-3 font-mono text-[9px] leading-4 text-[#8fce8f]">
+                  {JSON.stringify(detailOutput, null, 2)}
+                </pre>
               ) : (
                 <div className="mt-3 border border-dashed border-[#303842] px-4 py-8 text-center">
                   <Clock3 className="mx-auto h-5 w-5 text-[#606b76]" />
-                  <p className="mt-2 text-xs text-[#8d97a2]">No output recorded for this agent.</p>
-                  <p className="mt-1 text-[10px] text-[#606b76]">Run it from the Opportunities workspace.</p>
+                  <p className="mt-2 text-xs text-[#8d97a2]">
+                    {loading ? 'Loading agent activity…' : 'No output recorded for this agent.'}
+                  </p>
                 </div>
               )}
 
-              {error && (
+              {error ? (
                 <div className="mt-3 flex items-start gap-2 border border-red-500/30 bg-red-500/5 p-3 text-[10px] text-red-300">
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   {error}
                 </div>
-              )}
+              ) : null}
             </section>
           </aside>
         </div>
       </div>
 
       <p className="mt-3 text-[10px] text-[var(--cb-text-muted)]">
-        Pixel artwork adapted from Pixel Agents under the MIT License. Activity is sourced from CapitalBase PM OS agent records.
+        Pixel artwork adapted from Pixel Agents under the MIT License. Movement reflects persisted monitoring and committee events.
       </p>
 
       <style jsx global>{`
@@ -592,12 +749,30 @@ export function AgentOffice() {
           image-rendering: pixelated;
         }
 
+        .agent-office-sprite--compact {
+          width: 24px;
+          height: 48px;
+          background-size: 168px 144px;
+        }
+
         .agent-office-sprite--typing {
           animation: agent-office-typing 0.75s steps(1) infinite;
         }
 
         .agent-office-sprite--reading {
           animation: agent-office-reading 1s steps(1) infinite;
+        }
+
+        .agent-office-sprite--compact.agent-office-sprite--typing {
+          animation-name: agent-office-typing-compact;
+        }
+
+        .agent-office-sprite--compact.agent-office-sprite--reading {
+          animation-name: agent-office-reading-compact;
+        }
+
+        .agent-office-runner--handoff {
+          animation: agent-office-handoff 2.6s ease-in-out infinite;
         }
 
         @keyframes agent-office-typing {
@@ -610,13 +785,32 @@ export function AgentOffice() {
           50%, 100% { background-position: -288px 0; }
         }
 
+        @keyframes agent-office-typing-compact {
+          0%, 49% { background-position: -72px 0; }
+          50%, 100% { background-position: -96px 0; }
+        }
+
+        @keyframes agent-office-reading-compact {
+          0%, 49% { background-position: -120px 0; }
+          50%, 100% { background-position: -144px 0; }
+        }
+
+        @keyframes agent-office-handoff {
+          0%, 12% { transform: translate(-70px, -50%); }
+          45%, 58% { transform: translate(-50%, -50%); }
+          88%, 100% { transform: translate(20px, -50%); }
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .agent-office-sprite--typing,
-          .agent-office-sprite--reading {
+          .agent-office-sprite--reading,
+          .agent-office-runner--handoff {
             animation: none;
           }
           .agent-office-sprite--typing { background-position: -144px 0; }
           .agent-office-sprite--reading { background-position: -240px 0; }
+          .agent-office-sprite--compact.agent-office-sprite--typing { background-position: -72px 0; }
+          .agent-office-sprite--compact.agent-office-sprite--reading { background-position: -120px 0; }
         }
       `}</style>
     </div>
