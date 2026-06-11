@@ -19,82 +19,27 @@ import type {
 import type { AgentView, PortfolioPosition } from '@/lib/pm/types';
 import { getActivePositions, PORTFOLIO_EVENT } from '@/lib/portfolio/storage';
 import { cn } from '@/lib/utils';
+import {
+  ANALYSTS,
+  DESK_VERB,
+  SENIORS,
+  STATUS_COLORS,
+  STATUS_LABELS,
+  ScoreBar,
+  ScoutOutputCard,
+  SeniorOutputCard,
+  ageInMs,
+  formatAge,
+  stanceColor,
+  type AgentStatus,
+  type AnalystDefinition,
+  type SeniorDefinition,
+  type SeniorSignal,
+} from '@/components/agents/parts';
 
-type AgentStatus = 'working' | 'reviewing' | 'idle' | 'needs_attention';
 type StatusFilter = 'all' | 'active' | 'attention' | 'idle';
 type Selection = `quant:${QuantAnalystKey}` | `senior:${string}`;
 type ScoutLocation = 'desk' | 'company_queue' | 'research_wall' | 'pm_inbox';
-
-type AnalystDefinition = {
-  key: QuantAnalystKey;
-  name: string;
-  palette: number;
-  domain: string;
-};
-
-type SeniorDefinition = {
-  key: string;
-  name: string;
-  palette: number;
-  lens: string;
-};
-
-type SeniorSignal = {
-  key?: string;
-  name?: string;
-  signal?: 'bullish' | 'bearish' | 'neutral';
-  confidence?: number;
-  reasoning?: string;
-  thesis?: string;
-};
-
-const ANALYSTS: AnalystDefinition[] = [
-  { key: 'fundamentals', name: 'Fundamentals Analyst', palette: 0, domain: 'Financial quality and cash-flow durability' },
-  { key: 'growth', name: 'Growth Analyst', palette: 1, domain: 'Revenue acceleration and market expansion' },
-  { key: 'news_sentiment', name: 'News Sentiment Analyst', palette: 2, domain: 'Headlines, revisions, and catalyst flow' },
-  { key: 'sentiment', name: 'Sentiment Analyst', palette: 3, domain: 'Positioning, options, and institutional behavior' },
-  { key: 'technicals', name: 'Technical Analyst', palette: 4, domain: 'Trend, momentum, volume, and structure' },
-  { key: 'valuation', name: 'Valuation Analyst', palette: 5, domain: 'Intrinsic value and multiple extension' },
-];
-
-const DESK_VERB: Record<QuantAnalystKey, string> = {
-  fundamentals: 'Modeling',
-  growth: 'Forecasting',
-  news_sentiment: 'Reading',
-  sentiment: 'Mapping flow on',
-  technicals: 'Charting',
-  valuation: 'Valuing',
-};
-
-const SENIORS: SeniorDefinition[] = [
-  { key: 'warren_buffett', name: 'Warren Buffett', palette: 0, lens: 'Moat and compounding' },
-  { key: 'charlie_munger', name: 'Charlie Munger', palette: 1, lens: 'Quality and mental models' },
-  { key: 'ben_graham', name: 'Ben Graham', palette: 2, lens: 'Margin of safety' },
-  { key: 'peter_lynch', name: 'Peter Lynch', palette: 3, lens: 'Growth at a reasonable price' },
-  { key: 'nassim_taleb', name: 'Nassim Taleb', palette: 4, lens: 'Fragility and tail risk' },
-  { key: 'michael_burry', name: 'Michael Burry', palette: 5, lens: 'Contrarian asymmetry' },
-  { key: 'cathie_wood', name: 'Cathie Wood', palette: 0, lens: 'Disruptive innovation' },
-  { key: 'aswath_damodaran', name: 'Aswath Damodaran', palette: 1, lens: 'Narrative and valuation' },
-  { key: 'stanley_druckenmiller', name: 'Stanley Druckenmiller', palette: 2, lens: 'Macro and momentum' },
-  { key: 'bill_ackman', name: 'Bill Ackman', palette: 3, lens: 'Concentrated quality' },
-  { key: 'phil_fisher', name: 'Phil Fisher', palette: 4, lens: 'Management and durability' },
-  { key: 'mohnish_pabrai', name: 'Mohnish Pabrai', palette: 5, lens: 'Low-risk asymmetry' },
-  { key: 'rakesh_jhunjhunwala', name: 'Rakesh Jhunjhunwala', palette: 0, lens: 'Structural growth' },
-];
-
-const STATUS_LABELS: Record<AgentStatus, string> = {
-  working: 'Scanning',
-  reviewing: 'Reviewing',
-  idle: 'Idle',
-  needs_attention: 'Escalating',
-};
-
-const STATUS_COLORS: Record<AgentStatus, string> = {
-  working: '#65d487',
-  reviewing: '#e6b84d',
-  idle: '#8a929d',
-  needs_attention: '#f26d6d',
-};
 
 const ACTIVE_LOOP_INTERVAL_MS = 30_000;
 const TICKER_COOLDOWN_MS = 90_000;
@@ -217,24 +162,6 @@ function walkChoreography(
   };
 }
 
-function ageInMs(value: string | undefined, now: number): number {
-  if (!value) return Number.POSITIVE_INFINITY;
-  const timestamp = new Date(value).getTime();
-  return Number.isFinite(timestamp) ? Math.max(0, now - timestamp) : Number.POSITIVE_INFINITY;
-}
-
-function formatAge(value: string | undefined): string {
-  if (!value) return 'No runs yet';
-  const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
-  if (!Number.isFinite(seconds)) return 'Unknown';
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
-
 function statusForAnalyst(
   snapshot: QuantScoreSnapshot | undefined,
   event: QuantSignalEvent | undefined,
@@ -252,13 +179,6 @@ function filterMatches(status: AgentStatus, filter: StatusFilter): boolean {
   if (filter === 'active') return status === 'working' || status === 'reviewing';
   if (filter === 'attention') return status === 'needs_attention';
   return status === 'idle';
-}
-
-function stanceColor(stance: string | undefined): string {
-  if (stance === 'bullish') return '#65d487';
-  if (stance === 'bearish') return '#f26d6d';
-  if (stance === 'mixed') return '#e6b84d';
-  return '#a7afb9';
 }
 
 function AgentSprite({
@@ -504,15 +424,6 @@ function SeniorSeat({
         </span>
       </span>
     </button>
-  );
-}
-
-function ScoreBar({ score }: { score: number }) {
-  const color = score >= 60 ? '#65d487' : score <= 40 ? '#f26d6d' : '#e6b84d';
-  return (
-    <div className="h-1.5 overflow-hidden bg-[#252d35]">
-      <div className="h-full transition-[width]" style={{ width: `${Math.max(0, Math.min(100, score))}%`, backgroundColor: color }} />
-    </div>
   );
 }
 
@@ -933,15 +844,27 @@ export function AgentOffice() {
     now,
   ) === 'needs_attention').length;
 
-  const detailOutput = selectedAnalyst
-    ? {
-        latestScore: selectedVisibleSnapshot ?? null,
-        latestSignalEvent: selectedEvent ?? null,
-      }
-    : {
-        committee: latestCommitteeView?.rawOutput ?? null,
-        selectedInvestor: selectedSeniorSignal ?? null,
-      };
+  const committeeRaw = (latestCommitteeView?.rawOutput ?? {}) as {
+    decision?: { action?: string; confidence?: number; reasoning?: string; sizing?: string };
+    consensus?: { bullish?: number; bearish?: number; neutral?: number };
+  };
+  const committeeDecision = committeeRaw.decision;
+  const committeeConsensus = committeeRaw.consensus;
+  const committeeAge = formatAge(latestCommitteeView?.runAt ?? latestCommitteeView?.createdAt);
+  const inspectorTicker = selectedVisibleSnapshot?.ticker ?? committeeTicker ?? '';
+  const scoutInspectorHref = selectedAnalyst && inspectorTicker
+    ? `/agents/inspector?ticker=${encodeURIComponent(inspectorTicker)}&analyst=${selectedAnalyst.key}`
+    : undefined;
+  const committeeInspectorHref = inspectorTicker
+    ? `/agents/inspector?ticker=${encodeURIComponent(inspectorTicker)}`
+    : undefined;
+  const recentForSelected = selectedAnalyst
+    ? snapshots
+        .filter(snap => snap.analystKey === selectedAnalyst.key)
+        .slice()
+        .sort((a, b) => b.observedAt.localeCompare(a.observedAt))
+        .slice(0, 6)
+    : [];
 
   return (
     <div className="mx-auto w-full max-w-[1600px]">
@@ -1458,10 +1381,26 @@ export function AgentOffice() {
                 ) : null}
               </div>
 
-              {(selectedVisibleSnapshot || selectedSeniorSignal) ? (
-                <pre className="mt-3 max-h-56 overflow-auto border border-[#2d353e] bg-[#0b1015] p-3 font-mono text-[9px] leading-4 text-[#8fce8f]">
-                  {JSON.stringify(detailOutput, null, 2)}
-                </pre>
+              {selectedAnalyst && selectedVisibleSnapshot ? (
+                <div className="mt-3">
+                  <ScoutOutputCard
+                    snapshot={selectedVisibleSnapshot}
+                    event={selectedEvent}
+                    recentSnapshots={recentForSelected}
+                    inspectorHref={scoutInspectorHref}
+                  />
+                </div>
+              ) : selectedSenior ? (
+                <div className="mt-3">
+                  <SeniorOutputCard
+                    senior={selectedSenior}
+                    signal={selectedSeniorSignal}
+                    decision={committeeActive ? committeeDecision : undefined}
+                    consensus={committeeActive ? committeeConsensus : undefined}
+                    age={committeeActive ? committeeAge : 'Standby'}
+                    inspectorHref={committeeInspectorHref}
+                  />
+                </div>
               ) : (
                 <div className="mt-3 border border-dashed border-[#303842] px-4 py-8 text-center">
                   <Clock3 className="mx-auto h-5 w-5 text-[#606b76]" />
