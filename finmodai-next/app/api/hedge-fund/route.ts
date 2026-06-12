@@ -5,6 +5,11 @@ import { generateTextWithProviderFallback, type LlmMessage } from '@/lib/llm/gen
 import { matchThemes } from '@/lib/execution/themeClassifier';
 import type { UserIntent } from '@/lib/execution/userIntent';
 import type { AssetMetadata } from '@/lib/execution/assetMetadata';
+import {
+  buildHybridScore,
+  signalFromHybridScore,
+} from '@/lib/pm/monitoring/hybridScore';
+import type { QuantAnalystKey, QuantScoreComponents } from '@/lib/pm/monitoring/types';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -84,7 +89,7 @@ type AnalysisResult = {
   mode:              HedgeFundMode;
   date:              string;
   decision:          { action: string; confidence: number; reasoning: string; sizing?: string } | null;
-  signals:           { key: string; name: string; group: string; score: number; signal: 'bullish' | 'bearish' | 'neutral'; confidence: number; reasoning: string; thesis: string; risk: string; watch: string; theme_fit_score: number | null; theme_fit_reason: string; business_consistency: boolean }[];
+  signals:           { key: string; name: string; group: string; score: number; signal: 'bullish' | 'bearish' | 'neutral'; confidence: number; reasoning: string; thesis: string; risk: string; watch: string; theme_fit_score: number | null; theme_fit_reason: string; business_consistency: boolean; scoreComponents?: QuantScoreComponents }[];
   consensus:         { bullish: number; bearish: number; neutral: number };
   median_theme_fit:  number | null;
   source?:           'python_backend' | 'llm_fallback';
@@ -424,7 +429,7 @@ function synthesizeDecision(
       action: 'buy',
       confidence: 64,
       sizing: 'Track / Build',
-      reasoning: 'Persona consensus leans bullish, but sizing still needs catalyst and risk confirmation.',
+      reasoning: 'The persona perspectives lean bullish, but they are correlated interpretations; sizing still needs catalyst and risk confirmation.',
     };
   }
   if (consensus.bearish >= consensus.bullish + 4) {
@@ -432,14 +437,14 @@ function synthesizeDecision(
       action: 'sell',
       confidence: 62,
       sizing: 'Avoid',
-      reasoning: 'Persona consensus leans negative; do not add unless catalyst evidence reverses the setup.',
+      reasoning: 'The persona perspectives lean negative; do not add unless catalyst evidence reverses the setup.',
     };
   }
   return {
     action: 'hold',
     confidence: 58,
     sizing: 'Track',
-    reasoning: 'Persona consensus is mixed; keep this tracked until stronger agent evidence comes through.',
+    reasoning: 'The persona perspectives are mixed; keep this tracked until stronger evidence comes through.',
   };
 }
 
@@ -669,7 +674,7 @@ async function runPortfolioManager(
       },
       {
         role: 'user',
-        content: `Ticker: ${ticker}\nConsensus: ${consensus.bullish} bullish, ${consensus.bearish} bearish, ${consensus.neutral} neutral\n\nAnalyst signals:\n${signalSummary}\n\nReturn JSON: { "action": "buy"|"sell"|"hold"|"short"|"cover", "confidence": 0-100, "sizing": "Track / Build / Trim / Exit watch / Avoid", "reasoning": "2-3 sentence synthesis" }`,
+        content: `Ticker: ${ticker}\nCorrelated persona perspectives (not independent votes): ${consensus.bullish} bullish, ${consensus.bearish} bearish, ${consensus.neutral} neutral\n\nAnalyst signals:\n${signalSummary}\n\nReturn JSON: { "action": "buy"|"sell"|"hold"|"short"|"cover", "confidence": 0-100, "sizing": "Track / Build / Trim / Exit watch / Avoid", "reasoning": "2-3 sentence synthesis" }`,
       },
     ],
   });
@@ -753,14 +758,32 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    const scoreAsOf = new Date().toISOString();
     const signals = rawSignals.map(s => {
       const meta = PERSONAS.find(p => p.key === s.key);
+      const scoreComponents = meta?.group === 'quant'
+        ? buildHybridScore({
+            analystKey: s.key as QuantAnalystKey,
+            llmScore: s.score,
+            market: ctx ?? {
+              price: null,
+              changePct: null,
+              pe: null,
+              forwardPe: null,
+              high52w: null,
+              low52w: null,
+            },
+            asOf: scoreAsOf,
+          })
+        : undefined;
+      const score = scoreComponents?.score
+        ?? Math.round(Math.max(0, Math.min(100, s.score)));
       return {
         key:                  s.key,
         name:                 meta?.name                  ?? s.key,
         group:                meta?.group                 ?? 'quant',
-        score:                Math.round(Math.max(0, Math.min(100, s.score))),
-        signal:               s.signal,
+        score,
+        signal:               scoreComponents ? signalFromHybridScore(score) : s.signal,
         confidence:           Math.round(Math.max(0, Math.min(100, s.confidence))),
         reasoning:            s.reasoning,
         thesis:               s.thesis ?? s.reasoning,
@@ -769,6 +792,7 @@ export async function POST(req: NextRequest) {
         theme_fit_score:      s.theme_fit_score      ?? null,
         theme_fit_reason:     s.theme_fit_reason     ?? '',
         business_consistency: s.business_consistency ?? true,
+        scoreComponents,
       };
     });
 

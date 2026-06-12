@@ -50,18 +50,27 @@ function eventSummary(
 export function evaluateQuantSignal(
   previous: QuantScoreSnapshot | null,
   current: QuantScoreSnapshot,
+  recentHistory: QuantScoreSnapshot[] = [],
 ): QuantSignalEvent | null {
   if (!previous) return null;
 
-  const delta = current.score - previous.score;
+  const stabilityWindow = [current, ...recentHistory.slice(0, 3)];
+  const baseline = recentHistory.length >= 3 ? recentHistory[2] : previous;
+  const delta = current.score - baseline.score;
   const thresholds = thresholdsFor(current.analystKey);
-  const kind = eventKind(previous, current);
+  const kind = eventKind(baseline, current);
   const hardBreak = kind === 'valuation_overextended' || kind === 'technical_break' || kind === 'signal_flip';
   if (!hardBreak && Math.abs(delta) < thresholds.change) return null;
 
-  const shouldEscalate = hardBreak || Math.abs(delta) >= thresholds.escalation;
+  const candidateDirection = delta > 0 ? 1 : delta < 0 ? -1 : 0;
+  const confirmations = stabilityWindow.filter(snapshot => {
+    const move = snapshot.score - baseline.score;
+    return Math.sign(move) === candidateDirection && Math.abs(move) >= thresholds.change;
+  }).length;
+  const stable = confirmations >= 3;
+  const shouldEscalate = stable && (hardBreak || Math.abs(delta) >= thresholds.escalation);
   const severity: QuantSignalEvent['severity'] =
-    hardBreak && Math.abs(delta) >= thresholds.escalation ? 'critical' :
+    shouldEscalate && hardBreak && Math.abs(delta) >= thresholds.escalation ? 'critical' :
     shouldEscalate ? 'high' :
     'medium';
   const now = new Date().toISOString();
@@ -72,7 +81,7 @@ export function evaluateQuantSignal(
     analystKey: current.analystKey,
     analystName: current.analystName,
     kind,
-    previousScore: previous.score,
+    previousScore: baseline.score,
     currentScore: current.score,
     delta,
     threshold: thresholds.change,
@@ -83,6 +92,11 @@ export function evaluateQuantSignal(
     reasoning: current.reasoning,
     status: shouldEscalate ? 'escalated' : 'open',
     shouldEscalate,
+    stability: {
+      required: 3,
+      window: 4,
+      confirmations,
+    },
     committeeRunId: null,
     createdAt: now,
     reviewedAt: null,

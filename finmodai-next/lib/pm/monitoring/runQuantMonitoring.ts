@@ -4,6 +4,7 @@ import { evaluateQuantSignal } from '@/lib/pm/monitoring/evaluateSignal';
 import { internalRequestHeaders } from '@/lib/pm/monitoring/internalRequestHeaders';
 import {
   latestQuantScore,
+  listQuantScores,
   saveQuantScoreSnapshot,
   saveQuantSignalEvent,
 } from '@/lib/pm/monitoring/store';
@@ -36,6 +37,7 @@ function toSnapshot(
     confidence: Math.max(0, Math.min(100, Math.round(signal.confidence))),
     reasoning: signal.reasoning,
     watch: signal.watch,
+    scoreComponents: signal.scoreComponents,
     source: 'hedge_fund_monitoring',
     observedAt,
     createdAt: observedAt,
@@ -98,11 +100,15 @@ export async function runQuantMonitoring(params: {
 
   const snapshots: QuantScoreSnapshot[] = [];
   const events: QuantSignalEvent[] = [];
+  const scoreHistory = await listQuantScores({ ticker, limit: 100 });
   for (const signal of signals) {
     const previous = await latestQuantScore(ticker, signal.key);
+    const history = scoreHistory
+      .filter(row => row.analystKey === signal.key)
+      .slice(0, 3);
     const snapshot = await saveQuantScoreSnapshot(toSnapshot(ticker, signal, observedAt));
     snapshots.push(snapshot);
-    const event = evaluateQuantSignal(previous, snapshot);
+    const event = evaluateQuantSignal(previous, snapshot, history);
     if (!event) continue;
     const saved = await saveQuantSignalEvent(event);
     events.push(saved);

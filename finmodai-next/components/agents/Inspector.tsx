@@ -318,7 +318,7 @@ export function Inspector({ ticker, analyst }: Props) {
             ) : null}
 
             <div className="mt-4 border-t border-[#252c34] pt-3">
-              <p className="text-[10px] uppercase tracking-wide text-[#7d8792]">Consensus</p>
+              <p className="text-[10px] uppercase tracking-wide text-[#7d8792]">Correlated perspectives, not independent votes</p>
               <div className="mt-2"><ConsensusBar consensus={committeeRaw.consensus} /></div>
             </div>
 
