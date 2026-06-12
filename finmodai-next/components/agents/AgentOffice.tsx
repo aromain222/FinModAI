@@ -7,6 +7,7 @@ import {
   Bot,
   CheckCircle2,
   Clock3,
+  DatabaseZap,
   Filter,
   RefreshCw,
   Users,
@@ -472,6 +473,8 @@ export function AgentOffice() {
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [syncingLedger, setSyncingLedger] = useState(false);
+  const [ledgerStatus, setLedgerStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [walkNow, setWalkNow] = useState(() => Date.now());
@@ -530,6 +533,33 @@ export function AgentOffice() {
       setRefreshing(false);
     }
   }, [startCompletedScanWalks]);
+
+  const syncFromLedger = useCallback(async () => {
+    setSyncingLedger(true);
+    setLedgerStatus(null);
+    try {
+      const res = await fetch('/api/portfolio/sync-ledger', { method: 'POST' });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const reason = payload?.reason ?? `HTTP ${res.status}`;
+        const detail = payload?.detail ?? '';
+        setLedgerStatus(`Sync failed: ${reason}${detail ? ` — ${detail}` : ''}`);
+      } else {
+        const synced = payload?.synced ?? 0;
+        const errs = payload?.errorCount ?? 0;
+        setLedgerStatus(
+          errs > 0
+            ? `Synced ${synced} · ${errs} error${errs === 1 ? '' : 's'}`
+            : `Synced ${synced} position${synced === 1 ? '' : 's'} from Ledger`,
+        );
+        await loadActivity(true);
+      }
+    } catch (err) {
+      setLedgerStatus(`Sync failed: ${(err as Error).message}`);
+    } finally {
+      setSyncingLedger(false);
+    }
+  }, [loadActivity]);
 
   useEffect(() => {
     void loadActivity();
@@ -948,6 +978,21 @@ export function AgentOffice() {
             <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
             Refresh
           </button>
+          <button
+            type="button"
+            onClick={() => { void syncFromLedger(); }}
+            disabled={syncingLedger}
+            title="Pull live holdings from Ledger (Plaid) into the office"
+            className="inline-flex h-9 items-center gap-2 rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 text-xs font-medium text-[var(--cb-text-secondary)] transition hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)] disabled:opacity-50"
+          >
+            <DatabaseZap className={cn('h-3.5 w-3.5', syncingLedger && 'animate-pulse')} />
+            {syncingLedger ? 'Syncing…' : 'Sync from Ledger'}
+          </button>
+          {ledgerStatus && (
+            <span className="hidden text-[10px] text-[var(--cb-text-muted)] md:inline-block">
+              {ledgerStatus}
+            </span>
+          )}
         </div>
       </header>
 
