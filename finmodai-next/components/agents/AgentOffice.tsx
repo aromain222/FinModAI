@@ -467,6 +467,11 @@ export function AgentOffice() {
   const [snapshots, setSnapshots] = useState<QuantScoreSnapshot[]>([]);
   const [events, setEvents] = useState<QuantSignalEvent[]>([]);
   const [positions, setPositions] = useState<PortfolioPosition[]>([]);
+  const [paperBook, setPaperBook] = useState<{
+    pnl: { realizedUSD: number; unrealizedUSD: number; totalUSD: number; openPositions: number; totalFills: number };
+    paperPositions: Array<{ ticker: string; shares: number; averageCost: number; currentPrice: number | null; unrealizedUSD: number | null }>;
+    recentOrders: Array<{ id: string; ticker: string; side: 'buy' | 'sell'; shares: number; fillPrice: number; notional: number; rationale: string; createdAt: string }>;
+  } | null>(null);
   const [localPortfolioTickers, setLocalPortfolioTickers] = useState<string[]>([]);
   const [monitoringTicker, setMonitoringTicker] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection>('quant:fundamentals');
@@ -505,10 +510,11 @@ export function AgentOffice() {
   const loadActivity = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
     try {
-      const [viewsResponse, monitoringResponse, positionsResponse] = await Promise.all([
+      const [viewsResponse, monitoringResponse, positionsResponse, paperResponse] = await Promise.all([
         fetch('/api/pm/agent-views?limit=500', { cache: 'no-store' }),
         fetch('/api/pm/quant-monitor?limit=500', { cache: 'no-store' }),
         fetch('/api/pm/positions?limit=200', { cache: 'no-store' }),
+        fetch('/api/pm/paper-book', { cache: 'no-store' }),
       ]);
       if (!viewsResponse.ok) throw new Error(`Agent activity request failed (${viewsResponse.status})`);
       if (!monitoringResponse.ok) throw new Error(`Monitoring request failed (${monitoringResponse.status})`);
@@ -524,6 +530,10 @@ export function AgentOffice() {
       setSnapshots(loadedSnapshots);
       setEvents(monitoringPayload.events ?? []);
       setPositions(positionsPayload.positions ?? []);
+      if (paperResponse.ok) {
+        const paperPayload = await paperResponse.json().catch(() => null);
+        if (paperPayload) setPaperBook(paperPayload);
+      }
       setNow(Date.now());
       setError(null);
     } catch (requestError) {
@@ -1538,6 +1548,74 @@ export function AgentOffice() {
                   </div>
                 )}
               </div>
+            </section>
+
+            <section className="border-b border-[#252c34] p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-medium text-[#d8dde3]">Paper book</h3>
+                <span className="font-mono text-[9px] text-[#727d88]">
+                  {paperBook?.pnl.totalFills ?? 0} fill{(paperBook?.pnl.totalFills ?? 0) === 1 ? '' : 's'}
+                </span>
+              </div>
+              <p className="mt-1 text-[9px] leading-4 text-[#697480]">
+                Hypothetical trades. Committee buy/sell verdicts auto-fill at last sync price ($100 buys, sell-all on sell, trim 50%). No real broker contact.
+              </p>
+              {paperBook == null ? (
+                <p className="mt-3 py-2 text-center text-xs text-[#697480]">Loading…</p>
+              ) : paperBook.pnl.totalFills === 0 ? (
+                <p className="mt-3 py-2 text-center text-xs text-[#697480]">
+                  No paper trades yet. The committee writes a fill when it escalates to buy/sell/trim with ≥50 confidence.
+                </p>
+              ) : (
+                <>
+                  <div className="mt-3 grid grid-cols-3 gap-2 border border-[#252c34] bg-[#10151a] p-2">
+                    <div>
+                      <div className="font-mono text-[8px] uppercase text-[#7d8792]">Total P&amp;L</div>
+                      <div
+                        className="font-mono text-[11px]"
+                        style={{ color: paperBook.pnl.totalUSD >= 0 ? '#65d487' : '#e2685c' }}
+                      >
+                        {paperBook.pnl.totalUSD >= 0 ? '+' : ''}${paperBook.pnl.totalUSD.toFixed(2)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-mono text-[8px] uppercase text-[#7d8792]">Realized</div>
+                      <div
+                        className="font-mono text-[11px]"
+                        style={{ color: paperBook.pnl.realizedUSD >= 0 ? '#65d487' : '#e2685c' }}
+                      >
+                        {paperBook.pnl.realizedUSD >= 0 ? '+' : ''}${paperBook.pnl.realizedUSD.toFixed(2)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-mono text-[8px] uppercase text-[#7d8792]">Open</div>
+                      <div className="font-mono text-[11px] text-[#dfe4ea]">
+                        {paperBook.pnl.openPositions}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 divide-y divide-[#252c34] border-y border-[#252c34]">
+                    {paperBook.recentOrders.slice(0, 5).map(o => (
+                      <div key={o.id} className="grid grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-2 py-1.5">
+                        <span
+                          className="font-mono text-[9px] font-semibold uppercase"
+                          style={{ color: o.side === 'buy' ? '#65d487' : '#e2685c' }}
+                        >
+                          {o.side}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate font-mono text-[10px] text-[#dfe4ea]">
+                            {o.ticker} · {o.shares.toFixed(4)} @ ${o.fillPrice.toFixed(2)}
+                          </span>
+                          <span className="block truncate font-mono text-[8px] text-[#65717c]">
+                            ${o.notional.toFixed(2)} · {formatAge(o.createdAt)}
+                          </span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </section>
 
             <section className="border-b border-[#252c34] p-5">

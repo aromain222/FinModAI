@@ -8,7 +8,8 @@ export type PMTableName =
   | 'pm_investment_decisions'
   | 'pm_alerts'
   | 'pm_memory'
-  | 'pm_weekly_memos';
+  | 'pm_weekly_memos'
+  | 'pm_paper_orders';
 
 export type PMStoredRecord = {
   id: string;
@@ -93,6 +94,7 @@ function toIndexRow(table: PMTableName, record: PMStoredRecord): Record<string, 
     updated_at: updatedAt,
   };
   if (table === 'pm_positions') return { ...base, status: getStringProp(record, 'status') };
+  if (table === 'pm_paper_orders') return { ...base, status: getStringProp(record, 'status') };
   if (table === 'pm_position_theses' || table === 'pm_thesis_updates') {
     return { ...base, thesis_status: getStringProp(record, 'thesisStatus') ?? getStringProp(record, 'thesisStatusAfter') };
   }
