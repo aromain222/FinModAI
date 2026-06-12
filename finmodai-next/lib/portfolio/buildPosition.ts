@@ -20,10 +20,14 @@ export function buildPositionFromRankedStock(
   entryPrice: number,
   notionalUsd?: number | null,
   sharesInput?: number | null,
+  entryDateInput?: string | null,
 ): ActivePosition {
   const brief = getCompanyBrief(stock.ticker);
   const now   = new Date();
+  const parsedEntryDate = entryDateInput ? new Date(entryDateInput) : now;
+  const entryDate = Number.isNaN(parsedEntryDate.getTime()) ? now : parsedEntryDate;
   const id    = `${stock.ticker}-${now.getTime()}`;
+  const daysSinceEntry = Math.max(0, Math.floor((now.getTime() - entryDate.getTime()) / 86400000));
 
   const topCatalyst  = stock.meta.catalysts?.[0];
   const nextCatalyst = topCatalyst
@@ -43,7 +47,7 @@ export function buildPositionFromRankedStock(
   return {
     id,
     ticker:        stock.ticker,
-    entryDate:     now.toISOString(),
+    entryDate:     entryDate.toISOString(),
     entryPrice,
     currentPrice:  entryPrice,
     shares,
@@ -53,7 +57,7 @@ export function buildPositionFromRankedStock(
     currentScore:  stock.score,
     entrySignal:   stock.signal,
     currentSignal: stock.signal,
-    status:        computeStatus(stock.score, 0),
+    status:        computeStatus(stock.score, daysSinceEntry),
     thesisDrift:   'stable',
     thesisSummary: stock.primaryReason,
     currentStance: stanceFromSignal(stock.signal),
@@ -63,7 +67,7 @@ export function buildPositionFromRankedStock(
     timeline: [
       {
         id:          `${id}-entry`,
-        date:        now.toISOString(),
+        date:        entryDate.toISOString(),
         description: `Position opened at $${entryPrice.toFixed(2)}${shares !== null ? ` for ${shares.toFixed(4)} shares` : ''}${costBasis !== null ? ` ($${Math.round(costBasis).toLocaleString('en-US')} cost basis)` : ''}. ${stock.primaryReason}`,
         kind:        'entry',
       },

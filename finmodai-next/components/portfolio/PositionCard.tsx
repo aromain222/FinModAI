@@ -7,6 +7,7 @@ import type { StockQuote } from '@/app/api/quotes/route';
 import type { ClassifiedNewsItem } from '@/lib/portfolio/newsClassify';
 import { LABEL_STYLE } from '@/lib/portfolio/newsClassify';
 import { cn } from '@/lib/utils';
+import { positionEconomics } from '@/lib/portfolio/positionMath';
 
 const STATUS_LABELS: Record<PositionStatus, string> = {
   building:  'New',
@@ -46,14 +47,6 @@ function fmtUsd(value: number | null | undefined): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a';
   const sign = value < 0 ? '–' : '';
   return `${sign}$${Math.round(Math.abs(value)).toLocaleString('en-US')}`;
-}
-
-function positionShares(position: ActivePosition): number | null {
-  if (typeof position.shares === 'number' && Number.isFinite(position.shares) && position.shares > 0) return position.shares;
-  if (typeof position.notionalUsd === 'number' && Number.isFinite(position.notionalUsd) && position.notionalUsd > 0 && position.entryPrice > 0) {
-    return position.notionalUsd / position.entryPrice;
-  }
-  return null;
 }
 
 type Props = {
@@ -226,19 +219,12 @@ export function PositionCard({
   const [priceInput,   setPriceInput]   = useState('');
 
   const livePrice   = quote?.price ?? position.currentPrice;
-  const shares      = positionShares(position);
-  const costBasis   = typeof position.costBasis === 'number' && Number.isFinite(position.costBasis) && position.costBasis > 0
-    ? position.costBasis
-    : shares !== null
-      ? shares * position.entryPrice
-      : typeof position.notionalUsd === 'number' && Number.isFinite(position.notionalUsd) && position.notionalUsd > 0
-        ? position.notionalUsd
-        : null;
-  const marketValue = shares !== null ? shares * livePrice : null;
-  const dollarPnL   = marketValue !== null && costBasis !== null ? marketValue - costBasis : null;
-  const pctChange   = costBasis !== null && costBasis > 0 && dollarPnL !== null
-    ? (dollarPnL / costBasis) * 100
-    : ((livePrice - position.entryPrice) / position.entryPrice) * 100;
+  const economics   = positionEconomics(position, livePrice);
+  const shares      = economics.shares;
+  const costBasis   = economics.totalCostBasis;
+  const marketValue = economics.marketValue;
+  const dollarPnL   = economics.pnlUsd;
+  const pctChange   = economics.pnlPct;
   const scoreDelta  = position.currentScore - position.entryScore;
   const computedDrift: ThesisDrift = scoreDelta > 0.3 ? 'strengthening' : scoreDelta < -0.3 ? 'weakening' : 'stable';
   const drift       = driftBadge(computedDrift);
@@ -284,7 +270,7 @@ export function PositionCard({
         {/* P&L + actions */}
         <div className="flex items-center gap-2">
           <div className="text-right">
-            {/* Since-entry return */}
+            {/* Return anchored to the user's recorded entry date and price. */}
             <div className={cn('text-lg font-bold tabular-nums', pnlColor(pctChange))}>
               {pctChange >= 0 ? '+' : ''}{pctChange.toFixed(1)}%
             </div>
@@ -347,7 +333,7 @@ export function PositionCard({
             ({scoreDelta >= 0 ? '+' : ''}{scoreDelta.toFixed(1)})
           </span>
         </span>
-        <span className="text-[var(--cb-text-muted)]">Since {fmtDate(position.entryDate)}</span>
+        <span className="text-[var(--cb-text-muted)]">Since entry · {fmtDate(position.entryDate)}</span>
       </div>
 
       {/* Body grid */}

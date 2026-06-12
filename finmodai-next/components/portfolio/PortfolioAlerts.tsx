@@ -5,6 +5,7 @@ import type { ActivePosition, PositionMonitorAction, PositionMonitorAgentRead } 
 import type { StockQuote } from '@/app/api/quotes/route';
 import type { ClassifiedNewsItem, LabelKey } from '@/lib/portfolio/newsClassify';
 import { cn } from '@/lib/utils';
+import { positionEconomics } from '@/lib/portfolio/positionMath';
 
 type Props = {
   positions: ActivePosition[];
@@ -72,22 +73,6 @@ function fallbackAction(position: ActivePosition, pnlPct: number, news: Classifi
   return 'Hold';
 }
 
-function positionShares(position: ActivePosition): number | null {
-  if (typeof position.shares === 'number' && Number.isFinite(position.shares) && position.shares > 0) return position.shares;
-  if (typeof position.notionalUsd === 'number' && Number.isFinite(position.notionalUsd) && position.notionalUsd > 0 && position.entryPrice > 0) {
-    return position.notionalUsd / position.entryPrice;
-  }
-  return null;
-}
-
-function costBasis(position: ActivePosition): number | null {
-  if (typeof position.costBasis === 'number' && Number.isFinite(position.costBasis) && position.costBasis > 0) return position.costBasis;
-  const shares = positionShares(position);
-  if (shares !== null) return shares * position.entryPrice;
-  if (typeof position.notionalUsd === 'number' && Number.isFinite(position.notionalUsd) && position.notionalUsd > 0) return position.notionalUsd;
-  return null;
-}
-
 function whyNow(position: ActivePosition, pnlPct: number, news: ClassifiedNewsItem[] | undefined): string {
   const monitor = position.latestMonitor;
   if (monitor?.exitTrigger) return monitor.exitTrigger;
@@ -128,12 +113,7 @@ export function PortfolioAlerts({ positions, quotes, newsMap, monitoring, onRefr
     .map(position => {
       const quote = quotes.get(position.ticker);
       const livePrice = quote?.price ?? position.currentPrice;
-      const shares = positionShares(position);
-      const basis = costBasis(position);
-      const pnlUsd = shares !== null && basis !== null ? shares * livePrice - basis : null;
-      const pnlPct = basis !== null && basis > 0 && pnlUsd !== null
-        ? (pnlUsd / basis) * 100
-        : ((livePrice - position.entryPrice) / position.entryPrice) * 100;
+      const pnlPct = positionEconomics(position, livePrice).pnlPct;
       const news = newsMap.get(position.ticker);
       const action = position.latestMonitor?.action ?? fallbackAction(position, pnlPct, news);
       const confidence = position.latestMonitor?.confidence ?? 42;

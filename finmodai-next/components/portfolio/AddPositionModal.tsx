@@ -15,6 +15,7 @@ interface FormState {
   ticker: string;
   shares: string;
   costBasis: string;
+  entryDate: string;
   thesis: string;
   submitToAlpaca: boolean;
 }
@@ -23,6 +24,7 @@ const DEFAULT_FORM: FormState = {
   ticker: '',
   shares: '',
   costBasis: '',
+  entryDate: new Date().toISOString().slice(0, 10),
   thesis: '',
   submitToAlpaca: true,
 };
@@ -90,11 +92,12 @@ export function AddPositionModal({ open, onClose, prefillTicker }: AddPositionMo
       const position: ActivePosition = {
         id: crypto.randomUUID(),
         ticker,
-        entryDate: new Date().toISOString().split('T')[0],
+        entryDate: new Date(`${form.entryDate}T12:00:00`).toISOString(),
         entryPrice: costBasis,
         currentPrice: costBasis,
         shares,
-        costBasis,
+        costBasis: shares * costBasis,
+        notionalUsd: shares * costBasis,
         entryScore: 5,
         currentScore: 5,
         entrySignal: 'yellow',
@@ -129,6 +132,8 @@ export function AddPositionModal({ open, onClose, prefillTicker }: AddPositionMo
           entryDate: position.entryDate,
           entryPrice: costBasis,
           shares,
+          costBasis: position.costBasis,
+          notionalExposure: position.notionalUsd,
           thesis: form.thesis.trim() || null,
         }),
       }).then(response => {
@@ -226,6 +231,20 @@ export function AddPositionModal({ open, onClose, prefillTicker }: AddPositionMo
               min="0"
               step="any"
               className="w-full cursor-pointer rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-3 py-1.5 text-sm text-[var(--cb-text-primary)] placeholder:text-[var(--cb-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--cb-border)]"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--cb-text-secondary)]">
+              Bought on <span className="text-[var(--cb-text-muted)]">(since-entry anchor)</span>
+            </label>
+            <input
+              type="date"
+              value={form.entryDate}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={e => handleChange('entryDate', e.target.value)}
+              required
+              className="w-full cursor-pointer rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-3 py-1.5 text-sm text-[var(--cb-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--cb-border)]"
             />
           </div>
 

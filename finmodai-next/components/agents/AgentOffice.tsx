@@ -41,8 +41,8 @@ type StatusFilter = 'all' | 'active' | 'attention' | 'idle';
 type Selection = `quant:${QuantAnalystKey}` | `senior:${string}`;
 type ScoutLocation = 'desk' | 'company_queue' | 'research_wall' | 'pm_inbox';
 
-const ACTIVE_LOOP_INTERVAL_MS = 60_000;
-const TICKER_COOLDOWN_MS = 180_000;
+const ACTIVE_LOOP_INTERVAL_MS = 120_000;
+const TICKER_COOLDOWN_MS = 120_000;
 // Scouts in this set never leave their desk — they cover continuous data streams.
 const ALWAYS_AT_DESK = new Set<QuantAnalystKey>(['news_sentiment']);
 
@@ -181,7 +181,7 @@ function statusForAnalyst(
 ): AgentStatus {
   if (event?.status === 'escalated' && event.shouldEscalate) return 'needs_attention';
   const age = ageInMs(snapshot?.observedAt, now);
-  if (age <= 90_000) return 'working';
+  if (age <= 150_000) return 'working';
   if (age <= 30 * 60_000) return 'reviewing';
   return 'idle';
 }
@@ -474,9 +474,30 @@ export function AgentOffice() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [walkTick, setWalkTick] = useState(0);
+  const [walkNow, setWalkNow] = useState(() => Date.now());
   const [walkSessions, setWalkSessions] = useState<Partial<Record<QuantAnalystKey, WalkSession>>>({});
-  const lastSeenEventRef = useRef<Partial<Record<QuantAnalystKey, string>>>({});
+  const lastSeenSnapshotRef = useRef<Partial<Record<QuantAnalystKey, string>>>({});
+
+  const startCompletedScanWalks = useCallback((
+    completedSnapshots: QuantScoreSnapshot[],
+    includeFirstObservation = false,
+  ) => {
+    const startedAt = Date.now();
+    let pending: Partial<Record<QuantAnalystKey, WalkSession>> | null = null;
+    for (const snapshot of completedSnapshots) {
+      const previousId = lastSeenSnapshotRef.current[snapshot.analystKey];
+      if (previousId === snapshot.id) continue;
+      lastSeenSnapshotRef.current[snapshot.analystKey] = snapshot.id;
+      if (!includeFirstObservation && !previousId) continue;
+      if (ALWAYS_AT_DESK.has(snapshot.analystKey)) continue;
+      if (!pending) pending = {};
+      pending[snapshot.analystKey] = { startedAt, ticker: snapshot.ticker };
+    }
+    if (pending) {
+      const additions = pending;
+      setWalkSessions(current => ({ ...current, ...additions }));
+    }
+  }, []);
 
   const loadActivity = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
@@ -495,7 +516,9 @@ export function AgentOffice() {
         positionsResponse.json() as Promise<{ positions?: PortfolioPosition[] }>,
       ]);
       setViews([...(viewsPayload.agentViews ?? [])].sort((a, b) => (b.runAt ?? b.createdAt).localeCompare(a.runAt ?? a.createdAt)));
-      setSnapshots(monitoringPayload.snapshots ?? []);
+      const loadedSnapshots = monitoringPayload.snapshots ?? [];
+      startCompletedScanWalks(loadedSnapshots);
+      setSnapshots(loadedSnapshots);
       setEvents(monitoringPayload.events ?? []);
       setPositions(positionsPayload.positions ?? []);
       setNow(Date.now());
@@ -506,13 +529,13 @@ export function AgentOffice() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [startCompletedScanWalks]);
 
   useEffect(() => {
     void loadActivity();
     const polling = window.setInterval(() => { void loadActivity(); }, 15_000);
     const clock = window.setInterval(() => setNow(Date.now()), 30_000);
-    const walk = window.setInterval(() => setWalkTick(current => (current + 1) % 1_000_000), 250);
+    const walk = window.setInterval(() => setWalkNow(Date.now()), 250);
     return () => {
       window.clearInterval(polling);
       window.clearInterval(clock);
@@ -565,7 +588,9 @@ export function AgentOffice() {
         }>;
       })
       .then(result => {
-        setSnapshots(current => [...(result.snapshots ?? []), ...current]);
+        const completedSnapshots = result.snapshots ?? [];
+        startCompletedScanWalks(completedSnapshots, true);
+        setSnapshots(current => [...completedSnapshots, ...current]);
         setEvents(current => [...(result.events ?? []), ...current]);
         setError(null);
       })
@@ -575,7 +600,7 @@ export function AgentOffice() {
       .finally(() => {
         setMonitoringTicker(null);
       });
-  }, [loading, monitoringTicker, nextUnscoredTicker]);
+  }, [loading, monitoringTicker, nextUnscoredTicker, startCompletedScanWalks]);
 
   // Always-on monitoring loop: rescans the stalest portfolio ticker on a cadence
   // so the desk is never quiet. Per-ticker cooldown keeps the same name from being
@@ -634,7 +659,9 @@ export function AgentOffice() {
           }>;
         })
         .then(result => {
-          setSnapshots(current => [...(result.snapshots ?? []), ...current]);
+          const completedSnapshots = result.snapshots ?? [];
+          startCompletedScanWalks(completedSnapshots, true);
+          setSnapshots(current => [...completedSnapshots, ...current]);
           setEvents(current => [...(result.events ?? []), ...current]);
         })
         .catch(requestError => {
@@ -643,7 +670,7 @@ export function AgentOffice() {
         .finally(() => setMonitoringTicker(null));
     }, ACTIVE_LOOP_INTERVAL_MS);
     return () => window.clearInterval(interval);
-  }, [loading]);
+  }, [loading, startCompletedScanWalks]);
 
   const latestSnapshotByAnalyst = useMemo(() => {
     const map = new Map<QuantAnalystKey, QuantScoreSnapshot>();
@@ -661,28 +688,6 @@ export function AgentOffice() {
     return map;
   }, [events]);
 
-  // Only big events make a scout get up — anything tagged shouldEscalate triggers
-  // a walk to the PM inbox. Routine snapshots just keep the scout typing at their desk.
-  useEffect(() => {
-    let pending: Partial<Record<QuantAnalystKey, WalkSession>> | null = null;
-    for (const analyst of ANALYSTS) {
-      const latestEvent = latestEventByAnalyst.get(analyst.key);
-      if (!latestEvent) continue;
-      const prevId = lastSeenEventRef.current[analyst.key];
-      if (prevId === latestEvent.id) continue;
-      const firstTime = !prevId;
-      lastSeenEventRef.current[analyst.key] = latestEvent.id;
-      if (firstTime) continue;
-      if (!latestEvent.shouldEscalate) continue;
-      if (!pending) pending = {};
-      pending[analyst.key] = { startedAt: Date.now(), ticker: latestEvent.ticker };
-    }
-    if (pending) {
-      const additions = pending;
-      setWalkSessions(prev => ({ ...prev, ...additions }));
-    }
-  }, [latestEventByAnalyst]);
-
   // Drop walk sessions once they finish so the scout returns to default at-desk.
   useEffect(() => {
     setWalkSessions(prev => {
@@ -698,13 +703,13 @@ export function AgentOffice() {
       }
       return changed ? next : prev;
     });
-  }, [walkTick]);
+  }, [walkNow]);
 
   const scoutRotations = useMemo(() => ANALYSTS.map((analyst, index) => {
     const event = latestEventByAnalyst.get(analyst.key);
     const snapshot = latestSnapshotByAnalyst.get(analyst.key);
     const session = walkSessions[analyst.key];
-    const nowMs = Date.now();
+    const nowMs = walkNow;
     const escalated = event?.status === 'escalated' && event.shouldEscalate;
     const isScanningThis = monitoringTicker && snapshot?.ticker === monitoringTicker;
 
@@ -718,13 +723,7 @@ export function AgentOffice() {
     let isWalking = false;
     const verb = DESK_VERB[analyst.key];
 
-    if (escalated && event) {
-      position = scoutPosition('pm_inbox', index);
-      activity = `Escalating ${event.ticker}`;
-      phaseLabel = 'At PM inbox';
-      location = 'pm_inbox';
-      nextLocation = 'pm_inbox';
-    } else if (session && nowMs - session.startedAt < WALK_TOTAL_MS) {
+    if (session && nowMs - session.startedAt < WALK_TOTAL_MS) {
       const elapsed = nowMs - session.startedAt;
       const chor = walkChoreography(elapsed, index, session.ticker);
       position = chor.position;
@@ -804,12 +803,15 @@ export function AgentOffice() {
     now,
     portfolioTickers,
     walkSessions,
-    walkTick,
+    walkNow,
   ]);
   const scoutRotationByKey = useMemo(
     () => new Map(scoutRotations.map(rotation => [rotation.analyst.key, rotation])),
     [scoutRotations],
   );
+  const pmHandoff = scoutRotations.find(rotation =>
+    rotation.phaseLabel === 'At PM inbox' || rotation.phaseLabel === 'Leaving inbox',
+  ) ?? null;
 
   const latestCommitteeView = views.find(view => view.agentName === 'Senior Investment Committee') ?? null;
   const committeeSignals = useMemo(() => {
@@ -1079,62 +1081,67 @@ export function AgentOffice() {
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 border border-[#5e4d32] bg-[#211b13]/95 px-1.5 py-1 font-mono text-[7px] uppercase tracking-[0.12em] text-[#d8ae5b] [writing-mode:vertical-rl]">
                       PM inbox
                     </span>
-                    <span className="absolute left-1/2 top-[70%] -translate-x-1/2 -translate-y-1/2 border border-[#3b4650] bg-[#12181e]/95 px-2 py-1 font-mono text-[7px] uppercase tracking-[0.12em] text-[#8da2b3]">
-                      Break area
-                    </span>
                   </div>
-                  {/* Break area decor — coffee table flanked by sofas, plus plants. Below desks at y~80%. */}
-                  <div className="pointer-events-none absolute inset-x-6 bottom-3 z-10 flex items-end justify-center gap-4">
-                    <Image
-                      alt=""
-                      src="/pixel-agents/assets/furniture/LARGE_PLANT/LARGE_PLANT.png"
-                      width={32}
-                      height={48}
-                      unoptimized
-                      className="h-20 w-12 [image-rendering:pixelated]"
-                    />
-                    <Image
-                      alt=""
-                      src="/pixel-agents/assets/furniture/SOFA/SOFA_SIDE.png"
-                      width={48}
-                      height={32}
-                      unoptimized
-                      className="h-14 w-20 [image-rendering:pixelated]"
-                    />
-                    <div className="flex flex-col items-center gap-1">
+                  {/* Enclosed break room. Scouts return here between active work cycles. */}
+                  <div className="pointer-events-none absolute inset-x-4 bottom-2 z-10 h-[27%] border-[5px] border-[#171c22] bg-[#202832]/90 shadow-[inset_0_0_0_2px_#46515c]">
+                    <span className="absolute left-3 top-2 border border-[#52606c] bg-[#11171c]/95 px-2 py-1 font-mono text-[7px] uppercase tracking-[0.14em] text-[#9ab0c1]">
+                      Break room
+                    </span>
+                    <span className="absolute right-3 top-2 font-mono text-[7px] uppercase tracking-[0.12em] text-[#697783]">
+                      Coffee · notes · reset
+                    </span>
+                    <div className="absolute inset-x-5 bottom-3 flex items-end justify-center gap-4">
                       <Image
                         alt=""
-                        src="/pixel-agents/assets/furniture/COFFEE/COFFEE.png"
-                        width={16}
-                        height={16}
+                        src="/pixel-agents/assets/furniture/LARGE_PLANT/LARGE_PLANT.png"
+                        width={32}
+                        height={48}
                         unoptimized
-                        className="h-6 w-6 [image-rendering:pixelated]"
+                        className="h-20 w-12 [image-rendering:pixelated]"
                       />
                       <Image
                         alt=""
-                        src="/pixel-agents/assets/furniture/COFFEE_TABLE/COFFEE_TABLE.png"
-                        width={32}
-                        height={16}
+                        src="/pixel-agents/assets/furniture/SOFA/SOFA_SIDE.png"
+                        width={48}
+                        height={32}
                         unoptimized
-                        className="h-8 w-20 [image-rendering:pixelated]"
+                        className="h-14 w-20 [image-rendering:pixelated]"
+                      />
+                      <div className="flex flex-col items-center gap-1">
+                        <Image
+                          alt=""
+                          src="/pixel-agents/assets/furniture/COFFEE/COFFEE.png"
+                          width={16}
+                          height={16}
+                          unoptimized
+                          className="h-6 w-6 [image-rendering:pixelated]"
+                        />
+                        <Image
+                          alt=""
+                          src="/pixel-agents/assets/furniture/COFFEE_TABLE/COFFEE_TABLE.png"
+                          width={32}
+                          height={16}
+                          unoptimized
+                          className="h-8 w-20 [image-rendering:pixelated]"
+                        />
+                      </div>
+                      <Image
+                        alt=""
+                        src="/pixel-agents/assets/furniture/SOFA/SOFA_SIDE.png"
+                        width={48}
+                        height={32}
+                        unoptimized
+                        className="h-14 w-20 -scale-x-100 [image-rendering:pixelated]"
+                      />
+                      <Image
+                        alt=""
+                        src="/pixel-agents/assets/furniture/CACTUS/CACTUS.png"
+                        width={16}
+                        height={32}
+                        unoptimized
+                        className="h-10 w-8 [image-rendering:pixelated]"
                       />
                     </div>
-                    <Image
-                      alt=""
-                      src="/pixel-agents/assets/furniture/SOFA/SOFA_SIDE.png"
-                      width={48}
-                      height={32}
-                      unoptimized
-                      className="h-14 w-20 -scale-x-100 [image-rendering:pixelated]"
-                    />
-                    <Image
-                      alt=""
-                      src="/pixel-agents/assets/furniture/CACTUS/CACTUS.png"
-                      width={16}
-                      height={32}
-                      unoptimized
-                      className="h-10 w-8 [image-rendering:pixelated]"
-                    />
                   </div>
                   <Image
                     alt=""
@@ -1314,12 +1321,27 @@ export function AgentOffice() {
                       ))}
                     </div>
 
-                    <div className="mt-3 flex items-center justify-center gap-2 border border-[#38414a] bg-[#11171c] px-2 py-2">
-                      <AgentSprite palette={4} status={committeeActive ? 'working' : 'idle'} compact />
+                    <div
+                      className={cn(
+                        'relative mt-3 flex items-center justify-center gap-2 border bg-[#11171c] px-2 py-2 transition-colors',
+                        pmHandoff ? 'agent-office-pm-receipt border-[#65d487]' : 'border-[#38414a]',
+                      )}
+                      data-testid="pm-agent-status"
+                    >
+                      {pmHandoff ? (
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap border border-[#65d487] bg-[#102018] px-2 py-1 font-mono text-[7px] uppercase tracking-wide text-[#8be3a5]">
+                          Received {pmHandoff.ticker} · reviewing
+                        </span>
+                      ) : null}
+                      <AgentSprite palette={4} status={pmHandoff || committeeActive ? 'working' : 'idle'} compact />
                       <div>
                         <p className="font-mono text-[8px] text-white">PM Agent</p>
-                        <p className="font-mono text-[7px]" style={{ color: committeeActive ? '#65d487' : '#8a929d' }}>
-                          {committeeActive ? 'Synthesizing recommendation' : 'Monitoring signal queue'}
+                        <p className="font-mono text-[7px]" style={{ color: pmHandoff || committeeActive ? '#65d487' : '#8a929d' }}>
+                          {pmHandoff
+                            ? `Acknowledged ${pmHandoff.analyst.name.replace(' Analyst', '')}`
+                            : committeeActive
+                              ? 'Synthesizing recommendation'
+                              : 'Monitoring signal queue'}
                         </p>
                       </div>
                     </div>
@@ -1692,6 +1714,10 @@ export function AgentOffice() {
           animation: agent-office-handoff 2.6s ease-in-out infinite;
         }
 
+        .agent-office-pm-receipt {
+          animation: agent-office-pm-receipt 0.8s ease-in-out infinite alternate;
+        }
+
         .agent-office-scout__sprite {
           filter: drop-shadow(0 4px 2px rgba(0, 0, 0, 0.4));
         }
@@ -1734,11 +1760,19 @@ export function AgentOffice() {
           88%, 100% { transform: translate(20px, -50%); }
         }
 
+        @keyframes agent-office-pm-receipt {
+          from { box-shadow: 0 0 0 rgba(101, 212, 135, 0.1); }
+          to { box-shadow: 0 0 18px rgba(101, 212, 135, 0.42); }
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .agent-office-sprite--typing,
           .agent-office-sprite--reading,
           .agent-office-sprite--walking,
           .agent-office-runner--handoff {
+            animation: none;
+          }
+          .agent-office-pm-receipt {
             animation: none;
           }
           .agent-office-scout {
