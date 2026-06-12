@@ -5,6 +5,7 @@ import type { RankedStock, Signal } from '@/lib/ranking/types';
 import type {
   ActivePosition,
   PositionMonitorAgentRead,
+  PositionMonitorNewsRead,
   PositionMonitorResult,
   ThesisDrift,
 } from '@/lib/portfolio/types';
@@ -100,6 +101,38 @@ function quantScoutRead(raw: unknown): PositionMonitorAgentRead | null {
   };
 }
 
+function newsSentimentAgentRead(raw: unknown): PositionMonitorNewsRead | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const data = raw as {
+    snapshots?: Array<{
+      analystKey?: string;
+      signal?: string;
+      confidence?: number;
+      reasoning?: string;
+      watch?: string;
+    }>;
+  };
+  const snapshot = Array.isArray(data.snapshots)
+    ? data.snapshots.find(item => item.analystKey === 'news_sentiment')
+    : null;
+  if (!snapshot || typeof snapshot.reasoning !== 'string' || !snapshot.reasoning.trim()) return null;
+  const signal = snapshot.signal === 'bullish' || snapshot.signal === 'bearish'
+    ? snapshot.signal
+    : 'neutral';
+  return {
+    signal,
+    confidence: clamp(
+      typeof snapshot.confidence === 'number' ? Math.round(snapshot.confidence) : 50,
+      0,
+      100,
+    ),
+    reasoning: snapshot.reasoning.trim(),
+    watch: typeof snapshot.watch === 'string' && snapshot.watch.trim()
+      ? snapshot.watch.trim()
+      : 'Watch for a quantified estimate revision, guidance change, or confirmed operating impact.',
+  };
+}
+
 function tradingAgentsRead(raw: unknown): PositionMonitorAgentRead | null {
   if (!raw || typeof raw !== 'object') return null;
   const data = raw as { decision?: string; summary?: string | null; thesis?: string | null };
@@ -150,10 +183,21 @@ function stanceDirection(read: PositionMonitorAgentRead | undefined): 'positive'
   return 'neutral';
 }
 
-function newsRead(news: ClassifiedNewsItem[]): { read: string; riskCount: number; estimateCount: number; positioningCount: number } {
+function newsRead(
+  news: ClassifiedNewsItem[],
+  agentRead: PositionMonitorNewsRead | null,
+): { read: string; riskCount: number; estimateCount: number; positioningCount: number } {
   const riskCount = news.filter(item => item.label === 'Risk').length;
   const estimateCount = news.filter(item => item.label === 'Estimate').length;
   const positioningCount = news.filter(item => item.label === 'Positioning').length;
+  if (agentRead) {
+    return {
+      read: agentRead.reasoning,
+      riskCount,
+      estimateCount,
+      positioningCount,
+    };
+  }
   if (riskCount >= 2) {
     return { read: `${riskCount} risk headlines loaded; treat this as exit-risk until the tape confirms otherwise.`, riskCount, estimateCount, positioningCount };
   }
@@ -175,15 +219,16 @@ function buildMonitor(params: {
   news: ClassifiedNewsItem[];
   rank: RankedStock | null;
   agentReads: PositionMonitorAgentRead[];
+  newsAgentRead: PositionMonitorNewsRead | null;
 }): PositionMonitorResult {
-  const { position, quote, news, rank, agentReads } = params;
+  const { position, quote, news, rank, agentReads, newsAgentRead } = params;
   const livePrice = quote?.price ?? position.currentPrice;
   const pnlPct = positionEconomics(position, livePrice).pnlPct;
   const updatedScore = round1(rank?.score ?? position.currentScore);
   const scoreDelta = updatedScore - position.entryScore;
   const scoreChange = updatedScore - position.currentScore;
   const updatedSignal = rank?.signal ?? signalFromScore(updatedScore);
-  const newsState = newsRead(news);
+  const newsState = newsRead(news, newsAgentRead);
   const bias = agentBias(agentReads);
   const hedgeRead = agentReads.find(read => read.source === 'hedge_fund');
   const hedgeDirection = stanceDirection(hedgeRead);
@@ -289,6 +334,7 @@ function buildMonitor(params: {
     updatedSignal,
     thesisDrift,
     agentReads,
+    newsAgentRead,
   };
 }
 
@@ -333,13 +379,16 @@ export async function POST(req: NextRequest) {
   ]);
 
   const rank = rankResult.status === 'fulfilled' ? rankResult.value : null;
+  const newsAgentRead = hedgeResult.status === 'fulfilled'
+    ? newsSentimentAgentRead(hedgeResult.value)
+    : null;
   const agentReads = [
     hedgeResult.status === 'fulfilled' ? quantScoutRead(hedgeResult.value) : null,
     tradingResult.status === 'fulfilled' ? tradingAgentsRead(tradingResult.value) : null,
     dexterResult.status === 'fulfilled' ? dexterRead(dexterResult.value) : null,
   ].filter((read): read is PositionMonitorAgentRead => Boolean(read));
 
-  const monitor = buildMonitor({ position, quote, news, rank, agentReads });
+  const monitor = buildMonitor({ position, quote, news, rank, agentReads, newsAgentRead });
 
   // Notify on exit/trim signals or significant score drops
   if (monitor.action === 'Exit' || monitor.action === 'Trim') {

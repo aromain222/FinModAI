@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Trash2, LogOut, ChevronDown, ChevronUp, Zap, RefreshCw, ShieldCheck, TrendingUp } from 'lucide-react';
+import { Trash2, LogOut, ChevronDown, ChevronUp, Zap, RefreshCw, ShieldCheck, TrendingUp, Newspaper } from 'lucide-react';
 import type { ActivePosition, PositionStatus, ThesisDrift, ThesisSnapshot } from '@/lib/portfolio/types';
 import type { StockQuote } from '@/app/api/quotes/route';
 import type { ClassifiedNewsItem } from '@/lib/portfolio/newsClassify';
 import { LABEL_STYLE } from '@/lib/portfolio/newsClassify';
 import { cn } from '@/lib/utils';
 import { positionEconomics } from '@/lib/portfolio/positionMath';
+import { buildDeterministicNewsSentiment } from '@/lib/pm/monitoring/newsSentiment';
 
 const STATUS_LABELS: Record<PositionStatus, string> = {
   building:  'New',
@@ -82,6 +83,12 @@ function actionLabel(action: NonNullable<ActivePosition['latestMonitor']>['actio
   if (action === 'Trim') return 'Trim risk';
   if (action === 'Exit') return 'Exit watch';
   return 'Watch';
+}
+
+function newsSignalTone(signal: 'bullish' | 'bearish' | 'neutral'): string {
+  if (signal === 'bullish') return 'border-emerald-400/30 bg-emerald-500/10';
+  if (signal === 'bearish') return 'border-rose-400/30 bg-rose-500/10';
+  return 'border-blue-400/25 bg-blue-500/10';
 }
 
 function monitorSummary(monitor: ActivePosition['latestMonitor']): string {
@@ -231,6 +238,10 @@ export function PositionCard({
   const todayPct    = quote?.changePct ?? null;
   const isLive      = quote?.price != null;
   const monitor     = position.latestMonitor;
+  const newsAgentRead = monitor?.newsAgentRead
+    ?? (news && news.length > 0
+      ? buildDeterministicNewsSentiment(position.ticker, news)
+      : null);
 
   const handlePriceConfirm = () => {
     const price = parseFloat(priceInput);
@@ -506,8 +517,37 @@ export function PositionCard({
       {/* News */}
       {news && news.length > 0 && (
         <div className="mt-3 border-t border-[var(--cb-border)] pt-3">
+          {newsAgentRead ? (
+            <div className={cn(
+              'mb-3 rounded-xl border p-3',
+              newsSignalTone(newsAgentRead.signal),
+            )}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Newspaper className="h-3.5 w-3.5 text-blue-400" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--cb-text-primary)]">
+                    News Sentiment Agent
+                  </span>
+                </div>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--cb-text-secondary)]">
+                  {newsAgentRead.signal} · {newsAgentRead.confidence}% confidence
+                </span>
+              </div>
+              <p className="mt-2 text-xs font-medium leading-5 text-[var(--cb-text-primary)]">
+                {newsAgentRead.reasoning}
+              </p>
+              <div className="mt-2 border-t border-[var(--cb-border-subtle)] pt-2">
+                <div className="text-[9px] font-bold uppercase tracking-widest text-[var(--cb-text-secondary)]">
+                  What would make this matter
+                </div>
+                <p className="mt-1 text-[11px] leading-4 text-[var(--cb-text-muted)]">
+                  {newsAgentRead.watch}
+                </p>
+              </div>
+            </div>
+          ) : null}
           <div className="mb-2 text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">
-            News
+            Source headlines
           </div>
           <div className="space-y-1.5">
             {news.map(item => {
