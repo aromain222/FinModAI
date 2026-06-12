@@ -1481,6 +1481,67 @@ export function AgentOffice() {
 
             <section className="border-b border-[#252c34] p-5">
               <div className="flex items-center justify-between">
+                <h3 className="text-xs font-medium text-[#d8dde3]">Portfolio</h3>
+                <span className="font-mono text-[9px] text-[#727d88]">
+                  {portfolioTickers.length} ticker{portfolioTickers.length === 1 ? '' : 's'}
+                </span>
+              </div>
+              <p className="mt-1 text-[9px] leading-4 text-[#697480]">
+                Names the scouts are rotating through. Sync from Ledger pulls live holdings.
+              </p>
+              <div className="mt-3">
+                {portfolioTickers.length === 0 ? (
+                  <p className="py-3 text-center text-xs text-[#697480]">No positions — click Sync from Ledger.</p>
+                ) : (
+                  <div className="divide-y divide-[#252c34] border-y border-[#252c34]">
+                    {portfolioTickers.map(ticker => {
+                      const latestForTicker = snapshots
+                        .filter(s => s.ticker === ticker)
+                        .reduce<QuantScoreSnapshot | null>((latest, s) => {
+                          if (!latest) return s;
+                          return new Date(s.observedAt).getTime() > new Date(latest.observedAt).getTime() ? s : latest;
+                        }, null);
+                      const isScanning = ticker === monitoringTicker;
+                      const isScored = scoredTickers.has(ticker);
+                      const statusColor = isScanning ? '#65d487' : isScored ? '#aeb6bf' : '#7d8792';
+                      const statusLabel = isScanning
+                        ? 'Scanning now'
+                        : isScored
+                          ? `Scored ${formatAge(latestForTicker?.observedAt ?? '')}`
+                          : 'Queued';
+                      return (
+                        <div
+                          key={ticker}
+                          className="grid grid-cols-[60px_minmax(0,1fr)_auto] items-center gap-2 py-1.5"
+                        >
+                          <span className="font-mono text-[10px] font-semibold text-[#dfe4ea]">{ticker}</span>
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            <span
+                              className={cn(
+                                'inline-block h-1.5 w-1.5 rounded-full shrink-0',
+                                isScanning && 'animate-pulse',
+                              )}
+                              style={{ backgroundColor: statusColor }}
+                            />
+                            <span className="truncate font-mono text-[9px]" style={{ color: statusColor }}>
+                              {statusLabel}
+                            </span>
+                          </span>
+                          {latestForTicker != null && (
+                            <span className="font-mono text-[9px] text-[#65717c]">
+                              {Math.round(latestForTicker.score)}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="border-b border-[#252c34] p-5">
+              <div className="flex items-center justify-between">
                 <h3 className="text-xs font-medium text-[#d8dde3]">Current activity</h3>
                 <span className="font-mono text-[9px] text-[#65d487]">
                   {Object.keys(walkSessions).length > 0
