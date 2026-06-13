@@ -1,8 +1,49 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Trophy, Play, TrendingUp, TrendingDown } from 'lucide-react';
+import { Trophy, Play, TrendingUp, TrendingDown, ClipboardCheck, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+type Tab = 'league' | 'review';
+type ReviewVerdict = 'keep' | 'trim' | 'replace' | 'add';
+
+type PositionReview = {
+  ticker: string;
+  currentPrice: number | null;
+  entryPrice: number | null;
+  pnlPct: number | null;
+  priorConviction: number | null;
+  freshConviction: number;
+  convictionDelta: number | null;
+  targetPrice: number;
+  stopLoss: number;
+  thesisSummary: string;
+  primaryDriver: string;
+  mainRisk: string;
+  nextCatalyst: string;
+  verdict: ReviewVerdict;
+  verdictReason: string;
+  suggestedAlternative: {
+    ticker: string;
+    mentionCount: number;
+    netDirection: 'up' | 'down' | 'flat';
+    sampleHeadline: string | null;
+  } | null;
+};
+
+type ReviewResponse = {
+  reviewedAt: string;
+  total: number;
+  summary: { keep: number; trim: number; replace: number; add: number };
+  reviews: PositionReview[];
+};
+
+const VERDICT_TONES: Record<ReviewVerdict, { bg: string; border: string; fg: string; label: string }> = {
+  keep:    { bg: 'bg-[var(--cb-green)]/[0.05]',  border: 'border-[var(--cb-green)]/40',  fg: '#65d487', label: 'KEEP' },
+  add:     { bg: 'bg-[var(--cb-green)]/[0.10]',  border: 'border-[var(--cb-green)]/60',  fg: '#65d487', label: 'ADD' },
+  trim:    { bg: 'bg-yellow-500/[0.05]',         border: 'border-yellow-600/40',         fg: '#e8c862', label: 'TRIM' },
+  replace: { bg: 'bg-red-500/[0.05]',            border: 'border-red-700/40',            fg: '#e2685c', label: 'REPLACE' },
+};
 
 const SECTORS = [
   'Technology',
@@ -65,12 +106,16 @@ function formatPct(p: number | null): string {
 }
 
 export default function CompetitionPage() {
+  const [tab, setTab] = useState<Tab>('league');
   const [sector, setSector] = useState<string>(SECTORS[0]);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rounds, setRounds] = useState<CompetitionRound[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [review, setReview] = useState<ReviewResponse | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -115,6 +160,24 @@ export default function CompetitionPage() {
     [rounds, selectedRoundId],
   );
 
+  const handleRunReview = useCallback(async () => {
+    setReviewing(true);
+    setReviewError(null);
+    try {
+      const res = await fetch('/api/pm/portfolio-review', { method: 'POST' });
+      const payload = await res.json().catch(() => ({})) as Partial<ReviewResponse> & { error?: string; hint?: string };
+      if (!res.ok) {
+        setReviewError(payload.error ? `${payload.error}${payload.hint ? ` — ${payload.hint}` : ''}` : `HTTP ${res.status}`);
+        return;
+      }
+      setReview(payload as ReviewResponse);
+    } catch (err) {
+      setReviewError((err as Error).message);
+    } finally {
+      setReviewing(false);
+    }
+  }, []);
+
   return (
     <main className="mx-auto max-w-7xl space-y-4">
       <header className="flex items-start justify-between gap-4">
@@ -127,7 +190,45 @@ export default function CompetitionPage() {
         </div>
       </header>
 
-      {stats && stats.totalRounds > 0 && (
+      <div className="flex gap-1 border-b border-[var(--cb-border)]">
+        <button
+          type="button"
+          onClick={() => setTab('league')}
+          className={cn(
+            'flex items-center gap-1.5 px-4 pb-2.5 pt-1 text-sm font-medium transition-colors',
+            tab === 'league'
+              ? 'border-b-2 border-[var(--cb-green)] text-[var(--cb-text-primary)]'
+              : 'text-[var(--cb-text-muted)] hover:text-[var(--cb-text-secondary)]',
+          )}
+        >
+          <Trophy className="h-3.5 w-3.5" />
+          The League
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('review')}
+          className={cn(
+            'flex items-center gap-1.5 px-4 pb-2.5 pt-1 text-sm font-medium transition-colors',
+            tab === 'review'
+              ? 'border-b-2 border-[var(--cb-green)] text-[var(--cb-text-primary)]'
+              : 'text-[var(--cb-text-muted)] hover:text-[var(--cb-text-secondary)]',
+          )}
+        >
+          <ClipboardCheck className="h-3.5 w-3.5" />
+          Should I still own this?
+        </button>
+      </div>
+
+      {tab === 'review' && (
+        <PortfolioReviewTab
+          review={review}
+          reviewing={reviewing}
+          error={reviewError}
+          onRun={handleRunReview}
+        />
+      )}
+
+      {tab === 'league' && stats && stats.totalRounds > 0 && (
         <section className="grid grid-cols-4 gap-3">
           <Stat label="Total picks" value={String(stats.totalRounds)} sub={null} tone="var(--cb-text-primary)" />
           <Stat label="Hit rate" value={stats.hitRate != null ? `${stats.hitRate.toFixed(0)}%` : '—'} sub={`${stats.completedRounds} scored`} tone={stats.hitRate != null && stats.hitRate >= 50 ? '#65d487' : '#e2685c'} />
@@ -141,6 +242,7 @@ export default function CompetitionPage() {
         </section>
       )}
 
+      {tab === 'league' && (
       <section className="flex items-end gap-2 rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] p-3">
         <label className="flex flex-col gap-1">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--cb-text-muted)]">Sector</span>
@@ -164,7 +266,9 @@ export default function CompetitionPage() {
         </button>
         {error && <span className="ml-2 text-xs text-red-400">{error}</span>}
       </section>
+      )}
 
+      {tab === 'league' && (
       <div className="grid grid-cols-[300px_minmax(0,1fr)] gap-4">
         <aside className="rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] p-3">
           <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--cb-text-muted)]">Past picks ({rounds.length})</h3>
@@ -208,7 +312,127 @@ export default function CompetitionPage() {
           )}
         </section>
       </div>
+      )}
     </main>
+  );
+}
+
+function PortfolioReviewTab({
+  review,
+  reviewing,
+  error,
+  onRun,
+}: {
+  review: ReviewResponse | null;
+  reviewing: boolean;
+  error: string | null;
+  onRun: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <section className="flex items-center justify-between rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] p-4">
+        <div>
+          <p className="text-sm text-[var(--cb-text-primary)]">Re-runs the PM analyzer on every held position and tells you what to do.</p>
+          <p className="mt-1 text-xs text-[var(--cb-text-muted)]">
+            Takes ~3-4 min for an 8-name book. Fresh scout scan + analyzer per ticker. Verdict rules: conviction &lt; 50 or below stop → replace; ≥80 + working → add; 50-64 or +20%+ → trim; else keep.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onRun}
+          disabled={reviewing}
+          className="inline-flex h-9 shrink-0 items-center gap-2 rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-4 text-sm font-medium text-[var(--cb-text-secondary)] transition hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)] disabled:opacity-50"
+        >
+          <RefreshCw className={cn('h-4 w-4', reviewing && 'animate-spin')} />
+          {reviewing ? 'Reviewing book…' : 'Review my book'}
+        </button>
+        {error && <span className="text-xs text-red-400">{error}</span>}
+      </section>
+
+      {review && (
+        <>
+          <section className="grid grid-cols-4 gap-3">
+            <SummaryStat label="Keep" value={review.summary.keep} tone="#65d487" />
+            <SummaryStat label="Trim" value={review.summary.trim} tone="#e8c862" />
+            <SummaryStat label="Replace" value={review.summary.replace} tone="#e2685c" />
+            <SummaryStat label="Add" value={review.summary.add} tone="#65d487" />
+          </section>
+
+          <div className="space-y-2">
+            {review.reviews
+              .slice()
+              .sort((a, b) => {
+                const order: Record<ReviewVerdict, number> = { replace: 0, add: 1, trim: 2, keep: 3 };
+                return order[a.verdict] - order[b.verdict];
+              })
+              .map(r => <ReviewCard key={r.ticker} r={r} />)}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function SummaryStat({ label, value, tone }: { label: string; value: number; tone: string }) {
+  return (
+    <div className="rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 py-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--cb-text-muted)]">{label}</p>
+      <p className="mt-1 font-mono text-xl" style={{ color: tone }}>{value}</p>
+    </div>
+  );
+}
+
+function ReviewCard({ r }: { r: PositionReview }) {
+  const tone = VERDICT_TONES[r.verdict];
+  return (
+    <div className={cn('rounded-md border p-4', tone.border, tone.bg)}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2">
+            <span className="font-mono text-lg font-bold text-[var(--cb-text-primary)]">{r.ticker}</span>
+            <span className="rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold" style={{ color: tone.fg, backgroundColor: `${tone.fg}1a` }}>
+              {tone.label}
+            </span>
+            {r.convictionDelta != null && (
+              <span className="font-mono text-[10px] text-[var(--cb-text-muted)]">
+                conv {r.priorConviction} → {r.freshConviction} ({r.convictionDelta > 0 ? '+' : ''}{r.convictionDelta})
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-[var(--cb-text-secondary)]">{r.verdictReason}</p>
+          <p className="mt-2 text-xs text-[var(--cb-text-primary)]">{r.thesisSummary}</p>
+          <div className="mt-2 flex gap-4 text-[10px] text-[var(--cb-text-muted)]">
+            <span>Driver: <span className="text-[var(--cb-text-secondary)]">{r.primaryDriver}</span></span>
+            <span>Main risk: <span className="text-[var(--cb-text-secondary)]">{r.mainRisk}</span></span>
+          </div>
+          {r.suggestedAlternative && (
+            <div className="mt-3 rounded border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--cb-text-muted)]">Suggested alternative</p>
+              <p className="mt-0.5 font-mono text-sm text-[var(--cb-text-primary)]">
+                {r.suggestedAlternative.ticker}
+                <span className="ml-2 text-[10px] text-[var(--cb-text-muted)]">
+                  {r.suggestedAlternative.mentionCount} mentions · trending {r.suggestedAlternative.netDirection}
+                </span>
+              </p>
+              {r.suggestedAlternative.sampleHeadline && (
+                <p className="mt-0.5 text-[10px] text-[var(--cb-text-muted)]">{r.suggestedAlternative.sampleHeadline}</p>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="font-mono text-base text-[var(--cb-text-primary)]">${r.currentPrice?.toFixed(2) ?? '—'}</p>
+          <p className="font-mono text-xs" style={{ color: r.pnlPct != null && r.pnlPct > 0 ? '#65d487' : r.pnlPct != null && r.pnlPct < 0 ? '#e2685c' : 'var(--cb-text-muted)' }}>
+            {r.pnlPct != null ? `${r.pnlPct > 0 ? '+' : ''}${r.pnlPct.toFixed(1)}%` : '—'}
+          </p>
+          <p className="mt-1 text-[10px] text-[var(--cb-text-muted)]">
+            tgt <span style={{ color: '#65d487' }}>${r.targetPrice.toFixed(0)}</span>
+            <span className="mx-1">·</span>
+            stop <span style={{ color: '#e2685c' }}>${r.stopLoss.toFixed(0)}</span>
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 
