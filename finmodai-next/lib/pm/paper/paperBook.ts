@@ -58,7 +58,7 @@ const paperOrderSchema = z.object({
 const BUY_NOTIONAL_USD = 100;
 const TRIM_FRACTION = 0.5;
 const DEFAULT_MIN_CONFIDENCE = 40;
-const TRIGGER_COOLDOWN_MS = 90 * 60 * 1000; // 90m per (ticker, side, trigger) to avoid runaway fills
+const TRIGGER_COOLDOWN_MS = 15 * 60 * 1000; // 15m per (ticker, side, trigger) — tight enough for "constant" cron-driven scanning
 
 function roundShares(qty: number): number {
   return Math.round(qty * 10_000) / 10_000;
