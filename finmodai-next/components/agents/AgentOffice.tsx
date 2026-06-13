@@ -5,6 +5,7 @@ import Image from 'next/image';
 import {
   AlertTriangle,
   Bot,
+  Brain,
   CheckCircle2,
   Clock3,
   DatabaseZap,
@@ -480,6 +481,8 @@ export function AgentOffice() {
   const [refreshing, setRefreshing] = useState(false);
   const [syncingLedger, setSyncingLedger] = useState(false);
   const [ledgerStatus, setLedgerStatus] = useState<string | null>(null);
+  const [analyzingPm, setAnalyzingPm] = useState(false);
+  const [pmStatus, setPmStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [walkNow, setWalkNow] = useState(() => Date.now());
@@ -543,6 +546,31 @@ export function AgentOffice() {
       setRefreshing(false);
     }
   }, [startCompletedScanWalks]);
+
+  const runPmAnalysis = useCallback(async () => {
+    setAnalyzingPm(true);
+    setPmStatus('Analyzing positions… this takes ~1-4 min for the book');
+    try {
+      const res = await fetch('/api/pm/analyze-portfolio', { method: 'POST' });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPmStatus(`PM analysis failed: ${payload?.error ?? `HTTP ${res.status}`}`);
+      } else {
+        const analyzed = payload?.analyzed ?? 0;
+        const failed = payload?.failed ?? 0;
+        setPmStatus(
+          failed > 0
+            ? `PM analyzed ${analyzed} · ${failed} failed`
+            : `PM analyzed ${analyzed} position${analyzed === 1 ? '' : 's'}`,
+        );
+        await loadActivity(true);
+      }
+    } catch (err) {
+      setPmStatus(`PM analysis failed: ${(err as Error).message}`);
+    } finally {
+      setAnalyzingPm(false);
+    }
+  }, [loadActivity]);
 
   const syncFromLedger = useCallback(async () => {
     setSyncingLedger(true);
@@ -998,9 +1026,19 @@ export function AgentOffice() {
             <DatabaseZap className={cn('h-3.5 w-3.5', syncingLedger && 'animate-pulse')} />
             {syncingLedger ? 'Syncing…' : 'Sync from Ledger'}
           </button>
-          {ledgerStatus && (
+          <button
+            type="button"
+            onClick={() => { void runPmAnalysis(); }}
+            disabled={analyzingPm || portfolioTickers.length === 0}
+            title="Run a real PM analysis on every position: target price, stop loss, written thesis, key risks, catalysts"
+            className="inline-flex h-9 items-center gap-2 rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 text-xs font-medium text-[var(--cb-text-secondary)] transition hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)] disabled:opacity-50"
+          >
+            <Brain className={cn('h-3.5 w-3.5', analyzingPm && 'animate-pulse')} />
+            {analyzingPm ? 'PM analyzing…' : 'Run PM analysis'}
+          </button>
+          {(ledgerStatus || pmStatus) && (
             <span className="hidden text-[10px] text-[var(--cb-text-muted)] md:inline-block">
-              {ledgerStatus}
+              {pmStatus ?? ledgerStatus}
             </span>
           )}
         </div>
@@ -1519,11 +1557,12 @@ export function AgentOffice() {
                         : isScored
                           ? `Scored ${formatAge(latestForTicker?.observedAt ?? '')}`
                           : 'Queued';
+                      const positionRecord = positions.find(p => p.ticker?.toUpperCase() === ticker);
+                      const hasPmReads = positionRecord
+                        && (positionRecord.targetPrice != null || positionRecord.stopLoss != null || positionRecord.convictionScore != null);
                       return (
-                        <div
-                          key={ticker}
-                          className="grid grid-cols-[60px_minmax(0,1fr)_auto] items-center gap-2 py-1.5"
-                        >
+                        <div key={ticker} className="py-1.5">
+                        <div className="grid grid-cols-[60px_minmax(0,1fr)_auto] items-center gap-2">
                           <span className="font-mono text-[10px] font-semibold text-[#dfe4ea]">{ticker}</span>
                           <span className="flex items-center gap-1.5 min-w-0">
                             <span
@@ -1542,6 +1581,25 @@ export function AgentOffice() {
                               {Math.round(latestForTicker.score)}
                             </span>
                           )}
+                        </div>
+                        {hasPmReads && positionRecord && (
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 pl-[60px] font-mono text-[8px] text-[#697480]">
+                            {positionRecord.targetPrice != null && (
+                              <span>tgt <span className="text-[#65d487]">${positionRecord.targetPrice.toFixed(2)}</span></span>
+                            )}
+                            {positionRecord.stopLoss != null && (
+                              <span>stop <span className="text-[#e2685c]">${positionRecord.stopLoss.toFixed(2)}</span></span>
+                            )}
+                            {positionRecord.convictionScore != null && (
+                              <span>conv <span className="text-[#dfe4ea]">{positionRecord.convictionScore}</span></span>
+                            )}
+                            {positionRecord.currentPrice != null && positionRecord.targetPrice != null && (
+                              <span className="text-[#65717c]">
+                                upside {(((positionRecord.targetPrice - positionRecord.currentPrice) / positionRecord.currentPrice) * 100).toFixed(0)}%
+                              </span>
+                            )}
+                          </div>
+                        )}
                         </div>
                       );
                     })}
