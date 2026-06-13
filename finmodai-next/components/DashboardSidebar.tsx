@@ -12,6 +12,7 @@ import {
   Briefcase,
   Bot,
   Search,
+  Trophy,
 } from "lucide-react";
 import { CapitalBaseLogo } from "@/components/CapitalBaseLogo";
 import { APP_CONSOLE_NAME, APP_NAME } from "@/lib/branding";
@@ -22,6 +23,7 @@ const navItems: Array<{ href: string; label: string; hint?: string; icon: React.
   { href: '/portfolio',    label: 'Portfolio',       hint: 'Monitor · Alerts · Decisions',   icon: Briefcase,     section: 'Workspace' },
   { href: '/agents',       label: 'Agent Office',    hint: 'Activity · Outputs · Status',     icon: Bot,           section: 'Workspace' },
   { href: '/research',     label: 'Idea Lab',        hint: 'Scan a ticker · PM thesis · Watchlist', icon: Search, section: 'Workspace' },
+  { href: '/competition',  label: 'The League',      hint: 'Sector run · Committee pick · Leaderboard', icon: Trophy, section: 'Workspace' },
   { href: '/news',         label: 'News',            icon: Newspaper,       section: 'Tools' },
   { href: '/events',       label: 'Events',          icon: Radar,           section: 'Tools' },
   { href: '/reports',      label: 'Reports',         icon: FileText,        section: 'Tools' },
