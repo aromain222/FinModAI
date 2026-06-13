@@ -133,7 +133,12 @@ export async function listPMRecords<T extends PMStoredRecord>(
   const supabase = getSupabaseTable(table);
   if (supabase) {
     try {
-      let query = supabase.select('payload').order('created_at', { ascending: false });
+      // select('*') instead of select('payload'): on newer Supabase Postgrest, the
+      // narrow-column projection returns 0 rows on tables created without an explicit
+      // FOR SELECT grant on that column (observed live for pm_paper_orders). Select all
+      // and project payload client-side — same data, same perf, no projection bug.
+      let query = (supabase as unknown as { select(cols: string): TableSelect }).select('*');
+      query = query.order('created_at', { ascending: false });
       if (params.ticker) query = query.eq('ticker', params.ticker.toUpperCase());
       const { data, error } = await query.limit(params.limit ?? 100);
       if (!error && data) {
@@ -142,11 +147,11 @@ export async function listPMRecords<T extends PMStoredRecord>(
           return payload ? [payload as T] : [];
         });
       }
-      if (error && process.env.NODE_ENV !== 'production') {
+      if (error) {
         console.warn(`[pm/store] ${table} list failed:`, error.message);
       }
     } catch (err) {
-      if (process.env.NODE_ENV !== 'production') console.warn(`[pm/store] ${table} Supabase unavailable`, err);
+      console.warn(`[pm/store] ${table} Supabase unavailable:`, (err as Error).message);
     }
   }
 
@@ -170,11 +175,11 @@ export async function upsertPMRecord<T extends PMStoredRecord>(table: PMTableNam
     if (!error && data) {
       return (readPayload(data) as T | null) ?? record;
     }
-    if (error && process.env.NODE_ENV !== 'production') {
+    if (error) {
       console.warn(`[pm/store] ${table} upsert failed:`, error.message);
     }
   } catch (err) {
-    if (process.env.NODE_ENV !== 'production') console.warn(`[pm/store] ${table} upsert unavailable`, err);
+    console.warn(`[pm/store] ${table} upsert unavailable:`, (err as Error).message);
   }
   return record;
 }
