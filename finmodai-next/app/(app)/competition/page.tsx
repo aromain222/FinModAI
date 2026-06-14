@@ -314,7 +314,7 @@ export default function CompetitionPage() {
             <RoundDetail round={selectedRound} />
           ) : (
             <div className="rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] p-6 text-sm text-[var(--cb-text-muted)]">
-              Run a round to see the committee's pick.
+              Run a round to see the committee&apos;s pick.
             </div>
           )}
         </section>

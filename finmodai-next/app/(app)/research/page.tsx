@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Search, Sparkles, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 import type { PortfolioPosition, PositionThesis } from '@/lib/pm/types';
@@ -55,6 +55,14 @@ function convictionTone(score: number | null | undefined): string {
 }
 
 export default function ResearchPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResearchPageInner />
+    </Suspense>
+  );
+}
+
+function ResearchPageInner() {
   const [input, setInput] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
