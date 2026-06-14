@@ -433,7 +433,7 @@ function SeniorSeat({
         <span className="block truncate font-mono text-[7px]" style={{ color: stanceColor(signal?.signal) }}>
           {active ? signal?.signal ?? 'reviewing' : 'standby'}
         </span>
-        <span className="mt-0.5 block line-clamp-2 min-h-4 font-mono text-[6px] leading-2 text-[#a7afb9]">
+        <span className="mt-0.5 block line-clamp-2 min-h-4 font-mono text-[7px] leading-[10px] text-[#a7afb9]">
           {currentTask}
         </span>
       </span>
@@ -1539,7 +1539,18 @@ export function AgentOffice() {
               </p>
               <div className="mt-3">
                 {portfolioTickers.length === 0 ? (
-                  <p className="py-3 text-center text-xs text-[#697480]">No positions — click Sync from Ledger.</p>
+                  <div className="flex flex-col items-center gap-2 py-4 text-center">
+                    <p className="text-xs text-[var(--cb-text-muted)]">No positions yet.</p>
+                    <button
+                      type="button"
+                      onClick={() => { void syncFromLedger(); }}
+                      disabled={syncingLedger}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 text-xs font-medium text-[var(--cb-text-primary)] transition hover:border-[var(--cb-border-strong)] disabled:opacity-50"
+                    >
+                      <DatabaseZap className={cn('h-3 w-3', syncingLedger && 'animate-pulse')} />
+                      {syncingLedger ? 'Syncing…' : 'Sync from Ledger'}
+                    </button>
+                  </div>
                 ) : (
                   <div className="divide-y divide-[#252c34] border-y border-[#252c34]">
                     {portfolioTickers.map(ticker => {
@@ -1563,13 +1574,10 @@ export function AgentOffice() {
                       return (
                         <div key={ticker} className="py-1.5">
                         <div className="grid grid-cols-[60px_minmax(0,1fr)_auto] items-center gap-2">
-                          <span className="font-mono text-[10px] font-semibold text-[#dfe4ea]">{ticker}</span>
+                          <a href={`/research?ticker=${ticker}`} className="font-mono text-[10px] font-semibold text-[#dfe4ea] hover:underline">{ticker}</a>
                           <span className="flex items-center gap-1.5 min-w-0">
                             <span
-                              className={cn(
-                                'inline-block h-1.5 w-1.5 rounded-full shrink-0',
-                                isScanning && 'animate-pulse',
-                              )}
+                              className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
                               style={{ backgroundColor: statusColor }}
                             />
                             <span className="truncate font-mono text-[9px]" style={{ color: statusColor }}>

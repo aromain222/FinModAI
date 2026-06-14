@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Search, Sparkles, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 import type { PortfolioPosition, PositionThesis } from '@/lib/pm/types';
 import type { QuantScoreSnapshot } from '@/lib/pm/monitoring/types';
@@ -41,16 +42,16 @@ type ResearchResponse = {
 };
 
 function signalColor(signal?: 'bullish' | 'bearish' | 'neutral'): string {
-  if (signal === 'bullish') return '#65d487';
-  if (signal === 'bearish') return '#e2685c';
-  return '#aeb6bf';
+  if (signal === 'bullish') return 'var(--cb-bull)';
+  if (signal === 'bearish') return 'var(--cb-bear)';
+  return 'var(--cb-neutral)';
 }
 
 function convictionTone(score: number | null | undefined): string {
-  if (score == null) return '#aeb6bf';
-  if (score >= 70) return '#65d487';
-  if (score >= 50) return '#e8c862';
-  return '#e2685c';
+  if (score == null) return 'var(--cb-neutral)';
+  if (score >= 70) return 'var(--cb-bull)';
+  if (score >= 50) return 'var(--cb-caution)';
+  return 'var(--cb-bear)';
 }
 
 export default function ResearchPage() {
@@ -61,6 +62,8 @@ export default function ResearchPage() {
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [detail, setDetail] = useState<ResearchSnapshot | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const searchParams = useSearchParams();
+  const initialTickerHandled = useRef(false);
 
   const loadList = useCallback(async () => {
     try {
@@ -76,6 +79,17 @@ export default function ResearchPage() {
   }, [selectedTicker]);
 
   useEffect(() => { void loadList(); }, [loadList]);
+
+  // Deep-link support: ?ticker=NVDA auto-loads that name. If it isn't in the list yet,
+  // the input is pre-filled — user can hit Enter to analyze without paste.
+  useEffect(() => {
+    if (initialTickerHandled.current) return;
+    const t = searchParams?.get('ticker')?.trim().toUpperCase();
+    if (!t) return;
+    initialTickerHandled.current = true;
+    setSelectedTicker(t);
+    setInput(t);
+  }, [searchParams]);
 
   const loadDetailFor = useCallback(async (ticker: string) => {
     setLoadingDetail(true);
@@ -137,9 +151,21 @@ export default function ResearchPage() {
         return;
       }
       setInput('');
+      // Hydrate the detail directly from the POST payload — Supabase replicas can lag
+      // and a refetch immediately after write occasionally shows the prior thesis.
+      if (payload.position && payload.thesis) {
+        setDetail({
+          ticker: payload.ticker ?? raw,
+          position: payload.position,
+          thesis: payload.thesis,
+          snapshots: payload.snapshots ?? [],
+          analyzedAt: payload.position.lastPmAnalysisAt ?? payload.position.updatedAt ?? new Date().toISOString(),
+          isAlreadyHeld: payload.isAlreadyHeld ?? false,
+        });
+      }
       setSelectedTicker(raw);
+      // Refresh sidebar list (cheap, no race).
       await loadList();
-      await loadDetailFor(raw);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -210,20 +236,74 @@ export default function ResearchPage() {
         </aside>
 
         <section className="min-w-0">
-          {loadingDetail ? (
+          {analyzing ? (
+            <AnalyzingSkeleton ticker={input.trim().toUpperCase() || '…'} />
+          ) : loadingDetail ? (
             <div className="rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] p-6 text-sm text-[var(--cb-text-muted)]">
               Loading…
             </div>
           ) : detail ? (
             <ResearchDetail detail={detail} />
           ) : (
-            <div className="rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] p-6 text-sm text-[var(--cb-text-muted)]">
-              Pick a name on the left, or paste a new ticker above to analyze.
-            </div>
+            <EmptyResearchPane onSeed={(t) => { setInput(t); }} />
           )}
         </section>
       </div>
     </main>
+  );
+}
+
+function EmptyResearchPane({ onSeed }: { onSeed: (ticker: string) => void }) {
+  const seeds = ['AAPL', 'NVDA', 'SPOT', 'TSLA', 'COST'];
+  return (
+    <div className="rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] p-6">
+      <h3 className="text-sm font-semibold text-[var(--cb-text-primary)]">No ideas yet</h3>
+      <p className="mt-1 text-xs text-[var(--cb-text-muted)]">
+        Paste any ticker above, or start with one of these. The PM agent runs 6 scouts + writes a target, stop, conviction, thesis, drivers, risks, catalysts. About 45 seconds per name.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {seeds.map(t => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => onSeed(t)}
+            className="rounded border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-2.5 py-1 font-mono text-xs text-[var(--cb-text-primary)] transition hover:border-[var(--cb-border-strong)]"
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const SCOUT_NAMES = ['Fundamentals', 'Valuation', 'Technicals', 'Sentiment', 'News', 'Growth'];
+
+function AnalyzingSkeleton({ ticker }: { ticker: string }) {
+  return (
+    <div className="rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] p-6">
+      <div className="flex items-center gap-3">
+        <span className="inline-block h-2 w-2 animate-pulse rounded-full" style={{ backgroundColor: 'var(--cb-bull)' }} />
+        <p className="text-sm text-[var(--cb-text-primary)]">Analyzing <span className="font-mono">{ticker}</span>…</p>
+      </div>
+      <p className="mt-1 text-xs text-[var(--cb-text-muted)]">
+        6 scouts read it, then the PM writes a thesis. ~45 seconds.
+      </p>
+      <div className="mt-4 space-y-2">
+        {SCOUT_NAMES.map((name, i) => (
+          <div key={name} className="flex items-center gap-2">
+            <span
+              className="inline-block h-1.5 w-1.5 rounded-full"
+              style={{
+                backgroundColor: 'var(--cb-text-muted)',
+                animation: `pulse 1.4s ease-in-out ${i * 0.15}s infinite`,
+              }}
+            />
+            <span className="font-mono text-xs text-[var(--cb-text-muted)]">{name}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -240,7 +320,7 @@ function ResearchRow({ p, active, onClick }: { p: PortfolioPosition; active: boo
       <span className="font-mono text-xs font-semibold">{p.ticker}</span>
       <span className="flex items-center gap-2 font-mono text-[10px] text-[var(--cb-text-muted)]">
         {p.targetPrice != null && p.currentPrice != null && (
-          <span style={{ color: p.targetPrice > p.currentPrice ? '#65d487' : '#e2685c' }}>
+          <span style={{ color: p.targetPrice > p.currentPrice ? 'var(--cb-bull)' : 'var(--cb-bear)' }}>
             {p.targetPrice > p.currentPrice ? '+' : ''}{(((p.targetPrice - p.currentPrice) / p.currentPrice) * 100).toFixed(0)}%
           </span>
         )}
@@ -292,7 +372,7 @@ function ResearchDetail({ detail }: { detail: ResearchSnapshot }) {
             label="Target"
             value={position.targetPrice != null ? `$${position.targetPrice.toFixed(2)}` : '—'}
             sub={upsidePct != null ? `${upsidePct > 0 ? '+' : ''}${upsidePct.toFixed(1)}%` : null}
-            tone={upsidePct != null && upsidePct > 0 ? '#65d487' : '#e2685c'}
+            tone={upsidePct != null && upsidePct > 0 ? 'var(--cb-bull)' : 'var(--cb-bear)'}
           />
           <Stat
             label="Stop"

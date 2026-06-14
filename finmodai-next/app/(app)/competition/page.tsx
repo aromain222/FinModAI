@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { Trophy, Play, TrendingUp, TrendingDown, ClipboardCheck, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -38,11 +39,13 @@ type ReviewResponse = {
   reviews: PositionReview[];
 };
 
+// ADD and REPLACE both require explicit PM sign-off — amber border per the design system.
+// KEEP stays neutral. TRIM gets a softer caution tint. The verdict pill color carries direction.
 const VERDICT_TONES: Record<ReviewVerdict, { bg: string; border: string; fg: string; label: string }> = {
-  keep:    { bg: 'bg-[var(--cb-green)]/[0.05]',  border: 'border-[var(--cb-green)]/40',  fg: '#65d487', label: 'KEEP' },
-  add:     { bg: 'bg-[var(--cb-green)]/[0.10]',  border: 'border-[var(--cb-green)]/60',  fg: '#65d487', label: 'ADD' },
-  trim:    { bg: 'bg-yellow-500/[0.05]',         border: 'border-yellow-600/40',         fg: '#e8c862', label: 'TRIM' },
-  replace: { bg: 'bg-red-500/[0.05]',            border: 'border-red-700/40',            fg: '#e2685c', label: 'REPLACE' },
+  keep:    { bg: 'bg-[var(--cb-surface)]',       border: 'border-[var(--cb-border)]',    fg: 'var(--cb-bull)',    label: 'KEEP' },
+  add:     { bg: 'bg-yellow-500/[0.04]',         border: 'border-yellow-600/50',         fg: 'var(--cb-bull)',    label: 'ADD · approve' },
+  trim:    { bg: 'bg-yellow-500/[0.04]',         border: 'border-yellow-600/30',         fg: 'var(--cb-caution)', label: 'TRIM' },
+  replace: { bg: 'bg-yellow-500/[0.04]',         border: 'border-yellow-600/50',         fg: 'var(--cb-bear)',    label: 'REPLACE · approve' },
 };
 
 const SECTORS = [
@@ -95,8 +98,8 @@ type Stats = {
 
 function pnlColor(p: number | null): string {
   if (p == null) return 'var(--cb-text-muted)';
-  if (p > 0) return '#65d487';
-  if (p < 0) return '#e2685c';
+  if (p > 0) return 'var(--cb-bull)';
+  if (p < 0) return 'var(--cb-bear)';
   return 'var(--cb-text-muted)';
 }
 
@@ -231,7 +234,7 @@ export default function CompetitionPage() {
       {tab === 'league' && stats && stats.totalRounds > 0 && (
         <section className="grid grid-cols-4 gap-3">
           <Stat label="Total picks" value={String(stats.totalRounds)} sub={null} tone="var(--cb-text-primary)" />
-          <Stat label="Hit rate" value={stats.hitRate != null ? `${stats.hitRate.toFixed(0)}%` : '—'} sub={`${stats.completedRounds} scored`} tone={stats.hitRate != null && stats.hitRate >= 50 ? '#65d487' : '#e2685c'} />
+          <Stat label="Hit rate" value={stats.hitRate != null ? `${stats.hitRate.toFixed(0)}%` : '—'} sub={`${stats.completedRounds} scored`} tone={stats.hitRate != null && stats.hitRate >= 50 ? 'var(--cb-bull)' : 'var(--cb-bear)'} />
           <Stat label="Avg return" value={formatPct(stats.avgReturnPct)} sub={null} tone={pnlColor(stats.avgReturnPct)} />
           <Stat
             label="Best pick"
@@ -286,10 +289,14 @@ export default function CompetitionPage() {
                 )}
               >
                 <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 font-mono text-xs font-semibold text-[var(--cb-text-primary)]">
+                  <Link
+                    href={`/research?ticker=${r.winnerTicker}`}
+                    onClick={e => e.stopPropagation()}
+                    className="flex items-center gap-1.5 font-mono text-xs font-semibold text-[var(--cb-text-primary)] hover:underline"
+                  >
                     <Trophy className="h-3 w-3 text-[var(--cb-text-muted)]" />
                     {r.winnerTicker}
-                  </span>
+                  </Link>
                   <span className="font-mono text-[10px]" style={{ color: pnlColor(r.returnPct) }}>
                     {formatPct(r.returnPct)}
                   </span>
@@ -346,16 +353,43 @@ function PortfolioReviewTab({
           <RefreshCw className={cn('h-4 w-4', reviewing && 'animate-spin')} />
           {reviewing ? 'Reviewing book…' : 'Review my book'}
         </button>
-        {error && <span className="text-xs text-red-400">{error}</span>}
+        {error && <span className="text-xs text-[var(--cb-danger)]">{error}</span>}
       </section>
+
+      {error?.includes('no_held_positions') && (
+        <div className="rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] p-4">
+          <p className="text-sm text-[var(--cb-text-primary)]">No held positions to review.</p>
+          <p className="mt-1 text-xs text-[var(--cb-text-muted)]">
+            Pull your real holdings from Ledger first, then come back.
+          </p>
+          <Link
+            href="/portfolio"
+            className="mt-3 inline-flex h-9 items-center gap-2 rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-4 text-sm font-medium text-[var(--cb-text-primary)] transition hover:border-[var(--cb-border-strong)]"
+          >
+            Pull from Ledger →
+          </Link>
+        </div>
+      )}
+
+      {reviewing && !review && (
+        <div className="rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] p-4">
+          <div className="flex items-center gap-2">
+            <span className="inline-block h-2 w-2 animate-pulse rounded-full" style={{ backgroundColor: 'var(--cb-bull)' }} />
+            <p className="text-sm text-[var(--cb-text-primary)]">Reviewing your book…</p>
+          </div>
+          <p className="mt-1 text-xs text-[var(--cb-text-muted)]">
+            Each held position gets a fresh scout scan + PM analyzer. ~30 seconds per name.
+          </p>
+        </div>
+      )}
 
       {review && (
         <>
           <section className="grid grid-cols-4 gap-3">
-            <SummaryStat label="Keep" value={review.summary.keep} tone="#65d487" />
-            <SummaryStat label="Trim" value={review.summary.trim} tone="#e8c862" />
-            <SummaryStat label="Replace" value={review.summary.replace} tone="#e2685c" />
-            <SummaryStat label="Add" value={review.summary.add} tone="#65d487" />
+            <SummaryStat label="Keep" value={review.summary.keep} tone="var(--cb-bull)" />
+            <SummaryStat label="Trim" value={review.summary.trim} tone="var(--cb-caution)" />
+            <SummaryStat label="Replace" value={review.summary.replace} tone="var(--cb-bear)" />
+            <SummaryStat label="Add" value={review.summary.add} tone="var(--cb-bull)" />
           </section>
 
           <div className="space-y-2">
@@ -389,7 +423,9 @@ function ReviewCard({ r }: { r: PositionReview }) {
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
-            <span className="font-mono text-lg font-bold text-[var(--cb-text-primary)]">{r.ticker}</span>
+            <Link href={`/research?ticker=${r.ticker}`} className="font-mono text-lg font-bold text-[var(--cb-text-primary)] hover:underline">
+              {r.ticker}
+            </Link>
             <span className="rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold" style={{ color: tone.fg, backgroundColor: `${tone.fg}1a` }}>
               {tone.label}
             </span>
@@ -422,13 +458,13 @@ function ReviewCard({ r }: { r: PositionReview }) {
         </div>
         <div className="shrink-0 text-right">
           <p className="font-mono text-base text-[var(--cb-text-primary)]">${r.currentPrice?.toFixed(2) ?? '—'}</p>
-          <p className="font-mono text-xs" style={{ color: r.pnlPct != null && r.pnlPct > 0 ? '#65d487' : r.pnlPct != null && r.pnlPct < 0 ? '#e2685c' : 'var(--cb-text-muted)' }}>
+          <p className="font-mono text-xs" style={{ color: r.pnlPct != null && r.pnlPct > 0 ? 'var(--cb-bull)' : r.pnlPct != null && r.pnlPct < 0 ? 'var(--cb-bear)' : 'var(--cb-text-muted)' }}>
             {r.pnlPct != null ? `${r.pnlPct > 0 ? '+' : ''}${r.pnlPct.toFixed(1)}%` : '—'}
           </p>
           <p className="mt-1 text-[10px] text-[var(--cb-text-muted)]">
-            tgt <span style={{ color: '#65d487' }}>${r.targetPrice.toFixed(0)}</span>
+            tgt <span style={{ color: 'var(--cb-bull)' }}>${r.targetPrice.toFixed(0)}</span>
             <span className="mx-1">·</span>
-            stop <span style={{ color: '#e2685c' }}>${r.stopLoss.toFixed(0)}</span>
+            stop <span style={{ color: 'var(--cb-bear)' }}>${r.stopLoss.toFixed(0)}</span>
           </p>
         </div>
       </div>
@@ -454,7 +490,9 @@ function RoundDetail({ round }: { round: CompetitionRound }) {
           <div>
             <div className="flex items-baseline gap-2">
               <Trophy className="h-5 w-5 text-[var(--cb-green)]" />
-              <h2 className="text-2xl font-bold text-[var(--cb-text-primary)]">{round.winnerTicker}</h2>
+              <Link href={`/research?ticker=${round.winnerTicker}`} className="text-2xl font-bold text-[var(--cb-text-primary)] hover:underline">
+                {round.winnerTicker}
+              </Link>
               <span className="text-xs text-[var(--cb-text-muted)]">
                 won {round.sector ?? 'any sector'} · {round.entryDate ? new Date(round.entryDate).toLocaleString() : ''}
               </span>
@@ -494,7 +532,9 @@ function RoundDetail({ round }: { round: CompetitionRound }) {
                   <div className="flex items-baseline justify-between">
                     <div className="flex items-center gap-2">
                       {isWinner && <Trophy className="h-3.5 w-3.5 text-[var(--cb-green)]" />}
-                      <span className="font-mono text-sm font-semibold text-[var(--cb-text-primary)]">{c.ticker}</span>
+                      <Link href={`/research?ticker=${c.ticker}`} className="font-mono text-sm font-semibold text-[var(--cb-text-primary)] hover:underline">
+                        {c.ticker}
+                      </Link>
                       {c.convictionScore != null && (
                         <span className="font-mono text-[10px] text-[var(--cb-text-muted)]">conv {c.convictionScore}</span>
                       )}
@@ -502,7 +542,7 @@ function RoundDetail({ round }: { round: CompetitionRound }) {
                     <div className="font-mono text-[10px] text-[var(--cb-text-muted)]">
                       ${c.entryPrice?.toFixed(2) ?? '—'} → tgt ${c.targetPrice?.toFixed(2) ?? '—'}
                       {c.upsidePct != null && (
-                        <span className="ml-2" style={{ color: c.upsidePct > 0 ? '#65d487' : '#e2685c' }}>
+                        <span className="ml-2" style={{ color: c.upsidePct > 0 ? 'var(--cb-bull)' : 'var(--cb-bear)' }}>
                           {c.upsidePct > 0 ? <TrendingUp className="inline h-3 w-3" /> : <TrendingDown className="inline h-3 w-3" />}
                           {' '}{c.upsidePct.toFixed(0)}%
                         </span>

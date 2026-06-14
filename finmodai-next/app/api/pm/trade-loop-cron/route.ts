@@ -18,9 +18,15 @@ export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 function isAuthorized(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return true;
-  return req.headers.get('authorization') === `Bearer ${secret}`;
+  // Close-by-default in production: if neither secret is set on a deployed env, refuse.
+  // Locally (no VERCEL env), allow so dev/test still works without ceremony.
+  const cronSecret = process.env.CRON_SECRET ?? '';
+  const executionSecret = process.env.EXECUTION_CRON_SECRET ?? '';
+  const auth = req.headers.get('authorization') ?? '';
+  if (cronSecret && auth === `Bearer ${cronSecret}`) return true;
+  if (executionSecret && auth === `Bearer ${executionSecret}`) return true;
+  // No matching secret. If on Vercel, refuse. Locally (no VERCEL), allow.
+  return !process.env.VERCEL;
 }
 
 function appOrigin(req: NextRequest): string {
