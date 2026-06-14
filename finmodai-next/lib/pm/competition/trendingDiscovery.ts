@@ -39,6 +39,23 @@ function normalizeSector(s: string): string {
  *  4. Skip tickers picked as a competition winner or candidate within the dedupe window.
  *  5. Return top N by mention count.
  */
+// Liquid large-cap fallback per sector — used when the news pipeline returns too few
+// sector-tagged tickers to populate a round. These are the names a PM would actually
+// research first in each sector anyway.
+const SECTOR_FALLBACK_UNIVERSE: Record<string, string[]> = {
+  technology:             ['NVDA', 'MSFT', 'AAPL', 'GOOGL', 'AMD', 'PLTR', 'AVGO', 'CRM'],
+  healthcare:             ['UNH', 'LLY', 'JNJ', 'ABBV', 'MRK', 'NVO', 'VRTX', 'TMO'],
+  financials:             ['JPM', 'BAC', 'V', 'MA', 'GS', 'MS', 'SCHW', 'AXP'],
+  consumerdiscretionary:  ['AMZN', 'TSLA', 'HD', 'LOW', 'NKE', 'SBUX', 'MCD', 'BKNG'],
+  consumerstaples:        ['WMT', 'COST', 'PG', 'KO', 'PEP', 'PM', 'CL', 'MO'],
+  energy:                 ['XOM', 'CVX', 'COP', 'OXY', 'EOG', 'SLB', 'MPC', 'PSX'],
+  industrials:            ['CAT', 'UNP', 'HON', 'GE', 'BA', 'RTX', 'LMT', 'DE'],
+  materials:              ['LIN', 'SHW', 'FCX', 'APD', 'ECL', 'NEM', 'DOW', 'NUE'],
+  utilities:              ['NEE', 'SO', 'DUK', 'AEP', 'D', 'EXC', 'XEL', 'SRE'],
+  realestate:             ['PLD', 'AMT', 'EQIX', 'CCI', 'O', 'WELL', 'PSA', 'SPG'],
+  communicationservices:  ['META', 'NFLX', 'GOOGL', 'DIS', 'TMUS', 'VZ', 'T', 'CMCSA'],
+};
+
 export async function findTrendingCandidates(input: {
   origin: string;
   sector: string | null;
@@ -48,21 +65,24 @@ export async function findTrendingCandidates(input: {
   const limit = input.limit ?? 5;
   const sectorKey = input.sector ? normalizeSector(input.sector) : null;
 
-  // 1. Recent events
-  const res = await fetch(`${input.origin}/api/events?range=today`, {
+  // 1. Recent events — pull a wider window so a quiet news day still gives us material.
+  const res = await fetch(`${input.origin}/api/events?range=week`, {
     cache: 'no-store',
     signal: AbortSignal.timeout(15_000),
   }).catch(() => null);
-  if (!res?.ok) return [];
-  const data = await res.json().catch(() => null) as { events?: EventItem[]; items?: EventItem[] } | null;
+  const data = res?.ok
+    ? (await res.json().catch(() => null)) as { events?: EventItem[]; items?: EventItem[] } | null
+    : null;
   const events = data?.events ?? data?.items ?? [];
 
-  // 2. Filter by sector if requested
-  const filteredEvents = sectorKey
+  // 2. Filter by sector if requested. Keep BOTH the sector-tight set and the unfiltered set
+  //    so we can fall back when sector-tagged events are sparse.
+  const sectorFiltered = sectorKey
     ? events.filter(e =>
         (e.impacted_sectors ?? []).some(s => normalizeSector(s.sector).includes(sectorKey) || sectorKey.includes(normalizeSector(s.sector))),
       )
     : events;
+  const filteredEvents = sectorFiltered.length >= 3 ? sectorFiltered : events;
 
   // 3. Tally
   const counts = new Map<string, TrendingCandidate>();
@@ -106,11 +126,35 @@ export async function findTrendingCandidates(input: {
   }
 
   // 5. Rank
-  return [...counts.values()]
+  const ranked = [...counts.values()]
     .filter(c => !recentlyUsed.has(c.ticker))
     .sort((a, b) => {
       if (b.mentionCount !== a.mentionCount) return b.mentionCount - a.mentionCount;
       return Math.abs(b.bullishCount - b.bearishCount) - Math.abs(a.bullishCount - a.bearishCount);
     })
     .slice(0, limit);
+
+  // 6. Final fallback: if news pipeline gave fewer than 2 actionable names (quiet day,
+  //    missing API keys, dedupe drained the pool), top up from the sector's liquid
+  //    large-cap universe so a round can always run.
+  if (ranked.length >= 2) return ranked;
+  if (!sectorKey) return ranked;
+  const universe = SECTOR_FALLBACK_UNIVERSE[sectorKey] ?? [];
+  const existing = new Set(ranked.map(r => r.ticker));
+  for (const ticker of universe) {
+    if (ranked.length >= limit) break;
+    const upper = ticker.toUpperCase();
+    if (existing.has(upper) || recentlyUsed.has(upper)) continue;
+    ranked.push({
+      ticker: upper,
+      mentionCount: 0,
+      bullishCount: 0,
+      bearishCount: 0,
+      netDirection: 'flat',
+      sampleHeadlines: [`Sector watchlist: ${input.sector}`],
+      sectorsMatched: input.sector ? [input.sector] : [],
+    });
+    existing.add(upper);
+  }
+  return ranked;
 }
