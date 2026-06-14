@@ -32,6 +32,26 @@
     {
       "path": "/api/execution/auto-trade-cron",
       "schedule": "0 14 * * 1-5"
+    },
+    {
+      "path": "/api/pm/market-brief-cron?slot=open",
+      "schedule": "0 10 * * 1-5"
+    },
+    {
+      "path": "/api/pm/market-brief-cron?slot=mid",
+      "schedule": "0 14 * * 1-5"
+    },
+    {
+      "path": "/api/pm/market-brief-cron?slot=noon",
+      "schedule": "0 16 * * 1-5"
+    },
+    {
+      "path": "/api/pm/market-brief-cron?slot=afternoon",
+      "schedule": "0 18 * * 1-5"
+    },
+    {
+      "path": "/api/pm/market-brief-cron?slot=close",
+      "schedule": "0 20 * * 1-5"
     }
   ]
 }
