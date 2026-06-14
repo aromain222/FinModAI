@@ -211,6 +211,20 @@ export function ScoutOutputCard({
         <span className="font-mono text-[10px] text-[#9aa4ae]">conf {Math.round(snapshot.confidence)}%</span>
       </div>
       <div className="mt-2"><ScoreBar score={snapshot.score} /></div>
+      {snapshot.scoreComponents ? (
+        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[9px] text-[#7d8792]">
+          <span>LLM {snapshot.scoreComponents.llmScore} × {Math.round(snapshot.scoreComponents.llmWeight * 100)}%</span>
+          <span>
+            Numeric {snapshot.scoreComponents.deterministicScore ?? 'n/a'} × {Math.round(snapshot.scoreComponents.deterministicWeight * 100)}%
+          </span>
+          <span>coverage {Math.round(snapshot.scoreComponents.deterministicCoverage * 100)}%</span>
+          {snapshot.scoreComponents.deterministicInputs.length > 0 ? (
+            <span className="basis-full">
+              inputs: {snapshot.scoreComponents.deterministicInputs.join(', ')}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       {event ? (
         <div
@@ -223,6 +237,11 @@ export function ScoutOutputCard({
           <span className="font-mono text-[10px]" style={{ color: accent }}>
             {event.delta >= 0 ? '+' : ''}{event.delta} · {event.severity}
           </span>
+          {event.stability ? (
+            <span className="font-mono text-[10px] text-[#9aa4ae]">
+              stability {event.stability.confirmations}/{event.stability.window}
+            </span>
+          ) : null}
           <span className="basis-full text-[10px] leading-4 text-[#c2cad3]">{event.summary}</span>
         </div>
       ) : null}

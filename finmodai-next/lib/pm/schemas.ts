@@ -70,6 +70,10 @@ export const portfolioPositionSchema = z.object({
   currentScore: z.number().min(0).max(100).nullable().optional(),
   lastAgentRunAt: z.string().optional(),
   weeklyMemoId: z.string().optional(),
+  targetPrice: z.number().nullable().optional(),
+  stopLoss: z.number().nullable().optional(),
+  entryPrice: z.number().nullable().optional(),
+  lastPmAnalysisAt: z.string().nullable().optional(),
 });
 
 export const thesisUpdateSchema = z.object({

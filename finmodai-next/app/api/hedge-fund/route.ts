@@ -5,6 +5,16 @@ import { generateTextWithProviderFallback, type LlmMessage } from '@/lib/llm/gen
 import { matchThemes } from '@/lib/execution/themeClassifier';
 import type { UserIntent } from '@/lib/execution/userIntent';
 import type { AssetMetadata } from '@/lib/execution/assetMetadata';
+import {
+  buildHybridScore,
+  signalFromHybridScore,
+} from '@/lib/pm/monitoring/hybridScore';
+import type { QuantAnalystKey, QuantScoreComponents } from '@/lib/pm/monitoring/types';
+import {
+  buildDeterministicNewsSentiment,
+  formatNewsContextForPrompt,
+  type CompanyNewsHeadline,
+} from '@/lib/pm/monitoring/newsSentiment';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -84,7 +94,7 @@ type AnalysisResult = {
   mode:              HedgeFundMode;
   date:              string;
   decision:          { action: string; confidence: number; reasoning: string; sizing?: string } | null;
-  signals:           { key: string; name: string; group: string; score: number; signal: 'bullish' | 'bearish' | 'neutral'; confidence: number; reasoning: string; thesis: string; risk: string; watch: string; theme_fit_score: number | null; theme_fit_reason: string; business_consistency: boolean }[];
+  signals:           { key: string; name: string; group: string; score: number; signal: 'bullish' | 'bearish' | 'neutral'; confidence: number; reasoning: string; thesis: string; risk: string; watch: string; theme_fit_score: number | null; theme_fit_reason: string; business_consistency: boolean; scoreComponents?: QuantScoreComponents }[];
   consensus:         { bullish: number; bearish: number; neutral: number };
   median_theme_fit:  number | null;
   source?:           'python_backend' | 'llm_fallback';
@@ -95,6 +105,10 @@ type AnalysisResult = {
 type PersonaPrompt = {
   messages: LlmMessage[];
   expectedKeys: string[];
+};
+
+type CompanyInfoPayload = {
+  news?: CompanyNewsHeadline[];
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -290,6 +304,7 @@ function fallbackPersonaSignals(
   intent: UserIntent | null,
   asset: AssetMetadata | null,
   ctx: MarketContext | null,
+  news: CompanyNewsHeadline[],
 ): RawSignal[] {
   const themeMatch = intent?.themes.length
     ? matchThemes({
@@ -310,6 +325,7 @@ function fallbackPersonaSignals(
     pricePosition > 0.65 ? 'bullish' : pricePosition < 0.35 ? 'bearish' : 'neutral';
   const growthSignal: RawSignal['signal'] = offTheme ? 'bearish' : 'neutral';
   const confidenceBase = offTheme ? 62 : 52;
+  const newsFallback = buildDeterministicNewsSentiment(ticker, news, ctx?.name ?? asset?.name);
 
   const compactSignals: RawSignal[] = [
     {
@@ -357,15 +373,15 @@ function fallbackPersonaSignals(
     },
     {
       key: 'news_sentiment',
-      score: 50,
-      signal: 'neutral',
-      confidence: confidenceBase - 1,
-      reasoning: 'Fast check only: live news/persona synthesis did not complete inside the timeout budget.',
-      thesis: 'Treat catalyst evidence as incomplete until the full agent read refreshes.',
+      score: newsFallback.score,
+      signal: newsFallback.signal,
+      confidence: newsFallback.confidence,
+      reasoning: newsFallback.reasoning,
+      thesis: newsFallback.thesis,
       theme_fit_score: themeMatch ? themeMatch.score : null,
       theme_fit_reason: themeMatch?.reason ?? '',
-      risk: 'Fast fallback risk: missed live headlines could change the catalyst read.',
-      watch: 'Watch the next headline or earnings revision that changes estimates.',
+      risk: newsFallback.risk,
+      watch: newsFallback.watch,
       business_consistency: !offTheme,
     },
     {
@@ -424,7 +440,7 @@ function synthesizeDecision(
       action: 'buy',
       confidence: 64,
       sizing: 'Track / Build',
-      reasoning: 'Persona consensus leans bullish, but sizing still needs catalyst and risk confirmation.',
+      reasoning: 'The persona perspectives lean bullish, but they are correlated interpretations; sizing still needs catalyst and risk confirmation.',
     };
   }
   if (consensus.bearish >= consensus.bullish + 4) {
@@ -432,14 +448,14 @@ function synthesizeDecision(
       action: 'sell',
       confidence: 62,
       sizing: 'Avoid',
-      reasoning: 'Persona consensus leans negative; do not add unless catalyst evidence reverses the setup.',
+      reasoning: 'The persona perspectives lean negative; do not add unless catalyst evidence reverses the setup.',
     };
   }
   return {
     action: 'hold',
     confidence: 58,
     sizing: 'Track',
-    reasoning: 'Persona consensus is mixed; keep this tracked until stronger agent evidence comes through.',
+    reasoning: 'The persona perspectives are mixed; keep this tracked until stronger evidence comes through.',
   };
 }
 
@@ -495,14 +511,33 @@ async function fetchMarketContext(ticker: string): Promise<MarketContext | null>
   }
 }
 
+async function fetchCompanyNews(ticker: string, origin: string): Promise<CompanyNewsHeadline[]> {
+  try {
+    const response = await fetch(`${origin}/api/company-info?ticker=${encodeURIComponent(ticker)}`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!response.ok) return [];
+    const payload = await response.json() as CompanyInfoPayload;
+    return Array.isArray(payload.news)
+      ? payload.news
+        .filter(item => typeof item?.title === 'string' && item.title.trim().length > 0)
+        .slice(0, 10)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 async function runPersonaSignals(
   ticker: string,
   intent: UserIntent | null,
   asset: AssetMetadata | null,
   ctx: MarketContext | null,
+  news: CompanyNewsHeadline[],
   personas: PersonaDefinition[],
 ): Promise<RawSignal[]> {
-  const prompt = buildPersonaPrompt(ticker, intent, asset, ctx, personas);
+  const prompt = buildPersonaPrompt(ticker, intent, asset, ctx, news, personas);
 
   if (getOpenAIKey('user')) {
     try {
@@ -542,6 +577,7 @@ function buildPersonaPrompt(
   intent: UserIntent | null,
   asset: AssetMetadata | null,
   ctx: MarketContext | null,
+  news: CompanyNewsHeadline[],
   personas: PersonaDefinition[],
 ): PersonaPrompt {
   const hasThemes = intent && intent.themes.length > 0;
@@ -564,10 +600,18 @@ function buildPersonaPrompt(
 
   const userContextBlock = buildUserContextBlock(intent);
   const assetRealityBlock = buildAssetRealityBlock(ticker, asset);
+  const newsContextBlock = formatNewsContextForPrompt(ticker, news, ctx?.name);
 
   const themeFitInstruction = hasThemes
     ? `For theme_fit_score: rate 0–10 how well this ticker's actual business fits the user's themes (${intent.themes.join(', ')}). 0 = completely off-theme (e.g. bond ETF or printer company asked for AI/space stocks), 10 = perfect match. Be honest even if the ticker is otherwise a good investment. If theme_fit_score is below 5, the persona must be neutral or bearish for this portfolio request and must not invent an AI/space/robotics angle.`
     : 'For theme_fit_score: return null (no theme filter was specified).';
+  const newsSentimentInstruction = [
+    'NEWS SENTIMENT REQUIREMENTS',
+    '- Parse the supplied news; do not merely repeat or count headlines.',
+    '- Name the most material item and explain direct vs indirect relevance, the transmission into revenue/margin/EPS/multiple, direction, horizon, confidence, and the next confirming datapoint.',
+    '- Shared executives, celebrity association, and adjacent private companies are not direct financial exposure. A SpaceX IPO is indirect to Tesla unless evidence shows Tesla ownership, financing, commercial transactions, or execution impact.',
+    '- Ignore sensational or unrelated stories. If no item changes estimates, valuation, or risk, say the tape is immaterial and keep news_sentiment neutral.',
+  ].join('\n');
 
   const expectedKeys = personas.map(p => p.key);
   return {
@@ -583,11 +627,13 @@ function buildPersonaPrompt(
           userContextBlock,
           '',
           assetRealityBlock,
+          '',
+          newsContextBlock,
         ].filter(Boolean).join('\n'),
       },
       {
         role: 'user',
-        content: `Analyze ${ticker} from each investor/analyst viewpoint.\n${dataStr ? `\nCurrent market data:\n${dataStr}` : ''}\n\n${themeFitInstruction}\n\nFor business_consistency: true only if the thesis matches the actual business.\n\nReturn valid JSON exactly in this shape:\n{"signals":[{"key":"${expectedKeys[0]}","score":55,"signal":"neutral","confidence":55,"reasoning":"Two or three concise sentences in this persona's voice.","thesis":"One clear investment view.","risk":"One sentence on what could make this persona wrong.","watch":"One concrete evidence point this persona would monitor.","theme_fit_score":null,"theme_fit_reason":"max 12 words","business_consistency":true}]}\n\nRules:\n- Include exactly these keys in this order: ${expectedKeys.join(', ')}.\n- Use each key once.\n- score must be 0-100 and represent current health/attractiveness for that analyst's domain; higher is more supportive.\n- signal must be bullish, bearish, or neutral.\n- confidence must be 0-100.\n- reasoning should be 2-3 concise sentences, max 70 words total.\n- thesis should be 1 sentence, max 34 words.\n- risk should be 1 sentence, max 28 words.\n- watch should be 1 concrete evidence point, max 24 words.\n- theme_fit_reason max 12 words.\n- If company fundamentals are unclear, explain what evidence is missing instead of writing a generic opinion.\n- No trailing commas.\n\nPersonas:\n${personaList}`,
+        content: `Analyze ${ticker} from each investor/analyst viewpoint.\n${dataStr ? `\nCurrent market data:\n${dataStr}` : ''}\n\n${newsSentimentInstruction}\n\n${themeFitInstruction}\n\nFor business_consistency: true only if the thesis matches the actual business.\n\nReturn valid JSON exactly in this shape:\n{"signals":[{"key":"${expectedKeys[0]}","score":55,"signal":"neutral","confidence":55,"reasoning":"Two or three concise sentences in this persona's voice.","thesis":"One clear investment view.","risk":"One sentence on what could make this persona wrong.","watch":"One concrete evidence point this persona would monitor.","theme_fit_score":null,"theme_fit_reason":"max 12 words","business_consistency":true}]}\n\nRules:\n- Include exactly these keys in this order: ${expectedKeys.join(', ')}.\n- Use each key once.\n- score must be 0-100 and represent current health/attractiveness for that analyst's domain; higher is more supportive.\n- signal must be bullish, bearish, or neutral.\n- confidence must be 0-100.\n- reasoning should be 2-3 concise sentences, max 70 words total.\n- thesis should be 1 sentence, max 34 words.\n- risk should be 1 sentence, max 28 words.\n- watch should be 1 concrete evidence point, max 24 words.\n- theme_fit_reason max 12 words.\n- If company fundamentals are unclear, explain what evidence is missing instead of writing a generic opinion.\n- No trailing commas.\n\nPersonas:\n${personaList}`,
       },
     ],
   };
@@ -669,7 +715,7 @@ async function runPortfolioManager(
       },
       {
         role: 'user',
-        content: `Ticker: ${ticker}\nConsensus: ${consensus.bullish} bullish, ${consensus.bearish} bearish, ${consensus.neutral} neutral\n\nAnalyst signals:\n${signalSummary}\n\nReturn JSON: { "action": "buy"|"sell"|"hold"|"short"|"cover", "confidence": 0-100, "sizing": "Track / Build / Trim / Exit watch / Avoid", "reasoning": "2-3 sentence synthesis" }`,
+        content: `Ticker: ${ticker}\nCorrelated persona perspectives (not independent votes): ${consensus.bullish} bullish, ${consensus.bearish} bearish, ${consensus.neutral} neutral\n\nAnalyst signals:\n${signalSummary}\n\nReturn JSON: { "action": "buy"|"sell"|"hold"|"short"|"cover", "confidence": 0-100, "sizing": "Track / Build / Trim / Exit watch / Avoid", "reasoning": "2-3 sentence synthesis" }`,
       },
     ],
   });
@@ -723,12 +769,16 @@ export async function POST(req: NextRequest) {
       }, { status: 503 });
     }
 
-    const ctx = await fetchMarketContext(ticker);
+    const origin = new URL(req.url).origin;
+    const [ctx, news] = await Promise.all([
+      fetchMarketContext(ticker),
+      fetchCompanyNews(ticker, origin),
+    ]);
     let rawSignals: RawSignal[];
     let degraded = false;
     let degradedReason: string | null = null;
     try {
-      rawSignals = await runPersonaSignals(ticker, intent, assetMetadata, ctx, selectedPersonas);
+      rawSignals = await runPersonaSignals(ticker, intent, assetMetadata, ctx, news, selectedPersonas);
       console.log('[hedge-fund] signals completed', {
         count: rawSignals.length,
         elapsed: `${Date.now() - requestStart}ms`,
@@ -745,7 +795,7 @@ export async function POST(req: NextRequest) {
         : 'Senior investment committee review did not complete inside the latency guardrail.';
       rawSignals = mode === 'committee'
         ? []
-        : fallbackPersonaSignals(ticker, intent, assetMetadata, ctx);
+        : fallbackPersonaSignals(ticker, intent, assetMetadata, ctx, news);
       console.log('[hedge-fund] signals completed', {
         count: rawSignals.length,
         degraded: true,
@@ -753,22 +803,48 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    const scoreAsOf = new Date().toISOString();
     const signals = rawSignals.map(s => {
       const meta = PERSONAS.find(p => p.key === s.key);
+      const deterministicNews = s.key === 'news_sentiment'
+        ? buildDeterministicNewsSentiment(ticker, news, ctx?.name ?? assetMetadata?.name)
+        : null;
+      const scoreComponents = meta?.group === 'quant'
+        ? buildHybridScore({
+            analystKey: s.key as QuantAnalystKey,
+            llmScore: s.score,
+            market: ctx ?? {
+              price: null,
+              changePct: null,
+              pe: null,
+              forwardPe: null,
+              high52w: null,
+              low52w: null,
+            },
+            asOf: scoreAsOf,
+          })
+        : undefined;
+      const score = scoreComponents?.score
+        ?? Math.round(Math.max(0, Math.min(100, s.score)));
       return {
         key:                  s.key,
         name:                 meta?.name                  ?? s.key,
         group:                meta?.group                 ?? 'quant',
-        score:                Math.round(Math.max(0, Math.min(100, s.score))),
-        signal:               s.signal,
+        score,
+        signal:               scoreComponents ? signalFromHybridScore(score) : s.signal,
         confidence:           Math.round(Math.max(0, Math.min(100, s.confidence))),
         reasoning:            s.reasoning,
         thesis:               s.thesis ?? s.reasoning,
         risk:                 s.risk ?? 'Risk depends on valuation, catalyst timing, and whether the core thesis keeps confirming.',
-        watch:                s.watch ?? 'Watch the next catalyst, estimate revision, or price-action confirmation.',
+        watch:                s.key === 'news_sentiment' && ticker === 'TSLA' && /spacex/i.test(s.reasoning)
+          ? 'Watch for a disclosed Tesla-SpaceX transaction, ownership or financing link, or evidence that Musk attention affects Tesla execution.'
+          : deterministicNews && /musk|adjacent|indirect/i.test(`${s.reasoning} ${deterministicNews.reasoning}`)
+            ? deterministicNews.watch
+          : s.watch ?? 'Watch the next catalyst, estimate revision, or price-action confirmation.',
         theme_fit_score:      s.theme_fit_score      ?? null,
         theme_fit_reason:     s.theme_fit_reason     ?? '',
         business_consistency: s.business_consistency ?? true,
+        scoreComponents,
       };
     });
 

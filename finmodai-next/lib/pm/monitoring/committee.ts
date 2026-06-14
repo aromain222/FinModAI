@@ -6,6 +6,8 @@ import {
   updateQuantSignalEvent,
 } from '@/lib/pm/monitoring/store';
 import type { CommitteeTrigger, QuantSignalEvent } from '@/lib/pm/monitoring/types';
+import { listPositions } from '@/lib/pm/portfolio/positionStore';
+import { recordPaperFill, type PaperTriggerSource } from '@/lib/pm/paper/paperBook';
 
 type CommitteeOutput = {
   ticker: string;
@@ -45,6 +47,7 @@ export async function runInvestmentCommittee(params: {
   origin: string;
   signalEvents?: QuantSignalEvent[];
   requestHeaders?: Headers;
+  triggerSource?: PaperTriggerSource;
 }): Promise<InvestmentCommitteeRun> {
   const ticker = params.ticker.toUpperCase();
   const signalEvents = params.signalEvents ?? [];
@@ -99,6 +102,26 @@ export async function runInvestmentCommittee(params: {
     committeeRunId: committeeId,
     reviewedAt,
   })));
+
+  // Paper-trade hook: translate the committee's decision into a hypothetical fill.
+  // Never touches a real broker. Skips silently when not actionable.
+  try {
+    const positions = await listPositions({ ticker, limit: 1 });
+    const currentPrice = positions[0]?.currentPrice ?? null;
+    await recordPaperFill({
+      ticker,
+      action: output.decision.action,
+      confidence: output.decision.confidence,
+      rationale: output.decision.reasoning,
+      currentPrice,
+      committeeRunId: committeeId,
+      agentViewId: result.agentView.id,
+      triggerSource: params.triggerSource ?? 'committee_escalation',
+      minConfidence: params.triggerSource === 'committee_cycle' ? 40 : 50,
+    });
+  } catch (err) {
+    console.warn('paper-fill hook failed', { ticker, error: (err as Error).message });
+  }
 
   return {
     id: committeeId,

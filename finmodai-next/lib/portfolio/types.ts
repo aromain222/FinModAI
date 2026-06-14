@@ -32,6 +32,13 @@ export type PositionMonitorAgentRead = {
   confidence?: number | null;
 };
 
+export type PositionMonitorNewsRead = {
+  signal: 'bullish' | 'bearish' | 'neutral';
+  confidence: number;
+  reasoning: string;
+  watch: string;
+};
+
 export type PositionMonitorResult = {
   action: PositionMonitorAction;
   confidence: number;
@@ -47,6 +54,7 @@ export type PositionMonitorResult = {
   updatedSignal: 'green' | 'yellow' | 'red';
   thesisDrift: ThesisDrift;
   agentReads: PositionMonitorAgentRead[];
+  newsAgentRead?: PositionMonitorNewsRead | null;
 };
 
 export type ActivePosition = {

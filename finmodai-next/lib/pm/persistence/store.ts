@@ -8,7 +8,9 @@ export type PMTableName =
   | 'pm_investment_decisions'
   | 'pm_alerts'
   | 'pm_memory'
-  | 'pm_weekly_memos';
+  | 'pm_weekly_memos'
+  | 'pm_paper_orders'
+  | 'pm_competition_rounds';
 
 export type PMStoredRecord = {
   id: string;
@@ -93,6 +95,8 @@ function toIndexRow(table: PMTableName, record: PMStoredRecord): Record<string, 
     updated_at: updatedAt,
   };
   if (table === 'pm_positions') return { ...base, status: getStringProp(record, 'status') };
+  if (table === 'pm_paper_orders') return { ...base, status: getStringProp(record, 'status') };
+  if (table === 'pm_competition_rounds') return { ...base, ticker: getStringProp(record, 'winnerTicker'), status: getStringProp(record, 'status') };
   if (table === 'pm_position_theses' || table === 'pm_thesis_updates') {
     return { ...base, thesis_status: getStringProp(record, 'thesisStatus') ?? getStringProp(record, 'thesisStatusAfter') };
   }
@@ -131,7 +135,12 @@ export async function listPMRecords<T extends PMStoredRecord>(
   const supabase = getSupabaseTable(table);
   if (supabase) {
     try {
-      let query = supabase.select('payload').order('created_at', { ascending: false });
+      // select('*') instead of select('payload'): on newer Supabase Postgrest, the
+      // narrow-column projection returns 0 rows on tables created without an explicit
+      // FOR SELECT grant on that column (observed live for pm_paper_orders). Select all
+      // and project payload client-side — same data, same perf, no projection bug.
+      let query = (supabase as unknown as { select(cols: string): TableSelect }).select('*');
+      query = query.order('created_at', { ascending: false });
       if (params.ticker) query = query.eq('ticker', params.ticker.toUpperCase());
       const { data, error } = await query.limit(params.limit ?? 100);
       if (!error && data) {
@@ -140,11 +149,11 @@ export async function listPMRecords<T extends PMStoredRecord>(
           return payload ? [payload as T] : [];
         });
       }
-      if (error && process.env.NODE_ENV !== 'production') {
+      if (error) {
         console.warn(`[pm/store] ${table} list failed:`, error.message);
       }
     } catch (err) {
-      if (process.env.NODE_ENV !== 'production') console.warn(`[pm/store] ${table} Supabase unavailable`, err);
+      console.warn(`[pm/store] ${table} Supabase unavailable:`, (err as Error).message);
     }
   }
 
@@ -168,11 +177,11 @@ export async function upsertPMRecord<T extends PMStoredRecord>(table: PMTableNam
     if (!error && data) {
       return (readPayload(data) as T | null) ?? record;
     }
-    if (error && process.env.NODE_ENV !== 'production') {
+    if (error) {
       console.warn(`[pm/store] ${table} upsert failed:`, error.message);
     }
   } catch (err) {
-    if (process.env.NODE_ENV !== 'production') console.warn(`[pm/store] ${table} upsert unavailable`, err);
+    console.warn(`[pm/store] ${table} upsert unavailable:`, (err as Error).message);
   }
   return record;
 }

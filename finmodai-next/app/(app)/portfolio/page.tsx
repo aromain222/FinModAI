@@ -7,6 +7,7 @@ import { DecisionQueue } from '@/components/pm/DecisionQueue';
 import { ThesisCards } from '@/components/pm/ThesisCards';
 import { WeeklyMemoPanel } from '@/components/pm/WeeklyMemoPanel';
 import { LocalStoragePositionSync } from '@/components/pm/LocalStoragePositionSync';
+import { LedgerPositionHydrator } from '@/components/pm/LedgerPositionHydrator';
 import type { PMAlert, InvestmentDecision, PositionThesis, WeeklyMemo } from '@/lib/pm/types';
 import { cn } from '@/lib/utils';
 
@@ -91,6 +92,8 @@ const TABS: { id: Tab; label: string; hint: string }[] = [
 export default function PortfolioPage() {
   const [tab, setTab] = useState<Tab>('monitor');
   const [resetting, setResetting] = useState(false);
+  const [pullingLedger, setPullingLedger] = useState(false);
+  const [pullStatus, setPullStatus] = useState<{ tone: 'ok' | 'err'; message: string } | null>(null);
 
   async function handleReset() {
     if (!window.confirm('Reset portfolio? This clears all positions, theses, alerts, and decisions. Cannot be undone.')) return;
@@ -98,9 +101,37 @@ export default function PortfolioPage() {
     await resetPortfolio();
   }
 
+  async function handlePullFromLedger() {
+    if (!window.confirm('Pull positions from Ledger? This re-syncs your real holdings into the portfolio and replaces any auto-hydrated tickers.')) return;
+    setPullingLedger(true);
+    setPullStatus(null);
+    try {
+      const syncRes = await fetch('/api/portfolio/sync-ledger', { method: 'POST' });
+      const syncPayload = await syncRes.json().catch(() => ({}));
+      if (!syncRes.ok) {
+        const reason = syncPayload?.reason ?? `HTTP ${syncRes.status}`;
+        const detail = syncPayload?.detail ?? '';
+        setPullStatus({ tone: 'err', message: `Sync failed: ${reason}${detail ? ` — ${detail}` : ''}` });
+        return;
+      }
+      const synced = syncPayload?.synced ?? 0;
+      const stale = Object.keys(localStorage)
+        .filter(k => k.startsWith('capitalbase:portfolio:v1') || k === 'capitalbase:pm-positions-hydrated:v1');
+      stale.forEach(k => localStorage.removeItem(k));
+      setPullStatus({ tone: 'ok', message: `Synced ${synced} position${synced === 1 ? '' : 's'} from Ledger. Reloading…` });
+      // Brief delay so the user sees confirmation before reload.
+      setTimeout(() => window.location.reload(), 700);
+    } catch (err) {
+      setPullStatus({ tone: 'err', message: `Sync failed: ${(err as Error).message}` });
+    } finally {
+      setPullingLedger(false);
+    }
+  }
+
   return (
     <main className="mx-auto max-w-5xl space-y-6">
       <LocalStoragePositionSync />
+      <LedgerPositionHydrator />
 
       <header className="flex items-start justify-between gap-4">
         <div className="space-y-2">
@@ -112,15 +143,39 @@ export default function PortfolioPage() {
             Track ideas by thesis, not just price. Each card auto-checks score drift, news, catalysts, and AI agent sentiment.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleReset}
-          disabled={resetting}
-          className="mt-1 shrink-0 rounded border border-red-800/50 px-3 py-1.5 text-xs text-red-400 transition-colors hover:border-red-600 hover:text-red-300 disabled:opacity-40 cursor-pointer"
-        >
-          {resetting ? 'Resetting…' : 'Reset portfolio'}
-        </button>
+        <div className="mt-1 flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={handlePullFromLedger}
+            disabled={pullingLedger}
+            className="rounded border border-[var(--cb-border)] px-3 py-1.5 text-xs text-[var(--cb-text-secondary)] transition-colors hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)] disabled:opacity-40 cursor-pointer"
+          >
+            {pullingLedger ? 'Pulling…' : 'Pull from Ledger'}
+          </button>
+          <button
+            type="button"
+            onClick={handleReset}
+            disabled={resetting}
+            className="rounded border border-red-800/50 px-3 py-1.5 text-xs text-red-400 transition-colors hover:border-red-600 hover:text-red-300 disabled:opacity-40 cursor-pointer"
+          >
+            {resetting ? 'Resetting…' : 'Reset portfolio'}
+            {/* status banner appended below */}
+          </button>
+        </div>
       </header>
+
+      {pullStatus && (
+        <div
+          className={cn(
+            'rounded-md border px-3 py-2 text-xs',
+            pullStatus.tone === 'ok'
+              ? 'border-[var(--cb-green)]/40 bg-[var(--cb-accent-soft)] text-[var(--cb-text-primary)]'
+              : 'border-[var(--cb-danger)]/40 bg-[var(--cb-danger)]/[0.08] text-[var(--cb-text-primary)]',
+          )}
+        >
+          {pullStatus.message}
+        </div>
+      )}
 
       {/* Tab bar */}
       <div className="flex gap-1 border-b border-[var(--cb-border)]">

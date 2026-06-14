@@ -8,6 +8,10 @@ import type { ClassifiedNewsItem, LabelKey } from '@/lib/portfolio/newsClassify'
 import { LABEL_STYLE } from '@/lib/portfolio/newsClassify';
 import { setupLabel } from '@/lib/ranking/chatHelpers';
 import { cn } from '@/lib/utils';
+import {
+  positionEconomics,
+  positionTotalCostBasis,
+} from '@/lib/portfolio/positionMath';
 
 type Props = {
   positions: ActivePosition[];
@@ -68,37 +72,21 @@ function topNewsLabel(items: ClassifiedNewsItem[] | undefined): LabelKey | null 
   return null;
 }
 
-function positionShares(position: ActivePosition): number | null {
-  if (typeof position.shares === 'number' && Number.isFinite(position.shares) && position.shares > 0) return position.shares;
-  if (typeof position.notionalUsd === 'number' && Number.isFinite(position.notionalUsd) && position.notionalUsd > 0 && position.entryPrice > 0) {
-    return position.notionalUsd / position.entryPrice;
-  }
-  return null;
-}
-
-function costBasis(position: ActivePosition): number {
-  if (typeof position.costBasis === 'number' && Number.isFinite(position.costBasis) && position.costBasis > 0) return position.costBasis;
-  const shares = positionShares(position);
-  if (shares !== null) return shares * position.entryPrice;
-  return typeof position.notionalUsd === 'number' && Number.isFinite(position.notionalUsd) ? (position.notionalUsd ?? 0) : 0;
-}
-
 export function PortfolioRiskDashboard({ positions, quotes, newsMap }: Props) {
   const active = useMemo(() => positions.filter(p => p.status !== 'exited'), [positions]);
 
   const m = useMemo(() => {
     const withCap = active.filter(
-      p => costBasis(p) > 0,
+      p => (positionTotalCostBasis(p) ?? 0) > 0,
     );
-    const totalCapital = withCap.reduce((s, p) => s + costBasis(p), 0);
+    const totalCapital = withCap.reduce((s, p) => s + (positionTotalCostBasis(p) ?? 0), 0);
 
     const rows = active.map(p => {
       const livePrice = quotes.get(p.ticker)?.price ?? p.currentPrice;
-      const shares = positionShares(p);
-      const notional = costBasis(p);
-      const marketValue = shares !== null ? shares * livePrice : notional > 0 ? notional * (livePrice / p.entryPrice) : 0;
-      const dollarPnl = notional > 0 ? marketValue - notional : null;
-      const pct = notional > 0 && dollarPnl !== null ? (dollarPnl / notional) * 100 : ((livePrice - p.entryPrice) / p.entryPrice) * 100;
+      const economics = positionEconomics(p, livePrice);
+      const notional = economics.totalCostBasis ?? 0;
+      const dollarPnl = economics.pnlUsd;
+      const pct = economics.pnlPct;
       const todayPct = quotes.get(p.ticker)?.changePct ?? null;
       const pctOfBook = totalCapital > 0 && notional > 0 ? (notional / totalCapital) * 100 : null;
       return { p, pct, dollarPnl, todayPct, notional, pctOfBook };
@@ -110,7 +98,7 @@ export function PortfolioRiskDashboard({ positions, quotes, newsMap }: Props) {
     const dailyPnl = withCap.reduce((s, p) => {
       const q = quotes.get(p.ticker);
       if (!q?.price || !q.changePct) return s;
-      const notional = costBasis(p);
+      const notional = positionTotalCostBasis(p) ?? 0;
       const prevPrice = q.price / (1 + q.changePct / 100);
       return s + notional * ((q.price - prevPrice) / prevPrice);
     }, 0);

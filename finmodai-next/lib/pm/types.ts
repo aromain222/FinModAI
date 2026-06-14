@@ -118,8 +118,12 @@ export type PortfolioPosition = {
   weeklyMemoId?: string;
   /** Price target set by PM — triggers Discord alert when hit. */
   targetPrice?: number | null;
+  /** Hard exit on the downside set by the PM analyzer. */
+  stopLoss?: number | null;
   /** Entry price recorded at position open. */
   entryPrice?: number | null;
+  /** Last time the PM analyzer wrote artifacts for this position. */
+  lastPmAnalysisAt?: string | null;
 };
 
 // ── Thesis types ──────────────────────────────────────────────────────────────

@@ -55,6 +55,11 @@ describe('evaluateQuantSignal', () => {
     const event = evaluateQuantSignal(
       snapshot('sentiment', 72, 'bullish'),
       snapshot('sentiment', 50, 'neutral'),
+      [
+        snapshot('sentiment', 48, 'bearish'),
+        snapshot('sentiment', 51, 'neutral'),
+        snapshot('sentiment', 72, 'bullish'),
+      ],
     );
     assert.ok(event);
     assert.equal(event.delta, -22);
@@ -67,6 +72,10 @@ describe('evaluateQuantSignal', () => {
     const event = evaluateQuantSignal(
       snapshot('valuation', 45, 'neutral'),
       snapshot('valuation', 28, 'bearish'),
+      [
+        snapshot('valuation', 27, 'bearish'),
+        snapshot('valuation', 29, 'bearish'),
+      ],
     );
     assert.ok(event);
     assert.equal(event.kind, 'valuation_overextended');
@@ -78,10 +87,32 @@ describe('evaluateQuantSignal', () => {
     const event = evaluateQuantSignal(
       snapshot('technicals', 58, 'bullish'),
       snapshot('technicals', 34, 'bearish'),
+      [
+        snapshot('technicals', 31, 'bearish'),
+        snapshot('technicals', 33, 'bearish'),
+      ],
     );
     assert.ok(event);
     assert.equal(event.kind, 'technical_break');
     assert.equal(event.status, 'escalated');
     assert.equal(event.severity, 'critical');
+  });
+
+  it('does not escalate a one-off large move until 3 of 4 scans confirm it', () => {
+    process.env.QUANT_GROWTH_CHANGE_THRESHOLD = '10';
+    process.env.QUANT_GROWTH_ESCALATION_THRESHOLD = '20';
+    const event = evaluateQuantSignal(
+      snapshot('growth', 75, 'bullish'),
+      snapshot('growth', 50, 'neutral'),
+      [
+        snapshot('growth', 72, 'bullish'),
+        snapshot('growth', 74, 'bullish'),
+        snapshot('growth', 73, 'bullish'),
+      ],
+    );
+    assert.ok(event);
+    assert.equal(event.shouldEscalate, false);
+    assert.equal(event.status, 'open');
+    assert.equal(event.stability?.confirmations, 1);
   });
 });

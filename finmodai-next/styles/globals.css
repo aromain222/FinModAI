@@ -25,6 +25,11 @@
   --cb-accent-soft: rgba(0, 227, 135, 0.1);
   --cb-danger: #f25f5c;
   --cb-warning: #f59e0b;
+  /* PM-OS signal tokens — single source of truth for bull / bear / caution / neutral */
+  --cb-bull: #65d487;
+  --cb-bear: #e2685c;
+  --cb-caution: #e8c862;
+  --cb-neutral: #aeb6bf;
 }
 
 .dark {
@@ -51,6 +56,10 @@
   --cb-accent-soft: rgba(0, 227, 135, 0.1);
   --cb-danger: #f25f5c;
   --cb-warning: #f59e0b;
+  --cb-bull: #65d487;
+  --cb-bear: #e2685c;
+  --cb-caution: #e8c862;
+  --cb-neutral: #aeb6bf;
 }
 
 html {

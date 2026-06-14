@@ -5,8 +5,10 @@ import Image from 'next/image';
 import {
   AlertTriangle,
   Bot,
+  Brain,
   CheckCircle2,
   Clock3,
+  DatabaseZap,
   Filter,
   RefreshCw,
   Users,
@@ -41,8 +43,8 @@ type StatusFilter = 'all' | 'active' | 'attention' | 'idle';
 type Selection = `quant:${QuantAnalystKey}` | `senior:${string}`;
 type ScoutLocation = 'desk' | 'company_queue' | 'research_wall' | 'pm_inbox';
 
-const ACTIVE_LOOP_INTERVAL_MS = 60_000;
-const TICKER_COOLDOWN_MS = 180_000;
+const ACTIVE_LOOP_INTERVAL_MS = 120_000;
+const TICKER_COOLDOWN_MS = 120_000;
 // Scouts in this set never leave their desk — they cover continuous data streams.
 const ALWAYS_AT_DESK = new Set<QuantAnalystKey>(['news_sentiment']);
 
@@ -181,7 +183,7 @@ function statusForAnalyst(
 ): AgentStatus {
   if (event?.status === 'escalated' && event.shouldEscalate) return 'needs_attention';
   const age = ageInMs(snapshot?.observedAt, now);
-  if (age <= 90_000) return 'working';
+  if (age <= 150_000) return 'working';
   if (age <= 30 * 60_000) return 'reviewing';
   return 'idle';
 }
@@ -431,7 +433,7 @@ function SeniorSeat({
         <span className="block truncate font-mono text-[7px]" style={{ color: stanceColor(signal?.signal) }}>
           {active ? signal?.signal ?? 'reviewing' : 'standby'}
         </span>
-        <span className="mt-0.5 block line-clamp-2 min-h-4 font-mono text-[6px] leading-2 text-[#a7afb9]">
+        <span className="mt-0.5 block line-clamp-2 min-h-4 font-mono text-[7px] leading-[10px] text-[#a7afb9]">
           {currentTask}
         </span>
       </span>
@@ -466,25 +468,56 @@ export function AgentOffice() {
   const [snapshots, setSnapshots] = useState<QuantScoreSnapshot[]>([]);
   const [events, setEvents] = useState<QuantSignalEvent[]>([]);
   const [positions, setPositions] = useState<PortfolioPosition[]>([]);
+  const [paperBook, setPaperBook] = useState<{
+    pnl: { realizedUSD: number; unrealizedUSD: number; totalUSD: number; openPositions: number; totalFills: number };
+    paperPositions: Array<{ ticker: string; shares: number; averageCost: number; currentPrice: number | null; unrealizedUSD: number | null }>;
+    recentOrders: Array<{ id: string; ticker: string; side: 'buy' | 'sell'; shares: number; fillPrice: number; notional: number; rationale: string; createdAt: string }>;
+  } | null>(null);
   const [localPortfolioTickers, setLocalPortfolioTickers] = useState<string[]>([]);
   const [monitoringTicker, setMonitoringTicker] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection>('quant:fundamentals');
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [syncingLedger, setSyncingLedger] = useState(false);
+  const [ledgerStatus, setLedgerStatus] = useState<string | null>(null);
+  const [analyzingPm, setAnalyzingPm] = useState(false);
+  const [pmStatus, setPmStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [walkTick, setWalkTick] = useState(0);
+  const [walkNow, setWalkNow] = useState(() => Date.now());
   const [walkSessions, setWalkSessions] = useState<Partial<Record<QuantAnalystKey, WalkSession>>>({});
-  const lastSeenEventRef = useRef<Partial<Record<QuantAnalystKey, string>>>({});
+  const lastSeenSnapshotRef = useRef<Partial<Record<QuantAnalystKey, string>>>({});
+
+  const startCompletedScanWalks = useCallback((
+    completedSnapshots: QuantScoreSnapshot[],
+    includeFirstObservation = false,
+  ) => {
+    const startedAt = Date.now();
+    let pending: Partial<Record<QuantAnalystKey, WalkSession>> | null = null;
+    for (const snapshot of completedSnapshots) {
+      const previousId = lastSeenSnapshotRef.current[snapshot.analystKey];
+      if (previousId === snapshot.id) continue;
+      lastSeenSnapshotRef.current[snapshot.analystKey] = snapshot.id;
+      if (!includeFirstObservation && !previousId) continue;
+      if (ALWAYS_AT_DESK.has(snapshot.analystKey)) continue;
+      if (!pending) pending = {};
+      pending[snapshot.analystKey] = { startedAt, ticker: snapshot.ticker };
+    }
+    if (pending) {
+      const additions = pending;
+      setWalkSessions(current => ({ ...current, ...additions }));
+    }
+  }, []);
 
   const loadActivity = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
     try {
-      const [viewsResponse, monitoringResponse, positionsResponse] = await Promise.all([
+      const [viewsResponse, monitoringResponse, positionsResponse, paperResponse] = await Promise.all([
         fetch('/api/pm/agent-views?limit=500', { cache: 'no-store' }),
         fetch('/api/pm/quant-monitor?limit=500', { cache: 'no-store' }),
         fetch('/api/pm/positions?limit=200', { cache: 'no-store' }),
+        fetch('/api/pm/paper-book', { cache: 'no-store' }),
       ]);
       if (!viewsResponse.ok) throw new Error(`Agent activity request failed (${viewsResponse.status})`);
       if (!monitoringResponse.ok) throw new Error(`Monitoring request failed (${monitoringResponse.status})`);
@@ -495,9 +528,15 @@ export function AgentOffice() {
         positionsResponse.json() as Promise<{ positions?: PortfolioPosition[] }>,
       ]);
       setViews([...(viewsPayload.agentViews ?? [])].sort((a, b) => (b.runAt ?? b.createdAt).localeCompare(a.runAt ?? a.createdAt)));
-      setSnapshots(monitoringPayload.snapshots ?? []);
+      const loadedSnapshots = monitoringPayload.snapshots ?? [];
+      startCompletedScanWalks(loadedSnapshots);
+      setSnapshots(loadedSnapshots);
       setEvents(monitoringPayload.events ?? []);
       setPositions(positionsPayload.positions ?? []);
+      if (paperResponse.ok) {
+        const paperPayload = await paperResponse.json().catch(() => null);
+        if (paperPayload) setPaperBook(paperPayload);
+      }
       setNow(Date.now());
       setError(null);
     } catch (requestError) {
@@ -506,13 +545,65 @@ export function AgentOffice() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [startCompletedScanWalks]);
+
+  const runPmAnalysis = useCallback(async () => {
+    setAnalyzingPm(true);
+    setPmStatus('Analyzing positions… this takes ~1-4 min for the book');
+    try {
+      const res = await fetch('/api/pm/analyze-portfolio', { method: 'POST' });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPmStatus(`PM analysis failed: ${payload?.error ?? `HTTP ${res.status}`}`);
+      } else {
+        const analyzed = payload?.analyzed ?? 0;
+        const failed = payload?.failed ?? 0;
+        setPmStatus(
+          failed > 0
+            ? `PM analyzed ${analyzed} · ${failed} failed`
+            : `PM analyzed ${analyzed} position${analyzed === 1 ? '' : 's'}`,
+        );
+        await loadActivity(true);
+      }
+    } catch (err) {
+      setPmStatus(`PM analysis failed: ${(err as Error).message}`);
+    } finally {
+      setAnalyzingPm(false);
+    }
+  }, [loadActivity]);
+
+  const syncFromLedger = useCallback(async () => {
+    setSyncingLedger(true);
+    setLedgerStatus(null);
+    try {
+      const res = await fetch('/api/portfolio/sync-ledger', { method: 'POST' });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const reason = payload?.reason ?? `HTTP ${res.status}`;
+        const detail = payload?.detail ?? '';
+        setLedgerStatus(`Sync failed: ${reason}${detail ? ` — ${detail}` : ''}`);
+      } else {
+        const synced = payload?.synced ?? 0;
+        const errs = payload?.errorCount ?? 0;
+        setLedgerStatus(
+          errs > 0
+            ? `Synced ${synced} · ${errs} error${errs === 1 ? '' : 's'}`
+            : `Synced ${synced} position${synced === 1 ? '' : 's'} from Ledger`,
+        );
+        await loadActivity(true);
+      }
+    } catch (err) {
+      setLedgerStatus(`Sync failed: ${(err as Error).message}`);
+    } finally {
+      setSyncingLedger(false);
+    }
+  }, [loadActivity]);
 
   useEffect(() => {
     void loadActivity();
     const polling = window.setInterval(() => { void loadActivity(); }, 15_000);
     const clock = window.setInterval(() => setNow(Date.now()), 30_000);
-    const walk = window.setInterval(() => setWalkTick(current => (current + 1) % 1_000_000), 250);
+    const walk = window.setInterval(() => setWalkNow(Date.now()), 250);
     return () => {
       window.clearInterval(polling);
       window.clearInterval(clock);
@@ -565,7 +656,9 @@ export function AgentOffice() {
         }>;
       })
       .then(result => {
-        setSnapshots(current => [...(result.snapshots ?? []), ...current]);
+        const completedSnapshots = result.snapshots ?? [];
+        startCompletedScanWalks(completedSnapshots, true);
+        setSnapshots(current => [...completedSnapshots, ...current]);
         setEvents(current => [...(result.events ?? []), ...current]);
         setError(null);
       })
@@ -575,7 +668,7 @@ export function AgentOffice() {
       .finally(() => {
         setMonitoringTicker(null);
       });
-  }, [loading, monitoringTicker, nextUnscoredTicker]);
+  }, [loading, monitoringTicker, nextUnscoredTicker, startCompletedScanWalks]);
 
   // Always-on monitoring loop: rescans the stalest portfolio ticker on a cadence
   // so the desk is never quiet. Per-ticker cooldown keeps the same name from being
@@ -634,7 +727,9 @@ export function AgentOffice() {
           }>;
         })
         .then(result => {
-          setSnapshots(current => [...(result.snapshots ?? []), ...current]);
+          const completedSnapshots = result.snapshots ?? [];
+          startCompletedScanWalks(completedSnapshots, true);
+          setSnapshots(current => [...completedSnapshots, ...current]);
           setEvents(current => [...(result.events ?? []), ...current]);
         })
         .catch(requestError => {
@@ -643,7 +738,7 @@ export function AgentOffice() {
         .finally(() => setMonitoringTicker(null));
     }, ACTIVE_LOOP_INTERVAL_MS);
     return () => window.clearInterval(interval);
-  }, [loading]);
+  }, [loading, startCompletedScanWalks]);
 
   const latestSnapshotByAnalyst = useMemo(() => {
     const map = new Map<QuantAnalystKey, QuantScoreSnapshot>();
@@ -661,28 +756,6 @@ export function AgentOffice() {
     return map;
   }, [events]);
 
-  // Only big events make a scout get up — anything tagged shouldEscalate triggers
-  // a walk to the PM inbox. Routine snapshots just keep the scout typing at their desk.
-  useEffect(() => {
-    let pending: Partial<Record<QuantAnalystKey, WalkSession>> | null = null;
-    for (const analyst of ANALYSTS) {
-      const latestEvent = latestEventByAnalyst.get(analyst.key);
-      if (!latestEvent) continue;
-      const prevId = lastSeenEventRef.current[analyst.key];
-      if (prevId === latestEvent.id) continue;
-      const firstTime = !prevId;
-      lastSeenEventRef.current[analyst.key] = latestEvent.id;
-      if (firstTime) continue;
-      if (!latestEvent.shouldEscalate) continue;
-      if (!pending) pending = {};
-      pending[analyst.key] = { startedAt: Date.now(), ticker: latestEvent.ticker };
-    }
-    if (pending) {
-      const additions = pending;
-      setWalkSessions(prev => ({ ...prev, ...additions }));
-    }
-  }, [latestEventByAnalyst]);
-
   // Drop walk sessions once they finish so the scout returns to default at-desk.
   useEffect(() => {
     setWalkSessions(prev => {
@@ -698,13 +771,13 @@ export function AgentOffice() {
       }
       return changed ? next : prev;
     });
-  }, [walkTick]);
+  }, [walkNow]);
 
   const scoutRotations = useMemo(() => ANALYSTS.map((analyst, index) => {
     const event = latestEventByAnalyst.get(analyst.key);
     const snapshot = latestSnapshotByAnalyst.get(analyst.key);
     const session = walkSessions[analyst.key];
-    const nowMs = Date.now();
+    const nowMs = walkNow;
     const escalated = event?.status === 'escalated' && event.shouldEscalate;
     const isScanningThis = monitoringTicker && snapshot?.ticker === monitoringTicker;
 
@@ -718,13 +791,7 @@ export function AgentOffice() {
     let isWalking = false;
     const verb = DESK_VERB[analyst.key];
 
-    if (escalated && event) {
-      position = scoutPosition('pm_inbox', index);
-      activity = `Escalating ${event.ticker}`;
-      phaseLabel = 'At PM inbox';
-      location = 'pm_inbox';
-      nextLocation = 'pm_inbox';
-    } else if (session && nowMs - session.startedAt < WALK_TOTAL_MS) {
+    if (session && nowMs - session.startedAt < WALK_TOTAL_MS) {
       const elapsed = nowMs - session.startedAt;
       const chor = walkChoreography(elapsed, index, session.ticker);
       position = chor.position;
@@ -804,12 +871,15 @@ export function AgentOffice() {
     now,
     portfolioTickers,
     walkSessions,
-    walkTick,
+    walkNow,
   ]);
   const scoutRotationByKey = useMemo(
     () => new Map(scoutRotations.map(rotation => [rotation.analyst.key, rotation])),
     [scoutRotations],
   );
+  const pmHandoff = scoutRotations.find(rotation =>
+    rotation.phaseLabel === 'At PM inbox' || rotation.phaseLabel === 'Leaving inbox',
+  ) ?? null;
 
   const latestCommitteeView = views.find(view => view.agentName === 'Senior Investment Committee') ?? null;
   const committeeSignals = useMemo(() => {
@@ -946,6 +1016,31 @@ export function AgentOffice() {
             <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
             Refresh
           </button>
+          <button
+            type="button"
+            onClick={() => { void syncFromLedger(); }}
+            disabled={syncingLedger}
+            title="Pull live holdings from Ledger (Plaid) into the office"
+            className="inline-flex h-9 items-center gap-2 rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 text-xs font-medium text-[var(--cb-text-secondary)] transition hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)] disabled:opacity-50"
+          >
+            <DatabaseZap className={cn('h-3.5 w-3.5', syncingLedger && 'animate-pulse')} />
+            {syncingLedger ? 'Syncing…' : 'Sync from Ledger'}
+          </button>
+          <button
+            type="button"
+            onClick={() => { void runPmAnalysis(); }}
+            disabled={analyzingPm || portfolioTickers.length === 0}
+            title="Run a real PM analysis on every position: target price, stop loss, written thesis, key risks, catalysts"
+            className="inline-flex h-9 items-center gap-2 rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 text-xs font-medium text-[var(--cb-text-secondary)] transition hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)] disabled:opacity-50"
+          >
+            <Brain className={cn('h-3.5 w-3.5', analyzingPm && 'animate-pulse')} />
+            {analyzingPm ? 'PM analyzing…' : 'Run PM analysis'}
+          </button>
+          {(ledgerStatus || pmStatus) && (
+            <span className="hidden text-[10px] text-[var(--cb-text-muted)] md:inline-block">
+              {pmStatus ?? ledgerStatus}
+            </span>
+          )}
         </div>
       </header>
 
@@ -1079,62 +1174,67 @@ export function AgentOffice() {
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 border border-[#5e4d32] bg-[#211b13]/95 px-1.5 py-1 font-mono text-[7px] uppercase tracking-[0.12em] text-[#d8ae5b] [writing-mode:vertical-rl]">
                       PM inbox
                     </span>
-                    <span className="absolute left-1/2 top-[70%] -translate-x-1/2 -translate-y-1/2 border border-[#3b4650] bg-[#12181e]/95 px-2 py-1 font-mono text-[7px] uppercase tracking-[0.12em] text-[#8da2b3]">
-                      Break area
-                    </span>
                   </div>
-                  {/* Break area decor — coffee table flanked by sofas, plus plants. Below desks at y~80%. */}
-                  <div className="pointer-events-none absolute inset-x-6 bottom-3 z-10 flex items-end justify-center gap-4">
-                    <Image
-                      alt=""
-                      src="/pixel-agents/assets/furniture/LARGE_PLANT/LARGE_PLANT.png"
-                      width={32}
-                      height={48}
-                      unoptimized
-                      className="h-20 w-12 [image-rendering:pixelated]"
-                    />
-                    <Image
-                      alt=""
-                      src="/pixel-agents/assets/furniture/SOFA/SOFA_SIDE.png"
-                      width={48}
-                      height={32}
-                      unoptimized
-                      className="h-14 w-20 [image-rendering:pixelated]"
-                    />
-                    <div className="flex flex-col items-center gap-1">
+                  {/* Enclosed break room. Scouts return here between active work cycles. */}
+                  <div className="pointer-events-none absolute inset-x-4 bottom-2 z-10 h-[27%] border-[5px] border-[#171c22] bg-[#202832]/90 shadow-[inset_0_0_0_2px_#46515c]">
+                    <span className="absolute left-3 top-2 border border-[#52606c] bg-[#11171c]/95 px-2 py-1 font-mono text-[7px] uppercase tracking-[0.14em] text-[#9ab0c1]">
+                      Break room
+                    </span>
+                    <span className="absolute right-3 top-2 font-mono text-[7px] uppercase tracking-[0.12em] text-[#697783]">
+                      Coffee · notes · reset
+                    </span>
+                    <div className="absolute inset-x-5 bottom-3 flex items-end justify-center gap-4">
                       <Image
                         alt=""
-                        src="/pixel-agents/assets/furniture/COFFEE/COFFEE.png"
-                        width={16}
-                        height={16}
+                        src="/pixel-agents/assets/furniture/LARGE_PLANT/LARGE_PLANT.png"
+                        width={32}
+                        height={48}
                         unoptimized
-                        className="h-6 w-6 [image-rendering:pixelated]"
+                        className="h-20 w-12 [image-rendering:pixelated]"
                       />
                       <Image
                         alt=""
-                        src="/pixel-agents/assets/furniture/COFFEE_TABLE/COFFEE_TABLE.png"
-                        width={32}
-                        height={16}
+                        src="/pixel-agents/assets/furniture/SOFA/SOFA_SIDE.png"
+                        width={48}
+                        height={32}
                         unoptimized
-                        className="h-8 w-20 [image-rendering:pixelated]"
+                        className="h-14 w-20 [image-rendering:pixelated]"
+                      />
+                      <div className="flex flex-col items-center gap-1">
+                        <Image
+                          alt=""
+                          src="/pixel-agents/assets/furniture/COFFEE/COFFEE.png"
+                          width={16}
+                          height={16}
+                          unoptimized
+                          className="h-6 w-6 [image-rendering:pixelated]"
+                        />
+                        <Image
+                          alt=""
+                          src="/pixel-agents/assets/furniture/COFFEE_TABLE/COFFEE_TABLE.png"
+                          width={32}
+                          height={16}
+                          unoptimized
+                          className="h-8 w-20 [image-rendering:pixelated]"
+                        />
+                      </div>
+                      <Image
+                        alt=""
+                        src="/pixel-agents/assets/furniture/SOFA/SOFA_SIDE.png"
+                        width={48}
+                        height={32}
+                        unoptimized
+                        className="h-14 w-20 -scale-x-100 [image-rendering:pixelated]"
+                      />
+                      <Image
+                        alt=""
+                        src="/pixel-agents/assets/furniture/CACTUS/CACTUS.png"
+                        width={16}
+                        height={32}
+                        unoptimized
+                        className="h-10 w-8 [image-rendering:pixelated]"
                       />
                     </div>
-                    <Image
-                      alt=""
-                      src="/pixel-agents/assets/furniture/SOFA/SOFA_SIDE.png"
-                      width={48}
-                      height={32}
-                      unoptimized
-                      className="h-14 w-20 -scale-x-100 [image-rendering:pixelated]"
-                    />
-                    <Image
-                      alt=""
-                      src="/pixel-agents/assets/furniture/CACTUS/CACTUS.png"
-                      width={16}
-                      height={32}
-                      unoptimized
-                      className="h-10 w-8 [image-rendering:pixelated]"
-                    />
                   </div>
                   <Image
                     alt=""
@@ -1314,12 +1414,27 @@ export function AgentOffice() {
                       ))}
                     </div>
 
-                    <div className="mt-3 flex items-center justify-center gap-2 border border-[#38414a] bg-[#11171c] px-2 py-2">
-                      <AgentSprite palette={4} status={committeeActive ? 'working' : 'idle'} compact />
+                    <div
+                      className={cn(
+                        'relative mt-3 flex items-center justify-center gap-2 border bg-[#11171c] px-2 py-2 transition-colors',
+                        pmHandoff ? 'agent-office-pm-receipt border-[#65d487]' : 'border-[#38414a]',
+                      )}
+                      data-testid="pm-agent-status"
+                    >
+                      {pmHandoff ? (
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap border border-[#65d487] bg-[#102018] px-2 py-1 font-mono text-[7px] uppercase tracking-wide text-[#8be3a5]">
+                          Received {pmHandoff.ticker} · reviewing
+                        </span>
+                      ) : null}
+                      <AgentSprite palette={4} status={pmHandoff || committeeActive ? 'working' : 'idle'} compact />
                       <div>
                         <p className="font-mono text-[8px] text-white">PM Agent</p>
-                        <p className="font-mono text-[7px]" style={{ color: committeeActive ? '#65d487' : '#8a929d' }}>
-                          {committeeActive ? 'Synthesizing recommendation' : 'Monitoring signal queue'}
+                        <p className="font-mono text-[7px]" style={{ color: pmHandoff || committeeActive ? '#65d487' : '#8a929d' }}>
+                          {pmHandoff
+                            ? `Acknowledged ${pmHandoff.analyst.name.replace(' Analyst', '')}`
+                            : committeeActive
+                              ? 'Synthesizing recommendation'
+                              : 'Monitoring signal queue'}
                         </p>
                       </div>
                     </div>
@@ -1409,6 +1524,163 @@ export function AgentOffice() {
                     {selectedSeniorSignal?.confidence != null ? `${selectedSeniorSignal.confidence}%` : '—'}
                   </dd>
                 </dl>
+              )}
+            </section>
+
+            <section className="border-b border-[#252c34] p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-medium text-[#d8dde3]">Portfolio</h3>
+                <span className="font-mono text-[9px] text-[#727d88]">
+                  {portfolioTickers.length} ticker{portfolioTickers.length === 1 ? '' : 's'}
+                </span>
+              </div>
+              <p className="mt-1 text-[9px] leading-4 text-[#697480]">
+                Names the scouts are rotating through. Sync from Ledger pulls live holdings.
+              </p>
+              <div className="mt-3">
+                {portfolioTickers.length === 0 ? (
+                  <div className="flex flex-col items-center gap-2 py-4 text-center">
+                    <p className="text-xs text-[var(--cb-text-muted)]">No positions yet.</p>
+                    <button
+                      type="button"
+                      onClick={() => { void syncFromLedger(); }}
+                      disabled={syncingLedger}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 text-xs font-medium text-[var(--cb-text-primary)] transition hover:border-[var(--cb-border-strong)] disabled:opacity-50"
+                    >
+                      <DatabaseZap className={cn('h-3 w-3', syncingLedger && 'animate-pulse')} />
+                      {syncingLedger ? 'Syncing…' : 'Sync from Ledger'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[#252c34] border-y border-[#252c34]">
+                    {portfolioTickers.map(ticker => {
+                      const latestForTicker = snapshots
+                        .filter(s => s.ticker === ticker)
+                        .reduce<QuantScoreSnapshot | null>((latest, s) => {
+                          if (!latest) return s;
+                          return new Date(s.observedAt).getTime() > new Date(latest.observedAt).getTime() ? s : latest;
+                        }, null);
+                      const isScanning = ticker === monitoringTicker;
+                      const isScored = scoredTickers.has(ticker);
+                      const statusColor = isScanning ? '#65d487' : isScored ? '#aeb6bf' : '#7d8792';
+                      const statusLabel = isScanning
+                        ? 'Scanning now'
+                        : isScored
+                          ? `Scored ${formatAge(latestForTicker?.observedAt ?? '')}`
+                          : 'Queued';
+                      const positionRecord = positions.find(p => p.ticker?.toUpperCase() === ticker);
+                      const hasPmReads = positionRecord
+                        && (positionRecord.targetPrice != null || positionRecord.stopLoss != null || positionRecord.convictionScore != null);
+                      return (
+                        <div key={ticker} className="py-1.5">
+                        <div className="grid grid-cols-[60px_minmax(0,1fr)_auto] items-center gap-2">
+                          <a href={`/research?ticker=${ticker}`} className="font-mono text-[10px] font-semibold text-[#dfe4ea] hover:underline">{ticker}</a>
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            <span
+                              className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
+                              style={{ backgroundColor: statusColor }}
+                            />
+                            <span className="truncate font-mono text-[9px]" style={{ color: statusColor }}>
+                              {statusLabel}
+                            </span>
+                          </span>
+                          {latestForTicker != null && (
+                            <span className="font-mono text-[9px] text-[#65717c]">
+                              {Math.round(latestForTicker.score)}
+                            </span>
+                          )}
+                        </div>
+                        {hasPmReads && positionRecord && (
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 pl-[60px] font-mono text-[8px] text-[#697480]">
+                            {positionRecord.targetPrice != null && (
+                              <span>tgt <span className="text-[#65d487]">${positionRecord.targetPrice.toFixed(2)}</span></span>
+                            )}
+                            {positionRecord.stopLoss != null && (
+                              <span>stop <span className="text-[#e2685c]">${positionRecord.stopLoss.toFixed(2)}</span></span>
+                            )}
+                            {positionRecord.convictionScore != null && (
+                              <span>conv <span className="text-[#dfe4ea]">{positionRecord.convictionScore}</span></span>
+                            )}
+                            {positionRecord.currentPrice != null && positionRecord.targetPrice != null && (
+                              <span className="text-[#65717c]">
+                                upside {(((positionRecord.targetPrice - positionRecord.currentPrice) / positionRecord.currentPrice) * 100).toFixed(0)}%
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="border-b border-[#252c34] p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-medium text-[#d8dde3]">Paper book</h3>
+                <span className="font-mono text-[9px] text-[#727d88]">
+                  {paperBook?.pnl.totalFills ?? 0} fill{(paperBook?.pnl.totalFills ?? 0) === 1 ? '' : 's'}
+                </span>
+              </div>
+              <p className="mt-1 text-[9px] leading-4 text-[#697480]">
+                Hypothetical trades. Committee buy/sell verdicts auto-fill at last sync price ($100 buys, sell-all on sell, trim 50%). No real broker contact.
+              </p>
+              {paperBook == null ? (
+                <p className="mt-3 py-2 text-center text-xs text-[#697480]">Loading…</p>
+              ) : paperBook.pnl.totalFills === 0 ? (
+                <p className="mt-3 py-2 text-center text-xs text-[#697480]">
+                  No paper trades yet. The committee writes a fill when it escalates to buy/sell/trim with ≥50 confidence.
+                </p>
+              ) : (
+                <>
+                  <div className="mt-3 grid grid-cols-3 gap-2 border border-[#252c34] bg-[#10151a] p-2">
+                    <div>
+                      <div className="font-mono text-[8px] uppercase text-[#7d8792]">Total P&amp;L</div>
+                      <div
+                        className="font-mono text-[11px]"
+                        style={{ color: paperBook.pnl.totalUSD >= 0 ? '#65d487' : '#e2685c' }}
+                      >
+                        {paperBook.pnl.totalUSD >= 0 ? '+' : ''}${paperBook.pnl.totalUSD.toFixed(2)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-mono text-[8px] uppercase text-[#7d8792]">Realized</div>
+                      <div
+                        className="font-mono text-[11px]"
+                        style={{ color: paperBook.pnl.realizedUSD >= 0 ? '#65d487' : '#e2685c' }}
+                      >
+                        {paperBook.pnl.realizedUSD >= 0 ? '+' : ''}${paperBook.pnl.realizedUSD.toFixed(2)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-mono text-[8px] uppercase text-[#7d8792]">Open</div>
+                      <div className="font-mono text-[11px] text-[#dfe4ea]">
+                        {paperBook.pnl.openPositions}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 divide-y divide-[#252c34] border-y border-[#252c34]">
+                    {paperBook.recentOrders.slice(0, 5).map(o => (
+                      <div key={o.id} className="grid grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-2 py-1.5">
+                        <span
+                          className="font-mono text-[9px] font-semibold uppercase"
+                          style={{ color: o.side === 'buy' ? '#65d487' : '#e2685c' }}
+                        >
+                          {o.side}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate font-mono text-[10px] text-[#dfe4ea]">
+                            {o.ticker} · {o.shares.toFixed(4)} @ ${o.fillPrice.toFixed(2)}
+                          </span>
+                          <span className="block truncate font-mono text-[8px] text-[#65717c]">
+                            ${o.notional.toFixed(2)} · {formatAge(o.createdAt)}
+                          </span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
             </section>
 
@@ -1692,6 +1964,10 @@ export function AgentOffice() {
           animation: agent-office-handoff 2.6s ease-in-out infinite;
         }
 
+        .agent-office-pm-receipt {
+          animation: agent-office-pm-receipt 0.8s ease-in-out infinite alternate;
+        }
+
         .agent-office-scout__sprite {
           filter: drop-shadow(0 4px 2px rgba(0, 0, 0, 0.4));
         }
@@ -1734,11 +2010,19 @@ export function AgentOffice() {
           88%, 100% { transform: translate(20px, -50%); }
         }
 
+        @keyframes agent-office-pm-receipt {
+          from { box-shadow: 0 0 0 rgba(101, 212, 135, 0.1); }
+          to { box-shadow: 0 0 18px rgba(101, 212, 135, 0.42); }
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .agent-office-sprite--typing,
           .agent-office-sprite--reading,
           .agent-office-sprite--walking,
           .agent-office-runner--handoff {
+            animation: none;
+          }
+          .agent-office-pm-receipt {
             animation: none;
           }
           .agent-office-scout {

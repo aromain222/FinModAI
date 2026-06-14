@@ -9,6 +9,17 @@ export const QUANT_ANALYST_KEYS = [
 
 export type QuantAnalystKey = typeof QUANT_ANALYST_KEYS[number];
 
+export type QuantScoreComponents = {
+  score: number;
+  deterministicScore: number | null;
+  llmScore: number;
+  deterministicWeight: number;
+  llmWeight: number;
+  deterministicCoverage: number;
+  deterministicInputs: string[];
+  asOf: string;
+};
+
 export type QuantScoreSnapshot = {
   id: string;
   ticker: string;
@@ -19,6 +30,7 @@ export type QuantScoreSnapshot = {
   confidence: number;
   reasoning: string;
   watch: string;
+  scoreComponents?: QuantScoreComponents;
   source: 'hedge_fund_monitoring';
   observedAt: string;
   createdAt: string;
@@ -49,6 +61,11 @@ export type QuantSignalEvent = {
   reasoning: string;
   status: QuantSignalEventStatus;
   shouldEscalate: boolean;
+  stability?: {
+    required: number;
+    window: number;
+    confirmations: number;
+  };
   committeeRunId: string | null;
   createdAt: string;
   reviewedAt: string | null;
@@ -65,6 +82,7 @@ export type HedgeFundMonitoringSignal = {
   thesis: string;
   risk: string;
   watch: string;
+  scoreComponents?: QuantScoreComponents;
 };
 
 export type HedgeFundMonitoringResult = {

@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Trash2, LogOut, ChevronDown, ChevronUp, Zap, RefreshCw, ShieldCheck, TrendingUp } from 'lucide-react';
+import { Trash2, LogOut, ChevronDown, ChevronUp, Zap, RefreshCw, ShieldCheck, TrendingUp, Newspaper } from 'lucide-react';
 import type { ActivePosition, PositionStatus, ThesisDrift, ThesisSnapshot } from '@/lib/portfolio/types';
 import type { StockQuote } from '@/app/api/quotes/route';
 import type { ClassifiedNewsItem } from '@/lib/portfolio/newsClassify';
 import { LABEL_STYLE } from '@/lib/portfolio/newsClassify';
 import { cn } from '@/lib/utils';
+import { positionEconomics } from '@/lib/portfolio/positionMath';
+import { buildDeterministicNewsSentiment } from '@/lib/pm/monitoring/newsSentiment';
 
 const STATUS_LABELS: Record<PositionStatus, string> = {
   building:  'New',
@@ -48,14 +50,6 @@ function fmtUsd(value: number | null | undefined): string {
   return `${sign}$${Math.round(Math.abs(value)).toLocaleString('en-US')}`;
 }
 
-function positionShares(position: ActivePosition): number | null {
-  if (typeof position.shares === 'number' && Number.isFinite(position.shares) && position.shares > 0) return position.shares;
-  if (typeof position.notionalUsd === 'number' && Number.isFinite(position.notionalUsd) && position.notionalUsd > 0 && position.entryPrice > 0) {
-    return position.notionalUsd / position.entryPrice;
-  }
-  return null;
-}
-
 type Props = {
   position: ActivePosition;
   quote?: StockQuote;
@@ -89,6 +83,12 @@ function actionLabel(action: NonNullable<ActivePosition['latestMonitor']>['actio
   if (action === 'Trim') return 'Trim risk';
   if (action === 'Exit') return 'Exit watch';
   return 'Watch';
+}
+
+function newsSignalTone(signal: 'bullish' | 'bearish' | 'neutral'): string {
+  if (signal === 'bullish') return 'border-emerald-400/30 bg-emerald-500/10';
+  if (signal === 'bearish') return 'border-rose-400/30 bg-rose-500/10';
+  return 'border-blue-400/25 bg-blue-500/10';
 }
 
 function monitorSummary(monitor: ActivePosition['latestMonitor']): string {
@@ -226,25 +226,22 @@ export function PositionCard({
   const [priceInput,   setPriceInput]   = useState('');
 
   const livePrice   = quote?.price ?? position.currentPrice;
-  const shares      = positionShares(position);
-  const costBasis   = typeof position.costBasis === 'number' && Number.isFinite(position.costBasis) && position.costBasis > 0
-    ? position.costBasis
-    : shares !== null
-      ? shares * position.entryPrice
-      : typeof position.notionalUsd === 'number' && Number.isFinite(position.notionalUsd) && position.notionalUsd > 0
-        ? position.notionalUsd
-        : null;
-  const marketValue = shares !== null ? shares * livePrice : null;
-  const dollarPnL   = marketValue !== null && costBasis !== null ? marketValue - costBasis : null;
-  const pctChange   = costBasis !== null && costBasis > 0 && dollarPnL !== null
-    ? (dollarPnL / costBasis) * 100
-    : ((livePrice - position.entryPrice) / position.entryPrice) * 100;
+  const economics   = positionEconomics(position, livePrice);
+  const shares      = economics.shares;
+  const costBasis   = economics.totalCostBasis;
+  const marketValue = economics.marketValue;
+  const dollarPnL   = economics.pnlUsd;
+  const pctChange   = economics.pnlPct;
   const scoreDelta  = position.currentScore - position.entryScore;
   const computedDrift: ThesisDrift = scoreDelta > 0.3 ? 'strengthening' : scoreDelta < -0.3 ? 'weakening' : 'stable';
   const drift       = driftBadge(computedDrift);
   const todayPct    = quote?.changePct ?? null;
   const isLive      = quote?.price != null;
   const monitor     = position.latestMonitor;
+  const newsAgentRead = monitor?.newsAgentRead
+    ?? (news && news.length > 0
+      ? buildDeterministicNewsSentiment(position.ticker, news)
+      : null);
 
   const handlePriceConfirm = () => {
     const price = parseFloat(priceInput);
@@ -284,7 +281,7 @@ export function PositionCard({
         {/* P&L + actions */}
         <div className="flex items-center gap-2">
           <div className="text-right">
-            {/* Since-entry return */}
+            {/* Return anchored to the user's recorded entry date and price. */}
             <div className={cn('text-lg font-bold tabular-nums', pnlColor(pctChange))}>
               {pctChange >= 0 ? '+' : ''}{pctChange.toFixed(1)}%
             </div>
@@ -347,7 +344,7 @@ export function PositionCard({
             ({scoreDelta >= 0 ? '+' : ''}{scoreDelta.toFixed(1)})
           </span>
         </span>
-        <span className="text-[var(--cb-text-muted)]">Since {fmtDate(position.entryDate)}</span>
+        <span className="text-[var(--cb-text-muted)]">Since entry · {fmtDate(position.entryDate)}</span>
       </div>
 
       {/* Body grid */}
@@ -520,8 +517,37 @@ export function PositionCard({
       {/* News */}
       {news && news.length > 0 && (
         <div className="mt-3 border-t border-[var(--cb-border)] pt-3">
+          {newsAgentRead ? (
+            <div className={cn(
+              'mb-3 rounded-xl border p-3',
+              newsSignalTone(newsAgentRead.signal),
+            )}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Newspaper className="h-3.5 w-3.5 text-blue-400" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--cb-text-primary)]">
+                    News Sentiment Agent
+                  </span>
+                </div>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--cb-text-secondary)]">
+                  {newsAgentRead.signal} · {newsAgentRead.confidence}% confidence
+                </span>
+              </div>
+              <p className="mt-2 text-xs font-medium leading-5 text-[var(--cb-text-primary)]">
+                {newsAgentRead.reasoning}
+              </p>
+              <div className="mt-2 border-t border-[var(--cb-border-subtle)] pt-2">
+                <div className="text-[9px] font-bold uppercase tracking-widest text-[var(--cb-text-secondary)]">
+                  What would make this matter
+                </div>
+                <p className="mt-1 text-[11px] leading-4 text-[var(--cb-text-muted)]">
+                  {newsAgentRead.watch}
+                </p>
+              </div>
+            </div>
+          ) : null}
           <div className="mb-2 text-[10px] uppercase tracking-widest text-[var(--cb-text-muted)]">
-            News
+            Source headlines
           </div>
           <div className="space-y-1.5">
             {news.map(item => {

@@ -6,6 +6,7 @@ import type {
   ThesisDrift,
   ThesisSnapshot,
 } from './types';
+import { normalizePositionEconomics } from './positionMath';
 
 const STORAGE_KEY = 'capitalbase:portfolio:v1';
 const PORTFOLIO_EVENT = 'capitalbase:portfolio-updated';
@@ -24,7 +25,9 @@ export function getPositions(): ActivePosition[] {
   if (!canUseStorage()) return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as ActivePosition[]) : [];
+    return raw
+      ? (JSON.parse(raw) as ActivePosition[]).map(normalizePositionEconomics)
+      : [];
   } catch {
     return [];
   }
@@ -57,7 +60,10 @@ export function addPosition(position: ActivePosition): ActivePosition[] {
     drift:  'stable',
     note:   'Position opened',
   };
-  return save([{ ...position, thesisSnapshots: [initialSnapshot] }, ...existing]);
+  return save([{
+    ...normalizePositionEconomics(position),
+    thesisSnapshots: [initialSnapshot],
+  }, ...existing]);
 }
 
 export function updatePosition(id: string, updates: Partial<ActivePosition>): ActivePosition[] {

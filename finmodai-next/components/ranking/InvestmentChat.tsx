@@ -487,6 +487,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
   const [currentPosition,   setCurrentPosition]   = useState<ActivePosition | null>(null);
   const [showEnterForm,     setShowEnterForm]     = useState(false);
   const [entryPriceInput,   setEntryPriceInput]   = useState('');
+  const [entryDateInput,    setEntryDateInput]    = useState(() => new Date().toISOString().slice(0, 10));
   const [positionAmountInput, setPositionAmountInput] = useState('');
   const [shareCountInput, setShareCountInput] = useState('');
   const [positionConfirmed, setPositionConfirmed] = useState(false);
@@ -526,6 +527,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       setDisplayedScore(stock?.score ?? 0);
       setShowEnterForm(false);
       setEntryPriceInput('');
+      setEntryDateInput(new Date().toISOString().slice(0, 10));
       setPositionAmountInput('');
       setShareCountInput('');
       setPositionConfirmed(false);
@@ -853,6 +855,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
       price,
       resolvedAmount,
       !isNaN(shares) && shares > 0 ? shares : null,
+      entryDateInput ? `${entryDateInput}T12:00:00` : null,
     );
     const updated  = addPosition(position);
     setCurrentPosition(updated.find(p => p.id === position.id) ?? null);
@@ -867,7 +870,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
         companyName: null,
         shares: position.shares ?? null,
         notionalExposure: position.notionalUsd ?? null,
-        costBasis: position.entryPrice,
+        costBasis: position.costBasis,
         currentPrice: position.currentPrice,
         targetAllocation: null,
         currentAllocation: null,
@@ -890,12 +893,13 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
 
     setShowEnterForm(false);
     setEntryPriceInput('');
+    setEntryDateInput(new Date().toISOString().slice(0, 10));
     setPositionAmountInput('');
     setShareCountInput('');
     if (positionTimeoutRef.current !== null) window.clearTimeout(positionTimeoutRef.current);
     setPositionConfirmed(true);
     positionTimeoutRef.current = window.setTimeout(() => setPositionConfirmed(false), 2400);
-  }, [stock, entryPriceInput, positionAmountInput, shareCountInput]);
+  }, [stock, entryPriceInput, entryDateInput, positionAmountInput, shareCountInput]);
 
   // ── Empty state ──────────────────────────────────────────────────────────
 
@@ -1075,7 +1079,7 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
                   : 'Manual ref price'}
             </div>
           </div>
-          <div className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]">
+          <div className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_1fr_auto]">
             <label className="space-y-1">
               <span className="block text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Shares</span>
               <input
@@ -1106,6 +1110,17 @@ export function InvestmentChat({ stock, peers, onStockUpdate }: Props) {
                 value={entryPriceInput}
                 onChange={e => setEntryPriceInput(e.target.value)}
                 placeholder={entryQuote?.price ? entryQuote.price.toFixed(2) : 'Price'}
+                className="h-9 w-full rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2.5 text-sm text-[var(--cb-text-primary)] focus:border-blue-400/40 focus:outline-none"
+                onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="block text-[9px] font-semibold uppercase tracking-widest text-[var(--cb-text-muted)]">Bought on</span>
+              <input
+                type="date"
+                value={entryDateInput}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={e => setEntryDateInput(e.target.value)}
                 className="h-9 w-full rounded-lg border border-[var(--cb-border)] bg-[var(--cb-surface)] px-2.5 text-sm text-[var(--cb-text-primary)] focus:border-blue-400/40 focus:outline-none"
                 onKeyDown={e => { if (e.key === 'Enter') handleEnterPosition(); if (e.key === 'Escape') setShowEnterForm(false); }}
               />

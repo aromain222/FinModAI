@@ -2,8 +2,11 @@ import { saveAlert } from '@/lib/pm/alerts/alertStore';
 import { runInvestmentCommittee } from '@/lib/pm/monitoring/committee';
 import { evaluateQuantSignal } from '@/lib/pm/monitoring/evaluateSignal';
 import { internalRequestHeaders } from '@/lib/pm/monitoring/internalRequestHeaders';
+import { triggerScoutConsensusFills } from '@/lib/pm/paper/paperBook';
+import { listPositions } from '@/lib/pm/portfolio/positionStore';
 import {
   latestQuantScore,
+  listQuantScores,
   saveQuantScoreSnapshot,
   saveQuantSignalEvent,
 } from '@/lib/pm/monitoring/store';
@@ -36,6 +39,7 @@ function toSnapshot(
     confidence: Math.max(0, Math.min(100, Math.round(signal.confidence))),
     reasoning: signal.reasoning,
     watch: signal.watch,
+    scoreComponents: signal.scoreComponents,
     source: 'hedge_fund_monitoring',
     observedAt,
     createdAt: observedAt,
@@ -98,11 +102,15 @@ export async function runQuantMonitoring(params: {
 
   const snapshots: QuantScoreSnapshot[] = [];
   const events: QuantSignalEvent[] = [];
+  const scoreHistory = await listQuantScores({ ticker, limit: 100 });
   for (const signal of signals) {
     const previous = await latestQuantScore(ticker, signal.key);
+    const history = scoreHistory
+      .filter(row => row.analystKey === signal.key)
+      .slice(0, 3);
     const snapshot = await saveQuantScoreSnapshot(toSnapshot(ticker, signal, observedAt));
     snapshots.push(snapshot);
-    const event = evaluateQuantSignal(previous, snapshot);
+    const event = evaluateQuantSignal(previous, snapshot, history);
     if (!event) continue;
     const saved = await saveQuantSignalEvent(event);
     events.push(saved);
@@ -110,15 +118,57 @@ export async function runQuantMonitoring(params: {
   }
 
   const escalatedEvents = events.filter(event => event.shouldEscalate);
-  const committee = params.autoEscalate !== false && escalatedEvents.length > 0
+  let committee = params.autoEscalate !== false && escalatedEvents.length > 0
     ? await runInvestmentCommittee({
         ticker,
         trigger: 'signal_event',
         origin: params.origin,
         signalEvents: escalatedEvents,
         requestHeaders: params.requestHeaders,
+        triggerSource: 'committee_escalation',
       })
     : null;
+
+  // Trigger 3 (committee_cycle): force the committee to weigh in on every scan,
+  // not just when something escalated. Fire-and-forget — the committee call is slow
+  // (~30-55s) and we don't want to block the monitor return. Result writes to
+  // pm_paper_orders when it eventually completes via the paper-fill hook in committee.ts.
+  if (committee == null && params.autoEscalate !== false) {
+    void runInvestmentCommittee({
+      ticker,
+      trigger: 'review_date',
+      origin: params.origin,
+      signalEvents: [],
+      requestHeaders: params.requestHeaders,
+      triggerSource: 'committee_cycle',
+    }).catch(err => {
+      console.warn('committee_cycle failed', { ticker, error: (err as Error).message });
+    });
+  }
+
+  // Triggers 1 + 2 (scout_consensus_4of6 / scout_strong_5of6): fire paper fills
+  // straight off scout agreement, bypassing the conservative committee.
+  try {
+    const positions = await listPositions({ ticker, limit: 1 });
+    const currentPrice = positions[0]?.currentPrice ?? null;
+    await triggerScoutConsensusFills({
+      ticker,
+      currentPrice,
+      signals: snapshots.map(s => {
+        const rawConf = s.confidence ?? 0;
+        // Snapshots report confidence on 0-1 or 0-100 depending on path. Normalize to 0-100.
+        const confidence = rawConf > 1 ? rawConf : Math.round(rawConf * 100);
+        return {
+          key: s.analystKey,
+          signal: s.signal,
+          score: s.score,
+          confidence: Math.min(100, Math.max(0, confidence)),
+        };
+      }),
+    });
+  } catch (err) {
+    console.warn('scout_consensus_fills failed', { ticker, error: (err as Error).message });
+  }
 
   return {
     ticker,
