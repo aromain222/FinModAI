@@ -116,17 +116,22 @@ type RawSignals = {
 };
 
 async function fetchRecentEvents(origin: string): Promise<EventItem[]> {
-  try {
-    const res = await fetch(`${origin}/api/events?range=today`, {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!res.ok) return [];
-    const data = await res.json() as { events?: EventItem[]; items?: EventItem[] } | null;
-    return data?.events ?? data?.items ?? [];
-  } catch {
-    return [];
+  // Try today first; if empty (quiet news day or missing keys) widen to week.
+  for (const range of ['today', 'week'] as const) {
+    try {
+      const res = await fetch(`${origin}/api/events?range=${range}`, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!res.ok) continue;
+      const data = await res.json() as { events?: EventItem[]; items?: EventItem[] } | null;
+      const items = data?.events ?? data?.items ?? [];
+      if (items.length > 0) return items;
+    } catch {
+      // try next range
+    }
   }
+  return [];
 }
 
 async function gatherSignals(origin: string): Promise<RawSignals> {
@@ -287,10 +292,8 @@ export async function generateMarketBrief(input: GenerateBriefInput): Promise<Ge
   const runLabel = input.runLabel ?? runLabelForNow();
   const signals = await gatherSignals(input.origin);
 
-  if (signals.events.length === 0 && signals.xSamples.size === 0) {
-    return { ok: false, reason: 'no_signal_sources_available' };
-  }
-
+  // Per spec: "If there is no important signal, say 'No major signal detected.'"
+  // Don't error — let the LLM produce a thin brief with confidence=low.
   const { system, user } = buildPrompt(signals, input.previousSummary ?? null);
   const llm = await generateTextWithProviderFallback({
     messages: [
