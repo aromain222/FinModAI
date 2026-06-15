@@ -116,10 +116,11 @@ type RawSignals = {
 };
 
 async function fetchRecentEvents(origin: string): Promise<EventItem[]> {
-  // Try today first; if empty (quiet news day or missing keys) widen to week.
-  for (const range of ['today', 'week'] as const) {
+  // /api/events range param accepts: 1D | 3D | 1W | 1M | 3M. Anything else returns
+  // 400 invalid_params. Widen progressively.
+  for (const range of ['1D', '3D', '1W'] as const) {
     try {
-      const res = await fetch(`${origin}/api/events?range=${range}`, {
+      const res = await fetch(`${origin}/api/events?range=${range}&limit=50`, {
         cache: 'no-store',
         signal: AbortSignal.timeout(15_000),
       });

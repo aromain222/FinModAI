@@ -65,15 +65,19 @@ export async function findTrendingCandidates(input: {
   const limit = input.limit ?? 5;
   const sectorKey = input.sector ? normalizeSector(input.sector) : null;
 
-  // 1. Recent events — pull a wider window so a quiet news day still gives us material.
-  const res = await fetch(`${input.origin}/api/events?range=week`, {
-    cache: 'no-store',
-    signal: AbortSignal.timeout(15_000),
-  }).catch(() => null);
-  const data = res?.ok
-    ? (await res.json().catch(() => null)) as { events?: EventItem[]; items?: EventItem[] } | null
-    : null;
-  const events = data?.events ?? data?.items ?? [];
+  // 1. Recent events — /api/events accepts range 1D|3D|1W|1M|3M (anything else 400s).
+  //    Try wider windows so a quiet news day still gives us material.
+  let events: EventItem[] = [];
+  for (const range of ['1W', '1M'] as const) {
+    const res = await fetch(`${input.origin}/api/events?range=${range}&limit=80`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(15_000),
+    }).catch(() => null);
+    if (!res?.ok) continue;
+    const data = (await res.json().catch(() => null)) as { events?: EventItem[]; items?: EventItem[] } | null;
+    const items = data?.events ?? data?.items ?? [];
+    if (items.length > 0) { events = items; break; }
+  }
 
   // 2. Filter by sector if requested. Keep BOTH the sector-tight set and the unfiltered set
   //    so we can fall back when sector-tagged events are sparse.
