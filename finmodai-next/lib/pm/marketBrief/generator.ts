@@ -276,6 +276,76 @@ function extractJson(text: string): string {
   return t;
 }
 
+/**
+ * Best-effort JSON repair for common LLM output failures:
+ *  - trailing commas inside arrays/objects
+ *  - truncated output (response hit token limit mid-string/array/object)
+ * Returns a parseable JSON string or null if unrepairable.
+ */
+function tryRepairJson(raw: string): string | null {
+  let s = raw.trim();
+  // Remove trailing commas before } or ]
+  s = s.replace(/,(\s*[}\]])/g, '$1');
+
+  // Try direct parse first
+  try { JSON.parse(s); return s; } catch {}
+
+  // Truncation: greedy close based on bracket stack
+  const stack: string[] = [];
+  let inString = false;
+  let escape = false;
+  let lastSafe = -1;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (escape) { escape = false; continue; }
+    if (ch === '\\') { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{' || ch === '[') stack.push(ch);
+    else if (ch === '}' || ch === ']') {
+      stack.pop();
+      if (stack.length === 0) lastSafe = i;
+    }
+  }
+
+  // If we ended mid-string, close the string and back out to the last comma boundary.
+  if (inString) {
+    const lastCommaInString = s.lastIndexOf(',');
+    if (lastCommaInString > 0) s = s.slice(0, lastCommaInString);
+    s = s.replace(/,(\s*)$/, '$1');
+    inString = false;
+  }
+
+  // Re-evaluate stack after the string truncation
+  const stack2: string[] = [];
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (esc) { esc = false; continue; }
+    if (ch === '\\') { esc = true; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (ch === '{' || ch === '[') stack2.push(ch);
+    else if (ch === '}' || ch === ']') stack2.pop();
+  }
+  // Close any open brackets in reverse order
+  while (stack2.length > 0) {
+    const open = stack2.pop();
+    s += open === '{' ? '}' : ']';
+  }
+  s = s.replace(/,(\s*[}\]])/g, '$1');
+
+  try { JSON.parse(s); return s; } catch {}
+
+  // Last resort: cut to last balanced object
+  if (lastSafe > 0) {
+    const cut = s.slice(0, lastSafe + 1).replace(/,(\s*[}\]])/g, '$1');
+    try { JSON.parse(cut); return cut; } catch {}
+  }
+  return null;
+}
+
 // ── Public entry ─────────────────────────────────────────────────────────────
 
 export type GenerateBriefInput = {
@@ -302,17 +372,24 @@ export async function generateMarketBrief(input: GenerateBriefInput): Promise<Ge
       { role: 'user', content: user },
     ],
     temperature: 0.2,
-    maxTokens: 2200,
-    timeoutMs: 60_000,
+    maxTokens: 4000,
+    timeoutMs: 75_000,
     preferredProvider: 'anthropic',
   });
   if (!llm) return { ok: false, reason: 'llm_unavailable' };
 
-  let parsed: unknown;
+  const raw = extractJson(llm.text);
+  let parsed: unknown = null;
   try {
-    parsed = JSON.parse(extractJson(llm.text));
-  } catch (err) {
-    return { ok: false, reason: `json_parse_failed: ${(err as Error).message}` };
+    parsed = JSON.parse(raw);
+  } catch {
+    const repaired = tryRepairJson(raw);
+    if (repaired) {
+      try { parsed = JSON.parse(repaired); } catch { parsed = null; }
+    }
+  }
+  if (parsed == null) {
+    return { ok: false, reason: 'json_parse_failed_after_repair' };
   }
   const validated = marketBriefSchema.safeParse(parsed);
   if (!validated.success) {
