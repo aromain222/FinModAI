@@ -91,6 +91,12 @@ export async function GET(req: NextRequest) {
         allocationPct: pick.sizing.allocationPct,
         executionStatus: pick.execution.status,
       })),
+      bookActions: run.bookActions.map(action => ({
+        ticker: action.ticker,
+        action: action.consensus.action,
+        notional: action.sizing.notional,
+        executionStatus: action.execution.status,
+      })),
       trackRecord: run.trackRecord,
       orderBudget: {
         maxPerDay,

@@ -81,7 +81,7 @@ export type TradingAgentRun = {
 
 // ── Autonomous scan mode ──────────────────────────────────────────────────────
 
-export type CandidateSource = 'rank' | 'provided' | 'watchlist';
+export type CandidateSource = 'rank' | 'provided' | 'watchlist' | 'positions';
 
 /** A stock the scan considered, with the ranking context it was sourced with. */
 export type ScanCandidate = {
@@ -151,8 +151,10 @@ export type TradingAgentScanRun = {
   equity: PortfolioEquity;
   /** Every candidate the agents were consulted on. */
   scanned: TickerAnalysis[];
-  /** The investments the agent chose; decisions are persisted for these only. */
+  /** New investments the agent chose. */
   picks: TradingAgentPick[];
+  /** Defensive actions on held names (trims/exits on bearish consensus). */
+  bookActions: TradingAgentPick[];
   /** Run-level narrative: what was scanned, what the agents said, why the picks won. */
   story: string;
 };

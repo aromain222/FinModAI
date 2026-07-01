@@ -15,11 +15,12 @@ It has two modes:
 ## Autonomous scan
 
 1. **Source candidates** — caller-provided `universe` if present, otherwise
-   the CapitalBase ranked opportunity board (`/api/rank`, which carries the
-   opportunity score and the undervalued/fair/overvalued valuation signal),
-   otherwise the static watchlist. Names with an open pending decision are
-   skipped so the agent doesn't restate itself. Bounded by `maxCandidates`
-   (default 4, cap 8).
+   up to 2 **held positions first** (the book must be managed, not just added
+   to) followed by the CapitalBase ranked opportunity board (`/api/rank`,
+   which carries the opportunity score and the undervalued/fair/overvalued
+   valuation signal), otherwise the static watchlist. Names with an open
+   pending decision are skipped so the agent doesn't restate itself. Bounded
+   by `maxCandidates` (default 4, cap 8).
 2. **Consult the agents on every candidate** (two names at a time) — the same
    research-debate + committee round as a deep dive.
 3. **Choose investments** — only `unanimous`/`majority` **bullish** reads at
@@ -33,6 +34,10 @@ It has two modes:
    picks won.
 5. **Persist + execute** — pending `InvestmentDecision`s are created only for
    the picks; the execution stage applies the same gates as a deep dive.
+6. **Defend the book** — held names where the agents turned bearish become
+   `bookActions`: a trim of 25% of current exposure (never more than held,
+   never a short), through the same execution gates. The loop sells as well
+   as buys.
 
 ```bash
 POST /api/pm/trading-agent

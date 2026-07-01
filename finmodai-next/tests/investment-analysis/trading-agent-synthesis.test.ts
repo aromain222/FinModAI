@@ -9,7 +9,7 @@ import test from 'node:test';
 
 import { actionForStance, synthesizeConsensus } from '@/lib/pm/tradingAgent/synthesize';
 import { deriveDebateConfidence, stanceFromDecisionWord } from '@/lib/pm/tradingAgent/consultAgents';
-import { buildScanStory, selectionScore, selectPicks } from '@/lib/pm/tradingAgent/scanUniverse';
+import { buildScanStory, selectionScore, selectPicks, selectBookActions, trimNotional } from '@/lib/pm/tradingAgent/scanUniverse';
 import { resolvePersonality, listPersonalities } from '@/lib/pm/tradingAgent/personality';
 import { sizePosition } from '@/lib/pm/tradingAgent/sizing';
 import { disciplineFromPnL } from '@/lib/pm/tradingAgent/learning';
@@ -349,6 +349,29 @@ test('selectPicks honors a personality-raised confidence floor', () => {
   ];
   assert.equal(selectPicks(analyses, 3).length, 2);
   assert.deepEqual(selectPicks(analyses, 3, 65).map(p => p.analysis.candidate.ticker), ['HIGH']);
+});
+
+test('selectBookActions trims only held names the agents turned bearish on', () => {
+  const ctx = (holds: boolean) => ({
+    holdsPosition: holds,
+    currentPrice: null,
+    notionalExposure: holds ? 800 : null,
+    quantScoreSummary: null,
+  });
+  const actions = selectBookActions([
+    { candidate: candidate({ ticker: 'HELDBEAR' }), consensus: consensusOf({ stance: 'bearish', action: 'trim' }), context: ctx(true) },
+    { candidate: candidate({ ticker: 'HELDBULL' }), consensus: consensusOf({ stance: 'bullish', action: 'add' }), context: ctx(true) },
+    { candidate: candidate({ ticker: 'NOTHELD' }), consensus: consensusOf({ stance: 'bearish', action: 'hold' }), context: ctx(false) },
+  ]);
+  assert.deepEqual(actions.map(a => a.analysis.candidate.ticker), ['HELDBEAR']);
+  assert.match(actions[0].selectionReason, /reducing exposure/);
+});
+
+test('trimNotional sells a quarter of exposure, bounded sensibly', () => {
+  assert.equal(trimNotional(800, 100), 200);   // 25% of $800
+  assert.equal(trimNotional(40, 100), 25);     // floor at $25
+  assert.equal(trimNotional(null, 100), 100);  // unknown exposure → default clip
+  assert.ok(trimNotional(60, 100) <= 60);      // never more than held
 });
 
 test('executedByAgentToday counts only this agent\'s fills from today', () => {

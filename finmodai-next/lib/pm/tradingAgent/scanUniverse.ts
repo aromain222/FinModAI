@@ -1,5 +1,6 @@
 import { internalRequestHeaders } from '@/lib/pm/monitoring/internalRequestHeaders';
 import { listDecisions } from '@/lib/pm/decisions/decisionStore';
+import { listPositions } from '@/lib/pm/portfolio/positionStore';
 import { WATCHLIST } from '@/lib/ranking/watchlist';
 import type { RankedStock } from '@/lib/ranking/types';
 import {
@@ -7,6 +8,7 @@ import {
   persistConsensusDecision,
   recordSubmissionMemory,
   runExecutionStage,
+  tradingAgentDefaultNotional,
 } from '@/lib/pm/tradingAgent/runTradingAgent';
 import { resolvePersonality, type TradingPersonality } from '@/lib/pm/tradingAgent/personality';
 import { getPortfolioEquity, sizePosition } from '@/lib/pm/tradingAgent/sizing';
@@ -60,9 +62,34 @@ async function tickersWithOpenDecisions(): Promise<Set<string>> {
   }
 }
 
+/** Held names the loop must keep re-examining so it can trim/exit, not just buy. */
+const MAX_HELD_CANDIDATES = 2;
+
+async function heldCandidates(): Promise<ScanCandidate[]> {
+  try {
+    const positions = await listPositions({ limit: 100 });
+    return positions
+      .filter(position => position.status === 'active')
+      .slice(0, MAX_HELD_CANDIDATES)
+      .map(position => plainCandidate(position.ticker, 'positions'));
+  } catch {
+    return [];
+  }
+}
+
+function dedupeByTicker(candidates: ScanCandidate[]): ScanCandidate[] {
+  const seen = new Set<string>();
+  return candidates.filter(candidate => {
+    if (seen.has(candidate.ticker)) return false;
+    seen.add(candidate.ticker);
+    return true;
+  });
+}
+
 /**
  * Source scan candidates without any user-provided ticker. Preference order:
- * caller-provided universe → the CapitalBase ranked board (already scored for
+ * caller-provided universe → held positions (the book must be managed, not
+ * just added to) followed by the CapitalBase ranked board (already scored for
  * opportunity + valuation) → the static watchlist. Names that already have an
  * open pending decision are skipped so the agent doesn't restate itself.
  */
@@ -74,7 +101,7 @@ export async function sourceCandidates(params: {
 }): Promise<{ candidates: ScanCandidate[]; universeSource: CandidateSource }> {
   const openDecisionTickers = await tickersWithOpenDecisions();
   const take = (candidates: ScanCandidate[]): ScanCandidate[] =>
-    candidates
+    dedupeByTicker(candidates)
       .filter(candidate => !openDecisionTickers.has(candidate.ticker))
       .slice(0, params.maxCandidates);
 
@@ -84,6 +111,8 @@ export async function sourceCandidates(params: {
       universeSource: 'provided',
     };
   }
+
+  const held = await heldCandidates();
 
   try {
     const response = await fetch(
@@ -99,7 +128,7 @@ export async function sourceCandidates(params: {
     const stocks = (payload.stocks ?? []).filter(stock => stock && stock.ticker);
     if (stocks.length > 0) {
       return {
-        candidates: take(stocks.map(candidateFromRankedStock)),
+        candidates: take([...held, ...stocks.map(candidateFromRankedStock)]),
         universeSource: 'rank',
       };
     }
@@ -108,7 +137,7 @@ export async function sourceCandidates(params: {
   }
 
   return {
-    candidates: take(WATCHLIST.map(ticker => plainCandidate(ticker, 'watchlist'))),
+    candidates: take([...held, ...WATCHLIST.map(ticker => plainCandidate(ticker, 'watchlist'))]),
     universeSource: 'watchlist',
   };
 }
@@ -186,12 +215,43 @@ export function selectPicks<T extends Pick<TickerAnalysis, 'candidate' | 'consen
     .slice(0, Math.max(1, maxPicks));
 }
 
+/**
+ * Defensive side of the loop: held names where the agents turned bearish get
+ * trimmed/exited. Sells are only ever against existing positions — the scan
+ * can never open a short.
+ */
+export function selectBookActions<T extends Pick<TickerAnalysis, 'candidate' | 'consensus' | 'context'>>(
+  analyses: T[],
+): Array<{ analysis: T; selectionScore: number; selectionReason: string }> {
+  return analyses
+    .filter(analysis =>
+      analysis.context.holdsPosition &&
+      analysis.consensus.stance === 'bearish' &&
+      (analysis.consensus.action === 'trim' || analysis.consensus.action === 'exit'),
+    )
+    .map(analysis => ({
+      analysis,
+      selectionScore: selectionScore(analysis),
+      selectionReason: `${analysis.consensus.agreement} bearish consensus at ${analysis.consensus.confidence}/100 on a held position — reducing exposure`,
+    }));
+}
+
+/** A trim sells a quarter of current exposure (min $25), never more than held. */
+export function trimNotional(exposureUsd: number | null, fallback: number): number {
+  if (exposureUsd == null || exposureUsd <= 0) return fallback;
+  return Math.max(25, Math.min(Math.round(exposureUsd * 0.25), Math.round(exposureUsd)));
+}
+
 /** Run-level narrative: universe, per-name verdicts, and why the picks won. */
 export function buildScanStory(
   universeSource: CandidateSource,
   scanned: TickerAnalysis[],
   picks: Array<{ ticker: string; selectionScore: number; selectionReason: string }>,
-  flavor?: { personality?: TradingPersonality; trackRecord?: AgentTrackRecord },
+  flavor?: {
+    personality?: TradingPersonality;
+    trackRecord?: AgentTrackRecord;
+    bookActions?: Array<{ ticker: string }>;
+  },
 ): string {
   const sourceLabel =
     universeSource === 'rank' ? 'the CapitalBase ranked opportunity board'
@@ -221,6 +281,10 @@ export function buildScanStory(
   lines.push(picks.length > 0
     ? `The agent chose ${picks.map(p => p.ticker).join(', ')} to invest in; pending decisions were persisted for PM review.`
     : 'No candidate cleared the investment bar — nothing was selected this run.');
+
+  if (flavor?.bookActions && flavor.bookActions.length > 0) {
+    lines.push(`Book defense: reducing ${flavor.bookActions.map(a => a.ticker).join(', ')} on bearish agent consensus.`);
+  }
 
   return lines.join('\n');
 }
@@ -323,6 +387,52 @@ export async function runTradingAgentScan(input: TradingAgentScanInput): Promise
     });
   }
 
+  // Defensive side: trim/exit held names the agents turned bearish on.
+  const bookActions: TradingAgentPick[] = [];
+  for (const { analysis, selectionScore: score, selectionReason } of selectBookActions(scanned)) {
+    const ticker = analysis.candidate.ticker;
+    const exposure = analysis.context.notionalExposure;
+    const notional = input.notional ?? trimNotional(exposure, tradingAgentDefaultNotional());
+    const sizing = {
+      allocationPct: exposure != null && equity.equity > 0
+        ? Math.round((notional / equity.equity) * 10_000) / 100
+        : 0,
+      notional,
+      reasoning: exposure != null
+        ? `Trimming 25% of the $${Math.round(exposure).toLocaleString()} position on bearish consensus.`
+        : `Trimming at the default $${notional} clip; live exposure unavailable.`,
+    };
+
+    const decision = await persistConsensusDecision({
+      ticker,
+      consensus: analysis.consensus,
+      consultations: analysis.consultations,
+      scoreSummary: analysis.context.quantScoreSummary,
+      positionId: analysis.positionId,
+    });
+    const execution = await runExecutionStage({
+      decision,
+      consensus: analysis.consensus,
+      execute: Boolean(input.execute),
+      notional,
+      personality,
+      disciplineAdjustment: trackRecord.disciplineAdjustment,
+    });
+    if (execution.status === 'submitted') {
+      await recordSubmissionMemory(ticker, analysis.consensus);
+    }
+
+    bookActions.push({
+      ticker,
+      selectionScore: score,
+      selectionReason,
+      consensus: analysis.consensus,
+      sizing,
+      decision: execution.status === 'submitted' ? execution.result.decision : decision,
+      execution,
+    });
+  }
+
   return {
     mode: 'scan',
     ranAt,
@@ -336,6 +446,7 @@ export async function runTradingAgentScan(input: TradingAgentScanInput): Promise
     equity,
     scanned,
     picks,
-    story: buildScanStory(universeSource, scanned, picks, { personality, trackRecord }),
+    bookActions,
+    story: buildScanStory(universeSource, scanned, picks, { personality, trackRecord, bookActions }),
   };
 }
