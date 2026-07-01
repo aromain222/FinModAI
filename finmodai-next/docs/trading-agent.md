@@ -98,10 +98,13 @@ the cron bearer secret. Controls:
   executed that many orders in a UTC day, later hourly runs return early
   (no LLM spend) until tomorrow. Remaining budget also caps picks per run.
 
-Note: Vercel Hobby plans only allow daily crons — hourly needs a Pro plan or
-an external scheduler (e.g. a GitHub Action hitting the route with the bearer
-secret). Execution remains paper-only end to end; real-money brokers are
-reached only through the external write-back workflow below.
+Note: Vercel Hobby plans only allow daily crons. For hourly cadence at $0,
+use the bundled GitHub Action (`.github/workflows/trading-agent-cron.yml`) —
+it curls the deployed route on the same hourly schedule; set the
+`TRADING_AGENT_URL` and `EXECUTION_CRON_SECRET` repository secrets and the
+loop runs with no machine of yours switched on. Execution remains paper-only
+end to end; real-money brokers are reached only through the external
+write-back workflow below.
 
 ## Deep-dive flow
 

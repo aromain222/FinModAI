@@ -1,0 +1,43 @@
+# Hourly trigger for the CapitalBase trading agent.
+#
+# Vercel's free tier only allows daily crons, so GitHub provides the schedule
+# instead: this workflow curls the deployed cron route every hour through the
+# US session. All state (decisions, paper book, memory) lives in Supabase, so
+# no machine needs to stay on.
+#
+# Required repository secrets:
+#   TRADING_AGENT_URL   e.g. https://your-app.vercel.app
+#   EXECUTION_CRON_SECRET   must match the env var on the deployment
+
+name: Trading agent hourly run
+
+on:
+  schedule:
+    # 13:30–19:30 UTC, weekdays — hourly through the US trading session.
+    - cron: '30 13-19 * * 1-5'
+  workflow_dispatch: {}
+
+jobs:
+  run-trading-agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Trigger trading agent cron route
+        run: |
+          if [ -z "${TRADING_AGENT_URL}" ] || [ -z "${EXECUTION_CRON_SECRET}" ]; then
+            echo "TRADING_AGENT_URL and EXECUTION_CRON_SECRET secrets must be configured." >&2
+            exit 1
+          fi
+          response=$(curl -sS -w '\n%{http_code}' \
+            -H "Authorization: Bearer ${EXECUTION_CRON_SECRET}" \
+            --max-time 320 \
+            "${TRADING_AGENT_URL%/}/api/pm/trading-agent/cron")
+          status=$(echo "$response" | tail -1)
+          echo "$response" | head -n -1
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "Trading agent run failed with HTTP ${status}" >&2
+            exit 1
+          fi
+        env:
+          TRADING_AGENT_URL: ${{ secrets.TRADING_AGENT_URL }}
+          EXECUTION_CRON_SECRET: ${{ secrets.EXECUTION_CRON_SECRET }}
