@@ -13,6 +13,7 @@ import { buildScanStory, selectionScore, selectPicks } from '@/lib/pm/tradingAge
 import { resolvePersonality, listPersonalities } from '@/lib/pm/tradingAgent/personality';
 import { sizePosition } from '@/lib/pm/tradingAgent/sizing';
 import { disciplineFromPnL } from '@/lib/pm/tradingAgent/learning';
+import { executedByAgentToday } from '@/lib/pm/tradingAgent/runTradingAgent';
 import type { AgentConsultation, ScanCandidate, TradeConsensus } from '@/lib/pm/tradingAgent/types';
 
 function consultation(overrides: Partial<AgentConsultation>): AgentConsultation {
@@ -348,6 +349,19 @@ test('selectPicks honors a personality-raised confidence floor', () => {
   ];
   assert.equal(selectPicks(analyses, 3).length, 2);
   assert.deepEqual(selectPicks(analyses, 3, 65).map(p => p.analysis.candidate.ticker), ['HIGH']);
+});
+
+test('executedByAgentToday counts only this agent\'s fills from today', () => {
+  const now = new Date('2026-07-01T18:00:00Z');
+  const decisions = [
+    { approvedBy: 'capitalbase_trading_agent', executedAt: '2026-07-01T14:00:00Z' }, // counts
+    { approvedBy: 'capitalbase_trading_agent', executedAt: '2026-07-01T17:30:00Z' }, // counts
+    { approvedBy: 'capitalbase_trading_agent', executedAt: '2026-06-30T14:00:00Z' }, // yesterday
+    { approvedBy: 'pm', executedAt: '2026-07-01T15:00:00Z' },                        // human-approved
+    { approvedBy: 'robinhood_mcp', executedAt: '2026-07-01T15:00:00Z' },             // external broker
+    { approvedBy: 'capitalbase_trading_agent', executedAt: undefined },              // never executed
+  ];
+  assert.equal(executedByAgentToday(decisions, now), 2);
 });
 
 test('debate confidence rewards sane targets and punishes off-theme picks', () => {

@@ -87,16 +87,21 @@ every scan story, so the learning is auditable.
 ## Fully autonomous loop
 
 `GET /api/pm/trading-agent/cron` runs the whole loop with no human input:
-source candidates → consult agents → size → execute. It is scheduled in
-`vercel.json` on weekdays at 14:30 UTC and protected by the cron bearer
-secret. Two switches control autonomy:
+source candidates → consult agents → size → execute. `vercel.json` schedules
+it **hourly through the US session** (13:30–19:30 UTC, weekdays), protected by
+the cron bearer secret. Controls:
 
 - `TRADING_AGENT_EXECUTION_ENABLED=true` — without it, autonomous runs stop
   at pending decisions + previews (paper execution stays off).
 - `TRADING_AGENT_PERSONALITY` — the risk contract the loop trades under.
+- `TRADING_AGENT_MAX_ORDERS_PER_DAY` (default 6) — once the agent has
+  executed that many orders in a UTC day, later hourly runs return early
+  (no LLM spend) until tomorrow. Remaining budget also caps picks per run.
 
-Execution remains paper-only end to end; real-money brokers are reached only
-through the external write-back workflow below.
+Note: Vercel Hobby plans only allow daily crons — hourly needs a Pro plan or
+an external scheduler (e.g. a GitHub Action hitting the route with the bearer
+secret). Execution remains paper-only end to end; real-money brokers are
+reached only through the external write-back workflow below.
 
 ## Deep-dive flow
 

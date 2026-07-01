@@ -1,9 +1,11 @@
 /**
  * GET /api/pm/trading-agent/cron
  *
- * Fully autonomous trading loop. Scheduled via vercel.json on weekdays; the
- * agent sources its own candidates, consults the resident agents, sizes each
- * pick against portfolio equity, and executes — no human input per trade.
+ * Fully autonomous trading loop. Scheduled hourly through the US session via
+ * vercel.json; the agent sources its own candidates, consults the resident
+ * agents, sizes each pick against portfolio equity, and executes — no human
+ * input per trade. TRADING_AGENT_MAX_ORDERS_PER_DAY (default 6) caps how many
+ * orders the loop may submit per UTC day; once spent, runs return early.
  *
  * Still paper-only and still env-gated: without
  * TRADING_AGENT_EXECUTION_ENABLED=true every run ends at pending decisions +
@@ -11,7 +13,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { listDecisions } from '@/lib/pm/decisions/decisionStore';
 import { runTradingAgentScan } from '@/lib/pm/tradingAgent/scanUniverse';
+import { executedByAgentToday, tradingAgentEnvNumber } from '@/lib/pm/tradingAgent/runTradingAgent';
+
+const DEFAULT_MAX_ORDERS_PER_DAY = 6;
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -46,12 +52,30 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const maxPerDay = tradingAgentEnvNumber('TRADING_AGENT_MAX_ORDERS_PER_DAY', DEFAULT_MAX_ORDERS_PER_DAY);
+    const executedToday = executedByAgentToday(await listDecisions({ limit: 300 }).catch(() => []));
+    const remainingBudget = Math.max(0, maxPerDay - executedToday);
+    const executeRequested = req.nextUrl.searchParams.get('execute') !== 'false';
+
+    if (executeRequested && remainingBudget === 0) {
+      return NextResponse.json({
+        ranAt: new Date().toISOString(),
+        skipped: true,
+        reason: `Daily order budget spent (${executedToday}/${maxPerDay} orders executed today); next run resumes tomorrow.`,
+      }, { headers: { 'Cache-Control': 'no-store' } });
+    }
+
+    const requestedPicks = boundedIntParam(req, 'maxPicks', 1, 3);
     const run = await runTradingAgentScan({
       origin: appOrigin(req),
       requestHeaders: req.headers,
       maxCandidates: boundedIntParam(req, 'maxCandidates', 1, 8),
-      maxPicks: boundedIntParam(req, 'maxPicks', 1, 3),
-      execute: req.nextUrl.searchParams.get('execute') !== 'false',
+      // Cap picks by what's left of today's order budget without overriding
+      // the personality default when the budget isn't the constraint.
+      maxPicks: executeRequested && remainingBudget < 3
+        ? Math.min(requestedPicks ?? remainingBudget, remainingBudget)
+        : requestedPicks,
+      execute: executeRequested,
       // Personality comes from TRADING_AGENT_PERSONALITY (default operator).
     });
 
@@ -68,6 +92,11 @@ export async function GET(req: NextRequest) {
         executionStatus: pick.execution.status,
       })),
       trackRecord: run.trackRecord,
+      orderBudget: {
+        maxPerDay,
+        executedToday,
+        remainingBefore: remainingBudget,
+      },
       story: run.story,
     }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {

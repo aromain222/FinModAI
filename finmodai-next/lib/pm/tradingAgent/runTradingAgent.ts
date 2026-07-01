@@ -38,6 +38,22 @@ export function tradingAgentDefaultNotional(): number {
   return tradingAgentEnvNumber('TRADING_AGENT_DEFAULT_NOTIONAL', DEFAULT_EXECUTION_NOTIONAL);
 }
 
+/**
+ * Daily overtrading guard for the always-on loop. Counts orders this agent
+ * already executed today (UTC) so an hourly cron cannot fire unbounded.
+ */
+export function executedByAgentToday(
+  decisions: Pick<InvestmentDecision, 'executedAt' | 'approvedBy'>[],
+  now: Date = new Date(),
+): number {
+  const today = now.toISOString().slice(0, 10);
+  return decisions.filter(decision =>
+    decision.approvedBy === 'capitalbase_trading_agent' &&
+    typeof decision.executedAt === 'string' &&
+    decision.executedAt.slice(0, 10) === today,
+  ).length;
+}
+
 async function quantScoreSummary(ticker: string): Promise<string | null> {
   try {
     const scores = await listQuantScores({ ticker, limit: 12 });
