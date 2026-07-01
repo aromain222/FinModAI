@@ -9,7 +9,8 @@ import test from 'node:test';
 
 import { actionForStance, synthesizeConsensus } from '@/lib/pm/tradingAgent/synthesize';
 import { deriveDebateConfidence, stanceFromDecisionWord } from '@/lib/pm/tradingAgent/consultAgents';
-import type { AgentConsultation } from '@/lib/pm/tradingAgent/types';
+import { buildScanStory, selectionScore, selectPicks } from '@/lib/pm/tradingAgent/scanUniverse';
+import type { AgentConsultation, ScanCandidate, TradeConsensus } from '@/lib/pm/tradingAgent/types';
 
 function consultation(overrides: Partial<AgentConsultation>): AgentConsultation {
   return {
@@ -130,6 +131,119 @@ test('stanceFromDecisionWord normalizes agent decision vocabulary', () => {
   assert.equal(stanceFromDecisionWord('Underweight'), 'bearish');
   assert.equal(stanceFromDecisionWord('Hold'), 'neutral');
   assert.equal(stanceFromDecisionWord('unknown-word'), 'neutral');
+});
+
+// ── Autonomous scan selection ────────────────────────────────────────────────
+
+function candidate(overrides: Partial<ScanCandidate>): ScanCandidate {
+  return {
+    ticker: 'TEST',
+    source: 'rank',
+    rankScore: null,
+    primaryReason: null,
+    valuation: null,
+    ...overrides,
+  };
+}
+
+function consensusOf(overrides: Partial<TradeConsensus>): TradeConsensus {
+  return {
+    stance: 'bullish',
+    action: 'buy',
+    confidence: 70,
+    agreement: 'unanimous',
+    rationale: 'test consensus',
+    ...overrides,
+  };
+}
+
+test('selectPicks only invests in bullish buy/add reads above the confidence floor', () => {
+  const picks = selectPicks(
+    [
+      { candidate: candidate({ ticker: 'GOOD' }), consensus: consensusOf({ confidence: 75 }) },
+      { candidate: candidate({ ticker: 'WEAK' }), consensus: consensusOf({ confidence: 40 }) },
+      { candidate: candidate({ ticker: 'BEAR' }), consensus: consensusOf({ stance: 'bearish', action: 'trim' }) },
+      { candidate: candidate({ ticker: 'FLAT' }), consensus: consensusOf({ stance: 'neutral', action: 'watch' }) },
+    ],
+    3,
+  );
+  assert.deepEqual(picks.map(p => p.analysis.candidate.ticker), ['GOOD']);
+});
+
+test('selectPicks orders by consensus, valuation, and ranked-board score', () => {
+  const undervalued = candidate({
+    ticker: 'CHEAP',
+    rankScore: 8,
+    valuation: { signal: 'undervalued', impliedUpside: 15, summary: 'trading below intrinsic value' },
+  });
+  const overvalued = candidate({
+    ticker: 'RICH',
+    rankScore: 8,
+    valuation: { signal: 'overvalued', impliedUpside: -10, summary: 'priced beyond expectations' },
+  });
+  const picks = selectPicks(
+    [
+      { candidate: overvalued, consensus: consensusOf({ confidence: 75 }) },
+      { candidate: undervalued, consensus: consensusOf({ confidence: 75 }) },
+    ],
+    2,
+  );
+  assert.equal(picks[0].analysis.candidate.ticker, 'CHEAP');
+  assert.ok(picks[0].selectionScore > picks[1].selectionScore);
+});
+
+test('selectPicks respects maxPicks after sorting', () => {
+  const picks = selectPicks(
+    [
+      { candidate: candidate({ ticker: 'A' }), consensus: consensusOf({ confidence: 60 }) },
+      { candidate: candidate({ ticker: 'B' }), consensus: consensusOf({ confidence: 90 }) },
+      { candidate: candidate({ ticker: 'C' }), consensus: consensusOf({ confidence: 75 }) },
+    ],
+    2,
+  );
+  assert.deepEqual(picks.map(p => p.analysis.candidate.ticker), ['B', 'C']);
+});
+
+test('selectionScore rewards undervaluation and unanimity, punishes overvaluation', () => {
+  const base = { candidate: candidate({}), consensus: consensusOf({ confidence: 70 }) };
+  const cheap = {
+    candidate: candidate({ valuation: { signal: 'undervalued' as const, impliedUpside: 12, summary: 's' } }),
+    consensus: consensusOf({ confidence: 70 }),
+  };
+  const rich = {
+    candidate: candidate({ valuation: { signal: 'overvalued' as const, impliedUpside: -8, summary: 's' } }),
+    consensus: consensusOf({ confidence: 70 }),
+  };
+  const majority = { candidate: candidate({}), consensus: consensusOf({ confidence: 70, agreement: 'majority' }) };
+  assert.ok(selectionScore(cheap) > selectionScore(base));
+  assert.ok(selectionScore(rich) < selectionScore(base));
+  assert.ok(selectionScore(majority) < selectionScore(base));
+});
+
+test('buildScanStory names the universe, every candidate, and the picks', () => {
+  const scanned = [
+    {
+      candidate: candidate({ ticker: 'NVDA' }),
+      consultations: [],
+      consensus: consensusOf({ confidence: 80 }),
+      context: { holdsPosition: false, currentPrice: null, quantScoreSummary: null },
+      story: '',
+    },
+    {
+      candidate: candidate({ ticker: 'RICH' }),
+      consultations: [],
+      consensus: consensusOf({ stance: 'neutral', action: 'watch', agreement: 'split', confidence: 30 }),
+      context: { holdsPosition: false, currentPrice: null, quantScoreSummary: null },
+      story: '',
+    },
+  ];
+  const story = buildScanStory('rank', scanned, [
+    { ticker: 'NVDA', selectionScore: 92, selectionReason: 'unanimous bullish consensus at 80/100' },
+  ]);
+  assert.match(story, /ranked opportunity board/);
+  assert.match(story, /NVDA: SELECTED/);
+  assert.match(story, /RICH: passed over/);
+  assert.match(story, /chose NVDA/);
 });
 
 test('debate confidence rewards sane targets and punishes off-theme picks', () => {

@@ -13,6 +13,7 @@ import type { EvidenceItem, InvestmentDecision } from '@/lib/pm/types';
 import type {
   AgentConsultation,
   TradeConsensus,
+  TradingAgentContext,
   TradingAgentExecutionOutcome,
   TradingAgentRun,
   TradingAgentRunInput,
@@ -25,9 +26,13 @@ export function tradingAgentExecutionEnabled(): boolean {
   return process.env.TRADING_AGENT_EXECUTION_ENABLED === 'true';
 }
 
-function envNumber(key: string, fallback: number): number {
+export function tradingAgentEnvNumber(key: string, fallback: number): number {
   const parsed = Number(process.env[key]);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export function tradingAgentDefaultNotional(): number {
+  return tradingAgentEnvNumber('TRADING_AGENT_DEFAULT_NOTIONAL', DEFAULT_EXECUTION_NOTIONAL);
 }
 
 async function quantScoreSummary(ticker: string): Promise<string | null> {
@@ -73,15 +78,17 @@ function decisionEvidence(
   return [...agentEvidence, ...scoutEvidence].slice(0, 12);
 }
 
-async function persistDecision(
-  ticker: string,
-  consensus: TradeConsensus,
-  evidence: EvidenceItem[],
-  positionId: string | undefined,
-): Promise<InvestmentDecision> {
+export async function persistConsensusDecision(params: {
+  ticker: string;
+  consensus: TradeConsensus;
+  consultations: AgentConsultation[];
+  scoreSummary: string | null;
+  positionId: string | undefined;
+}): Promise<InvestmentDecision> {
+  const { ticker, consensus } = params;
   return saveDecision({
     ticker,
-    positionId,
+    positionId: params.positionId,
     action: consensus.action,
     recommendation: `Trading agent ${consensus.action.toUpperCase()} — ${consensus.agreement} agent consensus (${consensus.confidence}/100).`,
     rationale: consensus.rationale,
@@ -89,7 +96,7 @@ async function persistDecision(
     recommendedAction: consensus.action,
     confidence: consensus.confidence,
     confidenceScore: consensus.confidence,
-    evidence,
+    evidence: decisionEvidence(params.consultations, params.scoreSummary),
   });
 }
 
@@ -110,7 +117,7 @@ function executionSkipReasons(consensus: TradeConsensus, minConfidence: number):
   return reasons;
 }
 
-async function runExecutionStage(params: {
+export async function runExecutionStage(params: {
   decision: InvestmentDecision;
   consensus: TradeConsensus;
   execute: boolean;
@@ -132,7 +139,7 @@ async function runExecutionStage(params: {
       return { status: 'previewed', preview };
     }
 
-    const minConfidence = envNumber('TRADING_AGENT_MIN_CONFIDENCE', DEFAULT_MIN_EXECUTION_CONFIDENCE);
+    const minConfidence = tradingAgentEnvNumber('TRADING_AGENT_MIN_CONFIDENCE', DEFAULT_MIN_EXECUTION_CONFIDENCE);
     const reasons = executionSkipReasons(consensus, minConfidence);
     if (reasons.length > 0) {
       return { status: 'skipped', reasons };
@@ -156,6 +163,64 @@ async function runExecutionStage(params: {
 }
 
 /**
+ * Consult the resident agents on one ticker and synthesize their reads.
+ * Pure analysis — persists nothing, so scan mode can evaluate many candidates
+ * and only commit decisions for the ones it selects.
+ */
+export async function analyzeTicker(params: {
+  ticker: string;
+  origin: string;
+  requestHeaders?: Headers;
+  themes?: string[];
+}): Promise<{
+  consultations: AgentConsultation[];
+  consensus: TradeConsensus;
+  context: TradingAgentContext;
+  positionId: string | undefined;
+}> {
+  const ticker = params.ticker.toUpperCase().trim();
+  const [positions, scoreSummary, consultations] = await Promise.all([
+    listPositions({ ticker, limit: 1 }).catch(() => []),
+    quantScoreSummary(ticker),
+    consultCapitalBaseAgents({
+      ticker,
+      origin: params.origin,
+      requestHeaders: params.requestHeaders,
+      themes: params.themes,
+    }),
+  ]);
+
+  const position = positions[0];
+  const holdsPosition = Boolean(position && position.status !== 'closed');
+  const consensus = synthesizeConsensus(consultations, holdsPosition);
+
+  return {
+    consultations,
+    consensus,
+    context: {
+      holdsPosition,
+      currentPrice: position?.currentPrice ?? null,
+      quantScoreSummary: scoreSummary,
+    },
+    positionId: position?.id,
+  };
+}
+
+export async function recordSubmissionMemory(ticker: string, consensus: TradeConsensus): Promise<void> {
+  try {
+    await recordOutcome({
+      memoryType: 'process_lesson',
+      lesson: `${ticker} ${consensus.action.toUpperCase()} paper order submitted by the trading agent after ${consensus.agreement} agent consensus at ${consensus.confidence}/100. ${consensus.rationale}`,
+      relatedTickers: [ticker],
+      relatedThemes: ['trading_agent', 'paper_execution'],
+      importance: 80,
+    });
+  } catch {
+    // Memory persistence must not fail the run.
+  }
+}
+
+/**
  * CapitalBase trading agent: gather platform context, consult the resident
  * agents (research debate + investment committee), synthesize their reads,
  * persist a PM decision, and — only when unanimously confident, explicitly
@@ -165,26 +230,12 @@ export async function runTradingAgent(input: TradingAgentRunInput): Promise<Trad
   const ticker = input.ticker.toUpperCase().trim();
   const ranAt = new Date().toISOString();
 
-  const [positions, scoreSummary, consultations] = await Promise.all([
-    listPositions({ ticker, limit: 1 }).catch(() => []),
-    quantScoreSummary(ticker),
-    consultCapitalBaseAgents({
-      ticker,
-      origin: input.origin,
-      requestHeaders: input.requestHeaders,
-      themes: input.themes,
-    }),
-  ]);
-
-  const position = positions[0];
-  const holdsPosition = Boolean(position && position.status !== 'closed');
-  const consensus = synthesizeConsensus(consultations, holdsPosition);
-
-  const context = {
-    holdsPosition,
-    currentPrice: position?.currentPrice ?? null,
-    quantScoreSummary: scoreSummary,
-  };
+  const { consultations, consensus, context, positionId } = await analyzeTicker({
+    ticker,
+    origin: input.origin,
+    requestHeaders: input.requestHeaders,
+    themes: input.themes,
+  });
 
   if (consensus.agreement === 'no_signal') {
     return {
@@ -200,28 +251,23 @@ export async function runTradingAgent(input: TradingAgentRunInput): Promise<Trad
     };
   }
 
-  const evidence = decisionEvidence(consultations, scoreSummary);
-  const decision = await persistDecision(ticker, consensus, evidence, position?.id);
+  const decision = await persistConsensusDecision({
+    ticker,
+    consensus,
+    consultations,
+    scoreSummary: context.quantScoreSummary,
+    positionId,
+  });
 
   const execution = await runExecutionStage({
     decision,
     consensus,
     execute: Boolean(input.execute),
-    notional: input.notional ?? envNumber('TRADING_AGENT_DEFAULT_NOTIONAL', DEFAULT_EXECUTION_NOTIONAL),
+    notional: input.notional ?? tradingAgentDefaultNotional(),
   });
 
   if (execution.status === 'submitted') {
-    try {
-      await recordOutcome({
-        memoryType: 'process_lesson',
-        lesson: `${ticker} ${consensus.action.toUpperCase()} paper order submitted by the trading agent after ${consensus.agreement} agent consensus at ${consensus.confidence}/100. ${consensus.rationale}`,
-        relatedTickers: [ticker],
-        relatedThemes: ['trading_agent', 'paper_execution'],
-        importance: 80,
-      });
-    } catch {
-      // Memory persistence must not fail the run.
-    }
+    await recordSubmissionMemory(ticker, consensus);
   }
 
   return {

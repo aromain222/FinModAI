@@ -4,7 +4,44 @@ The trading agent (`POST /api/pm/trading-agent`) never trades on its own read.
 It gathers CapitalBase platform context, consults the resident agents, and only
 acts when they agree.
 
-## Flow
+It has two modes:
+
+- **Deep dive** — pass a `ticker` and it runs the full consult round on that
+  one name.
+- **Autonomous scan** — omit `ticker` and the agent finds its own ideas: it
+  sources candidates, consults the agents on each, and chooses which names to
+  invest in. Nobody has to tell it what to buy.
+
+## Autonomous scan
+
+1. **Source candidates** — caller-provided `universe` if present, otherwise
+   the CapitalBase ranked opportunity board (`/api/rank`, which carries the
+   opportunity score and the undervalued/fair/overvalued valuation signal),
+   otherwise the static watchlist. Names with an open pending decision are
+   skipped so the agent doesn't restate itself. Bounded by `maxCandidates`
+   (default 4, cap 8).
+2. **Consult the agents on every candidate** (two names at a time) — the same
+   research-debate + committee round as a deep dive.
+3. **Choose investments** — only `unanimous`/`majority` **bullish** reads at
+   ≥ 55 confidence are investable. Candidates are ordered by a composite
+   selection score: consensus confidence, +10 for unanimity, +6 undervalued /
+   −12 overvalued, plus the ranked-board score as a tiebreak. Top `maxPicks`
+   (default 2, cap 3) win.
+4. **Tell the story** — the response includes a per-ticker narrative (ranking
+   context → what each agent said → consensus) and a run-level story
+   explaining what was scanned, what was passed over and why, and why the
+   picks won.
+5. **Persist + execute** — pending `InvestmentDecision`s are created only for
+   the picks; the execution stage applies the same gates as a deep dive.
+
+```bash
+POST /api/pm/trading-agent
+
+{ "maxCandidates": 4, "maxPicks": 2 }            # fully autonomous
+{ "universe": ["NVDA","AMD","TSM"], "maxPicks": 1 }  # constrained scan
+```
+
+## Deep-dive flow
 
 1. **Gather platform context** — current position for the ticker
    (`pm_positions`), latest quant scout scores from the monitoring store.

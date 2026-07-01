@@ -6,6 +6,12 @@
  * Committee — plus stored positions and quant scout scores, then synthesizes
  * a single trade consensus and persists it as a pending InvestmentDecision.
  *
+ * Two modes:
+ * - `ticker` provided → deep dive on that one name.
+ * - no `ticker` → autonomous scan: the agent sources its own candidates
+ *   (ranked board → watchlist, or a caller `universe`), consults the agents
+ *   on each, and chooses which names to invest in.
+ *
  * Execution is paper-only and triple-gated: the request must set
  * `execute: true` with a valid cron/execution bearer secret, and
  * TRADING_AGENT_EXECUTION_ENABLED must be true. Anything less returns the
@@ -15,13 +21,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { runTradingAgent } from '@/lib/pm/tradingAgent/runTradingAgent';
+import { runTradingAgentScan } from '@/lib/pm/tradingAgent/scanUniverse';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 const requestSchema = z.object({
-  ticker: z.string().trim().min(1).max(10),
+  ticker: z.string().trim().min(1).max(10).optional(),
+  universe: z.array(z.string().trim().min(1).max(10)).max(12).optional(),
+  maxCandidates: z.number().int().min(1).max(8).optional(),
+  maxPicks: z.number().int().min(1).max(3).optional(),
   themes: z.array(z.string().trim().min(1)).max(8).optional(),
   notional: z.number().positive().max(100_000).optional(),
   execute: z.boolean().optional().default(false),
@@ -67,14 +77,22 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const run = await runTradingAgent({
-      ticker: parsed.data.ticker,
+    const shared = {
       themes: parsed.data.themes,
       notional: parsed.data.notional,
       execute: parsed.data.execute,
       origin: appOrigin(req),
       requestHeaders: req.headers,
-    });
+    };
+
+    const run = parsed.data.ticker
+      ? await runTradingAgent({ ticker: parsed.data.ticker, ...shared })
+      : await runTradingAgentScan({
+          universe: parsed.data.universe,
+          maxCandidates: parsed.data.maxCandidates,
+          maxPicks: parsed.data.maxPicks,
+          ...shared,
+        });
 
     return NextResponse.json(run, {
       headers: { 'Cache-Control': 'no-store' },
