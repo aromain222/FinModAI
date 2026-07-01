@@ -9,6 +9,9 @@ import {
   previewPaperExecution,
   submitApprovedPaperExecution,
 } from '@/lib/execution/orders';
+import { resolvePersonality, type TradingPersonality } from '@/lib/pm/tradingAgent/personality';
+import { getPortfolioEquity, sizePosition, type PositionSize } from '@/lib/pm/tradingAgent/sizing';
+import { reviewTrackRecord } from '@/lib/pm/tradingAgent/learning';
 import type { EvidenceItem, InvestmentDecision } from '@/lib/pm/types';
 import type {
   AgentConsultation,
@@ -100,7 +103,11 @@ export async function persistConsensusDecision(params: {
   });
 }
 
-function executionSkipReasons(consensus: TradeConsensus, minConfidence: number): string[] {
+function executionSkipReasons(
+  consensus: TradeConsensus,
+  minConfidence: number,
+  requiredAgreement: 'unanimous' | 'majority',
+): string[] {
   const reasons: string[] = [];
   if (!tradingAgentExecutionEnabled()) {
     reasons.push('TRADING_AGENT_EXECUTION_ENABLED is not true; decision left pending for human approval.');
@@ -108,8 +115,10 @@ function executionSkipReasons(consensus: TradeConsensus, minConfidence: number):
   if (!isExecutableTradeAction(consensus.action)) {
     reasons.push(`Consensus action "${consensus.action}" is not executable.`);
   }
-  if (consensus.agreement !== 'unanimous') {
-    reasons.push(`Execution requires unanimous agent agreement; got "${consensus.agreement}".`);
+  const agreementOk = consensus.agreement === 'unanimous'
+    || (requiredAgreement === 'majority' && consensus.agreement === 'majority');
+  if (!agreementOk) {
+    reasons.push(`Execution requires ${requiredAgreement} agent agreement; got "${consensus.agreement}".`);
   }
   if (consensus.confidence < minConfidence) {
     reasons.push(`Consensus confidence ${consensus.confidence} is below the execution threshold ${minConfidence}.`);
@@ -122,12 +131,22 @@ export async function runExecutionStage(params: {
   consensus: TradeConsensus;
   execute: boolean;
   notional: number;
+  /** Risk contract governing agreement/confidence gates; defaults preserve legacy behavior. */
+  personality?: TradingPersonality;
+  /** Learning-loop penalty added to the execution confidence floor. */
+  disciplineAdjustment?: number;
 }): Promise<TradingAgentExecutionOutcome> {
   const { decision, consensus, execute, notional } = params;
 
   if (!isExecutableTradeAction(consensus.action)) {
     return execute
       ? { status: 'skipped', reasons: [`Consensus action "${consensus.action}" is not executable.`] }
+      : { status: 'not_requested' };
+  }
+
+  if (notional <= 0) {
+    return execute
+      ? { status: 'skipped', reasons: ['Position sizer allocated $0 to this trade (no headroom or conviction too weak).'] }
       : { status: 'not_requested' };
   }
 
@@ -139,8 +158,11 @@ export async function runExecutionStage(params: {
       return { status: 'previewed', preview };
     }
 
-    const minConfidence = tradingAgentEnvNumber('TRADING_AGENT_MIN_CONFIDENCE', DEFAULT_MIN_EXECUTION_CONFIDENCE);
-    const reasons = executionSkipReasons(consensus, minConfidence);
+    const personality = params.personality ?? resolvePersonality();
+    const minConfidence =
+      tradingAgentEnvNumber('TRADING_AGENT_MIN_CONFIDENCE', personality.minExecutionConfidence ?? DEFAULT_MIN_EXECUTION_CONFIDENCE)
+      + Math.max(0, params.disciplineAdjustment ?? 0);
+    const reasons = executionSkipReasons(consensus, minConfidence, personality.executionAgreement);
     if (reasons.length > 0) {
       return { status: 'skipped', reasons };
     }
@@ -148,7 +170,7 @@ export async function runExecutionStage(params: {
     const approved = await updateDecision(decision.id, {
       approvalStatus: 'approved',
       approvedBy: 'capitalbase_trading_agent',
-      approvalNote: `Trading agent auto-approved for paper execution: ${consensus.agreement} consensus at ${consensus.confidence}/100 (threshold ${minConfidence}).`,
+      approvalNote: `Trading agent (${personality.name}) auto-approved for paper execution: ${consensus.agreement} consensus at ${consensus.confidence}/100 (threshold ${minConfidence}).`,
       updatedAt: new Date().toISOString(),
     });
     if (!approved) {
@@ -200,6 +222,7 @@ export async function analyzeTicker(params: {
     context: {
       holdsPosition,
       currentPrice: position?.currentPrice ?? null,
+      notionalExposure: holdsPosition ? position?.notionalExposure ?? null : null,
       quantScoreSummary: scoreSummary,
     },
     positionId: position?.id,
@@ -229,13 +252,17 @@ export async function recordSubmissionMemory(ticker: string, consensus: TradeCon
 export async function runTradingAgent(input: TradingAgentRunInput): Promise<TradingAgentRun> {
   const ticker = input.ticker.toUpperCase().trim();
   const ranAt = new Date().toISOString();
+  const personality = resolvePersonality(input.personality);
 
-  const { consultations, consensus, context, positionId } = await analyzeTicker({
-    ticker,
-    origin: input.origin,
-    requestHeaders: input.requestHeaders,
-    themes: input.themes,
-  });
+  const [{ consultations, consensus, context, positionId }, trackRecord] = await Promise.all([
+    analyzeTicker({
+      ticker,
+      origin: input.origin,
+      requestHeaders: input.requestHeaders,
+      themes: input.themes,
+    }),
+    reviewTrackRecord(),
+  ]);
 
   if (consensus.agreement === 'no_signal') {
     return {
@@ -248,7 +275,22 @@ export async function runTradingAgent(input: TradingAgentRunInput): Promise<Trad
         ? { status: 'skipped', reasons: ['No agent signal; nothing to execute.'] }
         : { status: 'not_requested' },
       context,
+      sizing: null,
     };
+  }
+
+  // Size the trade unless the caller dictated an explicit notional.
+  let sizing: PositionSize | null = null;
+  let notional = input.notional ?? tradingAgentDefaultNotional();
+  if (input.notional == null && consensus.stance === 'bullish') {
+    const { equity } = await getPortfolioEquity();
+    sizing = sizePosition({
+      equity,
+      consensus,
+      personality,
+      currentExposureUsd: context.notionalExposure,
+    });
+    notional = sizing.notional;
   }
 
   const decision = await persistConsensusDecision({
@@ -263,7 +305,9 @@ export async function runTradingAgent(input: TradingAgentRunInput): Promise<Trad
     decision,
     consensus,
     execute: Boolean(input.execute),
-    notional: input.notional ?? tradingAgentDefaultNotional(),
+    notional,
+    personality,
+    disciplineAdjustment: trackRecord.disciplineAdjustment,
   });
 
   if (execution.status === 'submitted') {
@@ -278,5 +322,6 @@ export async function runTradingAgent(input: TradingAgentRunInput): Promise<Trad
     decision: execution.status === 'submitted' ? execution.result.decision : decision,
     execution,
     context,
+    sizing,
   };
 }

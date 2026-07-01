@@ -7,8 +7,10 @@ import {
   persistConsensusDecision,
   recordSubmissionMemory,
   runExecutionStage,
-  tradingAgentDefaultNotional,
 } from '@/lib/pm/tradingAgent/runTradingAgent';
+import { resolvePersonality, type TradingPersonality } from '@/lib/pm/tradingAgent/personality';
+import { getPortfolioEquity, sizePosition } from '@/lib/pm/tradingAgent/sizing';
+import { reviewTrackRecord, type AgentTrackRecord } from '@/lib/pm/tradingAgent/learning';
 import type {
   CandidateSource,
   ScanCandidate,
@@ -20,9 +22,8 @@ import type {
 
 const DEFAULT_MAX_CANDIDATES = 4;
 const MAX_CANDIDATES_CAP = 8;
-const DEFAULT_MAX_PICKS = 2;
 const ANALYSIS_CONCURRENCY = 2;
-/** Weak conviction never becomes an investment, even if it tops the scan. */
+/** Absolute floor: weak conviction never becomes an investment, whatever the personality. */
 const MIN_PICK_CONFIDENCE = 55;
 
 function candidateFromRankedStock(stock: RankedStock): ScanCandidate {
@@ -156,11 +157,11 @@ export function selectionScore(analysis: Pick<TickerAnalysis, 'candidate' | 'con
   return Math.round(score * 10) / 10;
 }
 
-function isInvestable(analysis: Pick<TickerAnalysis, 'consensus'>): boolean {
+function isInvestable(analysis: Pick<TickerAnalysis, 'consensus'>, minConfidence: number): boolean {
   return (
     analysis.consensus.stance === 'bullish' &&
     (analysis.consensus.action === 'buy' || analysis.consensus.action === 'add') &&
-    analysis.consensus.confidence >= MIN_PICK_CONFIDENCE
+    analysis.consensus.confidence >= Math.max(MIN_PICK_CONFIDENCE, minConfidence)
   );
 }
 
@@ -168,9 +169,10 @@ function isInvestable(analysis: Pick<TickerAnalysis, 'consensus'>): boolean {
 export function selectPicks<T extends Pick<TickerAnalysis, 'candidate' | 'consensus'>>(
   analyses: T[],
   maxPicks: number,
+  minConfidence: number = MIN_PICK_CONFIDENCE,
 ): Array<{ analysis: T; selectionScore: number; selectionReason: string }> {
   return analyses
-    .filter(isInvestable)
+    .filter(analysis => isInvestable(analysis, minConfidence))
     .map(analysis => ({
       analysis,
       selectionScore: selectionScore(analysis),
@@ -189,15 +191,24 @@ export function buildScanStory(
   universeSource: CandidateSource,
   scanned: TickerAnalysis[],
   picks: Array<{ ticker: string; selectionScore: number; selectionReason: string }>,
+  flavor?: { personality?: TradingPersonality; trackRecord?: AgentTrackRecord },
 ): string {
   const sourceLabel =
     universeSource === 'rank' ? 'the CapitalBase ranked opportunity board'
     : universeSource === 'provided' ? 'the caller-provided universe'
     : 'the fallback watchlist';
 
-  const lines: string[] = [
+  const lines: string[] = [];
+  if (flavor?.personality) {
+    lines.push(`${flavor.personality.name} on the desk. ${flavor.personality.voice}`);
+  }
+  if (flavor?.trackRecord) {
+    lines.push(flavor.trackRecord.summary);
+    for (const lesson of flavor.trackRecord.lessons) lines.push(`Journal: ${lesson}`);
+  }
+  lines.push(
     `Scanned ${scanned.length} candidate(s) from ${sourceLabel}: ${scanned.map(s => s.candidate.ticker).join(', ')}. Each was debated by the TradingAgents research desk and the Senior Investment Committee before any selection.`,
-  ];
+  );
 
   for (const analysis of scanned) {
     const pick = picks.find(p => p.ticker === analysis.candidate.ticker);
@@ -244,22 +255,41 @@ async function analyzeWithConcurrency(
  */
 export async function runTradingAgentScan(input: TradingAgentScanInput): Promise<TradingAgentScanRun> {
   const ranAt = new Date().toISOString();
+  const personality = resolvePersonality(input.personality);
   const maxCandidates = Math.max(1, Math.min(MAX_CANDIDATES_CAP, input.maxCandidates ?? DEFAULT_MAX_CANDIDATES));
-  const maxPicks = Math.max(1, Math.min(3, input.maxPicks ?? DEFAULT_MAX_PICKS));
+  const maxPicks = Math.max(1, Math.min(3, input.maxPicks ?? personality.defaultMaxPicks));
 
-  const { candidates, universeSource } = await sourceCandidates({
-    origin: input.origin,
-    requestHeaders: input.requestHeaders,
-    universe: input.universe,
-    maxCandidates,
-  });
+  const [{ candidates, universeSource }, trackRecord, equity] = await Promise.all([
+    sourceCandidates({
+      origin: input.origin,
+      requestHeaders: input.requestHeaders,
+      universe: input.universe,
+      maxCandidates,
+    }),
+    reviewTrackRecord(),
+    getPortfolioEquity(),
+  ]);
 
   const scanned = await analyzeWithConcurrency(candidates, input);
-  const selected = selectPicks(scanned, maxPicks);
+  // Training feedback: an underwater book raises the personality's pick floor.
+  const pickFloor = personality.minPickConfidence + trackRecord.disciplineAdjustment;
+  const selected = selectPicks(scanned, maxPicks, pickFloor);
 
   const picks: TradingAgentPick[] = [];
   for (const { analysis, selectionScore: score, selectionReason } of selected) {
     const ticker = analysis.candidate.ticker;
+
+    // The agent assigns its own slice of the portfolio unless the caller
+    // pinned an explicit per-order notional.
+    const sizing = sizePosition({
+      equity: equity.equity,
+      consensus: analysis.consensus,
+      personality,
+      valuationSignal: analysis.candidate.valuation?.signal ?? null,
+      currentExposureUsd: analysis.context.notionalExposure,
+    });
+    const notional = input.notional ?? sizing.notional;
+
     const decision = await persistConsensusDecision({
       ticker,
       consensus: analysis.consensus,
@@ -272,7 +302,9 @@ export async function runTradingAgentScan(input: TradingAgentScanInput): Promise
       decision,
       consensus: analysis.consensus,
       execute: Boolean(input.execute),
-      notional: input.notional ?? tradingAgentDefaultNotional(),
+      notional,
+      personality,
+      disciplineAdjustment: trackRecord.disciplineAdjustment,
     });
     if (execution.status === 'submitted') {
       await recordSubmissionMemory(ticker, analysis.consensus);
@@ -281,8 +313,11 @@ export async function runTradingAgentScan(input: TradingAgentScanInput): Promise
     picks.push({
       ticker,
       selectionScore: score,
-      selectionReason,
+      selectionReason: input.notional != null
+        ? `${selectionReason}; caller pinned $${input.notional} per order`
+        : `${selectionReason}; ${sizing.reasoning}`,
       consensus: analysis.consensus,
+      sizing,
       decision: execution.status === 'submitted' ? execution.result.decision : decision,
       execution,
     });
@@ -292,8 +327,15 @@ export async function runTradingAgentScan(input: TradingAgentScanInput): Promise
     mode: 'scan',
     ranAt,
     universeSource,
+    personality: { key: personality.key, name: personality.name, voice: personality.voice },
+    trackRecord: {
+      summary: trackRecord.summary,
+      disciplineAdjustment: trackRecord.disciplineAdjustment,
+      lessons: trackRecord.lessons,
+    },
+    equity,
     scanned,
     picks,
-    story: buildScanStory(universeSource, scanned, picks),
+    story: buildScanStory(universeSource, scanned, picks, { personality, trackRecord }),
   };
 }

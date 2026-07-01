@@ -41,6 +41,63 @@ POST /api/pm/trading-agent
 { "universe": ["NVDA","AMD","TSM"], "maxPicks": 1 }  # constrained scan
 ```
 
+## Position sizing
+
+The agent assigns its own slice of the portfolio to every pick unless the
+caller pins an explicit `notional`:
+
+```
+allocation = basePositionPct              (from the personality)
+           × confidence / 100             (conviction scaling)
+           × 1.2 unanimous / 0.85 majority
+           × 1.25 undervalued / personality overvalued multiplier
+```
+
+clamped to the personality's per-name cap, minus what the book already holds
+in that name (no doubling past the cap via repeated adds). Equity comes from
+the live Alpaca paper account when configured, else
+`TRADING_AGENT_PORTFOLIO_USD` (default $10,000). Orders under $25 are skipped
+as dust. Every pick's response includes the sizing math in plain English.
+
+## Personality
+
+`personality` (request param) or `TRADING_AGENT_PERSONALITY` (env) selects the
+risk contract the agent trades under — not flavor text; each one changes the
+thresholds and sizing:
+
+| | steward | operator (default) | hunter |
+|---|---|---|---|
+| Pick confidence floor | 65 | 55 | 50 |
+| Execution agreement | unanimous | unanimous | majority |
+| Execution confidence floor | 75 | 70 | 65 |
+| Base / max position | 3% / 6% | 5% / 10% | 7% / 15% |
+| Default picks per scan | 1 | 2 | 3 |
+| Overvalued sizing | ×0.25 | ×0.5 | ×0.7 |
+
+## Training loop
+
+Before every run the agent reviews its own record (`lib/pm/tradingAgent/learning.ts`):
+it marks the paper book (realized + unrealized P&L from `pm_paper_orders`
+against the freshest platform prices) and rereads its recent trade-journal
+memories. A losing book raises both the pick floor and the execution floor by
++5 (or +10 when the drawdown exceeds 5% of cost basis); a winning book never
+lowers the bar. The track-record summary and journal lessons are included in
+every scan story, so the learning is auditable.
+
+## Fully autonomous loop
+
+`GET /api/pm/trading-agent/cron` runs the whole loop with no human input:
+source candidates → consult agents → size → execute. It is scheduled in
+`vercel.json` on weekdays at 14:30 UTC and protected by the cron bearer
+secret. Two switches control autonomy:
+
+- `TRADING_AGENT_EXECUTION_ENABLED=true` — without it, autonomous runs stop
+  at pending decisions + previews (paper execution stays off).
+- `TRADING_AGENT_PERSONALITY` — the risk contract the loop trades under.
+
+Execution remains paper-only end to end; real-money brokers are reached only
+through the external write-back workflow below.
+
 ## Deep-dive flow
 
 1. **Gather platform context** — current position for the ticker
@@ -123,8 +180,10 @@ never be double-executed and the agents' hit rate stays auditable.
 
 ```bash
 TRADING_AGENT_EXECUTION_ENABLED=true   # required for any submission
-TRADING_AGENT_MIN_CONFIDENCE=70        # consensus confidence execution floor
-TRADING_AGENT_DEFAULT_NOTIONAL=100     # USD per paper order when not specified
+TRADING_AGENT_PERSONALITY=operator     # steward | operator | hunter
+TRADING_AGENT_MIN_CONFIDENCE=          # optional override of the personality's execution floor
+TRADING_AGENT_PORTFOLIO_USD=10000      # book size for sizing when Alpaca is not configured
+TRADING_AGENT_DEFAULT_NOTIONAL=100     # fallback USD per order when sizing is bypassed
 ```
 
 Alpaca paper credentials and order caps come from the existing execution

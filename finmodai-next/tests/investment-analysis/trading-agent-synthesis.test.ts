@@ -10,6 +10,9 @@ import test from 'node:test';
 import { actionForStance, synthesizeConsensus } from '@/lib/pm/tradingAgent/synthesize';
 import { deriveDebateConfidence, stanceFromDecisionWord } from '@/lib/pm/tradingAgent/consultAgents';
 import { buildScanStory, selectionScore, selectPicks } from '@/lib/pm/tradingAgent/scanUniverse';
+import { resolvePersonality, listPersonalities } from '@/lib/pm/tradingAgent/personality';
+import { sizePosition } from '@/lib/pm/tradingAgent/sizing';
+import { disciplineFromPnL } from '@/lib/pm/tradingAgent/learning';
 import type { AgentConsultation, ScanCandidate, TradeConsensus } from '@/lib/pm/tradingAgent/types';
 
 function consultation(overrides: Partial<AgentConsultation>): AgentConsultation {
@@ -226,14 +229,14 @@ test('buildScanStory names the universe, every candidate, and the picks', () => 
       candidate: candidate({ ticker: 'NVDA' }),
       consultations: [],
       consensus: consensusOf({ confidence: 80 }),
-      context: { holdsPosition: false, currentPrice: null, quantScoreSummary: null },
+      context: { holdsPosition: false, currentPrice: null, notionalExposure: null, quantScoreSummary: null },
       story: '',
     },
     {
       candidate: candidate({ ticker: 'RICH' }),
       consultations: [],
       consensus: consensusOf({ stance: 'neutral', action: 'watch', agreement: 'split', confidence: 30 }),
-      context: { holdsPosition: false, currentPrice: null, quantScoreSummary: null },
+      context: { holdsPosition: false, currentPrice: null, notionalExposure: null, quantScoreSummary: null },
       story: '',
     },
   ];
@@ -244,6 +247,107 @@ test('buildScanStory names the universe, every candidate, and the picks', () => 
   assert.match(story, /NVDA: SELECTED/);
   assert.match(story, /RICH: passed over/);
   assert.match(story, /chose NVDA/);
+});
+
+// ── Position sizing, personality, learning ───────────────────────────────────
+
+const operator = resolvePersonality('operator');
+
+test('sizePosition scales allocation with conviction and agreement', () => {
+  const strong = sizePosition({
+    equity: 10_000,
+    consensus: consensusOf({ confidence: 90, agreement: 'unanimous' }),
+    personality: operator,
+  });
+  const weak = sizePosition({
+    equity: 10_000,
+    consensus: consensusOf({ confidence: 60, agreement: 'majority' }),
+    personality: operator,
+  });
+  // 5% base × 0.9 × 1.2 = 5.4% of 10k = $540; 5% × 0.6 × 0.85 = 2.55% = $255.
+  assert.equal(strong.notional, 540);
+  assert.equal(weak.notional, 255);
+  assert.ok(strong.allocationPct > weak.allocationPct);
+});
+
+test('sizePosition tilts on valuation and never exceeds the personality cap', () => {
+  const cheap = sizePosition({
+    equity: 10_000,
+    consensus: consensusOf({ confidence: 90, agreement: 'unanimous' }),
+    personality: operator,
+    valuationSignal: 'undervalued',
+  });
+  const rich = sizePosition({
+    equity: 10_000,
+    consensus: consensusOf({ confidence: 90, agreement: 'unanimous' }),
+    personality: operator,
+    valuationSignal: 'overvalued',
+  });
+  assert.ok(cheap.notional > rich.notional);
+  const hunterMax = sizePosition({
+    equity: 1_000_000,
+    consensus: consensusOf({ confidence: 100, agreement: 'unanimous' }),
+    personality: resolvePersonality('hunter'),
+    valuationSignal: 'undervalued',
+  });
+  // 7% × 1.0 × 1.2 × 1.25 = 10.5% raw, capped well below by...
+  assert.ok(hunterMax.allocationPct <= resolvePersonality('hunter').maxPositionPct);
+});
+
+test('sizePosition respects existing exposure headroom and skips dust orders', () => {
+  const nearCap = sizePosition({
+    equity: 10_000,
+    consensus: consensusOf({ confidence: 90, agreement: 'unanimous' }),
+    personality: operator,
+    currentExposureUsd: 990, // cap is 10% of 10k = $1,000 → $10 headroom
+  });
+  assert.equal(nearCap.notional, 0);
+  assert.match(nearCap.reasoning, /skipping/);
+
+  const bearish = sizePosition({
+    equity: 10_000,
+    consensus: consensusOf({ stance: 'bearish', action: 'trim' }),
+    personality: operator,
+  });
+  assert.equal(bearish.notional, 0);
+});
+
+test('personalities resolve from request, then env default, and differ in risk contract', () => {
+  assert.equal(resolvePersonality('steward').key, 'steward');
+  assert.equal(resolvePersonality('nonsense').key, 'operator');
+  assert.equal(resolvePersonality(undefined).key, 'operator');
+  const [steward, , hunter] = [
+    resolvePersonality('steward'),
+    resolvePersonality('operator'),
+    resolvePersonality('hunter'),
+  ];
+  assert.ok(steward.minPickConfidence > hunter.minPickConfidence);
+  assert.ok(steward.maxPositionPct < hunter.maxPositionPct);
+  assert.equal(steward.executionAgreement, 'unanimous');
+  assert.equal(hunter.executionAgreement, 'majority');
+  assert.equal(listPersonalities().length, 3);
+});
+
+test('disciplineFromPnL raises the bar on losses, never rewards a hot streak', () => {
+  const flatBook = { realizedUSD: 0, unrealizedUSD: 0, totalUSD: 0, openPositions: 0, totalFills: 0 };
+  assert.equal(disciplineFromPnL(flatBook, 0), 0);
+  // Too few fills to grade, even if losing.
+  assert.equal(disciplineFromPnL({ ...flatBook, totalFills: 2, totalUSD: -500 }, 5_000), 0);
+  // Modest loss → +5.
+  assert.equal(disciplineFromPnL({ ...flatBook, totalFills: 10, totalUSD: -100 }, 10_000), 5);
+  // Heavy loss (≥5% of cost basis) → +10.
+  assert.equal(disciplineFromPnL({ ...flatBook, totalFills: 10, totalUSD: -600 }, 10_000), 10);
+  // Winning book does not lower the bar.
+  assert.equal(disciplineFromPnL({ ...flatBook, totalFills: 10, totalUSD: 900 }, 10_000), 0);
+});
+
+test('selectPicks honors a personality-raised confidence floor', () => {
+  const analyses = [
+    { candidate: candidate({ ticker: 'MID' }), consensus: consensusOf({ confidence: 60 }) },
+    { candidate: candidate({ ticker: 'HIGH' }), consensus: consensusOf({ confidence: 80 }) },
+  ];
+  assert.equal(selectPicks(analyses, 3).length, 2);
+  assert.deepEqual(selectPicks(analyses, 3, 65).map(p => p.analysis.candidate.ticker), ['HIGH']);
 });
 
 test('debate confidence rewards sane targets and punishes off-theme picks', () => {

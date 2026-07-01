@@ -35,6 +35,7 @@ const requestSchema = z.object({
   themes: z.array(z.string().trim().min(1)).max(8).optional(),
   notional: z.number().positive().max(100_000).optional(),
   execute: z.boolean().optional().default(false),
+  personality: z.enum(['steward', 'operator', 'hunter']).optional(),
 });
 
 function isAuthorizedForExecution(req: NextRequest): boolean {
@@ -81,6 +82,7 @@ export async function POST(req: NextRequest) {
       themes: parsed.data.themes,
       notional: parsed.data.notional,
       execute: parsed.data.execute,
+      personality: parsed.data.personality,
       origin: appOrigin(req),
       requestHeaders: req.headers,
     };

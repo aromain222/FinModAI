@@ -1,5 +1,7 @@
 import type { EvidenceItem, InvestmentDecision, TradeAction } from '@/lib/pm/types';
 import type { PaperExecutionPreview, PaperExecutionResult } from '@/lib/execution/types';
+import type { PersonalityKey } from '@/lib/pm/tradingAgent/personality';
+import type { PortfolioEquity, PositionSize } from '@/lib/pm/tradingAgent/sizing';
 
 /** Directional read extracted from a consulted CapitalBase agent. */
 export type AgentStance = 'bullish' | 'bearish' | 'neutral';
@@ -40,10 +42,12 @@ export type TradingAgentRunInput = {
   requestHeaders?: Headers;
   /** Investment themes the trade must fit (forwarded to the research debate). */
   themes?: string[];
-  /** Paper order size in USD; still subject to execution risk checks. */
+  /** Explicit paper order size in USD; when omitted the agent sizes the position itself. */
   notional?: number;
   /** When true, attempt guarded paper execution after the consult round. */
   execute?: boolean;
+  /** Risk contract the agent trades under; defaults to env, then 'operator'. */
+  personality?: PersonalityKey;
 };
 
 export type TradingAgentExecutionOutcome =
@@ -56,6 +60,8 @@ export type TradingAgentExecutionOutcome =
 export type TradingAgentContext = {
   holdsPosition: boolean;
   currentPrice: number | null;
+  /** Current dollar exposure to this name in pm_positions, when held. */
+  notionalExposure: number | null;
   quantScoreSummary: string | null;
 };
 
@@ -69,6 +75,8 @@ export type TradingAgentRun = {
   execution: TradingAgentExecutionOutcome;
   /** Platform context the agent factored in before deciding. */
   context: TradingAgentContext;
+  /** How the agent sized this trade (null when there was nothing to size). */
+  sizing: PositionSize | null;
 };
 
 // ── Autonomous scan mode ──────────────────────────────────────────────────────
@@ -107,6 +115,8 @@ export type TradingAgentPick = {
   selectionScore: number;
   selectionReason: string;
   consensus: TradeConsensus;
+  /** How much of the portfolio the agent assigned to this name, and why. */
+  sizing: PositionSize;
   decision: InvestmentDecision;
   execution: TradingAgentExecutionOutcome;
 };
@@ -120,16 +130,25 @@ export type TradingAgentScanInput = {
   universe?: string[];
   /** How many candidates to run the full agent consult on (bounded). */
   maxCandidates?: number;
-  /** How many investments to choose from the scanned set. */
+  /** How many investments to choose from the scanned set (default: personality). */
   maxPicks?: number;
+  /** Explicit per-order USD size; when omitted the agent sizes each pick itself. */
   notional?: number;
   execute?: boolean;
+  /** Risk contract the agent trades under; defaults to env, then 'operator'. */
+  personality?: PersonalityKey;
 };
 
 export type TradingAgentScanRun = {
   mode: 'scan';
   ranAt: string;
   universeSource: CandidateSource;
+  /** The risk contract this run traded under. */
+  personality: { key: PersonalityKey; name: string; voice: string };
+  /** What the agent learned from its own book before this run. */
+  trackRecord: { summary: string; disciplineAdjustment: number; lessons: string[] };
+  /** Portfolio equity the sizer allocated against. */
+  equity: PortfolioEquity;
   /** Every candidate the agents were consulted on. */
   scanned: TickerAnalysis[];
   /** The investments the agent chose; decisions are persisted for these only. */
