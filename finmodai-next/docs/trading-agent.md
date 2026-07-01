@@ -49,6 +49,39 @@ summary, evidence), `consensus`, the persisted `decision`, the `execution`
 outcome (`not_requested` / `previewed` / `skipped` / `submitted` / `failed`),
 and the platform `context` the agent factored in.
 
+## Using with a broker MCP (e.g. Robinhood)
+
+When execution happens outside CapitalBase — for example a Claude session
+driving a Robinhood MCP server — the trading agent is the pre-trade check and
+CapitalBase keeps the decision trail:
+
+1. **Before the trade**, call `POST /api/pm/trading-agent` with
+   `execute: false` (the default). Gate the broker order on the response:
+   only trade when `consensus.agreement` is `unanimous` (or `majority`, per
+   your risk appetite) and `consensus.confidence` clears your threshold.
+   Respect `consensus.action` — `hold` / `watch` means no order.
+2. **Place the order through the broker MCP**, sized off `notional` and the
+   `execution.preview` order if present.
+3. **After the fill**, report back with
+   `POST /api/pm/trading-agent/executed`:
+
+```bash
+POST /api/pm/trading-agent/executed
+
+{
+  "decisionId": "<decision.id from step 1>",
+  "broker": "robinhood",
+  "status": "filled",          # or rejected / cancelled
+  "qty": 2,                     # or "notional": 500
+  "fillPrice": 187.42,
+  "note": "optional context"
+}
+```
+
+A fill marks the decision approved (attributed to `<broker>_mcp`) and
+executed, and records the outcome in PM memory — so the same decision can
+never be double-executed and the agents' hit rate stays auditable.
+
 ## Environment
 
 ```bash
