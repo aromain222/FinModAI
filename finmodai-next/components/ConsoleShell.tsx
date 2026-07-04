@@ -17,14 +17,17 @@ export function ConsoleShell({ children }: ConsoleShellProps) {
   const pathname = usePathname();
   const isWorkspace = WORKSPACE_ROUTES.has(pathname);
 
-  // ── Workspace layout: compact bar + full-height content, no sidebar ──────
+  // ── Workspace layout: global sidebar + compact bar + full-height content ──
   if (isWorkspace) {
     return (
-      <div className="flex h-screen w-full flex-col overflow-hidden bg-[var(--cb-bg)] text-[var(--cb-text-body)] transition-colors">
-        <WorkspaceBar />
-        <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
-          {children}
-        </main>
+      <div className="flex h-screen w-full overflow-hidden bg-[var(--cb-bg)] text-[var(--cb-text-body)] transition-colors">
+        <DashboardSidebar />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <WorkspaceBar />
+          <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
+            {children}
+          </main>
+        </div>
       </div>
     );
   }
