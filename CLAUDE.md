@@ -2,6 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Read this first: repo map & handoff notes
+
+- **Canonical code is `finmodai-next/` only.** The repo root contains ~100 legacy Python scripts (`professional_*.py`, `finmodai_*.py`, etc.), an old Flask/FastAPI era, and generated artifacts. Never extend root-level Python for a feature; the Next.js pipeline supersedes it. `backend/` is the only Python still in service, and it mostly proxies to Next.js routes.
+- **Don't trust the Markdown graveyard.** The root and `finmodai-next/` contain dozens of `*_COMPLETE.md` / `*_SUMMARY.md` / `*_FIX.md` status files from past sessions. They are historical snapshots, frequently stale, and contradict each other. When a doc disagrees with code, the code wins. The only maintained docs are this file, `.claude/skills/`, and `lib/models/schema/README.md`.
+- **Skills** (in `.claude/skills/`) carry the detailed procedures — use them:
+  - `verify` — how to lint/test/build and exercise a change end-to-end before committing
+  - `model-pipeline` — adding/modifying DCF/LBO/Comps/Merger/Three-Statement features, ModelDocument rules, generator file map
+  - `data-providers` — the fallback cascade, adding providers, diagnostics, env keys
+- **Silent demo fallback is the #1 debugging trap.** Missing API keys make data fetches silently degrade to Supabase cache → demo snapshots. Before debugging "wrong numbers", check the `diagnostics` field of the API response to see which data tier actually served it.
+- Fresh clones have no `node_modules` and no `.env.local` — run `npm install` in `finmodai-next/` and copy `.env.local.template` first.
+
 ## Commands
 
 All frontend work happens inside `finmodai-next/`:
