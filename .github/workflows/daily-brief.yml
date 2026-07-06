@@ -1,0 +1,65 @@
+# Weekday-morning portfolio brief.
+#
+# Curls the deployed /api/pm/daily-brief route (agents re-consulted on held
+# names + a discovery scan, composed as markdown) and posts the result as a
+# GitHub issue. GitHub's own notifications then email the brief to anyone
+# watching the repository — no mail provider needed.
+#
+# Required repository secrets (same pair as trading-agent-cron.yml):
+#   TRADING_AGENT_URL       e.g. https://your-app.vercel.app
+#   EXECUTION_CRON_SECRET   must match the env var on the deployment
+#
+# Holdings come from the DAILY_BRIEF_HOLDINGS env var on the deployment
+# (comma-separated tickers), falling back to the pm_positions book.
+
+name: Daily portfolio brief
+
+on:
+  schedule:
+    # 12:45 UTC weekdays — 8:45am ET during DST, before the open.
+    - cron: '45 12 * * 1-5'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  daily-brief:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch the brief
+        run: |
+          if [ -z "${TRADING_AGENT_URL}" ] || [ -z "${EXECUTION_CRON_SECRET}" ]; then
+            echo "TRADING_AGENT_URL and EXECUTION_CRON_SECRET secrets must be configured." >&2
+            exit 1
+          fi
+          status=$(curl -sS -o response.json -w '%{http_code}' \
+            -H "Authorization: Bearer ${EXECUTION_CRON_SECRET}" \
+            --max-time 320 \
+            "${TRADING_AGENT_URL%/}/api/pm/daily-brief")
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "Daily brief request failed with HTTP ${status}" >&2
+            cat response.json >&2 || true
+            exit 1
+          fi
+          jq -r '.markdown // empty' response.json > brief.md
+          if [ ! -s brief.md ]; then
+            echo "Daily brief response contained no markdown." >&2
+            exit 1
+          fi
+        env:
+          TRADING_AGENT_URL: ${{ secrets.TRADING_AGENT_URL }}
+          EXECUTION_CRON_SECRET: ${{ secrets.EXECUTION_CRON_SECRET }}
+
+      - name: Post the brief as an issue
+        run: |
+          gh label create daily-brief --repo "$GITHUB_REPOSITORY" \
+            --description "Automated morning portfolio brief" --color 1D76DB || true
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "Daily brief — $(date -u +%F)" \
+            --label daily-brief \
+            --body-file brief.md
+        env:
+          GH_TOKEN: ${{ github.token }}

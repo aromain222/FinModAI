@@ -111,6 +111,32 @@ loop runs with no machine of yours switched on. Execution remains paper-only
 end to end; real-money brokers are reached only through the external
 write-back workflow below.
 
+## Daily brief
+
+`GET /api/pm/daily-brief` runs the morning research loop and returns a
+markdown brief — no execution, ever:
+
+1. **Book reads** — re-consults the full agent round (research debate +
+   committee) on every held name. Holdings come from the `holdings=` query
+   param, else the `DAILY_BRIEF_HOLDINGS` env var (comma-separated tickers —
+   use this when the real book lives at an external broker), else active
+   `pm_positions`.
+2. **Discovery** — a small autonomous scan of the ranked board for new ideas.
+3. **Theses** — the brief includes each name's full narrative (ranking
+   context → what each agent said → consensus), the picks with sizing and
+   `decision.id`s, and the write-back command for acting through an external
+   broker.
+
+Config: `DAILY_BRIEF_HOLDINGS`, `DAILY_BRIEF_THEMES` (comma-separated; default
+swing-trade themes), `DAILY_BRIEF_PERSONALITY` (falls back to
+`TRADING_AGENT_PERSONALITY`). Protected by the same cron bearer secrets.
+
+Delivery: `.github/workflows/daily-brief.yml` curls the route every weekday
+at 12:45 UTC and posts the markdown as a GitHub issue labeled `daily-brief`.
+Watch the repository (with email notifications on) and the brief lands in
+your inbox each morning. Uses the same `TRADING_AGENT_URL` +
+`EXECUTION_CRON_SECRET` repository secrets as the hourly cron.
+
 ## Deep-dive flow
 
 1. **Gather platform context** — current position for the ticker
