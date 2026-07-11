@@ -6,6 +6,7 @@ import { AlertFeed } from '@/components/pm/AlertFeed';
 import { DecisionQueue } from '@/components/pm/DecisionQueue';
 import { ThesisCards } from '@/components/pm/ThesisCards';
 import { WeeklyMemoPanel } from '@/components/pm/WeeklyMemoPanel';
+import { DailyPortfolioBriefPanel } from '@/components/pm/DailyPortfolioBriefPanel';
 import { LocalStoragePositionSync } from '@/components/pm/LocalStoragePositionSync';
 import { LedgerPositionHydrator } from '@/components/pm/LedgerPositionHydrator';
 import type { PMAlert, InvestmentDecision, PositionThesis, WeeklyMemo } from '@/lib/pm/types';
@@ -19,7 +20,7 @@ async function resetPortfolio(): Promise<void> {
   window.location.reload();
 }
 
-type Tab = 'monitor' | 'workflow';
+type Tab = 'monitor' | 'brief' | 'workflow';
 
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { cache: 'no-store' });
@@ -86,6 +87,7 @@ function WorkflowTab() {
 
 const TABS: { id: Tab; label: string; hint: string }[] = [
   { id: 'monitor',  label: 'Monitor',  hint: 'P&L · score drift · PM actions' },
+  { id: 'brief',    label: 'Daily Brief', hint: 'Post-close memo · charts · thesis review' },
   { id: 'workflow', label: 'Workflow', hint: 'Alerts · approvals · theses · memo' },
 ];
 
@@ -200,6 +202,7 @@ export default function PortfolioPage() {
       </div>
 
       {tab === 'monitor'  && <PortfolioPanel />}
+      {tab === 'brief'    && <DailyPortfolioBriefPanel />}
       {tab === 'workflow' && <WorkflowTab />}
     </main>
   );
