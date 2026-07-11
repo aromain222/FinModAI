@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createClient } from '@supabase/supabase-js';
 import { getMacroSnapshot } from '@/lib/macroData';
 import { marketSnapshotSchema } from '@/lib/chat/schemas';
+import { internalRequestHeaders } from '@/lib/pm/monitoring/internalRequestHeaders';
 
 export const dynamic = 'force-dynamic';
 
@@ -204,8 +205,14 @@ export async function GET(req: NextRequest) {
 
     const [macroSnapshot, stocksRes, performanceRes] = await Promise.all([
       getMacroSnapshot('1M'),
-      fetch(`${origin}/api/market-brief/stocks?period=1D`, { cache: 'no-store' }),
-      fetch(`${origin}/api/market-brief/performance?range=1D&symbol=SPY`, { cache: 'no-store' }),
+      fetch(`${origin}/api/market-brief/stocks?period=1D`, {
+        cache: 'no-store',
+        headers: internalRequestHeaders(req.headers),
+      }),
+      fetch(`${origin}/api/market-brief/performance?range=1D&symbol=SPY`, {
+        cache: 'no-store',
+        headers: internalRequestHeaders(req.headers),
+      }),
     ]);
 
     const stocksPayload = stocksRes.ok ? stockBreadthSchema.safeParse(await stocksRes.json()) : null;
