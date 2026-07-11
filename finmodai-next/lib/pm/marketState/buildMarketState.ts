@@ -1,4 +1,5 @@
 import type { MarketStateMetric, MarketStatePacket } from '@/lib/pm/marketState/marketStateContract';
+import { internalRequestHeaders } from '@/lib/pm/monitoring/internalRequestHeaders';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -24,9 +25,11 @@ function metric(value: unknown, source: string | null, asOf: string | null, unit
   return { value: finite(value), source, asOf, unit };
 }
 
-async function fetchJson(url: string): Promise<unknown> {
+async function fetchJson(url: string, requestHeaders?: Headers): Promise<unknown> {
   try {
-    const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(15_000) });
+    const response = await fetch(url, {
+      cache: 'no-store', signal: AbortSignal.timeout(15_000), headers: internalRequestHeaders(requestHeaders),
+    });
     return response.ok ? await response.json() : null;
   } catch {
     return null;
@@ -72,12 +75,12 @@ function deriveRegime(params: {
   return { regime: hasPositive && hasNegative ? 'mixed' : 'neutral', regimeConfidence: confidence };
 }
 
-export async function buildMarketStatePacket(params: { origin: string; now?: Date }): Promise<MarketStatePacket> {
+export async function buildMarketStatePacket(params: { origin: string; now?: Date; requestHeaders?: Headers }): Promise<MarketStatePacket> {
   const symbols = ['SPY', 'QQQ', 'IWM', 'HYG', 'TLT'] as const;
   const [snapshotValue, breadthValue, ...performanceValues] = await Promise.all([
-    fetchJson(`${params.origin}/api/market/snapshot`),
-    fetchJson(`${params.origin}/api/market-brief/stocks?period=1D`),
-    ...symbols.map(symbol => fetchJson(`${params.origin}/api/market-brief/performance?range=1M&symbol=${symbol}`)),
+    fetchJson(`${params.origin}/api/market/snapshot`, params.requestHeaders),
+    fetchJson(`${params.origin}/api/market-brief/stocks?period=1D`, params.requestHeaders),
+    ...symbols.map(symbol => fetchJson(`${params.origin}/api/market-brief/performance?range=1M&symbol=${symbol}`, params.requestHeaders)),
   ]);
   const snapshot = record(snapshotValue);
   const provider = text(snapshot?.provider);

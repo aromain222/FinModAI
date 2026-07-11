@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   }
   if (!cronAuthorized(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
-    const record = await generateDailyPortfolioBrief({ origin: req.nextUrl.origin, runLabel: 'post_close' });
+    const record = await generateDailyPortfolioBrief({ origin: req.nextUrl.origin, runLabel: 'post_close', requestHeaders: req.headers });
     const saved = await upsertPMRecord('pm_daily_portfolio_briefs', record);
     return NextResponse.json({ ok: true, brief: saved });
   } catch (error) {
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const record = await generateDailyPortfolioBrief({ origin: req.nextUrl.origin, runLabel: 'manual' });
+    const record = await generateDailyPortfolioBrief({ origin: req.nextUrl.origin, runLabel: 'manual', requestHeaders: req.headers });
     const saved = await upsertPMRecord('pm_daily_portfolio_briefs', record);
     return NextResponse.json({ ok: true, brief: saved });
   } catch (error) {

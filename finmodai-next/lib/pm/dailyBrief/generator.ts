@@ -7,6 +7,7 @@ import { listPositions } from '@/lib/pm/portfolio/positionStore';
 import { listTheses } from '@/lib/pm/thesis/thesisStore';
 import { buildMarketStatePacket } from '@/lib/pm/marketState/buildMarketState';
 import type { MarketStatePacket } from '@/lib/pm/marketState/marketStateContract';
+import { internalRequestHeaders } from '@/lib/pm/monitoring/internalRequestHeaders';
 import type { InvestmentDecision, PMAlert, PortfolioPosition, PositionThesis } from '@/lib/pm/types';
 
 const positionActionSchema = z.enum(['hold', 'add_watch', 'trim_watch', 'review']);
@@ -136,11 +137,11 @@ function eventTickers(event: EventLike): string[] {
   });
 }
 
-async function fetchQuotes(origin: string, tickers: string[]): Promise<Map<string, StockQuote>> {
+async function fetchQuotes(origin: string, tickers: string[], requestHeaders?: Headers): Promise<Map<string, StockQuote>> {
   if (tickers.length === 0) return new Map();
   try {
     const response = await fetch(`${origin}/api/quotes?symbols=${encodeURIComponent(tickers.join(','))}`, {
-      cache: 'no-store', signal: AbortSignal.timeout(15_000),
+      cache: 'no-store', signal: AbortSignal.timeout(15_000), headers: internalRequestHeaders(requestHeaders),
     });
     if (!response.ok) return new Map();
     const payload = await response.json() as { quotes?: StockQuote[] };
@@ -150,10 +151,10 @@ async function fetchQuotes(origin: string, tickers: string[]): Promise<Map<strin
   }
 }
 
-async function fetchEvents(origin: string): Promise<EventLike[]> {
+async function fetchEvents(origin: string, requestHeaders?: Headers): Promise<EventLike[]> {
   try {
     const response = await fetch(`${origin}/api/events?range=1D&limit=100`, {
-      cache: 'no-store', signal: AbortSignal.timeout(15_000),
+      cache: 'no-store', signal: AbortSignal.timeout(15_000), headers: internalRequestHeaders(requestHeaders),
     });
     if (!response.ok) return [];
     const payload = await response.json() as { events?: EventLike[] };
@@ -294,6 +295,7 @@ export async function generateDailyPortfolioBrief(input: {
   origin: string;
   runLabel?: DailyPortfolioBrief['runLabel'];
   now?: Date;
+  requestHeaders?: Headers;
 }): Promise<DailyPortfolioBrief> {
   const now = input.now ?? new Date();
   const [positions, theses, alerts, decisions, marketState, events] = await Promise.all([
@@ -301,12 +303,12 @@ export async function generateDailyPortfolioBrief(input: {
     listTheses({ limit: 300 }),
     listPMRecords<PMAlert>('pm_alerts', { limit: 300 }),
     listPMRecords<InvestmentDecision>('pm_investment_decisions', { limit: 300 }),
-    buildMarketStatePacket({ origin: input.origin, now }),
-    fetchEvents(input.origin),
+    buildMarketStatePacket({ origin: input.origin, now, requestHeaders: input.requestHeaders }),
+    fetchEvents(input.origin, input.requestHeaders),
   ]);
   const active = positions.filter(position => ['active', 'watch', 'trimmed'].includes(position.status));
   const tickers = active.map(position => position.ticker.toUpperCase());
-  const quotes = await fetchQuotes(input.origin, tickers);
+  const quotes = await fetchQuotes(input.origin, tickers, input.requestHeaders);
   const positionSnapshots = buildPositionSnapshots({ positions: active, quotes, theses, alerts, decisions });
   const market: DailyPortfolioBrief['market'] = {
     regime: marketState.regime,
