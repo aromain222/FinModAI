@@ -25,3 +25,4 @@ finmodai-next/node_modules/
 cache/
 *.meta
 *.xlsx
+.env*

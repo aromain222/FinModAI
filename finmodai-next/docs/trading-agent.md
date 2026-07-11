@@ -215,6 +215,62 @@ A fill marks the decision approved (attributed to `<broker>_mcp`) and
 executed, and records the outcome in PM memory — so the same decision can
 never be double-executed and the agents' hit rate stays auditable.
 
+### Robinhood Phase 2: capped live adds
+
+Phase 2 uses the official Robinhood MCP installed in local Claude Code. It is
+buy/add only; options, crypto, shorts, margin, extended hours, and automated
+trims are outside this phase. CapitalBase does not receive Robinhood credentials.
+
+1. Generate a fresh CapitalBase decision. The response decision must contain
+   `liveExecutionGate.eligible: true`.
+2. Through the Robinhood MCP, read the account, portfolio, equity positions,
+   equity orders, quote, and tradability. Do not place an order yet.
+3. Submit that broker snapshot and the proposed size to:
+
+```bash
+POST /api/execution/robinhood/phase2/authorize
+Authorization: Bearer $EXECUTION_CRON_SECRET
+
+{
+  "decisionId": "<decision.id>",
+  "requestedNotional": 25,
+  "snapshot": {
+    "portfolioValue": 5000,
+    "buyingPower": 1000,
+    "tradingBlocked": false,
+    "marketOpen": true,
+    "quote": {
+      "symbol": "NVDA",
+      "last": 190.00,
+      "bid": 189.95,
+      "ask": 190.05,
+      "observedAt": "<current ISO timestamp>",
+      "tradable": true,
+      "assetType": "stock"
+    },
+    "positions": [{ "ticker": "NVDA", "marketValue": 300 }],
+    "openOrderTickers": [],
+    "todayOrderTickers": [],
+    "todayOrderCount": 0,
+    "todayOrderNotional": 0
+  }
+}
+```
+
+4. Continue only when `authorization.authorized` is true. Preserve the
+   response's short-lived signed `authorizationId`. Pass the returned order to
+   `review_equity_order`, inspect that the broker review matches exactly, then
+   pass the same fields and `refId` to `place_equity_order`.
+5. Report the broker result to `/api/pm/trading-agent/executed`, including
+   the exact signed `authorizationId` and the execution bearer token. A fill
+   above the authorized dollar amount, a stale receipt, or a receipt for a
+   different decision is rejected.
+
+Hard ceilings are code-owned: $50/order, 0.5% of portfolio/order, 1% daily
+turnover, two Robinhood orders/day, one action/ticker/day, and 15% post-trade
+ticker exposure. Environment configuration may disable Phase 2 but cannot
+raise these ceilings.
+
 ## Environment
 
 ```bash
@@ -223,6 +279,8 @@ TRADING_AGENT_PERSONALITY=operator     # steward | operator | hunter
 TRADING_AGENT_MIN_CONFIDENCE=          # optional override of the personality's execution floor
 TRADING_AGENT_PORTFOLIO_USD=10000      # book size for sizing when Alpaca is not configured
 TRADING_AGENT_DEFAULT_NOTIONAL=100     # fallback USD per order when sizing is bypassed
+ROBINHOOD_PHASE2_ENABLED=false         # set true only after dry-run authorization QA
+EXECUTION_CRON_SECRET=                 # required by Phase 2 authorize/write-back routes
 ```
 
 Alpaca paper credentials and order caps come from the existing execution

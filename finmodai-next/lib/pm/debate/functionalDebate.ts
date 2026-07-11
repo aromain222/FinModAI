@@ -14,6 +14,9 @@ import type {
   FunctionalMemo,
 } from '@/lib/pm/debate/types';
 import { knownEvidenceRefs, scoreDebateClaims } from '@/lib/pm/debate/claimScoring';
+import { playbookForDesk, RISK_PLAYBOOK } from '@/lib/pm/playbooks/swingTrading';
+import { formatBookPassages, retrieveBookPassages } from '@/lib/pm/playbooks/bookRetrieval';
+import { buildPMDecisionPolicy } from '@/lib/pm/debate/pmDecisionPolicy';
 
 type Role = {
   key: QuantAnalystKey;
@@ -198,6 +201,15 @@ async function runMemo(role: Role, packet: ResearchPacket): Promise<FunctionalMe
   const startedAt = Date.now();
   const packetText = formatResearchPacketForPrompt(packet);
   const marketText = packet.marketState ? formatMarketStateForPrompt(packet.marketState) : 'MARKET STATE: unavailable';
+  const playbook = playbookForDesk(role.key);
+  // Only the technicals desk reads the tape-reading corpus (Wyckoff/Gann/Lefèvre) —
+  // one retrieval call inside its parallel memo slot, best-effort by design.
+  const bookContext = role.key === 'technicals'
+    ? formatBookPassages(await retrieveBookPassages(
+        `${packet.ticker} tape reading: momentum ${packet.pricePath.momentum20dPct.value ?? 'unknown'}%, expected return ${packet.pricePath.expectedReturnPct.value ?? 'unknown'}%, volatility ${packet.pricePath.annualizedVolatilityPct.value ?? 'unknown'}%, regime ${packet.marketState?.regime ?? 'unknown'}`,
+        2,
+      ))
+    : '';
   try {
     const result = await generateTextWithProviderFallback({
       preferredProvider: 'anthropic',
@@ -210,7 +222,7 @@ async function runMemo(role: Role, packet: ResearchPacket): Promise<FunctionalMe
       messages: [
         {
           role: 'system',
-          content: `You are CapitalBase's ${role.name} desk. Work independently. ${role.mandate} Use only supplied evidence, attach exact evidenceRefs to every claim, and treat missing evidence as unknown. Output strict JSON.`,
+          content: `You are CapitalBase's ${role.name} desk. Work independently. ${role.mandate} Use only supplied evidence, attach exact evidenceRefs to every claim, and treat missing evidence as unknown.${playbook ? `\n\n${playbook}` : ''}${bookContext ? `\n\n${bookContext}` : ''} Output strict JSON.`,
         },
         {
           role: 'user',
@@ -222,7 +234,8 @@ async function runMemo(role: Role, packet: ResearchPacket): Promise<FunctionalMe
     const knownRefs = knownEvidenceRefs(packet);
     const claims = parsed.claims.map((claim, index) => ({
       ...claim,
-      id: claim.id || `${role.key}-${index + 1}`,
+      // Role-owned IDs prevent collisions such as several desks emitting "risk-1".
+      id: `${role.key}-${index + 1}`,
       evidenceRefs: claim.evidenceRefs.filter(ref => knownRefs.has(ref)),
     }));
     const unsupported = claims.filter(claim => claim.evidenceRefs.length === 0).length;
@@ -313,23 +326,13 @@ function fallbackAdjudication(
   packet: ResearchPacket,
 ): DebateAdjudication {
   const claims = scoreDebateClaims(memos, rebuttals, packet);
-  const weighted = memos.map(memo => {
-    const reb = primaryRebuttalFor(rebuttals, memo.key);
-    const confidence = reb?.revisedConfidence ?? memo.confidence;
-    const direction = memo.stance === 'bullish' ? 1 : memo.stance === 'bearish' ? -1 : 0;
-    return { direction, confidence };
-  });
-  const net = weighted.reduce((sum, item) => sum + item.direction * item.confidence, 0) / Math.max(1, weighted.length);
-  const accepted = claims.filter(item => item.accepted).length;
-  const confidence = Math.min(65, Math.round(weighted.reduce((sum, item) => sum + item.confidence, 0) / Math.max(1, weighted.length)));
-  const bullish = net >= 18 && accepted >= 2;
-  const bearish = net <= -18 && accepted >= 2;
+  const policy = buildPMDecisionPolicy({ memos, rebuttals, claims, packet });
   return {
-    action: bullish ? 'buy' : bearish ? 'sell' : 'hold',
-    confidence,
-    sizing: bullish ? 'Track' : bearish ? 'Avoid' : 'Track',
-    decision: bullish ? 'work_up' : bearish ? 'pass' : 'wait',
-    reasoning: `${accepted}/${claims.length} claims survived evidence and rebuttal checks; net desk conviction was ${Math.round(net)}.`,
+    action: policy.action,
+    confidence: policy.confidence,
+    sizing: policy.sizing,
+    decision: policy.decision,
+    reasoning: `${policy.acceptedClaims}/${claims.length} claims survived. PM edge ${policy.edgeScore}/100, evidence ${policy.evidenceScore}/100, claim quality ${policy.claimScore}/100.`,
     whatIsPriced: packet.consensus.targetUpsidePct.value === null ? 'Consensus expectations were unavailable.' : `Consensus target implies ${packet.consensus.targetUpsidePct.value}% upside, which is not itself an edge.`,
     whyNow: packet.catalysts[0]?.title ?? 'No verified near-term catalyst was retrieved.',
     upsidePath: 'Verified estimate improvement plus technical confirmation inside the stated horizon.',
@@ -339,6 +342,7 @@ function fallbackAdjudication(
     disagreements: rebuttals.filter(item => item.revisedStance !== memos.find(memo => memo.key === item.targetKey)?.stance).map(item => `${item.targetKey} stance revised by ${item.reviewerKey}`),
     claims,
     degraded: true,
+    policy,
   };
 }
 
@@ -348,6 +352,7 @@ async function adjudicate(
   packet: ResearchPacket,
 ): Promise<DebateAdjudication> {
   const claims = scoreDebateClaims(memos, rebuttals, packet);
+  const policy = buildPMDecisionPolicy({ memos, rebuttals, claims, packet });
   const startedAt = Date.now();
   try {
     const result = await generateTextWithProviderFallback({
@@ -359,21 +364,15 @@ async function adjudicate(
       messages: [
         {
           role: 'system',
-          content: 'You are the CapitalBase PM adjudicator. Decide from surviving evidence, preserve material disagreement, and never convert vote count into conviction. Weigh each rebuttal\'s verdicts and revised stance/confidence against the original memo — a memo whose claims were rejected on cross-exam must not drive the decision. Any memo or rebuttal marked degraded:true is a deterministic fallback, not analyst output — discount it. Output strict JSON.',
+          content: `You are the CapitalBase PM adjudicator. Decide from surviving evidence, preserve material disagreement, and never convert vote count into conviction. Weigh each rebuttal's verdicts and revised stance/confidence against the original memo — a memo whose claims were rejected on cross-exam must not drive the decision. Any memo or rebuttal marked degraded:true is a deterministic fallback, not analyst output — discount it.\n\n${RISK_PLAYBOOK}\n\nOutput strict JSON.`,
         },
         {
           role: 'user',
-          content: `Horizon: ${packet.horizon.label}\nEvidence coverage: ${packet.quality.coveragePct}%\nMemos: ${JSON.stringify(memos)}\nRebuttals: ${JSON.stringify(rebuttals)}\nDeterministic claim scores: ${JSON.stringify(claims)}\nReturn JSON: {"action":"buy|hold|sell|short|cover","confidence":0-100,"sizing":"Track|Build|Trim|Exit watch|Avoid","decision":"pass|wait|work_up|pitch_candidate","reasoning":"...","whatIsPriced":"...","whyNow":"...","upsidePath":"...","downsidePath":"...","confirmation":"...","invalidation":"...","disagreements":["..."]}. Pitch candidate requires a dated/mechanistic catalyst, an accepted estimate or multiple claim, defined invalidation, and evidence coverage >=65%.`,
+          content: `Horizon: ${packet.horizon.label}\nEvidence coverage: ${packet.quality.coveragePct}%\nBinding PM policy: ${JSON.stringify(policy)}\nMemos: ${JSON.stringify(memos)}\nRebuttals: ${JSON.stringify(rebuttals)}\nDeterministic claim scores: ${JSON.stringify(claims)}\nReturn JSON: {"action":"buy|hold|sell|short|cover","confidence":0-100,"sizing":"Track|Build|Trim|Exit watch|Avoid","decision":"pass|wait|work_up|pitch_candidate","reasoning":"...","whatIsPriced":"...","whyNow":"...","upsidePath":"...","downsidePath":"...","confirmation":"...","invalidation":"...","disagreements":["..."]}. Explain the binding policy decision; do not upgrade its action, decision, sizing, or confidence.`,
         },
       ],
     });
     const parsed = adjudicationSchema.parse(extractJson(result?.text ?? '{}'));
-    const averageClaimScore = claims.length > 0 ? claims.reduce((sum, item) => sum + item.score, 0) / claims.length : 0;
-    const confidenceCap = Math.min(90, Math.round((packet.quality.coveragePct + averageClaimScore) / 2));
-    const decision = parsed.decision === 'pitch_candidate'
-      && (packet.quality.coveragePct < 65 || claims.filter(item => item.accepted).length < 2)
-        ? 'work_up'
-        : parsed.decision;
     // Rebuttal-driven stance revisions are material disagreement by definition — record them
     // deterministically rather than trusting the LLM to have surfaced them.
     const stanceRevisions = rebuttals
@@ -382,12 +381,15 @@ async function adjudicate(
     const disagreements = [...new Set([...parsed.disagreements, ...stanceRevisions])].slice(0, 8);
     return {
       ...parsed,
-      decision,
+      action: policy.action,
+      decision: policy.decision,
+      sizing: policy.sizing,
       disagreements,
-      confidence: Math.min(parsed.confidence, confidenceCap),
+      confidence: policy.confidence,
       claims,
       degraded: false,
       llm: result ? llmTelemetry(result, startedAt) : undefined,
+      policy,
     };
   } catch {
     return fallbackAdjudication(memos, rebuttals, packet);

@@ -75,6 +75,28 @@ export type DebateAdjudication = {
   claims: AdjudicatedClaim[];
   degraded: boolean;
   llm?: DebateLlmTelemetry;
+  policy: PMDecisionPolicy;
+};
+
+export type PMDecisionPolicy = {
+  action: DebateAdjudication['action'];
+  decision: DebateAdjudication['decision'];
+  sizing: DebateAdjudication['sizing'];
+  confidence: number;
+  edgeScore: number;
+  evidenceScore: number;
+  claimScore: number;
+  asymmetryRatio: number | null;
+  acceptedClaims: number;
+  gates: {
+    sufficientEvidence: boolean;
+    sufficientClaims: boolean;
+    estimateOrMultipleMechanism: boolean;
+    verifiedCatalyst: boolean;
+    favorableAsymmetry: boolean;
+    riskAcceptable: boolean;
+  };
+  blockers: string[];
 };
 
 export type DebateLlmTelemetry = {

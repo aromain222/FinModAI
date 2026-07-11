@@ -13,7 +13,7 @@ import { buildScanStory, selectionScore, selectPicks, selectBookActions, trimNot
 import { resolvePersonality, listPersonalities } from '@/lib/pm/tradingAgent/personality';
 import { sizePosition } from '@/lib/pm/tradingAgent/sizing';
 import { disciplineFromPnL } from '@/lib/pm/tradingAgent/learning';
-import { executedByAgentToday } from '@/lib/pm/tradingAgent/runTradingAgent';
+import { buildRobinhoodPhase2Gate, executedByAgentToday } from '@/lib/pm/tradingAgent/runTradingAgent';
 import type { AgentConsultation, ScanCandidate, TradeConsensus } from '@/lib/pm/tradingAgent/types';
 
 function consultation(overrides: Partial<AgentConsultation>): AgentConsultation {
@@ -41,6 +41,31 @@ test('unanimous bullish agents produce a buy with averaged confidence', () => {
   assert.equal(consensus.stance, 'bullish');
   assert.equal(consensus.action, 'buy');
   assert.equal(consensus.confidence, 75);
+});
+
+test('Robinhood Phase 2 requires unanimous high-confidence consensus and passing PM gates', () => {
+  const consensus: TradeConsensus = { stance: 'bullish', action: 'buy', confidence: 82, agreement: 'unanimous', rationale: 'test' };
+  const consultations = [
+    consultation({ stance: 'bullish', confidence: 84 }),
+    committee({
+      stance: 'bullish',
+      confidence: 80,
+      raw: { debate: { adjudication: { policy: { decision: 'work_up', confidence: 72, gates: { sufficientEvidence: true, sufficientClaims: true, estimateOrMultipleMechanism: true, riskAcceptable: true } } } } },
+    }),
+  ];
+  const gate = buildRobinhoodPhase2Gate(consensus, consultations);
+  assert.equal(gate.eligible, true);
+  assert.deepEqual(gate.blockers, []);
+});
+
+test('Robinhood Phase 2 fails closed when the PM policy audit is missing', () => {
+  const consensus: TradeConsensus = { stance: 'bullish', action: 'buy', confidence: 82, agreement: 'unanimous', rationale: 'test' };
+  const gate = buildRobinhoodPhase2Gate(consensus, [
+    consultation({ stance: 'bullish', confidence: 84 }),
+    committee({ stance: 'bullish', confidence: 80 }),
+  ]);
+  assert.equal(gate.eligible, false);
+  assert.ok(gate.blockers.includes('binding PM policy audit is missing'));
 });
 
 test('unanimous bullish on an existing position becomes add', () => {

@@ -191,6 +191,18 @@ export const investmentDecisionSchema = z.object({
   approvalNote: z.string().optional(),
   executedAt: z.string().optional(),
   executionNote: z.string().optional(),
+  executionBroker: z.string().optional(),
+  executedNotional: z.number().positive().optional(),
+  executedQty: z.number().positive().optional(),
+  executionFillPrice: z.number().positive().optional(),
+  liveExecutionGate: z.object({
+    phase: z.literal('robinhood_phase2'),
+    eligible: z.boolean(),
+    agreement: z.enum(['unanimous', 'majority', 'split', 'no_signal']),
+    committeeDecision: z.string().nullable(),
+    committeeConfidence: z.number().min(0).max(100).nullable(),
+    blockers: z.array(z.string()),
+  }).optional(),
 });
 
 export const pmAlertSchema = z.object({

@@ -4,7 +4,9 @@ import type { EvidenceItem, ImpactDirection } from '@/lib/pm/types';
 import type { AgentConsultation, AgentStance } from '@/lib/pm/tradingAgent/types';
 import type { ResearchPacket } from '@/lib/pm/research/researchPacketContract';
 
-const CONSULT_TIMEOUT_MS = 60_000;
+// tradingagents now runs a 4-stage researcher debate (worst case ~52s of LLM time);
+// callers of this module are crons with 300s budgets, so 90s leaves honest headroom.
+const CONSULT_TIMEOUT_MS = 90_000;
 
 type TradingAgentsResponse = {
   ticker: string;

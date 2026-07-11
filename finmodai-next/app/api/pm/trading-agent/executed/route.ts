@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getDecisionForExecution } from '@/lib/execution/orders';
+import { verifyRobinhoodPhase2Authorization } from '@/lib/execution/robinhoodPhase2';
 import { updateDecision } from '@/lib/pm/decisions/decisionStore';
 import { recordOutcome } from '@/lib/pm/memory/recordOutcome';
 
@@ -24,8 +25,18 @@ const requestSchema = z.object({
   qty: z.number().positive().optional(),
   notional: z.number().positive().optional(),
   fillPrice: z.number().positive().optional(),
+  authorizationId: z.string().trim().min(1).optional(),
   note: z.string().trim().max(500).optional(),
 });
+
+function authorized(req: NextRequest): boolean {
+  const secret = executionSecret();
+  return Boolean(secret && req.headers.get('authorization') === `Bearer ${secret}`);
+}
+
+function executionSecret(): string | null {
+  return process.env.EXECUTION_CRON_SECRET || process.env.CRON_SECRET || null;
+}
 
 function describeFill(input: z.infer<typeof requestSchema>, ticker: string, action: string): string {
   const size = input.qty != null
@@ -39,6 +50,7 @@ function describeFill(input: z.infer<typeof requestSchema>, ticker: string, acti
 }
 
 export async function POST(req: NextRequest) {
+  if (!authorized(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   let body: unknown;
   try {
     body = await req.json();
@@ -65,16 +77,49 @@ export async function POST(req: NextRequest) {
         { status: 409 },
       );
     }
+    const isRobinhoodPhase2 = process.env.ROBINHOOD_PHASE2_ENABLED === 'true'
+      && parsed.data.broker.toLowerCase() === 'robinhood';
+    const phase2Secret = executionSecret();
+    const authorization = isRobinhoodPhase2 && parsed.data.authorizationId && phase2Secret
+      ? verifyRobinhoodPhase2Authorization({
+          authorizationId: parsed.data.authorizationId,
+          secret: phase2Secret,
+          decisionId: decision.id,
+          ticker: decision.ticker,
+        })
+      : null;
+    if (isRobinhoodPhase2) {
+      if (!decision.liveExecutionGate?.eligible || !authorization?.valid) {
+        return NextResponse.json(
+          { error: authorization && !authorization.valid ? authorization.error : 'Robinhood Phase 2 write-back requires an eligible decision and valid authorization receipt.' },
+          { status: 403 },
+        );
+      }
+    }
 
     const now = new Date().toISOString();
     const executionNote = describeFill(parsed.data, decision.ticker, decision.action);
     const filled = parsed.data.status === 'filled';
+    const executedNotional = parsed.data.notional
+      ?? (parsed.data.qty != null && parsed.data.fillPrice != null ? parsed.data.qty * parsed.data.fillPrice : undefined);
+    if (filled && isRobinhoodPhase2 && executedNotional == null) {
+      return NextResponse.json({ error: 'Phase 2 filled write-back requires notional or qty plus fillPrice.' }, { status: 400 });
+    }
+    if (filled && isRobinhoodPhase2 && authorization?.valid && executedNotional != null && executedNotional > authorization.ticket.maxNotional + 0.01) {
+      return NextResponse.json({ error: 'Reported fill exceeds the signed Phase 2 authorization amount.' }, { status: 400 });
+    }
 
     const updated = await updateDecision(decision.id, {
       ...(filled && decision.approvalStatus === 'pending'
         ? { approvalStatus: 'approved' as const, approvedBy: `${parsed.data.broker}_mcp` }
         : {}),
       ...(filled ? { executedAt: now } : {}),
+      ...(filled ? {
+        executionBroker: parsed.data.broker,
+        executedNotional,
+        executedQty: parsed.data.qty,
+        executionFillPrice: parsed.data.fillPrice,
+      } : {}),
       executionNote,
       updatedAt: now,
     });

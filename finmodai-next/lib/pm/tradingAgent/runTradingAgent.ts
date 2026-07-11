@@ -105,6 +105,7 @@ export async function persistConsensusDecision(params: {
   positionId: string | undefined;
 }): Promise<InvestmentDecision> {
   const { ticker, consensus } = params;
+  const liveExecutionGate = buildRobinhoodPhase2Gate(consensus, params.consultations);
   return saveDecision({
     ticker,
     positionId: params.positionId,
@@ -116,7 +117,50 @@ export async function persistConsensusDecision(params: {
     confidence: consensus.confidence,
     confidenceScore: consensus.confidence,
     evidence: decisionEvidence(params.consultations, params.scoreSummary),
+    liveExecutionGate,
   });
+}
+
+export function buildRobinhoodPhase2Gate(
+  consensus: TradeConsensus,
+  consultations: AgentConsultation[],
+): NonNullable<InvestmentDecision['liveExecutionGate']> {
+  const committee = consultations.find(item => item.agent === 'hedge_fund_committee');
+  const policy = (committee?.raw as {
+    debate?: { adjudication?: { policy?: {
+      decision?: string;
+      confidence?: number;
+      gates?: {
+        sufficientEvidence?: boolean;
+        sufficientClaims?: boolean;
+        estimateOrMultipleMechanism?: boolean;
+        riskAcceptable?: boolean;
+      };
+    } } };
+  } | undefined)?.debate?.adjudication?.policy;
+  const blockers: string[] = [];
+  if (consensus.agreement !== 'unanimous') blockers.push('requires unanimous agent agreement');
+  if (consensus.stance !== 'bullish' || (consensus.action !== 'buy' && consensus.action !== 'add')) {
+    blockers.push('requires a bullish buy/add decision');
+  }
+  if (consensus.confidence < 75) blockers.push('requires consensus confidence of at least 75');
+  if (consultations.length < 2 || consultations.some(item => !item.ok)) blockers.push('all required consultations must complete');
+  if (!policy) blockers.push('binding PM policy audit is missing');
+  if (policy && policy.decision !== 'pitch_candidate' && policy.decision !== 'work_up') {
+    blockers.push('PM policy must classify the idea as work_up or pitch_candidate');
+  }
+  if (policy && !policy.gates?.sufficientEvidence) blockers.push('PM evidence gate failed');
+  if (policy && !policy.gates?.sufficientClaims) blockers.push('PM claim-survival gate failed');
+  if (policy && !policy.gates?.estimateOrMultipleMechanism) blockers.push('PM estimate/multiple mechanism gate failed');
+  if (policy && !policy.gates?.riskAcceptable) blockers.push('PM risk gate failed');
+  return {
+    phase: 'robinhood_phase2',
+    eligible: blockers.length === 0,
+    agreement: consensus.agreement,
+    committeeDecision: policy?.decision ?? null,
+    committeeConfidence: typeof policy?.confidence === 'number' ? policy.confidence : null,
+    blockers,
+  };
 }
 
 function executionSkipReasons(

@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hasAnyAnthropicKey } from '@/lib/anthropicKey';
 import { hasAnyOpenAIKey } from '@/lib/openaiKey';
-import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
+import {
+  agentCall,
+  extractJsonObject,
+  runDebate as runResearcherDebate,
+  type DebateTranscript,
+} from '@/lib/pm/tradingAgent/researcherDebate';
+import { playbookForAnalyst, RISK_PLAYBOOK } from '@/lib/pm/playbooks/swingTrading';
 import type { UserIntent } from '@/lib/execution/userIntent';
 import type { AssetMetadata } from '@/lib/execution/assetMetadata';
 import {
@@ -11,9 +17,10 @@ import {
 } from '@/lib/pm/research/researchPacketContract';
 
 export const dynamic = 'force-dynamic';
-export const runtime = 'edge';
-
-const AGENT_STEP_TIMEOUT_MS = 13_000;
+export const runtime = 'nodejs';
+// Four sequential debate stages (analysts → researcher cases → cross-rebuttals → PM),
+// each bounded by the per-step timeout in researcherDebate; worst case ~52s plus context fetch.
+export const maxDuration = 120;
 
 type AnalystReports = {
   market:       string | null;
@@ -35,6 +42,7 @@ type AnalysisResult = {
   target_warning?:      string | null;
   time_horizon:         string | null;
   reports:              AnalystReports;
+  debate?:              DebateTranscript | null;
   theme_fit_score:      number | null;
   theme_fit_reason:     string;
   business_consistency: boolean;
@@ -47,23 +55,6 @@ function pythonBackendUrl(): string | null {
   if (process.env.ENABLE_PYTHON_AGENT_BACKEND !== 'true') return null;
   const raw = process.env.AI_AGENT_BACKEND_URL || process.env.PYTHON_BACKEND_URL;
   return raw ? raw.replace(/\/+$/, '') : null;
-}
-
-function extractJsonObject(raw: string): unknown {
-  const trimmed = raw.trim().replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '').trim();
-  const first = trimmed.indexOf('{');
-  const last = trimmed.lastIndexOf('}');
-  const slice = first >= 0 && last > first ? trimmed.slice(first, last + 1) : trimmed;
-  return JSON.parse(slice);
-}
-
-function agentModelCandidates(): string[] {
-  return [
-    process.env.ANTHROPIC_AGENT_MODEL,
-    'claude-haiku-4-5-20251001',
-    'claude-3-5-haiku-latest',
-    process.env.ANTHROPIC_MODEL,
-  ].filter((model): model is string => typeof model === 'string' && model.trim().length > 0);
 }
 
 function buildContextBlocks(
@@ -222,53 +213,66 @@ function withTargetSanity(result: AnalysisResult, currentPrice: number | null): 
   };
 }
 
+const ANALYST_ROLES = [
+  { key: 'market',       name: 'Market Analyst',       focus: 'technical price action, trend, momentum, key levels, volume signals' },
+  { key: 'fundamentals', name: 'Fundamentals Analyst', focus: 'revenue growth, margins, earnings quality, balance sheet, FCF' },
+  { key: 'sentiment',    name: 'Sentiment Analyst',    focus: 'options positioning, short interest, insider activity, institutional flows' },
+  { key: 'news',         name: 'News Analyst',         focus: 'recent catalyst news, analyst upgrades/downgrades, sector/macro headwinds or tailwinds' },
+] as const;
+
+// Four genuinely independent analyst calls — each specialist writes its note without
+// seeing the others, so the researcher debate downstream has real disagreement to work
+// with instead of four paragraphs from one autoregressive pass.
 async function runAnalysts(
   ticker: string,
   contextBlocks: string,
-): Promise<AnalystReports> {
-  const systemContent = [
-    `You are the TradingAgents debate pipeline — 4 specialist analysts each writing a focused 3-4 sentence research note on ${ticker}. Each analyst has a distinct domain and voice.`,
-    contextBlocks,
-  ].filter(Boolean).join('\n\n');
-
-  const result = await generateTextWithProviderFallback({
-    preferredProvider: 'anthropic',
-    clientType: 'user',
+): Promise<{ reports: AnalystReports; degradedReasons: string[] }> {
+  const results = await Promise.allSettled(ANALYST_ROLES.map(role => agentCall({
+    system: [
+      `You are the TradingAgents ${role.name} covering ${ticker}. Your domain: ${role.focus}. Stay strictly inside your domain — other desks cover the rest.\n\n${playbookForAnalyst(role.key)}`,
+      contextBlocks,
+    ].filter(Boolean).join('\n\n'),
+    user: `Write your focused 3-4 sentence research note on ${ticker}. If your note would contradict the asset's actual business description (e.g. discussing AI revenue for a bond ETF), state that explicitly instead. Return JSON: { "note": "..." }`,
+    maxTokens: 350,
     temperature: 0.7,
-    maxTokens: 1200,
-    timeoutMs: AGENT_STEP_TIMEOUT_MS,
-    anthropicModels: agentModelCandidates(),
-    openAiModels: [],
-    messages: [
-      { role: 'system', content: systemContent },
-      {
-        role: 'user',
-        content: `Write 4 analyst research notes for ${ticker}:
+  })));
 
-1. Market Analyst — technical price action, trend, momentum, key levels, volume signals
-2. Fundamentals Analyst — revenue growth, margins, earnings quality, balance sheet, FCF
-3. Sentiment Analyst — options positioning, short interest, insider activity, institutional flows
-4. News Analyst — recent catalyst news, analyst upgrades/downgrades, sector/macro headwinds or tailwinds
-
-Each note should be 3-4 concise sentences. If any analyst note would contradict the asset's actual business description (e.g. discussing AI revenue for a bond ETF), state that explicitly instead.
-
-Return JSON: { "market": "...", "fundamentals": "...", "sentiment": "...", "news": "..." }`,
-      },
-    ],
+  const degradedReasons: string[] = [];
+  const notes = results.map((result, index) => {
+    if (result.status === 'fulfilled') {
+      try {
+        const note = (extractJsonObject(result.value) as { note?: unknown }).note;
+        if (typeof note === 'string' && note.trim().length > 0) return note.trim();
+      } catch { /* fall through to degraded */ }
+    }
+    degradedReasons.push(`${ANALYST_ROLES[index].key}_analyst_degraded`);
+    return null;
   });
 
-  const parsed = extractJsonObject(result?.text ?? '{}') as Partial<AnalystReports>;
   return {
-    market:       parsed.market       ?? null,
-    fundamentals: parsed.fundamentals ?? null,
-    sentiment:    parsed.sentiment    ?? null,
-    news:         parsed.news         ?? null,
+    reports: {
+      market:       notes[0],
+      fundamentals: notes[1],
+      sentiment:    notes[2],
+      news:         notes[3],
+    },
+    degradedReasons,
   };
+}
+
+function reportText(reports: AnalystReports): string {
+  return [
+    reports.market       ? `MARKET: ${reports.market}`             : '',
+    reports.fundamentals ? `FUNDAMENTALS: ${reports.fundamentals}` : '',
+    reports.sentiment    ? `SENTIMENT: ${reports.sentiment}`       : '',
+    reports.news         ? `NEWS: ${reports.news}`                 : '',
+  ].filter(Boolean).join('\n\n');
 }
 
 async function runDebateAndDecision(
   ticker: string,
   reports: AnalystReports,
+  debate: DebateTranscript | null,
   currentPrice: number | null,
   intent: UserIntent | null,
   asset: AssetMetadata | null,
@@ -282,12 +286,15 @@ async function runDebateAndDecision(
   theme_fit_reason:     string;
   business_consistency: boolean;
 }> {
-  const reportText = [
-    reports.market       ? `MARKET: ${reports.market}`           : '',
-    reports.fundamentals ? `FUNDAMENTALS: ${reports.fundamentals}` : '',
-    reports.sentiment    ? `SENTIMENT: ${reports.sentiment}`     : '',
-    reports.news         ? `NEWS: ${reports.news}`               : '',
-  ].filter(Boolean).join('\n\n');
+  const notes = reportText(reports);
+  const debateText = debate
+    ? [
+        `BULL CASE (setup: ${debate.bull.setup ?? 'none identified — confidence capped'}; confidence ${debate.bull.confidence} -> ${debate.bullRebuttal.revisedConfidence} after rebuttal${debate.bull.degraded ? '; DEGRADED fallback, not researcher output' : ''}):\n${debate.bull.argument}\nKey points: ${debate.bull.keyPoints.join(' | ') || 'none'}`,
+        `BEAR CASE (confidence ${debate.bear.confidence} -> ${debate.bearRebuttal.revisedConfidence} after rebuttal${debate.bear.degraded ? '; DEGRADED fallback, not researcher output' : ''}):\n${debate.bear.argument}\nKey points: ${debate.bear.keyPoints.join(' | ') || 'none'}`,
+        `BULL REBUTTAL to bear${debate.bullRebuttal.degraded ? ' (DEGRADED — bear case went unanswered)' : ''}:\n${debate.bullRebuttal.rebuttal}\nBull concedes: ${debate.bullRebuttal.concessions.join(' | ') || 'nothing'}`,
+        `BEAR REBUTTAL to bull${debate.bearRebuttal.degraded ? ' (DEGRADED — bull case went unanswered)' : ''}:\n${debate.bearRebuttal.rebuttal}\nBear concedes: ${debate.bearRebuttal.concessions.join(' | ') || 'nothing'}`,
+      ].join('\n\n')
+    : 'No researcher debate completed this run — decide from the analyst notes alone and keep confidence modest.';
 
   const hasThemes = intent && intent.themes.length > 0;
   const themeLine = hasThemes
@@ -298,27 +305,14 @@ async function runDebateAndDecision(
     ? `\nNote: ${ticker} is ${asset.name} (${asset.sector} / ${asset.industry}). ${asset.business_summary}`
     : '';
 
-  const result = await generateTextWithProviderFallback({
-    preferredProvider: 'anthropic',
-    clientType: 'user',
+  const raw = await agentCall({
     temperature: 0.5,
     maxTokens: 700,
-    timeoutMs: AGENT_STEP_TIMEOUT_MS,
-    anthropicModels: agentModelCandidates(),
-    openAiModels: [],
-    messages: [
-      {
-        role: 'system',
-        content: `You are the TradingAgents portfolio manager. Synthesize the four analyst reports into a final trading decision for ${ticker}.${assetLine}`,
-      },
-      {
-        role: 'user',
-        content: `Analyst reports for ${ticker}:\n\n${reportText}\n\nCurrent price anchor: ${currentPrice ? `$${currentPrice.toFixed(2)}` : 'unavailable'}.\n\nBull case: Weigh the strongest bullish signals and near-term catalysts.\nBear case: Weigh the key risks — valuation, momentum, macro.\n\nReturn JSON: { "decision": "Buy"|"Hold"|"Sell"|"Overweight"|"Underweight", "summary": "2-3 sentence debate synthesis", "thesis": "1-2 sentence core thesis the PM is acting on", "price_target": <number or null>, "time_horizon": "e.g. 3-6 months"${themeLine} }\n\nPrice target rule: if you are not anchoring to the current price, return price_target null.`,
-      },
-    ],
+    system: `You are the TradingAgents portfolio manager. Adjudicate the researcher debate below into a final trading decision for ${ticker}. Side with the case that survived rebuttal better — concessions and post-rebuttal confidence moves are your strongest evidence. Discount anything marked DEGRADED. Do not average the two sides into a hedge; if the debate is genuinely unresolved, say why in the summary.\n\n${RISK_PLAYBOOK}${assetLine}`,
+    user: `Analyst reports for ${ticker}:\n\n${notes}\n\nResearcher debate:\n\n${debateText}\n\nCurrent price anchor: ${currentPrice ? `$${currentPrice.toFixed(2)}` : 'unavailable'}.\n\nReturn JSON: { "decision": "Buy"|"Hold"|"Sell"|"Overweight"|"Underweight", "summary": "2-3 sentence synthesis citing which side won the debate and why", "thesis": "1-2 sentence core thesis the PM is acting on", "price_target": <number or null>, "time_horizon": "e.g. 3-6 months"${themeLine} }\n\nPrice target rule: if you are not anchoring to the current price, return price_target null.`,
   });
 
-  const parsed = extractJsonObject(result?.text ?? '{}') as {
+  const parsed = extractJsonObject(raw) as {
     decision?: string; summary?: string; thesis?: string;
     price_target?: number | null; time_horizon?: string;
     theme_fit_score?: number | null; theme_fit_reason?: string; business_consistency?: boolean;
@@ -375,16 +369,31 @@ export async function POST(req: NextRequest) {
     const contextBlocks = buildContextBlocks(ticker, intent, assetMetadata, researchPacket);
     const currentPrice  = await currentPricePromise;
     let reports: AnalystReports;
+    let analystsDegraded = false;
     try {
-      reports = await runAnalysts(ticker, contextBlocks);
+      const analystRun = await runAnalysts(ticker, contextBlocks);
+      analystsDegraded = analystRun.degradedReasons.length === ANALYST_ROLES.length;
+      reports = analystsDegraded ? fallbackReports(ticker, assetMetadata) : analystRun.reports;
     } catch (error) {
       console.warn('[tradingagents] analyst stage timed out or failed; returning fallback reports', error);
       reports = fallbackReports(ticker, assetMetadata);
+      analystsDegraded = true;
+    }
+
+    // No point debating fallback boilerplate — skip the researcher rounds when every
+    // analyst call failed and let the PM decide from notes with modest confidence.
+    let debate: DebateTranscript | null = null;
+    if (!analystsDegraded) {
+      try {
+        debate = await runResearcherDebate(ticker, reportText(reports), currentPrice);
+      } catch (error) {
+        console.warn('[tradingagents] researcher debate failed; PM will decide from notes alone', error);
+      }
     }
 
     let debateResult: Awaited<ReturnType<typeof runDebateAndDecision>>;
     try {
-      debateResult = await runDebateAndDecision(ticker, reports, currentPrice, intent, assetMetadata);
+      debateResult = await runDebateAndDecision(ticker, reports, debate, currentPrice, intent, assetMetadata);
     } catch (error) {
       console.warn('[tradingagents] PM stage timed out or failed; returning fallback decision', error);
       debateResult = fallbackDecision(ticker, currentPrice, intent, assetMetadata);
@@ -403,6 +412,7 @@ export async function POST(req: NextRequest) {
       price_target:         debateResult.price_target,
       time_horizon:         debateResult.time_horizon,
       reports,
+      debate,
       theme_fit_score:      debateResult.theme_fit_score,
       theme_fit_reason:     debateResult.theme_fit_reason,
       business_consistency: debateResult.business_consistency,

@@ -53,6 +53,13 @@ type CommitteeDebate = {
       invalidation: string;
       disagreements: string[];
       claims: Array<{ claimId: string; score: number; accepted: boolean }>;
+      policy?: {
+        edgeScore: number;
+        evidenceScore: number;
+        claimScore: number;
+        asymmetryRatio: number | null;
+        blockers: string[];
+      };
     };
   } | null;
 };
@@ -301,6 +308,19 @@ function DebateDetail({ debate }: { debate: CommitteeDebate }) {
             <p className="text-[var(--cb-text-muted)]">Confirmation: <span className="text-[var(--cb-text-primary)]">{debate.debate.adjudication.confirmation}</span></p>
             <p className="text-[var(--cb-text-muted)]">Invalidation: <span className="text-[var(--cb-text-primary)]">{debate.debate.adjudication.invalidation}</span></p>
           </div>
+          {debate.debate.adjudication.policy && (
+            <div className="mt-3 grid gap-2 border-t border-[var(--cb-border)] pt-3 sm:grid-cols-4">
+              <PolicyStat label="PM edge" value={`${debate.debate.adjudication.policy.edgeScore}/100`} />
+              <PolicyStat label="Evidence" value={`${debate.debate.adjudication.policy.evidenceScore}/100`} />
+              <PolicyStat label="Claim quality" value={`${debate.debate.adjudication.policy.claimScore}/100`} />
+              <PolicyStat label="Asymmetry" value={debate.debate.adjudication.policy.asymmetryRatio === null ? 'Unknown' : `${debate.debate.adjudication.policy.asymmetryRatio.toFixed(2)}x`} />
+              {debate.debate.adjudication.policy.blockers.length > 0 && (
+                <p className="text-[11px] text-[var(--cb-caution)] sm:col-span-4">
+                  Blocked by: {debate.debate.adjudication.policy.blockers.join(' · ')}
+                </p>
+              )}
+            </div>
+          )}
           {debate.debate.adjudication.disagreements.length > 0 && (
             <p className="mt-3 text-xs text-[var(--cb-text-muted)]">
               Remaining disagreement: <span className="text-[var(--cb-text-secondary)]">{debate.debate.adjudication.disagreements.join(' · ')}</span>
@@ -351,6 +371,15 @@ function DebateDetail({ debate }: { debate: CommitteeDebate }) {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function PolicyStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-2 py-1.5">
+      <p className="text-[9px] uppercase tracking-wider text-[var(--cb-text-muted)]">{label}</p>
+      <p className="font-mono text-xs text-[var(--cb-text-primary)]">{value}</p>
     </div>
   );
 }

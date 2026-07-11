@@ -356,6 +356,18 @@ export type InvestmentDecision = {
   /** When the PM executed the decision after approval. */
   executedAt?: string;
   executionNote?: string;
+  executionBroker?: string;
+  executedNotional?: number;
+  executedQty?: number;
+  executionFillPrice?: number;
+  liveExecutionGate?: {
+    phase: 'robinhood_phase2';
+    eligible: boolean;
+    agreement: 'unanimous' | 'majority' | 'split' | 'no_signal';
+    committeeDecision: string | null;
+    committeeConfidence: number | null;
+    blockers: string[];
+  };
 };
 
 // ── Alert types ────────────────────────────────────────────────────────────────
