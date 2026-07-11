@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listPMRecords } from '@/lib/pm/persistence/store';
 import type { AgentView } from '@/lib/pm/types';
+import type { FunctionalDebateResult } from '@/lib/pm/debate/types';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -34,6 +35,7 @@ type CommitteeDebate = {
   consensus: { bullish: number; bearish: number; neutral: number } | null;
   signals: CommitteeSignal[];
   trigger?: string;
+  debate?: FunctionalDebateResult | null;
 };
 
 function extractDebate(view: AgentView): CommitteeDebate {
@@ -42,6 +44,7 @@ function extractDebate(view: AgentView): CommitteeDebate {
     consensus?: { bullish?: number; bearish?: number; neutral?: number };
     signals?: Array<{ key?: string; name?: string; signal?: 'bullish' | 'bearish' | 'neutral'; confidence?: number; reasoning?: string; thesis?: string; risk?: string; watch?: string }>;
     trigger?: string;
+    debate?: FunctionalDebateResult | null;
   };
   const signals: CommitteeSignal[] = (raw.signals ?? []).map(s => ({
     key: s.key ?? '',
@@ -81,6 +84,7 @@ function extractDebate(view: AgentView): CommitteeDebate {
       : null,
     signals,
     trigger: raw.trigger,
+    debate: raw.debate ?? null,
   };
 }
 

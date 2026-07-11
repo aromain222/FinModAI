@@ -15,10 +15,21 @@ import {
   formatNewsContextForPrompt,
   type CompanyNewsHeadline,
 } from '@/lib/pm/monitoring/newsSentiment';
+import {
+  formatResearchPacketForPrompt,
+  isResearchPacket,
+  type ResearchPacket,
+} from '@/lib/pm/research/researchPacketContract';
+import {
+  memoToSignal,
+  primaryRebuttalFor,
+  runFunctionalDebate,
+} from '@/lib/pm/debate/functionalDebate';
+import type { FunctionalDebateResult } from '@/lib/pm/debate/types';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const AGENT_TIMEOUT_MS = 18_000;
 const OPENAI_JSON_TIMEOUT_MS = 45_000;
@@ -66,6 +77,7 @@ function personasForMode(mode: HedgeFundMode): PersonaDefinition[] {
 
 type RawSignal = {
   key:                  PersonaKey;
+  name?:                string;
   score:                number;
   signal:               'bullish' | 'bearish' | 'neutral';
   confidence:           number;
@@ -100,6 +112,7 @@ type AnalysisResult = {
   source?:           'python_backend' | 'llm_fallback';
   degraded?:         boolean;
   degradedReason?:   string | null;
+  debate?:           FunctionalDebateResult | null;
 };
 
 type PersonaPrompt = {
@@ -536,8 +549,9 @@ async function runPersonaSignals(
   ctx: MarketContext | null,
   news: CompanyNewsHeadline[],
   personas: PersonaDefinition[],
+  researchPacket: ResearchPacket | null,
 ): Promise<RawSignal[]> {
-  const prompt = buildPersonaPrompt(ticker, intent, asset, ctx, news, personas);
+  const prompt = buildPersonaPrompt(ticker, intent, asset, ctx, news, personas, researchPacket);
 
   if (getOpenAIKey('user')) {
     try {
@@ -579,6 +593,7 @@ function buildPersonaPrompt(
   ctx: MarketContext | null,
   news: CompanyNewsHeadline[],
   personas: PersonaDefinition[],
+  researchPacket: ResearchPacket | null,
 ): PersonaPrompt {
   const hasThemes = intent && intent.themes.length > 0;
 
@@ -601,6 +616,9 @@ function buildPersonaPrompt(
   const userContextBlock = buildUserContextBlock(intent);
   const assetRealityBlock = buildAssetRealityBlock(ticker, asset);
   const newsContextBlock = formatNewsContextForPrompt(ticker, news, ctx?.name);
+  const researchPacketBlock = researchPacket
+    ? formatResearchPacketForPrompt(researchPacket)
+    : 'VERIFIED RESEARCH PACKET: unavailable. Treat unsupported domains as unknown and explicitly name missing evidence.';
 
   const themeFitInstruction = hasThemes
     ? `For theme_fit_score: rate 0–10 how well this ticker's actual business fits the user's themes (${intent.themes.join(', ')}). 0 = completely off-theme (e.g. bond ETF or printer company asked for AI/space stocks), 10 = perfect match. Be honest even if the ticker is otherwise a good investment. If theme_fit_score is below 5, the persona must be neutral or bearish for this portfolio request and must not invent an AI/space/robotics angle.`
@@ -629,11 +647,13 @@ function buildPersonaPrompt(
           assetRealityBlock,
           '',
           newsContextBlock,
+          '',
+          researchPacketBlock,
         ].filter(Boolean).join('\n'),
       },
       {
         role: 'user',
-        content: `Analyze ${ticker} from each investor/analyst viewpoint.\n${dataStr ? `\nCurrent market data:\n${dataStr}` : ''}\n\n${newsSentimentInstruction}\n\n${themeFitInstruction}\n\nFor business_consistency: true only if the thesis matches the actual business.\n\nReturn valid JSON exactly in this shape:\n{"signals":[{"key":"${expectedKeys[0]}","score":55,"signal":"neutral","confidence":55,"reasoning":"Two or three concise sentences in this persona's voice.","thesis":"One clear investment view.","risk":"One sentence on what could make this persona wrong.","watch":"One concrete evidence point this persona would monitor.","theme_fit_score":null,"theme_fit_reason":"max 12 words","business_consistency":true}]}\n\nRules:\n- Include exactly these keys in this order: ${expectedKeys.join(', ')}.\n- Use each key once.\n- score must be 0-100 and represent current health/attractiveness for that analyst's domain; higher is more supportive.\n- signal must be bullish, bearish, or neutral.\n- confidence must be 0-100.\n- reasoning should be 2-3 concise sentences, max 70 words total.\n- thesis should be 1 sentence, max 34 words.\n- risk should be 1 sentence, max 28 words.\n- watch should be 1 concrete evidence point, max 24 words.\n- theme_fit_reason max 12 words.\n- If company fundamentals are unclear, explain what evidence is missing instead of writing a generic opinion.\n- No trailing commas.\n\nPersonas:\n${personaList}`,
+        content: `Analyze ${ticker} from each investor/analyst viewpoint.\n${dataStr ? `\nCurrent market data:\n${dataStr}` : ''}\n\n${newsSentimentInstruction}\n\n${themeFitInstruction}\n\nFor business_consistency: true only if the thesis matches the actual business.\n\nReturn valid JSON exactly in this shape:\n{"signals":[{"key":"${expectedKeys[0]}","score":55,"signal":"neutral","confidence":55,"reasoning":"Two or three concise sentences in this persona's voice.","thesis":"One clear investment view.","risk":"One sentence on what could make this persona wrong.","watch":"One concrete evidence point this persona would monitor.","theme_fit_score":null,"theme_fit_reason":"max 12 words","business_consistency":true}]}\n\nRules:\n- Include exactly these keys in this order: ${expectedKeys.join(', ')}.\n- Use each key once.\n- score must be 0-100 and represent current health/attractiveness for that analyst's domain; higher is more supportive.\n- signal must be bullish, bearish, or neutral.\n- confidence must be 0-100.\n- reasoning should be 2-3 concise sentences, max 70 words total.\n- thesis should be 1 sentence, max 34 words.\n- risk should be 1 sentence, max 28 words.\n- watch should be 1 concrete evidence point, max 24 words.\n- theme_fit_reason max 12 words.\n- Treat the verified research packet as the factual source of truth; do not use model memory for current facts.\n- If a domain lacks evidence, keep confidence at or below 40, normally stay neutral, and name the missing input.\n- Fundamentals must cite supplied growth, margins, cash generation, or leverage. Valuation must cite a supplied multiple, target, or expectations datapoint.\n- Technicals must cite supplied price-path, momentum, or volatility data. Sentiment must not invent options, flows, short interest, or ownership.\n- News must identify a verified catalyst and its estimates, multiple, positioning, or risk transmission; generic narratives are weak evidence.\n- Keep every conclusion inside the explicit decision horizon.\n- No trailing commas.\n\nPersonas:\n${personaList}`,
       },
     ],
   };
@@ -694,38 +714,6 @@ async function runPersonaSignalsOpenAIJson(
   }
 }
 
-async function runPortfolioManager(
-  ticker: string,
-  signals: RawSignal[],
-  consensus: { bullish: number; bearish: number; neutral: number },
-): Promise<AnalysisResult['decision']> {
-  const signalSummary = signals
-    .map(s => `${s.key}: ${s.signal} (${s.confidence}%) — ${s.reasoning}`)
-    .join('\n');
-
-  const result = await generateTextWithProviderFallback({
-    preferredProvider: 'anthropic',
-    clientType: 'user',
-    temperature: 0.5,
-    maxTokens: 500,
-    messages: [
-      {
-        role: 'system',
-        content: 'You are a portfolio manager synthesizing analyst signals into a single trading posture. Be decisive, but do not generate brokerage orders, share quantities, or exact position sizes.',
-      },
-      {
-        role: 'user',
-        content: `Ticker: ${ticker}\nCorrelated persona perspectives (not independent votes): ${consensus.bullish} bullish, ${consensus.bearish} bearish, ${consensus.neutral} neutral\n\nAnalyst signals:\n${signalSummary}\n\nReturn JSON: { "action": "buy"|"sell"|"hold"|"short"|"cover", "confidence": 0-100, "sizing": "Track / Build / Trim / Exit watch / Avoid", "reasoning": "2-3 sentence synthesis" }`,
-      },
-    ],
-  });
-
-  const parsed = extractJsonObject(result?.text ?? '{}') as AnalysisResult['decision'];
-  if (!parsed) return null;
-  const { action, confidence, reasoning, sizing } = parsed;
-  return { action, confidence, reasoning, sizing };
-}
-
 // ── Route ─────────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -751,6 +739,9 @@ export async function POST(req: NextRequest) {
   // Optional: intent and assetMetadata from portfolio-chat (backward compatible)
   const intent:        UserIntent    | null = (b.intent        ?? null) as UserIntent | null;
   const assetMetadata: AssetMetadata | null = (b.assetMetadata ?? null) as AssetMetadata | null;
+  const researchPacket = isResearchPacket(b.researchPacket) && b.researchPacket.ticker === ticker
+    ? b.researchPacket
+    : null;
 
   try {
     const pythonResult = mode !== 'full' || intent?.themes.length ? null : await tryPythonBackend(ticker);
@@ -775,10 +766,32 @@ export async function POST(req: NextRequest) {
       fetchCompanyNews(ticker, origin),
     ]);
     let rawSignals: RawSignal[];
+    let functionalDebate: FunctionalDebateResult | null = null;
     let degraded = false;
     let degradedReason: string | null = null;
     try {
-      rawSignals = await runPersonaSignals(ticker, intent, assetMetadata, ctx, news, selectedPersonas);
+      if (researchPacket && (mode === 'monitoring' || mode === 'committee')) {
+        functionalDebate = await runFunctionalDebate({
+          packet: researchPacket,
+          depth: mode === 'committee' ? 'committee' : 'scan',
+        });
+        rawSignals = functionalDebate.memos.map(memo => memoToSignal(
+          memo,
+          primaryRebuttalFor(functionalDebate?.rebuttals ?? [], memo.key),
+        ));
+        degraded = functionalDebate.degraded;
+        degradedReason = functionalDebate.degradedReasons.join(', ') || null;
+      } else {
+        rawSignals = await runPersonaSignals(
+          ticker,
+          intent,
+          assetMetadata,
+          ctx,
+          news,
+          selectedPersonas,
+          researchPacket,
+        );
+      }
       console.log('[hedge-fund] signals completed', {
         count: rawSignals.length,
         elapsed: `${Date.now() - requestStart}ms`,
@@ -813,13 +826,22 @@ export async function POST(req: NextRequest) {
         ? buildHybridScore({
             analystKey: s.key as QuantAnalystKey,
             llmScore: s.score,
-            market: ctx ?? {
-              price: null,
-              changePct: null,
-              pe: null,
-              forwardPe: null,
-              high52w: null,
-              low52w: null,
+            market: {
+              price: ctx?.price ?? researchPacket?.market.price.value ?? null,
+              changePct: ctx?.changePct ?? null,
+              pe: ctx?.pe ?? null,
+              forwardPe: ctx?.forwardPe ?? null,
+              high52w: ctx?.high52w ?? null,
+              low52w: ctx?.low52w ?? null,
+              revenueGrowthPct: researchPacket?.fundamentals.historicalRevenueGrowthPct.value,
+              ebitdaMarginPct: researchPacket?.fundamentals.ebitdaMarginPct.value,
+              netMarginPct: researchPacket?.fundamentals.netMarginPct.value,
+              netDebtToEbitda: researchPacket?.fundamentals.netDebtToEbitda.value,
+              forecastReturnPct: researchPacket?.pricePath.expectedReturnPct.value,
+              momentum20dPct: researchPacket?.pricePath.momentum20dPct.value,
+              annualizedVolatilityPct: researchPacket?.pricePath.annualizedVolatilityPct.value,
+              analystTargetUpsidePct: researchPacket?.consensus.targetUpsidePct.value,
+              newsScore: deterministicNews?.score,
             },
             asOf: scoreAsOf,
           })
@@ -828,7 +850,7 @@ export async function POST(req: NextRequest) {
         ?? Math.round(Math.max(0, Math.min(100, s.score)));
       return {
         key:                  s.key,
-        name:                 meta?.name                  ?? s.key,
+        name:                 s.name ?? meta?.name        ?? s.key,
         group:                meta?.group                 ?? 'quant',
         score,
         signal:               scoreComponents ? signalFromHybridScore(score) : s.signal,
@@ -865,9 +887,16 @@ export async function POST(req: NextRequest) {
     }
 
     const hasSeniorSignals = signals.some(signal => signal.group === 'persona');
-    const decision = mode === 'monitoring' || !hasSeniorSignals
-      ? null
-      : synthesizeDecision(consensus, median_theme_fit);
+    const decision = functionalDebate?.adjudication
+      ? {
+          action: functionalDebate.adjudication.action,
+          confidence: functionalDebate.adjudication.confidence,
+          sizing: functionalDebate.adjudication.sizing,
+          reasoning: `${functionalDebate.adjudication.reasoning} Confirmation: ${functionalDebate.adjudication.confirmation}`,
+        }
+      : mode === 'monitoring' || !hasSeniorSignals
+        ? null
+        : synthesizeDecision(consensus, median_theme_fit);
 
     const result: AnalysisResult = {
       ticker,
@@ -880,6 +909,7 @@ export async function POST(req: NextRequest) {
       source:           'llm_fallback',
       degraded,
       degradedReason,
+      debate: functionalDebate,
     };
 
     return NextResponse.json(result, {

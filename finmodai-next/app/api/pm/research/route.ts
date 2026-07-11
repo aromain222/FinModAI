@@ -4,8 +4,13 @@ import { listPositions, savePosition } from '@/lib/pm/portfolio/positionStore';
 import { listQuantScores } from '@/lib/pm/monitoring/store';
 import { runQuantMonitoring } from '@/lib/pm/monitoring/runQuantMonitoring';
 import { analyzePosition } from '@/lib/pm/analyzer/positionAnalysis';
-import { saveThesis, getLatestThesis } from '@/lib/pm/thesis/thesisStore';
+import { saveThesis, saveThesisUpdate, getLatestThesis } from '@/lib/pm/thesis/thesisStore';
 import type { StockQuote } from '@/app/api/quotes/route';
+import {
+  buildResearchPacket,
+  DEFAULT_RESEARCH_HORIZON_DAYS,
+} from '@/lib/pm/research/researchPacket';
+import type { ResearchEvidenceSummary } from '@/lib/pm/types';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -16,6 +21,51 @@ const bodySchema = z.object({
   skipScan: z.boolean().optional(),
 });
 
+function summarizeEvidence(packet: Awaited<ReturnType<typeof buildResearchPacket>>): ResearchEvidenceSummary {
+  const candidates = [
+    ['Price', packet.market.price],
+    ['Market cap', packet.market.marketCap],
+    ['Revenue LTM', packet.fundamentals.revenueLtm],
+    ['Historical revenue growth', packet.fundamentals.historicalRevenueGrowthPct],
+    ['EBITDA margin', packet.fundamentals.ebitdaMarginPct],
+    ['Consensus revenue', packet.consensus.revenueEstimateNtm],
+    ['Consensus EPS', packet.consensus.epsEstimateNtm],
+    ['Consensus target', packet.consensus.targetPrice],
+    [`${packet.horizon.days}-day forecast`, packet.pricePath.expectedReturnPct],
+    ['20-day momentum', packet.pricePath.momentum20dPct],
+  ] as const;
+  const sources: ResearchEvidenceSummary['sources'] = candidates.flatMap(([label, metric]) => metric.source
+    ? [{ label, source: metric.source, asOf: metric.asOf }]
+    : []);
+  if (packet.earnings.source) {
+    sources.push({
+      label: 'Latest earnings',
+      source: packet.earnings.source,
+      asOf: packet.earnings.filedAt ?? packet.earnings.lastFetchedAt,
+    });
+  }
+  for (const catalyst of packet.catalysts.slice(0, 5)) {
+    if (catalyst.source) {
+      sources.push({ label: catalyst.title, source: catalyst.source, asOf: catalyst.publishedAt });
+    }
+  }
+  const unique = [...new Map(sources.map(item => [
+    `${item.label}|${item.source}|${item.asOf ?? ''}`,
+    item,
+  ])).values()];
+  return {
+    builtAt: packet.builtAt,
+    horizonDays: packet.horizon.days,
+    coveragePct: packet.quality.coveragePct,
+    degraded: packet.quality.coveragePct < 70 || packet.quality.missing.length > 0 || packet.quality.warnings.length > 0,
+    marketRegime: packet.marketState?.regime ?? null,
+    available: packet.quality.available,
+    missing: packet.quality.missing,
+    warnings: packet.quality.warnings,
+    sources: unique.slice(0, 16),
+  };
+}
+
 export async function POST(req: NextRequest) {
   const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
@@ -23,6 +73,11 @@ export async function POST(req: NextRequest) {
   }
   const ticker = parsed.data.ticker.toUpperCase().trim();
   const origin = new URL(req.url).origin;
+  const researchPacketPromise = buildResearchPacket({
+    ticker,
+    origin,
+    horizonDays: DEFAULT_RESEARCH_HORIZON_DAYS,
+  });
 
   // 1. Quote — current price anchors the analyzer.
   const quoteRes = await fetch(`${origin}/api/quotes?symbols=${encodeURIComponent(ticker)}`, {
@@ -37,6 +92,7 @@ export async function POST(req: NextRequest) {
   if (!quote || quote.price == null) {
     return NextResponse.json({ error: 'quote_unavailable', ticker }, { status: 502 });
   }
+  const researchPacket = await researchPacketPromise;
 
   // 2. Upsert pm_positions as a watchlist entry. Keep id stable across re-research.
   const existingPositions = await listPositions({ ticker, limit: 1 });
@@ -68,7 +124,13 @@ export async function POST(req: NextRequest) {
   let scanError: string | null = null;
   if (!parsed.data.skipScan) {
     try {
-      await runQuantMonitoring({ ticker, origin, autoEscalate: false, requestHeaders: req.headers });
+      await runQuantMonitoring({
+        ticker,
+        origin,
+        autoEscalate: false,
+        requestHeaders: req.headers,
+        researchPacket,
+      });
     } catch (err) {
       scanError = (err as Error).message;
     }
@@ -83,7 +145,12 @@ export async function POST(req: NextRequest) {
     return true;
   });
 
-  const result = await analyzePosition({ ticker, position, snapshots: latestPerAnalyst });
+  const result = await analyzePosition({
+    ticker,
+    position,
+    snapshots: latestPerAnalyst,
+    researchPacket,
+  });
   if (!result.ok) {
     return NextResponse.json({
       error: 'analyzer_failed',
@@ -108,28 +175,72 @@ export async function POST(req: NextRequest) {
 
   // 6. Persist the thesis.
   const existingThesis = await getLatestThesis(ticker);
-  const thesis = await saveThesis({
-    id: existingThesis?.id,
+  const thesisId = existingThesis?.id ?? crypto.randomUUID();
+  const thesisStatus = analysis.convictionScore >= 70
+    ? 'intact' as const
+    : analysis.convictionScore >= 50
+      ? 'under_review' as const
+      : 'weakening' as const;
+  const convictionBefore = existingThesis?.convictionScore ?? null;
+  const convictionDelta = convictionBefore === null ? null : analysis.convictionScore - convictionBefore;
+  const changedFactors = [
+    'research_refresh',
+    ...researchPacket.quality.available.filter(key => (
+      key === 'company_fundamentals'
+      || key === 'historical_growth'
+      || key === 'consensus_estimates'
+      || key === 'earnings_package'
+      || key === 'price_history_and_forecast'
+      || key === 'company_catalysts'
+    )),
+  ];
+  const thesisUpdate = await saveThesisUpdate({
     ticker,
+    thesisId,
+    previousThesis: existingThesis?.currentThesis ?? existingThesis?.thesisSummary ?? null,
+    newEvidence: `Research packet refreshed with ${researchPacket.quality.coveragePct}% coverage. Available: ${researchPacket.quality.available.join(', ') || 'none'}. Missing: ${researchPacket.quality.missing.join(', ') || 'none'}.`,
+    updatedThesis: analysis.thesisSummary,
+    convictionBefore,
+    convictionAfter: analysis.convictionScore,
+    thesisStatusBefore: existingThesis?.thesisStatus ?? null,
+    thesisStatusAfter: thesisStatus,
+    changedFactors,
+    shouldNotifyPM: thesisStatus === 'weakening' || (convictionDelta !== null && Math.abs(convictionDelta) >= 12),
+    explanation: existingThesis
+      ? `Research refresh changed conviction ${convictionBefore} -> ${analysis.convictionScore}; prior thesis was preserved and the new evidence was appended.`
+      : `Initial sourced research thesis created at ${researchPacket.quality.coveragePct}% evidence coverage.`,
+    source: 'agent',
+    createdAt: analyzedAt,
+  });
+  const thesis = await saveThesis({
+    id: thesisId,
+    ticker,
+    originalThesis: existingThesis?.originalThesis ?? existingThesis?.thesisSummary ?? analysis.thesisSummary,
+    currentThesis: analysis.thesisSummary,
     thesisSummary: analysis.thesisSummary,
     whyWeOwnIt: analysis.whyWeOwnIt,
-    addConditions: [],
+    addConditions: existingThesis?.addConditions?.length
+      ? existingThesis.addConditions
+      : [analysis.confirmation],
     sellConditions: analysis.sellConditions,
     invalidationConditions: analysis.invalidationConditions,
     keyRisks: analysis.keyRisks,
     catalysts: analysis.catalysts,
     convictionScore: analysis.convictionScore,
-    thesisStatus: analysis.convictionScore >= 70 ? 'intact' : analysis.convictionScore >= 50 ? 'under_review' : 'weakening',
-    timeHorizon: analysis.timeHorizon,
+    thesisStatus,
+    status: thesisStatus,
+    timeHorizon: researchPacket.horizon.label,
     lastReviewedAt: analyzedAt,
     primaryDriver: analysis.primaryDriver,
     mainRisk: analysis.mainRisk,
     catalystExpected: analysis.nextCatalyst,
-    horizon: analysis.timeHorizon,
+    horizon: researchPacket.horizon.label,
     currentScore: analysis.convictionScore,
     entryScore: existingThesis?.entryScore ?? analysis.convictionScore,
     createdAt: existingThesis?.createdAt,
     updatedAt: analyzedAt,
+    history: [...(existingThesis?.history ?? []), thesisUpdate].slice(-50),
+    researchEvidence: summarizeEvidence(researchPacket),
   });
 
   return NextResponse.json({
@@ -138,6 +249,7 @@ export async function POST(req: NextRequest) {
     quote,
     position: updatedPosition,
     snapshots: latestPerAnalyst,
+    researchPacket,
     thesis,
     analysis,
     isAlreadyHeld,

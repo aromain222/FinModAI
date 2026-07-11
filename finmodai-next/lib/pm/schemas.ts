@@ -94,6 +94,22 @@ export const thesisUpdateSchema = z.object({
   createdAt: isoString.default(() => new Date().toISOString()),
 });
 
+const researchEvidenceSchema = z.object({
+  builtAt: isoString,
+  horizonDays: z.number().int().positive(),
+  coveragePct: z.number().min(0).max(100),
+  degraded: z.boolean(),
+  marketRegime: z.string().nullable(),
+  available: z.array(z.string()),
+  missing: z.array(z.string()),
+  warnings: z.array(z.string()),
+  sources: z.array(z.object({
+    label: z.string().min(1),
+    source: z.string().min(1),
+    asOf: z.string().nullable(),
+  })),
+});
+
 export const positionThesisSchema = z.object({
   id: z.string().min(1).default(() => crypto.randomUUID()),
   ticker: tickerSchema,
@@ -122,6 +138,7 @@ export const positionThesisSchema = z.object({
   primaryDriver: z.string().optional(),
   mainRisk: z.string().optional(),
   history: z.array(thesisUpdateSchema).optional(),
+  researchEvidence: researchEvidenceSchema.optional(),
 });
 
 export const agentViewSchema = z.object({

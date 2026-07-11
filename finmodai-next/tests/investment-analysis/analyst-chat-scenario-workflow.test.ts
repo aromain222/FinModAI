@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { NextRequest } from 'next/server';
 
 import * as routeModule from '@/app/api/analyst-chat/route';
 import * as scenarioDcfModule from '@/lib/scenarios/aiSmartDcf';
@@ -13,7 +14,7 @@ test('tesla scenario follow-up produces a scenario-adjusted generated dcf workfl
   );
 
   const baselineResponse = await POST(
-    new Request('http://localhost:3000/api/analyst-chat', {
+    new NextRequest('http://localhost:3000/api/analyst-chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -36,7 +37,7 @@ test('tesla scenario follow-up produces a scenario-adjusted generated dcf workfl
   assert.ok(baselinePayload.generatedModel, 'expected baseline generated DCF model');
 
   const response = await POST(
-    new Request('http://localhost:3000/api/analyst-chat', {
+    new NextRequest('http://localhost:3000/api/analyst-chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

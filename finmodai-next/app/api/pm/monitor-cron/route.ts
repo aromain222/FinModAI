@@ -23,6 +23,7 @@ import { saveAlert } from '@/lib/pm/alerts/alertStore';
 import { runQuantMonitoring } from '@/lib/pm/monitoring/runQuantMonitoring';
 import type { QuantMonitoringRun } from '@/lib/pm/monitoring/types';
 import { runInvestmentCommittee } from '@/lib/pm/monitoring/committee';
+import { buildMarketStatePacket } from '@/lib/pm/marketState/buildMarketState';
 
 export const dynamic     = 'force-dynamic';
 export const runtime     = 'nodejs';
@@ -133,14 +134,19 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   const tickers = [...new Set(active.map(p => p.ticker))];
-  const quotes = await fetchQuotes(tickers, origin);
+  // Market-wide state is identical for every ticker in this scan — build it once
+  // instead of letting each ResearchPacket refetch the same 7 endpoints.
+  const [quotes, marketState] = await Promise.all([
+    fetchQuotes(tickers, origin),
+    buildMarketStatePacket({ origin }).catch(() => null),
+  ]);
 
   const [alerts, quantResults] = await Promise.all([
     monitorPositions({ positions: active, quotes, origin }),
     runWithConcurrency(
       tickers,
       Math.max(1, Number(process.env.QUANT_MONITOR_CONCURRENCY ?? 3)),
-      ticker => runQuantMonitoring({ ticker, origin, autoEscalate: true }),
+      ticker => runQuantMonitoring({ ticker, origin, autoEscalate: true, marketState }),
     ),
   ]);
 
@@ -195,6 +201,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       ticker,
       trigger: 'review_date',
       origin,
+      marketState,
     }),
   );
   const reviewFailures = reviewResults.flatMap((result, index) => result.status === 'rejected'

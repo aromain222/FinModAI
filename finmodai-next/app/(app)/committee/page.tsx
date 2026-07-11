@@ -34,6 +34,27 @@ type CommitteeDebate = {
   consensus: { bullish: number; bearish: number; neutral: number } | null;
   signals: CommitteeSignal[];
   trigger?: string;
+  debate?: {
+    degraded: boolean;
+    metrics?: {
+      elapsedMs: number;
+      modelCalls: number;
+      successfulCalls: number;
+      degradedCalls: number;
+      reportedTotalTokens: number;
+      models: string[];
+    };
+    rebuttals: Array<{ reviewerKey: string; targetKey: string; challenges: Array<{ claimId: string; verdict: string; critique: string }> }>;
+    adjudication: null | {
+      decision: string;
+      whatIsPriced: string;
+      whyNow: string;
+      confirmation: string;
+      invalidation: string;
+      disagreements: string[];
+      claims: Array<{ claimId: string; score: number; accepted: boolean }>;
+    };
+  } | null;
 };
 
 function stanceTone(s: Stance | CommitteeSignal['signal']): string {
@@ -119,7 +140,7 @@ function CommitteePageInner() {
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--cb-text-muted)]">Committee Debate</p>
           <h1 className="text-2xl font-bold text-[var(--cb-text-primary)]">Senior Investment Committee</h1>
           <p className="mt-1 max-w-2xl text-sm text-[var(--cb-text-muted)]">
-            Thirteen senior personas (Buffett, Munger, Lynch, Druckenmiller, Wood, Damodaran, and more) debate and converge on a single recommendation. Triggered by major news, score escalations, or on demand.
+            Six independent functional desks write sourced memos, cross-examine claim-level evidence, revise weak conclusions, and hand a PM adjudicator one recommendation with explicit disagreement.
           </p>
         </div>
       </header>
@@ -154,12 +175,12 @@ function CommitteePageInner() {
           className="inline-flex h-9 items-center gap-2 rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 text-sm font-medium text-[var(--cb-text-secondary)] transition hover:border-[var(--cb-border-strong)] hover:text-[var(--cb-text-primary)] disabled:opacity-50"
         >
           <Gavel className={cn('h-4 w-4', running && 'animate-pulse')} />
-          {running ? 'Convening… ~45s' : 'Convene committee'}
+          {running ? 'Convening… up to 90s' : 'Convene committee'}
         </button>
         {error && <span className="text-xs text-[var(--cb-danger)]">{error}</span>}
       </section>
 
-      <div className="grid grid-cols-[280px_minmax(0,1fr)] gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] p-3">
           <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--cb-text-muted)]">
             Past debates ({debates.length})
@@ -261,14 +282,41 @@ function DebateDetail({ debate }: { debate: CommitteeDebate }) {
         </div>
       </section>
 
-      {/* Persona debate grid */}
+      {debate.debate?.adjudication && (
+        <section className="rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--cb-text-muted)]">Cross-exam &amp; PM adjudication</h3>
+          <span className="font-mono text-[10px] text-[var(--cb-text-muted)]">
+            {debate.debate.rebuttals.length} rebuttals · {debate.debate.adjudication.claims.filter(claim => claim.accepted).length}/{debate.debate.adjudication.claims.length} claims survived
+          </span>
+        </div>
+        {debate.debate.metrics && (
+          <p className="mt-1 font-mono text-[10px] text-[var(--cb-text-muted)]">
+            {(debate.debate.metrics.elapsedMs / 1000).toFixed(1)}s · {debate.debate.metrics.successfulCalls}/{debate.debate.metrics.modelCalls} model calls returned valid JSON · {debate.debate.metrics.reportedTotalTokens.toLocaleString()} reported tokens
+          </p>
+        )}
+          <div className="mt-3 grid gap-3 text-xs md:grid-cols-2">
+            <p className="text-[var(--cb-text-muted)]">What is priced: <span className="text-[var(--cb-text-primary)]">{debate.debate.adjudication.whatIsPriced}</span></p>
+            <p className="text-[var(--cb-text-muted)]">Why now: <span className="text-[var(--cb-text-primary)]">{debate.debate.adjudication.whyNow}</span></p>
+            <p className="text-[var(--cb-text-muted)]">Confirmation: <span className="text-[var(--cb-text-primary)]">{debate.debate.adjudication.confirmation}</span></p>
+            <p className="text-[var(--cb-text-muted)]">Invalidation: <span className="text-[var(--cb-text-primary)]">{debate.debate.adjudication.invalidation}</span></p>
+          </div>
+          {debate.debate.adjudication.disagreements.length > 0 && (
+            <p className="mt-3 text-xs text-[var(--cb-text-muted)]">
+              Remaining disagreement: <span className="text-[var(--cb-text-secondary)]">{debate.debate.adjudication.disagreements.join(' · ')}</span>
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* Functional desk grid */}
       <section className="rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] p-4">
         <h3 className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--cb-text-muted)]">
           <Users className="h-3.5 w-3.5" />
-          The 13 personas
+          Functional research desks
         </h3>
         {debate.signals.length === 0 ? (
-          <p className="text-xs text-[var(--cb-text-muted)]">No persona signals recorded for this debate.</p>
+          <p className="text-xs text-[var(--cb-text-muted)]">No desk signals recorded for this debate.</p>
         ) : (
           <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
             {debate.signals.map((s, i) => (

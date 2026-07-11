@@ -11,7 +11,8 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: APP_NAME,
-  description: 'Institutional-grade financial modeling intelligence.'
+  description: 'Institutional-grade financial modeling intelligence.',
+  icons: { icon: '/capitalbase-icon.svg' },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

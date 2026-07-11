@@ -7,6 +7,15 @@ type MarketInputs = {
   forwardPe: number | null;
   high52w: number | null;
   low52w: number | null;
+  revenueGrowthPct?: number | null;
+  ebitdaMarginPct?: number | null;
+  netMarginPct?: number | null;
+  netDebtToEbitda?: number | null;
+  forecastReturnPct?: number | null;
+  momentum20dPct?: number | null;
+  annualizedVolatilityPct?: number | null;
+  analystTargetUpsidePct?: number | null;
+  newsScore?: number | null;
 };
 
 const TARGET_DETERMINISTIC_WEIGHT: Record<QuantAnalystKey, number> = {
@@ -38,6 +47,12 @@ function inverseMultipleScore(multiple: number): number {
   return 18;
 }
 
+function optionalScore(label: string, value: number | null | undefined, score: (value: number) => number) {
+  return value === null || value === undefined || !Number.isFinite(value)
+    ? []
+    : [{ label, score: clamp(score(value)) }];
+}
+
 function deterministicInputs(
   analystKey: QuantAnalystKey,
   market: MarketInputs,
@@ -60,6 +75,9 @@ function deterministicInputs(
         label: 'one-day price momentum',
         score: clamp(50 + market.changePct * 5),
       }]),
+      ...optionalScore('20-day momentum', market.momentum20dPct, value => 50 + value * 2.2),
+      ...optionalScore('horizon forecast return', market.forecastReturnPct, value => 50 + value * 2),
+      ...optionalScore('annualized volatility', market.annualizedVolatilityPct, value => 80 - value),
     ];
   }
 
@@ -73,16 +91,30 @@ function deterministicInputs(
         label: 'forward P/E',
         score: inverseMultipleScore(market.forwardPe),
       }]),
+      ...optionalScore('consensus target upside', market.analystTargetUpsidePct, value => 50 + value * 1.5),
     ];
   }
 
   if (analystKey === 'growth') {
-    return market.pe !== null && market.forwardPe !== null && market.pe > 0
-      ? [{
+    return [
+      ...(market.pe !== null && market.forwardPe !== null && market.pe > 0 ? [{
           label: 'forward versus trailing earnings multiple',
           score: clamp(50 + ((market.pe - market.forwardPe) / market.pe) * 140),
-        }]
-      : [];
+        }] : []),
+      ...optionalScore('historical revenue growth', market.revenueGrowthPct, value => 45 + value * 2),
+    ];
+  }
+
+  if (analystKey === 'fundamentals') {
+    return [
+      ...optionalScore('EBITDA margin', market.ebitdaMarginPct, value => 35 + value * 1.8),
+      ...optionalScore('net margin', market.netMarginPct, value => 40 + value * 1.6),
+      ...optionalScore('net debt / EBITDA', market.netDebtToEbitda, value => 80 - Math.max(0, value) * 16),
+    ];
+  }
+
+  if (analystKey === 'news_sentiment') {
+    return optionalScore('verified headline sentiment', market.newsScore, value => value);
   }
 
   return [];
@@ -96,8 +128,15 @@ export function buildHybridScore(params: {
 }): QuantScoreComponents {
   const inputs = deterministicInputs(params.analystKey, params.market);
   const deterministicScore = average(inputs.map(input => input.score));
-  const maxInputs = params.analystKey === 'technicals' || params.analystKey === 'valuation' ? 2 : 1;
-  const deterministicCoverage = clamp(inputs.length / maxInputs, 0, 1);
+  const maxInputs: Record<QuantAnalystKey, number> = {
+    fundamentals: 3,
+    growth: 2,
+    news_sentiment: 1,
+    sentiment: 1,
+    technicals: 5,
+    valuation: 3,
+  };
+  const deterministicCoverage = clamp(inputs.length / maxInputs[params.analystKey], 0, 1);
   const deterministicWeight = deterministicScore === null
     ? 0
     : TARGET_DETERMINISTIC_WEIGHT[params.analystKey] * deterministicCoverage;

@@ -56,6 +56,10 @@
     {
       "path": "/api/pm/market-brief-cron?slot=close",
       "schedule": "0 20 * * 1-5"
+    },
+    {
+      "path": "/api/pm/calibration?settle=1",
+      "schedule": "30 20 * * 1-5"
     }
   ]
 }

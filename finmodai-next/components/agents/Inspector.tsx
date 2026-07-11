@@ -119,7 +119,10 @@ export function Inspector({ ticker, analyst }: Props) {
     [views],
   );
   const committeeRaw = (committeeView?.rawOutput ?? {}) as CommitteeRaw;
-  const committeeSignals: SeniorSignal[] = Array.isArray(committeeRaw.signals) ? committeeRaw.signals : [];
+  const committeeSignals = useMemo<SeniorSignal[]>(
+    () => Array.isArray(committeeRaw.signals) ? committeeRaw.signals : [],
+    [committeeRaw.signals],
+  );
   const committeeSignalByKey = useMemo(
     () => new Map(committeeSignals.map(signal => [signal.key ?? '', signal])),
     [committeeSignals],

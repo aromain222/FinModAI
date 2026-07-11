@@ -3,6 +3,8 @@ import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 import { listPositions } from '@/lib/pm/portfolio/positionStore';
 import type { EventItem } from '@/lib/news/api/shared';
 import { isXConfigured, searchX, tickerQuery, sectorQuery, macroQuery, type XSearchResult } from '@/lib/pm/marketBrief/xClient';
+import { buildMarketStatePacket } from '@/lib/pm/marketState/buildMarketState';
+import { formatMarketStateForPrompt, type MarketStatePacket } from '@/lib/pm/marketState/marketStateContract';
 
 // ── Schema for the structured brief ──────────────────────────────────────────
 
@@ -113,6 +115,7 @@ type RawSignals = {
   sectorsCovered: string[];
   events: EventItem[];
   xSamples: Map<string, XSearchResult>;
+  marketState: MarketStatePacket;
 };
 
 async function fetchRecentEvents(origin: string): Promise<EventItem[]> {
@@ -136,12 +139,14 @@ async function fetchRecentEvents(origin: string): Promise<EventItem[]> {
 }
 
 async function gatherSignals(origin: string): Promise<RawSignals> {
-  const positions = await listPositions({ limit: 200 });
+  const [positions, events, marketState] = await Promise.all([
+    listPositions({ limit: 200 }),
+    fetchRecentEvents(origin),
+    buildMarketStatePacket({ origin }),
+  ]);
   const active = positions.filter(p => p.status === 'active' || p.status === 'watch' || p.status === 'trimmed');
   const tickers = [...new Set(active.map(p => p.ticker.toUpperCase()))];
   const sectorsCovered = [...SECTORS_TO_SCAN];
-
-  const events = await fetchRecentEvents(origin);
 
   // X search — only if token is set. Cap queries to keep within rate limits.
   const xSamples = new Map<string, XSearchResult>();
@@ -163,7 +168,7 @@ async function gatherSignals(origin: string): Promise<RawSignals> {
     }
   }
 
-  return { tickersCovered: tickers, sectorsCovered, events, xSamples };
+  return { tickersCovered: tickers, sectorsCovered, events, xSamples, marketState };
 }
 
 // ── Prompt construction ──────────────────────────────────────────────────────
@@ -219,6 +224,8 @@ Sectors to scan: ${signals.sectorsCovered.join(', ')}
 Run time: ${new Date().toISOString()}
 Previous run summary: ${previousSummary ?? 'none'}
 
+${formatMarketStateForPrompt(signals.marketState)}
+
 Top mentioned tickers in recent events (last 24h):
 ${topTickers.length === 0 ? '  (none)' : topTickers.map(t => `  - ${t.ticker}: ${t.mentions} mentions, net ${t.direction}`).join('\n')}
 
@@ -257,6 +264,8 @@ Now produce the JSON brief with this exact shape:
 }
 
 Rules:
+- Anchor market mood in the verified market state. Social chatter cannot override price, breadth, volatility, rates, or cross-asset evidence.
+- Distinguish index/sector tape from company-specific catalysts and state the transmission channel.
 - Only include portfolioAlerts for tickers in the tracked list.
 - Confidence "low" is OK — say so honestly when signal is thin.
 - Quote at most 1-2 X posts per topic; never recommend trades.

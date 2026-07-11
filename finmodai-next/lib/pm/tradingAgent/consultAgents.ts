@@ -2,8 +2,9 @@ import { internalRequestHeaders } from '@/lib/pm/monitoring/internalRequestHeade
 import type { UserIntent } from '@/lib/execution/userIntent';
 import type { EvidenceItem, ImpactDirection } from '@/lib/pm/types';
 import type { AgentConsultation, AgentStance } from '@/lib/pm/tradingAgent/types';
+import type { ResearchPacket } from '@/lib/pm/research/researchPacketContract';
 
-const CONSULT_TIMEOUT_MS = 55_000;
+const CONSULT_TIMEOUT_MS = 60_000;
 
 type TradingAgentsResponse = {
   ticker: string;
@@ -108,13 +109,18 @@ export async function consultResearchDebate(params: {
   origin: string;
   requestHeaders?: Headers;
   themes?: string[];
+  researchPacket?: ResearchPacket;
 }): Promise<AgentConsultation> {
   const agentName = 'TradingAgents Research Debate';
   try {
     const response = await fetch(`${params.origin}/api/tradingagents`, {
       method: 'POST',
       headers: internalRequestHeaders(params.requestHeaders),
-      body: JSON.stringify({ ticker: params.ticker, intent: buildIntent(params.themes) }),
+      body: JSON.stringify({
+        ticker: params.ticker,
+        intent: buildIntent(params.themes),
+        researchPacket: params.researchPacket,
+      }),
       cache: 'no-store',
       signal: AbortSignal.timeout(CONSULT_TIMEOUT_MS),
     });
@@ -162,13 +168,19 @@ export async function consultInvestmentCommittee(params: {
   ticker: string;
   origin: string;
   requestHeaders?: Headers;
+  researchPacket?: ResearchPacket;
 }): Promise<AgentConsultation> {
   const agentName = 'Senior Investment Committee';
   try {
     const response = await fetch(`${params.origin}/api/hedge-fund`, {
       method: 'POST',
       headers: internalRequestHeaders(params.requestHeaders),
-      body: JSON.stringify({ ticker: params.ticker, mode: 'committee', trigger: 'trading_agent' }),
+      body: JSON.stringify({
+        ticker: params.ticker,
+        mode: 'committee',
+        trigger: 'trading_agent',
+        researchPacket: params.researchPacket,
+      }),
       cache: 'no-store',
       signal: AbortSignal.timeout(CONSULT_TIMEOUT_MS),
     });
@@ -216,8 +228,14 @@ export async function consultCapitalBaseAgents(params: {
   requestHeaders?: Headers;
   themes?: string[];
 }): Promise<AgentConsultation[]> {
+  const { buildResearchPacket, DEFAULT_RESEARCH_HORIZON_DAYS } = await import('@/lib/pm/research/researchPacket');
+  const researchPacket = await buildResearchPacket({
+    ticker: params.ticker,
+    origin: params.origin,
+    horizonDays: DEFAULT_RESEARCH_HORIZON_DAYS,
+  });
   return Promise.all([
-    consultResearchDebate(params),
-    consultInvestmentCommittee(params),
+    consultResearchDebate({ ...params, researchPacket }),
+    consultInvestmentCommittee({ ...params, researchPacket }),
   ]);
 }

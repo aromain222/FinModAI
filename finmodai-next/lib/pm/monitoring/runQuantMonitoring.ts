@@ -17,6 +17,12 @@ import type {
   QuantSignalEvent,
 } from '@/lib/pm/monitoring/types';
 import { QUANT_ANALYST_KEYS } from '@/lib/pm/monitoring/types';
+import type { MarketStatePacket } from '@/lib/pm/marketState/marketStateContract';
+import {
+  buildResearchPacket,
+  DEFAULT_RESEARCH_HORIZON_DAYS,
+  type ResearchPacket,
+} from '@/lib/pm/research/researchPacket';
 
 function isMonitoringResult(value: unknown): value is HedgeFundMonitoringResult {
   if (!value || typeof value !== 'object') return false;
@@ -76,12 +82,25 @@ export async function runQuantMonitoring(params: {
   origin: string;
   autoEscalate?: boolean;
   requestHeaders?: Headers;
+  researchPacket?: ResearchPacket;
+  marketState?: MarketStatePacket | null;
 }): Promise<QuantMonitoringRun> {
   const ticker = params.ticker.toUpperCase();
+  const researchPacket = params.researchPacket ?? await buildResearchPacket({
+    ticker,
+    origin: params.origin,
+    horizonDays: DEFAULT_RESEARCH_HORIZON_DAYS,
+    marketState: params.marketState,
+  });
   const response = await fetch(`${params.origin}/api/hedge-fund`, {
     method: 'POST',
     headers: internalRequestHeaders(params.requestHeaders),
-    body: JSON.stringify({ ticker, mode: 'monitoring' }),
+    body: JSON.stringify({
+      ticker,
+      mode: 'monitoring',
+      horizonDays: researchPacket.horizon.days,
+      researchPacket,
+    }),
     cache: 'no-store',
     signal: AbortSignal.timeout(55_000),
   });
@@ -126,6 +145,7 @@ export async function runQuantMonitoring(params: {
         signalEvents: escalatedEvents,
         requestHeaders: params.requestHeaders,
         triggerSource: 'committee_escalation',
+        researchPacket,
       })
     : null;
 
@@ -141,6 +161,7 @@ export async function runQuantMonitoring(params: {
       signalEvents: [],
       requestHeaders: params.requestHeaders,
       triggerSource: 'committee_cycle',
+      researchPacket,
     }).catch(err => {
       console.warn('committee_cycle failed', { ticker, error: (err as Error).message });
     });

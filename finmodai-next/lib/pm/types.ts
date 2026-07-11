@@ -174,6 +174,27 @@ export type PositionThesis = {
 
   /** Ordered evidence trail — each entry records what changed and why. */
   history?: ThesisUpdate[];
+
+  /** Compact, durable provenance summary for the research UI. */
+  researchEvidence?: ResearchEvidenceSummary;
+};
+
+export type ResearchEvidenceSource = {
+  label: string;
+  source: string;
+  asOf: string | null;
+};
+
+export type ResearchEvidenceSummary = {
+  builtAt: string;
+  horizonDays: number;
+  coveragePct: number;
+  degraded: boolean;
+  marketRegime: string | null;
+  available: string[];
+  missing: string[];
+  warnings: string[];
+  sources: ResearchEvidenceSource[];
 };
 
 /**

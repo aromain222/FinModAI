@@ -14,9 +14,10 @@ export function ThemeToggle() {
       onClick={toggleTheme}
       className="inline-flex items-center gap-2 rounded-full border border-[var(--cb-border)] bg-[var(--cb-surface-subtle)] px-3 py-1.5 text-xs font-semibold text-[var(--cb-text-secondary)] transition-colors hover:border-[var(--cb-green)] hover:text-[var(--cb-text-primary)]"
       aria-pressed={isDark}
+      aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
     >
       <Icon className="h-3.5 w-3.5 text-[var(--cb-green)]" aria-hidden="true" />
-      <span>{isDark ? 'Dark · Switch to Light' : 'Light · Switch to Dark'}</span>
+      <span className="hidden sm:inline">{isDark ? 'Dark · Switch to Light' : 'Light · Switch to Dark'}</span>
     </button>
   );
 }

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { NextRequest } from 'next/server';
 
 import * as routeModule from '@/app/api/analyst-chat/route';
 import {
@@ -62,7 +63,7 @@ test('tesla guided demo interpretation branch returns deterministic bull bear fr
   );
 
   const response = await POST(
-    new Request('http://localhost:3000/api/analyst-chat', {
+    new NextRequest('http://localhost:3000/api/analyst-chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -8,6 +8,16 @@ import {
 import type { CommitteeTrigger, QuantSignalEvent } from '@/lib/pm/monitoring/types';
 import { listPositions } from '@/lib/pm/portfolio/positionStore';
 import { recordPaperFill, type PaperTriggerSource } from '@/lib/pm/paper/paperBook';
+import {
+  buildResearchPacket,
+  DEFAULT_RESEARCH_HORIZON_DAYS,
+} from '@/lib/pm/research/researchPacket';
+import type { MarketStatePacket } from '@/lib/pm/marketState/marketStateContract';
+import type { ResearchPacket } from '@/lib/pm/research/researchPacketContract';
+import {
+  calibratedConfidence,
+  scheduleAgentOutcome,
+} from '@/lib/pm/calibration/agentOutcomes';
 
 type CommitteeOutput = {
   ticker: string;
@@ -48,9 +58,17 @@ export async function runInvestmentCommittee(params: {
   signalEvents?: QuantSignalEvent[];
   requestHeaders?: Headers;
   triggerSource?: PaperTriggerSource;
+  researchPacket?: ResearchPacket;
+  marketState?: MarketStatePacket | null;
 }): Promise<InvestmentCommitteeRun> {
   const ticker = params.ticker.toUpperCase();
   const signalEvents = params.signalEvents ?? [];
+  const researchPacket = params.researchPacket ?? await buildResearchPacket({
+    ticker,
+    origin: params.origin,
+    horizonDays: DEFAULT_RESEARCH_HORIZON_DAYS,
+    marketState: params.marketState,
+  });
   const response = await fetch(`${params.origin}/api/hedge-fund`, {
     method: 'POST',
     headers: internalRequestHeaders(params.requestHeaders),
@@ -59,9 +77,14 @@ export async function runInvestmentCommittee(params: {
       mode: 'committee',
       trigger: params.trigger,
       signalEvents,
+      horizonDays: researchPacket.horizon.days,
+      researchPacket,
     }),
     cache: 'no-store',
-    signal: AbortSignal.timeout(55_000),
+    // Committee depth is three bounded parallel stages (memos, cross-exams,
+    // adjudication). Their worst-case provider windows can legitimately exceed
+    // 59 seconds even though the hedge-fund route remains inside its 120s cap.
+    signal: AbortSignal.timeout(90_000),
   });
   if (!response.ok) {
     throw new Error(`Investment committee failed (${response.status}): ${await response.text()}`);
@@ -75,6 +98,9 @@ export async function runInvestmentCommittee(params: {
   const committeeId = crypto.randomUUID();
   const view = hedgeFundToAgentView(output);
   view.agentName = 'Senior Investment Committee';
+  const calibration = await calibratedConfidence(view.agentName, view.conviction);
+  view.conviction = calibration.value;
+  view.confidence = calibration.value;
   view.summary = `${params.trigger.replace(/_/g, ' ')} review: ${view.summary ?? view.reasoning}`;
   view.reasoning = view.summary;
   view.rawOutput = {
@@ -82,6 +108,8 @@ export async function runInvestmentCommittee(params: {
     committeeRunId: committeeId,
     trigger: params.trigger,
     signalEventIds: signalEvents.map(event => event.id),
+    researchPacketCoverage: researchPacket.quality.coveragePct,
+    calibration: calibration.summary,
   };
   view.evidence = [
     ...signalEvents.map(event => ({
@@ -95,6 +123,11 @@ export async function runInvestmentCommittee(params: {
   ].slice(0, 12);
 
   const result = await ingestAgentView(view);
+  await scheduleAgentOutcome({
+    view: result.agentView,
+    referencePrice: researchPacket.market.price.value,
+    horizonDays: researchPacket.horizon.days,
+  });
   const reviewedAt = new Date().toISOString();
   await Promise.all(signalEvents.map(event => updateQuantSignalEvent({
     ...event,

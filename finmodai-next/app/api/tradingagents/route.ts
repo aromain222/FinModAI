@@ -4,6 +4,11 @@ import { hasAnyOpenAIKey } from '@/lib/openaiKey';
 import { generateTextWithProviderFallback } from '@/lib/llm/generateText';
 import type { UserIntent } from '@/lib/execution/userIntent';
 import type { AssetMetadata } from '@/lib/execution/assetMetadata';
+import {
+  formatResearchPacketForPrompt,
+  isResearchPacket,
+  type ResearchPacket,
+} from '@/lib/pm/research/researchPacketContract';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'edge';
@@ -65,6 +70,7 @@ function buildContextBlocks(
   ticker: string,
   intent: UserIntent | null,
   asset: AssetMetadata | null,
+  researchPacket: ResearchPacket | null,
 ): string {
   const parts: string[] = [];
 
@@ -83,6 +89,10 @@ Name: ${asset.name} | Sector: ${asset.sector} | Industry: ${asset.industry}
 Asset class: ${asset.asset_class}
 Business: ${asset.business_summary}
 Your analyst notes must be consistent with this business description.`);
+  }
+
+  if (researchPacket) {
+    parts.push(formatResearchPacketForPrompt(researchPacket));
   }
 
   return parts.join('\n\n');
@@ -342,6 +352,9 @@ export async function POST(req: NextRequest) {
 
   const intent:        UserIntent    | null = (b.intent        ?? null) as UserIntent | null;
   const assetMetadata: AssetMetadata | null = (b.assetMetadata ?? null) as AssetMetadata | null;
+  const researchPacket = isResearchPacket(b.researchPacket) && b.researchPacket.ticker === ticker
+    ? b.researchPacket
+    : null;
 
   try {
     const currentPricePromise = fetchCurrentPrice(ticker);
@@ -359,7 +372,7 @@ export async function POST(req: NextRequest) {
       }, { status: 503 });
     }
 
-    const contextBlocks = buildContextBlocks(ticker, intent, assetMetadata);
+    const contextBlocks = buildContextBlocks(ticker, intent, assetMetadata, researchPacket);
     const currentPrice  = await currentPricePromise;
     let reports: AnalystReports;
     try {

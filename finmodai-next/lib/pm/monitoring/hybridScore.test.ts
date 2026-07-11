@@ -34,6 +34,9 @@ describe('buildHybridScore', () => {
         changePct: 2,
         high52w: 100,
         low52w: 50,
+        momentum20dPct: 15,
+        forecastReturnPct: 15,
+        annualizedVolatilityPct: 15,
       },
       asOf: '2026-06-12T00:00:00.000Z',
     });
@@ -50,11 +53,29 @@ describe('buildHybridScore', () => {
         ...emptyMarket,
         pe: 55,
         forwardPe: 48,
+        analystTargetUpsidePct: -5,
       },
       asOf: '2026-06-12T00:00:00.000Z',
     });
     assert.equal(result.deterministicWeight, 0.75);
     assert.ok(result.score < 50);
-    assert.deepEqual(result.deterministicInputs, ['trailing P/E', 'forward P/E']);
+    assert.deepEqual(result.deterministicInputs, ['trailing P/E', 'forward P/E', 'consensus target upside']);
+  });
+
+  it('grounds fundamentals in margins and leverage when the packet supplies them', () => {
+    const result = buildHybridScore({
+      analystKey: 'fundamentals',
+      llmScore: 90,
+      market: {
+        ...emptyMarket,
+        ebitdaMarginPct: 8,
+        netMarginPct: 3,
+        netDebtToEbitda: 4,
+      },
+      asOf: '2026-06-12T00:00:00.000Z',
+    });
+    assert.equal(result.deterministicWeight, 0.6);
+    assert.ok(result.score < 60);
+    assert.deepEqual(result.deterministicInputs, ['EBITDA margin', 'net margin', 'net debt / EBITDA']);
   });
 });

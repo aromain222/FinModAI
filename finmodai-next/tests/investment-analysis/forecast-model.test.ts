@@ -40,11 +40,13 @@ test('forecast prompts build three-statement inputs with a five-year horizon', a
 test('analyst forecast generation resolves named demo companies before falling back to Demo Company', async () => {
   const result = await generateAnalystStructuredModel('Generate a Micron Technologies forecast model.');
 
-  assert.ok(result);
-  assert.equal(result?.payload.modelType, 'THREE_STATEMENT');
-  assert.equal(result?.payload.extractedInputs.ticker, 'MU');
-  assert.equal(result?.payload.extractedInputs.companyName, 'Micron Technology, Inc.');
-  assert.notEqual(result?.payload.extractedInputs.companyName, 'Demo Company');
+  if (!result || result.validationFailed) assert.fail('expected a valid generated model');
+  const payload = result.payload;
+  assert.equal(payload.modelType, 'THREE_STATEMENT');
+  if (payload.extractedInputs.modelType !== 'THREE_STATEMENT') assert.fail('expected three-statement inputs');
+  assert.equal(payload.extractedInputs.ticker, 'MU');
+  assert.equal(payload.extractedInputs.companyName, 'Micron Technology, Inc.');
+  assert.notEqual(payload.extractedInputs.companyName, 'Demo Company');
 });
 
 test('analyst chat renders the three-statement forecast card controls', () => {

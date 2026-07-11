@@ -34,6 +34,11 @@ export type GenerateTextResult = {
   text: string;
   provider: ProviderPreference;
   model: string;
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+  } | null;
 };
 
 function dedupe(values: string[]): string[] {
@@ -117,7 +122,14 @@ async function generateWithOpenAI(params: GenerateTextParams): Promise<GenerateT
         }, controller ? { signal: controller.signal } : undefined);
         const text = extractOpenAIText(completion);
         if (text) {
-          return { text, provider: 'openai', model };
+          const inputTokens = completion.usage?.prompt_tokens ?? 0;
+          const outputTokens = completion.usage?.completion_tokens ?? 0;
+          return {
+            text,
+            provider: 'openai',
+            model,
+            usage: completion.usage ? { inputTokens, outputTokens, totalTokens: completion.usage.total_tokens ?? inputTokens + outputTokens } : null,
+          };
         }
       } catch (error) {
         lastError = error;
@@ -173,6 +185,7 @@ async function generateWithAnthropic(params: GenerateTextParams): Promise<Genera
         }
         const payload = (await response.json()) as {
           content?: Array<{ type?: string; text?: string }>;
+          usage?: { input_tokens?: number; output_tokens?: number };
         };
         const text = (payload.content ?? [])
           .filter((part) => part?.type === 'text' && typeof part.text === 'string')
@@ -181,7 +194,14 @@ async function generateWithAnthropic(params: GenerateTextParams): Promise<Genera
           .join('\n')
           .trim();
         if (text) {
-          return { text, provider: 'anthropic', model };
+          const inputTokens = payload.usage?.input_tokens ?? 0;
+          const outputTokens = payload.usage?.output_tokens ?? 0;
+          return {
+            text,
+            provider: 'anthropic',
+            model,
+            usage: payload.usage ? { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens } : null,
+          };
         }
       } catch (error) {
         lastError = error;

@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Search, Sparkles, TrendingUp, TrendingDown, Activity } from 'lucide-react';
+import { Search, Sparkles, TrendingUp, TrendingDown, Activity, Database, AlertTriangle } from 'lucide-react';
 import type { PortfolioPosition, PositionThesis } from '@/lib/pm/types';
 import type { QuantScoreSnapshot } from '@/lib/pm/monitoring/types';
 import { cn } from '@/lib/utils';
@@ -82,9 +82,10 @@ function ResearchPageInner() {
         (b.lastPmAnalysisAt ?? b.updatedAt ?? '').localeCompare(a.lastPmAnalysisAt ?? a.updatedAt ?? ''),
       );
       setList(items);
-      if (!selectedTicker && items.length > 0) setSelectedTicker(items[0].ticker);
+      const deepLinkTicker = searchParams?.get('ticker')?.trim().toUpperCase();
+      if (!selectedTicker && !deepLinkTicker && items.length > 0) setSelectedTicker(items[0].ticker);
     } catch { /* silent */ }
-  }, [selectedTicker]);
+  }, [searchParams, selectedTicker]);
 
   useEffect(() => { void loadList(); }, [loadList]);
 
@@ -179,7 +180,7 @@ function ResearchPageInner() {
     } finally {
       setAnalyzing(false);
     }
-  }, [input, loadList, loadDetailFor]);
+  }, [input, loadList]);
 
   const watchlistOnly = useMemo(() => list.filter(p => p.status === 'watch'), [list]);
   const heldOnly = useMemo(() => list.filter(p => p.status === 'active' || p.status === 'trimmed'), [list]);
@@ -219,7 +220,7 @@ function ResearchPageInner() {
         {error && <span className="text-xs text-red-400">{error}</span>}
       </div>
 
-      <div className="grid grid-cols-[260px_minmax(0,1fr)] gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
         <aside className="space-y-4">
           <section className="rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] p-3">
             <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--cb-text-muted)]">Held ({heldOnly.length})</h3>
@@ -342,6 +343,7 @@ function ResearchRow({ p, active, onClick }: { p: PortfolioPosition; active: boo
 
 function ResearchDetail({ detail }: { detail: ResearchSnapshot }) {
   const { ticker, position, thesis, snapshots, analyzedAt, isAlreadyHeld } = detail;
+  const evidence = thesis.researchEvidence;
   const upsidePct = position.targetPrice != null && position.currentPrice != null && position.currentPrice > 0
     ? ((position.targetPrice - position.currentPrice) / position.currentPrice) * 100
     : null;
@@ -397,6 +399,58 @@ function ResearchDetail({ detail }: { detail: ResearchSnapshot }) {
         </div>
       </section>
 
+      {evidence ? (
+        <section className={cn(
+          'rounded-md border p-4',
+          evidence.degraded
+            ? 'border-amber-700/50 bg-amber-950/15'
+            : 'border-[var(--cb-border)] bg-[var(--cb-surface)]',
+        )}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--cb-text-muted)]">
+                {evidence.degraded ? <AlertTriangle className="h-3.5 w-3.5 text-amber-400" /> : <Database className="h-3.5 w-3.5" />}
+                Evidence quality
+              </h3>
+              <p className="mt-1 text-xs text-[var(--cb-text-secondary)]">
+                {evidence.coveragePct}% coverage · {evidence.horizonDays}-day horizon
+                {evidence.marketRegime ? ` · ${evidence.marketRegime.replaceAll('_', ' ')} market` : ''}
+              </p>
+            </div>
+            <span className={cn(
+              'rounded border px-1.5 py-0.5 font-mono text-[10px]',
+              evidence.degraded
+                ? 'border-amber-600/50 text-amber-300'
+                : 'border-emerald-600/40 text-emerald-300',
+            )}>
+              {evidence.degraded ? 'DEGRADED' : 'VERIFIED'}
+            </span>
+          </div>
+          {(evidence.missing.length > 0 || evidence.warnings.length > 0) && (
+            <div className="mt-3 border-t border-[var(--cb-border)] pt-2 text-[11px] text-amber-200/80">
+              {evidence.missing.length > 0 && <p>Missing: {evidence.missing.join(', ')}</p>}
+              {evidence.warnings.map((warning, index) => <p key={index}>{warning}</p>)}
+            </div>
+          )}
+          <div className="mt-3 grid gap-x-5 gap-y-1 border-t border-[var(--cb-border)] pt-2 md:grid-cols-2">
+            {evidence.sources.length === 0 ? (
+              <p className="text-[11px] text-[var(--cb-text-muted)]">No source dates were available.</p>
+            ) : evidence.sources.map((source, index) => (
+              <div key={`${source.label}-${index}`} className="flex min-w-0 justify-between gap-2 text-[11px]">
+                <span className="truncate text-[var(--cb-text-secondary)]" title={source.label}>{source.label}</span>
+                <span className="shrink-0 font-mono text-[var(--cb-text-muted)]">
+                  {source.source} · {source.asOf ? new Date(source.asOf).toLocaleDateString() : 'date n/a'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <section className="rounded-md border border-amber-700/40 bg-amber-950/10 p-3 text-xs text-amber-200/80">
+          Evidence provenance was not saved for this older research run. Analyze again to refresh it.
+        </section>
+      )}
+
       <section className="rounded-md border border-[var(--cb-border)] bg-[var(--cb-surface)] p-4">
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--cb-text-muted)]">Thesis</h3>
         <p className="text-sm leading-relaxed text-[var(--cb-text-primary)]">{thesis.thesisSummary}</p>
@@ -419,7 +473,7 @@ function ResearchDetail({ detail }: { detail: ResearchSnapshot }) {
         )}
       </section>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <ListPanel title="Catalysts" items={thesis.catalysts ?? []} icon={<TrendingUp className="h-3 w-3" />} tone="#65d487" />
         <ListPanel title="Key risks" items={thesis.keyRisks ?? []} icon={<TrendingDown className="h-3 w-3" />} tone="#e2685c" />
         <ListPanel title="Sell conditions" items={thesis.sellConditions ?? []} icon={<Activity className="h-3 w-3" />} tone="#e8c862" />

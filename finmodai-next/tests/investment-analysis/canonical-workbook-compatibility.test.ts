@@ -13,7 +13,8 @@ function isAsciiSafe(value: string): boolean {
 async function reloadWorkbook(workbook: ExcelJS.Workbook): Promise<ExcelJS.Workbook> {
   const buffer = await workbook.xlsx.writeBuffer();
   const reloaded = new ExcelJS.Workbook();
-  await reloaded.xlsx.load(buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer));
+  const compatibleBuffer = Buffer.from(buffer) as unknown as Parameters<typeof reloaded.xlsx.load>[0];
+  await reloaded.xlsx.load(compatibleBuffer);
   return reloaded;
 }
 

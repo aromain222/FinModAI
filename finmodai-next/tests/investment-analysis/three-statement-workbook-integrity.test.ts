@@ -1,27 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { buildWorkbook } from '@/lib/model-generator/templates/threeStatement';
 
 test('three-statement workbook uses direct resolving formulas for hardcoded company runs', async () => {
-  const templateModule = await import('@/lib/model-generator/templates/threeStatement');
-  const threeStatementTemplate = (templateModule.default ?? templateModule) as {
-    buildWorkbook: (inputs: {
-      modelType: 'THREE_STATEMENT';
-      companyName: string;
-      ticker?: string;
-      source: string;
-      years: number;
-      baseRevenue: number;
-      revenueGrowth: number[];
-      grossMargin: number;
-      opexPctRevenue: number;
-      taxRate: number;
-      capexPctRevenue: number;
-      daPctRevenue: number;
-      debt: number;
-      cash: number;
-    }) => Promise<import('exceljs').Workbook>;
-  };
-  const workbook = await threeStatementTemplate.buildWorkbook({
+  const workbook = await buildWorkbook({
     modelType: 'THREE_STATEMENT',
     companyName: 'Micron Technologies',
     ticker: 'MU',
@@ -54,6 +36,7 @@ test('three-statement workbook uses direct resolving formulas for hardcoded comp
   const incomeStatement = workbook.getWorksheet('Income Statement');
   const balanceSheet = workbook.getWorksheet('Balance Sheet');
   const cashFlow = workbook.getWorksheet('Cash Flow');
+  if (!incomeStatement || !balanceSheet || !cashFlow) assert.fail('expected core statements');
   assert.equal(
     (incomeStatement.getCell('C5').value as { formula: string }).formula,
     "='Working Capital Schedule'!$C$5",

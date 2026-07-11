@@ -26,6 +26,9 @@ function normalizeAction(action: string | undefined): InvestmentDecision['action
 }
 
 function stanceFromConsensus(output: HedgeFundOutput): AgentView['stance'] {
+  const action = output.decision?.action?.toLowerCase();
+  if (action === 'buy' || action === 'add' || action === 'cover') return 'bullish';
+  if (action === 'sell' || action === 'short' || action === 'trim') return 'bearish';
   const bull = output.consensus?.bullish ?? 0;
   const bear = output.consensus?.bearish ?? 0;
   if (Math.abs(bull - bear) <= 2) return 'mixed';
