@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listPositions } from '@/lib/pm/portfolio/positionStore';
+import { internalRequestHeaders } from '@/lib/pm/monitoring/internalRequestHeaders';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
     try {
       const res = await fetch(`${origin}/api/pm/analyze-position`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: internalRequestHeaders(req.headers),
         body: JSON.stringify({ ticker: pos.ticker }),
         signal: AbortSignal.timeout(90_000),
       });

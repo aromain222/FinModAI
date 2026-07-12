@@ -1,28 +1,15 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
 import { extractSubdomain, getSubdomainPath, shouldBypassSubdomainRouting } from '@/lib/subdomains';
+import { expectedAccessSessionToken } from '@/lib/auth/accessSession';
+import { authorizePMMutationRequest, isPMMutationRequest } from '@/lib/pm/api/mutationAuth';
 
 const PUBLIC_PATHS = ['/login', '/api'];
 const STATIC_PREFIXES = ['/_next', '/favicon.ico'];
 
-async function hmacHex(secret: string, data: string): Promise<string> {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
-  );
-  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(data));
-  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-async function cookieToken(): Promise<string | null> {
-  const password = process.env.ACCESS_PASSWORD;
-  const secret   = process.env.COOKIE_SECRET ?? 'cb-default-secret';
-  if (!password) return null;
-  return hmacHex(secret, password);
-}
-
 async function isAuthenticated(req: NextRequest): Promise<boolean> {
-  const expected = await cookieToken();
+  const expected = await expectedAccessSessionToken();
   if (!expected) return true; // no password set → open access (dev mode)
   return req.cookies.get('cb_access')?.value === expected;
 }
@@ -36,6 +23,26 @@ function isPublicPath(pathname: string): boolean {
 export async function middleware(req: NextRequest) {
   const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || '';
   const pathname = req.nextUrl.pathname;
+  const response = NextResponse.next();
+
+  if (isPMMutationRequest(req)) {
+    let auth = await authorizePMMutationRequest(req);
+    if (!auth.authorized) {
+      try {
+        const supabase = createMiddlewareClient({ req, res: response });
+        const { data } = await supabase.auth.getUser();
+        auth = await authorizePMMutationRequest(req, { userSessionAuthenticated: Boolean(data.user) });
+      } catch {
+        // Missing Supabase config or an unavailable auth service is not authorization.
+      }
+    }
+    if (!auth.authorized) {
+      return NextResponse.json(
+        { error: 'Unauthorized', message: 'PM write access requires a valid session or bearer secret.' },
+        { status: 401 },
+      );
+    }
+  }
 
   // Password gate — skip for public paths and static assets
   if (!isPublicPath(pathname) && !(await isAuthenticated(req))) {
@@ -56,7 +63,7 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {

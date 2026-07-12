@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { internalRequestHeaders } from '@/lib/pm/monitoring/internalRequestHeaders';
 import { notifyScoreDrop } from '@/lib/pm/notifications/notifier';
 import { scoreMultiple } from '@/lib/ranking/score';
 import type { RankedStock, Signal } from '@/lib/ranking/types';
@@ -365,7 +366,7 @@ export async function POST(req: NextRequest) {
     fetchRank(ticker, origin, horizonWeeks),
     fetchJson(`${origin}/api/pm/quant-monitor`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: internalRequestHeaders(req.headers),
       body: JSON.stringify({ ticker, autoEscalate: true }),
     }, 55_000),
     fetchJson(`${origin}/api/tradingagents`, {
