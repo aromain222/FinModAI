@@ -36,8 +36,28 @@ function pct(value: number | null, signed = true): string {
   return `${sign}${value.toFixed(2)}%`;
 }
 
+// Standard fonts only encode WinAnsi — LLM-written memo text can carry emoji,
+// arrows, or other unicode that would throw at draw time. Map the common ones
+// to ASCII and drop the rest rather than failing the whole download.
+function sanitizeWinAnsi(text: string): string {
+  const mapped = text
+    .replace(/[‘’‚]/g, "'")
+    .replace(/[“”„]/g, '"')
+    .replace(/…/g, '...')
+    .replace(/[→➡]/g, '->')
+    .replace(/[←]/g, '<-')
+    .replace(/[↑⬆]/g, '+')
+    .replace(/[↓⬇]/g, '-')
+    .replace(/[−]/g, '-')
+    .replace(/[   ]/g, ' ');
+  return [...mapped]
+    .map(char => (char.charCodeAt(0) <= 0xFF ? char : ''))
+    .join('')
+    .replace(/ {2,}/g, ' ');
+}
+
 function wrap(text: string, font: PDFFont, size: number, width: number): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
+  const words = sanitizeWinAnsi(text).split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let line = '';
   for (const word of words) {
