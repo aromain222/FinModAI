@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildPositionSnapshots, fallbackAnalysis } from '@/lib/pm/dailyBrief/generator';
+import { buildPositionSnapshots, fallbackAnalysis, selectSectorExtremes } from '@/lib/pm/dailyBrief/generator';
 import type { InvestmentDecision, PMAlert, PortfolioPosition, PositionThesis } from '@/lib/pm/types';
 
 const now = '2026-07-11T20:00:00.000Z';
@@ -19,6 +19,10 @@ function thesis(): PositionThesis {
     id: 'thesis-1', ticker: 'NVDA', thesisSummary: 'Demand stays strong.', whyWeOwnIt: 'Compute demand.',
     addConditions: [], sellConditions: [], invalidationConditions: ['Below the stop'], keyRisks: ['Capex slows'], catalysts: ['Next earnings'],
     convictionScore: 72, thesisStatus: 'weakening', timeHorizon: '3 months', lastReviewedAt: now, createdAt: now, updatedAt: now,
+    researchEvidence: {
+      builtAt: now, horizonDays: 45, coveragePct: 80, degraded: false, marketRegime: 'mixed', available: [], missing: [], warnings: [], sources: [],
+      priceForecast: { currentPrice: 180, baseCasePrice: 205, bearCasePrice: 155, bullCasePrice: 225, expectedReturnPct: 13.9, lowerReturnPct: -13.9, upperReturnPct: 25, horizonDays: 45, asOf: now, source: 'TimesFM', methodology: 'provider forecast' },
+    },
   };
 }
 
@@ -35,6 +39,8 @@ test('daily portfolio brief snapshots calculate attribution, weights, and stored
   assert.equal(snapshots[0]?.dayPnl, -36.7);
   assert.equal(snapshots[0]?.weightPct, 100);
   assert.equal(snapshots[0]?.thesisStatus, 'weakening');
+  assert.equal(snapshots[0]?.returnSinceCostPct, 5.9);
+  assert.equal(snapshots[0]?.priceForecast?.baseCasePrice, 205);
   assert.equal(snapshots[0]?.alerts[0]?.severity, 'high');
 });
 
@@ -47,4 +53,15 @@ test('fallback memo does not invent a trade and escalates weakening positions fo
   });
   assert.equal(analysis.positionViews[0]?.action, 'review');
   assert.ok(analysis.lookingAhead[0]?.includes('CPI'));
+  assert.ok(analysis.positionViews[0]?.pricePlan.includes('base $205.00'));
+});
+
+test('sector tables require enough coverage and never repeat a sector', () => {
+  assert.deepEqual(selectSectorExtremes([{ name: 'Tech', changePct: 1 }]), { sectorLeaders: [], sectorLaggards: [] });
+  const result = selectSectorExtremes([
+    { name: 'Tech', changePct: 2 }, { name: 'Energy', changePct: 1 }, { name: 'Health', changePct: -1 }, { name: 'Utilities', changePct: -2 },
+  ]);
+  assert.deepEqual(result.sectorLeaders.map(item => item.name), ['Tech', 'Energy']);
+  assert.deepEqual(result.sectorLaggards.map(item => item.name), ['Utilities', 'Health']);
+  assert.equal(result.sectorLeaders.some(leader => result.sectorLaggards.some(laggard => laggard.name === leader.name)), false);
 });

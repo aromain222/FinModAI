@@ -9,6 +9,7 @@ import { buildMarketStatePacket } from '@/lib/pm/marketState/buildMarketState';
 import type { MarketStatePacket } from '@/lib/pm/marketState/marketStateContract';
 import { internalRequestHeaders } from '@/lib/pm/monitoring/internalRequestHeaders';
 import type { InvestmentDecision, PMAlert, PortfolioPosition, PositionThesis } from '@/lib/pm/types';
+import { isXConfigured, macroQuery, searchX } from '@/lib/pm/marketBrief/xClient';
 
 const positionActionSchema = z.enum(['hold', 'add_watch', 'trim_watch', 'review']);
 
@@ -21,6 +22,9 @@ const memoSchema = z.object({
     ticker: z.string().min(1),
     action: positionActionSchema,
     thesisUpdate: z.string().min(8).max(700),
+    thesisPerformance: z.string().min(8).max(500),
+    macroImpact: z.string().min(8).max(600),
+    pricePlan: z.string().min(8).max(600),
     whyNow: z.string().min(8).max(500),
     nextCatalyst: z.string().min(3).max(300),
     mainRisk: z.string().min(3).max(300),
@@ -39,6 +43,8 @@ export type DailyPortfolioPosition = {
   price: number | null;
   dayChangePct: number | null;
   dayPnl: number | null;
+  costBasis: number | null;
+  returnSinceCostPct: number | null;
   targetPrice: number | null;
   stopLoss: number | null;
   upsideToTargetPct: number | null;
@@ -46,6 +52,19 @@ export type DailyPortfolioPosition = {
   conviction: number | null;
   thesisStatus: string | null;
   thesisSummary: string | null;
+  thesisConvictionChange: number | null;
+  addConditions: string[];
+  sellConditions: string[];
+  invalidationConditions: string[];
+  priceForecast: {
+    horizonDays: number;
+    bearCasePrice: number | null;
+    baseCasePrice: number | null;
+    bullCasePrice: number | null;
+    source: string | null;
+    asOf: string | null;
+    methodology: string | null;
+  } | null;
   catalysts: string[];
   keyRisks: string[];
   alerts: Array<{ severity: string; title: string; summary: string }>;
@@ -65,6 +84,8 @@ export type DailyPortfolioBrief = {
     positionsCovered: number;
     marketStateCoveragePct: number;
     marketStateFallback: boolean;
+    /** Optional for briefs persisted before macro provenance was added. */
+    macroSources?: string[];
     warnings: string[];
   };
   portfolio: {
@@ -93,6 +114,21 @@ export type DailyPortfolioBrief = {
   };
 };
 
+type MacroSignal = {
+  theme: string;
+  summary: string;
+  source: 'X';
+  observedAt: string | null;
+  url: string | null;
+  unverified: true;
+};
+
+const MACRO_X_THEMES = [
+  'Federal Reserve inflation interest rates',
+  'AI capital spending semiconductors',
+  'US consumer spending retail',
+] as const;
+
 type EventLike = {
   title?: unknown;
   published_at?: unknown;
@@ -112,6 +148,14 @@ function round(value: number | null, decimals = 2): number | null {
 function clean(value: string | null | undefined): string | null {
   const next = value?.replace(/\s+/g, ' ').trim();
   return next ? next : null;
+}
+
+function safeWarning(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error || 'unknown_error');
+  return message
+    .replace(/(?:sk-ant-|sk-)[A-Za-z0-9_-]+/g, '[redacted_api_key]')
+    .replace(/\s+/g, ' ')
+    .slice(0, 240);
 }
 
 function dayLabel(now: Date): string {
@@ -164,6 +208,43 @@ async function fetchEvents(origin: string, requestHeaders?: Headers): Promise<Ev
   }
 }
 
+async function fetchMacroSignals(): Promise<MacroSignal[]> {
+  if (!isXConfigured()) return [];
+  const results = await Promise.all(MACRO_X_THEMES.map(async theme => ({
+    theme,
+    result: await searchX(macroQuery(theme), 10),
+  })));
+  return results.flatMap(({ theme, result }) => {
+    const tweet = result?.tweets
+      .slice()
+      .sort((a, b) => (b.likeCount + b.retweetCount + b.replyCount) - (a.likeCount + a.retweetCount + a.replyCount))[0];
+    return tweet ? [{
+      theme,
+      summary: clean(tweet.text) ?? 'No usable text returned.',
+      source: 'X' as const,
+      observedAt: tweet.createdAt || null,
+      url: tweet.url || null,
+      unverified: true as const,
+    }] : [];
+  });
+}
+
+export function selectSectorExtremes(
+  sectors: Array<{ name: string; changePct: number }>,
+  minimumSectorCount = 4,
+): Pick<DailyPortfolioBrief['market'], 'sectorLeaders' | 'sectorLaggards'> {
+  const unique = [...new Map(sectors
+    .filter(sector => sector.name.trim() && Number.isFinite(sector.changePct))
+    .map(sector => [sector.name.trim().toLowerCase(), { name: sector.name.trim(), changePct: sector.changePct }])).values()];
+  if (unique.length < minimumSectorCount) return { sectorLeaders: [], sectorLaggards: [] };
+  const sideCount = Math.min(3, Math.floor(unique.length / 2));
+  const sorted = [...unique].sort((a, b) => b.changePct - a.changePct);
+  const sectorLeaders = sorted.slice(0, sideCount);
+  const leaderNames = new Set(sectorLeaders.map(sector => sector.name.toLowerCase()));
+  const sectorLaggards = sorted.slice().reverse().filter(sector => !leaderNames.has(sector.name.toLowerCase())).slice(0, sideCount);
+  return { sectorLeaders, sectorLaggards };
+}
+
 function positionMarketValue(position: PortfolioPosition, quote: StockQuote | undefined): number | null {
   const price = finite(quote?.price) ?? finite(position.currentPrice);
   const shares = finite(position.shares);
@@ -210,6 +291,9 @@ export function buildPositionSnapshots(params: {
       severity: alert.severity, title: alert.title, summary: alert.summary,
     }));
     const decision = (decisionsByTicker.get(ticker) ?? [])[0] ?? null;
+    const latestHistory = thesis?.history?.at(-1);
+    const costBasis = finite(position.entryPrice) ?? finite(position.costBasis);
+    const forecast = thesis?.researchEvidence?.priceForecast;
     return {
       ticker,
       companyName: position.companyName,
@@ -219,6 +303,8 @@ export function buildPositionSnapshots(params: {
       price,
       dayChangePct: finite(quote?.changePct),
       dayPnl: positionPnl(position, quote, marketValue),
+      costBasis,
+      returnSinceCostPct: price !== null && costBasis !== null && costBasis > 0 ? round((price / costBasis - 1) * 100, 1) : null,
       targetPrice,
       stopLoss,
       upsideToTargetPct: price !== null && targetPrice !== null && price > 0 ? round((targetPrice / price - 1) * 100, 1) : null,
@@ -226,6 +312,21 @@ export function buildPositionSnapshots(params: {
       conviction: finite(thesis?.convictionScore) ?? finite(position.convictionScore),
       thesisStatus: thesis?.thesisStatus ?? position.thesisIntegrity ?? null,
       thesisSummary: clean(thesis?.currentThesis) ?? clean(thesis?.thesisSummary) ?? clean(position.pmNotes),
+      thesisConvictionChange: latestHistory?.convictionBefore !== null && latestHistory?.convictionBefore !== undefined
+        ? round(latestHistory.convictionAfter - latestHistory.convictionBefore, 1)
+        : null,
+      addConditions: thesis?.addConditions?.slice(0, 3) ?? [],
+      sellConditions: thesis?.sellConditions?.slice(0, 3) ?? [],
+      invalidationConditions: thesis?.invalidationConditions?.slice(0, 3) ?? [],
+      priceForecast: forecast ? {
+        horizonDays: forecast.horizonDays,
+        bearCasePrice: finite(forecast.bearCasePrice),
+        baseCasePrice: finite(forecast.baseCasePrice),
+        bullCasePrice: finite(forecast.bullCasePrice),
+        source: clean(forecast.source),
+        asOf: clean(forecast.asOf),
+        methodology: clean(forecast.methodology),
+      } : null,
       catalysts: thesis?.catalysts?.slice(0, 3) ?? [],
       keyRisks: thesis?.keyRisks?.slice(0, 3) ?? [],
       alerts: relatedAlerts,
@@ -251,6 +352,13 @@ export function fallbackAnalysis(params: {
       ticker: position.ticker,
       action: stressed ? 'review' as const : positive ? 'add_watch' as const : 'hold' as const,
       thesisUpdate: position.thesisSummary ?? 'No stored thesis update is available; refresh the position review.',
+      thesisPerformance: position.returnSinceCostPct === null
+        ? `The return versus recorded cost is unavailable; stored thesis status is ${position.thesisStatus ?? 'unrated'}.`
+        : `The position is ${position.returnSinceCostPct >= 0 ? 'up' : 'down'} ${Math.abs(position.returnSinceCostPct).toFixed(1)}% versus recorded cost; stored thesis status is ${position.thesisStatus ?? 'unrated'}.`,
+      macroImpact: 'No model-generated macro transmission view is available in the deterministic fallback; use the verified calendar and market regime above.',
+      pricePlan: position.priceForecast?.baseCasePrice !== null && position.priceForecast?.baseCasePrice !== undefined
+        ? `${position.priceForecast.horizonDays}-day provider path: bear $${position.priceForecast.bearCasePrice?.toFixed(2) ?? '—'}, base $${position.priceForecast.baseCasePrice.toFixed(2)}, bull $${position.priceForecast.bullCasePrice?.toFixed(2) ?? '—'}. Recorded target ${position.targetPrice === null ? 'unavailable' : `$${position.targetPrice.toFixed(2)}`}; stop ${position.stopLoss === null ? 'unavailable' : `$${position.stopLoss.toFixed(2)}`}.`
+        : `Provider forecast unavailable. Recorded target ${position.targetPrice === null ? 'unavailable' : `$${position.targetPrice.toFixed(2)}`}; stop ${position.stopLoss === null ? 'unavailable' : `$${position.stopLoss.toFixed(2)}`}. Add only when a stored add condition is met.`,
       whyNow: position.dayChangePct === null ? 'Daily quote was unavailable; monitor the next verified close.' : `The position moved ${position.dayChangePct >= 0 ? '+' : ''}${position.dayChangePct.toFixed(1)}% on the latest session.`,
       nextCatalyst: position.catalysts[0] ?? 'No dated company catalyst is stored.',
       mainRisk: position.keyRisks[0] ?? position.alerts[0]?.summary ?? 'No new high-severity portfolio alert is stored.',
@@ -276,16 +384,18 @@ function promptForMemo(params: {
   market: DailyPortfolioBrief['market'];
   recentEvents: string[];
   upcoming: string[];
+  macroSignals: MacroSignal[];
 }): { system: string; user: string } {
-  const system = `You are a buy-side portfolio manager writing a daily post-close portfolio memo. Use ONLY the supplied facts. Do not invent earnings dates, price levels, investor positioning, macro facts, or reasons for a stock move. A missing field must be called unavailable. Actions are monitoring labels only, never execution instructions. Write in direct PM language: what changed, what is priced, next catalyst, risk, and invalidation. Return strict JSON only.`;
+  const system = `You are a buy-side portfolio manager writing a daily post-close portfolio memo. Use ONLY the supplied facts. Explain the transmission path from each relevant macro trend to revenue, margins, valuation, or risk for every held stock. Do not invent earnings dates, price levels, investor positioning, macro facts, or reasons for a stock move. X posts are explicitly unverified sentiment/positioning texture and cannot establish a fact. A missing field must be called unavailable. Price scenarios must repeat supplied provider-backed or PM-recorded levels; never create a new price. Add/trim/exit language must be conditional on stored thesis conditions, targets, or stops. Actions are monitoring labels only, never execution instructions. Write in direct PM language: what changed, what is priced, next catalyst, risk, and invalidation. Return strict JSON only.`;
   const user = JSON.stringify({
     market: params.market,
     positions: params.positions,
     lastSessionHeadlines: params.recentEvents,
     nextSevenDays: params.upcoming,
+    unverifiedXMacroSignals: params.macroSignals,
     requiredShape: {
       executiveSummary: ['3-6 bullets'], portfolioRead: 'short PM paragraph', whatChanged: ['facts only'], lookingAhead: ['calendar/catalyst items'],
-      positionViews: [{ ticker: 'each supplied ticker exactly once', action: 'hold|add_watch|trim_watch|review', thesisUpdate: '...', whyNow: '...', nextCatalyst: '...', mainRisk: '...', invalidation: '...' }],
+      positionViews: [{ ticker: 'each supplied ticker exactly once', action: 'hold|add_watch|trim_watch|review', thesisUpdate: 'current thesis in plain English', thesisPerformance: 'performance versus cost plus thesis status/conviction evidence', macroImpact: 'trend -> business/valuation transmission -> direction; state unavailable when unsupported', pricePlan: 'supplied bear/base/bull and stored add/target/stop conditions only', whyNow: '...', nextCatalyst: '...', mainRisk: '...', invalidation: '...' }],
     },
   });
   return { system, user };
@@ -298,18 +408,20 @@ export async function generateDailyPortfolioBrief(input: {
   requestHeaders?: Headers;
 }): Promise<DailyPortfolioBrief> {
   const now = input.now ?? new Date();
-  const [positions, theses, alerts, decisions, marketState, events] = await Promise.all([
+  const [positions, theses, alerts, decisions, marketState, events, macroSignals] = await Promise.all([
     listPositions({ limit: 200 }),
     listTheses({ limit: 300 }),
     listPMRecords<PMAlert>('pm_alerts', { limit: 300 }),
     listPMRecords<InvestmentDecision>('pm_investment_decisions', { limit: 300 }),
     buildMarketStatePacket({ origin: input.origin, now, requestHeaders: input.requestHeaders }),
     fetchEvents(input.origin, input.requestHeaders),
+    fetchMacroSignals(),
   ]);
-  const active = positions.filter(position => ['active', 'watch', 'trimmed'].includes(position.status));
+  const active = positions.filter(position => ['active', 'trimmed'].includes(position.status));
   const tickers = active.map(position => position.ticker.toUpperCase());
   const quotes = await fetchQuotes(input.origin, tickers, input.requestHeaders);
   const positionSnapshots = buildPositionSnapshots({ positions: active, quotes, theses, alerts, decisions });
+  const sectorExtremes = selectSectorExtremes(marketState.sectors);
   const market: DailyPortfolioBrief['market'] = {
     regime: marketState.regime,
     regimeConfidence: marketState.regimeConfidence,
@@ -317,8 +429,7 @@ export async function generateDailyPortfolioBrief(input: {
     vix: marketState.tape.vix.value,
     us10y: marketState.tape.us10y.value,
     breadthNetPct: marketState.breadth.netPct,
-    sectorLeaders: [...marketState.sectors].sort((a, b) => b.changePct - a.changePct).slice(0, 3),
-    sectorLaggards: [...marketState.sectors].sort((a, b) => a.changePct - b.changePct).slice(0, 3),
+    ...sectorExtremes,
   };
   const upcoming = getUpcomingEntries(now, 7).map(entry => `${entry.date}: ${entry.event}${entry.notes ? ` — ${entry.notes}` : ''}`);
   const recentEvents = events
@@ -327,14 +438,15 @@ export async function generateDailyPortfolioBrief(input: {
     .flatMap(event => typeof event.title === 'string' ? [event.title] : []);
   const fallback = fallbackAnalysis({ positions: positionSnapshots, market, upcoming });
   let analysis = fallback;
+  let memoWarning: string | null = null;
   if (positionSnapshots.length > 0) {
-    const prompt = promptForMemo({ positions: positionSnapshots, market, recentEvents, upcoming });
+    const prompt = promptForMemo({ positions: positionSnapshots, market, recentEvents, upcoming, macroSignals });
     try {
       const response = await generateTextWithProviderFallback({
         messages: [{ role: 'system', content: prompt.system }, { role: 'user', content: prompt.user }],
         temperature: 0.15,
         maxTokens: 5_000,
-        timeoutMs: 75_000,
+        timeoutMs: 150_000,
         preferredProvider: 'anthropic',
       });
       const parsed = response ? memoSchema.safeParse(JSON.parse(extractJson(response.text))) : null;
@@ -344,9 +456,14 @@ export async function generateDailyPortfolioBrief(input: {
           ...parsed.data,
           positionViews: positionSnapshots.map(position => byTicker.get(position.ticker) ?? fallback.positionViews.find(view => view.ticker === position.ticker)!),
         };
+      } else if (!response) {
+        memoWarning = 'daily_memo_llm_fallback:no_provider_response';
+      } else {
+        memoWarning = `daily_memo_llm_fallback:invalid_response:${parsed?.error.issues[0]?.message ?? 'invalid_json'}`;
       }
-    } catch {
+    } catch (error) {
       // The deterministic memo is intentionally useful when LLM output is unavailable.
+      memoWarning = `daily_memo_llm_fallback:${safeWarning(error)}`;
     }
   }
   const totalValue = positionSnapshots.reduce((sum, position) => sum + (position.marketValue ?? 0), 0);
@@ -357,6 +474,8 @@ export async function generateDailyPortfolioBrief(input: {
     ...(freshQuoteCount < tickers.length ? ['some_position_quotes_unavailable'] : []),
     ...marketState.quality.warnings,
     ...(marketState.quality.fallback ? ['market_state_fallback'] : []),
+    ...(!isXConfigured() ? ['x_macro_signals_not_configured'] : macroSignals.length === 0 ? ['x_macro_signals_unavailable'] : []),
+    ...(memoWarning ? [memoWarning] : []),
   ];
   return {
     id: crypto.randomUUID(),
@@ -371,6 +490,7 @@ export async function generateDailyPortfolioBrief(input: {
       positionsCovered: positionSnapshots.length,
       marketStateCoveragePct: marketState.quality.coveragePct,
       marketStateFallback: marketState.quality.fallback,
+      macroSources: [...new Set(['CapitalBase event pipeline', 'CapitalBase macro calendar', ...macroSignals.map(signal => signal.source)])],
       warnings,
     },
     portfolio: {

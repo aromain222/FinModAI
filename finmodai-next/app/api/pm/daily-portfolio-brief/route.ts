@@ -4,7 +4,9 @@ import { listPMRecords, upsertPMRecord } from '@/lib/pm/persistence/store';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export const maxDuration = 120;
+// A 10+ position book (quotes, alerts, theses per name, then the memo LLM call)
+// legitimately exceeds 120s; Vercel allows up to 300s on all plans.
+export const maxDuration = 300;
 
 function cronAuthorized(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;

@@ -197,6 +197,20 @@ export type ResearchEvidenceSummary = {
   missing: string[];
   warnings: string[];
   sources: ResearchEvidenceSource[];
+  /** Provider-backed price path captured when the thesis was last researched. */
+  priceForecast?: {
+    currentPrice: number | null;
+    baseCasePrice: number | null;
+    bearCasePrice: number | null;
+    bullCasePrice: number | null;
+    expectedReturnPct: number | null;
+    lowerReturnPct: number | null;
+    upperReturnPct: number | null;
+    horizonDays: number;
+    asOf: string | null;
+    source: string | null;
+    methodology: string | null;
+  };
 };
 
 /**

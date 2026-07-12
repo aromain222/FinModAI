@@ -53,6 +53,12 @@ function summarizeEvidence(packet: Awaited<ReturnType<typeof buildResearchPacket
     `${item.label}|${item.source}|${item.asOf ?? ''}`,
     item,
   ])).values()];
+  const currentPrice = packet.market.price.value;
+  const forecastPrice = (returnPct: number | null): number | null => (
+    currentPrice !== null && returnPct !== null
+      ? Math.round(currentPrice * (1 + returnPct / 100) * 100) / 100
+      : null
+  );
   return {
     builtAt: packet.builtAt,
     horizonDays: packet.horizon.days,
@@ -63,6 +69,19 @@ function summarizeEvidence(packet: Awaited<ReturnType<typeof buildResearchPacket
     missing: packet.quality.missing,
     warnings: packet.quality.warnings,
     sources: unique.slice(0, 16),
+    priceForecast: {
+      currentPrice,
+      baseCasePrice: forecastPrice(packet.pricePath.expectedReturnPct.value),
+      bearCasePrice: forecastPrice(packet.pricePath.lowerReturnPct.value),
+      bullCasePrice: forecastPrice(packet.pricePath.upperReturnPct.value),
+      expectedReturnPct: packet.pricePath.expectedReturnPct.value,
+      lowerReturnPct: packet.pricePath.lowerReturnPct.value,
+      upperReturnPct: packet.pricePath.upperReturnPct.value,
+      horizonDays: packet.horizon.days,
+      asOf: packet.pricePath.expectedReturnPct.asOf,
+      source: packet.pricePath.expectedReturnPct.source,
+      methodology: packet.pricePath.methodology,
+    },
   };
 }
 

@@ -274,9 +274,12 @@ function Memo({ brief }: { brief: DailyPortfolioBrief }) {
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--cb-text-muted)]">Thesis update</p>
                   <p className="mt-1 text-sm leading-5 text-[var(--cb-text-primary)]">{view?.thesisUpdate ?? position.thesisSummary ?? 'No current thesis is stored.'}</p>
+                  {view?.thesisPerformance && <p className="mt-2 text-xs text-[var(--cb-text-secondary)]"><span className="text-[var(--cb-text-muted)]">Thesis performance:</span> {view.thesisPerformance}</p>}
                   <p className="mt-2 text-xs text-[var(--cb-text-secondary)]"><span className="text-[var(--cb-text-muted)]">Why now:</span> {view?.whyNow ?? 'No new PM commentary is available.'}</p>
                 </div>
                 <div className="grid gap-2 text-xs text-[var(--cb-text-secondary)]">
+                  {view?.macroImpact && <p><span className="font-medium text-[var(--cb-text-muted)]">Macro link:</span> {view.macroImpact}</p>}
+                  {view?.pricePlan && <p><span className="font-medium text-[var(--cb-text-muted)]">Price / sizing plan:</span> {view.pricePlan}</p>}
                   <p><span className="font-medium text-[var(--cb-text-muted)]">Catalyst:</span> {view?.nextCatalyst ?? position.catalysts[0] ?? 'Unavailable'}</p>
                   <p><span className="font-medium text-[var(--cb-text-muted)]">Risk:</span> {view?.mainRisk ?? position.keyRisks[0] ?? 'Unavailable'}</p>
                   <p><span className="font-medium text-[var(--cb-text-muted)]">Invalidation:</span> {view?.invalidation ?? (position.stopLoss ? `Below ${currency(position.stopLoss, 2)}` : 'Use stored thesis conditions')}</p>

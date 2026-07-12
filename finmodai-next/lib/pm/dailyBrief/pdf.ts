@@ -163,6 +163,9 @@ export async function renderDailyBriefPdf(brief: DailyPortfolioBrief): Promise<U
     const view = views.get(position.ticker);
     if (view) {
       drawText(w, `${view.action.toUpperCase()} — ${view.thesisUpdate}`, { indent: 10, gapAfter: 1 });
+      if (view.thesisPerformance) drawText(w, `Thesis performance: ${view.thesisPerformance}`, { indent: 10, size: 8.5, color: MUTED, gapAfter: 1 });
+      if (view.macroImpact) drawText(w, `Macro link: ${view.macroImpact}`, { indent: 10, size: 8.5, color: MUTED, gapAfter: 1 });
+      if (view.pricePlan) drawText(w, `Price / sizing plan: ${view.pricePlan}`, { indent: 10, size: 8.5, color: MUTED, gapAfter: 1 });
       drawText(w, `Why now: ${view.whyNow}`, { indent: 10, size: 8.5, color: MUTED, gapAfter: 1 });
       drawText(w, `Next catalyst: ${view.nextCatalyst}   ·   Main risk: ${view.mainRisk}   ·   Invalidation: ${view.invalidation}`, { indent: 10, size: 8.5, color: MUTED, gapAfter: 4 });
     } else {
@@ -172,7 +175,7 @@ export async function renderDailyBriefPdf(brief: DailyPortfolioBrief): Promise<U
 
   // Footer: provenance
   drawHeading(w, 'Coverage & caveats');
-  drawText(w, `Quotes for ${brief.source.quotesAvailable} tickers · ${brief.source.positionsCovered} positions covered · market-state coverage ${brief.source.marketStateCoveragePct}%${brief.source.marketStateFallback ? ' (fallback data)' : ''} · generated ${brief.asOf}`, { size: 8.5, color: MUTED, gapAfter: 2 });
+  drawText(w, `Quotes for ${brief.source.quotesAvailable} tickers · ${brief.source.positionsCovered} positions covered · market-state coverage ${brief.source.marketStateCoveragePct}%${brief.source.marketStateFallback ? ' (fallback data)' : ''} · macro sources ${brief.source.macroSources?.join(', ') || 'none'} · generated ${brief.asOf}`, { size: 8.5, color: MUTED, gapAfter: 2 });
   if (brief.source.warnings.length > 0) {
     drawBullets(w, brief.source.warnings.map(warning => `Warning: ${warning}`));
   }
