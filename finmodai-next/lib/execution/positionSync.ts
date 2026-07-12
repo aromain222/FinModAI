@@ -41,9 +41,22 @@ export type SyncResult = {
   created: number;
   updated: number;
   errors: string[];
+  note?: string;
 };
 
 export async function syncAlpacaPositions(): Promise<SyncResult> {
+  // pm_positions now tracks the user's real Robinhood holdings; letting the
+  // Alpaca paper sync write here would clobber them back to paper quantities
+  // on every auto-trade cron. Opt back in explicitly if paper tracking returns.
+  if (process.env.ENABLE_ALPACA_POSITION_SYNC !== 'true') {
+    return {
+      synced: 0,
+      created: 0,
+      updated: 0,
+      errors: [],
+      note: 'alpaca position sync disabled — pm_positions tracks Robinhood holdings (set ENABLE_ALPACA_POSITION_SYNC=true to re-enable)',
+    };
+  }
   const errors: string[] = [];
   let created = 0;
   let updated = 0;
