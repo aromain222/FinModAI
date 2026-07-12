@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { CalendarDays, FileText, RefreshCw, ShieldAlert, TrendingDown, TrendingUp } from 'lucide-react';
+import { CalendarDays, Download, FileText, RefreshCw, ShieldAlert, TrendingDown, TrendingUp } from 'lucide-react';
 import type { DailyPortfolioBrief } from '@/lib/pm/dailyBrief/generator';
 
 function currency(value: number | null | undefined, digits = 0): string {
@@ -103,15 +103,27 @@ export function DailyPortfolioBriefPanel() {
             Last session attribution, thesis drift, and the catalysts or risks that matter over the next seven days. Scheduled after the close each weekday.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => { void generate(); }}
-          disabled={generating}
-          className="inline-flex items-center gap-2 rounded border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 py-2 text-xs font-medium text-[var(--cb-text-primary)] transition hover:border-[var(--cb-border-strong)] disabled:opacity-50"
-        >
-          <RefreshCw className={generating ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
-          {generating ? 'Building memo…' : 'Run memo now'}
-        </button>
+        <div className="flex items-center gap-2">
+          {selected && (
+            <a
+              href={`/api/pm/daily-portfolio-brief/download?id=${encodeURIComponent(selected.id)}`}
+              download
+              className="inline-flex items-center gap-2 rounded border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 py-2 text-xs font-medium text-[var(--cb-text-primary)] transition hover:border-[var(--cb-border-strong)]"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Download PDF
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={() => { void generate(); }}
+            disabled={generating}
+            className="inline-flex items-center gap-2 rounded border border-[var(--cb-border)] bg-[var(--cb-surface)] px-3 py-2 text-xs font-medium text-[var(--cb-text-primary)] transition hover:border-[var(--cb-border-strong)] disabled:opacity-50"
+          >
+            <RefreshCw className={generating ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
+            {generating ? 'Building memo…' : 'Run memo now'}
+          </button>
+        </div>
       </div>
 
       {error && <div className="rounded border border-[var(--cb-danger)]/40 bg-[var(--cb-danger)]/[0.08] px-3 py-2 text-xs text-[var(--cb-text-primary)]">{error}</div>}
