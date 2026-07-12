@@ -197,18 +197,29 @@ export async function patchPMRecord<T extends PMStoredRecord>(
   id: string,
   patch: Partial<T>,
 ): Promise<T | null> {
-  const current = memoryTable(table).get(id);
-  const next = current
-    ? { ...current, ...patch, id, updatedAt: new Date().toISOString() }
-    : null;
-  if (next) memoryTable(table).set(id, next);
+  // The memory cache is per-lambda and usually cold in serverless. A patch
+  // merged against a cache miss must read the stored record first — otherwise
+  // the update persists ONLY the patch fields and clobbers the rest.
+  let current = memoryTable(table).get(id);
+  if (!current) {
+    const reader = getSupabaseTable(table);
+    if (reader) {
+      try {
+        const { data } = await reader.select('payload').eq('id', id).limit(1);
+        const row = Array.isArray(data) ? data[0] : null;
+        current = row ? readPayload(row) ?? undefined : undefined;
+      } catch { /* treated as not found */ }
+    }
+  }
+  if (!current) return null;
+  const next = { ...current, ...patch, id, updatedAt: new Date().toISOString() };
+  memoryTable(table).set(id, next);
 
   const supabase = getSupabaseTable(table);
   if (!supabase) return next as T | null;
   try {
-    const existing = next ?? ({ id, ...patch, updatedAt: new Date().toISOString() } as PMRecord);
     const { data, error } = await supabase
-      .update(toIndexRow(table, existing))
+      .update(toIndexRow(table, next))
       .eq('id', id)
       .select('payload')
       .single();
