@@ -53,6 +53,7 @@ export const portfolioPositionSchema = z.object({
   notionalExposure: nullableNumber,
   costBasis: nullableNumber,
   currentPrice: nullableNumber,
+  account: nullableString,
   targetAllocation: nullableNumber,
   currentAllocation: nullableNumber,
   portfolioTheme: nullableString,

@@ -99,6 +99,8 @@ export type PortfolioPosition = {
   notionalExposure: number | null;
   costBasis: number | null;
   currentPrice: number | null;
+  /** Broker/account label for imported holdings snapshots. */
+  account?: string | null;
   targetAllocation: number | null;
   currentAllocation: number | null;
   portfolioTheme: string | null;
