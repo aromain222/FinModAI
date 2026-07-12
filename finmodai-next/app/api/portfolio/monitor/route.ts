@@ -372,7 +372,9 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ticker }),
-    }, 12_000),
+      // Multi-stage researcher debate needs the same window as quant-monitor above;
+      // both run in this parallel batch so total wall time is unchanged.
+    }, 55_000),
     fetchJson(`${origin}/api/dexter?action=overview&ticker=${encodeURIComponent(ticker)}&limit=4`, {
       method: 'GET',
     }, 8_000),

@@ -24,6 +24,7 @@ export function knownEvidenceRefs(packet: ResearchPacket): Set<string> {
   if (packet.earnings.fiscalPeriod) refs.add('earnings');
   if (packet.catalysts.length > 0) refs.add('catalysts');
   if (packet.marketState) refs.add('marketState');
+  if (packet.socialPulse && packet.socialPulse.postCount > 0) refs.add('socialPulse');
   if (packet.quality.available.includes('company_fundamentals')) refs.add('fundamentals');
   if (packet.quality.available.includes('consensus_estimates')) refs.add('consensus');
   if (packet.quality.available.includes('price_history_and_forecast')) refs.add('pricePath');

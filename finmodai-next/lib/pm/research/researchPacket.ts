@@ -5,6 +5,7 @@ import { fetchHistoricalFinancials } from '@/lib/data/historicalFinancials';
 import { buildProviderBackedPriceForecast } from '@/lib/forecast/providerBackedForecast';
 import { buildMarketStatePacket } from '@/lib/pm/marketState/buildMarketState';
 import type { MarketStatePacket } from '@/lib/pm/marketState/marketStateContract';
+import { fetchXTickerPulse } from '@/lib/x/tickerPulse';
 import {
   DEFAULT_RESEARCH_HORIZON_DAYS,
   type ResearchCatalyst,
@@ -170,6 +171,7 @@ export async function buildResearchPacket(params: {
     params.marketState !== undefined
       ? Promise.resolve(params.marketState)
       : buildMarketStatePacket({ origin: params.origin, now }),
+    fetchXTickerPulse(ticker),
   ] as const);
 
   const snapshot = settledValue(results[0]);
@@ -179,6 +181,7 @@ export async function buildResearchPacket(params: {
   const forecast = settledValue(results[4]);
   const catalysts = settledValue(results[5]) ?? [];
   const marketState = settledValue(results[6]);
+  const socialPulse = settledValue(results[7]);
 
   const fundamentalsSource = snapshot?.source.fundamentals ?? null;
   const fundamentalsAsOf = snapshot?.asOfDate ?? null;
@@ -233,6 +236,9 @@ export async function buildResearchPacket(params: {
   mark('price_history_and_forecast', forecast !== null);
   mark('company_catalysts', catalysts.length > 0);
   mark('market_state', marketState !== null && marketState.quality.coveragePct >= 50);
+  mark('x_social_pulse', socialPulse !== null && socialPulse.postCount > 0);
+  // Options/institutional positioning data is still absent — the X pulse covers
+  // only the social half of positioning, so this stays explicitly missing.
   mark('positioning_and_options', false);
   mark('peer_valuation', false);
   const coveragePct = Math.round((available.length / (available.length + missing.length)) * 100);
@@ -299,6 +305,7 @@ export async function buildResearchPacket(params: {
     },
     catalysts,
     marketState,
+    socialPulse,
     quality: { coveragePct, available, missing, warnings },
   };
 }

@@ -120,3 +120,4 @@ SUPABASE_ANON_KEY=REDACTED
 .gitignore.save
 .vercel
 .env*.local
+.env*

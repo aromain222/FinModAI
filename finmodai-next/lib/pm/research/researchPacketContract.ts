@@ -1,4 +1,5 @@
 import type { MarketStatePacket } from '@/lib/pm/marketState/marketStateContract';
+import type { XSocialPulse } from '@/lib/x/tickerPulse';
 
 export const DEFAULT_RESEARCH_HORIZON_DAYS = 45;
 
@@ -69,6 +70,8 @@ export type ResearchPacket = {
   };
   catalysts: ResearchCatalyst[];
   marketState: MarketStatePacket | null;
+  // Optional so packets built before this field existed still validate.
+  socialPulse?: XSocialPulse | null;
   quality: { coveragePct: number; available: string[]; missing: string[]; warnings: string[] };
 };
 
@@ -132,6 +135,13 @@ export function formatResearchPacketForPrompt(packet: ResearchPacket): string {
     '',
     `Market regime: ${packet.marketState?.regime ?? 'unavailable'} (${packet.marketState?.regimeConfidence ?? 0}/100)`,
     '',
+    ...(packet.socialPulse
+      ? [
+          `X social pulse (${packet.socialPulse.postCount} recent posts, engagement ${packet.socialPulse.totalEngagement}, as of ${packet.socialPulse.observedAt}) — UNVERIFIED crowd opinion; use as positioning/crowding texture only, never as a factual claim about the business:`,
+          ...packet.socialPulse.topPosts.map(post => `- ${post.author ? `@${post.author}` : 'unknown'} (${post.likes} likes, ${post.reposts} reposts): "${post.text}"`),
+          '',
+        ]
+      : []),
     `Missing evidence: ${packet.quality.missing.join(', ') || 'none'}`,
     'Rules: Treat missing evidence as unknown, not neutral. Do not invent dates, estimates, positioning, options, peer multiples, or management commentary.',
   ].join('\n');
