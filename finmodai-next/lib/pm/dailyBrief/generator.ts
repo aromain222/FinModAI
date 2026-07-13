@@ -23,6 +23,8 @@ const memoSchema = z.object({
     action: positionActionSchema,
     thesisUpdate: z.string().min(8).max(700),
     thesisPerformance: z.string().min(8).max(500),
+    forwardThesis: z.string().min(8).max(700),
+    recentNewsSummary: z.string().min(8).max(700),
     macroImpact: z.string().min(8).max(600),
     pricePlan: z.string().min(8).max(600),
     whyNow: z.string().min(8).max(500),
@@ -65,6 +67,12 @@ export type DailyPortfolioPosition = {
     asOf: string | null;
     methodology: string | null;
   } | null;
+  recentNews: Array<{
+    title: string;
+    publishedAt: string | null;
+    source: string | null;
+    url: string | null;
+  }>;
   catalysts: string[];
   keyRisks: string[];
   alerts: Array<{ severity: string; title: string; summary: string }>;
@@ -133,6 +141,7 @@ type EventLike = {
   title?: unknown;
   published_at?: unknown;
   impacted_tickers?: unknown;
+  sources?: unknown;
 };
 
 function finite(value: number | null | undefined): number | null {
@@ -179,6 +188,39 @@ function eventTickers(event: EventLike): string[] {
     const ticker = (item as { ticker?: unknown }).ticker;
     return typeof ticker === 'string' && ticker.trim() ? [ticker.toUpperCase().trim()] : [];
   });
+}
+
+function eventNewsItem(event: EventLike): DailyPortfolioPosition['recentNews'][number] | null {
+  const title = typeof event.title === 'string' ? clean(event.title) : null;
+  if (!title) return null;
+  const firstSource = Array.isArray(event.sources) && event.sources[0] && typeof event.sources[0] === 'object'
+    ? event.sources[0] as { source?: unknown; url?: unknown; published_at?: unknown }
+    : null;
+  return {
+    title,
+    publishedAt: typeof event.published_at === 'string'
+      ? event.published_at
+      : typeof firstSource?.published_at === 'string' ? firstSource.published_at : null,
+    source: typeof firstSource?.source === 'string' ? clean(firstSource.source) : null,
+    url: typeof firstSource?.url === 'string' ? firstSource.url : null,
+  };
+}
+
+export function attachRecentNews(
+  positions: DailyPortfolioPosition[],
+  events: EventLike[],
+): DailyPortfolioPosition[] {
+  return positions.map(position => ({
+    ...position,
+    recentNews: events
+      .filter(event => eventTickers(event).includes(position.ticker))
+      .flatMap(event => {
+        const item = eventNewsItem(event);
+        return item ? [item] : [];
+      })
+      .filter((item, index, items) => items.findIndex(candidate => candidate.title === item.title) === index)
+      .slice(0, 3),
+  }));
 }
 
 async function fetchQuotes(origin: string, tickers: string[], requestHeaders?: Headers): Promise<Map<string, StockQuote>> {
@@ -327,6 +369,7 @@ export function buildPositionSnapshots(params: {
         asOf: clean(forecast.asOf),
         methodology: clean(forecast.methodology),
       } : null,
+      recentNews: [],
       catalysts: thesis?.catalysts?.slice(0, 3) ?? [],
       keyRisks: thesis?.keyRisks?.slice(0, 3) ?? [],
       alerts: relatedAlerts,
@@ -355,6 +398,12 @@ export function fallbackAnalysis(params: {
       thesisPerformance: position.returnSinceCostPct === null
         ? `The return versus recorded cost is unavailable; stored thesis status is ${position.thesisStatus ?? 'unrated'}.`
         : `The position is ${position.returnSinceCostPct >= 0 ? 'up' : 'down'} ${Math.abs(position.returnSinceCostPct).toFixed(1)}% versus recorded cost; stored thesis status is ${position.thesisStatus ?? 'unrated'}.`,
+      forwardThesis: position.addConditions[0]
+        ? `A stronger or new thesis requires this evidence: ${position.addConditions[0]}`
+        : `No explicit add condition is stored. Refresh research before adopting a new thesis for ${position.ticker}.`,
+      recentNewsSummary: position.recentNews.length > 0
+        ? position.recentNews.map(item => item.title).join(' · ')
+        : `No portfolio-linked news was retrieved for ${position.ticker} in the latest session window.`,
       macroImpact: 'No model-generated macro transmission view is available in the deterministic fallback; use the verified calendar and market regime above.',
       pricePlan: position.priceForecast?.baseCasePrice !== null && position.priceForecast?.baseCasePrice !== undefined
         ? `${position.priceForecast.horizonDays}-day provider path: bear $${position.priceForecast.bearCasePrice?.toFixed(2) ?? '—'}, base $${position.priceForecast.baseCasePrice.toFixed(2)}, bull $${position.priceForecast.bullCasePrice?.toFixed(2) ?? '—'}. Recorded target ${position.targetPrice === null ? 'unavailable' : `$${position.targetPrice.toFixed(2)}`}; stop ${position.stopLoss === null ? 'unavailable' : `$${position.stopLoss.toFixed(2)}`}.`
@@ -386,7 +435,7 @@ function promptForMemo(params: {
   upcoming: string[];
   macroSignals: MacroSignal[];
 }): { system: string; user: string } {
-  const system = `You are a buy-side portfolio manager writing a daily post-close portfolio memo. Use ONLY the supplied facts. Explain the transmission path from each relevant macro trend to revenue, margins, valuation, or risk for every held stock. Do not invent earnings dates, price levels, investor positioning, macro facts, or reasons for a stock move. X posts are explicitly unverified sentiment/positioning texture and cannot establish a fact. A missing field must be called unavailable. Price scenarios must repeat supplied provider-backed or PM-recorded levels; never create a new price. Add/trim/exit language must be conditional on stored thesis conditions, targets, or stops. Actions are monitoring labels only, never execution instructions. Write in direct PM language: what changed, what is priced, next catalyst, risk, and invalidation. Return strict JSON only.`;
+  const system = `You are a buy-side portfolio manager writing a daily post-close portfolio memo. Use ONLY the supplied facts. Explain the transmission path from each relevant macro trend to revenue, margins, valuation, or risk for every held stock. Separate backward-looking news from forward-looking thesis development. Recent news must summarize only the supplied portfolio-linked headlines and may not claim a price reaction or causal relationship unless supplied. A forward thesis must identify the next evidence that could strengthen, weaken, or replace the current thesis; it is a conditional research path, not a prediction. Do not invent earnings dates, price levels, investor positioning, macro facts, or reasons for a stock move. X posts are explicitly unverified sentiment/positioning texture and cannot establish a fact. A missing field must be called unavailable. Price scenarios must repeat supplied provider-backed or PM-recorded levels; never create a new price. Add/trim/exit language must be conditional on stored thesis conditions, targets, or stops. Actions are monitoring labels only, never execution instructions. Write in direct PM language: what changed, what is priced, next catalyst, risk, and invalidation. Return strict JSON only.`;
   const user = JSON.stringify({
     market: params.market,
     positions: params.positions,
@@ -395,7 +444,7 @@ function promptForMemo(params: {
     unverifiedXMacroSignals: params.macroSignals,
     requiredShape: {
       executiveSummary: ['3-6 bullets'], portfolioRead: 'short PM paragraph', whatChanged: ['facts only'], lookingAhead: ['calendar/catalyst items'],
-      positionViews: [{ ticker: 'each supplied ticker exactly once', action: 'hold|add_watch|trim_watch|review', thesisUpdate: 'current thesis in plain English', thesisPerformance: 'performance versus cost plus thesis status/conviction evidence', macroImpact: 'trend -> business/valuation transmission -> direction; state unavailable when unsupported', pricePlan: 'supplied bear/base/bull and stored add/target/stop conditions only', whyNow: '...', nextCatalyst: '...', mainRisk: '...', invalidation: '...' }],
+      positionViews: [{ ticker: 'each supplied ticker exactly once', action: 'hold|add_watch|trim_watch|review', thesisUpdate: 'current thesis in plain English', thesisPerformance: 'performance versus cost plus thesis status/conviction evidence', forwardThesis: 'conditional evidence that could strengthen, weaken, or replace the thesis', recentNewsSummary: 'what already happened from supplied recentNews only; say none retrieved when empty', macroImpact: 'trend -> business/valuation transmission -> direction; state unavailable when unsupported', pricePlan: 'supplied bear/base/bull and stored add/target/stop conditions only', whyNow: '...', nextCatalyst: '...', mainRisk: '...', invalidation: '...' }],
     },
   });
   return { system, user };
@@ -420,7 +469,10 @@ export async function generateDailyPortfolioBrief(input: {
   const active = positions.filter(position => ['active', 'trimmed'].includes(position.status));
   const tickers = active.map(position => position.ticker.toUpperCase());
   const quotes = await fetchQuotes(input.origin, tickers, input.requestHeaders);
-  const positionSnapshots = buildPositionSnapshots({ positions: active, quotes, theses, alerts, decisions });
+  const positionSnapshots = attachRecentNews(
+    buildPositionSnapshots({ positions: active, quotes, theses, alerts, decisions }),
+    events,
+  );
   const sectorExtremes = selectSectorExtremes(marketState.sectors);
   const market: DailyPortfolioBrief['market'] = {
     regime: marketState.regime,

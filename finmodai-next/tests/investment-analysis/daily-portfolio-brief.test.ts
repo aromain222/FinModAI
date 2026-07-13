@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildPositionSnapshots, fallbackAnalysis, selectSectorExtremes } from '@/lib/pm/dailyBrief/generator';
+import { attachRecentNews, buildPositionSnapshots, fallbackAnalysis, selectSectorExtremes } from '@/lib/pm/dailyBrief/generator';
 import type { InvestmentDecision, PMAlert, PortfolioPosition, PositionThesis } from '@/lib/pm/types';
 
 const now = '2026-07-11T20:00:00.000Z';
@@ -64,4 +64,25 @@ test('sector tables require enough coverage and never repeat a sector', () => {
   assert.deepEqual(result.sectorLeaders.map(item => item.name), ['Tech', 'Energy']);
   assert.deepEqual(result.sectorLaggards.map(item => item.name), ['Utilities', 'Health']);
   assert.equal(result.sectorLeaders.some(leader => result.sectorLaggards.some(laggard => laggard.name === leader.name)), false);
+});
+
+test('daily brief attaches sourced ticker news without duplicating headlines', () => {
+  const snapshots = buildPositionSnapshots({ positions: [position()], quotes: new Map(), theses: [thesis()], alerts: [], decisions: [] });
+  const withNews = attachRecentNews(snapshots, [{
+    title: 'NVIDIA announces a new product', published_at: now,
+    impacted_tickers: [{ ticker: 'NVDA' }],
+    sources: [{ source: 'Reuters', url: 'https://example.com/nvda', published_at: now }],
+  }, {
+    title: 'NVIDIA announces a new product', published_at: now,
+    impacted_tickers: [{ ticker: 'NVDA' }],
+  }]);
+  assert.equal(withNews[0]?.recentNews.length, 1);
+  assert.equal(withNews[0]?.recentNews[0]?.source, 'Reuters');
+  const analysis = fallbackAnalysis({
+    positions: withNews,
+    market: { regime: 'mixed', regimeConfidence: 60, spyChangePct: null, vix: null, us10y: null, breadthNetPct: null, sectorLeaders: [], sectorLaggards: [] },
+    upcoming: [],
+  });
+  assert.ok(analysis.positionViews[0]?.recentNewsSummary.includes('new product'));
+  assert.ok(analysis.positionViews[0]?.forwardThesis.includes('research') || analysis.positionViews[0]?.forwardThesis.includes('evidence'));
 });

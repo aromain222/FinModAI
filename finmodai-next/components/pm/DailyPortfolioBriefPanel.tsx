@@ -275,9 +275,17 @@ function Memo({ brief }: { brief: DailyPortfolioBrief }) {
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--cb-text-muted)]">Thesis update</p>
                   <p className="mt-1 text-sm leading-5 text-[var(--cb-text-primary)]">{view?.thesisUpdate ?? position.thesisSummary ?? 'No current thesis is stored.'}</p>
                   {view?.thesisPerformance && <p className="mt-2 text-xs text-[var(--cb-text-secondary)]"><span className="text-[var(--cb-text-muted)]">Thesis performance:</span> {view.thesisPerformance}</p>}
+                  {view?.forwardThesis && <p className="mt-2 text-xs text-[var(--cb-text-secondary)]"><span className="text-[var(--cb-text-muted)]">Forward thesis:</span> {view.forwardThesis}</p>}
                   <p className="mt-2 text-xs text-[var(--cb-text-secondary)]"><span className="text-[var(--cb-text-muted)]">Why now:</span> {view?.whyNow ?? 'No new PM commentary is available.'}</p>
                 </div>
                 <div className="grid gap-2 text-xs text-[var(--cb-text-secondary)]">
+                  {view?.recentNewsSummary && <p><span className="font-medium text-[var(--cb-text-muted)]">News already happened:</span> {view.recentNewsSummary}</p>}
+                  {position.recentNews?.map((item, index) => (
+                    <p key={`${item.title}-${index}`} className="pl-2 text-[11px] text-[var(--cb-text-muted)]">
+                      {item.url ? <a href={item.url} target="_blank" rel="noreferrer" className="underline underline-offset-2">{item.title}</a> : item.title}
+                      {item.source ? ` · ${item.source}` : ''}{item.publishedAt ? ` · ${dateTime(item.publishedAt)}` : ''}
+                    </p>
+                  ))}
                   {view?.macroImpact && <p><span className="font-medium text-[var(--cb-text-muted)]">Macro link:</span> {view.macroImpact}</p>}
                   {view?.pricePlan && <p><span className="font-medium text-[var(--cb-text-muted)]">Price / sizing plan:</span> {view.pricePlan}</p>}
                   <p><span className="font-medium text-[var(--cb-text-muted)]">Catalyst:</span> {view?.nextCatalyst ?? position.catalysts[0] ?? 'Unavailable'}</p>

@@ -164,6 +164,8 @@ export async function renderDailyBriefPdf(brief: DailyPortfolioBrief): Promise<U
     if (view) {
       drawText(w, `${view.action.toUpperCase()} — ${view.thesisUpdate}`, { indent: 10, gapAfter: 1 });
       if (view.thesisPerformance) drawText(w, `Thesis performance: ${view.thesisPerformance}`, { indent: 10, size: 8.5, color: MUTED, gapAfter: 1 });
+      if (view.forwardThesis) drawText(w, `Forward thesis: ${view.forwardThesis}`, { indent: 10, size: 8.5, color: MUTED, gapAfter: 1 });
+      if (view.recentNewsSummary) drawText(w, `News already happened: ${view.recentNewsSummary}`, { indent: 10, size: 8.5, color: MUTED, gapAfter: 1 });
       if (view.macroImpact) drawText(w, `Macro link: ${view.macroImpact}`, { indent: 10, size: 8.5, color: MUTED, gapAfter: 1 });
       if (view.pricePlan) drawText(w, `Price / sizing plan: ${view.pricePlan}`, { indent: 10, size: 8.5, color: MUTED, gapAfter: 1 });
       drawText(w, `Why now: ${view.whyNow}`, { indent: 10, size: 8.5, color: MUTED, gapAfter: 1 });
