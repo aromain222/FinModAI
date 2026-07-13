@@ -266,13 +266,19 @@ export async function GET(req: NextRequest) {
     const latestPoint = perfPoints[perfPoints.length - 1];
 
     const spyQuotePrice = finiteOrNull(spyQuote?.price);
-    const spyQuoteChange = finiteOrNull(spyQuote?.changePct);
+    // Sanity gates: a single-session SPY move beyond ±12% or a VIX print outside
+    // (0, 90] is upstream junk, not tape — drop to fallback and say so.
+    const spyQuoteChangeRaw = finiteOrNull(spyQuote?.changePct);
+    const spyQuoteChange = spyQuoteChangeRaw !== null && Math.abs(spyQuoteChangeRaw) <= 12 ? spyQuoteChangeRaw : null;
+    if (spyQuoteChangeRaw !== null && spyQuoteChange === null) warnings.push('spy_quote_change_rejected');
     if (spyQuotePrice === null || spyQuoteChange === null) warnings.push('spy_tape_from_macro_series');
     const spyPrice = spyQuotePrice ?? macroSnapshot.metrics.sp500_level ?? latestFiniteFromSeries(macroSnapshot.series, ['sp500']) ?? 0;
     const spyChangePct = spyQuoteChange ?? macroSnapshot.metrics.sp500_pct ?? 0;
     const spyDayHigh = typeof latestPoint?.high === 'number' ? latestPoint.high : spyPrice;
     const spyDayLow = typeof latestPoint?.low === 'number' ? latestPoint.low : spyPrice;
-    const vixQuoteValue = finiteOrNull(vixQuote?.price);
+    const vixQuoteRaw = finiteOrNull(vixQuote?.price);
+    const vixQuoteValue = vixQuoteRaw !== null && vixQuoteRaw > 0 && vixQuoteRaw <= 90 ? vixQuoteRaw : null;
+    if (vixQuoteRaw !== null && vixQuoteValue === null) warnings.push('vix_quote_rejected');
     if (vixQuoteValue === null) warnings.push('vix_from_macro_series');
     const us2y = latestFiniteFromSeries(macroSnapshot.series, ['treasury2y', 'us2y']);
     const dxy = latestFiniteFromSeries(macroSnapshot.series, ['dxy']);
