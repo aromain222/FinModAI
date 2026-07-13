@@ -82,9 +82,10 @@ export async function runInvestmentCommittee(params: {
     }),
     cache: 'no-store',
     // Committee depth is three bounded parallel stages (memos, cross-exams,
-    // adjudication). Their worst-case provider windows can legitimately exceed
-    // 59 seconds even though the hedge-fund route remains inside its 120s cap.
-    signal: AbortSignal.timeout(90_000),
+    // adjudication) plus packet/news/X-pulse assembly on cold tickers. Observed
+    // live: cold runs exceed 90s and were aborting here while the hedge-fund
+    // route (120s budget) was still working. Callers all run under >=300s crons.
+    signal: AbortSignal.timeout(150_000),
   });
   if (!response.ok) {
     throw new Error(`Investment committee failed (${response.status}): ${await response.text()}`);

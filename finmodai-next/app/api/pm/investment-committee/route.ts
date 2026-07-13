@@ -8,7 +8,8 @@ import {
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export const maxDuration = 120;
+// Must exceed committee.ts's 150s internal fetch budget plus persistence.
+export const maxDuration = 300;
 
 const committeeRequestSchema = z.object({
   ticker: z.string().trim().min(1).max(16).transform(value => value.toUpperCase()),
