@@ -203,7 +203,7 @@ export async function GET(req: NextRequest) {
     const origin = req.nextUrl.origin;
     const warnings: string[] = [];
 
-    const [macroSnapshot, stocksRes, performanceRes] = await Promise.all([
+    const [macroSnapshot, stocksRes, performanceRes, quotesRes] = await Promise.all([
       getMacroSnapshot('1M'),
       fetch(`${origin}/api/market-brief/stocks?period=1D`, {
         cache: 'no-store',
@@ -213,7 +213,25 @@ export async function GET(req: NextRequest) {
         cache: 'no-store',
         headers: internalRequestHeaders(req.headers),
       }),
+      // Real quote layer for the SPY/VIX tape. The macro series is a 1M window
+      // with its own demo fallback — its "changePct" is not a day change and has
+      // shipped garbage tape (SPY -9.8%, VIX +223%) when quotes were available.
+      fetch(`${origin}/api/quotes?symbols=${encodeURIComponent('SPY,^VIX')}`, {
+        cache: 'no-store',
+        headers: internalRequestHeaders(req.headers),
+      }).catch(() => null),
     ]);
+
+    type TapeQuote = { ticker?: unknown; price?: unknown; changePct?: unknown };
+    const finiteOrNull = (value: unknown): number | null =>
+      typeof value === 'number' && Number.isFinite(value) ? value : null;
+    let spyQuote: TapeQuote | null = null;
+    let vixQuote: TapeQuote | null = null;
+    if (quotesRes?.ok) {
+      const quotesPayload = await quotesRes.json().catch(() => null) as { quotes?: TapeQuote[] } | null;
+      spyQuote = quotesPayload?.quotes?.find(quote => quote.ticker === 'SPY') ?? null;
+      vixQuote = quotesPayload?.quotes?.find(quote => quote.ticker === '^VIX') ?? null;
+    }
 
     const stocksPayload = stocksRes.ok ? stockBreadthSchema.safeParse(await stocksRes.json()) : null;
     const performancePayload = performanceRes.ok
@@ -247,10 +265,15 @@ export async function GET(req: NextRequest) {
     const perfPoints = performancePayload?.success ? performancePayload.data.points : [];
     const latestPoint = perfPoints[perfPoints.length - 1];
 
-    const spyPrice = macroSnapshot.metrics.sp500_level ?? latestFiniteFromSeries(macroSnapshot.series, ['sp500']) ?? 0;
-    const spyChangePct = macroSnapshot.metrics.sp500_pct ?? 0;
+    const spyQuotePrice = finiteOrNull(spyQuote?.price);
+    const spyQuoteChange = finiteOrNull(spyQuote?.changePct);
+    if (spyQuotePrice === null || spyQuoteChange === null) warnings.push('spy_tape_from_macro_series');
+    const spyPrice = spyQuotePrice ?? macroSnapshot.metrics.sp500_level ?? latestFiniteFromSeries(macroSnapshot.series, ['sp500']) ?? 0;
+    const spyChangePct = spyQuoteChange ?? macroSnapshot.metrics.sp500_pct ?? 0;
     const spyDayHigh = typeof latestPoint?.high === 'number' ? latestPoint.high : spyPrice;
     const spyDayLow = typeof latestPoint?.low === 'number' ? latestPoint.low : spyPrice;
+    const vixQuoteValue = finiteOrNull(vixQuote?.price);
+    if (vixQuoteValue === null) warnings.push('vix_from_macro_series');
     const us2y = latestFiniteFromSeries(macroSnapshot.series, ['treasury2y', 'us2y']);
     const dxy = latestFiniteFromSeries(macroSnapshot.series, ['dxy']);
     const wti = latestFiniteFromSeries(macroSnapshot.series, ['wti', 'oil']);
@@ -265,8 +288,8 @@ export async function GET(req: NextRequest) {
         dayLow: spyDayLow,
       },
       vix: {
-        value: macroSnapshot.metrics.vix_level ?? latestFiniteFromSeries(macroSnapshot.series, ['vix']) ?? 0,
-        changePct: macroSnapshot.metrics.vix_pct ?? 0,
+        value: vixQuoteValue ?? macroSnapshot.metrics.vix_level ?? latestFiniteFromSeries(macroSnapshot.series, ['vix']) ?? 0,
+        changePct: finiteOrNull(vixQuote?.changePct) ?? macroSnapshot.metrics.vix_pct ?? 0,
       },
       rates: {
         us2y: addUnavailableWarning(warnings, 'rates_2y_unavailable', us2y),

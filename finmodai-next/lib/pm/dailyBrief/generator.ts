@@ -10,6 +10,7 @@ import type { MarketStatePacket } from '@/lib/pm/marketState/marketStateContract
 import { internalRequestHeaders } from '@/lib/pm/monitoring/internalRequestHeaders';
 import type { InvestmentDecision, PMAlert, PortfolioPosition, PositionThesis } from '@/lib/pm/types';
 import { isXConfigured, macroQuery, searchX } from '@/lib/pm/marketBrief/xClient';
+import { repairTruncatedJson } from '@/lib/pm/dailyBrief/repairJson';
 
 const positionActionSchema = z.enum(['hold', 'add_watch', 'trim_watch', 'review']);
 
@@ -435,7 +436,7 @@ function promptForMemo(params: {
   upcoming: string[];
   macroSignals: MacroSignal[];
 }): { system: string; user: string } {
-  const system = `You are a buy-side portfolio manager writing a daily post-close portfolio memo. Use ONLY the supplied facts. Explain the transmission path from each relevant macro trend to revenue, margins, valuation, or risk for every held stock. Separate backward-looking news from forward-looking thesis development. Recent news must summarize only the supplied portfolio-linked headlines and may not claim a price reaction or causal relationship unless supplied. A forward thesis must identify the next evidence that could strengthen, weaken, or replace the current thesis; it is a conditional research path, not a prediction. Do not invent earnings dates, price levels, investor positioning, macro facts, or reasons for a stock move. X posts are explicitly unverified sentiment/positioning texture and cannot establish a fact. A missing field must be called unavailable. Price scenarios must repeat supplied provider-backed or PM-recorded levels; never create a new price. Add/trim/exit language must be conditional on stored thesis conditions, targets, or stops. Actions are monitoring labels only, never execution instructions. Write in direct PM language: what changed, what is priced, next catalyst, risk, and invalidation. Return strict JSON only.`;
+  const system = `You are a buy-side portfolio manager writing a daily post-close portfolio memo. Use ONLY the supplied facts. Explain the transmission path from each relevant macro trend to revenue, margins, valuation, or risk for every held stock. Separate backward-looking news from forward-looking thesis development. Recent news must summarize only the supplied portfolio-linked headlines and may not claim a price reaction or causal relationship unless supplied. A forward thesis must identify the next evidence that could strengthen, weaken, or replace the current thesis; it is a conditional research path, not a prediction. Do not invent earnings dates, price levels, investor positioning, macro facts, or reasons for a stock move. X posts are explicitly unverified sentiment/positioning texture and cannot establish a fact. A missing field must be called unavailable. Price scenarios must repeat supplied provider-backed or PM-recorded levels; never create a new price. Add/trim/exit language must be conditional on stored thesis conditions, targets, or stops. Actions are monitoring labels only, never execution instructions. Write in direct PM language: what changed, what is priced, next catalyst, risk, and invalidation. BREVITY IS A HARD CONSTRAINT: keep every string field under 220 characters — the full JSON must fit the output budget or it will be truncated and discarded. Return strict JSON only.`;
   const user = JSON.stringify({
     market: params.market,
     positions: params.positions,
@@ -497,11 +498,29 @@ export async function generateDailyPortfolioBrief(input: {
       const response = await generateTextWithProviderFallback({
         messages: [{ role: 'system', content: prompt.system }, { role: 'user', content: prompt.user }],
         temperature: 0.15,
-        maxTokens: 5_000,
+        // 10+ positions × 12 memo fields overran the old 5k budget and truncated
+        // the JSON mid-array (observed live); the repair path below is the backstop.
+        maxTokens: 9_000,
         timeoutMs: 150_000,
         preferredProvider: 'anthropic',
       });
-      const parsed = response ? memoSchema.safeParse(JSON.parse(extractJson(response.text))) : null;
+      let parsed: ReturnType<typeof memoSchema.safeParse> | null = null;
+      if (response) {
+        const extracted = extractJson(response.text);
+        try {
+          parsed = memoSchema.safeParse(JSON.parse(extracted));
+        } catch { /* fall through to truncation repair */ }
+        if (!parsed?.success) {
+          const repairedText = repairTruncatedJson(extracted);
+          if (repairedText) {
+            const reparsed = memoSchema.safeParse(JSON.parse(repairedText));
+            if (reparsed.success) {
+              parsed = reparsed;
+              memoWarning = 'daily_memo_llm_truncated_repaired';
+            }
+          }
+        }
+      }
       if (parsed?.success) {
         const byTicker = new Map(parsed.data.positionViews.map(view => [view.ticker.toUpperCase(), view]));
         analysis = {

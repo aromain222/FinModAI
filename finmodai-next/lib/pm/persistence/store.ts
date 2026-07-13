@@ -68,7 +68,13 @@ function getSupabaseTable(table: PMTableName): TableAdapter | null {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_API_KEY || '';
   if (!url || !key) return null;
-  const client = createClient(url, key, { auth: { persistSession: false } });
+  const client = createClient(url, key, {
+    auth: { persistSession: false },
+    // Next.js patches global fetch with a data cache; a cached Supabase GET can
+    // serve one route a stale table snapshot while another sees fresh rows
+    // (observed live on the daily-brief download route). Always bypass it.
+    global: { fetch: (input, init) => fetch(input, { ...init, cache: 'no-store' }) },
+  });
   return client.from(table) as unknown as TableAdapter;
 }
 
