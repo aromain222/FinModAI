@@ -4,9 +4,10 @@
  * brokerage data. Zero dependencies: newline-delimited JSON-RPC 2.0 on stdio.
  *
  * Register:
- *   claude mcp add capitalbase -s user -- npx tsx /Users/averyromain/FinModAI/finmodai-next/scripts/capitalbase-mcp.ts
+ *   claude mcp add capitalbase -s user -- node --import tsx /Users/averyromain/FinModAI/finmodai-next/scripts/capitalbase-mcp.ts
  *
- * Auth: reads EXECUTION_CRON_SECRET from finmodai-next/.env.local (or env)
+ * Auth: reads CRON_SECRET (falling back to EXECUTION_CRON_SECRET) from
+ * finmodai-next/.env.local or the process environment
  * for write/generate endpoints. Base URL override: CAPITALBASE_URL.
  */
 
@@ -17,13 +18,23 @@ import readline from 'node:readline';
 const BASE = process.env.CAPITALBASE_URL?.replace(/\/+$/, '') || 'https://capitalbase1.vercel.app';
 
 function loadSecret(): string | null {
+  if (process.env.CRON_SECRET) return process.env.CRON_SECRET;
   if (process.env.EXECUTION_CRON_SECRET) return process.env.EXECUTION_CRON_SECRET;
   try {
+    const tokenFile = path.join(process.env.HOME ?? '', '.config', 'capitalbase', 'mcp-token');
+    const token = fs.readFileSync(tokenFile, 'utf8').trim();
+    if (token) return token;
+  } catch { /* no dedicated MCP token */ }
+  try {
     const envFile = path.join(path.dirname(new URL(import.meta.url).pathname), '..', '.env.local');
+    let executionSecret: string | null = null;
     for (const line of fs.readFileSync(envFile, 'utf8').split('\n')) {
-      const match = line.match(/^EXECUTION_CRON_SECRET=(.+)$/);
-      if (match) return match[1].trim().replace(/^["']|["']$/g, '');
+      const cronMatch = line.match(/^CRON_SECRET=(.+)$/);
+      if (cronMatch) return cronMatch[1].trim().replace(/^["']|["']$/g, '');
+      const executionMatch = line.match(/^EXECUTION_CRON_SECRET=(.+)$/);
+      if (executionMatch) executionSecret = executionMatch[1].trim().replace(/^["']|["']$/g, '');
     }
+    return executionSecret;
   } catch { /* no local env file */ }
   return null;
 }
@@ -58,6 +69,34 @@ const tickerArg = {
 } as const;
 
 const TOOLS: ToolDef[] = [
+  {
+    name: 'ask_portfolio',
+    description: 'Ask CapitalBase a conversational question grounded in the user’s current stored Robinhood holdings, weights, P&L, latest theses, catalysts, invalidations, and unresolved alerts. Use this for portfolio questions instead of answering from memory. Supports follow-up history.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: 'The portfolio question to answer.' },
+        history: {
+          type: 'array',
+          description: 'Optional recent conversation turns for follow-up questions.',
+          maxItems: 12,
+          items: {
+            type: 'object',
+            properties: {
+              role: { type: 'string', enum: ['user', 'assistant'] },
+              content: { type: 'string' },
+            },
+            required: ['role', 'content'],
+          },
+        },
+      },
+      required: ['message'],
+    },
+    run: args => api('POST', '/api/pm/portfolio-chat', {
+      message: String(args.message ?? ''),
+      history: Array.isArray(args.history) ? args.history : [],
+    }, 90_000),
+  },
   {
     name: 'get_positions',
     description: 'List the portfolio positions in the PM OS (real Robinhood holdings plus watchlist), with cost basis, targets, stops, conviction, and thesis status.',
@@ -104,6 +143,25 @@ const TOOLS: ToolDef[] = [
     run: args => api('POST', '/api/pm/research', { ticker: String(args.ticker).toUpperCase() }, 290_000),
   },
   {
+    name: 'build_thesis_sleeve',
+    description: 'Test or originate a 1-3 month swing-trading thesis and return a ranked, weighted stock sleeve with scenarios, catalysts, entries, and invalidations. Research only; never places an order.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        idea: { type: 'string', description: 'Optional thesis to test. Omit to have CapitalBase originate the best current thesis.' },
+        capitalUsd: { type: 'number', description: 'Optional dollar size used to translate weights into notionals.' },
+        horizonDays: { type: 'number', minimum: 21, maximum: 90, description: 'Research horizon in days; defaults to 45.' },
+        maxPositions: { type: 'number', minimum: 2, maximum: 6, description: 'Maximum sleeve names; defaults to 4.' },
+      },
+    },
+    run: args => api('POST', '/api/pm/thesis-sleeve', {
+      ...(typeof args.idea === 'string' && args.idea.trim() ? { idea: args.idea.trim() } : {}),
+      ...(typeof args.capitalUsd === 'number' ? { capitalUsd: args.capitalUsd } : {}),
+      horizonDays: typeof args.horizonDays === 'number' ? args.horizonDays : 45,
+      maxPositions: typeof args.maxPositions === 'number' ? args.maxPositions : 4,
+    }, 120_000),
+  },
+  {
     name: 'get_alerts',
     description: 'List recent PM alerts (score changes, position monitor events, thesis escalations).',
     inputSchema: { type: 'object', properties: {} },
@@ -131,7 +189,7 @@ rl.on('line', line => {
       reply(id, {
         protocolVersion: '2024-11-05',
         capabilities: { tools: {} },
-        serverInfo: { name: 'capitalbase', version: '1.0.0' },
+        serverInfo: { name: 'capitalbase', version: '1.1.0' },
       });
     } else if (method === 'notifications/initialized' || method === 'notifications/cancelled') {
       // notifications carry no id and expect no response
