@@ -10,6 +10,7 @@ import { ThesisCards } from './ThesisCards';
 import { WeeklyMemoPanel } from './WeeklyMemoPanel';
 import { PMLoadingSkeleton } from './PMLoadingSkeleton';
 import { LocalStoragePositionSync } from './LocalStoragePositionSync';
+import { PortfolioChat } from './PortfolioChat';
 
 type DashboardData = {
   positions: PortfolioPosition[];
@@ -133,6 +134,7 @@ export function PMDashboard() {
   return (
     <div className="space-y-8">
       <LocalStoragePositionSync />
+      <PortfolioChat />
       {/* Section 1: Portfolio Command Center */}
       <CommandCenter positions={positions} alerts={alerts} decisions={decisions} />
 
