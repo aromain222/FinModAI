@@ -6,6 +6,7 @@ import { Search, Sparkles, TrendingUp, TrendingDown, Activity, Database, AlertTr
 import type { PortfolioPosition, PositionThesis } from '@/lib/pm/types';
 import type { QuantScoreSnapshot } from '@/lib/pm/monitoring/types';
 import { cn } from '@/lib/utils';
+import { ThesisSleeveBuilder } from '@/components/pm/ThesisSleeveBuilder';
 
 type ResearchSnapshot = {
   ticker: string;
@@ -191,9 +192,11 @@ function ResearchPageInner() {
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--cb-text-muted)]">Research</p>
         <h1 className="text-2xl font-bold text-[var(--cb-text-primary)]">Idea Lab</h1>
         <p className="max-w-2xl text-sm text-[var(--cb-text-muted)]">
-          Paste any ticker. Six scouts read it, the PM agent writes a thesis: target, stop, drivers, catalysts, risks. Save to watchlist or move on.
+          Test a swing thesis, build a ranked stock sleeve, or research one company in depth.
         </p>
       </header>
+
+      <ThesisSleeveBuilder />
 
       <div className="flex items-center gap-2">
         <div className="relative flex-1 max-w-md">

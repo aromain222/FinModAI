@@ -213,6 +213,57 @@ export type ResearchEvidenceSummary = {
   };
 };
 
+// ── Thesis-first swing sleeve ────────────────────────────────────────────────
+
+export type SwingSleeveDecision = 'build' | 'watch' | 'pass';
+
+export type SwingSleevePosition = {
+  ticker: string;
+  companyName: string | null;
+  weightPct: number;
+  notionalUsd: number | null;
+  role: 'core' | 'catalyst' | 'diversifier';
+  rankScore: number;
+  signal: Signal;
+  thesis: string;
+  entryCondition: string;
+  keyCatalyst: string;
+  invalidation: string;
+  forecast: {
+    horizonDays: number;
+    bearReturnPct: number | null;
+    baseReturnPct: number | null;
+    bullReturnPct: number | null;
+    source: string;
+  };
+};
+
+/** Research recommendation only. Building a sleeve never submits an order. */
+export type SwingThesisSleeve = {
+  generatedAt: string;
+  horizonDays: number;
+  decision: SwingSleeveDecision;
+  theme: string;
+  thesis: string;
+  whyNow: string;
+  whatIsPriced: string;
+  transmissionPath: string[];
+  invalidation: string;
+  confidence: number;
+  cashWeightPct: number;
+  positions: SwingSleevePosition[];
+  portfolioRisks: string[];
+  monitor: string[];
+  evidenceQuality: {
+    rankedAt: string;
+    liveCandidates: number;
+    fallbackCandidates: number;
+    warnings: string[];
+  };
+  provider: string;
+  model: string;
+};
+
 /**
  * One atomic update to a position thesis.
  * Records the before/after state and the evidence that triggered the change.
